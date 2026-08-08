@@ -13,7 +13,6 @@ import {
   Sparkles,
   ListMusic,
   Plus,
-  Disc3,
   Heart,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
@@ -37,15 +36,8 @@ export function Sidebar() {
   ];
 
   return (
-    <aside className="hidden md:flex fixed left-0 top-0 z-30 h-screen w-64 p-3.5 flex-col justify-between select-none bg-[#161618] border-r border-white/10 text-white text-xs">
+    <aside className="hidden md:flex fixed left-0 top-0 z-30 h-screen w-64 p-3.5 flex-col justify-between select-none bg-[#161618] border-r border-white/10 text-white text-xs pt-20">
       <div className="space-y-4 overflow-y-auto no-scrollbar pr-1">
-        {/* Brand Header */}
-        <div className="flex items-center gap-2 px-2 pt-1">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab('home')}>
-            <Disc3 className="w-4 h-4 text-[#EF233C] animate-spin" style={{ animationDuration: '10s' }} />
-            <span className="font-black text-sm tracking-tight text-white">RaagaX</span>
-          </div>
-        </div>
 
         {/* Search Input Pill */}
         <div className="relative px-1">

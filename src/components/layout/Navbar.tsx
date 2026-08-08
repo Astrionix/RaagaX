@@ -22,7 +22,6 @@ import {
   Maximize2
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
-import { SpectrumVisualizer } from '@/components/player/SpectrumVisualizer';
 
 function formatTime(seconds: number): string {
   if (isNaN(seconds)) return '0:00';
@@ -84,7 +83,7 @@ export function Navbar() {
   };
 
   return (
-    <header className="h-16 fixed top-0 right-0 xl:right-80 left-0 md:left-64 z-20 px-4 flex items-center justify-between border-b border-white/10 transition-all bg-[#0B0D13]/95 backdrop-blur-2xl text-white select-none shadow-xl">
+    <header className="h-16 fixed top-0 left-0 right-0 z-40 px-4 flex items-center justify-between border-b border-white/10 bg-[#0B0D13]/95 backdrop-blur-2xl text-white select-none shadow-xl">
       {/* Mobile Top Brand Bar (md:hidden) */}
       <div className="md:hidden flex items-center justify-between w-full">
         <div className="flex items-center gap-2">
@@ -105,7 +104,7 @@ export function Navbar() {
       </div>
 
       {/* Left: Active Song Artwork & Details (Desktop Only) */}
-      <div className="hidden md:flex items-center gap-3 min-w-[200px] max-w-[280px]">
+      <div className="hidden md:flex items-center gap-3 w-64 flex-shrink-0 pl-4">
         {currentSong ? (
           <>
             <div
@@ -202,10 +201,8 @@ export function Navbar() {
       </div>
 
       {/* Right Tools & Modals Bar (Desktop Only) */}
-      <div className="hidden md:flex items-center gap-2">
-        <SpectrumVisualizer />
-
-        <div className="hidden lg:flex items-center gap-1.5">
+      <div className="hidden md:flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 mr-1">
           <button onClick={toggleMute} className="text-slate-400 hover:text-white">
             {isMuted || volume === 0 ? <VolumeX className="w-3.5 h-3.5 text-[#EF233C]" /> : <Volume2 className="w-3.5 h-3.5" />}
           </button>
@@ -216,7 +213,7 @@ export function Navbar() {
             step={0.01}
             value={isMuted ? 0 : volume}
             onChange={(e) => setVolume(parseFloat(e.target.value))}
-            className="w-14 h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-[#EF233C]"
+            className="w-16 h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-[#EF233C]"
           />
         </div>
 
@@ -226,7 +223,7 @@ export function Navbar() {
         <button onClick={toggleQueue} className="p-1.5 text-slate-400 hover:text-[#EF233C]" title="Queue">
           <ListMusic className="w-3.5 h-3.5" />
         </button>
-        <button onClick={handleOpenVideoMode} className="p-1.5 text-slate-400 hover:text-[#EF233C]" title="Watch YouTube Video Mode">
+        <button onClick={handleOpenVideoMode} className="p-1.5 text-slate-400 hover:text-[#EF233C]" title="Video Mode">
           <Tv className="w-3.5 h-3.5 text-[#EF233C]" />
         </button>
         <button onClick={toggleSleepTimerModal} className="p-1.5 text-slate-400 hover:text-[#EF233C]" title="Sleep Timer">
