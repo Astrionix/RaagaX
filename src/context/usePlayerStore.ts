@@ -265,7 +265,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }
 
     if (repeatMode === 'one' && currentSong) {
-      set({ currentTime: 0, isPlaying: true });
+      set({ currentSong: { ...currentSong }, currentTime: 0, isPlaying: true });
       return;
     }
 

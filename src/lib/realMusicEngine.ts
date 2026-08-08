@@ -35,6 +35,14 @@ export class RealMusicEngine {
     return this.searchRealSongs(`Trending ${language} Songs`, limit);
   }
 
+  public async getNewReleases(limit = 15, language = 'Telugu'): Promise<Song[]> {
+    return this.searchRealSongs(`New ${language} Songs`, limit);
+  }
+
+  public async getTop100(limit = 20, language = 'Telugu'): Promise<Song[]> {
+    return this.searchRealSongs(`Top ${language} Hits`, limit);
+  }
+
   /**
    * Search real songs via the local API proxy.
    * Each request gets its own AbortController — cleanup of one

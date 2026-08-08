@@ -14,11 +14,17 @@
     --glass-border: rgba(255, 255, 255, 0.85);
   }
 
+  html, body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
   body {
     background-color: var(--bg-primary);
     color: var(--text-primary);
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
   }
 }
 

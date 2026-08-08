@@ -18,7 +18,7 @@ export function RightQueuePanel() {
   const upNextQueue = queue.slice(queueIndex + 1);
 
   return (
-    <aside className="hidden xl:flex fixed top-16 right-0 bottom-0 w-80 bg-[#161618] border-l border-white/10 p-4 flex-col justify-between text-white text-xs select-none z-30 overflow-hidden">
+    <aside className="flex-1 flex flex-col justify-between text-white text-xs select-none p-4 h-full">
       <div className="space-y-3 flex-1 overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -30,8 +30,8 @@ export function RightQueuePanel() {
 
         {/* Currently Playing */}
         {currentSong && (
-          <div className="p-3 rounded-2xl bg-[#EF233C]/10 border border-[#EF233C]/30 flex items-center justify-between flex-shrink-0">
-            <div className="flex items-center gap-3 min-w-0">
+          <div className="p-3 rounded-2xl bg-[#EF233C]/10 border border-[#EF233C]/30 flex items-center justify-between flex-shrink-0 min-w-0 w-full">
+            <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
               <img
                 src={currentSong.coverUrl}
                 alt={currentSong.title}
@@ -42,7 +42,7 @@ export function RightQueuePanel() {
                 <p className="text-[10px] text-slate-400 truncate mt-0.5">{currentSong.artist}</p>
               </div>
             </div>
-            <span className="text-[10px] font-mono text-[#EF233C] font-bold">Playing</span>
+            <span className="text-[10px] font-mono text-[#EF233C] font-bold flex-shrink-0">Playing</span>
           </div>
         )}
 
@@ -51,7 +51,7 @@ export function RightQueuePanel() {
           {upNextQueue.map((song) => (
             <div
               key={song.id}
-              className="p-2 rounded-xl hover:bg-[#26262A] flex items-center justify-between group cursor-pointer transition-colors"
+              className="p-2 rounded-xl hover:bg-[#26262A] flex items-center justify-between group cursor-pointer transition-colors min-w-0 w-full"
             >
               <div
                 onClick={() => playSong(song)}
