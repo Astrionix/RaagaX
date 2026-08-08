@@ -1,4 +1,5 @@
 import { Song } from '@/types/music';
+import { supabase } from '@/lib/supabase';
 
 export interface UserPreferences {
   artistScores: Record<string, number>;
@@ -57,7 +58,7 @@ export class RecommendationEngine {
   /**
    * Track when a song finishes or plays significantly (>30s)
    */
-  public trackPlay(song: Song) {
+  public async trackPlay(song: Song) {
     const artist = song.artist || 'Unknown';
     const genre = song.genre || 'Telugu';
 
@@ -70,12 +71,31 @@ export class RecommendationEngine {
     this.preferences.lastGenre = genre;
 
     this.saveToStorage();
+
+    // Log to Supabase for Python Implicit Recommendation Engine
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        // We don't await this to avoid blocking the main thread
+        supabase.from('playback_history').insert({
+          user_id: session.user.id,
+          song_id: song.id,
+          artist: artist,
+          genre: genre,
+          action: 'play'
+        }).then(({ error }) => {
+          if (error) console.error('Failed to log track play to Supabase:', error);
+        });
+      }
+    } catch (e) {
+      console.warn('Could not verify session for logging play:', e);
+    }
   }
 
   /**
    * Track when a user skips a song early (<15s)
    */
-  public trackSkip(song: Song) {
+  public async trackSkip(song: Song) {
     const artist = song.artist || 'Unknown';
     const genre = song.genre || 'Telugu';
 
@@ -84,6 +104,24 @@ export class RecommendationEngine {
     this.preferences.skipCounts[song.id] = (this.preferences.skipCounts[song.id] || 0) + 1;
 
     this.saveToStorage();
+
+    // Log to Supabase for Python Implicit Recommendation Engine
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        supabase.from('playback_history').insert({
+          user_id: session.user.id,
+          song_id: song.id,
+          artist: artist,
+          genre: genre,
+          action: 'skip'
+        }).then(({ error }) => {
+          if (error) console.error('Failed to log track skip to Supabase:', error);
+        });
+      }
+    } catch (e) {
+      console.warn('Could not verify session for logging skip:', e);
+    }
   }
 
   /**

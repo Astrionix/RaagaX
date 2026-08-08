@@ -41,11 +41,13 @@ export function HomeView() {
   const [greeting, setGreeting] = useState('Good Morning');
   const [topArtistName, setTopArtistName] = useState('Sid Sriram');
   const [filteredSongs, setFilteredSongs] = useState<Song[]>([]);
+  const [aiRecommendations, setAiRecommendations] = useState<Song[]>([]);
   const [isTop100Expanded, setIsTop100Expanded] = useState(false);
 
   const trendingRef = useRef<HTMLDivElement>(null);
   const newReleasesRef = useRef<HTMLDivElement>(null);
   const top100Ref = useRef<HTMLDivElement>(null);
+  const aiRef = useRef<HTMLDivElement>(null);
 
   const scrollCarousel = (ref: React.RefObject<HTMLDivElement>, direction: 'left' | 'right') => {
     if (ref.current) {
@@ -86,7 +88,29 @@ export function HomeView() {
         setIsLoading(false);
       }
     }
+    async function fetchAiRecommendations() {
+      try {
+        const { supabase } = await import('@/lib/supabase');
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          const { data } = await supabase
+            .from('ai_recommendations')
+            .select('recommended_songs')
+            .eq('user_id', session.user.id)
+            .single();
+            
+          if (data && data.recommended_songs) {
+            setAiRecommendations(data.recommended_songs);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to fetch AI recommendations', e);
+      }
+    }
+    
     fetchHomeData();
+    fetchAiRecommendations();
   }, [preferredLanguage]);
 
   const featuredSong = filteredSongs[0] || null;
@@ -217,6 +241,50 @@ export function HomeView() {
           ))}
         </div>
       </section>
+
+      {/* 1.5 AI Recommendations */}
+      {aiRecommendations.length > 0 && (
+        <section className="space-y-4 pt-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
+                <span className="text-[#EF233C] animate-pulse">🤖</span> AI DJ For You
+              </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => scrollCarousel(aiRef, 'left')} className="p-1 hover:bg-white/10 rounded-full transition-colors">
+                <ChevronLeft className="w-5 h-5 text-slate-400 hover:text-white" />
+              </button>
+              <button onClick={() => scrollCarousel(aiRef, 'right')} className="p-1 hover:bg-white/10 rounded-full transition-colors">
+                <ChevronRight className="w-5 h-5 text-slate-400 hover:text-white" />
+              </button>
+            </div>
+          </div>
+
+          <div ref={aiRef} className="flex overflow-x-auto gap-4 pb-4 no-scrollbar w-full min-w-0 overflow-y-hidden">
+            {aiRecommendations.map((song) => (
+              <div
+                key={song.id}
+                onClick={() => playSong(song, aiRecommendations)}
+                className="p-3 min-w-[160px] max-w-[160px] w-[160px] flex-none rounded-2xl bg-gradient-to-br from-black/40 to-black/20 border border-[#EF233C]/20 hover:border-[#EF233C]/60 space-y-2.5 cursor-pointer group flex-shrink-0 transition-all duration-300"
+              >
+                <div className="w-full aspect-square rounded-xl overflow-hidden shadow-md relative">
+                  <img src={song.coverUrl} alt={song.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                  <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <button className="w-10 h-10 rounded-full bg-[#EF233C] text-white flex items-center justify-center shadow-xl hover:scale-110 transition-transform">
+                      <Play className="w-5 h-5 fill-white ml-0.5" />
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-[11px] sm:text-xs font-extrabold text-white truncate group-hover:text-[#EF233C] transition-colors">{song.title}</h4>
+                  <p className="text-[9px] sm:text-[10px] text-[#EF233C]/80 truncate mt-0.5 font-medium leading-snug">Picked by AI DJ</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* 2. New Releases */}
       <section className="space-y-4">
