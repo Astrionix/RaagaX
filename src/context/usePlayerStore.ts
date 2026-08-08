@@ -370,7 +370,20 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
               const { ProviderRegistry } = await import('@/lib/discovery/ProviderRegistry');
               const jiosaavn = ProviderRegistry.getInstance().getProvider('jiosaavn');
               const newSongs = jiosaavn ? await jiosaavn.search(`${currentSong.artist} top hits`, 10) : [];
-              const uniqueSongs = newSongs.filter((s: any) => !queue.some((q: any) => q.id === s.id)) as unknown as any[];
+              
+              // Helper to normalize titles for deduplication (removes (From "Movie") suffixes)
+              const getCleanTitle = (title: string) => title.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').split('-')[0].trim().toLowerCase();
+              
+              const seenTitles = new Set<string>();
+              // Add existing queue titles to seen set
+              queue.forEach(q => seenTitles.add(getCleanTitle(q.title)));
+              
+              const uniqueSongs = newSongs.filter((s: any) => {
+                const cleanTitle = getCleanTitle(s.title);
+                if (seenTitles.has(cleanTitle)) return false;
+                seenTitles.add(cleanTitle);
+                return true;
+              }) as unknown as any[];
               
               if (uniqueSongs.length > 0) {
                 const updatedQueue = [...queue, ...uniqueSongs];
