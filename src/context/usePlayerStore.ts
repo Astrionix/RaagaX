@@ -318,8 +318,16 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
               const uniqueSongs = newSongs.filter(s => !queue.some(q => q.id === s.id));
               
               if (uniqueSongs.length > 0) {
-                set({ queue: [...queue, ...uniqueSongs] });
-                // nextIndex is now valid, let execution continue to play nextSong
+                const updatedQueue = [...queue, ...uniqueSongs];
+                set({ queue: updatedQueue });
+                // Play the first new song immediately
+                set({
+                  currentSong: uniqueSongs[0],
+                  queueIndex: nextIndex,
+                  isPlaying: true,
+                  currentTime: 0,
+                });
+                return;
               } else {
                 set({ isPlaying: false });
                 return;
