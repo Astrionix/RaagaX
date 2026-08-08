@@ -17,8 +17,6 @@ import {
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { Song } from '@/types/music';
 import { RecommendationEngine } from '@/lib/recommendationEngine';
-import { Song } from '@/types/music';
-import { Song } from '@/types/music';
 
 export function HomeView() {
   const {
