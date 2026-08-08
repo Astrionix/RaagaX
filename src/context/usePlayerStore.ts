@@ -73,7 +73,7 @@ interface PlayerState {
 
   // Actions
   restoreLocalSession: () => Promise<void>;
-  fetchLikedSongs: () => Promise<void>;
+  syncCloudLibrary: () => Promise<void>;
   setPreferredLanguage: (lang: string) => void;
   playSong: (song: Song, newQueue?: Song[]) => void;
   togglePlayPause: () => void;
@@ -452,27 +452,56 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     set((state) => ({ queue: state.queue.filter((s) => s.id !== songId) })),
   reorderQueue: (newQueue) => set({ queue: newQueue }),
 
-  fetchLikedSongs: async () => {
+  syncCloudLibrary: async () => {
     try {
       const { supabase } = await import('@/lib/supabase');
       const { data: session } = await supabase.auth.getSession();
       if (!session?.session?.user) return;
+      const userId = session.session.user.id;
 
-      const { data, error } = await supabase
+      // 1. Fetch Liked Songs
+      const { data: likedData, error: likedError } = await supabase
         .from('liked_songs')
         .select('song_id')
-        .eq('user_id', session.session.user.id);
+        .eq('user_id', userId);
         
-      if (error) throw error;
+      const songIds = likedData ? Array.from(new Set(likedData.map(d => d.song_id))) : [];
       
-      const songIds = Array.from(new Set(data.map(d => d.song_id)));
+      // 2. Fetch User Favorites (Artists/Albums)
+      const { data: favData } = await supabase
+        .from('user_favorites')
+        .select('item_id, item_type')
+        .eq('user_id', userId);
+        
+      const favoriteArtistIds = favData ? favData.filter(d => d.item_type === 'artist').map(d => d.item_id) : [];
+      const favoriteAlbumIds = favData ? favData.filter(d => d.item_type === 'album').map(d => d.item_id) : [];
+
+      // 3. Fetch Playback History (Recently Played)
+      const { data: historyData } = await supabase
+        .from('playback_history')
+        .select('song_id')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+        
+      const historySongIds = historyData ? Array.from(new Set(historyData.map(d => d.song_id))) : [];
       
-      const { SongResolver } = await import('@/lib/discovery/SongResolver');
-      const songs = await SongResolver.resolveSongs(songIds);
+      let songs = [];
+      if (songIds.length > 0) {
+        const { SongResolver } = await import('@/lib/discovery/SongResolver');
+        songs = await SongResolver.resolveSongs(songIds);
+      }
       
-      set({ likedSongIds: songIds, likedSongs: songs });
+      set({ 
+        likedSongIds: songIds, 
+        likedSongs: songs,
+        favoriteArtistIds,
+        favoriteAlbumIds,
+        // Merge with local history to prevent losing active session history
+        historySongIds: Array.from(new Set([...historySongIds, ...get().historySongIds]))
+      });
     } catch (e) {
-      console.error("Failed to fetch liked songs:", e);
+      console.error("Failed to sync cloud library:", e);
     }
   },
 
@@ -523,7 +552,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         }
         
         // Refresh full liked songs metadata after mutation
-        get().fetchLikedSongs();
+        get().syncCloudLibrary();
       }
     } catch (e) {
       console.error("Failed to sync like status:", e);
@@ -551,25 +580,69 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     });
   },
 
-  toggleFavoriteArtist: (artistId) =>
+  toggleFavoriteArtist: async (artistId) => {
+    const isFav = get().favoriteArtistIds.includes(artistId);
+    
     set((state) => {
-      const isFav = state.favoriteArtistIds.includes(artistId);
-      return {
-        favoriteArtistIds: isFav
-          ? state.favoriteArtistIds.filter((id) => id !== artistId)
-          : [...state.favoriteArtistIds, artistId],
-      };
-    }),
+      const newFavs = isFav
+        ? state.favoriteArtistIds.filter((id) => id !== artistId)
+        : [...state.favoriteArtistIds, artistId];
+      return { favoriteArtistIds: newFavs };
+    });
 
-  toggleFavoriteAlbum: (albumId) =>
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      const { data: session } = await supabase.auth.getSession();
+      if (session?.session?.user) {
+        if (isFav) {
+          await supabase.from('user_favorites').delete()
+            .eq('user_id', session.session.user.id)
+            .eq('item_id', artistId)
+            .eq('item_type', 'artist');
+        } else {
+          await supabase.from('user_favorites').upsert({
+            user_id: session.session.user.id,
+            item_id: artistId,
+            item_type: 'artist'
+          }, { onConflict: 'user_id,item_id,item_type' });
+        }
+      }
+    } catch (e) {
+      console.error("Failed to sync favorite artist:", e);
+    }
+  },
+
+  toggleFavoriteAlbum: async (albumId) => {
+    const isFav = get().favoriteAlbumIds.includes(albumId);
+    
     set((state) => {
-      const isFav = state.favoriteAlbumIds.includes(albumId);
-      return {
-        favoriteAlbumIds: isFav
-          ? state.favoriteAlbumIds.filter((id) => id !== albumId)
-          : [...state.favoriteAlbumIds, albumId],
-      };
-    }),
+      const newFavs = isFav
+        ? state.favoriteAlbumIds.filter((id) => id !== albumId)
+        : [...state.favoriteAlbumIds, albumId];
+      return { favoriteAlbumIds: newFavs };
+    });
+
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      const { data: session } = await supabase.auth.getSession();
+      if (session?.session?.user) {
+        if (isFav) {
+          await supabase.from('user_favorites').delete()
+            .eq('user_id', session.session.user.id)
+            .eq('item_id', albumId)
+            .eq('item_type', 'album');
+        } else {
+          await supabase.from('user_favorites').upsert({
+            user_id: session.session.user.id,
+            item_id: albumId,
+            item_type: 'album'
+          }, { onConflict: 'user_id,item_id,item_type' });
+        }
+      }
+    } catch (e) {
+      console.error("Failed to sync favorite album:", e);
+    }
+  },
 
   setEqSettings: (eq) => set({ eqSettings: eq }),
   setBandGain: (band, val) =>

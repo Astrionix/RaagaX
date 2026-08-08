@@ -24,11 +24,11 @@ export function LibraryView() {
   const historySongs = queue.filter((s) => historySongIds.includes(s.id));
 
   const libraryNavItems = [
-    { id: 'playlists', label: 'Playlists', icon: ListMusic, count: 4 },
+    { id: 'playlists', label: 'Playlists', icon: ListMusic, count: 0 },
     { id: 'artists', label: 'Artists', icon: User, count: favoriteArtistIds.length },
     { id: 'albums', label: 'Albums', icon: Disc, count: favoriteAlbumIds.length },
     { id: 'liked', label: 'Songs & Favorites', icon: Music, count: likedSongs.length },
-    { id: 'history', label: 'Made For You', icon: Sparkles, count: 8 },
+    { id: 'history', label: 'Made For You', icon: Sparkles, count: 0 },
     { id: 'downloads', label: 'Downloaded', icon: Download, count: downloadedSongs.length },
     { id: 'history', label: 'Recently Added', icon: Clock, count: historySongs.length },
   ];

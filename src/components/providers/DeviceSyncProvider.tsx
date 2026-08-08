@@ -35,7 +35,7 @@ export function DeviceSyncProvider({ children }: { children: React.ReactNode }) 
       await manager.initSync(sessionId);
       
       if (user?.id) {
-        await usePlayerStore.getState().fetchLikedSongs();
+        await usePlayerStore.getState().syncCloudLibrary();
       }
       
       setIsInitializing(false);
