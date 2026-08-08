@@ -198,6 +198,11 @@ export function AudioPlayerController() {
   const handleLoadedMetadata = () => {
     if (audioRef.current) {
       setDuration(audioRef.current.duration);
+      
+      // Ensure seamless handoff by seeking to the remote current time when the track loads
+      if (isActiveDevice && Math.abs(audioRef.current.currentTime - currentTime) > 2) {
+        audioRef.current.currentTime = currentTime;
+      }
     }
   };
 
