@@ -102,7 +102,18 @@ export function AudioPlayerController() {
   // Update source & MediaSession metadata when current song changes
   useEffect(() => {
     if (audioRef.current && currentSong) {
-      audioRef.current.src = currentSong.audioUrl || FALLBACK_AUDIO_URL;
+      const newSrc = currentSong.audioUrl || FALLBACK_AUDIO_URL;
+      
+      // Only set src if it actually changed, or if the audio element is fresh (HMR)
+      if (!audioRef.current.src.includes(newSrc)) {
+        audioRef.current.src = newSrc;
+        
+        // IMPORTANT FIX: If this was a Hot Reload (HMR), the store's currentTime will be > 0.
+        // We must restore it immediately so it doesn't play from 0:00.
+        if (currentTime > 0) {
+          audioRef.current.currentTime = currentTime;
+        }
+      }
 
       // Enable Mobile Background Playback & Lockscreen Control (MediaSession API)
       if ('mediaSession' in navigator) {
