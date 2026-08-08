@@ -46,9 +46,11 @@ export class DeviceSyncManager {
     
     try {
       if (this.channel) {
-        await supabase.removeChannel(this.channel);
         this.channel = null;
       }
+      // Force remove all stale channels from the Supabase client to prevent "cannot add callbacks after subscribe" error
+      await supabase.removeAllChannels();
+      
       if (this.unsubscribeZustand) {
         this.unsubscribeZustand();
         this.unsubscribeZustand = null;
