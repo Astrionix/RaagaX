@@ -123,7 +123,7 @@ export function AudioPlayerController() {
         navigator.mediaSession.setActionHandler('nexttrack', () => playNext());
       }
 
-      if (isPlaying) {
+      if (isPlaying && isActiveDevice && !isVideoModeActive) {
         audioRef.current
           .play()
           .then(() => {
@@ -134,7 +134,7 @@ export function AudioPlayerController() {
           });
       }
     }
-  }, [currentSong]);
+  }, [currentSong, isActiveDevice, isVideoModeActive]);
 
   // Handle Play/Pause state
   useEffect(() => {
