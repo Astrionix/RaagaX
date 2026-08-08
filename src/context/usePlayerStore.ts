@@ -463,13 +463,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
             .eq('user_id', session.session.user.id)
             .eq('song_id', songId);
         } else {
-          // Like
+          // Like - use upsert to prevent 409 Conflict if row already exists
           await supabase
             .from('liked_songs')
-            .insert({
+            .upsert({
               user_id: session.session.user.id,
               song_id: songId,
-            });
+            }, { onConflict: 'user_id,song_id' });
         }
         
         // Refresh full liked songs metadata after mutation
