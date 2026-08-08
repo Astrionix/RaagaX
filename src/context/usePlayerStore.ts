@@ -314,8 +314,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
           if (currentSong) {
             try {
               const { ProviderRegistry } = await import('@/lib/discovery/ProviderRegistry');
-              const newSongs = await ProviderRegistry.getInstance().search(`${currentSong.artist} top hits`, 10);
-              const uniqueSongs = newSongs.filter(s => !queue.some(q => q.id === s.id));
+              const jiosaavn = ProviderRegistry.getInstance().getProvider('jiosaavn');
+              const newSongs = jiosaavn ? await jiosaavn.search(`${currentSong.artist} top hits`, 10) : [];
+              const uniqueSongs = newSongs.filter((s: any) => !queue.some((q: any) => q.id === s.id));
               
               if (uniqueSongs.length > 0) {
                 const updatedQueue = [...queue, ...uniqueSongs];
