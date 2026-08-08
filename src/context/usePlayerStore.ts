@@ -57,6 +57,13 @@ interface PlayerState {
   contextMenuSong: Song | null;
   preferredLanguage: string;
 
+  // Cross-Device Sync State
+  deviceId: string;
+  activeDeviceId: string | null;
+  isActiveDevice: boolean;
+  setRemoteState: (state: Partial<PlayerState>) => void;
+  transferPlayback: (targetDeviceId: string) => void;
+
   // Actions
   restoreLocalSession: () => Promise<void>;
   setPreferredLanguage: (lang: string) => void;
@@ -187,6 +194,19 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   sleepTimerEndsAt: null,
   contextMenuSong: null,
   preferredLanguage: 'Telugu',
+
+  deviceId: typeof window !== 'undefined' ? localStorage.getItem('raagax_device_id') || '' : '',
+  activeDeviceId: null,
+  isActiveDevice: true, // Default to true until sync starts
+
+  setRemoteState: (newState) => set((state) => ({ ...state, ...newState })),
+  
+  transferPlayback: (targetDeviceId) => {
+    set({ activeDeviceId: targetDeviceId, isActiveDevice: targetDeviceId === get().deviceId });
+    import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
+      DeviceSyncManager.getInstance().broadcastState(true);
+    });
+  },
 
   setPreferredLanguage: (lang) => set({ preferredLanguage: lang }),
 

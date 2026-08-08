@@ -3,6 +3,7 @@
 import React from 'react';
 import { X, Heart, Download, Play, Pause, SkipBack, SkipForward, Disc3, Mic2, Music, UserCheck, Tv, RefreshCw, ExternalLink } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { DeviceSelector } from '@/components/providers/DeviceSyncProvider';
 
 export function ExpandedPlayerModal() {
   const {
@@ -282,6 +283,8 @@ export function ExpandedPlayerModal() {
 
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center gap-3 pt-2">
+            <DeviceSelector />
+            
             <button
               onClick={togglePlayPause}
               className="px-8 py-3.5 rounded-2xl crimson-gradient text-white font-extrabold text-sm flex items-center gap-2.5 crimson-glow hover:scale-105 transition-transform"

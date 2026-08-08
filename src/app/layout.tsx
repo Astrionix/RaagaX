@@ -1,5 +1,6 @@
 import React from 'react';
 import './globals.css';
+import { DeviceSyncProvider } from '@/components/providers/DeviceSyncProvider';
 
 export const viewport = {
   themeColor: '#EF233C',
@@ -31,7 +32,9 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="antialiased bg-white text-slate-900 selection:bg-red-500 selection:text-white">
-        {children}
+        <DeviceSyncProvider>
+          {children}
+        </DeviceSyncProvider>
       </body>
     </html>
   );

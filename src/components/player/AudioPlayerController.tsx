@@ -33,6 +33,7 @@ export function AudioPlayerController() {
     sleepTimerEndsAt,
     setSleepTimer,
     restoreLocalSession,
+    isActiveDevice,
   } = usePlayerStore();
 
   // Restore Instant Playback Session from Local Database
@@ -84,15 +85,15 @@ export function AudioPlayerController() {
     }
   }, []);
 
-  // Mute/pause audio element when video mode is active so only YouTube audio plays
+  // Mute/pause audio element when video mode is active or when this device is a remote control
   useEffect(() => {
     if (!audioRef.current) return;
-    if (isVideoModeActive) {
+    if (isVideoModeActive || !isActiveDevice) {
       audioRef.current.pause();
     } else if (isPlaying) {
       audioRef.current.play().catch(() => {});
     }
-  }, [isVideoModeActive]);
+  }, [isVideoModeActive, isActiveDevice, isPlaying]);
 
   // Update source & MediaSession metadata when current song changes
   useEffect(() => {
@@ -134,14 +135,14 @@ export function AudioPlayerController() {
   // Handle Play/Pause state
   useEffect(() => {
     if (audioRef.current) {
-      if (isPlaying) {
+      if (isPlaying && isActiveDevice && !isVideoModeActive) {
         AudioEngine.getInstance().resume();
         audioRef.current.play().catch(() => {});
       } else {
         audioRef.current.pause();
       }
     }
-  }, [isPlaying]);
+  }, [isPlaying, isActiveDevice, isVideoModeActive]);
 
   // Handle Volume & Mute
   useEffect(() => {
@@ -185,7 +186,7 @@ export function AudioPlayerController() {
   }, [sleepTimerEndsAt, setIsPlaying, setSleepTimer]);
 
   const handleTimeUpdate = () => {
-    if (audioRef.current) {
+    if (audioRef.current && isActiveDevice) {
       setCurrentTime(audioRef.current.currentTime);
     }
   };

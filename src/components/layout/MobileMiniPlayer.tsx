@@ -3,6 +3,7 @@
 import React from 'react';
 import { Play, Pause, SkipForward } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { DeviceSelector } from '@/components/providers/DeviceSyncProvider';
 
 export function MobileMiniPlayer() {
   const {
@@ -45,6 +46,8 @@ export function MobileMiniPlayer() {
 
       {/* Right: Touch Play/Pause & Skip */}
       <div className="flex items-center gap-1 flex-shrink-0 pr-1">
+        <DeviceSelector />
+        
         <button
           onClick={togglePlayPause}
           className="p-2 text-white hover:text-[#EF233C] active:scale-95 transition-transform"

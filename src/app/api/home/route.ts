@@ -111,15 +111,42 @@ export async function GET(request: Request) {
       }
     }
 
-    const [trending, newReleasesRaw, top100Resolved] = await Promise.all([
+    const [trendingRawResolved, newReleasesRawResolved, top100Resolved] = await Promise.all([
       SongResolver.resolveAndStore(trendingRaw, 'trending', language),
       SongResolver.resolveAndStore(newRaw, 'new_releases', language),
       SongResolver.resolveAndStore(top100Raw, 'top100', language),
     ]);
 
-    // Allow hit songs to appear in both Trending and New Releases (No cross-section deduplication)
-    const newReleases = newReleasesRaw;
-    const top100 = top100Resolved;
+    // Map canonical objects to frontend Song objects
+    const mapCanonicalToSong = (canonical: any) => {
+      let audioUrl = '';
+      if (typeof canonical.downloadUrl === 'string') {
+        audioUrl = canonical.downloadUrl;
+      } else if (canonical.downloadUrl && Array.isArray(canonical.downloadUrl)) {
+        const highest = canonical.downloadUrl.find((d: any) => d.quality === '320kbps') || canonical.downloadUrl[canonical.downloadUrl.length - 1];
+        audioUrl = highest?.url || '';
+      }
+      return {
+        id: canonical.id,
+        title: canonical.title,
+        artist: canonical.artist,
+        artistId: canonical.artist,
+        album: canonical.album || '',
+        albumId: canonical.album || '',
+        coverUrl: canonical.coverUrl,
+        audioUrl: audioUrl,
+        duration: Number(canonical.duration) || 0,
+        genre: language,
+        category: 'latest',
+        releaseYear: new Date().getFullYear(),
+        plays: 1000,
+        likes: 100,
+      };
+    };
+
+    const trending = trendingRawResolved.map(mapCanonicalToSong);
+    const newReleases = newReleasesRawResolved.map(mapCanonicalToSong);
+    const top100 = top100Resolved.map(mapCanonicalToSong);
 
     return NextResponse.json({
       success: true,
