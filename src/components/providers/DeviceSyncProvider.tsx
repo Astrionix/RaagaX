@@ -8,7 +8,7 @@ import { MonitorSmartphone } from 'lucide-react';
 
 export function DeviceSyncProvider({ children }: { children: React.ReactNode }) {
   const [isInitializing, setIsInitializing] = useState(true);
-  const { user, initializeAuth } = useAuthStore();
+  const { user, isLoading, initializeAuth } = useAuthStore();
 
   // 1. Initialize Global Auth first
   useEffect(() => {
@@ -17,6 +17,8 @@ export function DeviceSyncProvider({ children }: { children: React.ReactNode }) 
 
   // 2. Once Auth is loaded, connect the Sync Engine
   useEffect(() => {
+    if (isLoading) return; // Wait for auth to finish loading!
+
     const initSync = async () => {
       // Use secure Supabase Auth ID if logged in, otherwise fallback to guest
       let sessionId = user?.id;
@@ -40,7 +42,7 @@ export function DeviceSyncProvider({ children }: { children: React.ReactNode }) 
     };
     
     initSync();
-  }, [user?.id]); // Re-connect sync ONLY if user ID changes (logs in/out)
+  }, [user?.id, isLoading]); // Re-connect sync ONLY if user ID changes or loading finishes
 
   return <>{children}</>;
 }

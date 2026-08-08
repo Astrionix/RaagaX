@@ -47,6 +47,7 @@ export class DeviceSyncManager {
   private isInitializing = false;
 
   public async initSync(sessionId: string) {
+    console.log('[DeviceSyncManager] initSync called with sessionId:', sessionId);
     if (this.isInitializing) return;
     this.isInitializing = true;
     
@@ -62,21 +63,32 @@ export class DeviceSyncManager {
       }
       this.sessionId = sessionId;
 
+      console.log('[DeviceSyncManager] Fetching durable state from Postgres...');
       // 1. Initial Durable State Load (Layer 3: Postgres)
-      const { data: session } = await supabase
+      const { data: session, error } = await supabase
         .from('playback_sessions')
         .select('*')
         .eq('session_id', sessionId)
         .maybeSingle();
 
+      if (error) console.error('[DeviceSyncManager] Error fetching state:', error);
+
       if (session) {
+        console.log('[DeviceSyncManager] Found existing session in DB');
         this.handleDurableUpdate(session);
       } else {
+        console.log('[DeviceSyncManager] No session in DB, persisting local state');
         await this.persistState(); // Create initial row
       }
 
       const channelName = `sync_${sessionId}`;
-      this.channel = supabase.channel(channelName);
+      console.log('[DeviceSyncManager] Creating Supabase channel:', channelName);
+      this.channel = supabase.channel(channelName, {
+        config: {
+          broadcast: { self: true },
+          presence: { key: this.deviceId }
+        }
+      });
 
       // 2. Subscribe to Low-Latency Commands (Layer 2: Broadcast)
       this.channel.on('broadcast', { event: 'command' }, (payload: { payload: BroadcastCommand, senderId: string }) => {
