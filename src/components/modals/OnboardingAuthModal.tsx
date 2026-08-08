@@ -103,7 +103,7 @@ export function OnboardingAuthModal() {
         coverUrl: '',
         duration: 180,
         provider: 'local'
-      } as Song);
+      } as unknown as Song);
     });
 
     try {
