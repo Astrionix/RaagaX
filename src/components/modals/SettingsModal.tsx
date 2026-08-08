@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { X, Settings, Sliders, Disc, Shield, Download, RefreshCw, Trash2, Zap } from 'lucide-react';
+import { X, Settings, Sliders, Disc, Shield, Download, Trash2 } from 'lucide-react';
 import { usePlayerStore, AudioQualityPreset } from '@/context/usePlayerStore';
 
 export function SettingsModal() {
@@ -12,8 +12,6 @@ export function SettingsModal() {
     setAudioQualityPreset,
     crossfadeSec,
     setCrossfadeSec,
-    isSpatial3DEnabled,
-    toggleSpatial3D,
     exportBackupJson,
   } = usePlayerStore();
 
@@ -72,26 +70,6 @@ export function SettingsModal() {
               </button>
             ))}
           </div>
-        </div>
-
-        {/* 3D Spatial Audio HRTF Section */}
-        <div className="space-y-3 pt-2">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-extrabold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-              <Zap className="w-4 h-4 text-[#EF233C]" /> 3D Spatial Audio Surround
-            </label>
-            <button
-              onClick={toggleSpatial3D}
-              className={`px-3 py-1 rounded-full text-xs font-extrabold transition-all border ${
-                isSpatial3DEnabled
-                  ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
-                  : 'bg-slate-800 text-slate-400 border-slate-700'
-              }`}
-            >
-              {isSpatial3DEnabled ? '3D Active' : 'Off'}
-            </button>
-          </div>
-          <p className="text-[11px] text-slate-400">HRTF 360° binaural surround sound rotation for headphones & speakers.</p>
         </div>
 
         {/* Crossfade Duration Section */}

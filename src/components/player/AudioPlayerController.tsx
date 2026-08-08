@@ -16,7 +16,7 @@ export function AudioPlayerController() {
     volume,
     isMuted,
     eqSettings,
-    isSpatial3DEnabled,
+    isVideoModeActive,
     playNext,
     playPrev,
     setCurrentTime,
@@ -39,10 +39,15 @@ export function AudioPlayerController() {
     }
   }, []);
 
-  // Synchronize 3D Spatial Audio Engine State
+  // Mute/pause audio element when video mode is active so only YouTube audio plays
   useEffect(() => {
-    AudioEngine.getInstance().setSpatial3D(isSpatial3DEnabled);
-  }, [isSpatial3DEnabled]);
+    if (!audioRef.current) return;
+    if (isVideoModeActive) {
+      audioRef.current.pause();
+    } else if (isPlaying) {
+      audioRef.current.play().catch(() => {});
+    }
+  }, [isVideoModeActive]);
 
   // Update source & MediaSession metadata when current song changes
   useEffect(() => {

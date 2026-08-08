@@ -183,49 +183,35 @@ export function HomeView() {
             return (
               <div
                 key={song.id}
-                className={`p-3 rounded-2xl surface-card surface-card-hover flex items-center gap-3.5 relative group ${
+                className={`p-3 rounded-2xl bg-[#1C1C1E] border border-white/10 flex items-center gap-3 relative group ${
                   isCurrent ? 'border-[#EF233C] bg-red-500/10' : ''
                 }`}
               >
-                <div className="relative w-16 h-16 rounded-xl overflow-hidden shadow-md flex-shrink-0">
+                <div className="relative w-12 h-12 rounded-xl overflow-hidden shadow-md flex-shrink-0">
                   <img src={song.coverUrl} alt={song.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                   <button
                     onClick={() => playSong(song, realSongs)}
                     className="absolute inset-0 bg-black/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                   >
-                    <div className="w-9 h-9 rounded-full bg-[#EF233C] text-white flex items-center justify-center shadow-lg">
-                      <Play className="w-4 h-4 fill-white ml-0.5" />
+                    <div className="w-8 h-8 rounded-full bg-[#EF233C] text-white flex items-center justify-center shadow-lg">
+                      <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
                     </div>
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 min-w-0">
                   <h4 className="text-xs font-extrabold text-white truncate group-hover:text-[#EF233C] transition-colors">
                     {song.title}
                   </h4>
                   <p className="text-[11px] text-slate-400 truncate mt-0.5 font-medium">{song.artist}</p>
-                  <div className="flex items-center gap-1.5 mt-1.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider truncate max-w-[100px]">
-                      {song.genre}
-                    </span>
-                    {song.audioQuality && (
-                      <span className="text-[8px] font-mono bg-black/80 text-[#EF233C] px-1.5 py-0.2 rounded font-bold border border-red-900/40">
-                        {song.audioQuality}
-                      </span>
-                    )}
-                  </div>
                 </div>
 
-                <div className="flex flex-col items-center gap-2">
-                  <button onClick={() => toggleLikeSong(song.id)} title="Like Song">
-                    <Heart
-                      className={`w-3.5 h-3.5 ${isLiked ? 'text-[#EF233C] fill-[#EF233C]' : 'text-slate-400 hover:text-[#EF233C]'}`}
-                    />
+                <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+                  <button onClick={() => toggleLikeSong(song.id)} title="Like Song" className="p-1">
+                    <Heart className={`w-3.5 h-3.5 ${isLiked ? 'text-[#EF233C] fill-[#EF233C]' : 'text-slate-400 hover:text-[#EF233C]'}`} />
                   </button>
-                  <button onClick={() => toggleDownloadSong(song.id)} title="Download Offline">
-                    <Download
-                      className={`w-3.5 h-3.5 ${isDownloaded ? 'text-emerald-500' : 'text-slate-400 hover:text-emerald-500'}`}
-                    />
+                  <button onClick={() => toggleDownloadSong(song.id)} title="Download Offline" className="p-1">
+                    <Download className={`w-3.5 h-3.5 ${isDownloaded ? 'text-emerald-500' : 'text-slate-400 hover:text-emerald-500'}`} />
                   </button>
                 </div>
               </div>

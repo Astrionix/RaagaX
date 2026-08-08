@@ -1,12 +1,8 @@
 'use client';
 
 import React from 'react';
-import { X, Heart, Download, Share2, Play, Pause, SkipBack, SkipForward, Disc3, Mic2, Music, UserCheck, Tv, RefreshCw, ExternalLink } from 'lucide-react';
+import { X, Heart, Download, Play, Pause, SkipBack, SkipForward, Disc3, Mic2, Music, UserCheck, Tv, RefreshCw, ExternalLink } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
-import dynamic from 'next/dynamic';
-
-const VinylRecordScene = dynamic(() => import('../3d/VinylRecordScene').then(m => m.VinylRecordScene), { ssr: false });
-const Equalizer3D = dynamic(() => import('../3d/Equalizer3D').then(m => m.Equalizer3D), { ssr: false });
 
 export function ExpandedPlayerModal() {
   const {
@@ -31,15 +27,16 @@ export function ExpandedPlayerModal() {
   const [isVideoMode, setIsVideoMode] = React.useState(false);
   const [candidateVideoIds, setCandidateVideoIds] = React.useState<string[]>([]);
   const [videoIndex, setVideoIndex] = React.useState<number>(0);
+  const [videoStartSeconds, setVideoStartSeconds] = React.useState<number>(0);
 
   const handleSwitchToVideoMode = () => {
+    // Capture current playback position before pausing audio
+    const audioEl = document.querySelector('audio');
+    const capturedTime = audioEl ? Math.floor(audioEl.currentTime) : Math.floor(currentTime || 0);
+    setVideoStartSeconds(capturedTime);
     setIsVideoMode(true);
     setVideoModeActive(true);
-    setIsPlaying(false);
-    const audioEl = document.querySelector('audio');
-    if (audioEl) {
-      audioEl.pause();
-    }
+    // Audio controller will handle pausing via isVideoModeActive watcher
   };
 
   const handleSwitchToAudioMode = () => {
@@ -59,10 +56,10 @@ export function ExpandedPlayerModal() {
 
   React.useEffect(() => {
     if (isPlayerExpanded && isVideoModeActive) {
-      setIsVideoMode(true);
-      setIsPlaying(false);
       const audioEl = document.querySelector('audio');
-      if (audioEl) audioEl.pause();
+      const capturedTime = audioEl ? Math.floor(audioEl.currentTime) : Math.floor(currentTime || 0);
+      setVideoStartSeconds(capturedTime);
+      setIsVideoMode(true);
     }
   }, [isPlayerExpanded, isVideoModeActive]);
 
@@ -119,7 +116,7 @@ export function ExpandedPlayerModal() {
   const isLiked = likedSongIds.includes(currentSong.id);
   const isDownloaded = downloadedSongIds.includes(currentSong.id);
 
-  const startSeconds = Math.floor(currentTime || 0);
+  const startSeconds = videoStartSeconds;
   const activeVideoId = candidateVideoIds[videoIndex] || null;
   const youtubeSearchQuery = encodeURIComponent(`${currentSong.title} ${currentSong.artist} official video`);
 
@@ -236,10 +233,14 @@ export function ExpandedPlayerModal() {
               </div>
             </div>
           ) : (
-            <>
-              <VinylRecordScene coverUrl={currentSong.coverUrl} isPlaying={isPlaying} />
-              <Equalizer3D isPlaying={isPlaying} />
-            </>
+            <div className="relative w-full aspect-square max-w-sm mx-auto rounded-3xl overflow-hidden shadow-2xl border border-white/10">
+              <img
+                src={currentSong.coverUrl}
+                alt={currentSong.title}
+                className={`w-full h-full object-cover transition-all duration-500 ${isPlaying ? 'scale-105' : 'scale-100'}`}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+            </div>
           )}
         </div>
 
@@ -293,7 +294,7 @@ export function ExpandedPlayerModal() {
               onClick={() => (isVideoMode ? handleSwitchToAudioMode() : handleSwitchToVideoMode())}
               className="px-5 py-3.5 rounded-2xl surface-card border border-white/15 text-white font-bold text-xs flex items-center gap-2 hover:border-[#EF233C] transition-colors"
             >
-              <Tv className="w-4 h-4 text-[#EF233C]" /> {isVideoMode ? 'Switch to 3D Audio' : 'Watch Video'}
+              <Tv className="w-4 h-4 text-[#EF233C]" /> {isVideoMode ? 'Switch to Audio' : 'Watch Video'}
             </button>
 
             <button

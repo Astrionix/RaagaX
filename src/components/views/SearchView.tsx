@@ -141,28 +141,38 @@ export function SearchView() {
               return (
                 <div
                   key={song.id}
-                  className="p-3.5 rounded-2xl bg-[#1C1C1E] border border-white/10 flex items-center justify-between group"
+                  className="p-3 rounded-2xl bg-[#1C1C1E] border border-white/10 flex items-center gap-3 group"
                 >
-                  <div className="flex items-center gap-3.5 cursor-pointer" onClick={() => playSong(song, realSearchResults)}>
-                    <img src={song.coverUrl} alt={song.title} className="w-12 h-12 rounded-xl object-cover shadow-sm" />
-                    <div>
-                      <h4 className="text-xs font-bold text-white group-hover:text-[#EF233C] transition-colors truncate max-w-[200px]">
-                        {song.title}
-                      </h4>
-                      <p className="text-[11px] text-slate-400 truncate">{song.artist}</p>
-                    </div>
+                  {/* Album Art */}
+                  <img
+                    src={song.coverUrl}
+                    alt={song.title}
+                    onClick={() => playSong(song, realSearchResults)}
+                    className="w-11 h-11 rounded-xl object-cover shadow-sm flex-shrink-0 cursor-pointer"
+                  />
+
+                  {/* Title + Artist — takes all remaining space, truncates */}
+                  <div
+                    className="flex-1 min-w-0 cursor-pointer"
+                    onClick={() => playSong(song, realSearchResults)}
+                  >
+                    <h4 className="text-xs font-bold text-white group-hover:text-[#EF233C] transition-colors truncate">
+                      {song.title}
+                    </h4>
+                    <p className="text-[11px] text-slate-400 truncate mt-0.5">{song.artist}</p>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => toggleLikeSong(song.id)}>
-                      <Heart className={`w-4 h-4 ${isLiked ? 'text-[#EF233C] fill-[#EF233C]' : 'text-slate-400 hover:text-[#EF233C]'}`} />
+                  {/* Action Icons — always right-aligned, never wrapped */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button onClick={() => toggleLikeSong(song.id)} className="p-1">
+                      <Heart className={`w-3.5 h-3.5 ${isLiked ? 'text-[#EF233C] fill-[#EF233C]' : 'text-slate-400 hover:text-[#EF233C]'}`} />
                     </button>
-                    <button onClick={() => toggleDownloadSong(song.id)}>
-                      <Download className={`w-4 h-4 ${isDownloaded ? 'text-emerald-500' : 'text-slate-400 hover:text-emerald-500'}`} />
+                    <button onClick={() => toggleDownloadSong(song.id)} className="p-1">
+                      <Download className={`w-3.5 h-3.5 ${isDownloaded ? 'text-emerald-500' : 'text-slate-400 hover:text-emerald-500'}`} />
                     </button>
                     <button
                       onClick={() => playSong(song, realSearchResults)}
-                      className="p-2 rounded-xl bg-[#EF233C] text-white shadow-md hover:scale-105 transition-transform"
+                      className="w-8 h-8 rounded-full bg-[#EF233C] text-white flex items-center justify-center shadow-md hover:scale-105 transition-transform"
                     >
                       <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
                     </button>
