@@ -95,7 +95,10 @@ export function AudioPlayerController() {
       if (Math.abs(audioRef.current.currentTime - currentTime) > 2) {
         audioRef.current.currentTime = currentTime;
       }
-      audioRef.current.play().catch(() => {});
+      audioRef.current.play().catch((err) => {
+        console.warn('Playback blocked on handoff:', err);
+        setIsPlaying(false);
+      });
     }
   }, [isVideoModeActive, isActiveDevice, isPlaying]);
 
@@ -141,7 +144,8 @@ export function AudioPlayerController() {
             AudioEngine.getInstance().resume();
           })
           .catch((err) => {
-            console.warn('Playback interrupted:', err);
+            console.warn('Playback interrupted on new song:', err);
+            setIsPlaying(false);
           });
       }
     }
@@ -152,7 +156,10 @@ export function AudioPlayerController() {
     if (audioRef.current) {
       if (isPlaying && isActiveDevice && !isVideoModeActive) {
         AudioEngine.getInstance().resume();
-        audioRef.current.play().catch(() => {});
+        audioRef.current.play().catch((err) => {
+          console.warn('Playback blocked on state change:', err);
+          setIsPlaying(false);
+        });
       } else {
         audioRef.current.pause();
       }
@@ -227,7 +234,10 @@ export function AudioPlayerController() {
     if (audioRef.current && audioRef.current.src !== FALLBACK_AUDIO_URL) {
       audioRef.current.src = FALLBACK_AUDIO_URL;
       if (isPlaying && isActiveDevice && !isVideoModeActive) {
-        audioRef.current.play().catch(() => {});
+        audioRef.current.play().catch((err) => {
+          console.warn('Fallback stream blocked:', err);
+          setIsPlaying(false);
+        });
       }
     }
   };
@@ -239,6 +249,8 @@ export function AudioPlayerController() {
       onLoadedMetadata={handleLoadedMetadata}
       onEnded={handleEnded}
       onError={handleError}
+      onPlay={() => setIsPlaying(true)}
+      onPause={() => setIsPlaying(false)}
       className="hidden"
     />
   );
