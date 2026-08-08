@@ -17,9 +17,11 @@ import {
   Mic2,
   Maximize2,
   Disc3,
-  Tv
+  Tv,
+  MonitorSmartphone
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { DeviceTransferPopover } from './DeviceTransferPopover';
 
 function formatTime(seconds: number): string {
   if (isNaN(seconds)) return '0:00';
@@ -29,6 +31,7 @@ function formatTime(seconds: number): string {
 }
 
 export function BottomPlayer() {
+  const [showDevices, setShowDevices] = React.useState(false);
   const {
     currentSong,
     isPlaying,
@@ -208,7 +211,18 @@ export function BottomPlayer() {
           />
         </div>
 
-        <div className="flex items-center gap-1.5 border-l border-red-900/30 pl-3">
+        <div className="flex items-center gap-1.5 border-l border-red-900/30 pl-3 relative">
+          <button
+            onClick={() => setShowDevices(!showDevices)}
+            className={`p-1.5 rounded-lg transition-colors ${showDevices ? 'text-[#EF233C] bg-[#EF233C]/10' : 'text-slate-400 hover:text-[#EF233C] hover:bg-white/5'}`}
+            title="Connect to a device"
+          >
+            <MonitorSmartphone className="w-4 h-4" />
+          </button>
+          {showDevices && (
+            <DeviceTransferPopover onClose={() => setShowDevices(false)} />
+          )}
+
           <button
             onClick={toggleLyrics}
             className="p-1.5 rounded-lg text-slate-400 hover:text-[#EF233C] hover:bg-white/5 transition-colors"

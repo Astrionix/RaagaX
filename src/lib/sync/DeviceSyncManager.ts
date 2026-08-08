@@ -61,8 +61,8 @@ export class DeviceSyncManager {
       await this.broadcastState(true);
     }
 
-    // 2. Subscribe to real-time changes
-    const channelName = `sync_${sessionId}_${this.deviceId}_${Date.now()}`;
+    // 2. Subscribe to real-time changes and Presence
+    const channelName = `sync_${sessionId}`;
     this.channel = supabase
       .channel(channelName)
       .on(
@@ -79,7 +79,33 @@ export class DeviceSyncManager {
           }
         }
       )
-      .subscribe();
+      .on('presence', { event: 'sync' }, () => {
+        const newState = this.channel.presenceState();
+        const devices: { id: string; name: string }[] = [];
+        
+        for (const presenceId in newState) {
+          const presenceList = newState[presenceId] as any[];
+          presenceList.forEach(p => {
+            if (p.deviceId && p.deviceName && !devices.find(d => d.id === p.deviceId)) {
+              devices.push({ id: p.deviceId, name: p.deviceName });
+            }
+          });
+        }
+        
+        usePlayerStore.getState().setOnlineDevices(devices);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          // Detect if we are on a mobile device by checking window width or user agent
+          const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+          const deviceName = isMobile ? 'Mobile App' : 'Desktop Web';
+          
+          await this.channel.track({
+            deviceId: this.deviceId,
+            deviceName: `${deviceName} (${this.deviceId.substring(7, 11)})`
+          });
+        }
+      });
 
     // 3. Subscribe to Zustand local changes
     let lastState = usePlayerStore.getState();

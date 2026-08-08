@@ -3,7 +3,8 @@
 import React from 'react';
 import { Play, Pause, SkipForward } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
-import { DeviceSelector } from '@/components/providers/DeviceSyncProvider';
+import { DeviceTransferPopover } from '@/components/player/DeviceTransferPopover';
+import { MonitorSmartphone } from 'lucide-react';
 
 export function MobileMiniPlayer() {
   const {
@@ -15,6 +16,7 @@ export function MobileMiniPlayer() {
     playNext,
     togglePlayerExpanded,
   } = usePlayerStore();
+  const [showDevices, setShowDevices] = React.useState(false);
 
   if (!currentSong) return null;
 
@@ -45,8 +47,16 @@ export function MobileMiniPlayer() {
       </div>
 
       {/* Right: Touch Play/Pause & Skip */}
-      <div className="flex items-center gap-1 flex-shrink-0 pr-1">
-        <DeviceSelector />
+      <div className="flex items-center gap-1 flex-shrink-0 pr-1 relative">
+        <button 
+          onClick={() => setShowDevices(!showDevices)}
+          className={`p-2 rounded-full transition-colors ${showDevices ? 'text-[#EF233C] bg-[#EF233C]/10' : 'text-slate-400 hover:text-[#EF233C]'}`}
+        >
+          <MonitorSmartphone className="w-5 h-5" />
+        </button>
+        {showDevices && (
+          <DeviceTransferPopover onClose={() => setShowDevices(false)} />
+        )}
         
         <button
           onClick={togglePlayPause}

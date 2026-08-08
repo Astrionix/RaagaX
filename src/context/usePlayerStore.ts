@@ -61,6 +61,8 @@ interface PlayerState {
   deviceId: string;
   activeDeviceId: string | null;
   isActiveDevice: boolean;
+  onlineDevices: { id: string; name: string }[];
+  setOnlineDevices: (devices: { id: string; name: string }[]) => void;
   setRemoteState: (state: Partial<PlayerState>) => void;
   transferPlayback: (targetDeviceId: string) => void;
 
@@ -198,7 +200,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   deviceId: typeof window !== 'undefined' ? localStorage.getItem('raagax_device_id') || '' : '',
   activeDeviceId: null,
   isActiveDevice: true, // Default to true until sync starts
+  onlineDevices: [],
 
+  setOnlineDevices: (devices) => set({ onlineDevices: devices }),
   setRemoteState: (newState) => set((state) => ({ ...state, ...newState })),
   
   transferPlayback: (targetDeviceId) => {

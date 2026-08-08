@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS playback_sessions (
   active_device_id TEXT,
   song_id TEXT,
   song_data JSONB,
-  current_time NUMERIC,
+  "current_time" NUMERIC,
   is_playing BOOLEAN,
   queue JSONB,
   queue_index INTEGER,

@@ -91,6 +91,10 @@ export function AudioPlayerController() {
     if (isVideoModeActive || !isActiveDevice) {
       audioRef.current.pause();
     } else if (isPlaying) {
+      // If we just became the active device, sync the playback time to match the remote state
+      if (Math.abs(audioRef.current.currentTime - currentTime) > 2) {
+        audioRef.current.currentTime = currentTime;
+      }
       audioRef.current.play().catch(() => {});
     }
   }, [isVideoModeActive, isActiveDevice, isPlaying]);
