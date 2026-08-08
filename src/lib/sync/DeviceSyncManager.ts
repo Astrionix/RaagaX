@@ -35,19 +35,27 @@ export class DeviceSyncManager {
     return this.deviceId;
   }
 
+  private isInitializing = false;
+
   /**
    * Initialize sync for a given session ID (usually user's username or email)
    */
   public async initSync(sessionId: string) {
-    if (this.channel) {
-      supabase.removeChannel(this.channel);
-    }
-    if (this.unsubscribeZustand) {
-      this.unsubscribeZustand();
-    }
-    this.sessionId = sessionId;
+    if (this.isInitializing) return;
+    this.isInitializing = true;
+    
+    try {
+      if (this.channel) {
+        await supabase.removeChannel(this.channel);
+        this.channel = null;
+      }
+      if (this.unsubscribeZustand) {
+        this.unsubscribeZustand();
+        this.unsubscribeZustand = null;
+      }
+      this.sessionId = sessionId;
 
-    // 1. Fetch initial state
+      // 1. Fetch initial state
     const { data: session } = await supabase
       .from('playback_sessions')
       .select('*')
@@ -126,6 +134,10 @@ export class DeviceSyncManager {
         this.broadcastState();
       }
     });
+    
+    } finally {
+      this.isInitializing = false;
+    }
   }
 
   /**
