@@ -66,6 +66,9 @@ interface PlayerState {
   setRemoteState: (state: Partial<PlayerState>) => void;
   transferPlayback: (targetDeviceId: string) => void;
 
+  rightPanelMode: 'queue' | 'devices';
+  setRightPanelMode: (mode: 'queue' | 'devices') => void;
+
   // Actions
   restoreLocalSession: () => Promise<void>;
   setPreferredLanguage: (lang: string) => void;
@@ -201,7 +204,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   activeDeviceId: null,
   isActiveDevice: true, // Default to true until sync starts
   onlineDevices: [],
+  rightPanelMode: 'queue',
 
+  setRightPanelMode: (mode) => set({ rightPanelMode: mode }),
   setOnlineDevices: (devices) => set({ onlineDevices: devices }),
   setRemoteState: (newState) => set((state) => ({ ...state, ...newState })),
   

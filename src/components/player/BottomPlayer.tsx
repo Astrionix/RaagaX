@@ -56,6 +56,8 @@ export function BottomPlayer() {
     toggleLyrics,
     toggleQueue,
     togglePlayerExpanded,
+    rightPanelMode,
+    setRightPanelMode,
   } = usePlayerStore();
 
   if (!currentSong) return null;
@@ -213,14 +215,24 @@ export function BottomPlayer() {
 
         <div className="flex items-center gap-1.5 border-l border-red-900/30 pl-3 relative">
           <button
-            onClick={() => setShowDevices(!showDevices)}
-            className={`p-1.5 rounded-lg transition-colors ${showDevices ? 'text-[#EF233C] bg-[#EF233C]/10' : 'text-slate-400 hover:text-[#EF233C] hover:bg-white/5'}`}
+            onClick={() => {
+              const isDesktop = window.innerWidth >= 1280;
+              if (isDesktop) {
+                setRightPanelMode(rightPanelMode === 'devices' ? 'queue' : 'devices');
+                setShowDevices(false);
+              } else {
+                setShowDevices(!showDevices);
+              }
+            }}
+            className={`p-1.5 rounded-lg transition-colors ${showDevices || rightPanelMode === 'devices' ? 'text-[#EF233C] bg-[#EF233C]/10' : 'text-slate-400 hover:text-[#EF233C] hover:bg-white/5'}`}
             title="Connect to a device"
           >
             <MonitorSmartphone className="w-4 h-4" />
           </button>
           {showDevices && (
-            <DeviceTransferPopover onClose={() => setShowDevices(false)} />
+            <div className="xl:hidden">
+              <DeviceTransferPopover onClose={() => setShowDevices(false)} />
+            </div>
           )}
 
           <button

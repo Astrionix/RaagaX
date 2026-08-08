@@ -4,6 +4,7 @@ import React from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Navbar } from '@/components/layout/Navbar';
 import { RightQueuePanel } from '@/components/layout/RightQueuePanel';
+import { RightDeviceConnectPanel } from '@/components/layout/RightDeviceConnectPanel';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { MobileMiniPlayer } from '@/components/layout/MobileMiniPlayer';
 import { AudioPlayerController } from '@/components/player/AudioPlayerController';
@@ -32,7 +33,7 @@ import { SplashScreen } from '@/components/modals/SplashScreen';
 import { usePlayerStore } from '@/context/usePlayerStore';
 
 export default function Page() {
-  const { activeTab } = usePlayerStore();
+  const { activeTab, rightPanelMode } = usePlayerStore();
 
   // Sync activeTab to browser history for mobile back gesture support
   React.useEffect(() => {
@@ -99,7 +100,7 @@ export default function Page() {
 
         {/* Right Queue Column */}
         <div className="queue-panel hidden xl:block w-[360px] min-w-[360px] h-full pt-24 pb-8 overflow-y-auto overflow-x-hidden border-l border-white/5 bg-[#07090E]">
-          <RightQueuePanel />
+          {rightPanelMode === 'devices' ? <RightDeviceConnectPanel /> : <RightQueuePanel />}
         </div>
       </div>
 
