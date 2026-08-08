@@ -1,17 +1,25 @@
 import { supabase } from '@/lib/supabase';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { Song } from '@/types/music';
+
+// Strict typings for the RaagaX Connect Broadcast Protocol
+export type BroadcastCommand = 
+  | { type: 'PLAY' }
+  | { type: 'PAUSE' }
+  | { type: 'SEEK', position: number }
+  | { type: 'TRANSFER_PLAYBACK', toDeviceId: string }
+  | { type: 'SYNC_STATE', state: any };
 
 export class DeviceSyncManager {
   private static instance: DeviceSyncManager;
   private channel: any;
   private sessionId: string | null = null;
   private deviceId: string;
-  private isBroadcasting = false;
+  private isProcessingRemote = false; // Flag to prevent echo loops
   private unsubscribeZustand: (() => void) | null = null;
   private localRevision = 0;
 
   private constructor() {
-    // Generate a unique device ID for this session
     this.deviceId = typeof window !== 'undefined' 
       ? localStorage.getItem('raagax_device_id') || this.generateDeviceId() 
       : 'server';
@@ -38,9 +46,6 @@ export class DeviceSyncManager {
 
   private isInitializing = false;
 
-  /**
-   * Initialize sync for a given session ID (usually user's username or email)
-   */
   public async initSync(sessionId: string) {
     if (this.isInitializing) return;
     this.isInitializing = true;
@@ -49,7 +54,6 @@ export class DeviceSyncManager {
       if (this.channel) {
         this.channel = null;
       }
-      // Force remove all stale channels from the Supabase client to prevent "cannot add callbacks after subscribe" error
       await supabase.removeAllChannels();
       
       if (this.unsubscribeZustand) {
@@ -58,39 +62,31 @@ export class DeviceSyncManager {
       }
       this.sessionId = sessionId;
 
-      // 1. Fetch initial state
-    const { data: session } = await supabase
-      .from('playback_sessions')
-      .select('*')
-      .eq('session_id', sessionId)
-      .maybeSingle();
+      // 1. Initial Durable State Load (Layer 3: Postgres)
+      const { data: session } = await supabase
+        .from('playback_sessions')
+        .select('*')
+        .eq('session_id', sessionId)
+        .maybeSingle();
 
-    if (session) {
-      this.handleRemoteUpdate(session);
-    } else {
-      // Create a new session record if it doesn't exist
-      await this.broadcastState(true);
-    }
+      if (session) {
+        this.handleDurableUpdate(session);
+      } else {
+        await this.persistState(); // Create initial row
+      }
 
-    // 2. Subscribe to real-time changes and Presence
-    const channelName = `sync_${sessionId}`;
-    this.channel = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'playback_sessions',
-          filter: `session_id=eq.${sessionId}`,
-        },
-        (payload) => {
-          if (payload.new) {
-            this.handleRemoteUpdate(payload.new);
-          }
-        }
-      )
-      .on('presence', { event: 'sync' }, () => {
+      const channelName = `sync_${sessionId}`;
+      this.channel = supabase.channel(channelName);
+
+      // 2. Subscribe to Low-Latency Commands (Layer 2: Broadcast)
+      this.channel.on('broadcast', { event: 'command' }, (payload: { payload: BroadcastCommand, senderId: string }) => {
+        // Ignore our own broadcasts
+        if (payload.senderId === this.deviceId) return;
+        this.handleBroadcastCommand(payload.payload);
+      });
+
+      // 3. Subscribe to Device Discovery (Layer 1: Presence)
+      this.channel.on('presence', { event: 'sync' }, () => {
         const newState = this.channel.presenceState();
         const devices: { id: string; name: string }[] = [];
         
@@ -104,10 +100,23 @@ export class DeviceSyncManager {
         }
         
         usePlayerStore.getState().setOnlineDevices(devices);
-      })
-      .subscribe(async (status) => {
+      });
+
+      // 4. Subscribe to Durable State Changes (Layer 3: Postgres)
+      this.channel.on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'playback_sessions',
+        filter: `session_id=eq.${sessionId}`,
+      }, (payload: any) => {
+        if (payload.new && payload.new.active_device_id !== this.deviceId) {
+          this.handleDurableUpdate(payload.new);
+        }
+      });
+
+      // Finalize subscription and announce presence
+      this.channel.subscribe(async (status: string) => {
         if (status === 'SUBSCRIBED') {
-          // Detect if we are on a mobile device by checking window width or user agent
           const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
           const deviceName = isMobile ? 'Mobile App' : 'Desktop Web';
           
@@ -118,32 +127,29 @@ export class DeviceSyncManager {
         }
       });
 
-    // 3. Subscribe to Zustand local changes
-    let lastState = usePlayerStore.getState();
-    let lastSyncTime = lastState.currentTime;
+      // 5. Watch Zustand for local durable changes (e.g. queue change, song switch)
+      let lastState = usePlayerStore.getState();
+      let lastSyncTime = lastState.currentTime;
 
-    this.unsubscribeZustand = usePlayerStore.subscribe((state) => {
-      // Don't broadcast if this change was triggered BY a remote update
-      if (this.isBroadcasting) return;
+      this.unsubscribeZustand = usePlayerStore.subscribe((state) => {
+        if (this.isProcessingRemote) return;
 
-      const timeDiffFromLastSync = Math.abs(state.currentTime - lastSyncTime);
-      const isSeek = Math.abs(state.currentTime - lastState.currentTime) > 2;
+        const timeDiffFromLastSync = Math.abs(state.currentTime - lastSyncTime);
+        const isSignificantStateChange = 
+          state.currentSong?.id !== lastState.currentSong?.id ||
+          state.queue.length !== lastState.queue.length ||
+          state.queueIndex !== lastState.queueIndex ||
+          state.isShuffle !== lastState.isShuffle ||
+          state.repeatMode !== lastState.repeatMode;
 
-      const changed = 
-        state.currentSong?.id !== lastState.currentSong?.id ||
-        state.isPlaying !== lastState.isPlaying ||
-        state.queue.length !== lastState.queue.length ||
-        state.queueIndex !== lastState.queueIndex ||
-        isSeek || 
-        timeDiffFromLastSync > 5; // Sync every 5 seconds of normal playback
-
-      lastState = state;
-
-      if (changed) {
-        lastSyncTime = state.currentTime;
-        this.broadcastState();
-      }
-    });
+        // Persist to Postgres periodically (every 10 seconds) or on significant change
+        if (isSignificantStateChange || timeDiffFromLastSync > 10) {
+          lastSyncTime = state.currentTime;
+          this.persistState();
+        }
+        
+        lastState = state;
+      });
     
     } finally {
       this.isInitializing = false;
@@ -151,10 +157,58 @@ export class DeviceSyncManager {
   }
 
   /**
-   * Handle incoming remote state changes
+   * Handle fast, transient commands via Broadcast
    */
-  private handleRemoteUpdate(remoteState: any) {
-    // Prevent race conditions: Drop stale updates
+  private handleBroadcastCommand(cmd: BroadcastCommand) {
+    const store = usePlayerStore.getState();
+    this.isProcessingRemote = true;
+
+    try {
+      switch (cmd.type) {
+        case 'PLAY':
+          if (store.isActiveDevice) {
+             store.setIsPlaying(true);
+          }
+          break;
+        case 'PAUSE':
+          if (store.isActiveDevice) {
+             store.setIsPlaying(false);
+          }
+          break;
+        case 'SEEK':
+          if (store.isActiveDevice) {
+             store.setCurrentTime(cmd.position);
+          }
+          break;
+        case 'TRANSFER_PLAYBACK':
+          const iAmNowActive = cmd.toDeviceId === this.deviceId;
+          store.setRemoteState({ activeDeviceId: cmd.toDeviceId, isActiveDevice: iAmNowActive });
+          if (!iAmNowActive) {
+            store.setIsPlaying(false);
+          }
+          break;
+        case 'SYNC_STATE':
+           // Quick state sync for when a device becomes active
+           if (!store.isActiveDevice) {
+             store.setRemoteState({
+                currentSong: cmd.state.currentSong,
+                currentTime: cmd.state.currentTime,
+                isPlaying: cmd.state.isPlaying,
+                queue: cmd.state.queue,
+                queueIndex: cmd.state.queueIndex
+             });
+           }
+           break;
+      }
+    } finally {
+      this.isProcessingRemote = false;
+    }
+  }
+
+  /**
+   * Handle persistent state recovery via Postgres
+   */
+  private handleDurableUpdate(remoteState: any) {
     if (remoteState.revision !== undefined && remoteState.revision < this.localRevision) {
       return;
     }
@@ -163,10 +217,8 @@ export class DeviceSyncManager {
     const store = usePlayerStore.getState();
     const isActiveDevice = remoteState.active_device_id === this.deviceId;
     
-    // Prevent self-feedback loop
-    this.isBroadcasting = true;
+    this.isProcessingRemote = true;
     
-    // Update store with remote state
     store.setRemoteState({
       activeDeviceId: remoteState.active_device_id,
       isActiveDevice,
@@ -179,19 +231,29 @@ export class DeviceSyncManager {
       repeatMode: remoteState.repeat_mode as any,
     });
     
-    this.isBroadcasting = false;
+    this.isProcessingRemote = false;
   }
 
   /**
-   * Broadcast local state to Supabase
+   * Send a low-latency command to all other devices.
    */
-  public async broadcastState(force = false) {
-    if (!this.sessionId || this.isBroadcasting) return;
+  public sendCommand(cmd: BroadcastCommand) {
+    if (!this.channel) return;
+    this.channel.send({
+      type: 'broadcast',
+      event: 'command',
+      payload: { payload: cmd, senderId: this.deviceId }
+    }).catch(console.error);
+  }
+
+  /**
+   * Periodically write durable state to Postgres for recovery.
+   */
+  public async persistState() {
+    if (!this.sessionId || this.isProcessingRemote) return;
 
     const store = usePlayerStore.getState();
-    
-    // Only broadcast if we are the active device, OR if we are forcing an override
-    if (!force && !store.isActiveDevice) return;
+    if (!store.isActiveDevice) return; // Only active device saves state
 
     try {
       await supabase.from('playback_sessions').upsert({
@@ -209,7 +271,7 @@ export class DeviceSyncManager {
         updated_at: new Date().toISOString(),
       });
     } catch (e) {
-      console.error('[DeviceSyncManager] Broadcast error:', e);
+      console.error('[DeviceSyncManager] Persist error:', e);
     }
   }
 }

@@ -31,7 +31,7 @@ export function LyricsPanel() {
   }, 0);
 
   const handleLineClick = (time: number) => {
-    setCurrentTime(time);
+    setCurrentTime(time, true);
     const audioEl = document.querySelector('audio');
     if (audioEl) {
       audioEl.currentTime = time;

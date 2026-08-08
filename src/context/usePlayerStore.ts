@@ -77,8 +77,8 @@ interface PlayerState {
   setPreferredLanguage: (lang: string) => void;
   playSong: (song: Song, newQueue?: Song[]) => void;
   togglePlayPause: () => void;
-  setIsPlaying: (playing: boolean) => void;
-  setCurrentTime: (time: number) => void;
+  setIsPlaying: (playing: boolean, fromRemote?: boolean) => void;
+  setCurrentTime: (time: number, isManualSeek?: boolean) => void;
   setDuration: (dur: number) => void;
   setVolume: (vol: number) => void;
   toggleMute: () => void;
@@ -219,9 +219,18 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setRemoteState: (newState) => set((state) => ({ ...state, ...newState })),
   
   transferPlayback: (targetDeviceId) => {
-    set({ activeDeviceId: targetDeviceId, isActiveDevice: targetDeviceId === get().deviceId });
+    const { deviceId, currentSong, currentTime, isPlaying, queue, queueIndex } = get();
+    set({ activeDeviceId: targetDeviceId, isActiveDevice: targetDeviceId === deviceId });
+    if (targetDeviceId !== deviceId) set({ isPlaying: false });
+
     import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
-      DeviceSyncManager.getInstance().broadcastState(true);
+      const syncManager = DeviceSyncManager.getInstance();
+      syncManager.sendCommand({ 
+        type: 'SYNC_STATE', 
+        state: { currentSong, currentTime, isPlaying, queue, queueIndex } 
+      });
+      syncManager.sendCommand({ type: 'TRANSFER_PLAYBACK', toDeviceId: targetDeviceId });
+      syncManager.persistState();
     });
   },
 
@@ -292,10 +301,30 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     });
   },
 
-  togglePlayPause: () => set((state) => ({ isPlaying: !state.isPlaying })),
-  setIsPlaying: (playing) => set({ isPlaying: playing }),
-  setCurrentTime: (time) => {
+  togglePlayPause: () => {
+    const isNowPlaying = !get().isPlaying;
+    set({ isPlaying: isNowPlaying });
+    import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
+      DeviceSyncManager.getInstance().sendCommand({ type: isNowPlaying ? 'PLAY' : 'PAUSE' });
+    });
+  },
+  setIsPlaying: (playing, fromRemote = false) => {
+    set({ isPlaying: playing });
+    if (!fromRemote && get().isActiveDevice) {
+      import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
+        DeviceSyncManager.getInstance().sendCommand({ type: playing ? 'PLAY' : 'PAUSE' });
+      });
+    }
+  },
+  setCurrentTime: (time, isManualSeek = false) => {
     set({ currentTime: time });
+    
+    if (isManualSeek && get().isActiveDevice) {
+      import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
+        DeviceSyncManager.getInstance().sendCommand({ type: 'SEEK', position: time });
+      });
+    }
+
     const { currentSong, queue, queueIndex, historySongIds, likedSongIds } = get();
     if (currentSong && Math.floor(time) % 5 === 0) {
       LocalDatabase.getInstance().savePlaybackSession({

@@ -70,7 +70,7 @@ export function Navbar() {
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTime = parseFloat(e.target.value);
-    setCurrentTime(newTime);
+    setCurrentTime(newTime, true); // true = isManualSeek
     const audioEl = document.querySelector('audio');
     if (audioEl) {
       audioEl.currentTime = newTime;
