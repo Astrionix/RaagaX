@@ -210,7 +210,7 @@ export function AudioPlayerController() {
     console.warn('Audio stream error detected. Switching to CORS fallback stream...');
     if (audioRef.current && audioRef.current.src !== FALLBACK_AUDIO_URL) {
       audioRef.current.src = FALLBACK_AUDIO_URL;
-      if (isPlaying) {
+      if (isPlaying && isActiveDevice && !isVideoModeActive) {
         audioRef.current.play().catch(() => {});
       }
     }
