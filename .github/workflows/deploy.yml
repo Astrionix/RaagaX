@@ -1,0 +1,81 @@
+name: RaagaX CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    name: Build & Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Unit Tests
+        run: npm test
+
+      - name: Next.js Production Build
+        run: npm run build
+
+  build-android-apk:
+    name: Build Android APK
+    needs: build-and-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Next.js Production Build
+        run: npm run build
+
+      - name: Add Capacitor Android Platform
+        run: |
+          mkdir -p out
+          npx cap add android || true
+          npx cap copy android
+          npx cap sync android
+
+      - name: Build Android APK (Gradle)
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload RaagaX APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RaagaX-Android-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+

@@ -1,0 +1,49 @@
+{
+  "name": "raagax",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RaagaX - Futuristic Music Streaming Platform & High Performance Music API Engine",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "vitest run",
+    "apk:sync": "npx cap copy android && npx cap sync android",
+    "apk:open": "npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/cli": "^6.2.1",
+    "@capacitor/core": "^6.2.1",
+    "@hono/node-server": "^1.14.0",
+    "@hono/zod-openapi": "^0.19.2",
+    "@hono/zod-validator": "^0.4.3",
+    "@react-three/drei": "^9.108.4",
+    "@react-three/fiber": "^8.16.8",
+    "@scalar/hono-api-reference": "^0.7.4",
+    "clsx": "^2.1.1",
+    "hono": "^4.7.5",
+    "lucide-react": "^0.462.0",
+    "next": "^14.2.15",
+    "node-forge": "^1.3.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.5.2",
+    "three": "^0.166.1",
+    "zod": "^3.24.2",
+    "zustand": "^4.5.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.14",
+    "@types/node-forge": "^1.3.11",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/three": "^0.166.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.11",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  }
+}

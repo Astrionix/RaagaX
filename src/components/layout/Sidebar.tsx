@@ -1,0 +1,176 @@
+'use client';
+
+import React from 'react';
+import {
+  Home,
+  Compass,
+  Radio,
+  Search,
+  Clock,
+  User,
+  Disc,
+  Music,
+  Sparkles,
+  ListMusic,
+  Plus,
+  Disc3,
+  Heart,
+} from 'lucide-react';
+import { usePlayerStore } from '@/context/usePlayerStore';
+
+export function Sidebar() {
+  const {
+    activeTab,
+    setActiveTab,
+    searchQuery,
+    setSearchQuery,
+  } = usePlayerStore();
+
+  const playlists = [
+    { id: 'fav-mix', name: 'Favourites Mix', desc: 'RaagaX Mix for Ram', icon: Heart, active: true },
+    { id: 'chill-hits', name: 'Chill Hits', desc: 'RaagaX Chill' },
+    { id: 'workout', name: 'Workout', desc: 'RaagaX Fitness' },
+    { id: '90s-hits', name: "90's Hits", desc: "RaagaX 90's" },
+    { id: 'telugu-love', name: 'Telugu Love Songs', desc: "Ram's Playlist" },
+    { id: 'travel-vibes', name: 'Travel Vibes', desc: 'RaagaX' },
+    { id: 'party-mix', name: 'Party Mix', desc: 'RaagaX Dance' },
+  ];
+
+  return (
+    <aside className="hidden md:flex fixed left-0 top-0 z-30 h-screen w-64 p-3.5 flex-col justify-between select-none bg-[#161618] border-r border-white/10 text-white text-xs">
+      <div className="space-y-4 overflow-y-auto no-scrollbar pr-1">
+        {/* Brand Header */}
+        <div className="flex items-center gap-2 px-2 pt-1">
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab('home')}>
+            <Disc3 className="w-4 h-4 text-[#EF233C] animate-spin" style={{ animationDuration: '10s' }} />
+            <span className="font-black text-sm tracking-tight text-white">RaagaX</span>
+          </div>
+        </div>
+
+        {/* Search Input Pill */}
+        <div className="relative px-1">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              if (e.target.value.trim() !== '') {
+                setActiveTab('search');
+              }
+            }}
+            placeholder="Search"
+            className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-[#26262A] text-xs text-white placeholder:text-slate-400 border border-transparent focus:border-[#EF233C] focus:outline-none font-medium"
+          />
+        </div>
+
+        {/* RaagaX Section */}
+        <div className="space-y-0.5">
+          <span className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider block">RaagaX</span>
+          
+          <button
+            onClick={() => setActiveTab('home')}
+            className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg font-bold transition-all ${
+              activeTab === 'home' ? 'bg-[#EF233C]/20 text-[#EF233C]' : 'text-slate-300 hover:bg-[#26262A] hover:text-white'
+            }`}
+          >
+            <Home className="w-4 h-4" />
+            <span>Home</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('album')}
+            className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg font-bold transition-all ${
+              activeTab === 'album' ? 'bg-[#EF233C]/20 text-[#EF233C]' : 'text-slate-300 hover:bg-[#26262A] hover:text-white'
+            }`}
+          >
+            <Compass className="w-4 h-4" />
+            <span>Browse</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('radio')}
+            className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg font-bold transition-all ${
+              activeTab === 'radio' ? 'bg-[#EF233C]/20 text-[#EF233C]' : 'text-slate-300 hover:bg-[#26262A] hover:text-white'
+            }`}
+          >
+            <Radio className="w-4 h-4" />
+            <span>Radio</span>
+          </button>
+        </div>
+
+        {/* Library Section */}
+        <div className="space-y-0.5 pt-1">
+          <span className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Library</span>
+          
+          <button onClick={() => setActiveTab('library')} className="w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-slate-300 hover:bg-[#26262A] hover:text-white font-medium">
+            <Clock className="w-4 h-4 text-slate-400" />
+            <span>Recently Added</span>
+          </button>
+
+          <button onClick={() => setActiveTab('artist')} className="w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-slate-300 hover:bg-[#26262A] hover:text-white font-medium">
+            <User className="w-4 h-4 text-slate-400" />
+            <span>Artists</span>
+          </button>
+
+          <button onClick={() => setActiveTab('album')} className="w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-slate-300 hover:bg-[#26262A] hover:text-white font-medium">
+            <Disc className="w-4 h-4 text-slate-400" />
+            <span>Albums</span>
+          </button>
+
+          <button onClick={() => setActiveTab('library')} className="w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-slate-300 hover:bg-[#26262A] hover:text-white font-medium">
+            <Music className="w-4 h-4 text-slate-400" />
+            <span>Songs</span>
+          </button>
+
+          <button onClick={() => setActiveTab('library')} className="w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-slate-300 hover:bg-[#26262A] hover:text-white font-medium">
+            <Sparkles className="w-4 h-4 text-slate-400" />
+            <span>Made For You</span>
+          </button>
+        </div>
+
+        {/* Playlists Section */}
+        <div className="space-y-0.5 pt-1">
+          <div className="flex items-center justify-between px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            <span>Playlists</span>
+            <button className="hover:text-white p-0.5"><Plus className="w-3.5 h-3.5" /></button>
+          </div>
+
+          <button onClick={() => setActiveTab('playlist')} className="w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-slate-300 hover:bg-[#26262A] hover:text-white font-medium">
+            <ListMusic className="w-4 h-4 text-slate-400" />
+            <span>All Playlists</span>
+          </button>
+
+          {playlists.map((pl) => (
+            <button
+              key={pl.id}
+              onClick={() => setActiveTab('playlist')}
+              className={`w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-left transition-all ${
+                pl.active ? 'bg-[#26262A] text-white font-bold' : 'text-slate-300 hover:bg-[#26262A] hover:text-white font-medium'
+              }`}
+            >
+              <div className="w-6 h-6 rounded bg-[#EF233C]/20 text-[#EF233C] flex items-center justify-center flex-shrink-0">
+                {pl.icon ? <pl.icon className="w-3.5 h-3.5" /> : <Music className="w-3.5 h-3.5" />}
+              </div>
+              <div className="truncate">
+                <p className="truncate leading-tight text-[11px]">{pl.name}</p>
+                <p className="truncate text-[9px] text-slate-400 leading-tight">{pl.desc}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* User Profile Pill at Bottom */}
+      <div className="pt-3 border-t border-white/10 flex items-center gap-3 px-2">
+        <div className="w-8 h-8 rounded-full bg-[#EF233C] text-white font-black text-xs flex items-center justify-center shadow-md">
+          RR
+        </div>
+        <div className="min-w-0 flex-1">
+          <h4 className="text-xs font-bold text-white truncate leading-tight">Ram Reddy</h4>
+          <p className="text-[10px] text-slate-400 truncate leading-tight mt-0.5">ramreddy25@icloud.com</p>
+        </div>
+      </div>
+    </aside>
+  );
+}

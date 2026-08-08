@@ -1,0 +1,17 @@
+{
+  "appId": "com.raagax.music",
+  "appName": "RaagaX Music",
+  "webDir": "out",
+  "server": {
+    "androidScheme": "https",
+    "url": "https://raaga-x-chi.vercel.app",
+    "cleartext": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#07090E",
+      "showSpinner": false
+    }
+  }
+}
