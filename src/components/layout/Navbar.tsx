@@ -16,7 +16,6 @@ import {
   Disc3,
   Settings,
   Moon,
-  Tv,
   Heart,
   Download,
   Maximize2,
@@ -58,20 +57,13 @@ export function Navbar() {
     toggleLyrics,
     toggleQueue,
     togglePlayerExpanded,
-    setVideoModeActive,
     toggleSettingsModal,
-    toggleCastModal,
     toggleSleepTimerModal,
     rightPanelMode,
     setRightPanelMode,
   } = usePlayerStore();
 
-  const handleOpenVideoMode = () => {
-    if (!currentSong && queue.length > 0) {
-      playSong(queue[0]);
-    }
-    setVideoModeActive(true);
-  };
+
 
   const isLiked = currentSong ? likedSongIds.includes(currentSong.id) : false;
   const isDownloaded = currentSong ? downloadedSongIds.includes(currentSong.id) : false;
@@ -97,9 +89,6 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button onClick={handleOpenVideoMode} className="p-1.5 text-slate-300 hover:text-[#EF233C]" title="Watch Video">
-            <Tv className="w-4 h-4 text-[#EF233C]" />
-          </button>
           <button onClick={toggleSettingsModal} className="p-1.5 text-slate-300 hover:text-white" title="Settings">
             <Settings className="w-4 h-4" />
           </button>
@@ -234,17 +223,11 @@ export function Navbar() {
         <button onClick={toggleQueue} className="p-1.5 text-slate-400 hover:text-[#EF233C]" title="Queue">
           <ListMusic className="w-3.5 h-3.5" />
         </button>
-        <button onClick={handleOpenVideoMode} className="p-1.5 text-slate-400 hover:text-[#EF233C]" title="Video Mode">
-          <Tv className="w-3.5 h-3.5 text-[#EF233C]" />
-        </button>
         <button onClick={toggleSleepTimerModal} className="p-1.5 text-slate-400 hover:text-[#EF233C]" title="Sleep Timer">
           <Moon className="w-3.5 h-3.5" />
         </button>
         <button onClick={toggleSettingsModal} className="p-1.5 text-slate-400 hover:text-[#EF233C]" title="Settings">
           <Settings className="w-3.5 h-3.5" />
-        </button>
-        <button onClick={toggleCastModal} className="p-1.5 text-slate-400 hover:text-[#EF233C]" title="Cast to Device">
-          <Tv className="w-3.5 h-3.5" />
         </button>
       </div>
     </header>

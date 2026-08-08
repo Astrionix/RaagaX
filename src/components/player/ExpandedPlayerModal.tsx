@@ -168,24 +168,7 @@ export function ExpandedPlayerModal() {
 
         {/* Dual Mode Switcher & Close */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          <div className="flex items-center p-0.5 sm:p-1 rounded-xl sm:rounded-2xl surface-card border border-white/10 text-[10px] sm:text-xs font-bold">
-            <button
-              onClick={handleSwitchToAudioMode}
-              className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl flex items-center gap-1 transition-all ${
-                !isVideoMode ? 'bg-[#EF233C] text-white shadow-md' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Music className="w-3 h-3" /> Audio
-            </button>
-            <button
-              onClick={handleSwitchToVideoMode}
-              className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl flex items-center gap-1 transition-all ${
-                isVideoMode ? 'bg-[#EF233C] text-white shadow-md' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Tv className="w-3 h-3" /> Video
-            </button>
-          </div>
+
 
           <button
             onClick={handleCloseModal}
@@ -293,12 +276,7 @@ export function ExpandedPlayerModal() {
               {isPlaying ? 'Pause' : 'Play'}
             </button>
 
-            <button
-              onClick={() => (isVideoMode ? handleSwitchToAudioMode() : handleSwitchToVideoMode())}
-              className="px-5 py-3.5 rounded-2xl surface-card border border-white/15 text-white font-bold text-xs flex items-center gap-2 hover:border-[#EF233C] transition-colors"
-            >
-              <Tv className="w-4 h-4 text-[#EF233C]" /> {isVideoMode ? 'Switch to Audio' : 'Watch Video'}
-            </button>
+
 
             <button
               onClick={() => toggleLikeSong(currentSong.id)}
