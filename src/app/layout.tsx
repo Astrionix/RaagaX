@@ -6,12 +6,16 @@ export const viewport = {
 };
 
 export const metadata = {
-  title: 'RaagaX - Luxury Futuristic Music Streaming Platform',
-  description: 'Experience studio-grade 320kbps audio, 3D Vinyl Visualizers, YouTube Music Video mode, and synced lyrics.',
+  title: 'RaagaX - Futuristic Music Streaming Platform',
+  description: 'Experience studio-grade 320kbps audio, YouTube Music Video mode, and synced lyrics.',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/favicon.ico',
+    apple: '/icon-192.png',
+  },
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
+    statusBarStyle: 'black-translucent' as const,
     title: 'RaagaX',
   },
 };
@@ -25,8 +29,6 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body className="antialiased bg-white text-slate-900 selection:bg-red-500 selection:text-white">
         {children}

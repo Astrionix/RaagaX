@@ -13,6 +13,8 @@ export function SettingsModal() {
     crossfadeSec,
     setCrossfadeSec,
     exportBackupJson,
+    preferredLanguage,
+    setPreferredLanguage,
   } = usePlayerStore();
 
   if (!isSettingsModalOpen) return null;
@@ -71,7 +73,27 @@ export function SettingsModal() {
             ))}
           </div>
         </div>
-
+        {/* Content Language Section */}
+        <div className="space-y-3 pt-2">
+          <label className="text-xs font-extrabold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+            <Disc className="w-4 h-4 text-[#EF233C]" /> Content Language
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {['Telugu', 'Kannada', 'Tamil', 'Hindi', 'Malayalam', 'English'].map((lang) => (
+              <button
+                key={lang}
+                onClick={() => setPreferredLanguage(lang)}
+                className={`py-2.5 px-3 rounded-xl text-xs font-extrabold transition-all border ${
+                  preferredLanguage === lang
+                    ? 'bg-[#EF233C] text-white border-red-400 shadow-md shadow-red-500/20'
+                    : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/5'
+                }`}
+              >
+                {lang}
+              </button>
+            ))}
+          </div>
+        </div>
         {/* Crossfade Duration Section */}
         <div className="space-y-3 pt-2">
           <div className="flex items-center justify-between">

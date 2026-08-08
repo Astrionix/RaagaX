@@ -3,11 +3,14 @@
 import React, { useEffect, useRef } from 'react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { AudioEngine } from '@/lib/audioEngine';
+import { Song } from '@/types/music';
 
 const FALLBACK_AUDIO_URL = 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
+const QUEUE_REFILL_THRESHOLD = 3; // refill when fewer than this many tracks remain after current
 
 export function AudioPlayerController() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const isRefilling = useRef(false);
 
   const {
     currentSong,
@@ -17,6 +20,11 @@ export function AudioPlayerController() {
     isMuted,
     eqSettings,
     isVideoModeActive,
+    queue,
+    queueIndex,
+    likedSongIds,
+    historySongIds,
+    addToQueue,
     playNext,
     playPrev,
     setCurrentTime,
@@ -31,6 +39,43 @@ export function AudioPlayerController() {
   useEffect(() => {
     restoreLocalSession();
   }, [restoreLocalSession]);
+
+  // Auto-refill queue when fewer than QUEUE_REFILL_THRESHOLD tracks remain
+  useEffect(() => {
+    const remaining = queue.length - (queueIndex + 1);
+    if (remaining >= QUEUE_REFILL_THRESHOLD || isRefilling.current || !currentSong) return;
+
+    isRefilling.current = true;
+
+    const existingIds = queue.map(s => s.id);
+    // Detect language from current song genre
+    const genre = currentSong.genre || 'TELUGU HITS';
+    const language = genre.split(' ')[0] || 'Telugu';
+    const validLangs = ['Telugu', 'Kannada', 'Tamil', 'Hindi', 'Malayalam', 'English'];
+    const lang = validLangs.find(l => l.toUpperCase() === language.toUpperCase()) || 'Telugu';
+
+    fetch(`/api/queue-refill`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        language: lang, 
+        excludeIds: existingIds, 
+        likedIds: likedSongIds,
+        historyIds: historySongIds,
+        count: 10 
+      })
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.data?.songs)) {
+          const newSongs: Song[] = data.data.songs;
+          newSongs.forEach(s => addToQueue(s));
+          console.log(`[QUEUE] Refilled +${newSongs.length} ${lang} tracks`);
+        }
+      })
+      .catch(() => {})
+      .finally(() => { isRefilling.current = false; });
+  }, [queueIndex, queue.length]);
 
   // Initialize Web Audio Engine once element is ready
   useEffect(() => {

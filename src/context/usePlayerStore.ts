@@ -55,9 +55,11 @@ interface PlayerState {
   sleepTimerEndsAt: number | null;
 
   contextMenuSong: Song | null;
+  preferredLanguage: string;
 
   // Actions
   restoreLocalSession: () => Promise<void>;
+  setPreferredLanguage: (lang: string) => void;
   playSong: (song: Song, newQueue?: Song[]) => void;
   togglePlayPause: () => void;
   setIsPlaying: (playing: boolean) => void;
@@ -184,6 +186,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   sleepTimerMinutes: null,
   sleepTimerEndsAt: null,
   contextMenuSong: null,
+  preferredLanguage: 'Telugu',
+
+  setPreferredLanguage: (lang) => set({ preferredLanguage: lang }),
 
   restoreLocalSession: async () => {
     const session = await LocalDatabase.getInstance().loadPlaybackSession();
@@ -194,6 +199,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         queue: session.queue || [],
         queueIndex: session.queueIndex || 0,
         historySongIds: session.historySongIds || [],
+        preferredLanguage: session.preferredLanguage || 'Telugu',
       });
     }
   },
@@ -222,6 +228,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       queueIndex: index,
       historySongIds: newHistory,
       searchHistory: LocalDatabase.getInstance().getSearchHistory(),
+      preferredLanguage: get().preferredLanguage,
     });
   },
 
@@ -258,7 +265,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }
 
     if (repeatMode === 'one' && currentSong) {
-      set({ currentTime: 0, isPlaying: true });
+      set({ currentSong: { ...currentSong }, currentTime: 0, isPlaying: true });
       return;
     }
 

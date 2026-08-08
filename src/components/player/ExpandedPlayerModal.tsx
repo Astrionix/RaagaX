@@ -138,7 +138,7 @@ export function ExpandedPlayerModal() {
     <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="fixed inset-0 z-[100] w-full h-full bg-[#0A0B0E]/98 backdrop-blur-3xl p-4 sm:p-6 md:p-12 overflow-y-auto animate-in slide-in-from-bottom duration-300 flex flex-col justify-between text-white select-none"
+      className="fixed inset-0 z-[100] w-full h-full bg-[#0A0B0E]/98 backdrop-blur-3xl p-4 sm:p-6 md:p-12 overflow-y-auto overscroll-none animate-in slide-in-from-bottom duration-300 flex flex-col justify-between text-white select-none"
     >
       {/* Dynamic Ambient Background Art Glow */}
       <div
