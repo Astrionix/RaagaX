@@ -8,6 +8,7 @@ export class DeviceSyncManager {
   private deviceId: string;
   private isBroadcasting = false;
   private unsubscribeZustand: (() => void) | null = null;
+  private localRevision = 0;
 
   private constructor() {
     // Generate a unique device ID for this session
@@ -153,6 +154,12 @@ export class DeviceSyncManager {
    * Handle incoming remote state changes
    */
   private handleRemoteUpdate(remoteState: any) {
+    // Prevent race conditions: Drop stale updates
+    if (remoteState.revision !== undefined && remoteState.revision < this.localRevision) {
+      return;
+    }
+    this.localRevision = remoteState.revision || this.localRevision;
+
     const store = usePlayerStore.getState();
     const isActiveDevice = remoteState.active_device_id === this.deviceId;
     
@@ -198,6 +205,7 @@ export class DeviceSyncManager {
         queue_index: store.queueIndex,
         shuffle: store.isShuffle,
         repeat_mode: store.repeatMode,
+        revision: ++this.localRevision,
         updated_at: new Date().toISOString(),
       });
     } catch (e) {

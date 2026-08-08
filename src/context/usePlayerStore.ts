@@ -284,7 +284,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setVolume: (vol) => set({ volume: vol }),
   toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 
-  playNext: () => {
+  playNext: async () => {
     const { queue, queueIndex, isShuffle, repeatMode, currentSong, currentTime } = get();
     if (queue.length === 0) return;
 
@@ -310,8 +310,29 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         if (repeatMode === 'all') {
           nextIndex = 0;
         } else {
-          set({ isPlaying: false });
-          return;
+          // Attempt Autoplay
+          if (currentSong) {
+            try {
+              const { ProviderRegistry } = await import('@/lib/discovery/ProviderRegistry');
+              const newSongs = await ProviderRegistry.getInstance().search(`${currentSong.artist} top hits`, 10);
+              const uniqueSongs = newSongs.filter(s => !queue.some(q => q.id === s.id));
+              
+              if (uniqueSongs.length > 0) {
+                set({ queue: [...queue, ...uniqueSongs] });
+                // nextIndex is now valid, let execution continue to play nextSong
+              } else {
+                set({ isPlaying: false });
+                return;
+              }
+            } catch (e) {
+              console.error('Autoplay failed:', e);
+              set({ isPlaying: false });
+              return;
+            }
+          } else {
+            set({ isPlaying: false });
+            return;
+          }
         }
       }
     }
