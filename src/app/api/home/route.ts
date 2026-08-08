@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { ProviderRegistry } from '@/lib/discovery/ProviderRegistry';
 import '@/lib/discovery/JioSaavnProvider';

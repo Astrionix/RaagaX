@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { DiscoveryLanguage } from '@/lib/discoveryEngine';
 import { supabase } from '@/lib/supabase';
 
+export const dynamic = 'force-dynamic';
+
 const VALID_LANGUAGES: DiscoveryLanguage[] = [
   'Telugu', 'Kannada', 'Tamil', 'Hindi', 'Malayalam', 'English',
 ];
