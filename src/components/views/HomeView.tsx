@@ -99,7 +99,7 @@ export function HomeView() {
       <div className="flex items-center justify-between pt-1">
         <div>
           <h1 className="text-3xl font-black tracking-tight text-white">{greeting}</h1>
-          <p className="text-xs text-slate-400 font-medium">Discover what&apos;s trending this week</p>
+          <p className="text-xs text-slate-400 font-medium">Discover what's trending this week</p>
         </div>
       </div>
 

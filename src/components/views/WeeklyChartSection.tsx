@@ -165,7 +165,7 @@ export function WeeklyChartSection() {
       <section className="space-y-4 w-full overflow-hidden">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-black text-white flex items-center gap-2">
-            <Flame className="w-5 h-5 text-[#EF233C]" /> This Week&apos;s Top 10
+            <Flame className="w-5 h-5 text-[#EF233C]" /> This Week's Top 10
           </h2>
           {data?.chart && (
             <span className="text-[10px] text-slate-500 font-mono hidden sm:block">
@@ -193,7 +193,7 @@ export function WeeklyChartSection() {
           <div className="py-8 flex flex-col items-center justify-center space-y-4 bg-[#1C1C1E] rounded-xl border border-white/5">
             <RefreshCw className="w-6 h-6 text-[#EF233C] animate-spin" />
             <div className="text-center">
-              <p className="text-sm font-bold text-white">Updating this week&apos;s chart...</p>
+              <p className="text-sm font-bold text-white">Updating this week's chart...</p>
               <p className="text-xs text-slate-500 mt-1">This takes a few seconds.</p>
             </div>
             <button onClick={() => fetchChart(activeLang)} className="px-4 py-1.5 bg-white/5 hover:bg-white/10 rounded-full text-xs font-bold transition-colors">
