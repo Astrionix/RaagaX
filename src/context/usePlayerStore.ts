@@ -316,11 +316,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
               const { ProviderRegistry } = await import('@/lib/discovery/ProviderRegistry');
               const jiosaavn = ProviderRegistry.getInstance().getProvider('jiosaavn');
               const newSongs = jiosaavn ? await jiosaavn.search(`${currentSong.artist} top hits`, 10) : [];
-              const uniqueSongs = newSongs.filter((s: any) => !queue.some((q: any) => q.id === s.id));
+              const uniqueSongs = newSongs.filter((s: any) => !queue.some((q: any) => q.id === s.id)) as unknown as any[];
               
               if (uniqueSongs.length > 0) {
                 const updatedQueue = [...queue, ...uniqueSongs];
-                set({ queue: updatedQueue });
+                set({ queue: updatedQueue as any });
                 // Play the first new song immediately
                 set({
                   currentSong: uniqueSongs[0],
