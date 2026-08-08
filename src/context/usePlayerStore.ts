@@ -486,7 +486,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         
       const historySongIds = historyData ? Array.from(new Set(historyData.map(d => d.song_id))) : [];
       
-      let songs = [];
+      let songs: Song[] = [];
       if (songIds.length > 0) {
         const { SongResolver } = await import('@/lib/discovery/SongResolver');
         songs = await SongResolver.resolveSongs(songIds);
