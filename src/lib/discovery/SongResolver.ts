@@ -1,6 +1,6 @@
 import { ProviderCandidate } from './ProviderRegistry';
 import { Song } from '@/types/music';
-import { getSupabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase'; // Using the client initialized with SERVICE_ROLE
 import { InternetDateScraper } from './InternetDateScraper';
 
 export class SongResolver {
@@ -137,7 +137,7 @@ export class SongResolver {
     try {
       if (resolved.length > 0) {
         // Upsert into canonical_songs
-        const { error: songError } = await getSupabase()
+        const { error: songError } = await supabase
           .from('canonical_songs')
           .upsert(
             resolved.map((s: any) => ({
@@ -156,7 +156,7 @@ export class SongResolver {
         if (songError) throw songError;
 
         // Upsert into charts
-        const { error: chartError } = await getSupabase()
+        const { error: chartError } = await supabase
           .from('charts')
           .upsert(
             resolved.map((s, idx) => ({

@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { getSupabase } from '@/lib/supabase';
+import { NextRequest, NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase';
 import { ProviderRegistry } from '@/lib/discovery/ProviderRegistry';
 import '@/lib/discovery/JioSaavnProvider';
 import { SongResolver } from '@/lib/discovery/SongResolver';
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     const language = searchParams.get('language') || 'telugu';
 
     // 1. Try fetching from Supabase cache
-    const { data: charts, error } = await getSupabase()
+    const { data: charts, error } = await supabase
       .from('charts')
       .select(`
         section_name,
@@ -31,7 +31,7 @@ export async function GET(request: Request) {
       let top100 = charts.filter(c => c.section_name === 'top100').map(c => mapRowToSong(c.canonical_songs));
 
       // Fetch Playlists
-      const { data: playlistsData } = await getSupabase()
+      const { data: playlistsData } = await supabase
         .from('playlists')
         .select(`
           id, title, description, language, cover_url,

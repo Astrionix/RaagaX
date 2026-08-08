@@ -1,6 +1,6 @@
 import { Song } from '@/types/music';
 import { JioSaavnProvider, LANGUAGE_CODES } from './jioSaavnProvider';
-import { getSupabase } from './supabase';
+import { supabase } from './supabase';
 
 export type DiscoveryLanguage = 'Telugu' | 'Kannada' | 'Tamil' | 'Hindi' | 'Malayalam' | 'English';
 export type MatchStatus = 'VERIFIED' | 'HIGH_CONFIDENCE' | 'REVIEW' | 'UNRESOLVED';
@@ -345,7 +345,7 @@ export class DiscoveryEngine {
       
       // Store to Supabase
       try {
-        const { data: chartData, error: chartError } = await getSupabase()
+        const { data: chartData, error: chartError } = await supabase
           .from('charts')
           .insert({
             language,
@@ -376,7 +376,7 @@ export class DiscoveryEngine {
             is_new: r.isNew
           }));
 
-          await getSupabase().from('chart_entries').insert(entries);
+          await supabase.from('chart_entries').insert(entries);
         }
       } catch (dbErr) {
         console.error('[SUPABASE ERROR]', dbErr);

@@ -88,9 +88,8 @@ export async function GET(request: Request) {
 async function generatePlaylists(top100: any[], language: string) {
   if (top100.length < 20) return;
   
-  import('@/lib/supabase').then(async ({ getSupabase }) => {
+  import('@/lib/supabase').then(async ({ supabase }) => {
     try {
-      const supabase = getSupabase();
       // 1. Create a "Top Hits" playlist
       const topHitsId = `pl_tophits_${language}`;
       await supabase.from('playlists').upsert({
