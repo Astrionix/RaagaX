@@ -19,7 +19,8 @@ import {
   Tv,
   Heart,
   Download,
-  Maximize2
+  Maximize2,
+  MonitorSmartphone
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 
@@ -61,6 +62,8 @@ export function Navbar() {
     toggleSettingsModal,
     toggleCastModal,
     toggleSleepTimerModal,
+    rightPanelMode,
+    setRightPanelMode,
   } = usePlayerStore();
 
   const handleOpenVideoMode = () => {
@@ -202,6 +205,14 @@ export function Navbar() {
 
       {/* Right Tools & Modals Bar (Desktop Only) */}
       <div className="hidden md:flex items-center gap-1.5">
+        <button
+          onClick={() => setRightPanelMode(rightPanelMode === 'devices' ? 'queue' : 'devices')}
+          className={`p-1.5 rounded-lg transition-colors mr-1 ${rightPanelMode === 'devices' ? 'text-[#EF233C] bg-[#EF233C]/10' : 'text-slate-400 hover:text-white'}`}
+          title="Connect to a device"
+        >
+          <MonitorSmartphone className="w-3.5 h-3.5" />
+        </button>
+
         <div className="flex items-center gap-1.5 mr-1">
           <button onClick={toggleMute} className="text-slate-400 hover:text-white">
             {isMuted || volume === 0 ? <VolumeX className="w-3.5 h-3.5 text-[#EF233C]" /> : <Volume2 className="w-3.5 h-3.5" />}
