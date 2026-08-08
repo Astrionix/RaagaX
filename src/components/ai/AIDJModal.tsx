@@ -78,7 +78,7 @@ export function AIDJModal() {
         <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex items-start gap-3">
           <MessageSquare className="w-5 h-5 text-[#EF233C] flex-shrink-0 mt-0.5" />
           <p className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed font-medium">
-            "{aiDjState.insightText}"
+            &quot;{aiDjState.insightText}&quot;
           </p>
         </div>
 

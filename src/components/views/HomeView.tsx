@@ -82,7 +82,7 @@ export function HomeView() {
           <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#EF233C] flex items-center gap-1.5">
             <Flame className="w-3.5 h-3.5" /> Contextual Recommendation Engine
           </span>
-          <h3 className="text-lg font-black text-white">Because you're enjoying {topArtistName}</h3>
+          <h3 className="text-lg font-black text-white">Because you&apos;re enjoying {topArtistName}</h3>
           <p className="text-xs text-slate-400">Handpicked Telugu Melody Mix weighted by your listening profile & completion rates.</p>
         </div>
         <button

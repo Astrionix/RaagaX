@@ -1,0 +1,12 @@
+{
+  "extends": "next/core-web-vitals",
+  "ignorePatterns": ["android/**", ".next/**", "out/**"],
+  "overrides": [
+    {
+      "files": ["src/modules/**", "src/common/**", "src/api-app.ts", "src/app.ts", "src/server.ts"],
+      "rules": {
+        "react-hooks/rules-of-hooks": "off"
+      }
+    }
+  ]
+}
