@@ -34,6 +34,12 @@ export function HomeView() {
 
   const [realSongs, setRealSongs] = useState<Song[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [greeting, setGreeting] = useState('Good Morning');
+
+  useEffect(() => {
+    const hour = new Date().getHours();
+    setGreeting(hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening');
+  }, []);
 
   useEffect(() => {
     async function loadRealTracks() {
@@ -59,9 +65,6 @@ export function HomeView() {
     { id: 'mix-3', title: 'Focus & Study Mix', desc: 'Ambient Telugu Flute & Acoustic Beats', cover: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&auto=format&fit=crop&q=80', songs: realSongs.slice(6, 9) },
     { id: 'mix-4', title: 'Weekend Party Mix', desc: 'High Energy Mass Party Anthems', cover: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&auto=format&fit=crop&q=80', songs: realSongs.slice(9, 12) },
   ];
-
-  const currentHour = new Date().getHours();
-  const greeting = currentHour < 12 ? 'Good Morning' : currentHour < 18 ? 'Good Afternoon' : 'Good Evening';
 
   return (
     <div className="space-y-8 pb-6 text-white select-none">
