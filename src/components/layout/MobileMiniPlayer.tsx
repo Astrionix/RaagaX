@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Play, Pause, SkipForward, MonitorSpeaker } from 'lucide-react';
+import { Play, Pause, SkipForward, MonitorSpeaker, Heart } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 
 export function MobileMiniPlayer() {
@@ -14,6 +14,8 @@ export function MobileMiniPlayer() {
     playNext,
     togglePlayerExpanded,
     toggleDeviceModal,
+    likedSongIds,
+    toggleLikeSong,
   } = usePlayerStore();
 
   if (!currentSong) return null;
@@ -49,6 +51,16 @@ export function MobileMiniPlayer() {
         <button 
           onClick={(e) => {
             e.stopPropagation();
+            toggleLikeSong(currentSong.id);
+          }}
+          className="p-2 rounded-full hover:bg-white/5 transition-colors"
+        >
+          <Heart className={`w-4 h-4 ${likedSongIds.includes(currentSong.id) ? 'fill-[#EF233C] text-[#EF233C]' : 'text-slate-400'}`} />
+        </button>
+
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
             toggleDeviceModal();
           }}
           className="p-2 rounded-full text-slate-400 hover:text-[#1ed760] transition-colors"
@@ -57,7 +69,10 @@ export function MobileMiniPlayer() {
         </button>
         
         <button
-          onClick={togglePlayPause}
+          onClick={(e) => {
+            e.stopPropagation();
+            togglePlayPause();
+          }}
           className="p-2 text-white hover:text-[#EF233C] active:scale-95 transition-transform"
         >
           {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}

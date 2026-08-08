@@ -19,6 +19,7 @@ interface PlayerState {
   repeatMode: RepeatMode;
 
   likedSongIds: string[];
+  likedSongs: Song[];
   downloadedSongIds: string[];
   historySongIds: string[];
   favoriteArtistIds: string[];
@@ -72,6 +73,7 @@ interface PlayerState {
 
   // Actions
   restoreLocalSession: () => Promise<void>;
+  fetchLikedSongs: () => Promise<void>;
   setPreferredLanguage: (lang: string) => void;
   playSong: (song: Song, newQueue?: Song[]) => void;
   togglePlayPause: () => void;
@@ -148,6 +150,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   repeatMode: 'off',
 
   likedSongIds: [],
+  likedSongs: [],
   downloadedSongIds: [],
   historySongIds: [],
   favoriteArtistIds: [],
@@ -231,6 +234,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         queue: session.queue || [],
         queueIndex: session.queueIndex || 0,
         historySongIds: session.historySongIds || [],
+        likedSongIds: session.likedSongIds || [],
         preferredLanguage: session.preferredLanguage || 'Telugu',
       });
     }
@@ -259,6 +263,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       queue,
       queueIndex: index,
       historySongIds: newHistory,
+      likedSongIds: get().likedSongIds,
       searchHistory: LocalDatabase.getInstance().getSearchHistory(),
       preferredLanguage: get().preferredLanguage,
     });
@@ -268,7 +273,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setIsPlaying: (playing) => set({ isPlaying: playing }),
   setCurrentTime: (time) => {
     set({ currentTime: time });
-    const { currentSong, queue, queueIndex, historySongIds } = get();
+    const { currentSong, queue, queueIndex, historySongIds, likedSongIds } = get();
     if (currentSong && Math.floor(time) % 5 === 0) {
       LocalDatabase.getInstance().savePlaybackSession({
         currentSong,
@@ -276,6 +281,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         queue,
         queueIndex,
         historySongIds,
+        likedSongIds,
         searchHistory: LocalDatabase.getInstance().getSearchHistory(),
       });
     }
@@ -396,15 +402,84 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     set((state) => ({ queue: state.queue.filter((s) => s.id !== songId) })),
   reorderQueue: (newQueue) => set({ queue: newQueue }),
 
-  toggleLikeSong: (songId) =>
+  fetchLikedSongs: async () => {
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.user) return;
+
+      const { data, error } = await supabase
+        .from('liked_songs')
+        .select('song_id')
+        .eq('user_id', session.session.user.id);
+        
+      if (error) throw error;
+      
+      const songIds = Array.from(new Set(data.map(d => d.song_id)));
+      
+      const { SongResolver } = await import('@/lib/discovery/SongResolver');
+      const songs = await SongResolver.resolveSongs(songIds);
+      
+      set({ likedSongIds: songIds, likedSongs: songs });
+    } catch (e) {
+      console.error("Failed to fetch liked songs:", e);
+    }
+  },
+
+  toggleLikeSong: async (songId) => {
+    const isLiked = get().likedSongIds.includes(songId);
+    
+    // Optimistic UI update and local persistence for guests
     set((state) => {
-      const isLiked = state.likedSongIds.includes(songId);
-      return {
-        likedSongIds: isLiked
-          ? state.likedSongIds.filter((id) => id !== songId)
-          : [...state.likedSongIds, songId],
-      };
-    }),
+      const newLikedIds = isLiked
+        ? state.likedSongIds.filter((id) => id !== songId)
+        : [...state.likedSongIds, songId];
+        
+      // Save locally to persist for guests across reloads
+      LocalDatabase.getInstance().savePlaybackSession({
+        currentSong: state.currentSong,
+        currentTime: state.currentTime,
+        queue: state.queue,
+        queueIndex: state.queueIndex,
+        historySongIds: state.historySongIds,
+        likedSongIds: newLikedIds,
+        searchHistory: LocalDatabase.getInstance().getSearchHistory(),
+        preferredLanguage: state.preferredLanguage,
+      });
+
+      return { likedSongIds: newLikedIds };
+    });
+
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      const { data: session } = await supabase.auth.getSession();
+      
+      if (session?.session?.user) {
+        if (isLiked) {
+          // Unlike
+          await supabase
+            .from('liked_songs')
+            .delete()
+            .eq('user_id', session.session.user.id)
+            .eq('song_id', songId);
+        } else {
+          // Like
+          await supabase
+            .from('liked_songs')
+            .insert({
+              user_id: session.session.user.id,
+              song_id: songId,
+            });
+        }
+        
+        // Refresh full liked songs metadata after mutation
+        get().fetchLikedSongs();
+      }
+    } catch (e) {
+      console.error("Failed to sync like status:", e);
+      // Rollback on failure could be implemented here
+    }
+  },
 
   toggleDownloadSong: (songId) => {
     const { queue, currentSong, downloadedSongIds } = get();

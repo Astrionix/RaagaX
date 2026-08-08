@@ -24,6 +24,7 @@ export function HomeView() {
     currentSong,
     isPlaying,
     likedSongIds,
+    likedSongs,
     toggleLikeSong,
     downloadedSongIds,
     toggleDownloadSong,
@@ -34,7 +35,6 @@ export function HomeView() {
   } = usePlayerStore();
 
   const [realSongs, setRealSongs] = useState<Song[]>([]);
-  const [newReleases, setNewReleases] = useState<Song[]>([]);
   const [top100, setTop100] = useState<Song[]>([]);
   const [playlists, setPlaylists] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,7 +45,6 @@ export function HomeView() {
   const [isTop100Expanded, setIsTop100Expanded] = useState(false);
 
   const trendingRef = useRef<HTMLDivElement>(null);
-  const newReleasesRef = useRef<HTMLDivElement>(null);
   const top100Ref = useRef<HTMLDivElement>(null);
   const aiRef = useRef<HTMLDivElement>(null);
 
@@ -78,7 +77,6 @@ export function HomeView() {
             setFilteredSongs(ranked.length > 0 ? ranked : trending);
           }
 
-          setNewReleases(newReleases || []);
           setTop100(top100 || []);
           setPlaylists(apiPlaylists || []);
         }
@@ -197,6 +195,61 @@ export function HomeView() {
         </section>
       )}
 
+      {/* Liked Songs Section */}
+      {likedSongs && likedSongs.length > 0 && (
+        <section className="space-y-4 pt-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
+                <Heart className="w-5 h-5 text-[#EF233C] fill-[#EF233C]" /> Liked Songs
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (likedSongs.length > 0) playSong(likedSongs[0], likedSongs);
+                  }}
+                  className="ml-2 w-7 h-7 rounded-full bg-[#EF233C] text-white flex items-center justify-center hover:scale-105 transition-transform shadow-md shadow-[#EF233C]/20"
+                >
+                  <Play className="w-3 h-3 fill-white ml-0.5" />
+                </button>
+              </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <button className="text-xs font-bold text-slate-400 hover:text-white transition-colors">See All &gt;</button>
+            </div>
+          </div>
+          <div className="flex overflow-x-auto gap-4 pb-4 no-scrollbar w-full min-w-0 overflow-y-hidden">
+            {likedSongs.map((song) => (
+              <div
+                key={song.id}
+                onClick={() => playSong(song, likedSongs)}
+                className="p-3 min-w-[160px] max-w-[160px] w-[160px] flex-none rounded-2xl surface-card surface-card-hover space-y-2.5 cursor-pointer group flex-shrink-0"
+              >
+                <div className="w-full aspect-square rounded-xl overflow-hidden shadow-md relative">
+                  <img src={song.coverUrl} alt={song.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                  
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); toggleLikeSong(song.id); }} 
+                    className={`absolute top-2 right-2 p-1.5 rounded-full bg-black/40 hover:bg-black/60 transition-colors backdrop-blur-md ${likedSongIds.includes(song.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                  >
+                    <Heart className={`w-4 h-4 ${likedSongIds.includes(song.id) ? 'fill-[#EF233C] text-[#EF233C]' : 'text-white'}`} />
+                  </button>
+
+                  <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                    <div className="w-10 h-10 rounded-full bg-[#EF233C] text-white flex items-center justify-center shadow-xl">
+                      <Play className="w-5 h-5 fill-white ml-0.5" />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-[11px] sm:text-xs font-extrabold text-white truncate group-hover:text-[#EF233C] transition-colors">{song.title}</h4>
+                  <p className="text-[9px] sm:text-[10px] text-slate-400 truncate mt-0.5 font-medium leading-snug">{song.artist}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* 1. Trending Tracks */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
@@ -227,10 +280,18 @@ export function HomeView() {
             >
               <div className="w-full aspect-square rounded-xl overflow-hidden shadow-md relative">
                 <img src={song.coverUrl} alt={song.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <button className="w-10 h-10 rounded-full bg-[#EF233C] text-white flex items-center justify-center shadow-xl hover:scale-110 transition-transform">
+                
+                <button 
+                  onClick={(e) => { e.stopPropagation(); toggleLikeSong(song.id); }} 
+                  className={`absolute top-2 right-2 p-1.5 rounded-full bg-black/40 hover:bg-black/60 transition-colors backdrop-blur-md z-10 ${likedSongIds.includes(song.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                >
+                  <Heart className={`w-4 h-4 ${likedSongIds.includes(song.id) ? 'fill-[#EF233C] text-[#EF233C]' : 'text-white'}`} />
+                </button>
+
+                <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                  <div className="w-10 h-10 rounded-full bg-[#EF233C] text-white flex items-center justify-center shadow-xl">
                     <Play className="w-5 h-5 fill-white ml-0.5" />
-                  </button>
+                  </div>
                 </div>
               </div>
               <div>
@@ -242,101 +303,127 @@ export function HomeView() {
         </div>
       </section>
 
-      {/* 1.5 AI Recommendations */}
+      {/* 1.5 AI Recommendations - Split into 3 sections */}
       {aiRecommendations.length > 0 && (
-        <section className="space-y-4 pt-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
-                <span className="text-[#EF233C] animate-pulse">🤖</span> AI DJ For You
-              </h2>
+        <>
+          {/* Section 1: AI DJ */}
+          <section className="space-y-4 pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
+                  <span className="text-xl">🤖</span> AI DJ For You
+                </h2>
+                <p className="text-[10px] text-slate-400 font-medium tracking-wide mt-0.5">GENERATED BY RAAGAX ML ENGINE</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => scrollCarousel(aiRef, 'left')} className="p-1 hover:bg-white/10 rounded-full transition-colors">
+                  <ChevronLeft className="w-5 h-5 text-slate-400 hover:text-white" />
+                </button>
+                <button onClick={() => scrollCarousel(aiRef, 'right')} className="p-1 hover:bg-white/10 rounded-full transition-colors">
+                  <ChevronRight className="w-5 h-5 text-slate-400 hover:text-white" />
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => scrollCarousel(aiRef, 'left')} className="p-1 hover:bg-white/10 rounded-full transition-colors">
-                <ChevronLeft className="w-5 h-5 text-slate-400 hover:text-white" />
-              </button>
-              <button onClick={() => scrollCarousel(aiRef, 'right')} className="p-1 hover:bg-white/10 rounded-full transition-colors">
-                <ChevronRight className="w-5 h-5 text-slate-400 hover:text-white" />
-              </button>
-            </div>
-          </div>
-
-          <div ref={aiRef} className="flex overflow-x-auto gap-4 pb-4 no-scrollbar w-full min-w-0 overflow-y-hidden">
-            {aiRecommendations.map((song) => (
-              <div
-                key={song.id}
-                onClick={() => playSong(song, aiRecommendations)}
-                className="p-3 min-w-[160px] max-w-[160px] w-[160px] flex-none rounded-2xl bg-gradient-to-br from-black/40 to-black/20 border border-[#EF233C]/20 hover:border-[#EF233C]/60 space-y-2.5 cursor-pointer group flex-shrink-0 transition-all duration-300"
-              >
-                <div className="w-full aspect-square rounded-xl overflow-hidden shadow-md relative">
-                  <img src={song.coverUrl} alt={song.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                  <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <button className="w-10 h-10 rounded-full bg-[#EF233C] text-white flex items-center justify-center shadow-xl hover:scale-110 transition-transform">
-                      <Play className="w-5 h-5 fill-white ml-0.5" />
-                    </button>
+            <div ref={aiRef} className="flex overflow-x-auto gap-4 pb-4 no-scrollbar w-full min-w-0 overflow-y-hidden">
+              {aiRecommendations.slice(0, 5).map((song) => (
+                <div
+                  key={song.id}
+                  onClick={() => playSong(song, aiRecommendations)}
+                  className="p-3 min-w-[160px] max-w-[160px] w-[160px] flex-none rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/5 hover:from-indigo-500/20 hover:to-purple-500/10 border border-indigo-500/20 transition-all duration-300 space-y-2.5 cursor-pointer group flex-shrink-0 relative overflow-hidden"
+                >
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-indigo-500/20 blur-2xl rounded-full -mr-8 -mt-8 group-hover:bg-indigo-500/40 transition-colors"></div>
+                  <div className="w-full aspect-square rounded-xl overflow-hidden shadow-lg relative border border-white/5">
+                    <img src={song.coverUrl} alt={song.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <button className="w-10 h-10 rounded-full bg-indigo-500 text-white flex items-center justify-center shadow-xl hover:scale-110 transition-transform shadow-indigo-500/30">
+                        <Play className="w-5 h-5 fill-white ml-0.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-[11px] sm:text-xs font-extrabold text-white truncate group-hover:text-indigo-400 transition-colors">{song.title}</h4>
+                    <p className="text-[9px] sm:text-[10px] text-slate-400 truncate mt-0.5 font-medium leading-snug">{song.artist}</p>
                   </div>
                 </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Section 2: Discovery Mix */}
+          {aiRecommendations.length > 5 && (
+            <section className="space-y-4 pt-4">
+              <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="text-[11px] sm:text-xs font-extrabold text-white truncate group-hover:text-[#EF233C] transition-colors">{song.title}</h4>
-                  <p className="text-[9px] sm:text-[10px] text-[#EF233C]/80 truncate mt-0.5 font-medium leading-snug">Picked by AI DJ</p>
+                  <h2 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
+                    <span className="text-xl">✨</span> Discovery Mix
+                  </h2>
+                  <p className="text-[10px] text-slate-400 font-medium tracking-wide mt-0.5">HIDDEN GEMS TAILORED TO YOUR TASTE</p>
                 </div>
               </div>
-            ))}
-          </div>
-        </section>
+              <div className="flex overflow-x-auto gap-4 pb-4 no-scrollbar w-full min-w-0 overflow-y-hidden">
+                {aiRecommendations.slice(5, 10).map((song) => (
+                  <div
+                    key={song.id}
+                    onClick={() => playSong(song, aiRecommendations)}
+                    className="p-3 min-w-[160px] max-w-[160px] w-[160px] flex-none rounded-2xl bg-gradient-to-br from-emerald-500/10 to-teal-500/5 hover:from-emerald-500/20 hover:to-teal-500/10 border border-emerald-500/20 transition-all duration-300 space-y-2.5 cursor-pointer group flex-shrink-0"
+                  >
+                    <div className="w-full aspect-square rounded-xl overflow-hidden shadow-lg relative border border-white/5">
+                      <img src={song.coverUrl} alt={song.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <button className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xl hover:scale-110 transition-transform shadow-emerald-500/30">
+                          <Play className="w-5 h-5 fill-white ml-0.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-[11px] sm:text-xs font-extrabold text-white truncate group-hover:text-emerald-400 transition-colors">{song.title}</h4>
+                      <p className="text-[9px] sm:text-[10px] text-slate-400 truncate mt-0.5 font-medium leading-snug">{song.artist}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Section 3: Deep Cuts */}
+          {aiRecommendations.length > 10 && (
+            <section className="space-y-4 pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
+                    <span className="text-xl">🔮</span> Deep Cuts
+                  </h2>
+                  <p className="text-[10px] text-slate-400 font-medium tracking-wide mt-0.5">BASED ON YOUR PLAYBACK HISTORY</p>
+                </div>
+              </div>
+              <div className="flex overflow-x-auto gap-4 pb-4 no-scrollbar w-full min-w-0 overflow-y-hidden">
+                {aiRecommendations.slice(10, 15).map((song) => (
+                  <div
+                    key={song.id}
+                    onClick={() => playSong(song, aiRecommendations)}
+                    className="p-3 min-w-[160px] max-w-[160px] w-[160px] flex-none rounded-2xl bg-gradient-to-br from-rose-500/10 to-orange-500/5 hover:from-rose-500/20 hover:to-orange-500/10 border border-rose-500/20 transition-all duration-300 space-y-2.5 cursor-pointer group flex-shrink-0"
+                  >
+                    <div className="w-full aspect-square rounded-xl overflow-hidden shadow-lg relative border border-white/5">
+                      <img src={song.coverUrl} alt={song.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <button className="w-10 h-10 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-xl hover:scale-110 transition-transform shadow-rose-500/30">
+                          <Play className="w-5 h-5 fill-white ml-0.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-[11px] sm:text-xs font-extrabold text-white truncate group-hover:text-rose-400 transition-colors">{song.title}</h4>
+                      <p className="text-[9px] sm:text-[10px] text-slate-400 truncate mt-0.5 font-medium leading-snug">{song.artist}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </>
       )}
 
-      {/* 2. New Releases */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-black text-white tracking-tight">🆕 New Releases — Last 20 Days</h2>
-          </div>
-          {newReleases.length > 0 && (
-            <div className="flex items-center gap-2">
-              <button onClick={() => scrollCarousel(newReleasesRef, 'left')} className="p-1 hover:bg-white/10 rounded-full transition-colors">
-                <ChevronLeft className="w-5 h-5 text-slate-400 hover:text-white" />
-              </button>
-              <button onClick={() => scrollCarousel(newReleasesRef, 'right')} className="p-1 hover:bg-white/10 rounded-full transition-colors">
-                <ChevronRight className="w-5 h-5 text-slate-400 hover:text-white" />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {newReleases.length === 0 ? (
-          <div className="w-full flex items-center justify-center p-8 bg-white/5 border border-white/10 rounded-2xl border-dashed">
-            <p className="text-slate-400 text-sm font-medium">
-              No verified releases found in the last 20 days. 
-            </p>
-          </div>
-        ) : (
-          <div ref={newReleasesRef} className="flex overflow-x-auto gap-4 pb-4 no-scrollbar w-full min-w-0 overflow-y-hidden">
-            {newReleases.map((song) => (
-              <div
-                key={song.id}
-                onClick={() => playSong(song, newReleases)}
-                className="p-3 min-w-[160px] max-w-[160px] w-[160px] flex-none rounded-2xl surface-card surface-card-hover space-y-2.5 cursor-pointer group flex-shrink-0"
-              >
-                <div className="w-full aspect-square rounded-xl overflow-hidden shadow-md relative">
-                  <img src={song.coverUrl} alt={song.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                  <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <button className="w-10 h-10 rounded-full bg-[#EF233C] text-white flex items-center justify-center shadow-xl hover:scale-110 transition-transform">
-                      <Play className="w-5 h-5 fill-white ml-0.5" />
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <h4 className="text-[11px] sm:text-xs font-extrabold text-white truncate group-hover:text-[#EF233C] transition-colors">{song.title}</h4>
-                  <p className="text-[9px] sm:text-[10px] text-slate-400 truncate mt-0.5 font-medium leading-snug">{song.artist}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* 3. Top 100 */}
+      {/* 2. Top 100 */}
       {top100.length > 0 && (
         <section className="space-y-4">
           <div className="flex items-center justify-between">

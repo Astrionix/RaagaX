@@ -123,28 +123,26 @@ def train_and_recommend():
     for user_idx in range(num_users):
         user_uuid = user_cat[user_idx]
         
-        # Get top 15 recommendations
-        # ids, scores = model.recommend(user_idx, sparse_user_item[user_idx], N=15)
+        # Get top N recommendations, bounded by total number of songs
+        num_items = sparse_user_item.shape[1]
+        n_recs = min(15, num_items)
+        
         # Note: In implicit > 0.6.0, recommend returns a tuple of (indices, scores)
-        recommended_indices, _ = model.recommend(user_idx, sparse_user_item[user_idx], N=15)
+        recommended_indices, _ = model.recommend(user_idx, sparse_user_item[user_idx], N=n_recs, filter_already_liked_items=False)
         
         user_recs = []
+        seen = set()
         for idx in recommended_indices:
             song_id = song_cat[idx]
+            
+            # Prevent implicit zero-padding from duplicating songs
+            if song_id in seen:
+                continue
+            seen.add(song_id)
+            
             # Look up full song metadata
             if song_id in song_dict:
                 user_recs.append(song_dict[song_id])
-            else:
-                # If we don't have canonical metadata (e.g. song was logged from local fallback)
-                # Create a minimal object
-                user_recs.append({
-                    "id": song_id,
-                    "title": "Unknown Track",
-                    "artist": "Unknown Artist",
-                    "coverUrl": "",
-                    "audioUrl": "",
-                    "duration": 0
-                })
                 
         recommendations_to_insert.append({
             "user_id": user_uuid,

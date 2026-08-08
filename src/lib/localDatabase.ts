@@ -9,6 +9,7 @@ export interface PlaybackSessionCache {
   queue: Song[];
   queueIndex: number;
   historySongIds: string[];
+  likedSongIds?: string[];
   searchHistory: string[];
   preferredLanguage?: string;
 }

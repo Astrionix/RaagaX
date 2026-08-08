@@ -170,6 +170,15 @@ export function ExpandedPlayerModal() {
         <div className="flex items-center gap-2 flex-shrink-0">
 
 
+          {currentSong && (
+            <button
+              onClick={() => toggleLikeSong(currentSong.id)}
+              className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl surface-card border border-white/10 text-slate-300 hover:text-white hover:scale-105 transition-transform"
+            >
+              <Heart className={`w-5 h-5 sm:w-6 sm:h-6 ${likedSongIds.includes(currentSong.id) ? 'fill-[#EF233C] text-[#EF233C]' : ''}`} />
+            </button>
+          )}
+
           <button
             onClick={handleCloseModal}
             className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl surface-card border border-white/10 text-slate-300 hover:text-white hover:scale-105 transition-transform"

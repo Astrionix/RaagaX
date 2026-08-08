@@ -153,7 +153,10 @@ export class SongResolver {
             { onConflict: 'id' }
           );
 
-        if (songError) throw songError;
+        if (songError) {
+          console.error("UPSERT CANONICAL ERROR:", songError);
+          throw songError;
+        }
 
         // Upsert into charts
         const { error: chartError } = await supabase
@@ -200,5 +203,49 @@ export class SongResolver {
         likes: 100,
       };
     });
+  }
+
+  /**
+   * Fetches full Song objects from canonical_songs table given an array of song IDs.
+   */
+  public static async resolveSongs(songIds: string[]): Promise<Song[]> {
+    if (!songIds || songIds.length === 0) return [];
+    
+    try {
+      const { data, error } = await supabase
+        .from('canonical_songs')
+        .select('*')
+        .in('id', songIds);
+        
+      if (error) throw error;
+      
+      return (data || []).map((s: any) => {
+        let audioUrl = '';
+        if (s.raw_data && Array.isArray(s.raw_data)) {
+          const highest = s.raw_data.find((d: any) => d.quality === '320kbps') || s.raw_data[s.raw_data.length - 1];
+          audioUrl = highest?.url || '';
+        }
+
+        return {
+          id: s.id,
+          title: s.title,
+          artist: s.artist,
+          artistId: s.artist,
+          album: s.album || '',
+          albumId: s.album || '',
+          coverUrl: s.cover_url || s.coverUrl,
+          audioUrl: audioUrl,
+          duration: Number(s.duration) || 0,
+          genre: 'Telugu',
+          category: 'latest_telugu',
+          releaseYear: 2024,
+          plays: 1000,
+          likes: 100,
+        };
+      });
+    } catch (e) {
+      console.error("Failed to resolve songs from canonical_songs:", e);
+      return [];
+    }
   }
 }

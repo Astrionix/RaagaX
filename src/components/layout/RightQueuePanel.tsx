@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Heart } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 
 export function RightQueuePanel() {
@@ -13,6 +13,8 @@ export function RightQueuePanel() {
     queueIndex,
     playSong,
     removeFromQueue,
+    likedSongIds,
+    toggleLikeSong,
   } = usePlayerStore();
 
   const upNextQueue = queue.slice(queueIndex + 1);
@@ -42,15 +44,23 @@ export function RightQueuePanel() {
                 <p className="text-[10px] text-slate-400 truncate mt-0.5">{currentSong.artist}</p>
               </div>
             </div>
-            <span className="text-[10px] font-mono text-[#EF233C] font-bold flex-shrink-0">Playing</span>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button 
+                onClick={() => toggleLikeSong(currentSong.id)}
+                className="p-1 hover:bg-[#EF233C]/20 rounded-full transition-colors"
+              >
+                <Heart className={`w-3.5 h-3.5 ${likedSongIds.includes(currentSong.id) ? 'fill-[#EF233C] text-[#EF233C]' : 'text-slate-400'}`} />
+              </button>
+              <span className="text-[10px] font-mono text-[#EF233C] font-bold">Playing</span>
+            </div>
           </div>
         )}
 
         {/* Queue List */}
         <div className="space-y-1.5 overflow-y-auto no-scrollbar pr-1 flex-1">
-          {upNextQueue.map((song) => (
+          {upNextQueue.map((song, idx) => (
             <div
-              key={song.id}
+              key={`${song.id}-${idx}`}
               className="p-2 rounded-xl hover:bg-[#26262A] flex items-center justify-between group cursor-pointer transition-colors min-w-0 w-full"
             >
               <div
@@ -70,6 +80,12 @@ export function RightQueuePanel() {
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
+                <button 
+                  onClick={() => toggleLikeSong(song.id)}
+                  className={`p-1 transition-colors ${likedSongIds.includes(song.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                >
+                  <Heart className={`w-3.5 h-3.5 ${likedSongIds.includes(song.id) ? 'fill-[#EF233C] text-[#EF233C]' : 'text-slate-400 hover:text-white'}`} />
+                </button>
                 <span className="text-[10px] font-mono text-slate-500">
                   {song.duration ? `${Math.floor(Number(song.duration) / 60)}:${Math.floor(Number(song.duration) % 60).toString().padStart(2, '0')}` : '3:45'}
                 </span>

@@ -11,6 +11,7 @@ const QUEUE_REFILL_THRESHOLD = 3; // refill when fewer than this many tracks rem
 export function AudioPlayerController() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const isRefilling = useRef(false);
+  const consecutiveErrorsRef = useRef(0);
 
   const {
     currentSong,
@@ -88,83 +89,97 @@ export function AudioPlayerController() {
   // Mute/pause audio element when video mode is active or when this device is a remote control
   useEffect(() => {
     if (!audioRef.current) return;
+
     if (isVideoModeActive || !isActiveDevice) {
       audioRef.current.pause();
-    } else if (isPlaying) {
-      // If we just became the active device, sync the playback time to match the remote state
-      if (Math.abs(audioRef.current.currentTime - currentTime) > 2) {
-        audioRef.current.currentTime = currentTime;
-      }
-      audioRef.current.play().catch((err) => {
-        console.warn('Playback blocked on handoff:', err);
-        setIsPlaying(false);
-      });
-    }
-  }, [isVideoModeActive, isActiveDevice, isPlaying]);
-
-  // Update source & MediaSession metadata when current song changes
-  useEffect(() => {
-    if (audioRef.current && currentSong) {
-      const newSrc = currentSong.audioUrl || FALLBACK_AUDIO_URL;
-      
-      // Only set src if it actually changed, or if the audio element is fresh (HMR)
-      if (!audioRef.current.src.includes(newSrc)) {
-        audioRef.current.src = newSrc;
-        
-        // IMPORTANT FIX: If this was a Hot Reload (HMR), the store's currentTime will be > 0.
-        // We must restore it immediately so it doesn't play from 0:00.
-        if (currentTime > 0) {
+    } else {
+      if (isPlaying) {
+        // Only sync currentTime on handoff if difference is significant
+        if (Math.abs(audioRef.current.currentTime - currentTime) > 2) {
           audioRef.current.currentTime = currentTime;
         }
-      }
-
-      // Enable Mobile Background Playback & Lockscreen Control (MediaSession API)
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.metadata = new MediaMetadata({
-          title: currentSong.title,
-          artist: currentSong.artist,
-          album: currentSong.album,
-          artwork: [
-            { src: currentSong.coverUrl, sizes: '96x96', type: 'image/jpeg' },
-            { src: currentSong.coverUrl, sizes: '256x256', type: 'image/jpeg' },
-            { src: currentSong.coverUrl, sizes: '512x512', type: 'image/jpeg' },
-          ]
-        });
-
-        navigator.mediaSession.setActionHandler('play', () => setIsPlaying(true));
-        navigator.mediaSession.setActionHandler('pause', () => setIsPlaying(false));
-        navigator.mediaSession.setActionHandler('previoustrack', () => playPrev());
-        navigator.mediaSession.setActionHandler('nexttrack', () => playNext());
-      }
-
-      if (isPlaying && isActiveDevice && !isVideoModeActive) {
-        audioRef.current
-          .play()
-          .then(() => {
-            AudioEngine.getInstance().resume();
-          })
-          .catch((err) => {
-            console.warn('Playback interrupted on new song:', err);
+        
+        AudioEngine.getInstance().resume();
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            if (err.name === 'AbortError') {
+              // AbortError simply means the play request was interrupted by a new source load or pause. Safe to ignore.
+              return;
+            }
+            console.warn('Playback blocked:', err);
             setIsPlaying(false);
           });
-      }
-    }
-  }, [currentSong, isActiveDevice, isVideoModeActive]);
-
-  // Handle Play/Pause state
-  useEffect(() => {
-    if (audioRef.current) {
-      if (isPlaying && isActiveDevice && !isVideoModeActive) {
-        AudioEngine.getInstance().resume();
-        audioRef.current.play().catch((err) => {
-          console.warn('Playback blocked on state change:', err);
-          setIsPlaying(false);
-        });
+        }
       } else {
         audioRef.current.pause();
       }
     }
   }, [isPlaying, isActiveDevice, isVideoModeActive]);
+
+  // Update source & MediaSession metadata when current song changes
+  useEffect(() => {
+    if (!audioRef.current || !currentSong) return;
+
+    const audio = audioRef.current;
+    const newSrc = currentSong.audioUrl || FALLBACK_AUDIO_URL;
+    
+    if (currentSong.audioUrl) {
+      consecutiveErrorsRef.current = 0;
+    }
+
+    // Only set src if it actually changed
+    // We check includes because browsers sometimes append absolute domains to src
+    if (!audio.src.includes(newSrc)) {
+      audio.src = newSrc;
+      audio.load();
+      
+      if (currentTime > 0) {
+        audio.currentTime = currentTime;
+      }
+    }
+
+    // Enable Mobile Background Playback & Lockscreen Control (MediaSession API)
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentSong.title,
+        artist: currentSong.artist,
+        album: currentSong.album || 'RaagaX',
+        artwork: [
+          { src: currentSong.coverUrl || '', sizes: '96x96', type: 'image/jpeg' },
+          { src: currentSong.coverUrl || '', sizes: '256x256', type: 'image/jpeg' },
+          { src: currentSong.coverUrl || '', sizes: '512x512', type: 'image/jpeg' },
+        ]
+      });
+
+      navigator.mediaSession.setActionHandler('play', () => setIsPlaying(true));
+      navigator.mediaSession.setActionHandler('pause', () => setIsPlaying(false));
+      navigator.mediaSession.setActionHandler('previoustrack', () => playPrev());
+      navigator.mediaSession.setActionHandler('nexttrack', () => playNext());
+    }
+
+    if (isPlaying && isActiveDevice && !isVideoModeActive) {
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          AudioEngine.getInstance().resume();
+        }).catch((err) => {
+          if (err.name === 'AbortError') {
+            return;
+          }
+          console.warn('Playback interrupted on new song:', err);
+          setIsPlaying(false);
+          
+          consecutiveErrorsRef.current += 1;
+          if (consecutiveErrorsRef.current < 5) {
+             setTimeout(() => playNext(), 1000);
+          } else {
+             console.error("Too many playback errors, stopping playback");
+          }
+        });
+      }
+    }
+  }, [currentSong]); // Only depend on currentSong here so it doesn't fight the play/pause hook
 
   // Handle Volume & Mute
   useEffect(() => {

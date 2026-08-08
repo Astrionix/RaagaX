@@ -63,7 +63,7 @@ export class DeviceSyncManager {
       .from('playback_sessions')
       .select('*')
       .eq('session_id', sessionId)
-      .single();
+      .maybeSingle();
 
     if (session) {
       this.handleRemoteUpdate(session);
