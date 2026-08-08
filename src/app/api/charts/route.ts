@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DiscoveryLanguage } from '@/lib/discoveryEngine';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 
 const VALID_LANGUAGES: DiscoveryLanguage[] = [
   'Telugu', 'Kannada', 'Tamil', 'Hindi', 'Malayalam', 'English',
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 
   try {
     // 1. Try to fetch from Supabase
-    const { data: chart, error: chartError } = await supabase
+    const { data: chart, error: chartError } = await getSupabase()
       .from('charts')
       .select('*')
       .eq('language', language)
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
 
     if (chart && !chartError) {
       hasCache = true;
-      const { data: entries } = await supabase
+      const { data: entries } = await getSupabase()
         .from('chart_entries')
         .select('*')
         .eq('chart_id', chart.id)
