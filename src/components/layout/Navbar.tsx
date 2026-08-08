@@ -78,7 +78,7 @@ export function Navbar() {
   };
 
   return (
-    <header className="h-16 fixed top-0 left-0 right-0 z-40 px-4 flex items-center justify-between border-b border-white/10 bg-[#0B0D13]/95 backdrop-blur-2xl text-white select-none shadow-xl">
+    <header className="h-16 fixed top-0 left-0 right-0 z-40 px-4 flex items-center justify-between glass-panel text-white select-none shadow-xl border-b-0">
       {/* Mobile Top Brand Bar (md:hidden) */}
       <div className="md:hidden flex items-center justify-between w-full">
         <div className="flex items-center gap-2">

@@ -23,7 +23,7 @@ export function MobileMiniPlayer() {
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className="md:hidden fixed z-40 h-14 rounded-2xl bg-[#1C1C1E]/95 backdrop-blur-xl border border-white/10 shadow-2xl p-2 flex items-center justify-between select-none overflow-hidden active:scale-[0.99] transition-transform w-[calc(100%-24px)] left-3" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom) + 12px)' }}>
+    <div className={`md:hidden fixed z-40 h-14 rounded-2xl glass-card p-2 flex items-center justify-between select-none overflow-hidden active:scale-[0.99] transition-all duration-300 w-[calc(100%-24px)] left-3 ${isPlaying ? 'shadow-[0_0_20px_rgba(239,35,60,0.15)] border-[#EF233C]/30' : ''}`} style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom) + 12px)' }}>
       {/* Subtle Progress Bar line */}
       <div
         className="absolute bottom-0 left-0 h-1 bg-[#EF233C] transition-all duration-300 opacity-90 rounded-b-2xl"

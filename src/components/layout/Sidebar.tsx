@@ -39,7 +39,7 @@ export function Sidebar() {
   ];
 
   return (
-    <aside className="hidden md:flex fixed left-0 top-0 z-30 h-screen w-64 p-3.5 flex-col justify-between select-none bg-[#161618] border-r border-white/10 text-white text-xs pt-20">
+    <aside className="hidden md:flex fixed left-0 top-0 z-30 h-screen w-64 p-3.5 flex-col justify-between select-none glass-panel border-r-white/5 text-white text-xs pt-20">
       <div className="space-y-4 overflow-y-auto no-scrollbar pr-1">
 
         {/* Search Input Pill */}
@@ -55,7 +55,7 @@ export function Sidebar() {
               }
             }}
             placeholder="Search"
-            className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-[#26262A] text-xs text-white placeholder:text-slate-400 border border-transparent focus:border-[#EF233C] focus:outline-none font-medium"
+            className="w-full pl-9 pr-3 py-1.5 rounded-lg glass-input text-xs text-white placeholder:text-slate-400 border border-transparent focus:border-[#EF233C] focus:outline-none font-medium"
           />
         </div>
 
@@ -66,7 +66,7 @@ export function Sidebar() {
           <button
             onClick={() => setActiveTab('home')}
             className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg font-bold transition-all ${
-              activeTab === 'home' ? 'bg-[#EF233C]/20 text-[#EF233C]' : 'text-slate-300 hover:bg-[#26262A] hover:text-white'
+              activeTab === 'home' ? 'bg-[#EF233C]/20 text-[#EF233C] shadow-[0_0_10px_rgba(239,35,60,0.1)]' : 'text-slate-300 hover:bg-white/10 hover:text-white'
             }`}
           >
             <Home className="w-4 h-4" />
@@ -76,7 +76,7 @@ export function Sidebar() {
           <button
             onClick={() => setActiveTab('album')}
             className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg font-bold transition-all ${
-              activeTab === 'album' ? 'bg-[#EF233C]/20 text-[#EF233C]' : 'text-slate-300 hover:bg-[#26262A] hover:text-white'
+              activeTab === 'album' ? 'bg-[#EF233C]/20 text-[#EF233C] shadow-[0_0_10px_rgba(239,35,60,0.1)]' : 'text-slate-300 hover:bg-white/10 hover:text-white'
             }`}
           >
             <Compass className="w-4 h-4" />
@@ -86,7 +86,7 @@ export function Sidebar() {
           <button
             onClick={() => setActiveTab('radio')}
             className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg font-bold transition-all ${
-              activeTab === 'radio' ? 'bg-[#EF233C]/20 text-[#EF233C]' : 'text-slate-300 hover:bg-[#26262A] hover:text-white'
+              activeTab === 'radio' ? 'bg-[#EF233C]/20 text-[#EF233C] shadow-[0_0_10px_rgba(239,35,60,0.1)]' : 'text-slate-300 hover:bg-white/10 hover:text-white'
             }`}
           >
             <Radio className="w-4 h-4" />
