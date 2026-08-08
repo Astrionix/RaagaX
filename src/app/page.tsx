@@ -34,8 +34,33 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 export default function Page() {
   const { activeTab } = usePlayerStore();
 
+  // Sync activeTab to browser history for mobile back gesture support
+  React.useEffect(() => {
+    if (window.location.hash !== `#${activeTab}`) {
+      window.history.pushState({ tab: activeTab }, '', `#${activeTab}`);
+    }
+  }, [activeTab]);
+
+  React.useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      if (e.state && e.state.tab) {
+        usePlayerStore.getState().setActiveTab(e.state.tab);
+      } else {
+        usePlayerStore.getState().setActiveTab('home');
+      }
+    };
+
+    // Initialize state if not present
+    if (!window.history.state?.tab) {
+      window.history.replaceState({ tab: usePlayerStore.getState().activeTab }, '', `#${usePlayerStore.getState().activeTab}`);
+    }
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-[#07090E] text-white flex selection:bg-[#EF233C] selection:text-white transition-colors duration-300">
+    <div className="min-h-screen w-full max-w-[100vw] overflow-x-hidden bg-[#07090E] text-white flex selection:bg-[#EF233C] selection:text-white transition-colors duration-300">
       {/* Audio Engine Controller */}
       <AudioPlayerController />
 

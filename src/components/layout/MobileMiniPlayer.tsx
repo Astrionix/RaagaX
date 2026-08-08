@@ -20,7 +20,7 @@ export function MobileMiniPlayer() {
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className="md:hidden fixed bottom-[68px] left-3 right-3 z-40 h-14 rounded-2xl bg-[#1C1C1E]/90 backdrop-blur-xl border border-white/10 shadow-2xl p-2 flex items-center justify-between select-none overflow-hidden active:scale-[0.99] transition-transform">
+    <div className="md:hidden fixed bottom-20 left-3 right-3 z-40 h-14 rounded-2xl bg-[#1C1C1E]/90 backdrop-blur-xl border border-white/10 shadow-2xl p-2 flex items-center justify-between select-none overflow-hidden active:scale-[0.99] transition-transform">
       {/* Subtle Progress Bar line */}
       <div
         className="absolute top-0 left-0 h-0.5 bg-[#EF233C] transition-all duration-300 opacity-80"

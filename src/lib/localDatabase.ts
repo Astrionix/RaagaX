@@ -10,6 +10,7 @@ export interface PlaybackSessionCache {
   queueIndex: number;
   historySongIds: string[];
   searchHistory: string[];
+  preferredLanguage?: string;
 }
 
 export class LocalDatabase {

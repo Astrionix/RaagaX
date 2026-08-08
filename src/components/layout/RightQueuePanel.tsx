@@ -70,7 +70,9 @@ export function RightQueuePanel() {
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="text-[10px] font-mono text-slate-500">{song.duration || '3:45'}</span>
+                <span className="text-[10px] font-mono text-slate-500">
+                  {song.duration ? `${Math.floor(Number(song.duration) / 60)}:${Math.floor(Number(song.duration) % 60).toString().padStart(2, '0')}` : '3:45'}
+                </span>
                 <button
                   onClick={() => removeFromQueue(song.id)}
                   className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-400 transition-opacity"

@@ -17,6 +17,7 @@ import { RealMusicEngine } from '@/lib/realMusicEngine';
 import { RecommendationEngine } from '@/lib/recommendationEngine';
 import { Song } from '@/types/music';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
+import { WeeklyChartSection } from '@/components/views/WeeklyChartSection';
 
 export function HomeView() {
   const {
@@ -30,11 +31,14 @@ export function HomeView() {
     activeGenreFilter,
     setActiveGenreFilter,
     setSelectedArtistId,
+    preferredLanguage,
   } = usePlayerStore();
 
   const [realSongs, setRealSongs] = useState<Song[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [greeting, setGreeting] = useState('Good Morning');
+  const [topArtistName, setTopArtistName] = useState('Sid Sriram');
+  const [filteredSongs, setFilteredSongs] = useState<Song[]>([]);
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -44,26 +48,26 @@ export function HomeView() {
   useEffect(() => {
     async function loadRealTracks() {
       setIsLoading(true);
-      const liveSongs = await RealMusicEngine.getInstance().getRealTrendingSongs(16);
+      const liveSongs = await RealMusicEngine.getInstance().getRealTrendingSongs(16, preferredLanguage);
       if (liveSongs && liveSongs.length > 0) {
         setRealSongs(liveSongs);
+        const prefs = RecommendationEngine.getInstance().getPreferences();
+        const ranked = RecommendationEngine.getInstance().rankSongs(liveSongs);
+        setTopArtistName(prefs.lastArtist || liveSongs[0].artist);
+        setFilteredSongs(ranked.length > 0 ? ranked : liveSongs);
       }
       setIsLoading(false);
     }
     loadRealTracks();
-  }, []);
+  }, [preferredLanguage]);
 
-  const userPrefs = RecommendationEngine.getInstance().getPreferences();
-  const recommendedSongs = RecommendationEngine.getInstance().rankSongs(realSongs);
-  const topArtistName = userPrefs.lastArtist || 'Sid Sriram';
-  const filteredSongs = recommendedSongs.length > 0 ? recommendedSongs : realSongs;
   const featuredSong = filteredSongs[0] || null;
 
   const dailyMixes = [
-    { id: 'mix-1', title: 'Daily Mix 1', desc: 'Sid Sriram, Thaman S, Gopi Sundar', cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80', songs: realSongs.slice(0, 3) },
-    { id: 'mix-2', title: 'Daily Mix 2', desc: 'Anirudh, Rahul Sipligunj, DSP', cover: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&auto=format&fit=crop&q=80', songs: realSongs.slice(3, 6) },
-    { id: 'mix-3', title: 'Focus & Study Mix', desc: 'Ambient Telugu Flute & Acoustic Beats', cover: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&auto=format&fit=crop&q=80', songs: realSongs.slice(6, 9) },
-    { id: 'mix-4', title: 'Weekend Party Mix', desc: 'High Energy Mass Party Anthems', cover: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&auto=format&fit=crop&q=80', songs: realSongs.slice(9, 12) },
+    { id: 'mix-1', title: `${preferredLanguage} Daily Mix 1`, desc: `Trending ${preferredLanguage} hits handpicked for you`, cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80', songs: realSongs.slice(0, 3) },
+    { id: 'mix-2', title: `${preferredLanguage} Daily Mix 2`, desc: `Discover new ${preferredLanguage} artists`, cover: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&auto=format&fit=crop&q=80', songs: realSongs.slice(3, 6) },
+    { id: 'mix-3', title: 'Focus & Study Mix', desc: `Ambient ${preferredLanguage} Flute & Acoustic Beats`, cover: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&auto=format&fit=crop&q=80', songs: realSongs.slice(6, 9) },
+    { id: 'mix-4', title: 'Weekend Party Mix', desc: `High Energy ${preferredLanguage} Party Anthems`, cover: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&auto=format&fit=crop&q=80', songs: realSongs.slice(9, 12) },
   ];
 
   return (
@@ -72,7 +76,7 @@ export function HomeView() {
       <div className="flex items-center justify-between pt-1">
         <div>
           <h1 className="text-3xl font-black tracking-tight text-white">{greeting}</h1>
-          <p className="text-xs text-slate-400 font-medium">Apple Music Experience for RaagaX</p>
+          <p className="text-xs text-slate-400 font-medium">Discover what's trending this week</p>
         </div>
       </div>
 
@@ -136,7 +140,7 @@ export function HomeView() {
               <div className="w-14 h-14 rounded-xl overflow-hidden shadow-md flex-shrink-0 relative">
                 <img src={currentSong.coverUrl} alt={currentSong.title} className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                  <Play className="w-5 h-5 fill-white text-white ml-0.5" />
+                  <Play className="w-6 h-6 fill-white text-white" />
                 </div>
               </div>
 
@@ -206,12 +210,12 @@ export function HomeView() {
                   <p className="text-[11px] text-slate-400 truncate mt-0.5 font-medium">{song.artist}</p>
                 </div>
 
-                <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
-                  <button onClick={() => toggleLikeSong(song.id)} title="Like Song" className="p-1">
-                    <Heart className={`w-3.5 h-3.5 ${isLiked ? 'text-[#EF233C] fill-[#EF233C]' : 'text-slate-400 hover:text-[#EF233C]'}`} />
+                <div className="flex flex-row items-center gap-1 sm:gap-2 flex-shrink-0">
+                  <button onClick={() => toggleLikeSong(song.id)} title="Like Song" className="p-2 hover:bg-white/5 rounded-full transition-colors">
+                    <Heart className={`w-4 h-4 ${isLiked ? 'text-[#EF233C] fill-[#EF233C]' : 'text-slate-400 hover:text-[#EF233C]'}`} />
                   </button>
-                  <button onClick={() => toggleDownloadSong(song.id)} title="Download Offline" className="p-1">
-                    <Download className={`w-3.5 h-3.5 ${isDownloaded ? 'text-emerald-500' : 'text-slate-400 hover:text-emerald-500'}`} />
+                  <button onClick={() => toggleDownloadSong(song.id)} title="Download Offline" className="p-2 hover:bg-white/5 rounded-full transition-colors">
+                    <Download className={`w-4 h-4 ${isDownloaded ? 'text-emerald-500' : 'text-slate-400 hover:text-emerald-500'}`} />
                   </button>
                 </div>
               </div>
@@ -253,6 +257,9 @@ export function HomeView() {
           ))}
         </div>
       </section>
+      {/* Weekly Chart */}
+      <WeeklyChartSection />
+
       {/* Featured Artists */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
