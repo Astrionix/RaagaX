@@ -3,21 +3,32 @@
 import React, { useEffect, useState } from 'react';
 import { DeviceSyncManager } from '@/lib/sync/DeviceSyncManager';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useAuthStore } from '@/context/useAuthStore';
 import { MonitorSmartphone } from 'lucide-react';
 
 export function DeviceSyncProvider({ children }: { children: React.ReactNode }) {
   const [isInitializing, setIsInitializing] = useState(true);
+  const { user, initializeAuth } = useAuthStore();
 
+  // 1. Initialize Global Auth first
+  useEffect(() => {
+    initializeAuth();
+  }, [initializeAuth]);
+
+  // 2. Once Auth is loaded, connect the Sync Engine
   useEffect(() => {
     const initSync = async () => {
-      // 1. Get the session ID (e.g. email or guest id)
-      let sessionId = localStorage.getItem('raagax_session_id');
+      // Use secure Supabase Auth ID if logged in, otherwise fallback to guest
+      let sessionId = user?.id;
+      
       if (!sessionId) {
-        sessionId = 'guest_' + Math.random().toString(36).substring(2, 10);
-        localStorage.setItem('raagax_session_id', sessionId);
+        sessionId = localStorage.getItem('raagax_session_id') || '';
+        if (!sessionId) {
+          sessionId = 'guest_' + Math.random().toString(36).substring(2, 10);
+          localStorage.setItem('raagax_session_id', sessionId);
+        }
       }
       
-      // 2. Initialize sync
       const manager = DeviceSyncManager.getInstance();
       await manager.initSync(sessionId);
       
@@ -25,7 +36,7 @@ export function DeviceSyncProvider({ children }: { children: React.ReactNode }) 
     };
     
     initSync();
-  }, []);
+  }, [user]); // Re-connect sync if user logs in/out
 
   return <>{children}</>;
 }

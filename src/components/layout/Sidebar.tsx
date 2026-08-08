@@ -13,9 +13,9 @@ import {
   Sparkles,
   ListMusic,
   Plus,
-  Heart,
-} from 'lucide-react';
+import { Heart, LogOut, LogIn } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useAuthStore } from '@/context/useAuthStore';
 
 export function Sidebar() {
   const {
@@ -24,6 +24,8 @@ export function Sidebar() {
     searchQuery,
     setSearchQuery,
   } = usePlayerStore();
+  
+  const { user, signOut, setAuthModalOpen } = useAuthStore();
 
   const playlists = [
     { id: 'fav-mix', name: 'Favourites Mix', desc: 'RaagaX Mix for Ram', icon: Heart, active: true },
@@ -154,14 +156,39 @@ export function Sidebar() {
       </div>
 
       {/* User Profile Pill at Bottom */}
-      <div className="pt-3 border-t border-white/10 flex items-center gap-3 px-2">
-        <div className="w-8 h-8 rounded-full bg-[#EF233C] text-white font-black text-xs flex items-center justify-center shadow-md">
-          RR
-        </div>
-        <div className="min-w-0 flex-1">
-          <h4 className="text-xs font-bold text-white truncate leading-tight">Ram Reddy</h4>
-          <p className="text-[10px] text-slate-400 truncate leading-tight mt-0.5">ramreddy25@icloud.com</p>
-        </div>
+      <div className="pt-3 border-t border-white/10 flex items-center justify-between px-2">
+        {user ? (
+          <>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-[#EF233C] text-white font-black text-xs flex items-center justify-center shadow-md flex-shrink-0">
+                {user.email ? user.email.charAt(0).toUpperCase() : 'U'}
+              </div>
+              <div className="min-w-0 pr-2">
+                <h4 className="text-xs font-bold text-white truncate leading-tight">
+                  {user.user_metadata?.name || 'RaagaX User'}
+                </h4>
+                <p className="text-[10px] text-slate-400 truncate leading-tight mt-0.5">
+                  {user.email}
+                </p>
+              </div>
+            </div>
+            <button 
+              onClick={() => signOut()}
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              title="Sign Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </>
+        ) : (
+          <button 
+            onClick={() => setAuthModalOpen(true)}
+            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-xs transition-colors border border-white/5"
+          >
+            <LogIn className="w-4 h-4 text-[#EF233C]" />
+            Sign In / Sign Up
+          </button>
+        )}
       </div>
     </aside>
   );
