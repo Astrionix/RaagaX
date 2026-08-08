@@ -13,6 +13,7 @@ import {
   Sparkles,
   ListMusic,
   Plus,
+} from 'lucide-react';
 import { Heart, LogOut, LogIn } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
