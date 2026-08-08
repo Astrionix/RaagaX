@@ -56,6 +56,12 @@ export function AudioPlayerController() {
     const validLangs = ['Telugu', 'Kannada', 'Tamil', 'Hindi', 'Malayalam', 'English'];
     const lang = validLangs.find(l => l.toUpperCase() === language.toUpperCase()) || 'Telugu';
 
+    // Extract recent artists to prevent echo chambers
+    const lastArtists = queue
+      .slice(Math.max(0, queueIndex - 5), queueIndex)
+      .map(s => s.artist)
+      .filter(Boolean) as string[];
+
     fetch(`/api/queue-refill`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -64,6 +70,8 @@ export function AudioPlayerController() {
         excludeIds: existingIds, 
         likedIds: likedSongIds,
         historyIds: historySongIds,
+        currentSong: currentSong,
+        lastArtists: lastArtists,
         count: 10 
       })
     })

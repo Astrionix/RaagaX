@@ -56,56 +56,41 @@ export class RecommendationEngine {
   }
 
   /**
-   * Track when a song finishes or plays significantly (>30s)
+   * Unified telemetry tracker for high-resolution behavioral data
    */
-  public async trackPlay(song: Song) {
+  public async trackEngagement(
+    song: Song, 
+    action: 'play' | 'skip' | 'complete',
+    durationSec: number,
+    completionPercentage: number,
+    context: string = 'home'
+  ) {
     const artist = song.artist || 'Unknown';
     const genre = song.genre || 'Telugu';
 
-    this.preferences.artistScores[artist] = (this.preferences.artistScores[artist] || 0) + 10;
-    this.preferences.genreScores[genre] = (this.preferences.genreScores[genre] || 0) + 5;
-    this.preferences.playCounts[song.id] = (this.preferences.playCounts[song.id] || 0) + 1;
+    // Update Local Preferences
+    if (action === 'skip') {
+      this.preferences.artistScores[artist] = Math.max(0, (this.preferences.artistScores[artist] || 0) - 5);
+      this.preferences.genreScores[genre] = Math.max(0, (this.preferences.genreScores[genre] || 0) - 3);
+      this.preferences.skipCounts[song.id] = (this.preferences.skipCounts[song.id] || 0) + 1;
+    } else {
+      let artistWeight = 10;
+      let genreWeight = 5;
+      if (completionPercentage < 0.5) {
+        artistWeight = 2; genreWeight = 1;
+      }
+
+      this.preferences.artistScores[artist] = (this.preferences.artistScores[artist] || 0) + artistWeight;
+      this.preferences.genreScores[genre] = (this.preferences.genreScores[genre] || 0) + genreWeight;
+      this.preferences.playCounts[song.id] = (this.preferences.playCounts[song.id] || 0) + 1;
+    }
 
     this.preferences.lastSongId = song.id;
     this.preferences.lastArtist = artist;
     this.preferences.lastGenre = genre;
-
     this.saveToStorage();
 
-    // Log to Supabase for Python Implicit Recommendation Engine
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        // We don't await this to avoid blocking the main thread
-        supabase.from('playback_history').insert({
-          user_id: session.user.id,
-          song_id: song.id,
-          artist: artist,
-          genre: genre,
-          action: 'play'
-        }).then(({ error }) => {
-          if (error) console.error('Failed to log track play to Supabase:', error);
-        });
-      }
-    } catch (e) {
-      console.warn('Could not verify session for logging play:', e);
-    }
-  }
-
-  /**
-   * Track when a user skips a song early (<15s)
-   */
-  public async trackSkip(song: Song) {
-    const artist = song.artist || 'Unknown';
-    const genre = song.genre || 'Telugu';
-
-    this.preferences.artistScores[artist] = Math.max(0, (this.preferences.artistScores[artist] || 0) - 5);
-    this.preferences.genreScores[genre] = Math.max(0, (this.preferences.genreScores[genre] || 0) - 3);
-    this.preferences.skipCounts[song.id] = (this.preferences.skipCounts[song.id] || 0) + 1;
-
-    this.saveToStorage();
-
-    // Log to Supabase for Python Implicit Recommendation Engine
+    // Log to Supabase High-Res Telemetry
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
@@ -114,13 +99,16 @@ export class RecommendationEngine {
           song_id: song.id,
           artist: artist,
           genre: genre,
-          action: 'skip'
+          action: action === 'complete' ? 'play' : action,
+          completion_percentage: completionPercentage,
+          play_duration_sec: Math.floor(durationSec),
+          context: context
         }).then(({ error }) => {
-          if (error) console.error('Failed to log track skip to Supabase:', error);
+          if (error) console.error('Failed to log telemetry:', error);
         });
       }
     } catch (e) {
-      console.warn('Could not verify session for logging skip:', e);
+      console.warn('Could not verify session for logging telemetry:', e);
     }
   }
 

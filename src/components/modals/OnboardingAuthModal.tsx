@@ -94,7 +94,7 @@ export function OnboardingAuthModal() {
     
     // Bootstrap recommendation engine with selected artists
     selectedArtists.forEach(artist => {
-      RecommendationEngine.getInstance().trackPlay({
+      RecommendationEngine.getInstance().trackEngagement({
         id: `bootstrap_${artist}`,
         title: 'Bootstrap',
         artist: artist,
@@ -103,7 +103,7 @@ export function OnboardingAuthModal() {
         coverUrl: '',
         duration: 180,
         provider: 'local'
-      } as unknown as Song);
+      } as unknown as Song, 'complete', 180, 1.0, 'onboarding');
     });
 
     try {

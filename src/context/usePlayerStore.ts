@@ -134,6 +134,8 @@ interface PlayerState {
   setSearchQuery: (query: string) => void;
   setActiveGenreFilter: (genre: string) => void;
   setSleepTimer: (minutes: number | null) => void;
+
+  logCurrentTelemetry: (action: 'play' | 'skip' | 'complete') => void;
 }
 
 export const usePlayerStore = create<PlayerState>((set, get) => ({
@@ -240,14 +242,35 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }
   },
 
+  logCurrentTelemetry: (action) => {
+    const { currentSong, currentTime, duration } = get();
+    if (!currentSong) return;
+    
+    const safeDuration = duration > 0 ? duration : (currentSong.duration || Math.max(1, currentTime));
+    let completionPercentage = currentTime / safeDuration;
+    if (completionPercentage > 1) completionPercentage = 1;
+    
+    let finalAction = action;
+    if (action === 'skip' && completionPercentage >= 0.95) finalAction = 'complete';
+
+    RecommendationEngine.getInstance().trackEngagement(
+      currentSong,
+      finalAction,
+      currentTime,
+      completionPercentage,
+      'home'
+    );
+  },
+
   playSong: (song, newQueue) => {
+    get().logCurrentTelemetry('skip'); // Log previous song before switching
     const queue = newQueue || get().queue;
     let index = queue.findIndex((s) => s.id === song.id);
     if (index === -1) {
       queue.unshift(song);
       index = 0;
     }
-    RecommendationEngine.getInstance().trackPlay(song);
+    
     const newHistory = Array.from(new Set([song.id, ...get().historySongIds]));
     set({
       currentSong: song,
@@ -291,16 +314,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 
   playNext: async () => {
-    const { queue, queueIndex, isShuffle, repeatMode, currentSong, currentTime } = get();
+    const { queue, queueIndex, isShuffle, repeatMode, currentSong, currentTime, duration } = get();
     if (queue.length === 0) return;
 
-    if (currentSong) {
-      if (currentTime < 15) {
-        RecommendationEngine.getInstance().trackSkip(currentSong);
-      } else if (currentTime >= 30) {
-        RecommendationEngine.getInstance().trackPlay(currentSong);
-      }
-    }
+    // If currentTime is close to duration, it finished. Otherwise it was skipped.
+    const isComplete = duration > 0 && currentTime >= duration - 5;
+    get().logCurrentTelemetry(isComplete ? 'complete' : 'skip');
 
     if (repeatMode === 'one' && currentSong) {
       set({ currentSong: { ...currentSong }, currentTime: 0, isPlaying: true });
@@ -369,6 +388,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       set({ currentTime: 0 });
       return;
     }
+    
+    get().logCurrentTelemetry('skip');
     if (queueIndex > 0) {
       const prevIndex = queueIndex - 1;
       set({
