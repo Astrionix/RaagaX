@@ -5,6 +5,8 @@ import '@/lib/discovery/JioSaavnProvider';
 import { SongResolver } from '@/lib/discovery/SongResolver';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 export async function GET(request: Request) {
   try {
@@ -62,13 +64,13 @@ export async function GET(request: Request) {
     }
 
     // 2. Fallback: If DB is empty, run dynamic resolution (slow path)
-    console.warn('[Home API] Supabase cache empty or failed. Running dynamic discovery fallback.');
+    console.warn('[Home API] Supabase cache empty or failed. Running dynamic discovery fallback.', error);
     
     const registry = ProviderRegistry.getInstance();
     const provider = registry.getProvider('jiosaavn');
     
     if (!provider) {
-      return NextResponse.json({ error: 'No providers available' }, { status: 500 });
+      return NextResponse.json({ error: 'No providers available', dbError: error, hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL, hasKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY, chartsCount: charts?.length }, { status: 500 });
     }
 
     let [trendingRaw, newRaw, top100Raw] = await Promise.all([
