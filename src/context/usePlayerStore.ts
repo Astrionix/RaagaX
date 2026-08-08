@@ -17,6 +17,7 @@ interface PlayerState {
   queueIndex: number;
   isShuffle: boolean;
   repeatMode: RepeatMode;
+  isRefillingQueue: boolean;
 
   likedSongIds: string[];
   likedSongs: Song[];
@@ -74,6 +75,7 @@ interface PlayerState {
   // Actions
   restoreLocalSession: () => Promise<void>;
   syncCloudLibrary: () => Promise<void>;
+  autoRefillQueue: () => Promise<void>;
   setPreferredLanguage: (lang: string) => void;
   playSong: (song: Song, newQueue?: Song[]) => void;
   togglePlayPause: () => void;
@@ -150,6 +152,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   queueIndex: 0,
   isShuffle: false,
   repeatMode: 'off',
+  isRefillingQueue: false,
 
   likedSongIds: [],
   likedSongs: [],
@@ -355,56 +358,27 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       return;
     }
 
-    let nextIndex: number;
+    let nextIndex = queueIndex + 1;
     if (isShuffle) {
       nextIndex = Math.floor(Math.random() * queue.length);
     } else {
-      nextIndex = queueIndex + 1;
       if (nextIndex >= queue.length) {
         if (repeatMode === 'all') {
           nextIndex = 0;
         } else {
-          // Attempt Autoplay
-          if (currentSong) {
-            try {
-              const { ProviderRegistry } = await import('@/lib/discovery/ProviderRegistry');
-              const jiosaavn = ProviderRegistry.getInstance().getProvider('jiosaavn');
-              const newSongs = jiosaavn ? await jiosaavn.search(`${currentSong.artist} top hits`, 10) : [];
-              
-              // Helper to normalize titles for deduplication (removes (From "Movie") suffixes)
-              const getCleanTitle = (title: string) => title.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').split('-')[0].trim().toLowerCase();
-              
-              const seenTitles = new Set<string>();
-              // Add existing queue titles to seen set
-              queue.forEach(q => seenTitles.add(getCleanTitle(q.title)));
-              
-              const uniqueSongs = newSongs.filter((s: any) => {
-                const cleanTitle = getCleanTitle(s.title);
-                if (seenTitles.has(cleanTitle)) return false;
-                seenTitles.add(cleanTitle);
-                return true;
-              }) as unknown as any[];
-              
-              if (uniqueSongs.length > 0) {
-                const updatedQueue = [...queue, ...uniqueSongs];
-                set({ queue: updatedQueue as any });
-                // Play the first new song immediately
-                set({
-                  currentSong: uniqueSongs[0],
-                  queueIndex: nextIndex,
-                  isPlaying: true,
-                  currentTime: 0,
-                });
-                return;
-              } else {
-                set({ isPlaying: false });
-                return;
-              }
-            } catch (e) {
-              console.error('Autoplay failed:', e);
-              set({ isPlaying: false });
-              return;
-            }
+          // Attempt Autoplay via Queue Engine
+          await get().autoRefillQueue();
+          
+          // Check if queue successfully grew
+          const newQueue = get().queue;
+          if (nextIndex < newQueue.length) {
+            set({
+              currentSong: newQueue[nextIndex],
+              queueIndex: nextIndex,
+              isPlaying: true,
+              currentTime: 0,
+            });
+            return;
           } else {
             set({ isPlaying: false });
             return;
@@ -413,7 +387,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       }
     }
 
-    const nextSong = queue[nextIndex];
+    const nextSong = get().queue[nextIndex];
     if (nextSong) {
       set({
         currentSong: nextSong,
@@ -421,6 +395,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         isPlaying: true,
         currentTime: 0,
       });
+      
+      // Trigger background auto-refill if running low
+      if (!isShuffle && (get().queue.length - 1 - nextIndex) <= 3) {
+        get().autoRefillQueue();
+      }
     }
   },
 
@@ -464,6 +443,47 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   removeFromQueue: (songId) =>
     set((state) => ({ queue: state.queue.filter((s) => s.id !== songId) })),
   reorderQueue: (newQueue) => set({ queue: newQueue }),
+
+  autoRefillQueue: async () => {
+    const { currentSong, historySongIds, likedSongIds, preferredLanguage, queue, queueIndex } = get();
+    if (get().isRefillingQueue) return;
+    set({ isRefillingQueue: true });
+
+    try {
+      const { CandidateGenerator } = await import('@/lib/recommendation/CandidateGenerator');
+      const { Ranker } = await import('@/lib/recommendation/Ranker');
+
+      const candidates = await CandidateGenerator.generateCandidates(
+        currentSong,
+        historySongIds,
+        likedSongIds,
+        preferredLanguage,
+        50
+      );
+
+      const lastArtists = queue.slice(Math.max(0, queueIndex - 5), queueIndex + 1).map(s => s.artist);
+      const rankedCandidates = Ranker.rankCandidates(candidates, lastArtists, 15);
+
+      const getCleanTitle = (title: string) => title.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').split('-')[0].trim().toLowerCase();
+      const seenTitles = new Set<string>();
+      queue.forEach(q => seenTitles.add(getCleanTitle(q.title)));
+
+      const uniqueSongs = rankedCandidates.filter((s: any) => {
+        const cleanTitle = getCleanTitle(s.title);
+        if (seenTitles.has(cleanTitle)) return false;
+        seenTitles.add(cleanTitle);
+        return true;
+      }).slice(0, 10);
+
+      if (uniqueSongs.length > 0) {
+        set({ queue: [...queue, ...uniqueSongs] });
+      }
+    } catch (e) {
+      console.error('Auto-refill failed:', e);
+    } finally {
+      set({ isRefillingQueue: false });
+    }
+  },
 
   syncCloudLibrary: async () => {
     try {
