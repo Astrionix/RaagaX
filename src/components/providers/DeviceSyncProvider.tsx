@@ -36,7 +36,7 @@ export function DeviceSyncProvider({ children }: { children: React.ReactNode }) 
     };
     
     initSync();
-  }, [user]); // Re-connect sync if user logs in/out
+  }, [user?.id]); // Re-connect sync ONLY if user ID changes (logs in/out)
 
   return <>{children}</>;
 }

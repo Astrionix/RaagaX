@@ -117,20 +117,27 @@ export class DeviceSyncManager {
 
     // 3. Subscribe to Zustand local changes
     let lastState = usePlayerStore.getState();
+    let lastSyncTime = lastState.currentTime;
+
     this.unsubscribeZustand = usePlayerStore.subscribe((state) => {
       // Don't broadcast if this change was triggered BY a remote update
       if (this.isBroadcasting) return;
+
+      const timeDiffFromLastSync = Math.abs(state.currentTime - lastSyncTime);
+      const isSeek = Math.abs(state.currentTime - lastState.currentTime) > 2;
 
       const changed = 
         state.currentSong?.id !== lastState.currentSong?.id ||
         state.isPlaying !== lastState.isPlaying ||
         state.queue.length !== lastState.queue.length ||
         state.queueIndex !== lastState.queueIndex ||
-        Math.abs(state.currentTime - lastState.currentTime) > 5; // throttle seeks
+        isSeek || 
+        timeDiffFromLastSync > 5; // Sync every 5 seconds of normal playback
 
       lastState = state;
 
       if (changed) {
+        lastSyncTime = state.currentTime;
         this.broadcastState();
       }
     });
