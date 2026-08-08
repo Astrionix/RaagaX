@@ -46,6 +46,7 @@ interface PlayerState {
   isSettingsModalOpen: boolean;
   isCastModalOpen: boolean;
   isSleepTimerModalOpen: boolean;
+  isDeviceModalOpen: boolean;
 
   aiDjState: AIDJState;
   searchQuery: string;
@@ -118,6 +119,7 @@ interface PlayerState {
   toggleSettingsModal: () => void;
   toggleCastModal: () => void;
   toggleSleepTimerModal: () => void;
+  toggleDeviceModal: () => void;
   openContextMenu: (song: Song) => void;
   closeContextMenu: () => void;
 
@@ -184,6 +186,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   isSettingsModalOpen: false,
   isCastModalOpen: false,
   isSleepTimerModalOpen: false,
+  isDeviceModalOpen: false,
 
   aiDjState: {
     isActive: false,
@@ -445,6 +448,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   toggleSettingsModal: () => set((state) => ({ isSettingsModalOpen: !state.isSettingsModalOpen })),
   toggleCastModal: () => set((state) => ({ isCastModalOpen: !state.isCastModalOpen })),
   toggleSleepTimerModal: () => set((state) => ({ isSleepTimerModalOpen: !state.isSleepTimerModalOpen })),
+  toggleDeviceModal: () => set((state) => ({ isDeviceModalOpen: !state.isDeviceModalOpen })),
   openContextMenu: (song) => set({ contextMenuSong: song }),
   closeContextMenu: () => set({ contextMenuSong: null }),
 

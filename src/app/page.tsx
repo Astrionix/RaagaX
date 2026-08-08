@@ -19,6 +19,7 @@ import { SettingsModal } from '@/components/modals/SettingsModal';
 import { ContextMenuModal } from '@/components/modals/ContextMenuModal';
 import { OnboardingAuthModal } from '@/components/modals/OnboardingAuthModal';
 import { KeyboardShortcutsModal } from '@/components/modals/KeyboardShortcutsModal';
+import { MobileDeviceConnectModal } from '@/components/modals/MobileDeviceConnectModal';
 
 import { HomeView } from '@/components/views/HomeView';
 import { SearchView } from '@/components/views/SearchView';
@@ -116,6 +117,7 @@ export default function Page() {
       <ContextMenuModal />
       <OnboardingAuthModal />
       <KeyboardShortcutsModal />
+      <MobileDeviceConnectModal />
     </div>
   );
 }
