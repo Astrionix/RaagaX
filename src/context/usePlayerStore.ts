@@ -289,9 +289,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     });
   },
   setIsPlaying: (playing, fromRemote = false) => {
-    if (fromRemote || get().isActiveDevice) {
-      set({ isPlaying: playing });
-    }
+    // Optimistic UI: Always update local state immediately
+    set({ isPlaying: playing });
     if (!fromRemote) {
       import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
         DeviceSyncManager.getInstance().dispatchCommand({ type: playing ? 'PLAY' : 'PAUSE' });
@@ -299,9 +298,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }
   },
   setCurrentTime: (time, fromRemote = false) => {
-    if (fromRemote || get().isActiveDevice) {
-      set({ currentTime: time });
-    }
+    // Optimistic UI: Always update local state immediately
+    set({ currentTime: time });
     
     if (!fromRemote) {
       import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {

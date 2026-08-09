@@ -15,6 +15,7 @@ export class DeviceSyncManager {
   private unsubscribeZustand: (() => void) | null = null;
   private localStateVersion = 0;
   private isInitializing = false;
+  private persistTimeout: NodeJS.Timeout | null = null;
 
   private constructor() {
     this.deviceId = typeof window !== 'undefined' 
@@ -272,6 +273,20 @@ export class DeviceSyncManager {
       }
     } finally {
       this.isProcessingRemote = false;
+      
+      // Spotify-Smooth State Echoing: Immediately broadcast our exact state back over WebSocket
+      if (cmd.type !== 'SYNC_STATE' && store.isActiveDevice) {
+         this.dispatchCommand({
+            type: 'SYNC_STATE',
+            state: {
+               songData: store.currentSong || undefined,
+               positionMs: Math.floor(store.currentTime * 1000),
+               isPlaying: store.isPlaying,
+               queue: store.queue,
+               queueIndex: store.queueIndex
+            }
+         });
+      }
     }
   }
 
@@ -328,7 +343,7 @@ export class DeviceSyncManager {
   /**
    * Periodically write durable state to Postgres for recovery.
    */
-  public async persistState() {
+  public persistState() {
     if (!this.sessionId || this.isProcessingRemote) return;
 
     const store = usePlayerStore.getState();
@@ -336,27 +351,32 @@ export class DeviceSyncManager {
     // Anyone can persist during a transfer, otherwise only active device persists
     if (!store.isActiveDevice && !store.activeDeviceId) return; 
 
-    try {
-      const { data: session } = await supabase.auth.getSession();
-      if (!session?.session?.user) return;
+    // Debounce Postgres writes by 1.5 seconds to prevent race conditions and lag
+    if (this.persistTimeout) clearTimeout(this.persistTimeout);
+    
+    this.persistTimeout = setTimeout(async () => {
+      try {
+        const { data: session } = await supabase.auth.getSession();
+        if (!session?.session?.user) return;
 
-      await supabase.from('playback_sessions').upsert({
-        session_id: this.sessionId,
-        user_id: session.session.user.id,
-        active_device_id: store.activeDeviceId || this.deviceId,
-        song_id: store.currentSong?.id || null,
-        song_data: store.currentSong || null,
-        position_ms: Math.floor(store.currentTime * 1000),
-        is_playing: store.isPlaying,
-        queue: store.queue,
-        queue_index: store.queueIndex,
-        shuffle: store.isShuffle,
-        repeat_mode: store.repeatMode,
-        state_version: this.localStateVersion,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'session_id' });
-    } catch (e) {
-      console.error('[DeviceSyncManager] Persist error:', e);
-    }
+        await supabase.from('playback_sessions').upsert({
+          session_id: this.sessionId,
+          user_id: session.session.user.id,
+          active_device_id: store.activeDeviceId || this.deviceId,
+          song_id: store.currentSong?.id || null,
+          song_data: store.currentSong || null,
+          position_ms: Math.floor(store.currentTime * 1000),
+          is_playing: store.isPlaying,
+          queue: store.queue,
+          queue_index: store.queueIndex,
+          shuffle: store.isShuffle,
+          repeat_mode: store.repeatMode,
+          state_version: this.localStateVersion,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'session_id' });
+      } catch (e) {
+        console.error('[DeviceSyncManager] Persist error:', e);
+      }
+    }, 1500);
   }
 }
