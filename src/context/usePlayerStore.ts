@@ -72,6 +72,12 @@ interface PlayerState {
   rightPanelMode: 'queue' | 'devices';
   setRightPanelMode: (mode: 'queue' | 'devices') => void;
 
+  // Autoplay and Context
+  isAutoplayEnabled: boolean;
+  playbackContext: import('@/types/music').PlaybackContext | null;
+  toggleAutoplay: () => void;
+  setPlaybackContext: (context: import('@/types/music').PlaybackContext | null) => void;
+
   // Actions
   restoreLocalSession: () => Promise<void>;
   syncCloudLibrary: () => Promise<void>;
@@ -183,6 +189,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   isSleepTimerModalOpen: false,
   isDeviceModalOpen: false,
 
+  isAutoplayEnabled: true,
+  playbackContext: null,
+  toggleAutoplay: () => set((state) => ({ isAutoplayEnabled: !state.isAutoplayEnabled })),
+  setPlaybackContext: (context) => set({ playbackContext: context }),
+
   aiDjState: {
     isActive: false,
     mode: 'auto',
@@ -268,6 +279,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       index = 0;
     }
     
+    // Guess context if not explicitly set
+    const currentContext = get().playbackContext;
+    const newContext = currentContext && (currentContext.seedAlbumId === song.albumId || currentContext.seedPlaylistId === song.genre) 
+      ? currentContext 
+      : { type: 'recommendation' as const, seedSongId: song.id, language: song.genre?.split(' ')[0] || 'Telugu' };
+
     const newHistory = Array.from(new Set([song.id, ...get().historySongIds]));
     set({
       currentSong: song,
@@ -276,6 +293,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       queueIndex: index,
       currentTime: 0,
       historySongIds: newHistory,
+      playbackContext: newContext,
     });
     LocalDatabase.getInstance().savePlaybackSession({
       currentSong: song,

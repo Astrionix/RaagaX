@@ -5,7 +5,7 @@ import { X, ListMusic, Trash2, Play, Music } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 
 export function QueueModal() {
-  const { isQueueOpen, toggleQueue, queue, queueIndex, currentSong, playSong, removeFromQueue } = usePlayerStore();
+  const { isQueueOpen, toggleQueue, queue, queueIndex, currentSong, playSong, removeFromQueue, isAutoplayEnabled, toggleAutoplay } = usePlayerStore();
 
   if (!isQueueOpen) return null;
 
@@ -17,12 +17,24 @@ export function QueueModal() {
           <ListMusic className="w-5 h-5 text-red-500" />
           <h3 className="text-sm font-extrabold text-slate-900">Play Queue ({queue.length})</h3>
         </div>
-        <button
-          onClick={toggleQueue}
-          className="p-1 rounded-full text-slate-400 hover:text-slate-800 hover:bg-white/80"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleAutoplay}
+            className={`px-2.5 py-1 rounded-lg text-[10px] uppercase tracking-wider font-extrabold transition-all border ${
+              isAutoplayEnabled 
+                ? 'bg-red-500/10 text-red-600 border-red-200' 
+                : 'bg-slate-100 text-slate-400 border-slate-200'
+            }`}
+          >
+            Autoplay {isAutoplayEnabled ? 'ON' : 'OFF'}
+          </button>
+          <button
+            onClick={toggleQueue}
+            className="p-1 rounded-full text-slate-400 hover:text-slate-800 hover:bg-white/80 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Now Playing Highlight */}

@@ -113,6 +113,8 @@ export interface AIDJState {
   insightText: string;
 }
 
+export type PlaybackContext = { type: 'album' | 'playlist' | 'radio' | 'recommendation'; language?: string; mood?: string; genre?: string; seedSongId?: string; seedAlbumId?: string; seedPlaylistId?: string; };
+
 export type ActiveTab = 'home' | 'search' | 'library' | 'radio' | 'ai-dj' | 'artist' | 'album' | 'playlist' | 'profile' | 'downloads' | 'favorites';
 
 export interface Device {

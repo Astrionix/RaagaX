@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Heart, Download, Clock, ListMusic, Play, ChevronRight, User, Disc, Sparkles, Laptop } from 'lucide-react';
+import { Heart, Download, Clock, ListMusic, Play, ChevronRight, User, Disc, Sparkles, Laptop, ChevronLeft, Music, Library } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { SongActionMenu } from '@/components/common/SongActionMenu';
+import { Song } from '@/types/music';
 
 export function LibraryView() {
-  const [tab, setTab] = useState<'liked' | 'downloads' | 'artists' | 'albums' | 'playlists' | 'history'>('playlists');
+  const [tab, setTab] = useState<string>('menu');
   const {
     queue,
     likedSongIds,
@@ -46,6 +48,71 @@ export function LibraryView() {
     const s = Math.floor(time % 60);
     return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
   };
+
+  const renderSongList = (songs: Song[]) => {
+    if (songs.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+          <Music className="w-12 h-12 mb-4 opacity-50" />
+          <p className="text-sm font-semibold">No songs found here yet.</p>
+        </div>
+      );
+    }
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+        {songs.map((song) => (
+          <div
+            key={song.id}
+            className="p-3.5 rounded-2xl bg-[#1C1C1E] border border-white/5 hover:border-white/10 hover:bg-white/5 transition-all flex items-center justify-between group"
+          >
+            <div className="flex items-center gap-3.5 cursor-pointer flex-1 min-w-0" onClick={() => playSong(song, songs)}>
+              <img src={song.coverUrl} alt={song.title} className="w-12 h-12 rounded-xl object-cover shadow-sm flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <h4 className="text-xs font-bold text-white group-hover:text-[#EF233C] transition-colors truncate">
+                  {song.title}
+                </h4>
+                <p className="text-[11px] text-slate-400 truncate">{song.artist}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+              <SongActionMenu song={song} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  if (tab !== 'menu') {
+    const activeItem = libraryNavItems.find(i => i.id === tab);
+    let content: React.ReactNode = null;
+    switch (tab) {
+      case 'liked': content = renderSongList(likedSongs); break;
+      case 'history': content = renderSongList(historySongs); break;
+      case 'downloads': content = renderSongList(downloadedSongs); break;
+      default: content = (
+        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+          <Library className="w-12 h-12 mb-4 opacity-50" />
+          <p className="text-sm font-semibold">This section is coming soon!</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6 pb-6 text-white select-none">
+        <div className="flex items-center gap-3 pt-1">
+          <button 
+            onClick={() => setTab('menu')} 
+            className="p-2 -ml-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+          <h1 className="text-2xl font-black text-white tracking-tight">{activeItem?.label}</h1>
+        </div>
+        {content}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-6 text-white select-none">
@@ -107,7 +174,7 @@ export function LibraryView() {
           return (
             <button
               key={`${item.id}-${index}`}
-              onClick={() => setTab(item.id as any)}
+              onClick={() => setTab(item.id)}
               className="w-full py-3.5 px-4 flex items-center justify-between hover:bg-white/5 transition-colors text-left"
             >
               <div className="flex items-center gap-3.5">

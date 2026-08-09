@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { CandidateGenerator } from '@/lib/recommendation/CandidateGenerator';
-import { Ranker } from '@/lib/recommendation/Ranker';
+import { DiscoveryEngine } from '@/lib/discoveryEngine';
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,39 +8,33 @@ export async function POST(req: NextRequest) {
     const historyIds = Array.isArray(body.historyIds) ? body.historyIds : [];
     const likedIds = Array.isArray(body.likedIds) ? body.likedIds : [];
     const count = Math.min(Number(body.count) || 20, 30);
-    const currentSong = body.currentSong || null;
-    const lastArtists = Array.isArray(body.lastArtists) ? body.lastArtists : [];
+    const excludeIds = Array.isArray(body.excludeIds) ? body.excludeIds : [];
+    const playbackContext = body.playbackContext || null;
 
-    // Stage 1: Candidate Generation
-    const candidates = await CandidateGenerator.generateCandidates(
-      currentSong,
-      historyIds,
-      likedIds,
-      language,
-      100 // Generate 100 candidates to rank
-    );
+    const host = req.headers.get('host') || 'localhost:3001';
+    const proto = req.headers.get('x-forwarded-proto') || 'http';
+    const baseUrl = `${proto}://${host}`;
+    const engine = DiscoveryEngine.getInstance(baseUrl);
 
-    // Stage 2: Ranking & Diversity Filtering
-    let rankedSongs = Ranker.rankCandidates(candidates, lastArtists, count);
-
-    // Fallback if CandidateGenerator returns 0 (e.g., db is empty or disconnected)
-    if (rankedSongs.length === 0) {
-      const { DiscoveryEngine } = await import('@/lib/discoveryEngine');
-      const host = req.headers.get('host') || 'localhost:3001';
-      const proto = req.headers.get('x-forwarded-proto') || 'http';
-      const baseUrl = `${proto}://${host}`;
-      const engine = DiscoveryEngine.getInstance(baseUrl);
-      const fallbackSongs = await engine.getQueueRefill(language, historyIds, likedIds, historyIds, count);
-      rankedSongs = fallbackSongs.map(song => ({
-        ...song,
-        candidateSource: 'fresh',
-        baseScore: 0.5
-      }));
+    // If context has a seed song, push it to historyIds to prioritize it for recommendations
+    if (playbackContext && playbackContext.seedSongId) {
+      if (!historyIds.includes(playbackContext.seedSongId)) {
+         historyIds.unshift(playbackContext.seedSongId);
+      }
     }
+
+    // Use DiscoveryEngine which guarantees real, playable audio URLs from the provider
+    const songs = await engine.getQueueRefill(language, excludeIds, likedIds, historyIds, count);
+
+    const safeSongs = songs.map(song => ({
+      ...song,
+      candidateSource: 'autoplay',
+      baseScore: 1.0
+    }));
 
     return NextResponse.json({
       success: true,
-      data: { language, count: rankedSongs.length, songs: rankedSongs },
+      data: { language, count: safeSongs.length, songs: safeSongs },
     });
   } catch (err) {
     console.error('[QUEUE REFILL API]', err);

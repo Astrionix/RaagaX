@@ -52,6 +52,7 @@ export function AudioPlayerController() {
     setSleepTimer,
     restoreLocalSession,
     isActiveDevice,
+    isAutoplayEnabled,
   } = usePlayerStore();
 
   const getActiveAudio = () => activePlayerRef.current === 'A' ? audioRefA.current : audioRefB.current;
@@ -62,10 +63,10 @@ export function AudioPlayerController() {
     restoreLocalSession();
   }, [restoreLocalSession]);
 
-  // Auto-refill queue
+  // Auto-refill queue (Continuous Radio Mode)
   useEffect(() => {
     const remaining = queue.length - (queueIndex + 1);
-    if (remaining >= QUEUE_REFILL_THRESHOLD || isRefilling.current || !currentSong) return;
+    if (!isAutoplayEnabled || remaining >= QUEUE_REFILL_THRESHOLD || isRefilling.current || !currentSong) return;
 
     isRefilling.current = true;
     const existingIds = queue.map(s => s.id);
@@ -89,6 +90,7 @@ export function AudioPlayerController() {
         historyIds: historySongIds,
         currentSong: currentSong,
         lastArtists: lastArtists,
+        playbackContext: usePlayerStore.getState().playbackContext,
         count: 10 
       })
     })
@@ -101,7 +103,7 @@ export function AudioPlayerController() {
       })
       .catch(() => {})
       .finally(() => { isRefilling.current = false; });
-  }, [queueIndex, queue.length, currentSong?.id]);
+  }, [queueIndex, queue.length, currentSong?.id, isAutoplayEnabled]);
 
   // Handle Play/Pause and Seek Syncing
   useEffect(() => {
