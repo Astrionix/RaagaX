@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Play, Heart, Download, Music, ArrowLeft, Shuffle } from 'lucide-react';
+import { Play, Heart, Download, Music, ArrowLeft, Shuffle, Trash2 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { RealMusicEngine } from '@/lib/realMusicEngine';
 import { Song } from '@/types/music';
+import { SongActionMenu } from '@/components/common/SongActionMenu';
 
 export function PlaylistDetailView() {
   const { 
@@ -28,13 +29,68 @@ export function PlaylistDetailView() {
     let isMounted = true;
     setIsLoading(true);
     
-    RealMusicEngine.getInstance().getPlaylistDetails(selectedPlaylistId)
-      .then((data) => {
+    const fetchPlaylist = async () => {
+      // Check if it's a UUID (User Playlist)
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(selectedPlaylistId);
+
+      if (isUUID) {
+        const { supabase } = await import('@/lib/supabase');
+        
+        // Fetch playlist details
+        const { data: plData } = await supabase.from('playlists').select('*').eq('id', selectedPlaylistId).single();
+        if (!plData) {
+          if (isMounted) { setPlaylist(null); setIsLoading(false); }
+          return;
+        }
+
+        // Fetch songs
+        const { data: mappings } = await supabase
+          .from('playlist_songs')
+          .select('position, canonical_songs(*)')
+          .eq('playlist_id', selectedPlaylistId)
+          .order('position', { ascending: true });
+
+        const mappedSongs: Song[] = (mappings || []).map((m: any) => ({
+          id: m.canonical_songs.id,
+          title: m.canonical_songs.title,
+          artist: m.canonical_songs.artist,
+          artistId: m.canonical_songs.artist, // Mock
+          album: m.canonical_songs.album,
+          albumId: m.canonical_songs.album, // Mock
+          duration: m.canonical_songs.duration || 210,
+          coverUrl: m.canonical_songs.cover_url,
+          audioUrl: '', // StreamResolver handles this
+          genre: 'Telugu',
+          category: 'latest_telugu',
+          releaseYear: 2026,
+          plays: 0,
+          likes: 0
+        }));
+
         if (isMounted) {
-          setPlaylist(data);
+          setPlaylist({
+            id: plData.id,
+            title: plData.title,
+            coverUrl: plData.cover_url || 'https://images.unsplash.com/photo-1614680376593-902f74a9cb0d?auto=format&fit=crop&q=80',
+            songs: mappedSongs,
+            isUserOwned: true, // We can use this to show Edit buttons later
+            ownerId: plData.owner_id
+          } as any);
           setIsLoading(false);
         }
-      });
+      } else {
+        // JioSaavn Global Playlist
+        RealMusicEngine.getInstance().getPlaylistDetails(selectedPlaylistId)
+          .then((data) => {
+            if (isMounted) {
+              setPlaylist(data);
+              setIsLoading(false);
+            }
+          });
+      }
+    };
+
+    fetchPlaylist();
       
     return () => { isMounted = false; };
   }, [selectedPlaylistId]);
@@ -117,6 +173,22 @@ export function PlaylistDetailView() {
               >
                 <Shuffle className="w-3.5 h-3.5 text-slate-300" /> Shuffle
               </button>
+              {(playlist as any).isUserOwned && (
+                <button
+                  onClick={async () => {
+                    const confirm = window.confirm("Are you sure you want to delete this playlist?");
+                    if (confirm) {
+                      const store = (await import('@/context/usePlaylistStore')).usePlaylistStore.getState();
+                      await store.deletePlaylist(playlist.id);
+                      setActiveTab('home');
+                      setSelectedPlaylistId(null);
+                    }
+                  }}
+                  className="px-5 py-2.5 rounded-full font-bold text-xs flex items-center gap-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all hover:scale-105 ml-auto md:ml-4"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Delete
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -145,18 +217,7 @@ export function PlaylistDetailView() {
                 </div>
 
                 <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                  <button onClick={() => toggleLikeSong(song.id)} title="Like Song">
-                    <Heart className={`w-4 h-4 ${isLiked ? 'text-[#EF233C] fill-[#EF233C]' : 'text-slate-400 hover:text-[#EF233C]'}`} />
-                  </button>
-                  <button onClick={() => toggleDownloadSong(song.id)} title="Download Offline">
-                    <Download className={`w-4 h-4 ${isDownloaded ? 'text-emerald-500' : 'text-slate-400 hover:text-emerald-500'}`} />
-                  </button>
-                  <button
-                    onClick={() => playSong(song, playlist.songs)}
-                    className="p-2 rounded-xl bg-[#EF233C] text-white shadow-md hover:scale-105 transition-transform"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
-                  </button>
+                  <SongActionMenu song={song} />
                 </div>
               </div>
             );

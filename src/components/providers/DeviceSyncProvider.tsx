@@ -32,7 +32,7 @@ export function DeviceSyncProvider({ children }: { children: React.ReactNode }) 
       }
       
       const manager = DeviceSyncManager.getInstance();
-      await manager.initSync(sessionId);
+      await manager.initSync();
       
       if (user?.id) {
         await usePlayerStore.getState().syncCloudLibrary();

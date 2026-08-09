@@ -76,23 +76,89 @@ export class RealMusicEngine {
     }
   }
 
+  public async searchRealAlbums(query: string, limit = 15): Promise<any[]> {
+    const q = query.trim();
+    if (!q) return [];
+    const url = `${LOCAL_API_BASE}/search/albums?query=${encodeURIComponent(q)}&limit=${limit}`;
+
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 7000);
+
+    try {
+      const res = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(tid);
+      if (!res.ok) return [];
+      const data = await res.json();
+      const results = data.data?.results || data.results || [];
+      return results.map((album: any) => {
+        let coverUrl = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80';
+        if (Array.isArray(album.image)) {
+          const hi = album.image.find((i: any) => i.quality === '500x500') || album.image[album.image.length - 1];
+          if (hi?.url) coverUrl = hi.url.replace('http://', 'https://');
+        }
+        return {
+          id: album.id,
+          title: decode(album.name || album.title || 'Unknown Album'),
+          artist: decode(album.primaryArtists || 'Unknown Artist'),
+          coverUrl,
+          releaseYear: parseInt(album.year) || 2024
+        };
+      });
+    } catch (err: any) {
+      clearTimeout(tid);
+      return [];
+    }
+  }
+
   public async getPlaylistDetails(id: string): Promise<{ id: string; title: string; coverUrl: string; songs: Song[] } | null> {
-    const url = `${LOCAL_API_BASE}/playlists?id=${id}`;
+    let isAlbum = false;
+    let fetchId = id;
+    
+    if (id.startsWith('album:')) {
+      isAlbum = true;
+      fetchId = id.replace('album:', '');
+    }
+
+    let url = isAlbum ? `${LOCAL_API_BASE}/albums?id=${fetchId}` : `${LOCAL_API_BASE}/playlists?id=${fetchId}`;
     
     try {
-      const res = await fetch(url);
-      if (!res.ok) return null;
-      const data = await res.json();
-      const playlist = data.data;
-      if (!playlist) return null;
+      let res = await fetch(url);
+      let data = res.ok ? await res.json() : null;
+      let collection = data?.data;
+
+      // Fallback to Albums if Playlist fails (for legacy IDs)
+      if (!res.ok || !collection) {
+        if (!isAlbum) {
+          url = `${LOCAL_API_BASE}/albums?id=${fetchId}`;
+          res = await fetch(url);
+          if (res.ok) {
+            data = await res.json();
+            collection = data?.data;
+            isAlbum = true;
+          }
+        }
+      }
+      
+      if (!collection) return null;
 
       let coverUrl = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80';
-      if (Array.isArray(playlist.image)) {
-        const hi = playlist.image.find((i: any) => i.quality === '500x500') || playlist.image[playlist.image.length - 1];
+      if (Array.isArray(collection.image)) {
+        const hi = collection.image.find((i: any) => i.quality === '500x500') || collection.image[collection.image.length - 1];
         if (hi?.url) coverUrl = hi.url.replace('http://', 'https://');
       }
 
-      let rawSongs = playlist.songs ? this.mapResults(playlist.songs) : [];
+      let rawSongs = collection.songs ? this.mapResults(collection.songs) : [];
+
+      // Only apply minimum padding/deduplication for playlists, NOT for actual albums
+      // Because we want full movie albums to just show exactly the songs they have.
+      if (isAlbum) {
+        return {
+          id: collection.id,
+          title: decode(collection.name || collection.title || 'Unknown Album'),
+          coverUrl,
+          songs: rawSongs // Don't deduplicate or pad exact albums
+        };
+      }
 
       // Album Rules
       const albumRules = {
@@ -130,9 +196,9 @@ export class RealMusicEngine {
       }
 
       // If we fell short of minimum, pad with search (simplified padding for now)
-      if (uniqueSongs.length < albumRules.minimumSongs && playlist.name) {
+      if (uniqueSongs.length < albumRules.minimumSongs && collection.name) {
         try {
-          const padSongs = await this.searchRealSongs(playlist.name, albumRules.targetSongs - uniqueSongs.length);
+          const padSongs = await this.searchRealSongs(collection.name, albumRules.targetSongs - uniqueSongs.length);
           for (const song of padSongs) {
              if (uniqueSongs.length >= albumRules.targetSongs) break;
              const normalizedTitle = song.title.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -147,8 +213,8 @@ export class RealMusicEngine {
       }
 
       return {
-        id: playlist.id,
-        title: decode(playlist.name || playlist.title || 'Unknown Playlist'),
+        id: collection.id,
+        title: decode(collection.name || collection.title || 'Unknown Playlist'),
         coverUrl,
         songs: uniqueSongs
       };

@@ -17,6 +17,7 @@ import {
 import { Heart, LogOut, LogIn } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
+import { usePlaylistStore } from '@/context/usePlaylistStore';
 
 export function Sidebar() {
   const {
@@ -24,18 +25,29 @@ export function Sidebar() {
     setActiveTab,
     searchQuery,
     setSearchQuery,
+    setSelectedPlaylistId,
+    preferredLanguage,
+    selectedPlaylistId
   } = usePlayerStore();
   
   const { user, signOut, setAuthModalOpen } = useAuthStore();
+  const { playlists: userPlaylists, fetchPlaylists, createPlaylist } = usePlaylistStore();
 
+  React.useEffect(() => {
+    if (user) {
+      fetchPlaylists();
+    }
+  }, [user, fetchPlaylists]);
+
+  // Valid JioSaavn playlist IDs
   const playlists = [
-    { id: 'fav-mix', name: 'Favourites Mix', desc: 'RaagaX Mix for Ram', icon: Heart, active: true },
-    { id: 'chill-hits', name: 'Chill Hits', desc: 'RaagaX Chill' },
-    { id: 'workout', name: 'Workout', desc: 'RaagaX Fitness' },
-    { id: '90s-hits', name: "90's Hits", desc: "RaagaX 90's" },
-    { id: 'telugu-love', name: 'Telugu Love Songs', desc: "Ram's Playlist" },
-    { id: 'travel-vibes', name: 'Travel Vibes', desc: 'RaagaX' },
-    { id: 'party-mix', name: 'Party Mix', desc: 'RaagaX Dance' },
+    { id: '150750109', name: 'Favourites Mix', desc: 'RaagaX Mix', icon: Heart },
+    { id: '169673226', name: 'Chill Hits', desc: 'RaagaX Chill' },
+    { id: '767984632', name: 'Workout', desc: 'RaagaX Fitness' },
+    { id: '1170578801', name: "90's Hits", desc: "RaagaX 90's" },
+    { id: '384435110', name: 'Love Songs', desc: 'Romance Playlist' },
+    { id: '1269084691', name: 'Travel Vibes', desc: 'RaagaX' },
+    { id: '696317722', name: 'Party Mix', desc: 'RaagaX Dance' },
   ];
 
   return (
@@ -128,7 +140,16 @@ export function Sidebar() {
         <div className="space-y-0.5 pt-1">
           <div className="flex items-center justify-between px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
             <span>Playlists</span>
-            <button className="hover:text-white p-0.5"><Plus className="w-3.5 h-3.5" /></button>
+            <button 
+              onClick={() => {
+                const name = prompt("Enter new playlist name:");
+                if (name) createPlaylist(name, '', 'private');
+              }}
+              className="hover:text-white p-0.5"
+              title="Create Playlist"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
           </div>
 
           <button onClick={() => setActiveTab('playlist')} className="w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-slate-300 hover:bg-[#26262A] hover:text-white font-medium">
@@ -136,12 +157,38 @@ export function Sidebar() {
             <span>All Playlists</span>
           </button>
 
+          {/* User Custom Playlists */}
+          {userPlaylists.map((pl) => (
+            <button
+              key={pl.id}
+              onClick={() => {
+                setSelectedPlaylistId(pl.id);
+                setActiveTab('playlist');
+              }}
+              className={`w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-left transition-all ${
+                selectedPlaylistId === pl.id && activeTab === 'playlist' ? 'bg-[#26262A] text-white font-bold' : 'text-slate-300 hover:bg-[#26262A] hover:text-white font-medium'
+              }`}
+            >
+              <div className="w-6 h-6 rounded bg-[#fa233b]/20 text-[#fa233b] flex items-center justify-center flex-shrink-0">
+                <Music className="w-3.5 h-3.5" />
+              </div>
+              <div className="truncate">
+                <p className="truncate leading-tight text-[11px]">{pl.title}</p>
+                <p className="truncate text-[9px] text-slate-400 leading-tight">By {pl.creator}</p>
+              </div>
+            </button>
+          ))}
+
+          {/* Global Curated Playlists */}
           {playlists.map((pl) => (
             <button
               key={pl.id}
-              onClick={() => setActiveTab('playlist')}
+              onClick={() => {
+                setSelectedPlaylistId(pl.id);
+                setActiveTab('playlist');
+              }}
               className={`w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-left transition-all ${
-                pl.active ? 'bg-[#26262A] text-white font-bold' : 'text-slate-300 hover:bg-[#26262A] hover:text-white font-medium'
+                selectedPlaylistId === pl.id && activeTab === 'playlist' ? 'bg-[#26262A] text-white font-bold' : 'text-slate-300 hover:bg-[#26262A] hover:text-white font-medium'
               }`}
             >
               <div className="w-6 h-6 rounded bg-[#fa233b]/20 text-[#fa233b] flex items-center justify-center flex-shrink-0">

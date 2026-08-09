@@ -61,6 +61,9 @@ interface PlayerState {
   deviceId: string;
   activeDeviceId: string | null;
   isActiveDevice: boolean;
+  remoteDeviceName: string | null;
+  lastSyncDbTime: string | null;
+  lastSyncPositionMs: number | null;
   onlineDevices: { id: string; name: string }[];
   setOnlineDevices: (devices: { id: string; name: string }[]) => void;
   setRemoteState: (state: Partial<PlayerState>) => void;
@@ -194,6 +197,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   deviceId: typeof window !== 'undefined' ? localStorage.getItem('raagax_device_id') || '' : '',
   activeDeviceId: null,
   isActiveDevice: true, // Default to true until sync starts
+  remoteDeviceName: null,
+  lastSyncDbTime: null,
+  lastSyncPositionMs: null,
   onlineDevices: [],
   rightPanelMode: 'queue',
 

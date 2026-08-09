@@ -20,6 +20,7 @@ import { ContextMenuModal } from '@/components/modals/ContextMenuModal';
 import { OnboardingAuthModal } from '@/components/modals/OnboardingAuthModal';
 import { KeyboardShortcutsModal } from '@/components/modals/KeyboardShortcutsModal';
 import { MobileDeviceConnectModal } from '@/components/modals/MobileDeviceConnectModal';
+import { RemoteDeviceBanner } from '@/components/player/RemoteDeviceBanner';
 
 import { HomeView } from '@/components/views/HomeView';
 import { SearchView } from '@/components/views/SearchView';
@@ -66,6 +67,7 @@ export default function Page() {
     <div className="min-h-screen w-full max-w-[100vw] overflow-x-hidden bg-[#07090E] text-white flex selection:bg-[#EF233C] selection:text-white transition-colors duration-300">
       {/* Audio Engine Controller */}
       <AudioPlayerController />
+      <RemoteDeviceBanner />
 
       {/* Splash Screen Animation */}
       <SplashScreen />

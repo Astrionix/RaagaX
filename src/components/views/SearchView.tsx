@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Play, Heart, Download, Music, User, Mic, Radio, Flame } from 'lucide-react';
+import { Search, Play, Heart, Download, Music, User, Mic, Radio, Flame, Disc3 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { RealMusicEngine } from '@/lib/realMusicEngine';
+import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { Song } from '@/types/music';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 
@@ -20,6 +21,7 @@ export function SearchView() {
   } = usePlayerStore();
 
   const [realSearchResults, setRealSearchResults] = useState<Song[]>([]);
+  const [realAlbumResults, setRealAlbumResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
@@ -27,13 +29,18 @@ export function SearchView() {
     const timer = setTimeout(async () => {
       if (!searchQuery.trim()) {
         setRealSearchResults([]);
+        setRealAlbumResults([]);
         setIsSearching(false);
         return;
       }
       setIsSearching(true);
-      const results = await RealMusicEngine.getInstance().searchRealSongs(searchQuery, 16);
+      const [songResults, albumResults] = await Promise.all([
+        RealMusicEngine.getInstance().searchRealSongs(searchQuery, 16),
+        RealMusicEngine.getInstance().searchRealAlbums(searchQuery, 8)
+      ]);
       if (!isCancelled) {
-        setRealSearchResults(results);
+        setRealSearchResults(songResults);
+        setRealAlbumResults(albumResults);
         setIsSearching(false);
       }
     }, 300);
@@ -122,10 +129,10 @@ export function SearchView() {
 
       {/* Active Search Results */}
       {searchQuery && (
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-              <Music className="w-4 h-4 text-[#EF233C]" /> Results ({realSearchResults.length})
+              <Search className="w-4 h-4 text-[#EF233C]" /> Search Results
             </h3>
             {isSearching && (
               <span className="text-xs font-bold text-[#EF233C] flex items-center gap-1.5 animate-pulse">
@@ -134,7 +141,42 @@ export function SearchView() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Albums Section */}
+          {realAlbumResults.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <Disc3 className="w-4 h-4 text-[#EF233C]" /> Albums
+              </h4>
+              <div className="flex overflow-x-auto gap-4 pb-2 no-scrollbar">
+                {realAlbumResults.map((album) => (
+                  <div
+                    key={album.id}
+                    onClick={() => {
+                      usePlayerStore.getState().setSelectedPlaylistId(`album:${album.id}`);
+                      usePlayerStore.getState().setActiveTab('playlist');
+                    }}
+                    className="w-32 flex-shrink-0 cursor-pointer group"
+                  >
+                    <div className="relative w-32 h-32 rounded-xl overflow-hidden mb-2">
+                      <img src={album.coverUrl} alt={album.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Play className="w-8 h-8 text-white fill-white" />
+                      </div>
+                    </div>
+                    <h4 className="text-xs font-bold text-white truncate group-hover:text-[#EF233C] transition-colors">{album.title}</h4>
+                    <p className="text-[10px] text-slate-400 truncate">{album.artist || 'Various Artists'}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Songs Section */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-bold text-white flex items-center gap-2">
+              <Music className="w-4 h-4 text-[#EF233C]" /> Songs ({realSearchResults.length})
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {realSearchResults.map((song) => {
               const isLiked = likedSongIds.includes(song.id);
               const isDownloaded = downloadedSongIds.includes(song.id);
@@ -162,24 +204,13 @@ export function SearchView() {
                     <p className="text-[11px] text-slate-400 truncate mt-0.5">{song.artist}</p>
                   </div>
 
-                  {/* Action Icons — always right-aligned, never wrapped */}
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <button onClick={() => toggleLikeSong(song.id)} className="p-1">
-                      <Heart className={`w-3.5 h-3.5 ${isLiked ? 'text-[#EF233C] fill-[#EF233C]' : 'text-slate-400 hover:text-[#EF233C]'}`} />
-                    </button>
-                    <button onClick={() => toggleDownloadSong(song.id)} className="p-1">
-                      <Download className={`w-3.5 h-3.5 ${isDownloaded ? 'text-emerald-500' : 'text-slate-400 hover:text-emerald-500'}`} />
-                    </button>
-                    <button
-                      onClick={() => playSong(song, realSearchResults)}
-                      className="w-8 h-8 rounded-full bg-[#EF233C] text-white flex items-center justify-center shadow-md hover:scale-105 transition-transform"
-                    >
-                      <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
-                    </button>
+                    <SongActionMenu song={song} />
                   </div>
                 </div>
               );
             })}
+            </div>
           </div>
         </div>
       )}

@@ -218,6 +218,29 @@ export function AudioPlayerController() {
     return () => clearInterval(interval);
   }, [sleepTimerEndsAt, setIsPlaying, setSleepTimer]);
 
+  // Remote Device Clock Interpolation
+  useEffect(() => {
+    if (isActiveDevice || !isPlaying) return;
+    
+    // We are remote and playing. 
+    // We should tick the currentTime based on lastSyncDbTime.
+    const interval = setInterval(() => {
+       const store = usePlayerStore.getState();
+       if (!store.lastSyncDbTime || store.lastSyncPositionMs === null) return;
+
+       const dbTime = new Date(store.lastSyncDbTime).getTime();
+       const elapsed = Date.now() - dbTime;
+       const livePositionSeconds = (store.lastSyncPositionMs + elapsed) / 1000;
+       
+       if (livePositionSeconds <= store.duration) {
+         // Update the store directly without triggering a DB sync loop
+         usePlayerStore.setState({ currentTime: livePositionSeconds });
+       }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isActiveDevice, isPlaying]);
+
   const handleTimeUpdate = (e: React.SyntheticEvent<HTMLAudioElement>) => {
     if (!isActiveDevice) return;
     const audio = e.currentTarget;
@@ -260,12 +283,48 @@ export function AudioPlayerController() {
     }
   };
 
-  const handleError = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+  const handleError = async (e: React.SyntheticEvent<HTMLAudioElement>) => {
     const audio = e.currentTarget;
-    if (audio === getActiveAudio() && audio.src !== FALLBACK_AUDIO_URL) {
-      audio.src = FALLBACK_AUDIO_URL;
-      if (isPlaying && isActiveDevice) audio.play().catch(() => setIsPlaying(false));
+    if (audio !== getActiveAudio()) return;
+
+    if (audio.src === FALLBACK_AUDIO_URL) {
+      setIsPlaying(false);
+      return;
     }
+
+    try {
+      // Audio Streaming Resilience: Attempt Bitrate Downgrade
+      if (audio.src.includes('320')) {
+        console.warn('320kbps stream failed, downgrading to 160kbps...');
+        audio.src = audio.src.replace('320', '160');
+        if (isPlaying && isActiveDevice) audio.play().catch(() => {});
+        return;
+      }
+      
+      if (audio.src.includes('160')) {
+        console.warn('160kbps stream failed, downgrading to 96kbps...');
+        audio.src = audio.src.replace('160', '96');
+        if (isPlaying && isActiveDevice) audio.play().catch(() => {});
+        return;
+      }
+
+      // If all JioSaavn streams fail, attempt YouTube / Proxy resolution
+      console.warn('Primary streams failed, attempting resilient stream resolution...');
+      const { StreamResolver } = await import('@/lib/streamResolver');
+      const resolved = await StreamResolver.getInstance().resolveTrackStream(currentSong?.title || '');
+      
+      if (resolved && resolved.song.audioUrl && resolved.song.audioUrl !== audio.src) {
+        audio.src = resolved.song.audioUrl;
+        if (isPlaying && isActiveDevice) audio.play().catch(() => {});
+        return;
+      }
+    } catch (err) {
+      console.error('Stream fallback failed:', err);
+    }
+
+    // Ultimate Fallback
+    audio.src = FALLBACK_AUDIO_URL;
+    if (isPlaying && isActiveDevice) audio.play().catch(() => setIsPlaying(false));
   };
 
   return (
