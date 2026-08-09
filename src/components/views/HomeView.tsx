@@ -25,37 +25,55 @@ const homeFetcher = async (url: string, preferredLanguage: string) => {
   const data: HomePayload = await res.json();
 
   try {
-    const { getPlaylistId } = await import('@/lib/homePlaylists');
-    const newReleasesId = getPlaylistId(preferredLanguage, 'New Releases', '1266094331');
-    const playlist = await RealMusicEngine.getInstance().getPlaylistDetails(newReleasesId);
-    const rawItems = playlist?.songs || [];
+    const releasesRes = await fetch(`/api/home/new-releases?lang=${preferredLanguage}`);
+    let usedCache = false;
     
-    if (rawItems.length > 0) {
-      const playableSongsPromises = rawItems.slice(0, 15).map(async (s) => {
-        if (s.audioUrl.includes('pixabay')) {
-          try {
-            const realSongs = await RealMusicEngine.getInstance().searchRealSongs(s.title, 1);
-            if (realSongs && realSongs.length > 0) return realSongs[0];
-          } catch (e) {}
+    if (releasesRes.ok) {
+      const releasesData = await releasesRes.json();
+      if (releasesData.success && releasesData.data && releasesData.data.length > 0) {
+        usedCache = true;
+        const thisWeekSongs = releasesData.data;
+        
+        if (!data.sections.some(s => s.id === 'this_week_releases')) {
+          const newSection: HomeSection = {
+            id: 'this_week_releases',
+            type: 'carousel',
+            title: '🆕 This Week\'s Releases',
+            items: thisWeekSongs.map((s: any) => ({
+              ...s,
+              type: 'song',
+              subtitle: s.artist,
+              imageUrl: s.coverUrl
+            })) as ShelfItem[]
+          };
+          data.sections.splice(1, 0, newSection);
         }
-        return s;
-      });
+      }
+    }
+    
+    if (!usedCache) {
+      // Fallback if no cached new releases exist yet
+      const { getPlaylistId } = await import('@/lib/homePlaylists');
+      const newReleasesId = getPlaylistId(preferredLanguage, 'New Releases', '1266094331');
+      const playlist = await RealMusicEngine.getInstance().getPlaylistDetails(newReleasesId);
+      const rawItems = playlist?.songs || [];
       
-      const thisWeekSongs = await Promise.all(playableSongsPromises);
-      
-      if (!data.sections.some(s => s.id === 'this_week_releases')) {
-        const newSection: HomeSection = {
-          id: 'this_week_releases',
-          type: 'carousel',
-          title: '🆕 This Week\'s Releases',
-          items: thisWeekSongs.map(s => ({
-            ...s,
-            type: 'song',
-            subtitle: s.artist,
-            imageUrl: s.coverUrl
-          })) as ShelfItem[]
-        };
-        data.sections.splice(1, 0, newSection);
+      if (rawItems.length > 0) {
+        const thisWeekSongs = rawItems.slice(0, 15);
+        if (!data.sections.some(s => s.id === 'this_week_releases')) {
+          const newSection: HomeSection = {
+            id: 'this_week_releases',
+            type: 'carousel',
+            title: '🆕 This Week\'s Releases',
+            items: thisWeekSongs.map(s => ({
+              ...s,
+              type: 'song',
+              subtitle: s.artist,
+              imageUrl: s.coverUrl
+            })) as ShelfItem[]
+          };
+          data.sections.splice(1, 0, newSection);
+        }
       }
     }
   } catch (e) {
