@@ -2,42 +2,9 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import Parser from 'rss-parser';
 import { DiscoveryEngine } from '@/lib/discoveryEngine';
+import channelsData from '@/lib/youtubeChannels.json';
 
 const parser = new Parser();
-
-// Dictionary of major music label YouTube channel IDs by language
-const YOUTUBE_CHANNELS: Record<string, string[]> = {
-  Telugu: [
-    'UCvqsJWCGFAJFAzG7k-j2z7g', // Aditya Music
-    'UC5z3U5O6b5fB1Tz8gVn_LTw', // Mango Music
-    'UCU-uUf0d1_9Z0FkLz4hR8ew'  // Saregama Telugu
-  ],
-  Tamil: [
-    'UC7GvP1y_p-zG9k-yNfVq2fA', // Sony Music South
-    'UCvNnsB1fQ0i-gR1nLgQnC3g', // Think Music India
-    'UCPe8q0QvYvLpT-XQZc8V21w'  // Sun TV
-  ],
-  Kannada: [
-    'UCgN8N0c1qR4lT8lO-R9Ie_g', // Anand Audio
-    'UCEpS1iFwF80dJ809v-tNPAA', // PRK Audio
-    'UCkO8yH5-N8tV2F9tVnE2Zfw'  // DBeats
-  ],
-  Malayalam: [
-    'UCP27A23rV9iE3G1T8C8qIkw', // Goodwill Entertainments
-    'UCk4vE8i8Zk4N2r8kHn6hOvg', // Muzik247
-    'UCp-Y-p2B2VzE_W8s2Jb1l6A'  // Millennium Audios
-  ],
-  Hindi: [
-    'UCq-Fj5jknLsUf-MWSy4_brA', // T-Series
-    'UCFFbwnve3yF62-tVXkTyHqg', // Zee Music Company
-    'UC56gTxNs4f9xZ7Pa2i5xNtg'  // Sony Music India
-  ],
-  English: [
-    'UCpDJl2EmP7Oh90Vylx0dZtA', // Vevo
-    'UCqECaJ8Gagnn7YCbPEzWH6g', // Taylor Swift (example global act)
-    'UC0C-w0YjGpqDXGB8IHb662A'  // Ed Sheeran
-  ]
-};
 
 const MAX_SONGS_PER_LANGUAGE = 150; // Cap to prevent DB bloat
 
@@ -72,12 +39,18 @@ export async function GET(request: Request) {
   let totalDiscovered = 0;
   
   try {
-    for (const [lang, channels] of Object.entries(YOUTUBE_CHANNELS)) {
+    const LANGUAGES = ['Telugu', 'Tamil', 'Kannada', 'Malayalam', 'Hindi', 'English'];
+    
+    for (const lang of LANGUAGES) {
       let langSongCount = 0;
       let addedIds: string[] = [];
       const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
 
-      for (const channelId of channels) {
+      // Filter channels that support this language
+      const validChannels = channelsData.filter(c => c.languages.includes(lang));
+
+      for (const channel of validChannels) {
+        const channelId = channel.channelId;
         try {
           const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
           const feed = await parser.parseString(await fetch(feedUrl).then(r => r.text()));

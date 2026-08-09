@@ -202,7 +202,7 @@ function compositeScore(confidence: number, signals: DiscoverySignal[]): number 
 
 export class DiscoveryEngine {
   private static instance: DiscoveryEngine;
-  private provider: JioSaavnProvider;
+  public provider: JioSaavnProvider;
   // In-memory cache keyed by `language-weekLabel`
   private cache = new Map<string, DiscoveryResult>();
 
