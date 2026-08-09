@@ -1,6 +1,5 @@
 import { Song } from '@/types/music';
 import { JioSaavnProvider, LANGUAGE_CODES } from './jioSaavnProvider';
-import { supabase } from './supabase';
 
 export type DiscoveryLanguage = 'Telugu' | 'Kannada' | 'Tamil' | 'Hindi' | 'Malayalam' | 'English';
 export type MatchStatus = 'VERIFIED' | 'HIGH_CONFIDENCE' | 'REVIEW' | 'UNRESOLVED';
@@ -204,6 +203,8 @@ function compositeScore(confidence: number, signals: DiscoverySignal[]): number 
 export class DiscoveryEngine {
   private static instance: DiscoveryEngine;
   private provider: JioSaavnProvider;
+  // In-memory cache keyed by `language-weekLabel`
+  private cache = new Map<string, DiscoveryResult>();
 
   private constructor(localBase: string) {
     this.provider = JioSaavnProvider.getInstance(localBase);
@@ -260,6 +261,13 @@ export class DiscoveryEngine {
     const now = new Date();
     const weekLabel = getISOWeek(now);
     const { start, end } = getWeekBounds(now);
+    const cacheKey = `${language}-${weekLabel}`;
+
+    // Return cached result if it has sufficient songs
+    const cached = this.cache.get(cacheKey);
+    if (cached && cached.topChart.length >= 5) {
+      return { ...cached, source: 'cache' };
+    }
 
     console.log(`[CHART START] Language=${language} Week=${weekLabel}`);
     
@@ -341,49 +349,10 @@ export class DiscoveryEngine {
     if (status === 'empty') {
       console.log(`[CHART FAILED] Language=${language}`);
     } else {
-      console.log(`[CHART COMPLETE] Language=${language} | Candidates=${extendedSignals.length} | Verified=${topChart.length} | Unresolved=${unresolvedCount} | Duplicates=${allResolved.length - pool.size} | Final=${topChart.length}`);
-      
-      // Store to Supabase
-      try {
-        const { data: chartData, error: chartError } = await supabase
-          .from('charts')
-          .insert({
-            language,
-            chart_type: 'Top 10',
-            period_start: start,
-            period_end: end,
-            status: 'published'
-          })
-          .select('id')
-          .single();
-
-        if (chartData && !chartError) {
-          const entries = topChart.map(r => ({
-            chart_id: chartData.id,
-            song_id: r.song.id,
-            rank: r.rank,
-            score: r.compositeScore,
-            source: 'jiosaavn',
-            title: r.song.title,
-            artist: r.song.artist,
-            album: r.song.album,
-            artwork: r.song.coverUrl,
-            audio_url: r.song.audioUrl,
-            duration: r.song.duration,
-            source_id: r.sourceId,
-            match_confidence: r.matchConfidence,
-            status: r.status,
-            is_new: r.isNew
-          }));
-
-          await supabase.from('chart_entries').insert(entries);
-        }
-      } catch (dbErr) {
-        console.error('[SUPABASE ERROR]', dbErr);
-      }
+      console.log(`[CHART COMPLETE] Language=${language} | Candidates=${extendedSignals.length} | Verified=${topChart.length} | Unresolved=${unresolvedCount} | Final=${topChart.length}`);
     }
 
-    return {
+    const result: DiscoveryResult = {
       language,
       weekLabel,
       weekStart: start,
@@ -395,6 +364,12 @@ export class DiscoveryEngine {
       source: 'fresh',
       status,
     };
+
+    if (topChart.length > 0) {
+      this.cache.set(cacheKey, result);
+    }
+
+    return result;
   }
 
   // Queue refill — returns up to `count` playable songs, excluding provided IDs

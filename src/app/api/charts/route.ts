@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { DiscoveryLanguage } from '@/lib/discoveryEngine';
-import { supabase } from '@/lib/supabase';
+import { DiscoveryEngine, DiscoveryLanguage, ResolvedSong } from '@/lib/discoveryEngine';
 
 export const dynamic = 'force-dynamic';
+// Hard cap: never wait more than 25s for discovery
+const DISCOVERY_TIMEOUT_MS = 25000;
 
 const VALID_LANGUAGES: DiscoveryLanguage[] = [
   'Telugu', 'Kannada', 'Tamil', 'Hindi', 'Malayalam', 'English',
@@ -12,6 +13,30 @@ function getBaseUrl(req: NextRequest): string {
   const host = req.headers.get('host') || 'localhost:3001';
   const proto = req.headers.get('x-forwarded-proto') || 'http';
   return `${proto}://${host}`;
+}
+
+function mapSong(entry: ResolvedSong, rank: number) {
+  return {
+    rank,
+    isNew: entry.isNew,
+    songId: entry.song.id,
+    title: entry.song.title,
+    artist: entry.song.artist,
+    album: entry.song.album,
+    artwork: entry.song.coverUrl,
+    audioUrl: entry.song.audioUrl,
+    duration: entry.song.duration,
+    source: 'jiosaavn',
+    sourceId: entry.sourceId,
+    matchConfidence: entry.matchConfidence,
+    compositeScore: entry.compositeScore,
+    status: entry.status,
+    playable: !!entry.song.audioUrl,
+  };
+}
+
+function timeoutPromise<T>(ms: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => setTimeout(() => resolve(fallback), ms));
 }
 
 export async function GET(req: NextRequest) {
@@ -27,110 +52,58 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // 1. Try to fetch from Supabase
-    const { data: chart, error: chartError } = await supabase
-      .from('charts')
-      .select('*')
-      .eq('language', language)
-      .eq('chart_type', 'Top 10')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .single();
+    const baseUrl = getBaseUrl(req);
+    const engine = DiscoveryEngine.getInstance(baseUrl);
 
-    let songs: any[] = [];
-    let isStale = true;
-    let hasCache = false;
+    // Run discovery with a hard timeout — never block forever
+    const result = await Promise.race([
+      engine.discover(language),
+      timeoutPromise(DISCOVERY_TIMEOUT_MS, null),
+    ]);
 
-    if (chart && !chartError) {
-      hasCache = true;
-      const { data: entries } = await supabase
-        .from('chart_entries')
-        .select('*')
-        .eq('chart_id', chart.id)
-        .order('rank', { ascending: true });
-
-      if (entries && entries.length > 0) {
-        songs = entries.map(e => ({
-          rank: e.rank,
-          isNew: e.is_new,
-          songId: e.song_id,
-          title: e.title,
-          artist: e.artist,
-          album: e.album,
-          artwork: e.artwork,
-          audioUrl: e.audio_url,
-          duration: e.duration,
-          sourceId: e.source_id,
-          matchConfidence: e.match_confidence,
-          compositeScore: e.score,
-          status: e.status,
-          playable: !!e.audio_url,
-        }));
-      }
-
-      // Check if stale (older than 24 hours)
-      const updatedAt = new Date(chart.updated_at).getTime();
-      const now = Date.now();
-      isStale = (now - updatedAt) > 24 * 60 * 60 * 1000;
-    }
-
-    // 2. If stale or no cache, trigger background worker
-    if (isStale || !hasCache) {
-      // Trigger worker without awaiting
-      fetch(`${getBaseUrl(req)}/api/charts/worker`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ language }),
-      }).catch(err => console.error('[WORKER TRIGGER ERROR]', err));
-    }
-
-    // 3. Return appropriate response
-    if (hasCache) {
+    if (!result) {
+      // Timed out — return updating state
       return NextResponse.json({
         success: true,
         language,
-        source: 'supabase',
-        status: isStale ? 'stale' : 'ready',
-        data: {
-          chart: {
-            name: `RaagaX ${language} Top 10`,
-            language,
-            weekLabel: chart.period_start, // Using period_start as week label temporarily
-            weekStart: chart.period_start,
-            weekEnd: chart.period_end,
-            collectedAt: chart.updated_at,
-          },
-          songs,
-          newReleases: [], // Optionally fetch new releases from a different chart_type later
-        },
-      });
-    } else {
-      // No cache at all
-      return NextResponse.json({
-        success: true,
-        language,
-        source: 'none',
+        source: 'timeout',
         status: 'updating',
-        data: {
-          chart: null,
-          songs: [],
-          newReleases: [],
-        },
+        data: { chart: null, songs: [], newReleases: [] },
       });
     }
 
+    const apiStatus = result.status === 'empty' ? 'updating'
+      : result.source === 'cache' ? 'ready'
+      : result.status === 'ok' ? 'ready'
+      : result.status === 'partial' ? 'stale'
+      : 'updating';
+
+    return NextResponse.json({
+      success: true,
+      language: result.language,
+      source: result.source,
+      status: apiStatus,
+      data: {
+        chart: {
+          name: `RaagaX ${language} Top 10`,
+          language: result.language,
+          weekLabel: result.weekLabel,
+          weekStart: result.weekStart,
+          weekEnd: result.weekEnd,
+          collectedAt: result.collectedAt,
+        },
+        songs: result.topChart.map((e, i) => mapSong(e, i + 1)),
+        newReleases: result.newReleases.map((e, i) => mapSong(e, i + 1)),
+      },
+    });
   } catch (err) {
-    console.error('[CHARTS API] Unexpected error:', err instanceof Error ? err.message : err);
+    console.error('[CHARTS API] Error:', err instanceof Error ? err.message : err);
     return NextResponse.json({
       success: true,
       language,
       source: 'error',
       status: 'error',
-      data: {
-        chart: null,
-        songs: [],
-        newReleases: [],
-      },
+      data: { chart: null, songs: [], newReleases: [] },
     });
   }
 }

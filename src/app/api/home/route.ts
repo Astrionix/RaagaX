@@ -11,7 +11,7 @@ function getGreeting(): string {
   return 'Good Evening 👋';
 }
 
-function getLanguageContent(lang: string) {
+function getLanguageContent(lang: string): { quick_access: ShelfItem[], chartbusters: ShelfItem[], retro: ShelfItem[], mood: ShelfItem[] } {
   // We use existing valid IDs as placeholders for now, but translate titles to match preferred language
   const defaultLang = lang || 'Telugu';
   return {
