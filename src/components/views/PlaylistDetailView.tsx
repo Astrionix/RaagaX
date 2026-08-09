@@ -12,7 +12,6 @@ export function PlaylistDetailView() {
     setSelectedPlaylistId, 
     setActiveTab, 
     playSong, 
-    setQueue,
     setRemoteState,
     likedSongIds, 
     toggleLikeSong, 
