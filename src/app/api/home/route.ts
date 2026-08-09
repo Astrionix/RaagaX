@@ -59,7 +59,6 @@ export async function GET(request: Request) {
     dailyMix = [
       { id: 'm1', title: 'Telugu Daily Mix', subtitle: 'Updated daily based on your listening', type: 'mix', imageUrl: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&q=80&w=300&h=300' },
       { id: 'm2', title: 'Telugu Release Radar', subtitle: 'Catch up on the latest releases', type: 'mix', imageUrl: 'https://images.unsplash.com/photo-1483032469466-b937c425697b?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: 'm3', title: 'New Movie Songs', subtitle: 'Trending tracks from Tollywood', type: 'mix', imageUrl: 'https://images.unsplash.com/photo-1516280440502-86846f4142d1?auto=format&fit=crop&q=80&w=300&h=300' },
       { id: 'm4', title: 'Telugu Daylist', subtitle: 'The soundtrack for your evening', type: 'mix', imageUrl: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&q=80&w=300&h=300' },
     ];
   } else {
@@ -131,7 +130,6 @@ export async function GET(request: Request) {
     title: '🔥 Trending Telugu',
     items: [
       { id: 't1', title: 'Hukum', subtitle: 'Anirudh Ravichander', type: 'song', imageUrl: 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: 't2', title: 'Kurchi Madathapetti', subtitle: 'Thaman S', type: 'song', imageUrl: 'https://images.unsplash.com/photo-1598387993441-a3637e1066b5?auto=format&fit=crop&q=80&w=300&h=300' },
       { id: 't3', title: 'Naa Roja Nuvve', subtitle: 'Hesham Abdul Wahab', type: 'song', imageUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&q=80&w=300&h=300' },
     ]
   });
