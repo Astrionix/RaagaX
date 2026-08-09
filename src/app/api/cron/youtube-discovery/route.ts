@@ -63,7 +63,7 @@ export async function GET(request: Request) {
     for (const lang of LANGUAGES) {
       let langSongCount = 0;
       let addedIds: string[] = [];
-      const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
       // Filter channels that support this language
       const validChannels = channelsData.filter(c => c.languages.includes(lang));
@@ -78,7 +78,7 @@ export async function GET(request: Request) {
             if (!item.title) continue;
             
             const pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
-            // Removed the rigid twoDaysAgo check for robustness in different environments
+            if (pubDate < thirtyDaysAgo) continue; // Fetch releases from last 30 days
             
             const cleanTitle = cleanYouTubeTitle(item.title);
             if (cleanTitle.length < 3) continue;
