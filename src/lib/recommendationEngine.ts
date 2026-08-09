@@ -100,7 +100,7 @@ export class RecommendationEngine {
           title: song.title,
           artist: artist,
           album: song.album,
-          duration: String(song.duration),
+          duration: Number(song.duration) || 0,
           cover_url: song.coverUrl || null
         }, { onConflict: 'id' });
 

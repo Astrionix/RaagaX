@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const lang = searchParams.get('lang') || 'Telugu';
-  const limit = parseInt(searchParams.get('limit') || '15');
+  const limit = parseInt(searchParams.get('limit') || '30');
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   // Service role is not strictly needed for SELECT since we enabled RLS public read,

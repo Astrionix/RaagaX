@@ -19,7 +19,7 @@ export function MobileNav() {
   ];
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#161618]/95 backdrop-blur-xl border-t border-white/10 px-2 flex items-center justify-around text-white select-none shadow-2xl pb-[env(safe-area-inset-bottom)] h-[calc(4rem+env(safe-area-inset-bottom))]">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#161618]/95 backdrop-blur-xl border-t border-white/10 px-2 flex items-center justify-around text-white select-none shadow-2xl pb-[env(safe-area-inset-bottom)] h-[calc(3.5rem+env(safe-area-inset-bottom))]">
       {navItems.map((item) => {
         const isActive = activeTab === item.id;
         return (

@@ -123,8 +123,7 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
         album: song.album,
         duration: song.duration,
         cover_url: song.coverUrl,
-        language: 'Telugu',
-        audio_quality: song.audioQuality
+        language: 'Telugu'
       }, { onConflict: 'id' });
 
       // Get current max position

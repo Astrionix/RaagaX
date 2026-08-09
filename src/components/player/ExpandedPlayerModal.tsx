@@ -298,13 +298,20 @@ export function ExpandedPlayerModal() {
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <DeviceSelector />
             
-            <button
-              onClick={togglePlayPause}
-              className="px-8 py-3.5 rounded-2xl crimson-gradient text-white font-extrabold text-sm flex items-center gap-2.5 crimson-glow hover:scale-105 transition-transform"
-            >
-              {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
-              {isPlaying ? 'Pause' : 'Play'}
-            </button>
+            {currentSong.playable === false ? (
+              <div className="px-8 py-3.5 rounded-2xl bg-white/5 border border-white/10 text-slate-400 font-extrabold text-sm flex items-center gap-2.5">
+                <Music className="w-5 h-5 text-slate-500" />
+                Direct audio unavailable
+              </div>
+            ) : (
+              <button
+                onClick={togglePlayPause}
+                className="px-8 py-3.5 rounded-2xl crimson-gradient text-white font-extrabold text-sm flex items-center gap-2.5 crimson-glow hover:scale-105 transition-transform"
+              >
+                {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
+                {isPlaying ? 'Pause' : 'Play'}
+              </button>
+            )}
 
 
 

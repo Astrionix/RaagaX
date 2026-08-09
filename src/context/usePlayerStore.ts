@@ -81,6 +81,8 @@ interface PlayerState {
   togglePlayPause: () => void;
   setIsPlaying: (playing: boolean, fromRemote?: boolean) => void;
   setCurrentTime: (time: number, isManualSeek?: boolean) => void;
+  seekTarget: number | null;
+  setSeekTarget: (time: number | null) => void;
   setDuration: (dur: number) => void;
   setVolume: (vol: number) => void;
   toggleMute: () => void;
@@ -170,6 +172,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   isLyricsOpen: false,
   isQueueOpen: false,
   isMiniPlayerFloating: false,
+  seekTarget: null,
+  setSeekTarget: (time) => set({ seekTarget: time }),
   isAiDjModalOpen: false,
   isImporterOpen: false,
   isBackupOpen: false,

@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
-import { Play, Pause, SkipForward, MonitorSpeaker, Heart } from 'lucide-react';
+import React, { useRef } from 'react';
+import { Play, Pause, SkipForward, SkipBack, MonitorSpeaker, Heart } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { SeekBar } from '@/components/player/SeekBar';
 
 export function MobileMiniPlayer() {
   const {
@@ -12,6 +13,8 @@ export function MobileMiniPlayer() {
     duration,
     togglePlayPause,
     playNext,
+    playPrev,
+    setCurrentTime,
     togglePlayerExpanded,
     toggleDeviceModal,
     likedSongIds,
@@ -23,12 +26,15 @@ export function MobileMiniPlayer() {
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className={`md:hidden fixed z-40 h-14 rounded-2xl glass-card p-2 flex items-center justify-between select-none overflow-hidden active:scale-[0.99] transition-all duration-300 w-[calc(100%-24px)] left-3 ${isPlaying ? 'shadow-[0_0_20px_rgba(239,35,60,0.15)] border-[#fa233b]/30' : ''}`} style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom) + 12px)' }}>
-      {/* Subtle Progress Bar line */}
-      <div
-        className="absolute bottom-0 left-0 h-1 bg-[#fa233b] transition-all duration-300 opacity-90 rounded-b-2xl"
-        style={{ width: `${progressPercent}%` }}
-      />
+    <div className={`md:hidden fixed z-40 h-16 bg-[#161618]/95 backdrop-blur-xl border-t border-white/10 px-3 flex items-center justify-between select-none active:scale-[0.99] transition-all duration-300 w-full left-0 ${isPlaying ? 'shadow-[0_-5px_20px_rgba(239,35,60,0.15)]' : ''}`} style={{ bottom: 'calc(3.5rem + env(safe-area-inset-bottom))' }}>
+      {/* Custom Draggable Progress Bar - Spotify Style */}
+      <div className="absolute bottom-0 left-0 w-full h-6 z-10 flex items-end translate-y-0">
+        <SeekBar 
+          className="w-full h-full"
+          height="h-[2px]"
+          thumbSize="w-3 h-3"
+        />
+      </div>
 
       {/* Left: Artwork & Song Info */}
       <div
@@ -50,13 +56,13 @@ export function MobileMiniPlayer() {
       </div>
 
       {/* Right: Touch Play/Pause & Skip */}
-      <div className="flex items-center gap-1 flex-shrink-0 pr-1 relative">
+      <div className="flex items-center gap-0 flex-shrink-0 pr-1 relative">
         <button 
           onClick={(e) => {
             e.stopPropagation();
             toggleLikeSong(currentSong.id);
           }}
-          className="p-2 rounded-full hover:bg-white/5 transition-colors"
+          className="p-1 rounded-full hover:bg-white/5 transition-colors hidden sm:block"
         >
           <Heart className={`w-4 h-4 ${likedSongIds.includes(currentSong.id) ? 'fill-[#fa233b] text-[#fa233b]' : 'text-slate-400'}`} />
         </button>
@@ -66,7 +72,7 @@ export function MobileMiniPlayer() {
             e.stopPropagation();
             toggleDeviceModal();
           }}
-          className="p-2 rounded-full text-slate-400 hover:text-[#1ed760] transition-colors"
+          className="p-1 rounded-full text-slate-400 hover:text-[#1ed760] transition-colors hidden sm:block"
         >
           <MonitorSpeaker className="w-5 h-5" />
         </button>
@@ -74,18 +80,31 @@ export function MobileMiniPlayer() {
         <button
           onClick={(e) => {
             e.stopPropagation();
+            playPrev();
+          }}
+          className="p-1 text-white hover:text-[#fa233b] active:scale-95 transition-transform"
+        >
+          <SkipBack className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />
+        </button>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
             togglePlayPause();
           }}
-          className="p-2 text-white hover:text-[#fa233b] active:scale-95 transition-transform"
+          className="p-1 mx-1 text-white hover:text-[#fa233b] active:scale-95 transition-transform"
         >
           {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
         </button>
 
         <button
-          onClick={playNext}
-          className="p-2 text-white hover:text-[#fa233b] active:scale-95 transition-transform"
+          onClick={(e) => {
+            e.stopPropagation();
+            playNext();
+          }}
+          className="p-1 text-white hover:text-[#fa233b] active:scale-95 transition-transform"
         >
-          <SkipForward className="w-5 h-5 fill-current" />
+          <SkipForward className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />
         </button>
       </div>
     </div>

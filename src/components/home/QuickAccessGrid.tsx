@@ -25,8 +25,11 @@ export function QuickAccessGrid({ items }: { items: ShelfItem[] }) {
           className="group relative flex items-center gap-3 rounded-md glass-card hover:bg-white/10 transition-colors overflow-hidden cursor-pointer h-16 sm:h-20"
         >
           <img
-            src={item.imageUrl}
+            src={item.imageUrl || 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300'}
             alt={item.title}
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300';
+            }}
             className="w-16 h-16 sm:w-20 sm:h-20 object-cover shadow-[4px_0_10px_rgba(0,0,0,0.2)]"
           />
           <span className="font-bold text-sm text-white line-clamp-2 pr-2">{item.title}</span>

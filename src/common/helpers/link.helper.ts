@@ -14,17 +14,22 @@ export const createDownloadLinks = (encryptedMediaUrl: string) => {
   const key = '38346591'
   const iv = '00000000'
 
-  const encrypted = crypto.util.decode64(encryptedMediaUrl)
-  const decipher = crypto.cipher.createDecipher('DES-ECB', crypto.util.createBuffer(key))
-  decipher.start({ iv: crypto.util.createBuffer(iv) })
-  decipher.update(crypto.util.createBuffer(encrypted))
-  decipher.finish()
-  const decryptedLink = decipher.output.getBytes()
+  try {
+    const encrypted = crypto.util.decode64(encryptedMediaUrl)
+    const decipher = crypto.cipher.createDecipher('DES-ECB', crypto.util.createBuffer(key))
+    decipher.start({ iv: crypto.util.createBuffer(iv) })
+    decipher.update(crypto.util.createBuffer(encrypted))
+    decipher.finish()
+    const decryptedLink = decipher.output.getBytes()
 
-  return qualities.map((quality) => ({
-    quality: quality.bitrate,
-    url: decryptedLink.replace('_96', quality.id)
-  }))
+    return qualities.map((quality) => ({
+      quality: quality.bitrate,
+      url: decryptedLink.replace('_96', quality.id)
+    }))
+  } catch (error) {
+    console.error('Failed to decrypt media url:', error);
+    return []
+  }
 }
 
 export const createImageLinks = (link: string) => {

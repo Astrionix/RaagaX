@@ -16,6 +16,18 @@ export function AudioPlayerController() {
   const crossfadeIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasTriggeredCrossfadeRef = useRef(false);
   const isRefilling = useRef(false);
+  const seekTarget = usePlayerStore(state => state.seekTarget);
+
+  // Watch for explicit seek targets from the UI
+  useEffect(() => {
+    if (seekTarget !== null) {
+      const activeAudio = getActiveAudio();
+      if (activeAudio) {
+        activeAudio.currentTime = seekTarget;
+      }
+      usePlayerStore.setState({ seekTarget: null });
+    }
+  }, [seekTarget]);
 
   const {
     currentSong,

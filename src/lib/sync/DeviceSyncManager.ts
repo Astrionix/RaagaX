@@ -107,7 +107,7 @@ export class DeviceSyncManager {
       this.handleDurableUpdate(dbSession);
 
       // Setup Channel for Control Plane & DB changes
-      const channelName = `sync_${this.sessionId}`;
+      const channelName = `sync_${this.sessionId}_${Date.now()}`;
       this.channel = supabase.channel(channelName, {
         config: {
           broadcast: { self: true },

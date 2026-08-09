@@ -84,7 +84,7 @@ export default function Page() {
           <Navbar />
 
           {/* View Switcher Container */}
-          <main className="flex-1 pt-24 pb-48 md:pb-8 px-4 sm:px-8">
+          <main className="flex-1 pt-24 pb-[120px] md:pb-8 px-4 sm:px-8">
             {activeTab === 'home' && <HomeView />}
             {activeTab === 'search' && <SearchView />}
             {activeTab === 'library' && <LibraryView />}

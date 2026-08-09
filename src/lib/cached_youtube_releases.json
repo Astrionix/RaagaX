@@ -2,49 +2,874 @@
   "success": true,
   "data": [
     {
+      "id": "dyVYT1Mk",
+      "title": "Neno Butterfly (From &quot;Vishwanath &amp; Sons&quot;)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/401/Neno-Butterfly-From-Vishwanath-Sons-Telugu-2026-20260619144508-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/401/560a204239ad08fafd7822fe0d9e0236_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:03.874Z"
+        },
+        "jiosaavn": {
+          "id": "dyVYT1Mk"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "jXIKSzLs",
+      "title": "The Wedding Song (From &quot;Vishwanath &amp; Sons&quot;)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/402/The-Wedding-Song-From-Vishwanath-Sons-Telugu-2026-20260725145432-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/402/ad1de4e8d71ab7a11c34184417a4fbe9_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:03.874Z"
+        },
+        "jiosaavn": {
+          "id": "jXIKSzLs"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "GIcpS6tu",
+      "title": "Vishwanath &amp; Sons Teaser Theme (From &quot;Vishwanath &amp; Sons&quot;)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/374/Vishwanath-Sons-Teaser-Theme-From-Vishwanath-Sons-Telugu-2026-20260318185404-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/374/843d7f5244f6eb327eef4b972104cc2f_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:03.874Z"
+        },
+        "jiosaavn": {
+          "id": "GIcpS6tu"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "QMZ-Buc5",
+      "title": "Neowa Hummke Ya (From &quot;Korean Kanakaraju&quot;)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/842/Neowa-Hummke-Ya-From-Korean-Kanakaraju-Telugu-2026-20260806191006-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/842/282737db8c797e22329fa224bc8a331f_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:04.136Z"
+        },
+        "jiosaavn": {
+          "id": "QMZ-Buc5"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "px_jcxvN",
+      "title": "Kamsahamnida (From &quot;Korean Kanakaraju&quot;)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/073/Kamsahamnida-From-Korean-Kanakaraju-Telugu-2026-20260417121004-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/073/e1b4368a8b2720b7be5df4184ce1932c_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:04.136Z"
+        },
+        "jiosaavn": {
+          "id": "px_jcxvN"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "OoNyNHfn",
+      "title": "Rasaagummadi (From &quot;Korean Kanakaraju&quot;)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/118/Rasaagummadi-From-Korean-Kanakaraju-Telugu-2026-20260719221259-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/118/ba264235213a6d47071461e9b74a6256_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:04.136Z"
+        },
+        "jiosaavn": {
+          "id": "OoNyNHfn"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "Qm-is0AB",
+      "title": "Rasaagummadi",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/071/Korean-Kanakaraju-Telugu-2026-20260807181310-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/071/9287423e7c63b9b04fd2f78fab75d070_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:04.136Z"
+        },
+        "jiosaavn": {
+          "id": "Qm-is0AB"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "mXZItwpc",
+      "title": "Kamsahamnida",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/071/Korean-Kanakaraju-Telugu-2026-20260807181310-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/071/795b59c8a791f4c72e9e5940aba4fd0d_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:04.136Z"
+        },
+        "jiosaavn": {
+          "id": "mXZItwpc"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "Og6wQlfu",
+      "title": "Vadhalane (From &quot;Chennai Love Story&quot;)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/327/Vadhalane-From-Chennai-Love-Story-Telugu-2026-20260525181005-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/327/899338150ff94b5ee46a9bc3b4e5c3c5_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:04.284Z"
+        },
+        "jiosaavn": {
+          "id": "Og6wQlfu"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "Hvvkfw-j",
+      "title": "Guruthunda (From &quot;Chennai Love Story&quot;)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/298/Guruthunda-From-Chennai-Love-Story-Telugu-2026-20260330161003-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/298/e762e16c19e101a8f6e3d293c2a6877b_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:04.284Z"
+        },
+        "jiosaavn": {
+          "id": "Hvvkfw-j"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "xvCK_uUf",
+      "title": "Hoyila Hoyila (From &quot;Chennai Love Story&quot;)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/787/Hoyila-Hoyila-From-Chennai-Love-Story-Telugu-2026-20260703191023-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/787/06ddd4586f2efc039ce20f4b5b036aa6_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:04.284Z"
+        },
+        "jiosaavn": {
+          "id": "xvCK_uUf"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "9HVIbNqn",
+      "title": "Jigithara (From &quot;Chennai Love Story&quot;)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/025/Jigithara-From-Chennai-Love-Story-Telugu-2026-20260619191207-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/025/52cd5dbb524ab806279bfdeaa8223ee1_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:04.284Z"
+        },
+        "jiosaavn": {
+          "id": "9HVIbNqn"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
       "id": "9Z6PCiLH",
       "title": "Irumudi Kattu (From &quot;Irumudi&quot;)",
       "artist": "Unknown",
       "coverUrl": "https://c.saavncdn.com/933/Irumudi-Kattu-From-Irumudi-Telugu-2026-20260629001019-500x500.jpg",
-      "audioUrl": "",
+      "audioUrl": "https://aac.saavncdn.com/933/eb23993627c56c20eac5ccf2b025c372_320.mp4",
+      "playable": true,
       "releaseYear": 2026,
-      "type": "song"
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:04.422Z"
+        },
+        "jiosaavn": {
+          "id": "9Z6PCiLH"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
     },
     {
-      "id": "PUzDig6g",
+      "id": "fr2bWnf-",
+      "title": "Irumudikattu",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/079/Sabarimalai-Yathra-Telugu-2024-20241126164040-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/079/1793af629e288bf06393aeb91177b34c_320.mp4",
+      "playable": true,
+      "releaseYear": 2024,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:04.422Z"
+        },
+        "jiosaavn": {
+          "id": "fr2bWnf-"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "H7EycWMS",
+      "title": "Yaalalo Yaalalo (From &quot;Irumudi&quot;)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/552/Yaalalo-Yaalalo-From-Irumudi-Telugu-2026-20260802181037-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/552/69542e6eb267d39f5e848c1708df4bb1_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:04.422Z"
+        },
+        "jiosaavn": {
+          "id": "H7EycWMS"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "sdjnXwmG",
+      "title": "Irumudi Irumudi",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/271/Irumudi-Irumudi-Telugu-2024-20241003133829-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/271/3341d456375274704fb2772b61e3563f_320.mp4",
+      "playable": true,
+      "releaseYear": 2024,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:04.422Z"
+        },
+        "jiosaavn": {
+          "id": "sdjnXwmG"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "NmXwIEDt",
+      "title": "Chikiri Chikiri (From &quot;Peddi&quot;)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/353/Prema-Kavithalu-2026-Valentines-Day-Special-Telugu-2026-20260212201005-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/353/f9f2f587940e7c446f5a2269c9a094e6_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:06.198Z"
+        },
+        "jiosaavn": {
+          "id": "NmXwIEDt"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "i-4OQoee",
+      "title": "Aaya Sher (From &quot;The Paradise&quot;) (Telugu)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/227/Aaya-Sher-From-The-Paradise-Telugu-Telugu-2026-20260224113206-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/227/c74071be268890ac5e19be164ec4e22d_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:06.198Z"
+        },
+        "jiosaavn": {
+          "id": "i-4OQoee"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "I5IxAtxg",
+      "title": "Chinni Gundelo (From &quot;Andhra King Taluka&quot;)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/353/Prema-Kavithalu-2026-Valentines-Day-Special-Telugu-2026-20260212201005-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/353/9f486f4cd2686902e5dc16a81f4ea3a9_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:06.198Z"
+        },
+        "jiosaavn": {
+          "id": "I5IxAtxg"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "KLmOLxT3",
+      "title": "Basinga Balaalu",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/420/Basinga-Balaalu-Telugu-2026-20260612154016-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/420/3ead53d52db950c9821160d99048a1d4_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:06.198Z"
+        },
+        "jiosaavn": {
+          "id": "KLmOLxT3"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "FuATX2sL",
+      "title": "Chikiri Chikiri (From &quot;Peddi&quot;) - Telugu",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/735/Chikiri-Chikiri-From-Peddi-Telugu-Telugu-2025-20251107191120-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/735/afffe241f71836496fd3ebd720b06822_320.mp4",
+      "playable": true,
+      "releaseYear": 2025,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:06.546Z"
+        },
+        "jiosaavn": {
+          "id": "FuATX2sL"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "dzXnrx4r",
+      "title": "Hellallallo (From &quot;Peddi&quot;) - Telugu",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/242/Hellallallo-From-Peddi-Telugu-Telugu-2026-20260523201040-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/242/72329de8a4203630eb2ec21518be4a7c_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:06.546Z"
+        },
+        "jiosaavn": {
+          "id": "dzXnrx4r"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "114-aLc2",
+      "title": "Samayama (From &quot;Hi Nanna&quot;)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/223/2026-Tollywood-The-Valentine-Special-Telugu-2026-20260207191005-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/223/7ebcc70184a5ca3257f6e100f73c2e47_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:06.715Z"
+        },
+        "jiosaavn": {
+          "id": "114-aLc2"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "QoBNLjWL",
       "title": "Vaarevaa Vaarevaa (From &quot;Lenin&quot;)",
       "artist": "Unknown",
-      "coverUrl": "https://c.saavncdn.com/870/Vaarevaa-Vaarevaa-From-Lenin-Telugu-2026-20260105171003-500x500.jpg",
-      "audioUrl": "",
+      "coverUrl": "https://c.saavncdn.com/223/2026-Tollywood-The-Valentine-Special-Telugu-2026-20260207191005-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/223/b7369754fe81a5271064647bc9acd71a_320.mp4",
+      "playable": true,
       "releaseYear": 2026,
-      "type": "song"
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:06.715Z"
+        },
+        "jiosaavn": {
+          "id": "QoBNLjWL"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
     },
     {
-      "id": "QpR4JWxx",
-      "title": "Chuttamalle (From &quot;Devara Part 1&quot;)",
+      "id": "iRvEHh6S",
+      "title": "Kadalalle (From &quot;Dear Comrade&quot;)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/223/2026-Tollywood-The-Valentine-Special-Telugu-2026-20260207191005-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/223/f0c52ce57743f784f8897fec907a8ccf_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:06.715Z"
+        },
+        "jiosaavn": {
+          "id": "iRvEHh6S"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "sySsPOW2",
+      "title": "Adhento Gaani Vunnapaatuga",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/873/Tollywood-Romantic-Hits-Telugu-2026-20260527193432-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/873/3de7a02cf403fff57d754b792afc2815_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:06.715Z"
+        },
+        "jiosaavn": {
+          "id": "sySsPOW2"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "8ByHXECV",
+      "title": "Devara Thandavam (From &quot;Devara Part 1&quot;) (From &quot;Devara Thandavam (From &quot;Devara Part 1&quot;)&quot;)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/154/Blockbuster-Tollywood-Ugadi-Telugu-2026-20260318161228-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/154/04d000690fd464db10ae217bbc97aab7_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:07.101Z"
+        },
+        "jiosaavn": {
+          "id": "8ByHXECV"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
+    },
+    {
+      "id": "eRudlGCb",
+      "title": "Blockbuster Pongal (From &quot;Sankranthiki Vasthunam&quot;)",
       "artist": "Unknown",
       "coverUrl": "https://c.saavncdn.com/063/World-Music-Day-Top-10-Telugu-Superhits-Telugu-2026-20260619191140-500x500.jpg",
-      "audioUrl": "",
+      "audioUrl": "https://aac.saavncdn.com/063/03136078b1db82e66a376fa1ef5f79d2_320.mp4",
+      "playable": true,
       "releaseYear": 2026,
-      "type": "song"
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:07.101Z"
+        },
+        "jiosaavn": {
+          "id": "eRudlGCb"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
     },
     {
-      "id": "1YpmYatb",
-      "title": "Boom Boom (From &quot;Dude (Telugu)&quot;)",
+      "id": "FJZS6bzi",
+      "title": "Shiva Shiva Shankaraa (From &quot;Kannappa&quot;)",
       "artist": "Unknown",
-      "coverUrl": "https://c.saavncdn.com/929/Boom-Boom-From-Dude-Telugu-Telugu-2025-20250828210249-500x500.jpg",
-      "audioUrl": "",
-      "releaseYear": 2025,
-      "type": "song"
+      "coverUrl": "https://c.saavncdn.com/154/Blockbuster-Tollywood-Ugadi-Telugu-2026-20260318161228-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/154/79b5346b3cc6da866bd6b41223165741_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:07.101Z"
+        },
+        "jiosaavn": {
+          "id": "FJZS6bzi"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
     },
     {
-      "id": "LZPFlH4E",
-      "title": "Ayudha Pooja - Telugu",
+      "id": "NYUe-JxE",
+      "title": "Mega Victory Mass Song (From &quot;Mana Shankaravaraprasad Garu - Pandagaki Vasthunnaru&quot;)",
       "artist": "Unknown",
-      "coverUrl": "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
-      "audioUrl": "",
-      "releaseYear": 2024,
-      "type": "song"
+      "coverUrl": "https://c.saavncdn.com/154/Blockbuster-Tollywood-Ugadi-Telugu-2026-20260318161228-500x500.jpg",
+      "audioUrl": "https://aac.saavncdn.com/154/ecd9a60c4625432e851db9c11185b9fa_320.mp4",
+      "playable": true,
+      "releaseYear": 2026,
+      "type": "song",
+      "language": "Telugu",
+      "sources": {
+        "youtube": {
+          "videoId": "mock_youtube_id",
+          "channelId": "mock_channel_id",
+          "channelTitle": "Mock Channel",
+          "publishedAt": "2026-08-09T19:04:07.101Z"
+        },
+        "jiosaavn": {
+          "id": "NYUe-JxE"
+        }
+      },
+      "verification": {
+        "languageVerified": true,
+        "songVerified": true,
+        "releaseDateVerified": true,
+        "sourceVerified": true,
+        "matchScore": 0.95
+      }
     }
   ]
 }

@@ -7,7 +7,26 @@ export interface Song {
   albumId: string;
   duration: number; // in seconds
   coverUrl: string;
-  audioUrl: string;
+  audioUrl: string | null;
+  playable?: boolean;
+  sources?: {
+    youtube?: {
+      videoId: string;
+      channelId: string;
+      channelTitle?: string;
+      publishedAt: string;
+    };
+    jiosaavn?: {
+      id: string;
+    };
+  };
+  verification?: {
+    languageVerified: boolean;
+    songVerified: boolean;
+    releaseDateVerified: boolean;
+    sourceVerified: boolean;
+    matchScore: number;
+  };
   genre: string;
   category: 'latest_telugu' | '90s_telugu' | 'love' | 'mass' | 'melody' | 'folk' | 'devotional' | 'global_trending' | 'radio';
   releaseYear: number;
