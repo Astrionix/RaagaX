@@ -11,34 +11,36 @@ function getGreeting(): string {
   return 'Good Evening 👋';
 }
 
+import { getPlaylistId } from '@/lib/homePlaylists';
+
 function getLanguageContent(lang: string): { quick_access: ShelfItem[], chartbusters: ShelfItem[], retro: ShelfItem[], mood: ShelfItem[] } {
   // We use existing valid IDs as placeholders for now, but translate titles to match preferred language
   const defaultLang = lang || 'Telugu';
   return {
     quick_access: [
       { id: '1', title: 'Liked Songs', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: '2', title: `${defaultLang} Mix`, type: 'mix', imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Mix', '150750109'), title: `${defaultLang} Mix`, type: 'mix', imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=300&h=300' },
       { id: '3', title: 'Recently Played', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1493225457124-a1a2a5f5f924?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: '4', title: `Trending ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: '5', title: `${defaultLang} Hits`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1593697821252-0c9137d9fc45?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: '1266094331', title: `Latest ${defaultLang}`, type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/LatestTollywood_20250814091215_500x500.jpg' },
+      { id: getPlaylistId(defaultLang, 'Trending', '1266643840'), title: `Trending ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Hits', '1170578801'), title: `${defaultLang} Hits`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1593697821252-0c9137d9fc45?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Latest', '1266094331'), title: `Latest ${defaultLang}`, type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/LatestTollywood_20250814091215_500x500.jpg' },
     ],
     chartbusters: [
-      { id: '1134643225', title: `${defaultLang}: India Superhits Top 50`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: '1302089242', title: `Chartbusters 2026 - ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: '814453257', title: `${defaultLang} Viral Hits`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1493225457124-a1a2a5f5f924?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: '951897805', title: `Most Searched Songs - ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=300&h=300' }
+      { id: getPlaylistId(defaultLang, 'India Superhits Top 50', '1134643225'), title: `${defaultLang}: India Superhits Top 50`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Chartbusters', '1302089242'), title: `Chartbusters 2026 - ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Viral Hits', '814453257'), title: `${defaultLang} Viral Hits`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1493225457124-a1a2a5f5f924?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Most Searched Songs', '951897805'), title: `Most Searched Songs - ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=300&h=300' }
     ],
     retro: [
-      { id: '1170578805', title: `${defaultLang} 2000s`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: '1170578801', title: `${defaultLang} 1990s`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1516280440502-86846f4142d1?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: '901538769', title: `${defaultLang} 1980s`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: '901538767', title: `${defaultLang} 1970s`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1593697821252-0c9137d9fc45?auto=format&fit=crop&q=80&w=300&h=300' }
+      { id: getPlaylistId(defaultLang, '2000s', '1170578805'), title: `${defaultLang} 2000s`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, '1990s', '1170578801'), title: `${defaultLang} 1990s`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1516280440502-86846f4142d1?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, '1980s', '901538769'), title: `${defaultLang} 1980s`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, '1970s', '901538767'), title: `${defaultLang} 1970s`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1593697821252-0c9137d9fc45?auto=format&fit=crop&q=80&w=300&h=300' }
     ],
     mood: [
-      { id: '742913535', title: `90s Romance - ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: '742894803', title: `2000s Romance - ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: '110048908', title: `${defaultLang} Folk Songs`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1460036521480-c11c52536c99?auto=format&fit=crop&q=80&w=300&h=300' }
+      { id: getPlaylistId(defaultLang, '90s Romance', '1170578801'), title: `90s Romance - ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, '2000s Romance', '1170578805'), title: `2000s Romance - ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Folk Songs', '110048908'), title: `${defaultLang} Folk Songs`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1460036521480-c11c52536c99?auto=format&fit=crop&q=80&w=300&h=300' }
     ]
   };
 }
