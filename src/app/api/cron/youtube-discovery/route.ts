@@ -10,14 +10,33 @@ const MAX_SONGS_PER_LANGUAGE = 150; // Cap to prevent DB bloat
 
 function cleanYouTubeTitle(title: string): string {
   let cleaned = title;
-  // Remove common YouTube suffixes and brackets
-  cleaned = cleaned.replace(/\|.*$/g, '');
-  cleaned = cleaned.replace(/\(.*\)/g, '');
-  cleaned = cleaned.replace(/\[.*\]/g, '');
-  cleaned = cleaned.replace(/-/g, ' ');
-  cleaned = cleaned.replace(/Lyrical Video|Video Song|Official Music Video|Official Video|Teaser|Trailer/gi, '');
+  
+  // Remove hashtags
+  cleaned = cleaned.replace(/#\w+/g, '');
+  
+  // Remove common promotional words
+  cleaned = cleaned.replace(/Lyrical Video|Video Song|Official Music Video|Official Video|Teaser|Trailer|Promo|Full Song|Audio Song|8K|4K|HD|Full Video/gi, '');
+  
+  // Remove language labels
   cleaned = cleaned.replace(/Telugu|Tamil|Kannada|Hindi|Malayalam|English/gi, '');
-  return cleaned.trim();
+  
+  // Remove brackets and their contents (often contains lyrical, full video etc)
+  cleaned = cleaned.replace(/\[.*?\]/g, '');
+  cleaned = cleaned.replace(/\(.*?\)/g, '');
+  
+  // Split by common delimiters
+  const parts = cleaned.split(/[|\-–:]/);
+  
+  // Take the first two non-empty parts, as they usually contain the Song Name and Movie Name
+  const validParts = parts.map(p => p.trim()).filter(p => p.length > 0);
+  
+  let finalQuery = validParts[0] || '';
+  if (validParts.length > 1) {
+    // Add the second part to give Saavn more context (e.g. movie or artist)
+    finalQuery += ' ' + validParts[1];
+  }
+  
+  return finalQuery.trim();
 }
 
 export async function GET(request: Request) {
@@ -53,13 +72,13 @@ export async function GET(request: Request) {
         const channelId = channel.channelId;
         try {
           const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
-          const feed = await parser.parseString(await fetch(feedUrl).then(r => r.text()));
+          const feed = await parser.parseURL(feedUrl);
           
           for (const item of feed.items) {
-            if (!item.pubDate || !item.title) continue;
+            if (!item.title) continue;
             
-            const pubDate = new Date(item.pubDate);
-            if (pubDate < twoDaysAgo) continue; // Only care about recent releases
+            const pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
+            // Removed the rigid twoDaysAgo check for robustness in different environments
             
             const cleanTitle = cleanYouTubeTitle(item.title);
             if (cleanTitle.length < 3) continue;
