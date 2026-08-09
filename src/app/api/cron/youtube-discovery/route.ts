@@ -63,22 +63,24 @@ export async function GET(request: Request) {
     for (const lang of LANGUAGES) {
       let langSongCount = 0;
       let addedIds: string[] = [];
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
 
       // Filter channels that support this language
       const validChannels = channelsData.filter(c => c.languages.includes(lang));
 
       for (const channel of validChannels) {
+        if (langSongCount >= 50) break;
         const channelId = channel.channelId;
         try {
           const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
           const feed = await parser.parseURL(feedUrl);
           
           for (const item of feed.items) {
+            if (langSongCount >= 50) break;
             if (!item.title) continue;
             
             const pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
-            if (pubDate < thirtyDaysAgo) continue; // Fetch releases from last 30 days
+            if (pubDate < sixtyDaysAgo) continue; // Fetch releases from last 60 days
             
             const cleanTitle = cleanYouTubeTitle(item.title);
             if (cleanTitle.length < 3) continue;
