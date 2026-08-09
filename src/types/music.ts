@@ -131,7 +131,7 @@ export type PlaybackCommand =
   | { type: 'PLAY'; deviceId?: string; stateVersion?: number }
   | { type: 'PAUSE'; deviceId?: string; stateVersion?: number }
   | { type: 'SEEK'; position: number; deviceId?: string; stateVersion?: number }
-  | { type: 'TRANSFER'; fromDeviceId?: string; toDeviceId: string; positionMs?: number; stateVersion?: number }
+  | { type: 'TRANSFER'; fromDeviceId?: string; toDeviceId: string; toDeviceName?: string; positionMs?: number; stateVersion?: number }
   | { type: 'NEXT'; deviceId?: string; stateVersion?: number }
   | { type: 'PREV'; deviceId?: string; stateVersion?: number }
   | { type: 'SET_VOLUME'; percent: number; deviceId?: string; stateVersion?: number }

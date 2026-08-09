@@ -52,7 +52,7 @@ export async function GET(request: Request) {
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!; // Need service role to bypass RLS for inserts
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  const discoveredSongs = [];
+  const discoveredSongs: string[] = [];
   const engine = RealMusicEngine.getInstance();
   
   // Look back 7 days
