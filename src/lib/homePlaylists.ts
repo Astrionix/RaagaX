@@ -362,12 +362,20 @@ export const playlistIds: Record<string, Record<string, string>> = {
 };
 
 export function getPlaylistId(lang: string, query: string, fallback: string): string {
+  // 1. Direct match
   if (playlistIds[lang] && playlistIds[lang][query]) {
     return playlistIds[lang][query];
   }
-  // Default to Telugu if language not found
+  
+  // 2. If asking for "New Releases", fallback to "Latest" for the SAME language
+  if (query === 'New Releases' && playlistIds[lang] && playlistIds[lang]['Latest']) {
+    return playlistIds[lang]['Latest'];
+  }
+
+  // 3. Default to Telugu if language/query not found
   if (playlistIds["Telugu"] && playlistIds["Telugu"][query]) {
     return playlistIds["Telugu"][query];
   }
+  
   return fallback;
 }

@@ -23,14 +23,17 @@ export async function GET(request: Request) {
 
     if (error) {
       console.log('Supabase failed or table does not exist, falling back to local JSON cache.');
-      const fs = require('fs');
-      const path = require('path');
-      const cachePath = path.join(process.cwd(), 'src/lib/cached_youtube_releases.json');
-      if (fs.existsSync(cachePath)) {
-        const localData = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
-        return NextResponse.json(localData);
+      if (lang.toLowerCase() === 'telugu') {
+        const fs = require('fs');
+        const path = require('path');
+        const cachePath = path.join(process.cwd(), 'src/lib/cached_youtube_releases.json');
+        if (fs.existsSync(cachePath)) {
+          const localData = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+          return NextResponse.json(localData);
+        }
       }
-      throw error;
+      // If not Telugu or cache missing, return empty so frontend handles fallback
+      return NextResponse.json({ success: true, data: [] });
     }
 
     const songs = data.map(row => row.song_metadata);
@@ -41,14 +44,15 @@ export async function GET(request: Request) {
     });
   } catch (error: any) {
     console.error('Error fetching new releases:', error);
-    // Ultimate fallback if both fail
-    const fs = require('fs');
-    const path = require('path');
-    const cachePath = path.join(process.cwd(), 'src/lib/cached_youtube_releases.json');
-    if (fs.existsSync(cachePath)) {
-      const localData = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
-      return NextResponse.json(localData);
+    if (lang.toLowerCase() === 'telugu') {
+      const fs = require('fs');
+      const path = require('path');
+      const cachePath = path.join(process.cwd(), 'src/lib/cached_youtube_releases.json');
+      if (fs.existsSync(cachePath)) {
+        const localData = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+        return NextResponse.json(localData);
+      }
     }
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, data: [] });
   }
 }
