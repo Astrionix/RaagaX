@@ -13,8 +13,7 @@ function getGreeting(): string {
 
 import { getPlaylistId } from '@/lib/homePlaylists';
 
-function getLanguageContent(lang: string): { quick_access: ShelfItem[], chartbusters: ShelfItem[], retro: ShelfItem[], mood: ShelfItem[] } {
-  // We use existing valid IDs as placeholders for now, but translate titles to match preferred language
+function getLanguageContent(lang: string): Record<string, ShelfItem[]> {
   const defaultLang = lang || 'Telugu';
   return {
     quick_access: [
@@ -23,24 +22,54 @@ function getLanguageContent(lang: string): { quick_access: ShelfItem[], chartbus
       { id: '3', title: 'Recently Played', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1493225457124-a1a2a5f5f924?auto=format&fit=crop&q=80&w=300&h=300' },
       { id: getPlaylistId(defaultLang, 'Trending', '1266643840'), title: `Trending ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=300&h=300' },
       { id: getPlaylistId(defaultLang, 'Hits', '1170578801'), title: `${defaultLang} Hits`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1593697821252-0c9137d9fc45?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, 'Latest', '1266094331'), title: `Latest ${defaultLang}`, type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/LatestTollywood_20250814091215_500x500.jpg' },
+      { id: getPlaylistId(defaultLang, 'New Releases', '1266094331'), title: `New Releases`, type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/LatestTollywood_20250814091215_500x500.jpg' },
     ],
-    chartbusters: [
-      { id: getPlaylistId(defaultLang, 'India Superhits Top 50', '1134643225'), title: `${defaultLang}: India Superhits Top 50`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, 'Chartbusters', '1302089242'), title: `Chartbusters 2026 - ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, 'Viral Hits', '814453257'), title: `${defaultLang} Viral Hits`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1493225457124-a1a2a5f5f924?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, 'Most Searched Songs', '951897805'), title: `Most Searched Songs - ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=300&h=300' }
+    trending: [
+      { id: getPlaylistId(defaultLang, 'Trending', '1134643225'), title: `Trending Now`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Viral', '1302089242'), title: `Viral Hits`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Popular', '814453257'), title: `Popular in ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1493225457124-a1a2a5f5f924?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Top Charts', '951897805'), title: `Top Charts`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=300&h=300' }
     ],
-    retro: [
-      { id: getPlaylistId(defaultLang, '2000s', '1170578805'), title: `${defaultLang} 2000s`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, '1990s', '1170578801'), title: `${defaultLang} 1990s`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1516280440502-86846f4142d1?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, '1980s', '901538769'), title: `${defaultLang} 1980s`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, '1970s', '901538767'), title: `${defaultLang} 1970s`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1593697821252-0c9137d9fc45?auto=format&fit=crop&q=80&w=300&h=300' }
+    hits: [
+      { id: getPlaylistId(defaultLang, 'Hits', '1170578805'), title: `${defaultLang} Superhits`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Chartbusters', '1170578801'), title: `Chartbusters`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1516280440502-86846f4142d1?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Latest Hits', '901538769'), title: `Latest Hits`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&q=80&w=300&h=300' },
     ],
-    mood: [
-      { id: getPlaylistId(defaultLang, '90s Romance', '1170578801'), title: `90s Romance - ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, '2000s Romance', '1170578805'), title: `2000s Romance - ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, 'Folk Songs', '110048908'), title: `${defaultLang} Folk Songs`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1460036521480-c11c52536c99?auto=format&fit=crop&q=80&w=300&h=300' }
+    romantic: [
+      { id: getPlaylistId(defaultLang, 'Romantic', '1170578801'), title: `Romantic`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Melodies', '1170578805'), title: `Melodies`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Love', '110048908'), title: `Love Songs`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1460036521480-c11c52536c99?auto=format&fit=crop&q=80&w=300&h=300' }
+    ],
+    party: [
+      { id: getPlaylistId(defaultLang, 'Party', '1170578801'), title: `Party Anthems`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1516280440502-86846f4142d1?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'EDM', '1170578805'), title: `EDM Mix`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Energetic', '110048908'), title: `Energetic Beats`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1460036521480-c11c52536c99?auto=format&fit=crop&q=80&w=300&h=300' }
+    ],
+    devotional: [
+      { id: getPlaylistId(defaultLang, 'Devotional', '84999330'), title: `Devotional`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1604169720546-b333a595908b?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Festival', '84999330'), title: `Festival`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300' }
+    ],
+    workout: [
+      { id: getPlaylistId(defaultLang, 'Workout', '84999330'), title: `Workout`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Running', '84999330'), title: `Running`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1493225457124-a1a2a5f5f924?auto=format&fit=crop&q=80&w=300&h=300' }
+    ],
+    chill: [
+      { id: getPlaylistId(defaultLang, 'Lofi', '84999330'), title: `Lofi & Chill`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Chill', '84999330'), title: `Chillout`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Acoustic', '84999330'), title: `Acoustic Covers`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=300&h=300' }
+    ],
+    road_trip: [
+      { id: getPlaylistId(defaultLang, 'Driving', '84999330'), title: `Driving`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1493225457124-a1a2a5f5f924?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Travel', '84999330'), title: `Travel`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300' }
+    ],
+    sad: [
+      { id: getPlaylistId(defaultLang, 'Sad', '84999330'), title: `Sad & Emotional`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, 'Emotional', '84999330'), title: `Emotional`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1516280440502-86846f4142d1?auto=format&fit=crop&q=80&w=300&h=300' }
+    ],
+    evergreen: [
+      { id: getPlaylistId(defaultLang, 'Evergreen Classics', '84999330'), title: `Evergreen Classics`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, '1990s', '84999330'), title: `90s Hits`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: getPlaylistId(defaultLang, '2000s', '84999330'), title: `2000s Hits`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&q=80&w=300&h=300' }
     ]
   };
 }
@@ -79,10 +108,7 @@ export async function GET(request: Request) {
       }
     }
 
-    const { data: userRecord } = await supabase.auth.admin.getUserById(userId);
-    if (userRecord?.user?.user_metadata?.full_name) {
-      name = userRecord.user.user_metadata.full_name.split(' ')[0];
-    }
+    name = searchParams.get('name') || '';
   }
 
   if (releaseRadar.length > 0) {
@@ -131,24 +157,64 @@ export async function GET(request: Request) {
   artistRadars.forEach(ar => sections.push(ar));
 
   sections.push({
-    id: 'chartbusters',
+    id: 'trending',
     type: 'carousel',
-    title: '🏆 Chartbusters & Hits',
-    items: content.chartbusters
+    title: '🔥 Trending Now',
+    items: content.trending
   });
-
   sections.push({
-    id: 'retro',
+    id: 'hits',
     type: 'carousel',
-    title: '📻 Decades & Retro',
-    items: content.retro
+    title: `🇮🇳 ${lang} Hits`,
+    items: content.hits
   });
-
   sections.push({
-    id: 'mood',
+    id: 'romantic',
     type: 'carousel',
-    title: '🎭 Mood & Genre',
-    items: content.mood
+    title: '❤️ Romantic Melodies',
+    items: content.romantic
+  });
+  sections.push({
+    id: 'party',
+    type: 'carousel',
+    title: '💃 Party Time',
+    items: content.party
+  });
+  sections.push({
+    id: 'devotional',
+    type: 'carousel',
+    title: '🙏 Devotional',
+    items: content.devotional
+  });
+  sections.push({
+    id: 'workout',
+    type: 'carousel',
+    title: '🏋️ Workout',
+    items: content.workout
+  });
+  sections.push({
+    id: 'chill',
+    type: 'carousel',
+    title: '🌙 Lofi & Chill',
+    items: content.chill
+  });
+  sections.push({
+    id: 'road_trip',
+    type: 'carousel',
+    title: '🚗 Road Trip',
+    items: content.road_trip
+  });
+  sections.push({
+    id: 'sad',
+    type: 'carousel',
+    title: '💔 Sad & Emotional',
+    items: content.sad
+  });
+  sections.push({
+    id: 'evergreen',
+    type: 'carousel',
+    title: '⭐ Evergreen Classics',
+    items: content.evergreen
   });
 
   const payload: HomePayload = {

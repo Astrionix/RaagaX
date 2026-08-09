@@ -94,6 +94,16 @@ export class RecommendationEngine {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
+        // Upsert song to canonical_songs to satisfy foreign key constraints
+        await supabase.from('canonical_songs').upsert({
+          id: song.id,
+          title: song.title,
+          artist: artist,
+          album: song.album,
+          duration: String(song.duration),
+          cover_url: song.coverUrl || null
+        }, { onConflict: 'id' });
+
         supabase.from('listening_events').insert({
           user_id: session.user.id,
           song_id: song.id,

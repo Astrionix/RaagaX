@@ -20,41 +20,73 @@ export function HomeView() {
         const { supabase } = await import('@/lib/supabase');
         const { data: { session } } = await supabase.auth.getSession();
         
+        const userName = session?.user?.user_metadata?.full_name ? encodeURIComponent(session.user.user_metadata.full_name.split(' ')[0]) : '';
         const url = session?.user?.id 
-          ? `/api/home?userId=${session.user.id}&lang=${preferredLanguage}`
+          ? `/api/home?userId=${session.user.id}&lang=${preferredLanguage}&name=${userName}`
           : `/api/home?lang=${preferredLanguage}`;
           
         const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
-          
-          // Inject "This Week's Releases" dynamically on the client
+          // Set payload immediately so the UI stops loading fast
+          setPayload(data);
+          setIsLoading(false);
+
+          // Inject "This Week's Releases" dynamically in the background without blocking the UI
           try {
-            const thisWeekSongs = await RealMusicEngine.getInstance().searchRealSongs(`New ${preferredLanguage} Songs`, 12);
-            if (thisWeekSongs.length > 0) {
-              const newSection: HomeSection = {
-                id: 'this_week_releases',
-                type: 'carousel',
-                title: '🆕 This Week\'s Releases',
-                items: thisWeekSongs.map(s => ({
-                  ...s,
-                  type: 'song',
-                  subtitle: s.artist,
-                  imageUrl: s.coverUrl
-                })) as ShelfItem[]
-              };
-              // Insert after the quick access grid
-              data.sections.splice(1, 0, newSection);
-            }
+            const { getPlaylistId } = await import('@/lib/homePlaylists');
+            const newReleasesId = getPlaylistId(preferredLanguage, 'New Releases', '1266094331');
+            
+            RealMusicEngine.getInstance().getPlaylistDetails(newReleasesId).then(async playlist => {
+              const rawItems = playlist?.songs || [];
+              if (rawItems.length > 0) {
+                // Ensure all items are playable songs. If it's an album (indicated by fallback pixabay audio), fetch a real song for it
+                const playableSongsPromises = rawItems.slice(0, 15).map(async (s) => {
+                  if (s.audioUrl.includes('pixabay')) {
+                    try {
+                      // It's an album or unplayable track. Fetch a real song using its title as requested.
+                      const realSongs = await RealMusicEngine.getInstance().searchRealSongs(s.title, 1);
+                      if (realSongs && realSongs.length > 0) {
+                        return realSongs[0];
+                      }
+                    } catch (e) {}
+                  }
+                  return s;
+                });
+                
+                const thisWeekSongs = await Promise.all(playableSongsPromises);
+                
+                setPayload((prevPayload) => {
+                  if (!prevPayload) return prevPayload;
+                  // Make sure we don't duplicate it
+                  if (prevPayload.sections.some(s => s.id === 'this_week_releases')) return prevPayload;
+                  
+                  const newSection: HomeSection = {
+                    id: 'this_week_releases',
+                    type: 'carousel',
+                    title: '🆕 This Week\'s Releases',
+                    items: thisWeekSongs.map(s => ({
+                      ...s,
+                      type: 'song',
+                      subtitle: s.artist,
+                      imageUrl: s.coverUrl
+                    })) as ShelfItem[]
+                  };
+                  
+                  const newSections = [...prevPayload.sections];
+                  newSections.splice(1, 0, newSection);
+                  return { ...prevPayload, sections: newSections };
+                });
+              }
+            });
           } catch (e) {
             console.error('Failed to inject new releases', e);
           }
-
-          setPayload(data);
+        } else {
+          setIsLoading(false);
         }
       } catch (e) {
         console.error('Failed to fetch home payload:', e);
-      } finally {
         setIsLoading(false);
       }
     }

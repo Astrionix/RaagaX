@@ -94,31 +94,56 @@ export class RealMusicEngine {
 
       let rawSongs = playlist.songs ? this.mapResults(playlist.songs) : [];
 
-      // Uniqueness Filter (Remove duplicates and ensure 80% uniqueness)
+      // Album Rules
+      const albumRules = {
+        minimumSongs: 50,
+        targetSongs: 60,
+        minimumUniquePercentage: 0.80,
+        maximumOverlapPercentage: 0.20,
+        maximumSameArtistPercentage: 0.25
+      };
+
       const uniqueSongs: Song[] = [];
       const seenTitles = new Set<string>();
       const artistCounts: Record<string, number> = {};
+      const maxPerArtist = Math.max(3, Math.floor(albumRules.targetSongs * albumRules.maximumSameArtistPercentage));
 
       for (const song of rawSongs) {
-        // Basic normalization for title deduplication (remove '(From ...)', 'Lyrical', etc)
+        if (uniqueSongs.length >= albumRules.targetSongs) break;
+
+        // Basic normalization for title deduplication
         const normalizedTitle = song.title.toLowerCase()
           .replace(/\(from.*?\)/g, '')
           .replace(/lyrical|video|official/g, '')
           .replace(/[^a-z0-9]/g, '');
 
-        // Generate a composite key of Title + Primary Artist
-        const firstArtist = song.artist.split(',')[0].trim().toLowerCase();
+        const firstArtist = (song.artist || '').split(',')[0].trim().toLowerCase() || 'unknown';
         const compositeKey = `${normalizedTitle}_${firstArtist}`;
 
         if (seenTitles.has(compositeKey)) continue;
 
-        // Limit tracks from the same artist to ensure variety (max 20% of playlist length or 3 songs max, whichever is higher)
-        const maxPerArtist = Math.max(3, Math.floor(rawSongs.length * 0.2));
         artistCounts[firstArtist] = (artistCounts[firstArtist] || 0) + 1;
         if (artistCounts[firstArtist] > maxPerArtist) continue;
 
         seenTitles.add(compositeKey);
         uniqueSongs.push(song);
+      }
+
+      // If we fell short of minimum, pad with search (simplified padding for now)
+      if (uniqueSongs.length < albumRules.minimumSongs && playlist.name) {
+        try {
+          const padSongs = await this.searchRealSongs(playlist.name, albumRules.targetSongs - uniqueSongs.length);
+          for (const song of padSongs) {
+             if (uniqueSongs.length >= albumRules.targetSongs) break;
+             const normalizedTitle = song.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+             const firstArtist = (song.artist || '').split(',')[0].trim().toLowerCase() || 'unknown';
+             const compositeKey = `${normalizedTitle}_${firstArtist}`;
+             if (!seenTitles.has(compositeKey)) {
+                seenTitles.add(compositeKey);
+                uniqueSongs.push(song);
+             }
+          }
+        } catch(e) {}
       }
 
       return {
