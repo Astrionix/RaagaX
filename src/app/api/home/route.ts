@@ -142,10 +142,10 @@ export async function GET(request: Request) {
     type: 'carousel',
     title: '🏆 Chartbusters & Hits',
     items: [
-      { id: '1134643225', title: 'Telugu: India Superhits Top 50', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/TeluguIndiaSuperhitsTop50_20241018042942_500x500.jpg' },
-      { id: '1302089242', title: 'Chartbusters 2026 - Telugu', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/Chartbusters2024Telugu_20250109121731_500x500.jpg' },
-      { id: '814453257', title: 'Telugu Viral Hits', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/TeluguViralHits_20260212042858_500x500.jpg' },
-      { id: '951897805', title: 'Most Searched Songs', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/MostSearchedSongsTelugu_20260320054705_500x500.jpg' }
+      { id: '1134643225', title: 'Telugu: India Superhits Top 50', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '1302089242', title: 'Chartbusters 2026 - Telugu', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '814453257', title: 'Telugu Viral Hits', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1493225457124-a1a2a5f5f924?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '951897805', title: 'Most Searched Songs', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=300&h=300' }
     ]
   });
 
@@ -155,10 +155,10 @@ export async function GET(request: Request) {
     type: 'carousel',
     title: '📻 Decades & Retro',
     items: [
-      { id: '1170578805', title: 'Telugu 2000s', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/Telugu2000s_20240916053335_500x500.jpg' },
-      { id: '1170578801', title: 'Telugu 1990s', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/Telugu1990s_20240916053050_500x500.jpg' },
-      { id: '901538769', title: 'Telugu 1980s', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/Telugu1980s_20231215165842_500x500.jpg' },
-      { id: '901538767', title: 'Telugu 1970s', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/Telugu1970s_20231215165934_500x500.jpg' }
+      { id: '1170578805', title: 'Telugu 2000s', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '1170578801', title: 'Telugu 1990s', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1516280440502-86846f4142d1?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '901538769', title: 'Telugu 1980s', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '901538767', title: 'Telugu 1970s', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1593697821252-0c9137d9fc45?auto=format&fit=crop&q=80&w=300&h=300' }
     ]
   });
 
@@ -168,9 +168,9 @@ export async function GET(request: Request) {
     type: 'carousel',
     title: '🎭 Mood & Genre',
     items: [
-      { id: '742913535', title: '90s Romance - Telugu', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/90sRomanceTelugu_20260213075647_500x500.jpg' },
-      { id: '742894803', title: '2000s Romance - Telugu', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/2000sRomanceTelugu_20260213074811_500x500.jpg' },
-      { id: '110048908', title: 'Telugu Folk Songs', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/TeluguFolkSongs_20260213080126_500x500.jpg' }
+      { id: '742913535', title: '90s Romance - Telugu', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '742894803', title: '2000s Romance - Telugu', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '110048908', title: 'Telugu Folk Songs', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1460036521480-c11c52536c99?auto=format&fit=crop&q=80&w=300&h=300' }
     ]
   });
 
