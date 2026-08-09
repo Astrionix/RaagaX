@@ -55,7 +55,7 @@ export function Sidebar() {
               }
             }}
             placeholder="Search"
-            className="w-full pl-9 pr-3 py-1.5 rounded-lg glass-input text-xs text-white placeholder:text-slate-400 border border-transparent focus:border-[#EF233C] focus:outline-none font-medium"
+            className="w-full pl-9 pr-3 py-1.5 rounded-lg glass-input text-xs text-white placeholder:text-slate-400 border border-transparent focus:border-[#fa233b] focus:outline-none font-medium"
           />
         </div>
 
@@ -66,7 +66,7 @@ export function Sidebar() {
           <button
             onClick={() => setActiveTab('home')}
             className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg font-bold transition-all ${
-              activeTab === 'home' ? 'bg-[#EF233C]/20 text-[#EF233C] shadow-[0_0_10px_rgba(239,35,60,0.1)]' : 'text-slate-300 hover:bg-white/10 hover:text-white'
+              activeTab === 'home' ? 'bg-[#fa233b]/20 text-[#fa233b] shadow-[0_0_10px_rgba(239,35,60,0.1)]' : 'text-slate-300 hover:bg-white/10 hover:text-white'
             }`}
           >
             <Home className="w-4 h-4" />
@@ -76,7 +76,7 @@ export function Sidebar() {
           <button
             onClick={() => setActiveTab('album')}
             className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg font-bold transition-all ${
-              activeTab === 'album' ? 'bg-[#EF233C]/20 text-[#EF233C] shadow-[0_0_10px_rgba(239,35,60,0.1)]' : 'text-slate-300 hover:bg-white/10 hover:text-white'
+              activeTab === 'album' ? 'bg-[#fa233b]/20 text-[#fa233b] shadow-[0_0_10px_rgba(239,35,60,0.1)]' : 'text-slate-300 hover:bg-white/10 hover:text-white'
             }`}
           >
             <Compass className="w-4 h-4" />
@@ -86,7 +86,7 @@ export function Sidebar() {
           <button
             onClick={() => setActiveTab('radio')}
             className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg font-bold transition-all ${
-              activeTab === 'radio' ? 'bg-[#EF233C]/20 text-[#EF233C] shadow-[0_0_10px_rgba(239,35,60,0.1)]' : 'text-slate-300 hover:bg-white/10 hover:text-white'
+              activeTab === 'radio' ? 'bg-[#fa233b]/20 text-[#fa233b] shadow-[0_0_10px_rgba(239,35,60,0.1)]' : 'text-slate-300 hover:bg-white/10 hover:text-white'
             }`}
           >
             <Radio className="w-4 h-4" />
@@ -144,7 +144,7 @@ export function Sidebar() {
                 pl.active ? 'bg-[#26262A] text-white font-bold' : 'text-slate-300 hover:bg-[#26262A] hover:text-white font-medium'
               }`}
             >
-              <div className="w-6 h-6 rounded bg-[#EF233C]/20 text-[#EF233C] flex items-center justify-center flex-shrink-0">
+              <div className="w-6 h-6 rounded bg-[#fa233b]/20 text-[#fa233b] flex items-center justify-center flex-shrink-0">
                 {pl.icon ? <pl.icon className="w-3.5 h-3.5" /> : <Music className="w-3.5 h-3.5" />}
               </div>
               <div className="truncate">
@@ -161,7 +161,7 @@ export function Sidebar() {
         {user ? (
           <>
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-[#EF233C] text-white font-black text-xs flex items-center justify-center shadow-md flex-shrink-0">
+              <div className="w-8 h-8 rounded-full bg-[#fa233b] text-white font-black text-xs flex items-center justify-center shadow-md flex-shrink-0">
                 {user.email ? user.email.charAt(0).toUpperCase() : 'U'}
               </div>
               <div className="min-w-0 pr-2">
@@ -186,7 +186,7 @@ export function Sidebar() {
             onClick={() => setAuthModalOpen(true)}
             className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-xs transition-colors border border-white/5"
           >
-            <LogIn className="w-4 h-4 text-[#EF233C]" />
+            <LogIn className="w-4 h-4 text-[#fa233b]" />
             Sign In / Sign Up
           </button>
         )}

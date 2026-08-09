@@ -94,15 +94,12 @@ export class RecommendationEngine {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        supabase.from('playback_history').insert({
+        supabase.from('listening_events').insert({
           user_id: session.user.id,
           song_id: song.id,
-          artist: artist,
-          genre: genre,
-          action: action === 'complete' ? 'play' : action,
-          completion_percentage: completionPercentage,
-          play_duration_sec: Math.floor(durationSec),
-          context: context
+          event_type: action === 'complete' ? 'complete' : action,
+          position_ms: Math.floor(durationSec * 1000),
+          device_id: typeof window !== 'undefined' ? localStorage.getItem('raagax_device_id') : null
         }).then(({ error }) => {
           if (error) console.error('Failed to log telemetry:', error);
         });

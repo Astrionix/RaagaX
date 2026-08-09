@@ -82,7 +82,7 @@ export function Navbar() {
       {/* Mobile Top Brand Bar (md:hidden) */}
       <div className="md:hidden flex items-center justify-between w-full">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-[#EF233C] flex items-center justify-center shadow-md">
+          <div className="w-6 h-6 rounded-lg bg-[#fa233b] flex items-center justify-center shadow-md">
             <Disc3 className="w-3.5 h-3.5 text-white animate-spin" style={{ animationDuration: '10s' }} />
           </div>
           <span className="font-extrabold text-sm tracking-tight text-white">RaagaX Music</span>
@@ -112,17 +112,17 @@ export function Navbar() {
             <div className="overflow-hidden text-left">
               <h4
                 onClick={togglePlayerExpanded}
-                className="text-xs font-black text-white truncate hover:text-[#EF233C] cursor-pointer transition-colors leading-tight"
+                className="text-xs font-black text-white truncate hover:text-[#fa233b] cursor-pointer transition-colors leading-tight"
               >
                 {currentSong.title}
               </h4>
               <p className="text-[10px] text-slate-400 truncate leading-tight mt-0.5 font-medium">{currentSong.artist}</p>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="text-[8px] font-mono bg-[#EF233C]/20 text-[#EF233C] px-1 py-0.2 rounded font-bold border border-[#EF233C]/30">
+                <span className="text-[8px] font-mono bg-[#fa233b]/20 text-[#fa233b] px-1 py-0.2 rounded font-bold border border-[#fa233b]/30">
                   {currentSong.audioQuality || '24-bit FLAC'}
                 </span>
-                <button onClick={() => toggleLikeSong(currentSong.id)} title="Like Song" className="p-0.5 text-slate-400 hover:text-[#EF233C]">
-                  <Heart className={`w-3 h-3 ${isLiked ? 'text-[#EF233C] fill-[#EF233C]' : ''}`} />
+                <button onClick={() => toggleLikeSong(currentSong.id)} title="Like Song" className="p-0.5 text-slate-400 hover:text-[#fa233b]">
+                  <Heart className={`w-3 h-3 ${isLiked ? 'text-[#fa233b] fill-[#fa233b]' : ''}`} />
                 </button>
                 <button onClick={() => toggleDownloadSong(currentSong.id)} title="Download Offline" className="p-0.5 text-slate-400 hover:text-emerald-400">
                   <Download className={`w-3 h-3 ${isDownloaded ? 'text-emerald-400' : ''}`} />
@@ -132,7 +132,7 @@ export function Navbar() {
           </>
         ) : (
           <div className="flex items-center gap-2 text-slate-400 text-xs font-extrabold">
-            <Disc3 className="w-4 h-4 text-[#EF233C]" /> RaagaX Studio Engine
+            <Disc3 className="w-4 h-4 text-[#fa233b]" /> RaagaX Studio Engine
           </div>
         )}
       </div>
@@ -143,7 +143,7 @@ export function Navbar() {
           <button
             onClick={toggleShuffle}
             className={`p-1 rounded transition-colors ${
-              isShuffle ? 'text-[#EF233C]' : 'text-slate-400 hover:text-white'
+              isShuffle ? 'text-[#fa233b]' : 'text-slate-400 hover:text-white'
             }`}
             title="Shuffle"
           >
@@ -155,7 +155,7 @@ export function Navbar() {
 
           <button
             onClick={togglePlayPause}
-            className="w-7 h-7 rounded-full bg-[#EF233C] text-white flex items-center justify-center shadow-lg shadow-red-500/20 hover:scale-105 transition-transform"
+            className="w-7 h-7 rounded-full bg-[#fa233b] text-white flex items-center justify-center shadow-lg shadow-red-500/20 hover:scale-105 transition-transform"
           >
             {isPlaying ? <Pause className="w-3.5 h-3.5 fill-white" /> : <Play className="w-3.5 h-3.5 fill-white ml-0.5" />}
           </button>
@@ -166,7 +166,7 @@ export function Navbar() {
           <button
             onClick={cycleRepeatMode}
             className={`p-1 rounded transition-colors ${
-              repeatMode !== 'off' ? 'text-[#EF233C]' : 'text-slate-400 hover:text-white'
+              repeatMode !== 'off' ? 'text-[#fa233b]' : 'text-slate-400 hover:text-white'
             }`}
             title={`Repeat: ${repeatMode}`}
           >
@@ -185,7 +185,7 @@ export function Navbar() {
               step={0.1}
               value={currentTime}
               onChange={handleSeek}
-              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-[#EF233C] hover:h-1.5 transition-all"
+              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-[#fa233b] hover:h-1.5 transition-all"
             />
             <span className="text-[9px] font-mono text-slate-400 font-semibold min-w-[28px]">{formatTime(duration)}</span>
           </div>
@@ -196,7 +196,7 @@ export function Navbar() {
       <div className="hidden md:flex items-center gap-1.5">
         <button
           onClick={() => setRightPanelMode(rightPanelMode === 'devices' ? 'queue' : 'devices')}
-          className={`p-1.5 rounded-lg transition-colors mr-1 ${rightPanelMode === 'devices' ? 'text-[#EF233C] bg-[#EF233C]/10' : 'text-slate-400 hover:text-white'}`}
+          className={`p-1.5 rounded-lg transition-colors mr-1 ${rightPanelMode === 'devices' ? 'text-[#fa233b] bg-[#fa233b]/10' : 'text-slate-400 hover:text-white'}`}
           title="Connect to a device"
         >
           <MonitorSmartphone className="w-3.5 h-3.5" />
@@ -204,7 +204,7 @@ export function Navbar() {
 
         <div className="flex items-center gap-1.5 mr-1">
           <button onClick={toggleMute} className="text-slate-400 hover:text-white">
-            {isMuted || volume === 0 ? <VolumeX className="w-3.5 h-3.5 text-[#EF233C]" /> : <Volume2 className="w-3.5 h-3.5" />}
+            {isMuted || volume === 0 ? <VolumeX className="w-3.5 h-3.5 text-[#fa233b]" /> : <Volume2 className="w-3.5 h-3.5" />}
           </button>
           <input
             type="range"
@@ -213,20 +213,20 @@ export function Navbar() {
             step={0.01}
             value={isMuted ? 0 : volume}
             onChange={(e) => setVolume(parseFloat(e.target.value))}
-            className="w-16 h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-[#EF233C]"
+            className="w-16 h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-[#fa233b]"
           />
         </div>
 
-        <button onClick={toggleLyrics} className="p-1.5 text-slate-400 hover:text-[#EF233C]" title="Lyrics">
+        <button onClick={toggleLyrics} className="p-1.5 text-slate-400 hover:text-[#fa233b]" title="Lyrics">
           <Mic2 className="w-3.5 h-3.5" />
         </button>
-        <button onClick={toggleQueue} className="p-1.5 text-slate-400 hover:text-[#EF233C]" title="Queue">
+        <button onClick={toggleQueue} className="p-1.5 text-slate-400 hover:text-[#fa233b]" title="Queue">
           <ListMusic className="w-3.5 h-3.5" />
         </button>
-        <button onClick={toggleSleepTimerModal} className="p-1.5 text-slate-400 hover:text-[#EF233C]" title="Sleep Timer">
+        <button onClick={toggleSleepTimerModal} className="p-1.5 text-slate-400 hover:text-[#fa233b]" title="Sleep Timer">
           <Moon className="w-3.5 h-3.5" />
         </button>
-        <button onClick={toggleSettingsModal} className="p-1.5 text-slate-400 hover:text-[#EF233C]" title="Settings">
+        <button onClick={toggleSettingsModal} className="p-1.5 text-slate-400 hover:text-[#fa233b]" title="Settings">
           <Settings className="w-3.5 h-3.5" />
         </button>
       </div>

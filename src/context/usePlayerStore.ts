@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Song, RepeatMode, EqualizerSettings, AIDJState, ActiveTab } from '@/types/music';
+import { Song, RepeatMode, AIDJState, ActiveTab } from '@/types/music';
 import { RecommendationEngine } from '@/lib/recommendationEngine';
 import { LocalDatabase } from '@/lib/localDatabase';
 
@@ -26,9 +26,7 @@ interface PlayerState {
   favoriteArtistIds: string[];
   favoriteAlbumIds: string[];
 
-  eqSettings: EqualizerSettings;
   crossfadeSec: number;
-  isSpatial3DEnabled: boolean;
 
   activeTab: ActiveTab;
   selectedArtistId: string | null;
@@ -40,7 +38,6 @@ interface PlayerState {
   isVideoModeActive: boolean;
   isLyricsOpen: boolean;
   isQueueOpen: boolean;
-  isEqOpen: boolean;
   isMiniPlayerFloating: boolean;
   isAiDjModalOpen: boolean;
   isImporterOpen: boolean;
@@ -100,10 +97,7 @@ interface PlayerState {
   toggleFavoriteArtist: (artistId: string) => void;
   toggleFavoriteAlbum: (albumId: string) => void;
 
-  setEqSettings: (eq: EqualizerSettings) => void;
-  setBandGain: (band: keyof EqualizerSettings['bands'], val: number) => void;
   setCrossfadeSec: (sec: number) => void;
-  toggleSpatial3D: () => void;
 
   setActiveTab: (tab: ActiveTab) => void;
   setSelectedArtistId: (id: string | null) => void;
@@ -115,7 +109,6 @@ interface PlayerState {
   setVideoModeActive: (active: boolean) => void;
   toggleLyrics: () => void;
   toggleQueue: () => void;
-  toggleEq: () => void;
   toggleMiniPlayerFloating: () => void;
   toggleAiDjModal: () => void;
   toggleImporterModal: () => void;
@@ -161,19 +154,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   favoriteArtistIds: [],
   favoriteAlbumIds: [],
 
-  eqSettings: {
-    enabled: true,
-    preset: 'flat',
-    bands: {
-      low: 0,
-      midLow: 0,
-      mid: 0,
-      midHigh: 0,
-      high: 0,
-    },
-  },
   crossfadeSec: 2,
-  isSpatial3DEnabled: true,
 
   activeTab: 'home',
   selectedArtistId: null,
@@ -185,7 +166,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   isVideoModeActive: false,
   isLyricsOpen: false,
   isQueueOpen: false,
-  isEqOpen: false,
   isMiniPlayerFloating: false,
   isAiDjModalOpen: false,
   isImporterOpen: false,
@@ -222,18 +202,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setRemoteState: (newState) => set((state) => ({ ...state, ...newState })),
   
   transferPlayback: (targetDeviceId) => {
-    const { deviceId, currentSong, currentTime, isPlaying, queue, queueIndex } = get();
+    const { deviceId, currentTime } = get();
     set({ activeDeviceId: targetDeviceId, isActiveDevice: targetDeviceId === deviceId });
     if (targetDeviceId !== deviceId) set({ isPlaying: false });
 
     import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
       const syncManager = DeviceSyncManager.getInstance();
-      syncManager.sendCommand({ 
-        type: 'SYNC_STATE', 
-        state: { currentSong, currentTime, isPlaying, queue, queueIndex } 
-      });
-      syncManager.sendCommand({ type: 'TRANSFER_PLAYBACK', toDeviceId: targetDeviceId });
-      syncManager.persistState();
+      syncManager.dispatchCommand({ type: 'TRANSFER', toDeviceId: targetDeviceId, positionMs: currentTime * 1000 });
     });
   },
 
@@ -306,30 +281,36 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   togglePlayPause: () => {
     const isNowPlaying = !get().isPlaying;
-    set({ isPlaying: isNowPlaying });
+    if (get().isActiveDevice) {
+      set({ isPlaying: isNowPlaying });
+    }
     import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
-      DeviceSyncManager.getInstance().sendCommand({ type: isNowPlaying ? 'PLAY' : 'PAUSE' });
+      DeviceSyncManager.getInstance().dispatchCommand({ type: isNowPlaying ? 'PLAY' : 'PAUSE' });
     });
   },
   setIsPlaying: (playing, fromRemote = false) => {
-    set({ isPlaying: playing });
-    if (!fromRemote && get().isActiveDevice) {
+    if (fromRemote || get().isActiveDevice) {
+      set({ isPlaying: playing });
+    }
+    if (!fromRemote) {
       import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
-        DeviceSyncManager.getInstance().sendCommand({ type: playing ? 'PLAY' : 'PAUSE' });
+        DeviceSyncManager.getInstance().dispatchCommand({ type: playing ? 'PLAY' : 'PAUSE' });
       });
     }
   },
-  setCurrentTime: (time, isManualSeek = false) => {
-    set({ currentTime: time });
+  setCurrentTime: (time, fromRemote = false) => {
+    if (fromRemote || get().isActiveDevice) {
+      set({ currentTime: time });
+    }
     
-    if (isManualSeek && get().isActiveDevice) {
+    if (!fromRemote) {
       import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
-        DeviceSyncManager.getInstance().sendCommand({ type: 'SEEK', position: time });
+        DeviceSyncManager.getInstance().dispatchCommand({ type: 'SEEK', position: time });
       });
     }
 
-    const { currentSong, queue, queueIndex, historySongIds, likedSongIds } = get();
-    if (currentSong && Math.floor(time) % 5 === 0) {
+    const { currentSong, queue, queueIndex, historySongIds, likedSongIds, isActiveDevice } = get();
+    if (isActiveDevice && currentSong && Math.floor(time) % 5 === 0) {
       LocalDatabase.getInstance().savePlaybackSession({
         currentSong,
         currentTime: time,
@@ -346,6 +327,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 
   playNext: async () => {
+    if (!get().isActiveDevice) {
+      import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
+        DeviceSyncManager.getInstance().dispatchCommand({ type: 'NEXT' });
+      });
+      return;
+    }
+
     const { queue, queueIndex, isShuffle, repeatMode, currentSong, currentTime, duration } = get();
     if (queue.length === 0) return;
 
@@ -404,6 +392,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   playPrev: () => {
+    if (!get().isActiveDevice) {
+      import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
+        DeviceSyncManager.getInstance().dispatchCommand({ type: 'PREV' });
+      });
+      return;
+    }
+
     const { queue, queueIndex, currentTime } = get();
     if (currentTime > 5) {
       set({ currentTime: 0 });
@@ -511,7 +506,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
       // 3. Fetch Playback History (Recently Played)
       const { data: historyData } = await supabase
-        .from('playback_history')
+        .from('listening_events')
         .select('song_id')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
@@ -677,16 +672,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }
   },
 
-  setEqSettings: (eq) => set({ eqSettings: eq }),
-  setBandGain: (band, val) =>
-    set((state) => ({
-      eqSettings: {
-        ...state.eqSettings,
-        bands: { ...state.eqSettings.bands, [band]: val },
-      },
-    })),
   setCrossfadeSec: (sec) => set({ crossfadeSec: sec }),
-  toggleSpatial3D: () => set((state) => ({ isSpatial3DEnabled: !state.isSpatial3DEnabled })),
 
   setActiveTab: (tab) => set({ activeTab: tab }),
   setSelectedArtistId: (id) => set({ selectedArtistId: id, activeTab: 'artist' }),
@@ -699,7 +685,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setVideoModeActive: (active) => set({ isVideoModeActive: active, isPlayerExpanded: true }),
   toggleLyrics: () => set((state) => ({ isLyricsOpen: !state.isLyricsOpen })),
   toggleQueue: () => set((state) => ({ isQueueOpen: !state.isQueueOpen })),
-  toggleEq: () => set((state) => ({ isEqOpen: !state.isEqOpen })),
   toggleMiniPlayerFloating: () =>
     set((state) => ({ isMiniPlayerFloating: !state.isMiniPlayerFloating })),
   toggleAiDjModal: () =>

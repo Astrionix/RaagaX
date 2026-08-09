@@ -2,29 +2,34 @@
 
 import React, { useEffect, useRef } from 'react';
 import { usePlayerStore } from '@/context/usePlayerStore';
-import { AudioEngine } from '@/lib/audioEngine';
 import { Song } from '@/types/music';
 
 const FALLBACK_AUDIO_URL = 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
-const QUEUE_REFILL_THRESHOLD = 3; // refill when fewer than this many tracks remain after current
+const QUEUE_REFILL_THRESHOLD = 3;
 
 export function AudioPlayerController() {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioRefA = useRef<HTMLAudioElement | null>(null);
+  const audioRefB = useRef<HTMLAudioElement | null>(null);
+  
+  const activePlayerRef = useRef<'A' | 'B'>('A');
+  const prevSongIdRef = useRef<string | null>(null);
+  const crossfadeIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const hasTriggeredCrossfadeRef = useRef(false);
   const isRefilling = useRef(false);
-  const consecutiveErrorsRef = useRef(0);
 
   const {
     currentSong,
     isPlaying,
     currentTime,
+    duration,
     volume,
     isMuted,
-    eqSettings,
     isVideoModeActive,
     queue,
     queueIndex,
     likedSongIds,
     historySongIds,
+    crossfadeSec,
     addToQueue,
     playNext,
     playPrev,
@@ -37,26 +42,26 @@ export function AudioPlayerController() {
     isActiveDevice,
   } = usePlayerStore();
 
-  // Restore Instant Playback Session from Local Database
+  const getActiveAudio = () => activePlayerRef.current === 'A' ? audioRefA.current : audioRefB.current;
+  const getInactiveAudio = () => activePlayerRef.current === 'A' ? audioRefB.current : audioRefA.current;
+
+  // Restore Instant Playback Session
   useEffect(() => {
     restoreLocalSession();
   }, [restoreLocalSession]);
 
-  // Auto-refill queue when fewer than QUEUE_REFILL_THRESHOLD tracks remain
+  // Auto-refill queue
   useEffect(() => {
     const remaining = queue.length - (queueIndex + 1);
     if (remaining >= QUEUE_REFILL_THRESHOLD || isRefilling.current || !currentSong) return;
 
     isRefilling.current = true;
-
     const existingIds = queue.map(s => s.id);
-    // Detect language from current song genre
     const genre = currentSong.genre || 'TELUGU HITS';
     const language = genre.split(' ')[0] || 'Telugu';
     const validLangs = ['Telugu', 'Kannada', 'Tamil', 'Hindi', 'Malayalam', 'English'];
     const lang = validLangs.find(l => l.toUpperCase() === language.toUpperCase()) || 'Telugu';
 
-    // Extract recent artists to prevent echo chambers
     const lastArtists = queue
       .slice(Math.max(0, queueIndex - 5), queueIndex)
       .map(s => s.artist)
@@ -80,201 +85,208 @@ export function AudioPlayerController() {
         if (data.success && Array.isArray(data.data?.songs)) {
           const newSongs: Song[] = data.data.songs;
           newSongs.forEach(s => addToQueue(s));
-          console.log(`[QUEUE] Refilled +${newSongs.length} ${lang} tracks`);
         }
       })
       .catch(() => {})
       .finally(() => { isRefilling.current = false; });
-  }, [queueIndex, queue.length]);
+  }, [queueIndex, queue.length, currentSong?.id]);
 
-  // Initialize Web Audio Engine once element is ready
+  // Handle Play/Pause and Seek Syncing
   useEffect(() => {
-    if (audioRef.current) {
-      AudioEngine.getInstance().init(audioRef.current);
-    }
-  }, []);
-
-  // Mute/pause audio element when video mode is active or when this device is a remote control
-  useEffect(() => {
-    if (!audioRef.current) return;
+    const audio = getActiveAudio();
+    if (!audio) return;
 
     if (isVideoModeActive || !isActiveDevice) {
-      audioRef.current.pause();
+      audio.pause();
     } else {
       if (isPlaying) {
-        // Only sync currentTime on handoff if difference is significant
-        if (Math.abs(audioRef.current.currentTime - currentTime) > 2) {
-          audioRef.current.currentTime = currentTime;
+        if (Math.abs(audio.currentTime - currentTime) > 2) {
+          audio.currentTime = currentTime;
         }
-        
-        AudioEngine.getInstance().resume();
-        const playPromise = audioRef.current.play();
-        if (playPromise !== undefined) {
-          playPromise.catch((err) => {
-            if (err.name === 'AbortError') {
-              // AbortError simply means the play request was interrupted by a new source load or pause. Safe to ignore.
-              return;
-            }
-            console.warn('Playback blocked:', err);
+        audio.play().catch(err => {
+          if (err.name !== 'AbortError') {
             setIsPlaying(false);
-          });
-        }
+          }
+        });
       } else {
-        audioRef.current.pause();
+        audio.pause();
       }
     }
   }, [isPlaying, isActiveDevice, isVideoModeActive]);
 
-  // Update source & MediaSession metadata when current song changes
+  // Handle Song Changes and Crossfading
   useEffect(() => {
-    if (!audioRef.current || !currentSong) return;
-
-    const audio = audioRef.current;
-    const newSrc = currentSong.audioUrl || FALLBACK_AUDIO_URL;
+    if (!currentSong) return;
     
-    if (currentSong.audioUrl) {
-      consecutiveErrorsRef.current = 0;
-    }
+    hasTriggeredCrossfadeRef.current = false;
+    const isNewSong = prevSongIdRef.current !== currentSong.id;
+    prevSongIdRef.current = currentSong.id;
 
-    // Only set src if it actually changed
-    // We check includes because browsers sometimes append absolute domains to src
-    if (!audio.src.includes(newSrc)) {
-      audio.src = newSrc;
-      audio.load();
-      
-      if (currentTime > 0) {
-        audio.currentTime = currentTime;
+    if (isNewSong) {
+      const oldAudio = getActiveAudio();
+      const newAudioId = activePlayerRef.current === 'A' ? 'B' : 'A';
+      activePlayerRef.current = newAudioId;
+      const newAudio = getActiveAudio();
+
+      if (!oldAudio || !newAudio) return;
+
+      const newSrc = currentSong.audioUrl || FALLBACK_AUDIO_URL;
+      if (!newAudio.src.includes(newSrc)) {
+         newAudio.src = newSrc;
+         newAudio.load();
       }
-    }
 
-    // Enable Mobile Background Playback & Lockscreen Control (MediaSession API)
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: currentSong.title,
-        artist: currentSong.artist,
-        album: currentSong.album || 'RaagaX',
-        artwork: [
-          { src: currentSong.coverUrl || '', sizes: '96x96', type: 'image/jpeg' },
-          { src: currentSong.coverUrl || '', sizes: '256x256', type: 'image/jpeg' },
-          { src: currentSong.coverUrl || '', sizes: '512x512', type: 'image/jpeg' },
-        ]
-      });
+      if (crossfadeSec > 0 && oldAudio.currentTime > 0 && !oldAudio.paused && isPlaying && isActiveDevice) {
+        // Start Crossfade
+        newAudio.volume = 0;
+        newAudio.play().catch(() => {});
 
-      navigator.mediaSession.setActionHandler('play', () => setIsPlaying(true));
-      navigator.mediaSession.setActionHandler('pause', () => setIsPlaying(false));
-      navigator.mediaSession.setActionHandler('previoustrack', () => playPrev());
-      navigator.mediaSession.setActionHandler('nexttrack', () => playNext());
-    }
+        if (crossfadeIntervalRef.current) clearInterval(crossfadeIntervalRef.current);
+        const steps = 20; 
+        const intervalMs = 1000 / steps;
+        const totalSteps = crossfadeSec * steps;
+        let currentStep = 0;
 
-    if (isPlaying && isActiveDevice && !isVideoModeActive) {
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.then(() => {
-          AudioEngine.getInstance().resume();
-        }).catch((err) => {
-          if (err.name === 'AbortError') {
-            return;
-          }
-          console.warn('Playback interrupted on new song:', err);
-          setIsPlaying(false);
+        crossfadeIntervalRef.current = setInterval(() => {
+          currentStep++;
+          const fadeOutVol = Math.max(0, volume * (1 - currentStep / totalSteps));
+          const fadeInVol = Math.min(volume, volume * (currentStep / totalSteps));
           
-          consecutiveErrorsRef.current += 1;
-          if (consecutiveErrorsRef.current < 5) {
-             setTimeout(() => playNext(), 1000);
+          if (!isMuted) {
+             oldAudio.volume = fadeOutVol;
+             newAudio.volume = fadeInVol;
           } else {
-             console.error("Too many playback errors, stopping playback");
+             oldAudio.volume = 0;
+             newAudio.volume = 0;
           }
+
+          if (currentStep >= totalSteps) {
+            clearInterval(crossfadeIntervalRef.current!);
+            oldAudio.pause();
+            oldAudio.currentTime = 0;
+            if (!isMuted) newAudio.volume = volume;
+          }
+        }, intervalMs);
+
+      } else {
+        // Immediate switch
+        oldAudio.pause();
+        oldAudio.currentTime = 0;
+        newAudio.volume = isMuted ? 0 : volume;
+        if (isPlaying && isActiveDevice && !isVideoModeActive) {
+          newAudio.play().catch(console.warn);
+        }
+      }
+
+      // Media Session updates
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: currentSong.title,
+          artist: currentSong.artist,
+          album: currentSong.album || 'RaagaX',
+          artwork: [
+            { src: currentSong.coverUrl || '', sizes: '96x96', type: 'image/jpeg' },
+            { src: currentSong.coverUrl || '', sizes: '256x256', type: 'image/jpeg' },
+            { src: currentSong.coverUrl || '', sizes: '512x512', type: 'image/jpeg' },
+          ]
         });
+        navigator.mediaSession.setActionHandler('play', () => setIsPlaying(true));
+        navigator.mediaSession.setActionHandler('pause', () => setIsPlaying(false));
+        navigator.mediaSession.setActionHandler('previoustrack', () => playPrev());
+        navigator.mediaSession.setActionHandler('nexttrack', () => playNext());
       }
     }
-  }, [currentSong]); // Only depend on currentSong here so it doesn't fight the play/pause hook
+  }, [currentSong?.id]); 
 
-  // Handle Volume & Mute
+  // Handle Volume & Mute dynamically (outside of crossfade)
   useEffect(() => {
+    if (crossfadeIntervalRef.current) return; // Don't interrupt crossfade ramp
     const effectiveVolume = isMuted ? 0 : volume;
-    if (audioRef.current) {
-      audioRef.current.volume = effectiveVolume;
-    }
-    AudioEngine.getInstance().setVolume(effectiveVolume);
+    const activeAudio = getActiveAudio();
+    if (activeAudio) activeAudio.volume = effectiveVolume;
   }, [volume, isMuted]);
-
-  // Sync EQ Settings with AudioEngine
-  useEffect(() => {
-    if (eqSettings.enabled) {
-      AudioEngine.getInstance().setEQBand('low', eqSettings.bands.low);
-      AudioEngine.getInstance().setEQBand('midLow', eqSettings.bands.midLow);
-      AudioEngine.getInstance().setEQBand('mid', eqSettings.bands.mid);
-      AudioEngine.getInstance().setEQBand('midHigh', eqSettings.bands.midHigh);
-      AudioEngine.getInstance().setEQBand('high', eqSettings.bands.high);
-    } else {
-      AudioEngine.getInstance().setEQBand('low', 0);
-      AudioEngine.getInstance().setEQBand('midLow', 0);
-      AudioEngine.getInstance().setEQBand('mid', 0);
-      AudioEngine.getInstance().setEQBand('midHigh', 0);
-      AudioEngine.getInstance().setEQBand('high', 0);
-    }
-  }, [eqSettings]);
 
   // Handle Sleep Timer
   useEffect(() => {
     if (!sleepTimerEndsAt) return;
-
     const interval = setInterval(() => {
       if (Date.now() >= sleepTimerEndsAt) {
         setIsPlaying(false);
         setSleepTimer(null);
-        alert('Sleep timer triggered: Playback paused.');
       }
     }, 1000);
-
     return () => clearInterval(interval);
   }, [sleepTimerEndsAt, setIsPlaying, setSleepTimer]);
 
-  const handleTimeUpdate = () => {
-    if (audioRef.current && isActiveDevice) {
-      setCurrentTime(audioRef.current.currentTime);
-    }
-  };
+  const handleTimeUpdate = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    if (!isActiveDevice) return;
+    const audio = e.currentTarget;
+    
+    // Only dispatch time updates if this is the active player
+    const isActive = audio === getActiveAudio();
+    if (isActive) {
+      setCurrentTime(audio.currentTime);
 
-  const handleLoadedMetadata = () => {
-    if (audioRef.current) {
-      setDuration(audioRef.current.duration);
-      
-      // Ensure seamless handoff by seeking to the remote current time when the track loads
-      if (isActiveDevice && Math.abs(audioRef.current.currentTime - currentTime) > 2) {
-        audioRef.current.currentTime = currentTime;
+      // Trigger early next track for crossfade
+      if (crossfadeSec > 0 && audio.duration > 0 && queue.length > 0) {
+        const timeRemaining = audio.duration - audio.currentTime;
+        if (timeRemaining <= crossfadeSec && !hasTriggeredCrossfadeRef.current) {
+          // Prevent early trigger on last song if repeat is off
+          const isLastSong = queueIndex === queue.length - 1;
+          const repeatMode = usePlayerStore.getState().repeatMode;
+          if (!isLastSong || repeatMode === 'all') {
+             hasTriggeredCrossfadeRef.current = true;
+             playNext();
+          }
+        }
       }
     }
   };
 
-  const handleEnded = () => {
-    playNext();
+  const handleLoadedMetadata = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    const audio = e.currentTarget;
+    if (audio === getActiveAudio()) {
+      setDuration(audio.duration);
+      if (isActiveDevice && Math.abs(audio.currentTime - currentTime) > 2) {
+        audio.currentTime = currentTime;
+      }
+    }
   };
 
-  // Robust Error Handling for Audio Streams
-  const handleError = () => {
-    console.warn('Audio stream error detected. Switching to CORS fallback stream...');
-    if (audioRef.current && audioRef.current.src !== FALLBACK_AUDIO_URL) {
-      audioRef.current.src = FALLBACK_AUDIO_URL;
-      if (isPlaying && isActiveDevice && !isVideoModeActive) {
-        audioRef.current.play().catch((err) => {
-          console.warn('Fallback stream blocked:', err);
-          setIsPlaying(false);
-        });
-      }
+  const handleEnded = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    // Standard skip if crossfade didn't trigger
+    if (e.currentTarget === getActiveAudio() && !hasTriggeredCrossfadeRef.current) {
+      playNext();
+    }
+  };
+
+  const handleError = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    const audio = e.currentTarget;
+    if (audio === getActiveAudio() && audio.src !== FALLBACK_AUDIO_URL) {
+      audio.src = FALLBACK_AUDIO_URL;
+      if (isPlaying && isActiveDevice) audio.play().catch(() => setIsPlaying(false));
     }
   };
 
   return (
-    <audio
-      ref={audioRef}
-      onTimeUpdate={handleTimeUpdate}
-      onLoadedMetadata={handleLoadedMetadata}
-      onEnded={handleEnded}
-      onError={handleError}
-      onPlay={() => setIsPlaying(true)}
-      onPause={() => setIsPlaying(false)}
-      className="hidden"
-    />
+    <>
+      <audio
+        ref={audioRefA}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onEnded={handleEnded}
+        onError={handleError}
+        className="hidden"
+      />
+      <audio
+        ref={audioRefB}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onEnded={handleEnded}
+        onError={handleError}
+        className="hidden"
+      />
+    </>
   );
 }
+

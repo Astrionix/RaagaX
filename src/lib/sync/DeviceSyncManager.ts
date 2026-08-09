@@ -1,23 +1,20 @@
 import { supabase } from '@/lib/supabase';
 import { usePlayerStore } from '@/context/usePlayerStore';
-import { Song } from '@/types/music';
+import { Song, PlaybackCommand, PlaybackSession, Device } from '@/types/music';
 
-// Strict typings for the RaagaX Connect Broadcast Protocol
-export type BroadcastCommand = 
-  | { type: 'PLAY' }
-  | { type: 'PAUSE' }
-  | { type: 'SEEK', position: number }
-  | { type: 'TRANSFER_PLAYBACK', toDeviceId: string }
-  | { type: 'SYNC_STATE', state: any };
-
+/**
+ * DeviceSyncManager acts as the RaagaX Connect Command Bus and State Syncer.
+ * It strictly separates the Control Plane (commands) from the Media Plane (audio).
+ */
 export class DeviceSyncManager {
   private static instance: DeviceSyncManager;
   private channel: any;
   private sessionId: string | null = null;
   private deviceId: string;
-  private isProcessingRemote = false; // Flag to prevent echo loops
+  private isProcessingRemote = false;
   private unsubscribeZustand: (() => void) | null = null;
-  private localRevision = 0;
+  private localStateVersion = 0;
+  private isInitializing = false;
 
   private constructor() {
     this.deviceId = typeof window !== 'undefined' 
@@ -44,10 +41,7 @@ export class DeviceSyncManager {
     return this.deviceId;
   }
 
-  private isInitializing = false;
-
   public async initSync(sessionId: string) {
-    console.log('[DeviceSyncManager] initSync called with sessionId:', sessionId);
     if (this.isInitializing) return;
     this.isInitializing = true;
     
@@ -63,26 +57,35 @@ export class DeviceSyncManager {
       }
       this.sessionId = sessionId;
 
-      console.log('[DeviceSyncManager] Fetching durable state from Postgres...');
-      // 1. Initial Durable State Load (Layer 3: Postgres)
+      // 0. Ensure device is registered in Postgres before any foreign key constraints
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData?.session?.user) {
+        const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+        const deviceName = isMobile ? 'Mobile App' : 'Desktop Web';
+        await supabase.from('devices').upsert({
+          device_id: this.deviceId,
+          user_id: sessionData.session.user.id,
+          device_name: `${deviceName} (${this.deviceId.substring(7, 11)})`,
+          device_type: isMobile ? 'mobile' : 'desktop',
+          is_online: true,
+          last_seen: new Date().toISOString()
+        }, { onConflict: 'device_id' });
+      }
+
+      // 1. Initial Durable State Load (Postgres)
       const { data: session, error } = await supabase
         .from('playback_sessions')
         .select('*')
         .eq('session_id', sessionId)
         .maybeSingle();
 
-      if (error) console.error('[DeviceSyncManager] Error fetching state:', error);
-
       if (session) {
-        console.log('[DeviceSyncManager] Found existing session in DB');
         this.handleDurableUpdate(session);
       } else {
-        console.log('[DeviceSyncManager] No session in DB, persisting local state');
         await this.persistState(); // Create initial row
       }
 
       const channelName = `sync_${sessionId}`;
-      console.log('[DeviceSyncManager] Creating Supabase channel:', channelName);
       this.channel = supabase.channel(channelName, {
         config: {
           broadcast: { self: true },
@@ -90,14 +93,13 @@ export class DeviceSyncManager {
         }
       });
 
-      // 2. Subscribe to Low-Latency Commands (Layer 2: Broadcast)
-      this.channel.on('broadcast', { event: 'command' }, (payload: { payload: BroadcastCommand, senderId: string }) => {
-        // Ignore our own broadcasts
+      // 2. Control Plane: Fast Commands
+      this.channel.on('broadcast', { event: 'command' }, (payload: { payload: PlaybackCommand, senderId: string }) => {
         if (payload.senderId === this.deviceId) return;
-        this.handleBroadcastCommand(payload.payload);
+        this.handleCommand(payload.payload);
       });
 
-      // 3. Subscribe to Device Discovery (Layer 1: Presence)
+      // 3. Device Discovery
       this.channel.on('presence', { event: 'sync' }, () => {
         const newState = this.channel.presenceState();
         const devices: { id: string; name: string }[] = [];
@@ -110,11 +112,10 @@ export class DeviceSyncManager {
             }
           });
         }
-        
         usePlayerStore.getState().setOnlineDevices(devices);
       });
 
-      // 4. Subscribe to Durable State Changes (Layer 3: Postgres)
+      // 4. Durable State Plane (Postgres)
       this.channel.on('postgres_changes', {
         event: '*',
         schema: 'public',
@@ -126,7 +127,7 @@ export class DeviceSyncManager {
         }
       });
 
-      // Finalize subscription and announce presence
+      // Announce Presence
       this.channel.subscribe(async (status: string) => {
         if (status === 'SUBSCRIBED') {
           const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -139,12 +140,12 @@ export class DeviceSyncManager {
         }
       });
 
-      // 5. Watch Zustand for local durable changes (e.g. queue change, song switch)
+      // 5. Watch Zustand for significant state changes (Only Active Device pushes)
       let lastState = usePlayerStore.getState();
       let lastSyncTime = lastState.currentTime;
 
       this.unsubscribeZustand = usePlayerStore.subscribe((state) => {
-        if (this.isProcessingRemote) return;
+        if (this.isProcessingRemote || !state.isActiveDevice) return;
 
         const timeDiffFromLastSync = Math.abs(state.currentTime - lastSyncTime);
         const isSignificantStateChange = 
@@ -154,7 +155,7 @@ export class DeviceSyncManager {
           state.isShuffle !== lastState.isShuffle ||
           state.repeatMode !== lastState.repeatMode;
 
-        // Persist to Postgres periodically (every 10 seconds) or on significant change
+        // Sync periodically or on big changes
         if (isSignificantStateChange || timeDiffFromLastSync > 10) {
           lastSyncTime = state.currentTime;
           this.persistState();
@@ -169,45 +170,102 @@ export class DeviceSyncManager {
   }
 
   /**
-   * Handle fast, transient commands via Broadcast
+   * Handle incoming commands from the Control Plane.
    */
-  private handleBroadcastCommand(cmd: BroadcastCommand) {
+  private handleCommand(cmd: PlaybackCommand) {
     const store = usePlayerStore.getState();
     this.isProcessingRemote = true;
+
+    // Version check (only process if it's new or unversioned)
+    if (cmd.stateVersion !== undefined) {
+      if (cmd.stateVersion < this.localStateVersion) {
+        this.isProcessingRemote = false;
+        return; // Ignore stale command
+      }
+      this.localStateVersion = cmd.stateVersion;
+    }
 
     try {
       switch (cmd.type) {
         case 'PLAY':
           if (store.isActiveDevice) {
-             store.setIsPlaying(true);
+             store.setIsPlaying(true, true); // true = fromRemote, prevent echo
           }
           break;
         case 'PAUSE':
           if (store.isActiveDevice) {
-             store.setIsPlaying(false);
+             store.setIsPlaying(false, true);
           }
           break;
         case 'SEEK':
           if (store.isActiveDevice) {
-             store.setCurrentTime(cmd.position);
+             store.setCurrentTime(cmd.position, true); // true = fromRemote
           }
           break;
-        case 'TRANSFER_PLAYBACK':
+        case 'NEXT':
+          if (store.isActiveDevice) {
+             store.playNext(); // Active device will calculate next and then sync durable state
+          }
+          break;
+        case 'PREV':
+          if (store.isActiveDevice) {
+             store.playPrev();
+          }
+          break;
+        case 'SET_VOLUME':
+          if (store.isActiveDevice) {
+             store.setVolume(cmd.percent);
+          }
+          break;
+        case 'SET_SHUFFLE':
+          if (store.isActiveDevice) {
+             store.setRemoteState({ isShuffle: cmd.enabled });
+          }
+          break;
+        case 'SET_REPEAT':
+          if (store.isActiveDevice) {
+             store.setRemoteState({ repeatMode: cmd.mode });
+          }
+          break;
+        case 'ADD_TO_QUEUE':
+          if (store.isActiveDevice) {
+             store.addToQueue(cmd.song);
+          }
+          break;
+        case 'REMOVE_FROM_QUEUE':
+          if (store.isActiveDevice) {
+             store.removeFromQueue(cmd.songId);
+          }
+          break;
+        case 'TRANSFER':
           const iAmNowActive = cmd.toDeviceId === this.deviceId;
-          store.setRemoteState({ activeDeviceId: cmd.toDeviceId, isActiveDevice: iAmNowActive });
-          if (!iAmNowActive) {
-            store.setIsPlaying(false);
+          store.setRemoteState({ 
+            activeDeviceId: cmd.toDeviceId, 
+            isActiveDevice: iAmNowActive 
+          });
+          
+          if (iAmNowActive) {
+            // I am taking over!
+            if (cmd.positionMs !== undefined) {
+              store.setRemoteState({ currentTime: cmd.positionMs / 1000 });
+            }
+            store.setIsPlaying(true, true); // Start playing immediately
+          } else {
+            // I am transferring away!
+            if (store.isActiveDevice) {
+              store.setIsPlaying(false, true);
+            }
           }
           break;
         case 'SYNC_STATE':
-           // Quick state sync for when a device becomes active
+           // Fallback fast-sync
            if (!store.isActiveDevice) {
              store.setRemoteState({
-                currentSong: cmd.state.currentSong,
-                currentTime: cmd.state.currentTime,
-                isPlaying: cmd.state.isPlaying,
-                queue: cmd.state.queue,
-                queueIndex: cmd.state.queueIndex
+                currentSong: cmd.state.songData || null,
+                currentTime: cmd.state.positionMs !== undefined ? cmd.state.positionMs / 1000 : store.currentTime,
+                isPlaying: cmd.state.isPlaying ?? false,
+                queue: cmd.state.queue ?? [],
+                queueIndex: cmd.state.queueIndex ?? 0
              });
            }
            break;
@@ -218,13 +276,13 @@ export class DeviceSyncManager {
   }
 
   /**
-   * Handle persistent state recovery via Postgres
+   * Handle persistent state recovery from Postgres.
    */
   private handleDurableUpdate(remoteState: any) {
-    if (remoteState.revision !== undefined && remoteState.revision < this.localRevision) {
+    if (remoteState.state_version !== undefined && remoteState.state_version < this.localStateVersion) {
       return;
     }
-    this.localRevision = remoteState.revision || this.localRevision;
+    this.localStateVersion = remoteState.state_version || this.localStateVersion;
 
     const store = usePlayerStore.getState();
     const isActiveDevice = remoteState.active_device_id === this.deviceId;
@@ -236,7 +294,7 @@ export class DeviceSyncManager {
       isActiveDevice,
       currentSong: remoteState.song_data,
       isPlaying: remoteState.is_playing,
-      currentTime: Number(remoteState.current_time) || 0,
+      currentTime: Number(remoteState.position_ms) / 1000 || 0,
       queue: remoteState.queue || [],
       queueIndex: remoteState.queue_index || 0,
       isShuffle: remoteState.shuffle,
@@ -247,15 +305,24 @@ export class DeviceSyncManager {
   }
 
   /**
-   * Send a low-latency command to all other devices.
+   * Dispatch a command over the Control Plane.
    */
-  public sendCommand(cmd: BroadcastCommand) {
+  public dispatchCommand(cmd: PlaybackCommand) {
     if (!this.channel) return;
+    
+    this.localStateVersion++;
+    const versionedCmd = { ...cmd, stateVersion: this.localStateVersion };
+
     this.channel.send({
       type: 'broadcast',
       event: 'command',
-      payload: { payload: cmd, senderId: this.deviceId }
+      payload: { payload: versionedCmd, senderId: this.deviceId }
     }).catch(console.error);
+    
+    // Also update durable state if we're actively modifying it
+    if (['PLAY', 'PAUSE', 'SEEK', 'TRANSFER'].includes(cmd.type)) {
+      this.persistState();
+    }
   }
 
   /**
@@ -265,23 +332,29 @@ export class DeviceSyncManager {
     if (!this.sessionId || this.isProcessingRemote) return;
 
     const store = usePlayerStore.getState();
-    if (!store.isActiveDevice) return; // Only active device saves state
+    
+    // Anyone can persist during a transfer, otherwise only active device persists
+    if (!store.isActiveDevice && !store.activeDeviceId) return; 
 
     try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.user) return;
+
       await supabase.from('playback_sessions').upsert({
         session_id: this.sessionId,
+        user_id: session.session.user.id,
         active_device_id: store.activeDeviceId || this.deviceId,
         song_id: store.currentSong?.id || null,
         song_data: store.currentSong || null,
-        current_time: store.currentTime,
+        position_ms: Math.floor(store.currentTime * 1000),
         is_playing: store.isPlaying,
         queue: store.queue,
         queue_index: store.queueIndex,
         shuffle: store.isShuffle,
         repeat_mode: store.repeatMode,
-        revision: ++this.localRevision,
+        state_version: this.localStateVersion,
         updated_at: new Date().toISOString(),
-      });
+      }, { onConflict: 'session_id' });
     } catch (e) {
       console.error('[DeviceSyncManager] Persist error:', e);
     }

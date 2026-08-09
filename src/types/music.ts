@@ -85,17 +85,6 @@ export interface RadioStation {
 
 export type RepeatMode = 'off' | 'all' | 'one';
 
-export interface EqualizerSettings {
-  enabled: boolean;
-  preset: 'flat' | 'bass_boost' | 'vocal' | 'acoustic' | 'electronic' | 'telugu_mass';
-  bands: {
-    low: number;      // 60 Hz (-12 to +12 dB)
-    midLow: number;   // 230 Hz
-    mid: number;      // 910 Hz
-    midHigh: number;  // 4 kHz
-    high: number;     // 14 kHz
-  };
-}
 
 export interface AIDJState {
   isActive: boolean;
@@ -106,3 +95,48 @@ export interface AIDJState {
 }
 
 export type ActiveTab = 'home' | 'search' | 'library' | 'radio' | 'ai-dj' | 'artist' | 'album' | 'playlist' | 'profile' | 'downloads' | 'favorites';
+
+export interface Device {
+  id: string;
+  name: string;
+  type: string;
+  platform?: string;
+  isOnline: boolean;
+  capabilities: {
+    playback: boolean;
+    seek: boolean;
+    volume: boolean;
+    lyrics: boolean;
+    crossfade: boolean;
+    gapless: boolean;
+  };
+  volume: number;
+}
+
+export interface PlaybackSession {
+  sessionId: string;
+  activeDeviceId: string | null;
+  songData: Song | null;
+  positionMs: number;
+  isPlaying: boolean;
+  queue: Song[];
+  queueIndex: number;
+  shuffle: boolean;
+  repeatMode: RepeatMode;
+  stateVersion: number;
+  updatedAt: string;
+}
+
+export type PlaybackCommand = 
+  | { type: 'PLAY'; deviceId?: string; stateVersion?: number }
+  | { type: 'PAUSE'; deviceId?: string; stateVersion?: number }
+  | { type: 'SEEK'; position: number; deviceId?: string; stateVersion?: number }
+  | { type: 'TRANSFER'; fromDeviceId?: string; toDeviceId: string; positionMs?: number; stateVersion?: number }
+  | { type: 'NEXT'; deviceId?: string; stateVersion?: number }
+  | { type: 'PREV'; deviceId?: string; stateVersion?: number }
+  | { type: 'SET_VOLUME'; percent: number; deviceId?: string; stateVersion?: number }
+  | { type: 'SET_SHUFFLE'; enabled: boolean; deviceId?: string; stateVersion?: number }
+  | { type: 'SET_REPEAT'; mode: RepeatMode; deviceId?: string; stateVersion?: number }
+  | { type: 'ADD_TO_QUEUE'; song: Song; deviceId?: string; stateVersion?: number }
+  | { type: 'REMOVE_FROM_QUEUE'; songId: string; deviceId?: string; stateVersion?: number }
+  | { type: 'SYNC_STATE'; state: Partial<PlaybackSession>; stateVersion?: number };

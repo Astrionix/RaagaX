@@ -4,6 +4,8 @@ import React from 'react';
 import { X, Heart, Download, Play, Pause, SkipBack, SkipForward, Disc3, Mic2, Music, UserCheck, Tv, RefreshCw, ExternalLink } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { DeviceSelector } from '@/components/providers/DeviceSyncProvider';
+import { AudioSettingsDrawer } from './AudioSettingsDrawer';
+import { Settings2 } from 'lucide-react';
 
 export function ExpandedPlayerModal() {
   const {
@@ -23,6 +25,7 @@ export function ExpandedPlayerModal() {
     downloadedSongIds,
     toggleDownloadSong,
     toggleLyrics,
+    toggleSettingsModal,
   } = usePlayerStore();
 
   const [isVideoMode, setIsVideoMode] = React.useState(false);
@@ -139,11 +142,11 @@ export function ExpandedPlayerModal() {
     <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="fixed inset-0 z-[100] w-full h-full bg-[#09090B]/60 backdrop-blur-2xl p-4 sm:p-6 md:p-12 overflow-y-auto overscroll-none animate-in slide-in-from-bottom duration-300 flex flex-col justify-between text-white select-none"
+      className="fixed inset-0 z-[100] w-full h-full bg-black/30 backdrop-blur-xl p-4 sm:p-6 md:p-12 overflow-y-auto overscroll-none animate-in slide-in-from-bottom duration-300 flex flex-col justify-between text-white select-none"
     >
-      {/* Dynamic Ambient Background Art Glow */}
+      {/* Dynamic Ambient Background Art Glow - Apple Music Style */}
       <div
-        className="absolute inset-0 opacity-50 pointer-events-none blur-[100px] scale-150 transition-all duration-1000 saturate-150"
+        className="absolute inset-0 opacity-90 pointer-events-none blur-[120px] scale-[1.2] transition-all duration-1000 saturate-[200%] mix-blend-screen"
         style={{
           backgroundImage: `url(${currentSong.coverUrl})`,
           backgroundSize: 'cover',
@@ -160,7 +163,7 @@ export function ExpandedPlayerModal() {
             <h2 className="text-xs sm:text-base font-black text-white truncate">
               {isVideoMode ? 'Video Mode' : 'Now Playing'}
             </h2>
-            <p className="text-[10px] sm:text-xs text-[#EF233C] font-semibold uppercase tracking-wider truncate">
+            <p className="text-[10px] sm:text-xs text-[#fa233b] font-semibold uppercase tracking-wider truncate">
               {isVideoMode ? '🎬 YouTube Video' : '🎧 Lossless Audio'}
             </p>
           </div>
@@ -168,14 +171,32 @@ export function ExpandedPlayerModal() {
 
         {/* Dual Mode Switcher & Close */}
         <div className="flex items-center gap-2 flex-shrink-0">
-
+          
+          <div className="flex bg-black/40 border border-white/10 rounded-xl sm:rounded-2xl p-1 items-center mr-2">
+            <button
+              onClick={handleSwitchToAudioMode}
+              className={`px-3 sm:px-4 py-1.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold transition-all ${
+                !isVideoMode ? 'bg-[#fa233b] text-white shadow-lg' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Audio
+            </button>
+            <button
+              onClick={handleSwitchToVideoMode}
+              className={`px-3 sm:px-4 py-1.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold transition-all flex items-center gap-1.5 ${
+                isVideoMode ? 'bg-[#fa233b] text-white shadow-lg' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Tv className="w-3.5 h-3.5" /> Video
+            </button>
+          </div>
 
           {currentSong && (
             <button
               onClick={() => toggleLikeSong(currentSong.id)}
               className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl surface-card border border-white/10 text-slate-300 hover:text-white hover:scale-105 transition-transform"
             >
-              <Heart className={`w-5 h-5 sm:w-6 sm:h-6 ${likedSongIds.includes(currentSong.id) ? 'fill-[#EF233C] text-[#EF233C]' : ''}`} />
+              <Heart className={`w-5 h-5 sm:w-6 sm:h-6 ${likedSongIds.includes(currentSong.id) ? 'fill-[#fa233b] text-[#fa233b]' : ''}`} />
             </button>
           )}
 
@@ -212,14 +233,14 @@ export function ExpandedPlayerModal() {
                     className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 font-bold inline-flex items-center gap-1 transition-colors"
                     title="Switch to alternate video upload"
                   >
-                    <RefreshCw className="w-3 h-3 text-[#EF233C]" /> Alt Video ({videoIndex + 1}/{candidateVideoIds.length})
+                    <RefreshCw className="w-3 h-3 text-[#fa233b]" /> Alt Video ({videoIndex + 1}/{candidateVideoIds.length})
                   </button>
                 )}
                 <a
                   href={youtubeDirectUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-2.5 py-1.5 rounded-xl bg-[#EF233C]/20 hover:bg-[#EF233C]/30 text-[#EF233C] font-extrabold border border-[#EF233C]/40 inline-flex items-center gap-1 transition-colors ml-auto"
+                  className="px-2.5 py-1.5 rounded-xl bg-[#fa233b]/20 hover:bg-[#fa233b]/30 text-[#fa233b] font-extrabold border border-[#fa233b]/40 inline-flex items-center gap-1 transition-colors ml-auto"
                 >
                   <ExternalLink className="w-3 h-3" /> Open in YouTube ↗
                 </a>
@@ -240,7 +261,7 @@ export function ExpandedPlayerModal() {
         {/* Right Column: Song Details, Lyrics Button & Credits */}
         <div className="space-y-4 sm:space-y-6">
           <div className="space-y-1.5">
-            <span className="px-2.5 py-0.5 rounded-full bg-[#EF233C]/20 text-[#EF233C] text-[10px] sm:text-xs font-extrabold uppercase tracking-wider border border-[#EF233C]/30">
+            <span className="px-2.5 py-0.5 rounded-full bg-[#fa233b]/20 text-[#fa233b] text-[10px] sm:text-xs font-extrabold uppercase tracking-wider border border-[#fa233b]/30">
               {currentSong.genre} • {currentSong.releaseYear}
             </span>
             <h1 className="text-xl sm:text-3xl md:text-4xl font-black text-white tracking-tight leading-snug">
@@ -308,11 +329,19 @@ export function ExpandedPlayerModal() {
               }}
               className="px-5 py-3.5 rounded-2xl bg-white text-slate-900 font-extrabold text-xs flex items-center gap-2 hover:bg-slate-200 transition-colors"
             >
-              <Mic2 className="w-4 h-4 text-[#EF233C]" /> Synced Lyrics
+              <Mic2 className="w-4 h-4 text-[#fa233b]" /> Synced Lyrics
+            </button>
+
+            <button
+              onClick={toggleSettingsModal}
+              className="p-3.5 rounded-2xl surface-card border border-white/15 hover:border-white/40 transition-colors ml-auto"
+            >
+              <Settings2 className="w-5 h-5 text-slate-400" />
             </button>
           </div>
         </div>
       </div>
+      <AudioSettingsDrawer />
     </div>
   );
 }

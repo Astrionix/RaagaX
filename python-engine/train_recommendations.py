@@ -123,30 +123,65 @@ def train_and_recommend():
     for user_idx in range(num_users):
         user_uuid = user_cat[user_idx]
         
-        # Get top N recommendations, bounded by total number of songs
-        num_items = sparse_user_item.shape[1]
-        n_recs = min(15, num_items)
-        
-        # Note: In implicit > 0.6.0, recommend returns a tuple of (indices, scores)
+        # Get top N recommendations (fetch more to allow filtering)
+        n_recs = min(100, num_items)
         recommended_indices, _ = model.recommend(user_idx, sparse_user_item[user_idx], N=n_recs, filter_already_liked_items=False)
         
-        user_recs = []
+        all_recs = []
         seen = set()
         for idx in recommended_indices:
             song_id = song_cat[idx]
-            
-            # Prevent implicit zero-padding from duplicating songs
             if song_id in seen:
                 continue
             seen.add(song_id)
-            
-            # Look up full song metadata
             if song_id in song_dict:
-                user_recs.append(song_dict[song_id])
+                all_recs.append(song_dict[song_id])
+                
+        # Generate mixes based on the large pool of recommendations
+        
+        # 1. Daily Mix: Top 15 overall
+        daily_mix = all_recs[:15]
+        
+        # 2. Release Radar: Recent releases (Release year >= current year - 1)
+        current_year = datetime.now().year
+        release_radar = [s for s in all_recs if s.get('releaseYear', 0) >= current_year - 1][:15]
+        
+        # 3. Artist Radars: Group by top 2 artists from user's history
+        user_history = history_df[history_df['user_id'] == user_uuid]
+        top_artists = user_history.groupby('artist')['weight'].sum().sort_values(ascending=False).head(2).index.tolist()
+        
+        artist_radars = {}
+        for artist in top_artists:
+            artist_songs = [s for s in all_recs if s.get('artist') == artist][:10]
+            if artist_songs:
+                artist_radars[artist] = artist_songs
+                
+        # 4. Daylist: Contextual based on time (mocked context logic for Phase 1)
+        hour = datetime.now().hour
+        daylist_title = "🌅 Morning Telugu" if hour < 12 else "🔥 Evening Telugu Energy" if hour < 18 else "🌙 Late Night Telugu"
+        daylist_songs = all_recs[15:30] if len(all_recs) > 30 else all_recs
+        
+        # 5. New Movie Songs: Filter by movies
+        movie_songs = [s for s in all_recs if s.get('movie_name')][:10]
+        if not movie_songs:
+            # Fallback if no movie data
+            movie_songs = all_recs[5:15]
+                
+        mixes = {
+            "daily_mix": daily_mix,
+            "release_radar": release_radar,
+            "artist_radars": artist_radars,
+            "daylist": {
+                "title": daylist_title,
+                "songs": daylist_songs
+            },
+            "new_movie_songs": movie_songs
+        }
                 
         recommendations_to_insert.append({
             "user_id": user_uuid,
-            "recommended_songs": user_recs,
+            "recommended_songs": daily_mix, # Keep for backwards compatibility
+            "mixes": mixes,
             "generated_at": datetime.now().isoformat()
         })
         

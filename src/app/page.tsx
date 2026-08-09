@@ -24,6 +24,7 @@ import { MobileDeviceConnectModal } from '@/components/modals/MobileDeviceConnec
 import { HomeView } from '@/components/views/HomeView';
 import { SearchView } from '@/components/views/SearchView';
 import { LibraryView } from '@/components/views/LibraryView';
+import { PlaylistDetailView } from '@/components/views/PlaylistDetailView';
 import { RadioView } from '@/components/views/RadioView';
 import { ArtistDetailView } from '@/components/views/ArtistDetailView';
 import { ProfileView } from '@/components/views/ProfileView';
@@ -88,7 +89,7 @@ export default function Page() {
             {activeTab === 'radio' && <RadioView />}
             {activeTab === 'artist' && <ArtistDetailView />}
             {activeTab === 'album' && <HomeView />}
-            {activeTab === 'playlist' && <LibraryView />}
+            {activeTab === 'playlist' && <PlaylistDetailView />}
             {activeTab === 'profile' && <ProfileView />}
             {activeTab === 'downloads' && <DownloadsView />}
             {activeTab === 'favorites' && <FavoritesView />}

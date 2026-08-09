@@ -1,190 +1,183 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import { HomePayload, HomeSection, ShelfItem } from '@/types/home';
 import { supabase } from '@/lib/supabase';
-import { ProviderRegistry } from '@/lib/discovery/ProviderRegistry';
-import '@/lib/discovery/JioSaavnProvider';
-import { SongResolver } from '@/lib/discovery/SongResolver';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
+export const runtime = 'edge';
 
-export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const language = searchParams.get('language') || 'telugu';
-
-    // 1. Try fetching from Supabase cache
-    const { data: charts, error } = await supabase
-      .from('charts')
-      .select(`
-        section_name,
-        rank,
-        canonical_songs (
-          id, title, artist, album, language, cover_url, duration, raw_data
-        )
-      `)
-      .eq('language', language.toLowerCase())
-      .order('rank', { ascending: true });
-
-    if (!error && charts && charts.length > 0) {
-      // Map Supabase rows back to frontend Song objects
-      const trending = charts.filter(c => c.section_name === 'trending').map(c => mapRowToSong(c.canonical_songs));
-      let newReleases = charts.filter(c => c.section_name === 'new_releases').map(c => mapRowToSong(c.canonical_songs));
-      let top100 = charts.filter(c => c.section_name === 'top100').map(c => mapRowToSong(c.canonical_songs));
-
-      // Fetch Playlists
-      const { data: playlistsData } = await supabase
-        .from('playlists')
-        .select(`
-          id, title, description, language, cover_url,
-          playlist_songs (
-            position,
-            canonical_songs (
-              id, title, artist, album, language, cover_url, duration, raw_data
-            )
-          )
-        `)
-        .eq('language', language.toLowerCase());
-
-      const playlists = (playlistsData || []).map(p => ({
-        id: p.id,
-        title: p.title,
-        description: p.description,
-        coverUrl: p.cover_url,
-        songs: p.playlist_songs
-          .sort((a: any, b: any) => a.position - b.position)
-          .map((ps: any) => mapRowToSong(ps.canonical_songs))
-      }));
-
-      return NextResponse.json({
-        success: true,
-        source: 'supabase_cache',
-        data: { trending, newReleases, top100, playlists }
-      });
-    }
-
-    // 2. Fallback: If DB is empty, run dynamic resolution (slow path)
-    console.warn('[Home API] Supabase cache empty or failed. Running dynamic discovery fallback.', error);
-    
-    const registry = ProviderRegistry.getInstance();
-    const provider = registry.getProvider('jiosaavn');
-    
-    if (!provider) {
-      return NextResponse.json({ error: 'No providers available', dbError: error, hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL, hasKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY, chartsCount: charts?.length }, { status: 500 });
-    }
-
-    let [trendingRaw, newRaw, top100Raw] = await Promise.all([
-      provider.getChart('trending', language, 15),
-      provider.getNewReleases(language, 20),
-      provider.getChart('top100', language, 100),
-    ]);
-
-    // Inject verified new releases so the strict date filter allows them
-    if (language.toLowerCase() === 'telugu') {
-      const verifiedCandidates = [
-        { id: 'vc1', title: 'Rakasikara', artist: '', language: 'telugu', releaseDate: '2026-07-31', provider: 'verified_seed' },
-        { id: 'vc2', title: 'Patnam Pothav Bava', artist: '', language: 'telugu', releaseDate: '2026-07-31', provider: 'verified_seed' },
-        { id: 'vc3', title: 'Bangaram', artist: '', language: 'telugu', releaseDate: '2026-07-30', provider: 'verified_seed' },
-        { id: 'vc4', title: 'Pacha Pulla', artist: '', language: 'telugu', releaseDate: '2026-07-30', provider: 'verified_seed' },
-        { id: 'vc5', title: 'Milky Beauty', artist: '', language: 'telugu', releaseDate: '2026-07-30', provider: 'verified_seed' },
-      ];
-      const resolvedSeeds = await Promise.all(
-        verifiedCandidates.map(async (c) => {
-          try {
-            const results = await provider.search(c.title, 1);
-            if (results && results.length > 0) return { ...results[0], releaseDate: c.releaseDate };
-          } catch (e) {}
-          return null;
-        })
-      );
-      newRaw = [...(resolvedSeeds.filter(Boolean) as any[]), ...newRaw];
-      
-      // The user requested a minimum of 10 songs. Since we only have 5 verified ones,
-      // we pad the rest by granting a valid releaseDate to JioSaavn's own latest recommendations
-      // so they pass the strict 10-day filter in SongResolver.
-      const todayDate = new Date().toISOString().split('T')[0];
-      let validCount = 0;
-      for (let i = 0; i < newRaw.length; i++) {
-         if (!newRaw[i].releaseDate) {
-             newRaw[i].releaseDate = todayDate;
-         }
-         validCount++;
-         if (validCount >= 10) break;
-      }
-    }
-
-    const [trendingRawResolved, newReleasesRawResolved, top100Resolved] = await Promise.all([
-      SongResolver.resolveAndStore(trendingRaw, 'trending', language),
-      SongResolver.resolveAndStore(newRaw, 'new_releases', language),
-      SongResolver.resolveAndStore(top100Raw, 'top100', language),
-    ]);
-
-    // Map canonical objects to frontend Song objects
-    const mapCanonicalToSong = (canonical: any) => {
-      let audioUrl = '';
-      if (typeof canonical.downloadUrl === 'string') {
-        audioUrl = canonical.downloadUrl;
-      } else if (canonical.downloadUrl && Array.isArray(canonical.downloadUrl)) {
-        const highest = canonical.downloadUrl.find((d: any) => d.quality === '320kbps') || canonical.downloadUrl[canonical.downloadUrl.length - 1];
-        audioUrl = highest?.url || '';
-      }
-      return {
-        id: canonical.id,
-        title: canonical.title,
-        artist: canonical.artist,
-        artistId: canonical.artist,
-        album: canonical.album || '',
-        albumId: canonical.album || '',
-        coverUrl: canonical.coverUrl,
-        audioUrl: audioUrl,
-        duration: Number(canonical.duration) || 0,
-        genre: language,
-        category: 'latest',
-        releaseYear: new Date().getFullYear(),
-        plays: 1000,
-        likes: 100,
-      };
-    };
-
-    const trending = trendingRawResolved.map(mapCanonicalToSong);
-    const newReleases = newReleasesRawResolved.map(mapCanonicalToSong);
-    const top100 = top100Resolved.map(mapCanonicalToSong);
-
-    return NextResponse.json({
-      success: true,
-      source: 'dynamic_fallback',
-      data: { trending, newReleases, top100, playlists: [] }
-    });
-
-  } catch (error: any) {
-    console.error('[Home API] Error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  }
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good Morning 👋';
+  if (hour < 18) return 'Good Afternoon 👋';
+  return 'Good Evening 👋';
 }
 
-function mapRowToSong(row: any) {
-  if (!row || Array.isArray(row)) return row?.[0]; // handle edge cases with join arrays
-  
-  let audioUrl = '';
-  if (row.raw_data && Array.isArray(row.raw_data)) {
-    const highest = row.raw_data.find((d: any) => d.quality === '320kbps') || row.raw_data[row.raw_data.length - 1];
-    audioUrl = highest?.url || '';
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const userId = searchParams.get('userId');
+
+  let dailyMix: ShelfItem[] = [];
+  let releaseRadar: ShelfItem[] = [];
+  let daylist: any = null;
+  let newMovieSongs: ShelfItem[] = [];
+  let artistRadars: any[] = [];
+  let name = '';
+
+  if (userId) {
+    // 1. Fetch user's personalized mixes from Supabase
+    const { data: aiData, error } = await supabase
+      .from('ai_recommendations')
+      .select('mixes')
+      .eq('user_id', userId)
+      .single();
+
+    if (!error && aiData && aiData.mixes) {
+      dailyMix = aiData.mixes.daily_mix || [];
+      releaseRadar = aiData.mixes.release_radar || [];
+      daylist = aiData.mixes.daylist || null;
+      newMovieSongs = aiData.mixes.new_movie_songs || [];
+      
+      const artistMixes = aiData.mixes.artist_radars || {};
+      for (const artistName in artistMixes) {
+        artistRadars.push({
+          id: `artist_mix_${artistName}`,
+          type: 'carousel',
+          title: `🎤 Because You Listen to ${artistName}`,
+          items: artistMixes[artistName].map((s: any) => ({ ...s, type: 'song' }))
+        });
+      }
+    }
+
+    // Attempt to get user name
+    const { data: userRecord } = await supabase.auth.admin.getUserById(userId);
+    if (userRecord?.user?.user_metadata?.full_name) {
+      name = userRecord.user.user_metadata.full_name.split(' ')[0];
+    }
   }
 
-  return {
-    id: row.id,
-    title: row.title,
-    artist: row.artist,
-    artistId: row.artist,
-    album: row.album || '',
-    albumId: row.album || '',
-    coverUrl: row.cover_url,
-    audioUrl: audioUrl,
-    duration: Number(row.duration) || 0,
-    genre: 'Telugu',
-    category: 'latest_telugu',
-    releaseYear: 2024,
-    plays: 1000,
-    likes: 100,
+  // Fallbacks if ML engine hasn't populated data for this user yet
+  if (dailyMix.length === 0) {
+    dailyMix = [
+      { id: 'm1', title: 'Telugu Daily Mix', subtitle: 'Updated daily based on your listening', type: 'mix', imageUrl: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: 'm2', title: 'Telugu Release Radar', subtitle: 'Catch up on the latest releases', type: 'mix', imageUrl: 'https://images.unsplash.com/photo-1483032469466-b937c425697b?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: 'm3', title: 'New Movie Songs', subtitle: 'Trending tracks from Tollywood', type: 'mix', imageUrl: 'https://images.unsplash.com/photo-1516280440502-86846f4142d1?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: 'm4', title: 'Telugu Daylist', subtitle: 'The soundtrack for your evening', type: 'mix', imageUrl: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&q=80&w=300&h=300' },
+    ];
+  } else {
+    // Map songs to mix format
+    dailyMix = dailyMix.map((s: any) => ({ ...s, type: 'song', subtitle: s.artist }));
+  }
+
+  if (releaseRadar.length > 0) {
+    releaseRadar = releaseRadar.map((s: any) => ({ ...s, type: 'song', subtitle: s.artist }));
+  }
+
+  const greetingStr = name ? getGreeting().replace('👋', `, ${name} 👋`) : getGreeting();
+
+  const sections: HomeSection[] = [
+    {
+      id: 'quick_access',
+      type: 'quick_access',
+      title: '',
+      items: [
+        { id: '1', title: 'Liked Songs', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=300&h=300' },
+        { id: '2', title: 'Telugu Mix', type: 'mix', imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=300&h=300' },
+        { id: '3', title: 'Recently Played', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1493225457124-a1a2a5f5f924?auto=format&fit=crop&q=80&w=300&h=300' },
+        { id: '4', title: 'Trending Telugu', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=300&h=300' },
+        { id: '5', title: 'Anirudh Hits', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1593697821252-0c9137d9fc45?auto=format&fit=crop&q=80&w=300&h=300' },
+        { id: '1266094331', title: 'Latest Tollywood', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/LatestTollywood_20250814091215_500x500.jpg' },
+      ]
+    },
+    {
+      id: 'made_for_you',
+      type: 'carousel',
+      title: '🎯 Daily Mix',
+      items: dailyMix
+    }
+  ];
+
+  if (daylist && daylist.songs && daylist.songs.length > 0) {
+    sections.push({
+      id: 'daylist',
+      type: 'carousel',
+      title: daylist.title,
+      items: daylist.songs.map((s: any) => ({ ...s, type: 'song', subtitle: s.artist }))
+    });
+  }
+
+  if (releaseRadar.length > 0) {
+    sections.push({
+      id: 'release_radar',
+      type: 'carousel',
+      title: '🆕 Release Radar',
+      items: releaseRadar
+    });
+  }
+
+  if (newMovieSongs.length > 0) {
+    sections.push({
+      id: 'new_movie_songs',
+      type: 'carousel',
+      title: '🎬 New Movie Songs',
+      items: newMovieSongs.map((s: any) => ({ ...s, type: 'song', subtitle: s.movie_name || s.album }))
+    });
+  }
+
+  // Add artist radars dynamically
+  artistRadars.forEach(ar => sections.push(ar));
+
+  sections.push({
+    id: 'trending_telugu',
+    type: 'list_chart',
+    title: '🔥 Trending Telugu',
+    items: [
+      { id: 't1', title: 'Hukum', subtitle: 'Anirudh Ravichander', type: 'song', imageUrl: 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: 't2', title: 'Kurchi Madathapetti', subtitle: 'Thaman S', type: 'song', imageUrl: 'https://images.unsplash.com/photo-1598387993441-a3637e1066b5?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: 't3', title: 'Naa Roja Nuvve', subtitle: 'Hesham Abdul Wahab', type: 'song', imageUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&q=80&w=300&h=300' },
+    ]
+  });
+
+  // Chartbusters & Hits
+  sections.push({
+    id: 'chartbusters',
+    type: 'carousel',
+    title: '🏆 Chartbusters & Hits',
+    items: [
+      { id: '1134643225', title: 'Telugu: India Superhits Top 50', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/TeluguIndiaSuperhitsTop50_20241018042942_500x500.jpg' },
+      { id: '1302089242', title: 'Chartbusters 2026 - Telugu', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/Chartbusters2024Telugu_20250109121731_500x500.jpg' },
+      { id: '814453257', title: 'Telugu Viral Hits', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/TeluguViralHits_20260212042858_500x500.jpg' },
+      { id: '951897805', title: 'Most Searched Songs', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/MostSearchedSongsTelugu_20260320054705_500x500.jpg' }
+    ]
+  });
+
+  // Decades & Retro
+  sections.push({
+    id: 'retro',
+    type: 'carousel',
+    title: '📻 Decades & Retro',
+    items: [
+      { id: '1170578805', title: 'Telugu 2000s', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/Telugu2000s_20240916053335_500x500.jpg' },
+      { id: '1170578801', title: 'Telugu 1990s', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/Telugu1990s_20240916053050_500x500.jpg' },
+      { id: '901538769', title: 'Telugu 1980s', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/Telugu1980s_20231215165842_500x500.jpg' },
+      { id: '901538767', title: 'Telugu 1970s', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/Telugu1970s_20231215165934_500x500.jpg' }
+    ]
+  });
+
+  // Mood & Genre
+  sections.push({
+    id: 'mood',
+    type: 'carousel',
+    title: '🎭 Mood & Genre',
+    items: [
+      { id: '742913535', title: '90s Romance - Telugu', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/90sRomanceTelugu_20260213075647_500x500.jpg' },
+      { id: '742894803', title: '2000s Romance - Telugu', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/2000sRomanceTelugu_20260213074811_500x500.jpg' },
+      { id: '110048908', title: 'Telugu Folk Songs', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/TeluguFolkSongs_20260213080126_500x500.jpg' }
+    ]
+  });
+
+  const payload: HomePayload = {
+    greeting: greetingStr,
+    sections
   };
+
+  return NextResponse.json(payload);
 }

@@ -59,6 +59,17 @@ def seed_data():
         # Insert fake history
         res = supabase.table('playback_history').insert(fake_history).execute()
         
+        fake_events = []
+        for h in fake_history:
+            fake_events.append({
+                'user_id': h['user_id'],
+                'song_id': h['song_id'],
+                'event_type': 'play' if h['action'] == 'play' else 'like',
+                'position_ms': random.randint(10000, 200000)
+            })
+            
+        supabase.table('listening_events').insert(fake_events).execute()
+        
     print("Successfully injected fake playback history for all users!")
     print("You can now run train_recommendations.py to generate the AI DJ row!")
 
