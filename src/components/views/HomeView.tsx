@@ -12,6 +12,7 @@ import { Disc3 } from 'lucide-react';
 export function HomeView() {
   const [payload, setPayload] = useState<HomePayload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { preferredLanguage } = usePlayerStore();
 
   useEffect(() => {
     async function fetchHome() {
@@ -20,8 +21,8 @@ export function HomeView() {
         const { data: { session } } = await supabase.auth.getSession();
         
         const url = session?.user?.id 
-          ? `/api/home?userId=${session.user.id}`
-          : '/api/home';
+          ? `/api/home?userId=${session.user.id}&lang=${preferredLanguage}`
+          : `/api/home?lang=${preferredLanguage}`;
           
         const res = await fetch(url);
         if (res.ok) {
@@ -29,7 +30,7 @@ export function HomeView() {
           
           // Inject "This Week's Releases" dynamically on the client
           try {
-            const thisWeekSongs = await RealMusicEngine.getInstance().searchRealSongs('New Telugu Songs', 12);
+            const thisWeekSongs = await RealMusicEngine.getInstance().searchRealSongs(`New ${preferredLanguage} Songs`, 12);
             if (thisWeekSongs.length > 0) {
               const newSection: HomeSection = {
                 id: 'this_week_releases',
@@ -58,7 +59,7 @@ export function HomeView() {
       }
     }
     fetchHome();
-  }, []);
+  }, [preferredLanguage]);
 
   if (isLoading || !payload) {
     return (

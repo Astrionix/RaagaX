@@ -11,11 +11,43 @@ function getGreeting(): string {
   return 'Good Evening 👋';
 }
 
+function getLanguageContent(lang: string) {
+  // We use existing valid IDs as placeholders for now, but translate titles to match preferred language
+  const defaultLang = lang || 'Telugu';
+  return {
+    quick_access: [
+      { id: '1', title: 'Liked Songs', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '2', title: `${defaultLang} Mix`, type: 'mix', imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '3', title: 'Recently Played', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1493225457124-a1a2a5f5f924?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '4', title: `Trending ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '5', title: `${defaultLang} Hits`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1593697821252-0c9137d9fc45?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '1266094331', title: `Latest ${defaultLang}`, type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/LatestTollywood_20250814091215_500x500.jpg' },
+    ],
+    chartbusters: [
+      { id: '1134643225', title: `${defaultLang}: India Superhits Top 50`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '1302089242', title: `Chartbusters 2026 - ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '814453257', title: `${defaultLang} Viral Hits`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1493225457124-a1a2a5f5f924?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '951897805', title: `Most Searched Songs - ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=300&h=300' }
+    ],
+    retro: [
+      { id: '1170578805', title: `${defaultLang} 2000s`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '1170578801', title: `${defaultLang} 1990s`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1516280440502-86846f4142d1?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '901538769', title: `${defaultLang} 1980s`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '901538767', title: `${defaultLang} 1970s`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1593697821252-0c9137d9fc45?auto=format&fit=crop&q=80&w=300&h=300' }
+    ],
+    mood: [
+      { id: '742913535', title: `90s Romance - ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '742894803', title: `2000s Romance - ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '110048908', title: `${defaultLang} Folk Songs`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1460036521480-c11c52536c99?auto=format&fit=crop&q=80&w=300&h=300' }
+    ]
+  };
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get('userId');
+  const lang = searchParams.get('lang') || 'Telugu';
 
-  let dailyMix: ShelfItem[] = [];
   let releaseRadar: ShelfItem[] = [];
   let daylist: any = null;
   let newMovieSongs: ShelfItem[] = [];
@@ -23,7 +55,6 @@ export async function GET(request: Request) {
   let name = '';
 
   if (userId) {
-    // 1. Fetch user's personalized mixes from Supabase
     const { data: aiData, error } = await supabase
       .from('ai_recommendations')
       .select('mixes')
@@ -31,7 +62,6 @@ export async function GET(request: Request) {
       .single();
 
     if (!error && aiData && aiData.mixes) {
-      dailyMix = aiData.mixes.daily_mix || [];
       releaseRadar = aiData.mixes.release_radar || [];
       daylist = aiData.mixes.daylist || null;
       newMovieSongs = aiData.mixes.new_movie_songs || [];
@@ -39,31 +69,18 @@ export async function GET(request: Request) {
       const artistMixes = aiData.mixes.artist_radars || {};
       for (const artistName in artistMixes) {
         artistRadars.push({
-          id: `artist_mix_${artistName}`,
+          id: `artist_radar_${artistName}`,
           type: 'carousel',
-          title: `🎤 Because You Listen to ${artistName}`,
-          items: artistMixes[artistName].map((s: any) => ({ ...s, type: 'song' }))
+          title: `🎙️ ${artistName} Mix`,
+          items: artistMixes[artistName].map((s: any) => ({ ...s, type: 'song', subtitle: s.album }))
         });
       }
     }
 
-    // Attempt to get user name
     const { data: userRecord } = await supabase.auth.admin.getUserById(userId);
     if (userRecord?.user?.user_metadata?.full_name) {
       name = userRecord.user.user_metadata.full_name.split(' ')[0];
     }
-  }
-
-  // Fallbacks if ML engine hasn't populated data for this user yet
-  if (dailyMix.length === 0) {
-    dailyMix = [
-      { id: 'm1', title: 'Telugu Daily Mix', subtitle: 'Updated daily based on your listening', type: 'mix', imageUrl: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: 'm2', title: 'Telugu Release Radar', subtitle: 'Catch up on the latest releases', type: 'mix', imageUrl: 'https://images.unsplash.com/photo-1483032469466-b937c425697b?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: 'm4', title: 'Telugu Daylist', subtitle: 'The soundtrack for your evening', type: 'mix', imageUrl: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&q=80&w=300&h=300' },
-    ];
-  } else {
-    // Map songs to mix format
-    dailyMix = dailyMix.map((s: any) => ({ ...s, type: 'song', subtitle: s.artist }));
   }
 
   if (releaseRadar.length > 0) {
@@ -71,20 +88,14 @@ export async function GET(request: Request) {
   }
 
   const greetingStr = name ? getGreeting().replace('👋', `, ${name} 👋`) : getGreeting();
+  const content = getLanguageContent(lang);
 
   const sections: HomeSection[] = [
     {
       id: 'quick_access',
       type: 'quick_access',
       title: '',
-      items: [
-        { id: '1', title: 'Liked Songs', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=300&h=300' },
-        { id: '2', title: 'Telugu Mix', type: 'mix', imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=300&h=300' },
-        { id: '3', title: 'Recently Played', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1493225457124-a1a2a5f5f924?auto=format&fit=crop&q=80&w=300&h=300' },
-        { id: '4', title: 'Trending Telugu', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=300&h=300' },
-        { id: '5', title: 'Anirudh Hits', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1593697821252-0c9137d9fc45?auto=format&fit=crop&q=80&w=300&h=300' },
-        { id: '1266094331', title: 'Latest Tollywood', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/LatestTollywood_20250814091215_500x500.jpg' },
-      ]
+      items: content.quick_access
     }
   ];
 
@@ -115,47 +126,27 @@ export async function GET(request: Request) {
     });
   }
 
-  // Add artist radars dynamically
   artistRadars.forEach(ar => sections.push(ar));
 
-
-
-  // Chartbusters & Hits
   sections.push({
     id: 'chartbusters',
     type: 'carousel',
     title: '🏆 Chartbusters & Hits',
-    items: [
-      { id: '1134643225', title: 'Telugu: India Superhits Top 50', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: '1302089242', title: 'Chartbusters 2026 - Telugu', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: '814453257', title: 'Telugu Viral Hits', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1493225457124-a1a2a5f5f924?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: '951897805', title: 'Most Searched Songs', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=300&h=300' }
-    ]
+    items: content.chartbusters
   });
 
-  // Decades & Retro
   sections.push({
     id: 'retro',
     type: 'carousel',
     title: '📻 Decades & Retro',
-    items: [
-      { id: '1170578805', title: 'Telugu 2000s', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: '1170578801', title: 'Telugu 1990s', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1516280440502-86846f4142d1?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: '901538769', title: 'Telugu 1980s', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: '901538767', title: 'Telugu 1970s', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1593697821252-0c9137d9fc45?auto=format&fit=crop&q=80&w=300&h=300' }
-    ]
+    items: content.retro
   });
 
-  // Mood & Genre
   sections.push({
     id: 'mood',
     type: 'carousel',
     title: '🎭 Mood & Genre',
-    items: [
-      { id: '742913535', title: '90s Romance - Telugu', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: '742894803', title: '2000s Romance - Telugu', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: '110048908', title: 'Telugu Folk Songs', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1460036521480-c11c52536c99?auto=format&fit=crop&q=80&w=300&h=300' }
-    ]
+    items: content.mood
   });
 
   const payload: HomePayload = {
