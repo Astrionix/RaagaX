@@ -1,0 +1,50 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": "9Z6PCiLH",
+      "title": "Irumudi Kattu (From &quot;Irumudi&quot;)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/933/Irumudi-Kattu-From-Irumudi-Telugu-2026-20260629001019-500x500.jpg",
+      "audioUrl": "",
+      "releaseYear": 2026,
+      "type": "song"
+    },
+    {
+      "id": "PUzDig6g",
+      "title": "Vaarevaa Vaarevaa (From &quot;Lenin&quot;)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/870/Vaarevaa-Vaarevaa-From-Lenin-Telugu-2026-20260105171003-500x500.jpg",
+      "audioUrl": "",
+      "releaseYear": 2026,
+      "type": "song"
+    },
+    {
+      "id": "QpR4JWxx",
+      "title": "Chuttamalle (From &quot;Devara Part 1&quot;)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/063/World-Music-Day-Top-10-Telugu-Superhits-Telugu-2026-20260619191140-500x500.jpg",
+      "audioUrl": "",
+      "releaseYear": 2026,
+      "type": "song"
+    },
+    {
+      "id": "1YpmYatb",
+      "title": "Boom Boom (From &quot;Dude (Telugu)&quot;)",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/929/Boom-Boom-From-Dude-Telugu-Telugu-2025-20250828210249-500x500.jpg",
+      "audioUrl": "",
+      "releaseYear": 2025,
+      "type": "song"
+    },
+    {
+      "id": "LZPFlH4E",
+      "title": "Ayudha Pooja - Telugu",
+      "artist": "Unknown",
+      "coverUrl": "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
+      "audioUrl": "",
+      "releaseYear": 2024,
+      "type": "song"
+    }
+  ]
+}

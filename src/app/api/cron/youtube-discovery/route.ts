@@ -4,11 +4,26 @@ import { RealMusicEngine } from '@/lib/realMusicEngine';
 
 // Hardcoded Official Telugu Labels for Discovery
 const OFFICIAL_CHANNELS = [
+  // Original / Currently Added
   'UCq-Fj5jknLsUf-MWSy4_brA', // T-Series Telugu
   'UCv33xVn3RABVd0-uB8fD1-w', // Aditya Music
   'UC1K0F3f-OQG6lZ-bC1d-TPA', // Sony Music South
   'UCT7nKq3fGhtgGf4TtyhL08Q', // Saregama Telugu
   'UCNU4HqM6tV5NfK6BwB-02Yw', // Mango Music
+  'UCLsSLka8jODBozvi5VTQeaQ', // Zee Music South
+  'UCcXqIv2HjTo_c2IPYmUqiQg', // Madhura Audio
+  'UCr1dDNc_slCvGcx83ExYFYg', // Silly Monks Music
+  
+  // Expanded List
+  'UCNApqoVYJbYSrni4YsbXzyQ', // Aditya Music (Main)
+  'UCn4rEMqKtwBQ6-oEwbd4PcA', // Sony Music South Official
+  'UCWqyzn3cDkRDh3kRGWrIQwA', // Mango Music (Main)
+  'UCq-Fj5jknLsUf-MWSy4_brA', // T-Series
+  'UC56gTxNs4f9xZ7Pa2i5xNzg', // Sony Music India
+  'UC2V5vzgmEmoiWqXfM2jN5_w', // Tips Telugu
+  'UC-gAtrZkAy6LxLq9_moL7qA', // Mango Mass Media
+  'UCSXwEK86-OWEn_QF65X7c7Q', // Junglee Music Telugu
+  'UC6Mw_A2tBKiXeVaOhNwWfBQ', // Divo Music
 ];
 
 function sanitizeTitle(title: string) {
@@ -59,14 +74,14 @@ export async function GET(request: Request) {
         const rawTitle = item.snippet.title;
         const publishedAt = item.snippet.publishedAt;
         
-        // Skip trailers and promos
-        if (/trailer|teaser|promo/i.test(rawTitle)) continue;
+        // Skip trailers, promos, jukeboxes, making videos, and non-song content
+        if (/trailer|teaser|promo|sneak peek|jukebox|making|bgm|mashup|ost|interview/i.test(rawTitle)) continue;
 
         const cleanTitle = sanitizeTitle(rawTitle);
-        if (!cleanTitle) continue;
+        if (!cleanTitle || cleanTitle.length < 2) continue;
 
-        // Verify with JioSaavn
-        const jioResults = await engine.searchRealSongs(cleanTitle, 3);
+        // Verify with JioSaavn - Force Telugu query to avoid getting Tamil/Hindi dubs
+        const jioResults = await engine.searchRealSongs(`${cleanTitle} telugu`, 3);
         
         if (jioResults.length > 0) {
           const canonical = jioResults[0];
