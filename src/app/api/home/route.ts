@@ -85,12 +85,6 @@ export async function GET(request: Request) {
         { id: '5', title: 'Anirudh Hits', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1593697821252-0c9137d9fc45?auto=format&fit=crop&q=80&w=300&h=300' },
         { id: '1266094331', title: 'Latest Tollywood', type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/LatestTollywood_20250814091215_500x500.jpg' },
       ]
-    },
-    {
-      id: 'made_for_you',
-      type: 'carousel',
-      title: '🎯 Daily Mix',
-      items: dailyMix
     }
   ];
 
@@ -124,15 +118,7 @@ export async function GET(request: Request) {
   // Add artist radars dynamically
   artistRadars.forEach(ar => sections.push(ar));
 
-  sections.push({
-    id: 'trending_telugu',
-    type: 'list_chart',
-    title: '🔥 Trending Telugu',
-    items: [
-      { id: 't1', title: 'Hukum', subtitle: 'Anirudh Ravichander', type: 'song', imageUrl: 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: 't3', title: 'Naa Roja Nuvve', subtitle: 'Hesham Abdul Wahab', type: 'song', imageUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&q=80&w=300&h=300' },
-    ]
-  });
+
 
   // Chartbusters & Hits
   sections.push({
