@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Heart, Download, Clock, ListMusic, Play, Library, ChevronRight, User, Disc, Sparkles, Music, Link2, ShieldCheck } from 'lucide-react';
+import { Heart, Download, Clock, ListMusic, Play, ChevronRight, User, Disc, Sparkles, Laptop } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 
 export function LibraryView() {
-  const [tab, setTab] = useState<'liked' | 'downloads' | 'artists' | 'albums' | 'playlists' | 'history'>('liked');
+  const [tab, setTab] = useState<'liked' | 'downloads' | 'artists' | 'albums' | 'playlists' | 'history'>('playlists');
   const {
     queue,
     likedSongIds,
@@ -14,9 +14,16 @@ export function LibraryView() {
     favoriteArtistIds,
     favoriteAlbumIds,
     playSong,
-    toggleLikeSong,
     toggleImporterModal,
     toggleBackupModal,
+    // Cross-device sync state
+    isActiveDevice,
+    currentSong,
+    currentTime,
+    duration,
+    remoteDeviceName,
+    deviceId,
+    transferPlayback,
   } = usePlayerStore();
 
   const likedSongs = queue.filter((s) => likedSongIds.includes(s.id));
@@ -25,13 +32,20 @@ export function LibraryView() {
 
   const libraryNavItems = [
     { id: 'playlists', label: 'Playlists', icon: ListMusic, count: 0 },
+    { id: 'liked', label: 'Liked Songs', icon: Heart, count: likedSongs.length },
+    { id: 'history', label: 'Recently Played', icon: Clock, count: historySongs.length },
     { id: 'artists', label: 'Artists', icon: User, count: favoriteArtistIds.length },
     { id: 'albums', label: 'Albums', icon: Disc, count: favoriteAlbumIds.length },
-    { id: 'liked', label: 'Songs & Favorites', icon: Music, count: likedSongs.length },
-    { id: 'history', label: 'Made For You', icon: Sparkles, count: 0 },
+    { id: 'added', label: 'Recently Added', icon: Sparkles, count: 0 },
     { id: 'downloads', label: 'Downloaded', icon: Download, count: downloadedSongs.length },
-    { id: 'history', label: 'Recently Added', icon: Clock, count: historySongs.length },
   ];
+
+  const formatTime = (time: number) => {
+    if (isNaN(time)) return '00:00';
+    const m = Math.floor(time / 60);
+    const s = Math.floor(time % 60);
+    return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+  };
 
   return (
     <div className="space-y-6 pb-6 text-white select-none">
@@ -54,6 +68,38 @@ export function LibraryView() {
         </div>
       </div>
 
+      {/* Continue Listening (Cross-device) */}
+      {!isActiveDevice && currentSong && remoteDeviceName && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-extrabold text-white">Continue Listening</h3>
+          <div 
+            onClick={() => transferPlayback(deviceId)}
+            className="bg-[#1C1C1E] border border-white/10 rounded-2xl p-4 flex items-center gap-4 cursor-pointer hover:bg-white/5 transition-colors group"
+          >
+            <div className="relative flex-shrink-0">
+              <img 
+                src={currentSong.coverUrl} 
+                alt={currentSong.title} 
+                className="w-14 h-14 rounded-xl object-cover shadow-lg group-hover:scale-105 transition-transform" 
+              />
+              <div className="absolute inset-0 bg-black/40 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <Play className="w-6 h-6 text-white fill-white" />
+              </div>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h4 className="text-sm font-bold text-white truncate">{currentSong.title}</h4>
+              <p className="text-xs font-semibold text-slate-400 truncate">{formatTime(currentTime)} / {formatTime(duration)}</p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <Laptop className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wide">
+                  Playing on {remoteDeviceName}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* iOS Red Icon List Items */}
       <div className="divide-y divide-white/5 bg-[#1C1C1E] rounded-2xl border border-white/10 overflow-hidden">
         {libraryNavItems.map((item, index) => {
@@ -69,40 +115,12 @@ export function LibraryView() {
                 <span className="text-sm font-bold text-white">{item.label}</span>
               </div>
               <div className="flex items-center gap-2 text-slate-400">
-                <span className="text-xs font-semibold">{item.count}</span>
+                <span className="text-xs font-semibold">{item.count > 0 ? item.count : ''}</span>
                 <ChevronRight className="w-4 h-4 text-slate-500" />
               </div>
             </button>
           );
         })}
-      </div>
-
-      {/* Recently Played Horizontal Carousel */}
-      <div className="space-y-3 pt-2">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-extrabold text-white">Recently Played</h3>
-          <span className="text-xs font-bold text-[#EF233C] cursor-pointer">See All</span>
-        </div>
-
-        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
-          {(historySongs.length > 0 ? historySongs : queue.slice(0, 6)).map((song) => (
-            <div
-              key={song.id}
-              onClick={() => playSong(song)}
-              className="min-w-[120px] max-w-[120px] space-y-2 cursor-pointer group flex-shrink-0"
-            >
-              <img
-                src={song.coverUrl}
-                alt={song.title}
-                className="w-[120px] h-[120px] rounded-2xl object-cover shadow-md group-hover:scale-105 transition-transform"
-              />
-              <h4 className="text-xs font-bold text-white truncate leading-tight group-hover:text-[#EF233C]">
-                {song.title}
-              </h4>
-              <p className="text-[10px] text-slate-400 truncate leading-tight">{song.artist}</p>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );
