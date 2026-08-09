@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { X, Settings, Sliders, Disc, Shield, Download, Trash2 } from 'lucide-react';
+import { X, Settings, Sliders, Disc, Shield, Download, Trash2, LogOut, User } from 'lucide-react';
 import { usePlayerStore, AudioQualityPreset } from '@/context/usePlayerStore';
 
 export function SettingsModal() {
@@ -30,6 +30,12 @@ export function SettingsModal() {
     a.download = `RaagaX_Backup_${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleSignOut = async () => {
+    const { supabase } = await import('@/lib/supabase');
+    await supabase.auth.signOut();
+    window.location.reload();
   };
 
   return (
@@ -137,6 +143,19 @@ export function SettingsModal() {
               <Trash2 className="w-4 h-4" /> Clear Cache
             </button>
           </div>
+        </div>
+
+        {/* Account Section */}
+        <div className="space-y-3 pt-2 border-t border-white/5">
+          <label className="text-xs font-extrabold text-slate-300 uppercase tracking-wider flex items-center gap-2 mt-4">
+            <User className="w-4 h-4 text-[#EF233C]" /> Account
+          </label>
+          <button
+            onClick={handleSignOut}
+            className="w-full py-2.5 px-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold flex items-center justify-center gap-2 border border-red-500/20 transition-all"
+          >
+            <LogOut className="w-4 h-4" /> Sign Out
+          </button>
         </div>
       </div>
     </div>
