@@ -41,6 +41,7 @@ jobs:
 
       - name: Sync Capacitor
         run: |
+          mkdir -p out
           mkdir -p android/app/src/main/assets
           npx cap copy android
           npx cap sync android
