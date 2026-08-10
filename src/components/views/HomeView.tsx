@@ -239,7 +239,8 @@ export function HomeView() {
               section.id === 'new_releases' || 
               section.id === 'new_week_releases' || 
               (section.title && section.title.toLowerCase().includes('new release')) ||
-              (section.title && section.title.toLowerCase().includes('new week'))
+              (section.title && section.title.toLowerCase().includes('new week')) ||
+              (section.title && section.title.toLowerCase().includes('this week'))
             );
 
             return <CarouselShelf key={section.id} title={section.title || ''} items={section.items} showPlayAll={isNewReleasesSection} />;

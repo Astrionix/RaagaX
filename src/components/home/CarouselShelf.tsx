@@ -170,6 +170,15 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
             </div>
           )}
         </div>
+        
+        {items.length > 0 && (
+          <button 
+            onClick={() => setShowAll(true)}
+            className="text-xs font-bold text-slate-400 hover:text-white transition-colors uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+          >
+            {items[0]?.type === 'song' ? 'See All Songs' : 'See All'} <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
       
       <div className="grid grid-rows-2 auto-cols-[144px] sm:auto-cols-[176px] grid-flow-col overflow-x-auto no-scrollbar gap-4 pb-4">

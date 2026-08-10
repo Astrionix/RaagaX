@@ -75,40 +75,88 @@ export function AlbumsView() {
         </div>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-2 border-b border-white/5 pb-2">
-        <button
-          onClick={() => setActiveTabFilter('all')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-            activeTabFilter === 'all' ? 'bg-[#fa233b] text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'
-          }`}
-        >
-          All 50 Albums
-        </button>
-        <button
-          onClick={() => setActiveTabFilter('recent')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-            activeTabFilter === 'recent' ? 'bg-[#fa233b] text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'
-          }`}
-        >
-          🆕 Recently Released
-        </button>
-        <button
-          onClick={() => setActiveTabFilter('trending')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-            activeTabFilter === 'trending' ? 'bg-[#fa233b] text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'
-          }`}
-        >
-          🔥 Trending
-        </button>
-        <button
-          onClick={() => setActiveTabFilter('top')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-            activeTabFilter === 'top' ? 'bg-[#fa233b] text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'
-          }`}
-        >
-          🏆 Top Ranked
-        </button>
+      {/* Filter Tabs and Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setActiveTabFilter('all')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+              activeTabFilter === 'all' ? 'bg-[#fa233b] text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            All 50 Albums
+          </button>
+          <button
+            onClick={() => setActiveTabFilter('recent')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+              activeTabFilter === 'recent' ? 'bg-[#fa233b] text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            🆕 Recently Released
+          </button>
+          <button
+            onClick={() => setActiveTabFilter('trending')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+              activeTabFilter === 'trending' ? 'bg-[#fa233b] text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            🔥 Trending
+          </button>
+          <button
+            onClick={() => setActiveTabFilter('top')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+              activeTabFilter === 'top' ? 'bg-[#fa233b] text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            🏆 Top Ranked
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={async () => {
+              const list = activeTabFilter === 'recent' ? recentlyReleased : activeTabFilter === 'trending' ? trending : activeTabFilter === 'top' ? popular : allAlbums;
+              if (list.length > 0) {
+                let tracks = list[0].tracks;
+                if (!tracks || tracks.length === 0) {
+                  const { RealMusicEngine } = await import('@/lib/realMusicEngine');
+                  const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${list[0].id}`);
+                  tracks = details?.songs || [];
+                }
+                if (tracks.length > 0) {
+                  setRemoteState({ isShuffle: false });
+                  playSong(tracks[0], tracks);
+                }
+              }
+            }}
+            className="px-4 py-2 rounded-xl bg-[#fa233b] hover:bg-[#fa233b]/90 text-white font-bold text-xs flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-md cursor-pointer"
+          >
+            <Play className="w-3.5 h-3.5 fill-white" /> Play Albums
+          </button>
+          <button 
+            onClick={async () => {
+              const list = activeTabFilter === 'recent' ? recentlyReleased : activeTabFilter === 'trending' ? trending : activeTabFilter === 'top' ? popular : allAlbums;
+              if (list.length > 0) {
+                const randomAlbum = list[Math.floor(Math.random() * list.length)];
+                let tracks = randomAlbum.tracks;
+                if (!tracks || tracks.length === 0) {
+                  const { RealMusicEngine } = await import('@/lib/realMusicEngine');
+                  const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${randomAlbum.id}`);
+                  tracks = details?.songs || [];
+                }
+                if (tracks.length > 0) {
+                  const randomTrack = tracks[Math.floor(Math.random() * tracks.length)];
+                  setRemoteState({ isShuffle: true });
+                  playSong(randomTrack, tracks);
+                }
+              }
+            }}
+            className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white font-bold text-xs flex items-center gap-2 transition-all hover:scale-105 active:scale-95 border border-white/10 cursor-pointer"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-shuffle"><polyline points="16 3 21 3 21 8"/><line x1="4" x2="21" y1="20" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" x2="21" y1="15" y2="21"/><line x1="4" x2="9" y1="4" y2="9"/></svg>
+            Shuffle
+          </button>
+        </div>
       </div>
 
       {/* Shelf 1: Recently Released Albums */}
