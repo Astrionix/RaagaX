@@ -87,6 +87,7 @@ export function BrowseView() {
           <CarouselShelf 
             key={section.id}
             title={section.title} 
+            showPlayAll={true}
             icon={
               section.id === 'trending' ? <TrendingUp className="w-5 h-5 text-[#fa233b]" /> :
               section.id === 'new_releases' ? <Sparkles className="w-5 h-5 text-[#fa233b]" /> :

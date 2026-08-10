@@ -9,6 +9,7 @@ export interface ShelfItem {
   imageUrl?: string;
   type: 'song' | 'playlist' | 'album' | 'artist' | 'mix';
   actionData?: any; // E.g., song ID to play, or playlist ID to open
+  rawItem?: any;
 }
 
 export interface HomeSection {
