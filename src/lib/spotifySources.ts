@@ -1,10 +1,10 @@
 export const BROWSE_5_PLAYLISTS: Record<string, Array<{ id: string; title: string }>> = {
   Telugu: [
     { id: '37i9dQZF1DX5VOFoIqmrOV', title: 'Tollywood Pearls' },
+    { id: '37i9dQZF1DWWwrjLPC16W7', title: 'Latest Telugu' },
     { id: '37i9dQZF1DXcrFZ8UTtxv9', title: "All Out 00's Telugu" },
     { id: '37i9dQZF1DX3I9bqAkK5Dr', title: 'Telugu Indie' },
     { id: '37i9dQZF1DWTw6jXuVBprS', title: 'Telangana Folk Beats!' },
-    { id: '37i9dQZF1DWWwrjLPC16W7', title: 'Latest Telugu' },
   ],
   Tamil: [
     { id: '37i9dQZF1DWTnDuST8OorZ', title: 'All out 00s Tamil' },
