@@ -5,6 +5,8 @@ import { JioSaavnProvider } from '@/lib/jioSaavnProvider';
 import { Song } from '@/types/music';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
+export const dynamic = 'force-dynamic';
+
 const SPOTIFY_PLAYLISTS: Record<string, any> = {
   Telugu: {
     trending: '37i9dQZF1DWTt3gMo0DLxA',
