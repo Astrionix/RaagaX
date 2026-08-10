@@ -5,57 +5,59 @@ import { JioSaavnProvider } from '@/lib/jioSaavnProvider';
 import { Song } from '@/types/music';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
+import { NEW_SOURCES } from '@/lib/spotifySources';
+
 export const dynamic = 'force-dynamic';
 
 const SPOTIFY_PLAYLISTS: Record<string, any> = {
   Telugu: {
-    trending: '37i9dQZF1DWTt3gMo0DLxA',
-    latest: '1LdLGtTL7UDxYoCAvSu3sK',
-    romance: '37i9dQZF1DX44F1QWqYoaV',
-    pop: '3kvyqwgQ7oSCvVr6zzkJZr',
-    classics: '0Xvf1SBb3pfHFLPWoqRjJ4',
+    trending: NEW_SOURCES.Telugu.primary[0],
+    latest: NEW_SOURCES.Telugu.primary[1],
+    romance: NEW_SOURCES.Telugu.primary[2],
+    pop: NEW_SOURCES.Telugu.secondary[0],
+    classics: null,
   },
   Tamil: {
-    trending: '37i9dQZF1DX4Im4BTs2WMg',
-    latest: '3WgtrDIm5oHiYjrIpnxSiO',
-    romance: '5TlgIY5CX9fQO4qvUWnPLh',
-    pop: '7cQEpNdqsuxRgM5LZ9OxCC',
-    classics: '37i9dQZF1EIfX9is4kL8BA',
+    trending: NEW_SOURCES.Tamil.primary[0],
+    latest: NEW_SOURCES.Tamil.primary[1],
+    romance: NEW_SOURCES.Tamil.primary[2],
+    pop: NEW_SOURCES.Tamil.secondary[0],
+    classics: null,
   },
   Kannada: {
-    trending: '37i9dQZF1DX1ahAlaaz0ZE',
-    latest: '4TvxxFHYjBvRtaOrGl25N8',
-    romance: '4pw9SyOxQ86b4JOGIAEvFY',
-    pop: '37i9dQZF1EQoSpPa76iq3Q',
-    classics: '1C2ZX32E6c5FgOwD3OWsbl',
+    trending: NEW_SOURCES.Kannada.primary[0],
+    latest: NEW_SOURCES.Kannada.primary[1],
+    romance: NEW_SOURCES.Kannada.primary[2],
+    pop: NEW_SOURCES.Kannada.secondary[0],
+    classics: NEW_SOURCES.Kannada.secondary[1],
   },
   Malayalam: {
-    trending: '37i9dQZF1DWTYKFynxp6Fs',
-    latest: '42HxtIRmltLReIOaKfaj6x',
-    romance: '17nBGVOj4ZGTAd6O07fxbo',
-    pop: '6vfZ0qdHrsmOV1LUiaK7oS',
-    classics: '4liNg9aAikvomN66VYNmM3',
+    trending: NEW_SOURCES.Malayalam.primary[0],
+    latest: NEW_SOURCES.Malayalam.primary[1],
+    romance: NEW_SOURCES.Malayalam.primary[2],
+    pop: null,
+    classics: null,
   },
   Hindi: {
-    trending: '37i9dQZF1DX0XUfTFmNBRM',
-    latest: '3wc6e5ZPCjXAxasjkWlcXc',
-    romance: '6ir6Y9SxFL4mWTHFrYokbv',
-    pop: '0I6mu7LlHfxuCKx7yevUGr',
-    classics: '37i9dQZF1EIcMWU5aFysN5',
+    trending: NEW_SOURCES.Hindi.primary[0],
+    latest: NEW_SOURCES.Hindi.primary[1],
+    romance: NEW_SOURCES.Hindi.primary[2],
+    pop: NEW_SOURCES.Hindi.secondary[0],
+    classics: NEW_SOURCES.Hindi.secondary[1],
   },
   English: {
-    trending: '37i9dQZF1DX4JAvHpjipBk',
-    latest: '3Zu0J0JzSRzAT32LgFyg7i',
-    romance: '1VKhPo3RaqWoBbsAPsUuvl',
-    pop: '37i9dQZF1EQncLwOalG3K7',
-    classics: '37i9dQZF1EQpj7X7UK8OOF',
+    trending: NEW_SOURCES.English.primary[0],
+    latest: NEW_SOURCES.English.primary[1],
+    romance: NEW_SOURCES.English.primary[2],
+    pop: NEW_SOURCES.English.secondary[0],
+    classics: NEW_SOURCES.English.secondary[1],
   },
   'All Languages': {
-    trending: '37i9dQZF1DWTt3gMo0DLxA',
-    latest: '1LdLGtTL7UDxYoCAvSu3sK',
-    romance: '37i9dQZF1DX44F1QWqYoaV',
-    pop: '37i9dQZF1DX0XUfTFmNBRM',
-    classics: '37i9dQZF1DX4Im4BTs2WMg',
+    trending: NEW_SOURCES.Telugu.primary[0],
+    latest: NEW_SOURCES.Hindi.primary[0],
+    romance: NEW_SOURCES.Tamil.primary[0],
+    pop: NEW_SOURCES.English.primary[0],
+    classics: NEW_SOURCES.Malayalam.primary[0],
   }
 };
 

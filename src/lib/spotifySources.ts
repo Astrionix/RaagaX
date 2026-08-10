@@ -1,77 +1,91 @@
-export const CATEGORY_SPOTIFY_SOURCES: Record<string, Record<string, { id: string; title: string }>> = {
+export const NEW_SOURCES: Record<string, {
+  primary: string[];
+  secondary: string[];
+}> = {
   Telugu: {
-    language: { id: '1LdLGtTL7UDxYoCAvSu3sK', title: 'Telugu Super Hits 2026' },
-    new_music: { id: '7HMzUogD0VWQP60eBF3u4w', title: 'New Telugu Releases' },
-    charts: { id: '37i9dQZF1DWTt3gMo0DLxA', title: 'Trending Now Telugu' },
-    playlists: { id: '3kvyqwgQ7oSCvVr6zzkJZr', title: 'Telugu Top Playlists' },
-    mood: { id: '37i9dQZF1DX44F1QWqYoaV', title: 'Telugu Mood & Love' },
-    genres: { id: '0Xvf1SBb3pfHFLPWoqRjJ4', title: 'Telugu Melodies & Devotional' }
+    primary: [
+      "37i9dQZF1DX6XE7HRLM75P", // Hot Hits Telugu — Spotify
+      "6w4NVkOj7vHg8FUXyOF1f9", // Trending Telugu Songs 2026
+      "0A6w9xDIYGrYgXtXEcUmM0"  // Top Telugu Hits 2026
+    ],
+    secondary: [
+      "7EpmzCQVjm6lz4GlBCNZYP"   // Thaman Top 200 Hits Telugu
+    ]
   },
-  Tamil: {
-    language: { id: '3WgtrDIm5oHiYjrIpnxSiO', title: 'Tamil Super Hits 2026' },
-    new_music: { id: '6XHsgMiMkAlPwcBRa2AGZN', title: 'New Tamil Releases' },
-    charts: { id: '37i9dQZF1DX4Im4BTs2WMg', title: 'Trending Now Tamil' },
-    playlists: { id: '7cQEpNdqsuxRgM5LZ9OxCC', title: 'Tamil Top Playlists' },
-    mood: { id: '5TlgIY5CX9fQO4qvUWnPLh', title: 'Tamil Romance & Mood' },
-    genres: { id: '37i9dQZF1EIfX9is4kL8BA', title: 'Tamil Devotional & Genres' }
-  },
+
   Kannada: {
-    language: { id: '4TvxxFHYjBvRtaOrGl25N8', title: 'Kannada Super Hits 2026' },
-    new_music: { id: '0LhvuW0vSFCqw0jDjLUm8l', title: 'New Kannada Releases' },
-    charts: { id: '37i9dQZF1DX1ahAlaaz0ZE', title: 'Hot Hits Kannada' },
-    playlists: { id: '37i9dQZF1EQoSpPa76iq3Q', title: 'Kannada Mix Playlists' },
-    mood: { id: '4pw9SyOxQ86b4JOGIAEvFY', title: 'Kannada Emotional & Mood' },
-    genres: { id: '1C2ZX32E6c5FgOwD3OWsbl', title: 'Kannada Devotional & Genres' }
+    primary: [
+      "37i9dQZF1DWZqTcNLmb3sH", // Latest Kannada — Spotify
+      "6ppm1rd8zW1FfkWkLOJd80", // Top Hits Kannada 2026
+      "37i9dQZF1DX9i6vCEoH6jH"  // Kannada Party Time — Spotify
+    ],
+    secondary: [
+      "2RPM7DnMrkGVtyGKluPb2P", // Sonu Nigam Kannada Hits
+      "4gEu20D7S53LUJqpma2MvS", // Puneeth Rajkumar Kannada Hits
+      "58vfzeU7ZGgmV2SzQ1vLPV"  // Raghu Dixit Kannada Hits
+    ]
   },
+
+  Tamil: {
+    primary: [
+      "37i9dQZF1DX1i3hvzHpcQV", // Hot Hits Tamil — Spotify
+      "0cJFpwIlxFm3NsKboxbQ6a", // Tamil Hits 2000–2025
+      "3E7NJ4AE8fweSdoOgCQS0w"  // Tamil Hits 1990s–2022
+    ],
+    secondary: [
+      "1tvO8pnSjTe1Rxwm78FGnW"  // Tamil hits 1996–2000
+    ]
+  },
+
   Malayalam: {
-    language: { id: '42HxtIRmltLReIOaKfaj6x', title: 'Malayalam Super Hits 2026' },
-    new_music: { id: '2FW3fY7NnlBZAXXCTUEC8d', title: 'New Malayalam Releases' },
-    charts: { id: '37i9dQZF1DWTYKFynxp6Fs', title: 'Trending Now Malayalam' },
-    playlists: { id: '17nBGVOj4ZGTAd6O07fxbo', title: 'Malayalam Playlists' },
-    mood: { id: '6vfZ0qdHrsmOV1LUiaK7oS', title: 'Malayalam Party & Mood' },
-    genres: { id: '4liNg9aAikvomN66VYNmM3', title: 'Malayalam Devotional & Genres' }
+    primary: [
+      "37i9dQZF1DX688wU47emR9", // Hot Hits Malayalam — Spotify
+      "37i9dQZF1DXaDDXaHNhJDD", // Mollywood Gold — Spotify
+      "5IqEQiJzYvJmkYirT8NqRx"  // 2026 Malayalam Top Hits
+    ],
+    secondary: []
   },
+
   Hindi: {
-    language: { id: '3wc6e5ZPCjXAxasjkWlcXc', title: 'Bollywood Super Hits 2026' },
-    new_music: { id: '108XK9LJh36fpDg4vhTx11', title: 'New Hindi Releases' },
-    charts: { id: '37i9dQZF1DX0XUfTFmNBRM', title: 'Hot Hits Hindi' },
-    playlists: { id: '0I6mu7LlHfxuCKx7yevUGr', title: 'Top Hindi Playlists' },
-    mood: { id: '6ir6Y9SxFL4mWTHFrYokbv', title: 'Hindi Love & Mood' },
-    genres: { id: '37i9dQZF1EIcMWU5aFysN5', title: 'Bollywood Mix Genres' }
+    primary: [
+      "74bgEPAY1s25NCojSShUGK", // 2026 Best Songs
+      "7hRdEVx3T8RF8s4QNNSORU", // Top Hindi Songs 2026
+      "6vMOECoVzCMbqU5jPnfgIT"  // Hindi Songs 2026
+    ],
+    secondary: [
+      "6Z3BmVoSFRvMeMkv9XclTb", // Top Bollywood Hits 2026
+      "6uI26cdAvrmMgTNHrF0g6j", // Hindi mixed moods
+      "0lgFD8THSkuGLc7HxdCoog", // Best Hindi Songs
+      "6RMAWr6LmvnNeuHZENr1V3"  // Best Hindi Songs 2026
+    ]
   },
+
   English: {
-    language: { id: '3Zu0J0JzSRzAT32LgFyg7i', title: 'Global Pop Hits 2026' },
-    new_music: { id: '37i9dQZF1DX4JAvHpjipBk', title: 'New Music Friday Global' },
-    charts: { id: '4KjYpz6QCC7Y5VKBTygSfi', title: 'Top 50 English Charts' },
-    playlists: { id: '37i9dQZF1EQncLwOalG3K7', title: 'Pop & Rock Mix' },
-    mood: { id: '1VKhPo3RaqWoBbsAPsUuvl', title: 'English Sad & Mood' },
-    genres: { id: '37i9dQZF1EQpj7X7UK8OOF', title: 'Rock & Hip-Hop Genres' }
+    primary: [
+      "37i9dQZF1DX2L0iB23Enbq", // Viral Hits — Spotify
+      "37i9dQZF1DX0kbJZpiYdZl", // Hot Hits USA — Spotify
+      "4Ogw0Av7Zlpedzey04qScS"  // Top Hits English
+    ],
+    secondary: [
+      "1kFo0mfkxvUSe2GZcjzTHL", // Feel-Good Pop Hits 2026
+      "0IixkV6ydpdcfsEtHxCPlP", // Viral Hits 2026
+      "23Q7biosrwvcqdnJgWEHYZ"  // Viral Hits Worldwide
+    ]
   }
 };
 
-export const SOURCES: Record<string, any> = {
-  Telugu: {
-    primary: ["37i9dQZF1DWTt3gMo0DLxA", "1LdLGtTL7UDxYoCAvSu3sK", "37i9dQZF1DX44F1QWqYoaV"],
-    secondary: ["21EdxspcpDsph6Gc3Md8r1", "7HMzUogD0VWQP60eBF3u4w", "6yE2czLXLh2KhdNfp6Biw4", "6w9yXoENbUZawha9wCuW9o", "5qBaCNDovzWx8Vd3Ak0yqA", "3kvyqwgQ7oSCvVr6zzkJZr", "48T0uwqUzk7dQah3ClAAWI", "6bPRhZqdk1M2JzQlHWoJs3", "7rtUMBs8pNbghIjwfUCDCz", "6h2nq1EQu3jY9I8GdrkXLG", "0Xvf1SBb3pfHFLPWoqRjJ4", "4bFpckX4543lROR5VHiwsw", "668PXSIiS3yyachCC1r3pP"]
-  },
-  Tamil: {
-    primary: ["37i9dQZF1DX4Im4BTs2WMg", "3WgtrDIm5oHiYjrIpnxSiO", "5TlgIY5CX9fQO4qvUWnPLh"],
-    secondary: ["1J6BEsUM7AI8YkgIaXi5rx", "6XHsgMiMkAlPwcBRa2AGZN", "37i9dQZF1DWVo4cdnikh7Z", "34L5yFgD9chHEhGGAvYOBW", "7cQEpNdqsuxRgM5LZ9OxCC", "4In6In7pqWYOHdEsZSjbEw", "345GvQPrGdGzfYPNsa5XXM", "0AyOLKzLZZmlliok7bu1mp", "37i9dQZF1EIfX9is4kL8BA", "5ld0MHnxb4zwNBKab8XApb", "5igRa5EOOSF1U6ZdnkwqXi"]
-  },
-  Kannada: {
-    primary: ["37i9dQZF1DX1ahAlaaz0ZE", "4TvxxFHYjBvRtaOrGl25N8", "6hih6rtmXX1c2S36sVs9cO"],
-    secondary: ["0LhvuW0vSFCqw0jDjLUm8l", "37i9dQZF1EQoSpPa76iq3Q", "37i9dQZF1DX9i6vCEoH6jH", "1C2ZX32E6c5FgOwD3OWsbl", "4pw9SyOxQ86b4JOGIAEvFY"]
-  },
-  Malayalam: {
-    primary: ["37i9dQZF1DWTYKFynxp6Fs", "42HxtIRmltLReIOaKfaj6x", "17nBGVOj4ZGTAd6O07fxbo"],
-    secondary: ["2FW3fY7NnlBZAXXCTUEC8d", "2oyPLBrsFKCZy6BtsgLrGO", "4YrPPzOazIDbWSeRYzIPvw", "6vfZ0qdHrsmOV1LUiaK7oS", "7tTSdbauzxWjB5qW4Wvd2V", "1zdhiG3XfZ7pegLJdqUyfb", "4liNg9aAikvomN66VYNmM3", "7erDLpPfGMM35HpSTHYfZi"]
-  },
-  Hindi: {
-    primary: ["37i9dQZF1DX0XUfTFmNBRM", "3wc6e5ZPCjXAxasjkWlcXc", "6ir6Y9SxFL4mWTHFrYokbv"],
-    secondary: ["53IK1Cyz3zVfyr2ACB3DQ2", "108XK9LJh36fpDg4vhTx11", "3oc8j3XqHYoP5HwBSH0r8d", "4DajpgoWtViKF328rZxjzE", "1fsH5DabQLznTAr3wswjrc", "7hRdEVx3T8RF8s4QNNSORU", "70oW2feKY5EFkpuOjoga58", "0I6mu7LlHfxuCKx7yevUGr", "6Z6KXVZBhKR5IBvDizgiz4", "37i9dQZF1EIcMWU5aFysN5", "4LHLZA4fpHx5mwS2t74NOt", "37i9dQZF1EIg0MkZn06A5i", "37i9dQZF1EIdebSX5B7ynI", "37i9dQZF1EIdifqVa3aWnK", "37i9dQZF1EIfUewaXfuUBH", "4wi1Eeg2X3TLxoybLhGOyV", "4hDw61CqwDKEFKdbkGQcPX"]
-  },
-  English: {
-    primary: ["37i9dQZF1DX4JAvHpjipBk", "3Zu0J0JzSRzAT32LgFyg7i", "37i9dQZF1EQncLwOalG3K7"],
-    secondary: ["4KjYpz6QCC7Y5VKBTygSfi", "37i9dQZF1EQpj7X7UK8OOF", "37i9dQZF1EQnqst5TRi17F", "37i9dQZF1EIgpYm3opR2VL", "1VKhPo3RaqWoBbsAPsUuvl", "71DwAUZzZIwZCyTMt0gTo6", "37i9dQZF1EIcVkEtbzdTRx"]
-  }
-};
+export const SOURCES = NEW_SOURCES;
+
+export const CATEGORY_SPOTIFY_SOURCES: Record<string, Record<string, { id: string; title: string }>> = Object.fromEntries(
+  Object.entries(NEW_SOURCES).map(([lang, data]) => [
+    lang,
+    {
+      language: { id: data.primary[0], title: `${lang} Top Hits` },
+      new_music: { id: data.primary[1] || data.primary[0], title: `New ${lang} Releases` },
+      charts: { id: data.primary[0], title: `${lang} Charts` },
+      playlists: { id: data.primary[2] || data.secondary[0] || data.primary[0], title: `${lang} Curated Playlists` },
+      mood: { id: data.secondary[0] || data.primary[0], title: `${lang} Mood & Love` },
+      genres: { id: data.secondary[1] || data.secondary[0] || data.primary[0], title: `${lang} Genres & Mixes` }
+    }
+  ])
+);
