@@ -103,7 +103,7 @@ export class DeviceSyncManager {
           repeat_mode: 'off',
           session_revision: 1
         };
-        await supabase.from('playback_sessions').insert(dbSession);
+        await supabase.from('playback_sessions').upsert(dbSession, { onConflict: 'session_id' });
       }
 
       this.localSessionRevision = dbSession.session_revision || 1;
@@ -339,11 +339,13 @@ export class DeviceSyncManager {
       ...extra
     };
 
-    this.channel.send({
-      type: 'broadcast',
-      event: 'command',
-      payload: { payload, senderId: this.deviceId }
-    });
+    if (this.channel && (this.channel as any).state === 'joined') {
+      this.channel.send({
+        type: 'broadcast',
+        event: 'command',
+        payload: { payload, senderId: this.deviceId }
+      });
+    }
   }
 
   public takeOverPlayback() {

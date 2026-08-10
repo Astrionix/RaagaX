@@ -77,7 +77,7 @@ export class PlaybackSessionManager {
         session_revision: this.lastPersistedSessionRevision,
         server_timestamp: Date.now(),
         updated_at: new Date().toISOString()
-      });
+      }, { onConflict: 'session_id' });
     } catch(e) {
       console.error("Failed to persist durable playback state", e);
     }
