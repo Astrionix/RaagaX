@@ -84,19 +84,19 @@ export function BrowseView() {
         )}
 
         {!isLoading && !error && data?.sections && data.sections.map((section: any) => (
-          <div key={section.id}>
-            <div className="flex items-center gap-2 mb-[-1.5rem]">
-              {section.id === 'trending' ? <TrendingUp className="w-5 h-5 text-[#fa233b]" /> :
-               section.id === 'new_releases' ? <Sparkles className="w-5 h-5 text-[#fa233b]" /> :
-               section.id === 'charts' ? <TrendingUp className="w-5 h-5 text-[#fa233b]" /> :
-               section.id === 'moods' ? <Music className="w-5 h-5 text-[#fa233b]" /> :
-               section.id === 'movies' ? <Film className="w-5 h-5 text-[#fa233b]" /> :
-               <Disc className="w-5 h-5 text-[#fa233b]" />
-              }
-              <h2 className="text-xl font-bold">{section.title}</h2>
-            </div>
-            <CarouselShelf title="" items={section.items} />
-          </div>
+          <CarouselShelf 
+            key={section.id}
+            title={section.title} 
+            icon={
+              section.id === 'trending' ? <TrendingUp className="w-5 h-5 text-[#fa233b]" /> :
+              section.id === 'new_releases' ? <Sparkles className="w-5 h-5 text-[#fa233b]" /> :
+              section.id === 'charts' ? <TrendingUp className="w-5 h-5 text-[#fa233b]" /> :
+              section.id === 'moods' ? <Music className="w-5 h-5 text-[#fa233b]" /> :
+              section.id === 'movies' ? <Film className="w-5 h-5 text-[#fa233b]" /> :
+              <Disc className="w-5 h-5 text-[#fa233b]" />
+            }
+            items={section.items} 
+          />
         ))}
       </div>
     </div>

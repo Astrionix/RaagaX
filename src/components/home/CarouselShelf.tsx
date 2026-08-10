@@ -3,7 +3,7 @@ import { ShelfItem } from '@/types/home';
 import { Play, ChevronRight, ChevronDown } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 
-export function CarouselShelf({ title, items }: { title: string; items: ShelfItem[] }) {
+export function CarouselShelf({ title, items, icon }: { title: string; items: ShelfItem[]; icon?: React.ReactNode }) {
   const { setActiveTab, setSelectedPlaylistId, setSelectedArtistId, setSelectedAlbumId, playSong } = usePlayerStore();
   const [showAll, setShowAll] = useState(false);
 
@@ -71,9 +71,12 @@ export function CarouselShelf({ title, items }: { title: string; items: ShelfIte
   return (
     <section className="mb-8">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold text-white hover:underline cursor-pointer inline-block">
-          {title}
-        </h2>
+        <div className="flex items-center gap-2">
+          {icon}
+          <h2 className="text-xl font-bold text-white hover:underline cursor-pointer inline-block">
+            {title}
+          </h2>
+        </div>
         {items.length > 10 && (
           <button 
             onClick={() => setShowAll(!showAll)}
