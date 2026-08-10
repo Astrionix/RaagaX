@@ -201,7 +201,10 @@ export function HomeView() {
                   <img 
                     src={album.coverUrl} 
                     alt={album.title} 
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=500&h=500';
+                    }}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 bg-slate-800" 
                   />
 
                   <div className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-md text-white text-[10px] font-black border border-white/10">

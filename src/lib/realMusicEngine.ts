@@ -76,6 +76,22 @@ export class RealMusicEngine {
     }
   }
 
+  private extractCoverUrl(image: any): string {
+    if (!image) return '';
+    if (typeof image === 'string') return image.replace('http://', 'https://');
+    if (Array.isArray(image)) {
+      const hi = image.find((i: any) => i?.quality === '500x500' || i?.quality === '500X500') || image[image.length - 1];
+      if (hi) {
+        if (typeof hi === 'string') return hi.replace('http://', 'https://');
+        if (hi.url) return hi.url.replace('http://', 'https://');
+        if (hi.link) return hi.link.replace('http://', 'https://');
+      }
+    }
+    if (image?.url) return image.url.replace('http://', 'https://');
+    if (image?.link) return image.link.replace('http://', 'https://');
+    return '';
+  }
+
   public async searchRealAlbums(query: string, limit = 15): Promise<any[]> {
     const q = query.trim();
     if (!q) return [];
@@ -91,11 +107,7 @@ export class RealMusicEngine {
       const data = await res.json();
       const results = data.data?.results || data.results || [];
       return results.map((album: any) => {
-        let coverUrl = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80';
-        if (Array.isArray(album.image)) {
-          const hi = album.image.find((i: any) => i.quality === '500x500') || album.image[album.image.length - 1];
-          if (hi?.url) coverUrl = hi.url.replace('http://', 'https://');
-        }
+        const coverUrl = this.extractCoverUrl(album.image || album.coverUrl) || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80';
         return {
           id: album.id,
           title: decode(album.name || album.title || 'Unknown Album'),
@@ -141,11 +153,7 @@ export class RealMusicEngine {
       
       if (!collection) return null;
 
-      let coverUrl = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80';
-      if (Array.isArray(collection.image)) {
-        const hi = collection.image.find((i: any) => i.quality === '500x500') || collection.image[collection.image.length - 1];
-        if (hi?.url) coverUrl = hi.url.replace('http://', 'https://');
-      }
+      const coverUrl = this.extractCoverUrl(collection.image || collection.coverUrl) || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80';
 
       let rawSongs = collection.songs ? this.mapResults(collection.songs) : [];
 

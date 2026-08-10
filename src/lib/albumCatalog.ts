@@ -22,18 +22,18 @@ export interface AlbumItem {
 // Real Seed Albums per language (Unique JioSaavn Album IDs)
 const REAL_SEED_ALBUMS: Record<string, { id: string; title: string; artist: string; year: number; coverUrl: string }[]> = {
   Telugu: [
-    { id: "17435036", title: "Ala Vaikunthapurramuloo", artist: "Thaman S, Sid Sriram", year: 2019, coverUrl: "https://c.saavncdn.com/978/Ala-Vaikunthapurramuloo-Telugu-2019-20200111202005-500x500.jpg" },
-    { id: "1043082", title: "Pokiri", artist: "Mani Sharma", year: 2006, coverUrl: "https://c.saavncdn.com/082/Pokiri-Telugu-2006-20190704040228-500x500.jpg" },
-    { id: "1106508", title: "Mirchi", artist: "Devi Sri Prasad", year: 2013, coverUrl: "https://c.saavncdn.com/508/Mirchi-Telugu-2013-20190708064949-500x500.jpg" },
-    { id: "1031057", title: "Ishq", artist: "Anup Rubens", year: 2012, coverUrl: "https://c.saavncdn.com/057/Ishq-Telugu-2012-20190706173041-500x500.jpg" },
-    { id: "17088629", title: "Saaho", artist: "Tanishk Bagchi, Guru Randhawa", year: 2019, coverUrl: "https://c.saavncdn.com/629/Saaho-Telugu-2019-20190829165313-500x500.jpg" },
-    { id: "1027450", title: "Gabbar Singh", artist: "Devi Sri Prasad", year: 2012, coverUrl: "https://c.saavncdn.com/450/Gabbar-Singh-Telugu-2012-20190706172605-500x500.jpg" },
-    { id: "1053449", title: "Varsham", artist: "Devi Sri Prasad", year: 2003, coverUrl: "https://c.saavncdn.com/449/Varsham-Telugu-2003-20190704033939-500x500.jpg" },
-    { id: "1027944", title: "Gharshana", artist: "Harris Jayaraj", year: 2004, coverUrl: "https://c.saavncdn.com/944/Gharshana-Telugu-2004-20190704033945-500x500.jpg" },
-    { id: "1050750", title: "Magadheera", artist: "M.M. Keeravaani", year: 2009, coverUrl: "https://c.saavncdn.com/750/Magadheera-Telugu-2009-20190706170530-500x500.jpg" },
-    { id: "1036329", title: "Kushi", artist: "Mani Sharma", year: 2001, coverUrl: "https://c.saavncdn.com/329/Kushi-Telugu-2001-20190704033924-500x500.jpg" },
-    { id: "1037326", title: "Bommarillu", artist: "Devi Sri Prasad", year: 2006, coverUrl: "https://c.saavncdn.com/326/Bommarillu-Telugu-2006-20190704040232-500x500.jpg" },
-    { id: "1038487", title: "Athadu", artist: "Mani Sharma", year: 2005, coverUrl: "https://c.saavncdn.com/487/Athadu-Telugu-2005-20190704033959-500x500.jpg" }
+    { id: "17435036", title: "Ala Vaikunthapurramuloo", artist: "Thaman S, Sid Sriram", year: 2019, coverUrl: "https://c.saavncdn.com/517/Ala-Vaikunthapurramuloo-Telugu-2019-20200116144338-500x500.jpg" },
+    { id: "1043082", title: "Pokiri", artist: "Mani Sharma", year: 2006, coverUrl: "https://c.saavncdn.com/082/Pokiri-2006-500x500.jpg" },
+    { id: "1106508", title: "Mirchi", artist: "Devi Sri Prasad", year: 2013, coverUrl: "https://c.saavncdn.com/500/Mirchi-2013-500x500.jpg" },
+    { id: "1031057", title: "Ishq", artist: "Anup Rubens", year: 2012, coverUrl: "https://c.saavncdn.com/057/Ishq-Telugu-2012-500x500.jpg" },
+    { id: "17088629", title: "Saaho", artist: "Tanishk Bagchi, Guru Randhawa", year: 2019, coverUrl: "https://c.saavncdn.com/186/Saaho-Telugu-2019-20190828024553-500x500.jpg" },
+    { id: "1027450", title: "Gabbar Singh", artist: "Devi Sri Prasad", year: 2012, coverUrl: "https://c.saavncdn.com/450/Gabbar-Singh-2012-500x500.jpg" },
+    { id: "1053449", title: "Varsham", artist: "Devi Sri Prasad", year: 2003, coverUrl: "https://c.saavncdn.com/449/Varsham-2003-500x500.jpg" },
+    { id: "1027944", title: "Gharshana", artist: "Harris Jayaraj", year: 2004, coverUrl: "https://c.saavncdn.com/944/Gharshana-2004-500x500.jpg" },
+    { id: "1050750", title: "Magadheera", artist: "M.M. Keeravaani", year: 2009, coverUrl: "https://c.saavncdn.com/750/Magadheera-2009-500x500.jpg" },
+    { id: "1036329", title: "Kushi", artist: "Mani Sharma", year: 2001, coverUrl: "https://c.saavncdn.com/329/Kushi-2001-500x500.jpg" },
+    { id: "1041693", title: "Orange", artist: "Harris Jayaraj", year: 2010, coverUrl: "https://c.saavncdn.com/105/Orange-Telugu-2006-20210624180302-500x500.jpg" },
+    { id: "13383078", title: "Geetha Govindam", artist: "Gopi Sundar", year: 2018, coverUrl: "https://c.saavncdn.com/237/Geetha-Govindam-Telugu-2018-20180921-500x500.jpg" }
   ],
   Tamil: [
     { id: "1124619", title: "Leo", artist: "Anirudh Ravichander", year: 2023, coverUrl: "https://images.unsplash.com/photo-1493225457124-a1a2a5f5f924?auto=format&fit=crop&q=80&w=500&h=500" },
@@ -110,21 +110,21 @@ export class AlbumCatalogEngine {
    */
   public static async fetchRealAlbumsForLanguage(lang: string): Promise<AlbumItem[]> {
     const language = lang || 'Telugu';
-    if (this.cache[language] && this.cache[language].length > 5) {
+    if (this.cache[language] && this.cache[language].length >= 30) {
       return this.cache[language];
     }
 
     try {
-      // Fetch regional album search results
-      const realResults = await RealMusicEngine.getInstance().searchRealAlbums(`${language}`, 30);
+      // Fetch up to 75 regional album search results from JioSaavn
+      const realResults = await RealMusicEngine.getInstance().searchRealAlbums(`${language}`, 75);
       
       const seenTitles = new Set<string>();
       const seenIds = new Set<string>();
       const albums: AlbumItem[] = [];
 
-      // Fetch details in parallel for max speed
+      // Process candidates in parallel for 50 unique albums
       const detailsList = await Promise.all(
-        realResults.slice(0, 25).map(async (item) => {
+        realResults.slice(0, 70).map(async (item) => {
           if (!item.id) return null;
           try {
             const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${item.id}`);
@@ -178,6 +178,8 @@ export class AlbumCatalogEngine {
           topScore: 100 - albums.length * 2,
           tracks
         });
+
+        if (albums.length >= 50) break;
       }
 
       if (albums.length > 0) {
