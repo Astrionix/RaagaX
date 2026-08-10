@@ -24,7 +24,7 @@ async function triggerBackgroundSync(baseUrl: string, playlistId: string, lang: 
 
 async function getPlaylistWithSWR(baseUrl: string, playlistId: string | null, lang: string, category: string, fallbackQuery: string, saavn: JioSaavnProvider): Promise<Song[]> {
   if (!playlistId) {
-    return saavn.searchSongs(fallbackQuery, 75);
+    return saavn.searchSongs(fallbackQuery, 100);
   }
 
   // Check Supabase Cache
@@ -35,9 +35,9 @@ async function getPlaylistWithSWR(baseUrl: string, playlistId: string | null, la
     .maybeSingle();
 
   if (cached && cached.data) {
-    // If expired OR if we have less than 75 songs, trigger background sync but return stale data immediately
+    // If expired OR if we have less than 100 songs, trigger background sync but return stale data immediately
     const isStale = new Date(cached.expires_at).getTime() < Date.now();
-    const isUndersized = (cached.data as Song[]).length < 75;
+    const isUndersized = (cached.data as Song[]).length < 100;
     if (isStale || isUndersized) {
       triggerBackgroundSync(baseUrl, playlistId, lang, category);
     }
@@ -46,7 +46,7 @@ async function getPlaylistWithSWR(baseUrl: string, playlistId: string | null, la
 
   // Cache MISS. Trigger sync for future and fallback to JioSaavn for immediate response
   triggerBackgroundSync(baseUrl, playlistId, lang, category);
-  return saavn.searchSongs(fallbackQuery, 75);
+  return saavn.searchSongs(fallbackQuery, 100);
 }
 
 export async function GET(req: NextRequest) {
