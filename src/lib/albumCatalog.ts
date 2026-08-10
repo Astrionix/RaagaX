@@ -193,6 +193,44 @@ export class AlbumCatalogEngine {
     return this.getAlbumsForLanguage(language);
   }
 
+  public static getThreeCategorizedShelves(lang: string): {
+    recentlyReleased: AlbumItem[];
+    trending: AlbumItem[];
+    popular: AlbumItem[];
+  } {
+    const albums = this.getAlbumsForLanguage(lang);
+    if (!albums || albums.length === 0) {
+      return { recentlyReleased: [], trending: [], popular: [] };
+    }
+
+    // 1. Sort by release date for Recently Released
+    const sortedByDate = [...albums].sort((a, b) => {
+      const timeA = new Date(a.releaseDate).getTime() || (a.releaseYear * 10000) || 0;
+      const timeB = new Date(b.releaseDate).getTime() || (b.releaseYear * 10000) || 0;
+      return timeB - timeA;
+    });
+
+    const usedIds = new Set<string>();
+
+    // 1. Recently Released: Top 15 distinct albums
+    const recentlyReleased = sortedByDate.slice(0, 15);
+    recentlyReleased.forEach(a => usedIds.add(a.id));
+
+    // 2. Trending: Next 15 distinct albums
+    const remainingForTrending = albums.filter(a => !usedIds.has(a.id));
+    const trending = remainingForTrending.slice(0, 15);
+    trending.forEach(a => usedIds.add(a.id));
+
+    // 3. Popular / Top: Remaining distinct albums
+    const popular = albums.filter(a => !usedIds.has(a.id));
+
+    return {
+      recentlyReleased,
+      trending,
+      popular
+    };
+  }
+
   public static getTop10Albums(lang: string): AlbumItem[] {
     const albums = this.getAlbumsForLanguage(lang);
     return [...albums].sort((a, b) => b.topScore - a.topScore).slice(0, 10);

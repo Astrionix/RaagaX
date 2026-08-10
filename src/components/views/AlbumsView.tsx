@@ -35,9 +35,8 @@ export function AlbumsView() {
     };
   }, [preferredLanguage]);
 
-  const allAlbums = realAlbums;
-  const recentlyReleased = [...realAlbums].sort((a, b) => b.freshnessScore - a.freshnessScore).slice(0, 12);
-  const trendingAlbums = [...realAlbums].sort((a, b) => b.trendingScore - a.trendingScore).slice(0, 12);
+  const { recentlyReleased, trending, popular } = AlbumCatalogEngine.getThreeCategorizedShelves(preferredLanguage);
+  const allAlbums = [...recentlyReleased, ...trending, ...popular];
 
   const handlePlayAlbum = async (e: React.MouseEvent, album: AlbumItem) => {
     e.stopPropagation();
@@ -177,14 +176,21 @@ export function AlbumsView() {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {trendingAlbums.map((album) => (
+            {trending.map((album) => (
               <div 
                 key={album.id}
                 onClick={() => handleOpenAlbum(album)}
                 className="group relative bg-[#12141c]/60 p-3 rounded-2xl border border-white/5 hover:border-white/20 transition-all hover:scale-[1.02] cursor-pointer shadow-lg"
               >
                 <div className="relative aspect-square rounded-xl overflow-hidden mb-2.5">
-                  <img src={album.coverUrl} alt={album.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <img 
+                    src={album.coverUrl} 
+                    alt={album.title} 
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=500&h=500';
+                    }}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 bg-slate-800" 
+                  />
                   <button
                     onClick={(e) => handlePlayAlbum(e, album)}
                     className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-[#fa233b] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-105 shadow-xl"
@@ -205,25 +211,32 @@ export function AlbumsView() {
         </section>
       )}
 
-      {/* Shelf 3: Top 50 Albums Catalog Grid */}
+      {/* Shelf 3: Top Albums Catalog Grid */}
       {(activeTabFilter === 'all' || activeTabFilter === 'top') && (
         <section className="space-y-4 pt-2">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-yellow-500" /> 🏆 Top 50 {preferredLanguage} Albums
+              <Trophy className="w-5 h-5 text-yellow-500" /> 🏆 Popular & Top Ranked Albums
             </h2>
-            <span className="text-xs text-slate-400 font-bold">{allAlbums.length} Verified Albums</span>
+            <span className="text-xs text-slate-400 font-bold">{popular.length} Verified Albums</span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {allAlbums.map((album, idx) => (
+            {popular.map((album, idx) => (
               <div 
                 key={album.id}
                 onClick={() => handleOpenAlbum(album)}
                 className="group relative bg-[#12141c]/60 p-3 rounded-2xl border border-white/5 hover:border-white/20 transition-all hover:scale-[1.02] cursor-pointer shadow-lg"
               >
                 <div className="relative aspect-square rounded-xl overflow-hidden mb-2.5">
-                  <img src={album.coverUrl} alt={album.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <img 
+                    src={album.coverUrl} 
+                    alt={album.title} 
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=500&h=500';
+                    }}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 bg-slate-800" 
+                  />
                   
                   {/* Rank Badge */}
                   <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white text-[10px] font-black border border-white/10">
