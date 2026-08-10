@@ -96,8 +96,9 @@ export function BrowseView() {
             icon={
               section.id === 'trending' ? <TrendingUp className="w-5 h-5 text-[#fa233b]" /> :
               section.id === 'new_releases' ? <Sparkles className="w-5 h-5 text-[#fa233b]" /> :
-              section.id === 'charts' ? <TrendingUp className="w-5 h-5 text-[#fa233b]" /> :
               section.id === 'moods' ? <Music className="w-5 h-5 text-[#fa233b]" /> :
+              section.id === 'charts' ? <Disc className="w-5 h-5 text-[#fa233b]" /> :
+              section.id === 'classics' ? <Disc className="w-5 h-5 text-[#fa233b]" /> :
               section.id === 'movies' ? <Film className="w-5 h-5 text-[#fa233b]" /> :
               <Disc className="w-5 h-5 text-[#fa233b]" />
             }

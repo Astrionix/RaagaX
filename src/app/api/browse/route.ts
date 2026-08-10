@@ -3,6 +3,61 @@ import { AlbumResolver } from '@/lib/albumResolver';
 import { ShelfItem, HomeSection } from '@/types/home';
 import { JioSaavnProvider } from '@/lib/jioSaavnProvider';
 import { Song } from '@/types/music';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
+
+// --- Spotify Discovery Configuration ---
+// These are Tier-1 Verified Editorial Playlists for high-quality discovery.
+const SPOTIFY_PLAYLISTS: Record<string, any> = {
+  Telugu: {
+    trending: '37i9dQZF1DWTt3gMo0DLxA',   // Trending Now Telugu
+    latest: '37i9dQZF1DWWwrjLPC16W7',     // Latest Telugu
+    romance: '37i9dQZF1DX44F1QWqYoaV',    // Telugu Love Songs
+    pop: '37i9dQZF1EIdegp8DGOKNT',        // Telugu Pop Mix
+    classics: '37i9dQZF1DX5EEpa9ekxRI',   // All Out 90s Telugu
+  },
+  Tamil: {
+    trending: '37i9dQZF1DX4Im4BTs2WMg',   // Trending Now Tamil
+    latest: '37i9dQZF1DWVo4cdnikh7Z',     // Latest Tamil
+    romance: '5TlgIY5CX9fQO4qvUWnPLh',    // Tamil Love Songs (Community Tier-2)
+    pop: '37i9dQZF1DXaVmfUr97Uve',        // Tamil Pop
+    classics: null,
+  },
+  Kannada: {
+    trending: null,
+    latest: '37i9dQZF1DWZqTcNLmb3sH',     // Latest Kannada
+    romance: '37i9dQZF1DX2MvScOHAAiE',    // Kannada Romance
+    pop: null,
+    classics: null,
+  },
+  Malayalam: {
+    trending: '37i9dQZF1DWTYKFynxp6Fs',   // Trending Now Malayalam
+    latest: '37i9dQZF1DX688wU47emR9',     // Hot Hits Malayalam
+    romance: '37i9dQZF1DX3lmpQSniUBH',    // Romantic Malayalam
+    pop: '37i9dQZF1DX0YqJHUZrLcd',        // Feel Good Malayalam
+    classics: '37i9dQZF1DXaDDXaHNhJDD',   // Mollywood Gold
+  },
+  Hindi: {
+    trending: '37i9dQZF1DX0XUfTFmNBRM',   // Hot Hits Hindi
+    latest: '37i9dQZF1DX4ghkRUdIogy',     // New Music Friday India
+    romance: '37i9dQZF1EIeJhaZUDlJS8',    // Romantic Soft Bollywood Mix
+    pop: '37i9dQZF1EIcOc4ILc4bgO',        // Party Bollywood Mix
+    classics: '37i9dQZF1EIfFo1P2382IG',   // Energetic Classic Bollywood
+  },
+  English: {
+    trending: '37i9dQZF1DXcBWIGoYBM5M',   // Today's Top Hits
+    latest: '37i9dQZF1DX4JAvHpjipBk',     // New Music Friday
+    romance: '37i9dQZF1DX7rOY2tZUw1k',    // Timeless Love Songs
+    pop: '37i9dQZF1DWWEcRhUVtL8n',        // Indie Pop
+    classics: '37i9dQZF1DXaKIA8E7WcJj',   // All Out 2000s
+  },
+  'All Languages': {
+    trending: '37i9dQZF1DX4ghkRUdIogy',   // New Music Friday India
+    latest: '37i9dQZF1DXcBWIGoYBM5M',     // Global Top Hits
+    romance: null,
+    pop: '37i9dQZF1EIe9njJIhd9wt',        // Happy Indian Music Mix
+    classics: null,
+  }
+};
 
 function getBaseUrl(req: NextRequest): string {
   const host = req.headers.get('host') || 'localhost:3001';
@@ -10,24 +65,37 @@ function getBaseUrl(req: NextRequest): string {
   return `${proto}://${host}`;
 }
 
-function decode(s: string): string {
-  return (s || '')
-    .replace(/&quot;/g, '"')
-    .replace(/&#039;/g, "'")
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>');
+async function triggerBackgroundSync(baseUrl: string, playlistId: string, lang: string, category: string) {
+  try {
+    // Fire and forget - do not await
+    fetch(`${baseUrl}/api/cron/discovery?playlistId=${playlistId}&lang=${lang}&category=${category}`).catch(() => {});
+  } catch(e) {}
 }
 
-function extractImage(image: any): string {
-  let coverUrl = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop&q=80';
-  if (Array.isArray(image)) {
-    const hi = image.find((i: any) => i.quality === '500x500') || image[image.length - 1];
-    if (hi?.url) coverUrl = hi.url.replace('http://', 'https://');
-  } else if (typeof image === 'string' && image) {
-    coverUrl = image.replace('http://', 'https://');
+async function getPlaylistWithSWR(baseUrl: string, playlistId: string | null, lang: string, category: string, fallbackQuery: string, saavn: JioSaavnProvider): Promise<Song[]> {
+  if (!playlistId) {
+    return saavn.searchSongs(fallbackQuery, 15);
   }
-  return coverUrl;
+
+  // Check Supabase Cache
+  const { data: cached } = await supabaseAdmin
+    .from('spotify_playlist_cache')
+    .select('*')
+    .eq('playlist_id', playlistId)
+    .maybeSingle();
+
+  if (cached && cached.data) {
+    // If expired, trigger background sync but return stale data immediately
+    const isStale = new Date(cached.expires_at).getTime() < Date.now();
+    if (isStale) {
+      triggerBackgroundSync(baseUrl, playlistId, lang, category);
+    }
+    return (cached.data as Song[]).slice(0, 100);
+  }
+
+  // Cache MISS. Trigger sync for future and fallback to JioSaavn for immediate response
+  triggerBackgroundSync(baseUrl, playlistId, lang, category);
+  return saavn.searchSongs(fallbackQuery, 15);
 }
 
 export async function GET(req: NextRequest) {
@@ -36,48 +104,33 @@ export async function GET(req: NextRequest) {
 
   try {
     const baseUrl = getBaseUrl(req);
-    const resolver = new AlbumResolver(baseUrl);
+    const albumResolver = new AlbumResolver(baseUrl);
     const saavn = JioSaavnProvider.getInstance(baseUrl);
+    const config = SPOTIFY_PLAYLISTS[lang] || SPOTIFY_PLAYLISTS['Hindi'];
 
-    // Run parallel fetching
+    // Parallel fetch using SWR logic
     const [
-      trendingPlaylists,
-      newReleasePlaylists,
-      moodsPlaylists,
-      movieAlbums,
-      topAlbums
+      trendingSongs,
+      latestSongs,
+      romanceSongs,
+      popSongs,
+      classicSongs,
+      movieAlbums, 
     ] = await Promise.all([
-      saavn.searchPlaylists(`${lang} Trending Hits`, 1),
-      saavn.searchPlaylists(`New Releases ${lang}`, 1),
-      resolver.resolveAlbums(lang, `${lang} moods hits`, 15, 'playlist'),
-      resolver.resolveAlbums(lang, `${lang} movies latest`, 30, 'album'),
-      resolver.resolveAlbums(lang, `${lang} best albums`, 30, 'album')
+      getPlaylistWithSWR(baseUrl, config.trending, lang, 'trending', `Trending ${lang}`, saavn),
+      getPlaylistWithSWR(baseUrl, config.latest, lang, 'latest', `Latest ${lang}`, saavn),
+      getPlaylistWithSWR(baseUrl, config.romance, lang, 'romance', `${lang} Romance`, saavn),
+      getPlaylistWithSWR(baseUrl, config.pop, lang, 'pop', `${lang} Pop`, saavn),
+      getPlaylistWithSWR(baseUrl, config.classics, lang, 'classics', `${lang} Classics 90s`, saavn),
+      albumResolver.resolveAlbums(lang, `${lang} movies latest`, 15, 'album'),
     ]);
-
-    let trendingSongs: Song[] = [];
-    let newReleases: Song[] = [];
-
-    const songPromises: Promise<any>[] = [];
-    if (trendingPlaylists.length > 0) {
-      songPromises.push(saavn.getPlaylistSongs(trendingPlaylists[0].id).then(songs => trendingSongs = songs.slice(0, 15)));
-    } else {
-      songPromises.push(saavn.searchSongs(`Trending ${lang}`, 15).then(songs => trendingSongs = songs));
-    }
-
-    if (newReleasePlaylists.length > 0) {
-      songPromises.push(saavn.getPlaylistSongs(newReleasePlaylists[0].id).then(songs => newReleases = songs.slice(0, 15)));
-    } else {
-      songPromises.push(saavn.searchSongs(`Latest ${lang}`, 15).then(songs => newReleases = songs));
-    }
-
-    await Promise.all(songPromises);
 
     const sections: HomeSection[] = [];
 
     if (trendingSongs.length > 0) {
       sections.push({
         id: 'trending',
-        title: 'Trending',
+        title: `Trending Now ${lang !== 'All Languages' ? lang : ''}`,
         type: 'carousel',
         items: trendingSongs.map(song => ({
           id: song.id,
@@ -85,17 +138,17 @@ export async function GET(req: NextRequest) {
           subtitle: song.artist,
           type: 'song',
           imageUrl: song.coverUrl,
-          rawItem: song // Store song data for instant play
+          rawItem: song 
         }))
       });
     }
 
-    if (newReleases.length > 0) {
+    if (latestSongs.length > 0) {
       sections.push({
         id: 'new_releases',
         title: 'New Releases',
         type: 'carousel',
-        items: newReleases.map(song => ({
+        items: latestSongs.map(song => ({
           id: song.id,
           title: song.title,
           subtitle: song.artist,
@@ -106,19 +159,50 @@ export async function GET(req: NextRequest) {
       });
     }
 
-
-
-    if (moodsPlaylists.length > 0) {
+    if (romanceSongs.length > 0) {
       sections.push({
         id: 'moods',
-        title: 'Moods & Genres',
+        title: 'Love & Romance',
         type: 'carousel',
-        items: moodsPlaylists.map(item => ({
-          id: item.id,
-          title: item.title,
-          subtitle: 'Saavn',
-          type: 'playlist',
-          imageUrl: item.coverUrl
+        items: romanceSongs.map(song => ({
+          id: song.id,
+          title: song.title,
+          subtitle: song.artist,
+          type: 'song',
+          imageUrl: song.coverUrl,
+          rawItem: song
+        }))
+      });
+    }
+
+    if (popSongs.length > 0) {
+      sections.push({
+        id: 'charts',
+        title: 'Pop & Mixes',
+        type: 'carousel',
+        items: popSongs.map(song => ({
+          id: song.id,
+          title: song.title,
+          subtitle: song.artist,
+          type: 'song',
+          imageUrl: song.coverUrl,
+          rawItem: song
+        }))
+      });
+    }
+
+    if (classicSongs.length > 0) {
+      sections.push({
+        id: 'classics',
+        title: 'Timeless Classics',
+        type: 'carousel',
+        items: classicSongs.map(song => ({
+          id: song.id,
+          title: song.title,
+          subtitle: song.artist,
+          type: 'song',
+          imageUrl: song.coverUrl,
+          rawItem: song
         }))
       });
     }
@@ -126,24 +210,9 @@ export async function GET(req: NextRequest) {
     if (movieAlbums.length > 0) {
       sections.push({
         id: 'movies',
-        title: 'Movies',
+        title: 'Movies & Soundtracks',
         type: 'carousel',
         items: movieAlbums.map(item => ({
-          id: item.id,
-          title: item.title,
-          subtitle: item.artist,
-          type: 'album',
-          imageUrl: item.coverUrl
-        }))
-      });
-    }
-
-    if (topAlbums.length > 0) {
-      sections.push({
-        id: 'albums',
-        title: 'Albums',
-        type: 'carousel',
-        items: topAlbums.map(item => ({
           id: item.id,
           title: item.title,
           subtitle: item.artist,

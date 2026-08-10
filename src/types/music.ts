@@ -30,6 +30,7 @@ export interface Song {
   genre: string;
   category: 'latest_telugu' | '90s_telugu' | 'love' | 'mass' | 'melody' | 'folk' | 'devotional' | 'global_trending' | 'radio';
   releaseYear: number;
+  releaseDate?: string;
   plays: number;
   likes: number;
   downloads?: number;
