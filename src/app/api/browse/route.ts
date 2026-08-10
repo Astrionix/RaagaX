@@ -35,7 +35,7 @@ async function getPlaylistWithSWR(baseUrl: string, playlistId: string | null, la
     .maybeSingle();
 
   if (cached && cached.data) {
-    // If expired OR if we have less than 100 songs (from the old limit), trigger background sync but return stale data immediately
+    // If expired OR if we have less than 75 songs, trigger background sync but return stale data immediately
     const isStale = new Date(cached.expires_at).getTime() < Date.now();
     const isUndersized = (cached.data as Song[]).length < 75;
     if (isStale || isUndersized) {
@@ -57,10 +57,17 @@ export async function GET(req: NextRequest) {
     const baseUrl = getBaseUrl(req);
     const albumResolver = new AlbumResolver(baseUrl);
     const saavn = JioSaavnProvider.getInstance(baseUrl);
-    const playlists = BROWSE_5_PLAYLISTS[lang] || BROWSE_5_PLAYLISTS['Telugu'];
+    
+    const trendingSource = TRENDING_SOURCES[lang] || TRENDING_SOURCES['Telugu'];
+    const newReleasesSource = NEW_RELEASES_SOURCES[lang] || NEW_RELEASES_SOURCES['Telugu'];
+    const classicsSource = CLASSICS_SOURCES[lang] || CLASSICS_SOURCES['Telugu'];
+    const extraPlaylists = BROWSE_5_PLAYLISTS[lang] || BROWSE_5_PLAYLISTS['Telugu'];
 
-    // Parallel fetch all 5 playlists + movie albums
+    // Parallel fetch all core categories + expanded playlists + movie albums
     const [
+      trendingSongs,
+      newReleaseSongs,
+      classicSongs,
       p1Songs,
       p2Songs,
       p3Songs,
@@ -68,29 +75,89 @@ export async function GET(req: NextRequest) {
       p5Songs,
       movieAlbums,
     ] = await Promise.all([
-      getPlaylistWithSWR(baseUrl, playlists[0]?.id || null, lang, 'p1', playlists[0]?.title || `${lang} Top Hits`, saavn),
-      getPlaylistWithSWR(baseUrl, playlists[1]?.id || null, lang, 'p2', playlists[1]?.title || `${lang} Hits`, saavn),
-      getPlaylistWithSWR(baseUrl, playlists[2]?.id || null, lang, 'p3', playlists[2]?.title || `${lang} Mix`, saavn),
-      getPlaylistWithSWR(baseUrl, playlists[3]?.id || null, lang, 'p4', playlists[3]?.title || `${lang} Beats`, saavn),
-      getPlaylistWithSWR(baseUrl, playlists[4]?.id || null, lang, 'p5', playlists[4]?.title || `${lang} Classics`, saavn),
+      getPlaylistWithSWR(baseUrl, trendingSource.id, lang, 'trending', `${lang} Top Hits`, saavn),
+      getPlaylistWithSWR(baseUrl, newReleasesSource.id, lang, 'new_releases', `${lang} Latest Hits`, saavn),
+      getPlaylistWithSWR(baseUrl, classicsSource.id, lang, 'classics', `${lang} Melody Songs`, saavn),
+      getPlaylistWithSWR(baseUrl, extraPlaylists[0]?.id || null, lang, 'p1', extraPlaylists[0]?.title || `${lang} Hits`, saavn),
+      getPlaylistWithSWR(baseUrl, extraPlaylists[1]?.id || null, lang, 'p2', extraPlaylists[1]?.title || `${lang} Mix`, saavn),
+      getPlaylistWithSWR(baseUrl, extraPlaylists[2]?.id || null, lang, 'p3', extraPlaylists[2]?.title || `${lang} Indie`, saavn),
+      getPlaylistWithSWR(baseUrl, extraPlaylists[3]?.id || null, lang, 'p4', extraPlaylists[3]?.title || `${lang} Beats`, saavn),
+      getPlaylistWithSWR(baseUrl, extraPlaylists[4]?.id || null, lang, 'p5', extraPlaylists[4]?.title || `${lang} Popular`, saavn),
       albumResolver.resolveAlbums(lang, `${lang} movies latest`, 15, 'album'),
     ]);
 
-    const fetchedPlaylists = [
-      { info: playlists[0], songs: p1Songs, id: 'p1' },
-      { info: playlists[1], songs: p2Songs, id: 'p2' },
-      { info: playlists[2], songs: p3Songs, id: 'p3' },
-      { info: playlists[3], songs: p4Songs, id: 'p4' },
-      { info: playlists[4], songs: p5Songs, id: 'p5' },
+    const sections: HomeSection[] = [];
+    const addedPlaylistIds = new Set<string>();
+
+    // 1. Trending Now Section
+    if (trendingSongs.length > 0) {
+      addedPlaylistIds.add(trendingSource.id);
+      sections.push({
+        id: 'trending',
+        title: trendingSource.title,
+        type: 'carousel',
+        items: trendingSongs.map(song => ({
+          id: song.id,
+          title: song.title,
+          subtitle: song.artist,
+          type: 'song',
+          imageUrl: song.coverUrl,
+          rawItem: song
+        }))
+      });
+    }
+
+    // 2. New Releases Section
+    if (newReleaseSongs.length > 0 && !addedPlaylistIds.has(newReleasesSource.id)) {
+      addedPlaylistIds.add(newReleasesSource.id);
+      sections.push({
+        id: 'new_releases',
+        title: newReleasesSource.title,
+        type: 'carousel',
+        items: newReleaseSongs.map(song => ({
+          id: song.id,
+          title: song.title,
+          subtitle: song.artist,
+          type: 'song',
+          imageUrl: song.coverUrl,
+          rawItem: song
+        }))
+      });
+    }
+
+    // 3. Timeless Classics Section
+    if (classicSongs.length > 0 && !addedPlaylistIds.has(classicsSource.id)) {
+      addedPlaylistIds.add(classicsSource.id);
+      sections.push({
+        id: 'classics',
+        title: classicsSource.title,
+        type: 'carousel',
+        items: classicSongs.map(song => ({
+          id: song.id,
+          title: song.title,
+          subtitle: song.artist,
+          type: 'song',
+          imageUrl: song.coverUrl,
+          rawItem: song
+        }))
+      });
+    }
+
+    // 4. Expanded Curated Playlists
+    const extraFetched = [
+      { info: extraPlaylists[0], songs: p1Songs, id: 'p1' },
+      { info: extraPlaylists[1], songs: p2Songs, id: 'p2' },
+      { info: extraPlaylists[2], songs: p3Songs, id: 'p3' },
+      { info: extraPlaylists[3], songs: p4Songs, id: 'p4' },
+      { info: extraPlaylists[4], songs: p5Songs, id: 'p5' },
     ];
 
-    const sections: HomeSection[] = [];
-
-    fetchedPlaylists.forEach(({ info, songs, id }) => {
-      if (songs && songs.length > 0) {
+    extraFetched.forEach(({ info, songs, id }) => {
+      if (info && songs && songs.length > 0 && !addedPlaylistIds.has(info.id)) {
+        addedPlaylistIds.add(info.id);
         sections.push({
           id,
-          title: info?.title || `Top ${lang} Playlist`,
+          title: info.title,
           type: 'carousel',
           items: songs.map(song => ({
             id: song.id,
@@ -104,6 +171,7 @@ export async function GET(req: NextRequest) {
       }
     });
 
+    // 5. Movies & Soundtracks Section
     if (movieAlbums.length > 0) {
       sections.push({
         id: 'movies',
