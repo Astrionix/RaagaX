@@ -274,16 +274,13 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
                 </button>
               </div>
 
-              {/* Table Header */}
-              <div className="max-w-[1920px] mx-auto px-4 sm:px-8 py-2 grid grid-cols-[32px_minmax(0,1fr)_40px] md:grid-cols-[40px_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1fr)_100px] gap-3 sm:gap-4 text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-white/10 sticky top-[88px] bg-[#121212]/95 backdrop-blur-xl z-10">
+              {/* Table Header - hidden on mobile */}
+              <div className="hidden md:grid max-w-[1920px] mx-auto px-4 sm:px-8 py-2 md:grid-cols-[40px_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1fr)_100px] gap-4 text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-white/10 sticky top-[88px] bg-[#121212]/95 backdrop-blur-xl z-10">
                 <div className="text-center">#</div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 flex-shrink-0" />
-                  <span>Title</span>
-                </div>
-                <div className="hidden md:block">Album</div>
-                <div className="hidden md:block">Date added</div>
-                <div className="text-right pr-2">
+                <div>Title</div>
+                <div>Album</div>
+                <div>Date added</div>
+                <div className="text-right pr-4">
                   <svg role="img" height="16" width="16" aria-hidden="true" viewBox="0 0 16 16" fill="currentColor" className="inline-block"><path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8z"></path><path d="M8 3.25a.75.75 0 0 1 .75.75v3.25H11a.75.75 0 0 1 0 1.5H7.25V4A.75.75 0 0 1 8 3.25z"></path></svg>
                 </div>
               </div>
