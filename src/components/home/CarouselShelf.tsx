@@ -148,28 +148,10 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           {icon}
-          <h2 className="text-xl font-bold text-white hover:underline cursor-pointer inline-block">
+          <h2 className="text-xl font-bold text-white cursor-pointer inline-block">
             {title}
           </h2>
-          {showPlayAll && items.length > 0 && (
-            <button 
-              onClick={handlePlayAll}
-              className="ml-2 p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors group flex items-center justify-center"
-              title="Play All"
-            >
-              <Play className="w-4 h-4 fill-[#fa233b] text-[#fa233b] group-hover:scale-110 transition-transform ml-0.5" />
-            </button>
-          )}
         </div>
-        {items.length > 10 && (
-          <button 
-            onClick={() => setShowAll(true)}
-            className="text-xs font-bold text-slate-400 hover:text-white flex items-center gap-1 transition-colors"
-          >
-            See All
-            <ChevronRight className="w-3 h-3" />
-          </button>
-        )}
       </div>
       
       <div className="grid grid-rows-2 auto-cols-[144px] sm:auto-cols-[176px] grid-flow-col overflow-x-auto no-scrollbar gap-4 pb-4">
