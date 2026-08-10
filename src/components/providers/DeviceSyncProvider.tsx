@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { DeviceSyncManager } from '@/lib/sync/DeviceSyncManager';
+import { LibrarySyncManager } from '@/lib/sync/LibrarySyncManager';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
 import { MonitorSmartphone } from 'lucide-react';
@@ -33,6 +34,9 @@ export function DeviceSyncProvider({ children }: { children: React.ReactNode }) 
       
       const manager = DeviceSyncManager.getInstance();
       await manager.initSync();
+      
+      // Initialize LibrarySyncManager for Liked Songs
+      LibrarySyncManager.getInstance();
       
       if (user?.id) {
         await usePlayerStore.getState().syncCloudLibrary();

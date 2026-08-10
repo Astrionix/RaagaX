@@ -114,6 +114,7 @@ interface PlayerState {
   reorderQueue: (newQueue: Song[]) => void;
 
   toggleLikeSong: (songId: string) => void;
+  setLikedSongIds: (songIds: string[]) => void;
   toggleDownloadSong: (songId: string) => void;
   toggleFavoriteArtist: (artistId: string) => void;
   toggleFavoriteAlbum: (albumId: string) => void;
@@ -602,15 +603,9 @@ export const usePlayerStore = create<PlayerState>()(
       if (!session?.session?.user) return;
       const userId = session.session.user.id;
 
-      // 1. Fetch Liked Songs
-      const { data: likedData, error: likedError } = await supabase
-        .from('liked_songs')
-        .select('song_id')
-        .eq('user_id', userId);
-        
-      const songIds = likedData ? Array.from(new Set(likedData.map(d => d.song_id))) : [];
+      // Note: Liked songs are now synced via LibrarySyncManager.reconcile()
       
-      // 2. Fetch User Favorites (Artists/Albums)
+      // 1. Fetch User Favorites (Artists/Albums)
       const { data: favData } = await supabase
         .from('user_favorites')
         .select('item_id, item_type')
@@ -619,7 +614,7 @@ export const usePlayerStore = create<PlayerState>()(
       const favoriteArtistIds = favData ? favData.filter(d => d.item_type === 'artist').map(d => d.item_id) : [];
       const favoriteAlbumIds = favData ? favData.filter(d => d.item_type === 'album').map(d => d.item_id) : [];
 
-      // 3. Fetch Playback History (Recently Played)
+      // 2. Fetch Playback History (Recently Played)
       const { data: historyData } = await supabase
         .from('listening_events')
         .select('song_id')
@@ -629,18 +624,9 @@ export const usePlayerStore = create<PlayerState>()(
         
       const historySongIds = historyData ? Array.from(new Set(historyData.map(d => d.song_id))) : [];
       
-      let songs: Song[] = [];
-      if (songIds.length > 0) {
-        const { SongResolver } = await import('@/lib/discovery/SongResolver');
-        songs = await SongResolver.resolveSongs(songIds);
-      }
-      
       set({ 
-        likedSongIds: songIds, 
-        likedSongs: songs,
         favoriteArtistIds,
         favoriteAlbumIds,
-        // Merge with local history to prevent losing active session history
         historySongIds: Array.from(new Set([...historySongIds, ...get().historySongIds]))
       });
     } catch (e) {
@@ -648,10 +634,10 @@ export const usePlayerStore = create<PlayerState>()(
     }
   },
 
-  toggleLikeSong: async (songId) => {
+  toggleLikeSong: (songId) => {
     const isLiked = get().likedSongIds.includes(songId);
     
-    // Optimistic UI update and local persistence for guests
+    // Optimistic UI update
     set((state) => {
       const newLikedIds = isLiked
         ? state.likedSongIds.filter((id) => id !== songId)
@@ -660,35 +646,20 @@ export const usePlayerStore = create<PlayerState>()(
       return { likedSongIds: newLikedIds };
     });
 
-    try {
-      const { supabase } = await import('@/lib/supabase');
-      const { data: session } = await supabase.auth.getSession();
-      
-      if (session?.session?.user) {
-        if (isLiked) {
-          // Unlike
-          await supabase
-            .from('liked_songs')
-            .delete()
-            .eq('user_id', session.session.user.id)
-            .eq('song_id', songId);
-        } else {
-          // Like - use upsert to prevent 409 Conflict if row already exists
-          await supabase
-            .from('liked_songs')
-            .upsert({
-              user_id: session.session.user.id,
-              song_id: songId,
-            }, { onConflict: 'user_id,song_id' });
-        }
-        
-        // Refresh full liked songs metadata after mutation
-        get().syncCloudLibrary();
+    // Delegate cloud mutation and broadcasting to LibrarySyncManager
+    import('@/lib/sync/LibrarySyncManager').then(({ LibrarySyncManager }) => {
+      if (isLiked) {
+        LibrarySyncManager.getInstance().unlikeSong(songId);
+      } else {
+        LibrarySyncManager.getInstance().likeSong(songId);
       }
-    } catch (e) {
-      console.error("Failed to sync like status:", e);
-      // Rollback on failure could be implemented here
-    }
+    });
+  },
+
+  setLikedSongIds: (songIds) => {
+    set({ likedSongIds: songIds });
+    // Note: We don't resolve the full Song objects here immediately because 
+    // it could be slow. `likedSongs` can be lazily loaded or synced separately if needed.
   },
 
   toggleDownloadSong: (songId) => {
