@@ -538,7 +538,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         } else {
           // Exhausted the 50 albums. Fetch a new unique album from the catalog.
           const { AlbumCatalogEngine } = await import('@/lib/albumCatalog');
-          const allAlbums = await AlbumCatalogEngine.getInstance().getAlbumsByLanguage(preferredLanguage);
+          const allAlbums = await AlbumCatalogEngine.getAlbumsForLanguage(preferredLanguage);
           
           // Find an album whose tracks are not already in the queue
           const seenAlbumIds = new Set(queue.map(q => q.albumId).filter(Boolean));
