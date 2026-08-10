@@ -19,12 +19,16 @@ export async function GET(request: Request) {
       .order('discovered_at', { ascending: false })
       .limit(limit);
 
-    if (!error && data && data.length >= 10) {
-      const songs = data.map(row => row.song_metadata);
-      return NextResponse.json({
-        success: true,
-        data: songs
-      });
+    if (!error && data && data.length >= 5) {
+      const songs = data
+        .map(row => row.song_metadata)
+        .filter(s => s && s.title && !s.title.includes('New Release') && s.artist !== 'Unknown' && s.artist !== 'Various Artists');
+      if (songs.length >= 5) {
+        return NextResponse.json({
+          success: true,
+          data: songs
+        });
+      }
     }
 
     // Check spotify_playlist_cache for aggregated_new_releases (100 songs)
@@ -36,10 +40,13 @@ export async function GET(request: Request) {
       .maybeSingle();
 
     if (cacheData && cacheData.data && Array.isArray(cacheData.data) && cacheData.data.length > 0) {
-      return NextResponse.json({
-        success: true,
-        data: cacheData.data.slice(0, limit)
-      });
+      const validCached = (cacheData.data as any[]).filter(s => s && s.title && !s.title.includes('New Release') && s.artist !== 'Unknown');
+      if (validCached.length > 0) {
+        return NextResponse.json({
+          success: true,
+          data: validCached.slice(0, limit)
+        });
+      }
     }
 
     // Fallback to local JSON cache
