@@ -186,8 +186,8 @@ export function HomeView() {
             ))}
           </div>
 
-          {/* Top 10 Albums Showcase Horizontal Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4 pt-1">
+          {/* Top 10 Albums Showcase Horizontal Side-scroll on Mobile, Grid on Desktop */}
+          <div className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory md:grid md:grid-cols-5 gap-3.5 sm:gap-4 pt-1 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
             {top10Albums.map((album, idx) => (
               <div
                 key={album.id}
@@ -195,7 +195,7 @@ export function HomeView() {
                   setSelectedAlbumId(album.id);
                   setActiveTab('album');
                 }}
-                className="group relative bg-white/5 p-2.5 rounded-2xl border border-white/5 hover:border-white/20 transition-all hover:scale-[1.03] cursor-pointer shadow-lg"
+                className="group relative bg-white/5 p-2.5 rounded-2xl border border-white/5 hover:border-white/20 transition-all hover:scale-[1.03] cursor-pointer shadow-lg w-[145px] sm:w-auto flex-shrink-0 snap-start"
               >
                 <div className="relative aspect-square rounded-xl overflow-hidden mb-2">
                   <img 

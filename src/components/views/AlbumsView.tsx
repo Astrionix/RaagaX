@@ -137,15 +137,22 @@ export function AlbumsView() {
             </h2>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          <div className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5 sm:gap-4 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
             {recentlyReleased.map((album) => (
               <div 
                 key={album.id}
                 onClick={() => handleOpenAlbum(album)}
-                className="group relative bg-[#12141c]/60 p-3 rounded-2xl border border-white/5 hover:border-white/20 transition-all hover:scale-[1.02] cursor-pointer shadow-lg"
+                className="group relative bg-[#12141c]/60 p-3 rounded-2xl border border-white/5 hover:border-white/20 transition-all hover:scale-[1.02] cursor-pointer shadow-lg w-[145px] sm:w-auto flex-shrink-0 snap-start"
               >
                 <div className="relative aspect-square rounded-xl overflow-hidden mb-2.5">
-                  <img src={album.coverUrl} alt={album.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <img 
+                    src={album.coverUrl} 
+                    alt={album.title} 
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=500&h=500';
+                    }}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 bg-slate-800" 
+                  />
                   <button
                     onClick={(e) => handlePlayAlbum(e, album)}
                     className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-[#fa233b] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-105 shadow-xl"
@@ -175,12 +182,12 @@ export function AlbumsView() {
             </h2>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          <div className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5 sm:gap-4 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
             {trending.map((album) => (
               <div 
                 key={album.id}
                 onClick={() => handleOpenAlbum(album)}
-                className="group relative bg-[#12141c]/60 p-3 rounded-2xl border border-white/5 hover:border-white/20 transition-all hover:scale-[1.02] cursor-pointer shadow-lg"
+                className="group relative bg-[#12141c]/60 p-3 rounded-2xl border border-white/5 hover:border-white/20 transition-all hover:scale-[1.02] cursor-pointer shadow-lg w-[145px] sm:w-auto flex-shrink-0 snap-start"
               >
                 <div className="relative aspect-square rounded-xl overflow-hidden mb-2.5">
                   <img 
