@@ -146,11 +146,20 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
   return (
     <section className="mb-8">
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           {icon}
           <h2 className="text-xl font-bold text-white cursor-pointer inline-block">
             {title}
           </h2>
+          {showPlayAll && items.length > 0 && (
+            <button 
+              onClick={handlePlayAll}
+              className="ml-1 p-2 rounded-full bg-[#fa233b] hover:bg-[#fa233b]/90 text-white transition-all hover:scale-105 active:scale-95 shadow-md flex items-center justify-center cursor-pointer"
+              title="Play All Songs"
+            >
+              <Play className="w-3.5 h-3.5 fill-white text-white ml-0.5" />
+            </button>
+          )}
         </div>
       </div>
       

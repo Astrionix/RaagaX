@@ -252,7 +252,14 @@ export function HomeView() {
             if (section.type === 'list_chart') {
               return <ChartListShelf key={section.id} title={section.title || ''} items={section.items} />;
             }
-            return <CarouselShelf key={section.id} title={section.title || ''} items={section.items} showPlayAll={true} />;
+            const isNewReleasesSection = Boolean(
+              section.id === 'new_releases' || 
+              section.id === 'new_week_releases' || 
+              (section.title && section.title.toLowerCase().includes('new release')) ||
+              (section.title && section.title.toLowerCase().includes('new week'))
+            );
+
+            return <CarouselShelf key={section.id} title={section.title || ''} items={section.items} showPlayAll={isNewReleasesSection} />;
           })}
         </div>
       )}
