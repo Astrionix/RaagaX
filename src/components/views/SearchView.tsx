@@ -51,13 +51,15 @@ export function SearchView() {
     };
   }, [searchQuery]);
 
+  const { preferredLanguage, setPreferredLanguage, setActiveTab } = usePlayerStore();
+
   const categories = [
-    { name: 'Telugu', bg: 'from-red-600 to-rose-800' },
-    { name: 'New Music', bg: 'from-orange-500 to-amber-700' },
-    { name: 'Charts', bg: 'from-[#EF233C] to-red-900' },
-    { name: 'Playlists', bg: 'from-blue-600 to-indigo-800' },
-    { name: 'Mood', bg: 'from-purple-600 to-violet-900' },
-    { name: 'Genres', bg: 'from-pink-600 to-purple-800' },
+    { id: 'language', name: preferredLanguage || 'Telugu', bg: 'from-red-600 to-rose-800' },
+    { id: 'new_music', name: 'New Music', bg: 'from-orange-500 to-amber-700' },
+    { id: 'charts', name: 'Charts', bg: 'from-[#EF233C] to-red-900' },
+    { id: 'playlists', name: 'Playlists', bg: 'from-blue-600 to-indigo-800' },
+    { id: 'mood', name: 'Mood', bg: 'from-purple-600 to-violet-900' },
+    { id: 'genres', name: 'Genres', bg: 'from-pink-600 to-purple-800' },
   ];
 
   const trendingSearches = [
@@ -96,11 +98,22 @@ export function SearchView() {
             <div className="grid grid-cols-2 gap-3">
               {categories.map((cat) => (
                 <button
-                  key={cat.name}
-                  onClick={() => setSearchQuery(cat.name)}
-                  className={`h-24 rounded-2xl bg-gradient-to-br ${cat.bg} p-4 flex items-end font-black text-base text-white shadow-lg active:scale-95 transition-transform text-left`}
+                  key={cat.id}
+                  onClick={() => {
+                    if (cat.id === 'language') {
+                      const languages = ['Telugu', 'Tamil', 'Kannada', 'Malayalam', 'Hindi', 'English'];
+                      const nextIndex = (languages.indexOf(preferredLanguage) + 1) % languages.length;
+                      setPreferredLanguage(languages[nextIndex]);
+                    } else {
+                      setActiveTab('browse');
+                    }
+                  }}
+                  className={`h-24 rounded-2xl bg-gradient-to-br ${cat.bg} p-4 flex flex-col justify-between font-black text-base text-white shadow-lg active:scale-95 transition-transform text-left cursor-pointer group`}
                 >
-                  {cat.name}
+                  <span className="text-xs font-bold tracking-wider opacity-70 uppercase">
+                    {cat.id === 'language' ? 'Active Language' : 'Category'}
+                  </span>
+                  <span className="text-lg font-black">{cat.name}</span>
                 </button>
               ))}
             </div>
