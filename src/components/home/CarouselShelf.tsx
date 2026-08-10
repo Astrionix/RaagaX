@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { ShelfItem } from '@/types/home';
-import { Play, ChevronRight, ChevronDown, X, Shuffle } from 'lucide-react';
+import { Play, ChevronRight, ChevronDown, X, Shuffle, MoreHorizontal } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { SongActionMenu } from '@/components/common/SongActionMenu';
 
 export function CarouselShelf({ title, items, icon, showPlayAll }: { title: string; items: ShelfItem[]; icon?: React.ReactNode; showPlayAll?: boolean }) {
-  const { setActiveTab, setSelectedPlaylistId, setSelectedArtistId, setSelectedAlbumId, playSong } = usePlayerStore();
+  const { setActiveTab, setSelectedPlaylistId, setSelectedArtistId, setSelectedAlbumId, playSong, currentSong, isPlaying } = usePlayerStore();
   const [showAll, setShowAll] = useState(false);
 
   const handleItemClick = (item: ShelfItem) => {
@@ -126,6 +127,21 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
   );
 
   const visibleItems = showAll ? uniqueItems : uniqueItems.slice(0, 10);
+  const totalSongs = uniqueItems.length;
+
+  const formatTime = (s: number) => {
+    if (!s) return '3:42'; // fallback
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec < 10 ? '0' : ''}${sec}`;
+  };
+
+  const totalDurationSec = uniqueItems.reduce((acc, item) => acc + (item.type === 'song' ? (item.rawItem?.duration || 0) : 0), 0);
+  const totalDurationHrs = Math.floor(totalDurationSec / 3600);
+  const totalDurationMins = Math.floor((totalDurationSec % 3600) / 60);
+  const durationText = totalDurationHrs > 0 ? `${totalDurationHrs} hr ${totalDurationMins} min` : `${totalDurationMins} min`;
+
+  const coverImageUrl = items[0]?.imageUrl || 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300';
 
   return (
     <section className="mb-8">
@@ -191,69 +207,150 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
       </div>
 
       {showAll && (
-        <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
-          {/* Modal Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:px-8 border-b border-white/10 shrink-0 gap-4">
-            <div className="flex items-center gap-3 pt-safe sm:pt-0">
-              {icon}
-              <h2 className="text-2xl sm:text-3xl font-black text-white">{title}</h2>
-              {title.toLowerCase().includes('releases') && (
-                <span className="px-2 py-0.5 rounded bg-blue-500 text-[10px] font-black tracking-wider uppercase text-white shadow-lg shadow-blue-500/30">NEW</span>
-              )}
+        <div className="fixed inset-0 z-50 bg-[#121212] flex flex-col animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
+          {/* Header Gradient Background */}
+          <div className="absolute top-0 left-0 right-0 h-[400px] bg-gradient-to-b from-[#fa233b]/40 to-[#121212] pointer-events-none opacity-50" />
+          
+          {/* Close Button */}
+          <button 
+            onClick={() => setShowAll(false)} 
+            className="absolute top-4 right-4 sm:top-6 sm:right-8 p-2 bg-black/40 backdrop-blur-md rounded-full hover:bg-black/60 transition-colors z-10 cursor-pointer"
+          >
+            <X className="w-6 h-6 text-white" />
+          </button>
+
+          <div className="flex-1 overflow-y-auto pb-safe scroll-smooth">
+            {/* Spotify-style Hero Section */}
+            <div className="relative pt-20 pb-6 px-4 sm:px-8 max-w-[1920px] mx-auto flex flex-col sm:flex-row items-end gap-6 mt-safe">
+              <img 
+                src={coverImageUrl} 
+                alt={title}
+                className="w-48 h-48 sm:w-60 sm:h-60 shadow-2xl object-cover rounded-md flex-shrink-0 bg-slate-800"
+              />
+              <div className="flex flex-col gap-2 pb-2">
+                <span className="text-xs font-bold text-white uppercase tracking-wider">Playlist</span>
+                <h1 className="text-4xl sm:text-6xl md:text-8xl font-black text-white tracking-tighter leading-none mb-4 flex items-center gap-4">
+                  {title}
+                  {title.toLowerCase().includes('releases') && (
+                    <span className="px-3 py-1 rounded-full bg-blue-500 text-sm font-black tracking-wider uppercase text-white shadow-lg shadow-blue-500/30 align-middle">NEW</span>
+                  )}
+                </h1>
+                <div className="flex items-center gap-1.5 text-sm font-medium text-slate-300 mt-2">
+                  <span className="font-bold text-white">RaagaX</span>
+                  <span>•</span>
+                  <span>{totalSongs} songs,</span>
+                  <span className="text-slate-400">{durationText}</span>
+                </div>
+              </div>
             </div>
-            <button 
-              onClick={() => setShowAll(false)} 
-              className="absolute top-4 right-4 sm:relative sm:top-0 sm:right-0 p-2.5 bg-white/10 rounded-full hover:bg-[#fa233b] hover:text-white transition-colors cursor-pointer group"
-            >
-              <X className="w-5 h-5 text-slate-300 group-hover:text-white" />
-            </button>
-          </div>
 
-          {/* Modal Actions */}
-          <div className="flex items-center gap-4 p-4 sm:px-8 shrink-0 border-b border-white/5 bg-white/[0.02]">
-            <button 
-              onClick={handlePlayAll}
-              className="flex-1 max-w-xs py-3 rounded-full bg-[#fa233b] text-white font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform shadow-lg shadow-[#fa233b]/30"
-            >
-              <Play className="w-4 h-4 fill-white" /> Play All
-            </button>
-            <button 
-              onClick={handleShufflePlayAll}
-              className="flex-1 max-w-xs py-3 rounded-full font-bold text-sm flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <Shuffle className="w-4 h-4" /> Shuffle
-            </button>
-          </div>
-
-          {/* Modal Track List */}
-          <div className="flex-1 overflow-y-auto pb-safe">
-            <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-4 sm:p-8">
-              {uniqueItems.map((item, idx) => (
-                <div
-                  key={item.id}
-                  onClick={() => handleItemClick(item)}
-                  className="p-3 rounded-xl surface-card surface-card-hover flex items-center justify-between group cursor-pointer"
+            {/* Action Bar Background Overlay (appears on scroll ideally, but static here for simplicity) */}
+            <div className="bg-black/20 backdrop-blur-3xl border-b border-white/5 sticky top-0 z-10">
+              <div className="max-w-[1920px] mx-auto px-4 sm:px-8 py-4 flex items-center gap-6">
+                <button 
+                  onClick={handlePlayAll}
+                  className="w-14 h-14 rounded-full bg-[#fa233b] hover:bg-[#fa233b]/90 text-white flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all group"
                 >
-                  <div className="flex items-center gap-4 min-w-0">
-                    <span className="w-6 text-center text-xs font-bold text-slate-500 group-hover:text-white transition-colors">{idx + 1}</span>
-                    <img src={item.imageUrl || 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300'} alt={item.title} className="w-12 h-12 rounded-lg object-cover shadow-sm flex-shrink-0" />
-                    <div className="min-w-0">
-                      <h4 className="text-sm font-bold text-white group-hover:text-[#fa233b] transition-colors truncate">
-                        {item.title}
-                      </h4>
-                      {item.subtitle && (
-                        <p className="text-xs text-slate-400 truncate mt-0.5">{item.subtitle}</p>
+                  <Play className="w-7 h-7 fill-white ml-1 group-hover:scale-105 transition-transform" />
+                </button>
+                <button 
+                  onClick={handleShufflePlayAll}
+                  className="p-2 text-slate-400 hover:text-white transition-colors"
+                  title="Shuffle Play"
+                >
+                  <Shuffle className="w-8 h-8" />
+                </button>
+                <button className="p-2 text-slate-400 hover:text-white transition-colors">
+                  <MoreHorizontal className="w-8 h-8" />
+                </button>
+              </div>
+
+              {/* Table Header */}
+              <div className="max-w-[1920px] mx-auto px-4 sm:px-8 py-2 grid grid-cols-[40px_minmax(0,1fr)_40px] md:grid-cols-[40px_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1fr)_100px] gap-4 text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-white/10 sticky top-[88px] bg-[#121212]/95 backdrop-blur-xl z-10">
+                <div className="text-center">#</div>
+                <div>Title</div>
+                <div className="hidden md:block">Album</div>
+                <div className="hidden md:block">Date added</div>
+                <div className="text-right pr-4">
+                  <svg role="img" height="16" width="16" aria-hidden="true" viewBox="0 0 16 16" fill="currentColor" className="inline-block"><path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8z"></path><path d="M8 3.25a.75.75 0 0 1 .75.75v3.25H11a.75.75 0 0 1 0 1.5H7.25V4A.75.75 0 0 1 8 3.25z"></path></svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Track List */}
+            <div className="max-w-[1920px] mx-auto px-4 sm:px-8 py-4 pb-8">
+              {uniqueItems.map((item, idx) => {
+                const isCurrentlyPlaying = currentSong?.id === item.id;
+                
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => handleItemClick(item)}
+                    className={`group grid grid-cols-[40px_minmax(0,1fr)_40px] md:grid-cols-[40px_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1fr)_100px] gap-4 items-center p-2 rounded-md hover:bg-white/10 transition-colors cursor-pointer ${isCurrentlyPlaying ? 'bg-white/5' : ''}`}
+                  >
+                    <div className="flex justify-center relative">
+                      {isCurrentlyPlaying && isPlaying ? (
+                        <div className="flex items-end gap-0.5 h-4 w-4">
+                          <div className="w-1 bg-[#fa233b] rounded-t-sm animate-[bounce_1s_infinite_100ms] h-full"></div>
+                          <div className="w-1 bg-[#fa233b] rounded-t-sm animate-[bounce_1s_infinite_300ms] h-3/4"></div>
+                          <div className="w-1 bg-[#fa233b] rounded-t-sm animate-[bounce_1s_infinite_500ms] h-1/2"></div>
+                        </div>
+                      ) : (
+                        <>
+                          <span className={`text-sm font-medium ${isCurrentlyPlaying ? 'text-[#fa233b]' : 'text-slate-400'} group-hover:invisible`}>
+                            {idx + 1}
+                          </span>
+                          <button 
+                            onClick={(e) => handleQuickPlay(e, item)}
+                            className="absolute inset-0 flex items-center justify-center invisible group-hover:visible"
+                          >
+                            <Play className="w-4 h-4 fill-white text-white" />
+                          </button>
+                        </>
                       )}
                     </div>
+                    
+                    <div className="flex items-center gap-3 min-w-0">
+                      <img src={item.imageUrl || 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300'} alt={item.title} className="w-10 h-10 object-cover bg-slate-800" />
+                      <div className="min-w-0 flex-1">
+                        <h4 className={`text-base font-normal truncate ${isCurrentlyPlaying ? 'text-[#fa233b]' : 'text-white'}`}>
+                          {item.title}
+                        </h4>
+                        {item.subtitle && (
+                          <p className="text-sm font-normal text-slate-400 truncate hover:underline">{item.subtitle}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="hidden md:block min-w-0">
+                      <span className="text-sm text-slate-400 truncate hover:underline block">
+                        {item.type === 'song' ? (item.rawItem?.album || item.title) : item.title}
+                      </span>
+                    </div>
+
+                    <div className="hidden md:block min-w-0">
+                      <span className="text-sm text-slate-400 truncate block">
+                        {item.type === 'song' && item.rawItem?.releaseDate ? new Date(item.rawItem.releaseDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : (item.rawItem?.releaseYear || '')}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center justify-end gap-3 min-w-0 pr-2">
+                      <div className="invisible group-hover:visible transition-opacity" onClick={e => e.stopPropagation()}>
+                        {item.type === 'song' ? (
+                          <SongActionMenu song={item.rawItem as any} />
+                        ) : (
+                          <button className="p-1 text-slate-400 hover:text-white">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                      <span className="text-sm font-normal text-slate-400 tabular-nums hidden sm:block w-10 text-right">
+                        {item.type === 'song' ? formatTime(item.rawItem?.duration) : ''}
+                      </span>
+                    </div>
                   </div>
-                  <button 
-                    onClick={(e) => handleQuickPlay(e, item)}
-                    className="p-2 rounded-full bg-white/5 opacity-0 group-hover:opacity-100 hover:bg-[#fa233b] transition-all flex-shrink-0"
-                  >
-                    <Play className="w-4 h-4 fill-white text-white ml-0.5" />
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

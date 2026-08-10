@@ -23,11 +23,11 @@ const SPOTIFY_PLAYLISTS: Record<string, any> = {
     classics: null,
   },
   Kannada: {
-    trending: null,
+    trending: '4TvxxFHYjBvRtaOrGl25N8',   // Trending Kannada 2026
     latest: '37i9dQZF1DWZqTcNLmb3sH',     // Latest Kannada
     romance: '37i9dQZF1DX2MvScOHAAiE',    // Kannada Romance
-    pop: null,
-    classics: null,
+    pop: '37i9dQZF1DX9i6vCEoH6jH',        // Kannada Party Time
+    classics: '7pQiU6Zl6PgDUHUHUMZxEM',   // Kannada 2000s Love
   },
   Malayalam: {
     trending: '37i9dQZF1DWTYKFynxp6Fs',   // Trending Now Malayalam
@@ -85,9 +85,10 @@ async function getPlaylistWithSWR(baseUrl: string, playlistId: string | null, la
     .maybeSingle();
 
   if (cached && cached.data) {
-    // If expired, trigger background sync but return stale data immediately
+    // If expired OR if we have less than 100 songs (from the old limit), trigger background sync but return stale data immediately
     const isStale = new Date(cached.expires_at).getTime() < Date.now();
-    if (isStale) {
+    const isUndersized = (cached.data as Song[]).length < 100;
+    if (isStale || isUndersized) {
       triggerBackgroundSync(baseUrl, playlistId, lang, category);
     }
     return (cached.data as Song[]).slice(0, 100);
