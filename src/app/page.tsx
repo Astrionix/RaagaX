@@ -20,9 +20,14 @@ import { ContextMenuModal } from '@/components/modals/ContextMenuModal';
 import { OnboardingAuthModal } from '@/components/modals/OnboardingAuthModal';
 import { KeyboardShortcutsModal } from '@/components/modals/KeyboardShortcutsModal';
 import { MobileDeviceConnectModal } from '@/components/modals/MobileDeviceConnectModal';
+import { MobileApkPromoModal } from '@/components/modals/MobileApkPromoModal';
+import { AppUpdateModal } from '@/components/modals/AppUpdateModal';
+import { CreatePlaylistModal } from '@/components/modals/CreatePlaylistModal';
 import { RemoteDeviceBanner } from '@/components/player/RemoteDeviceBanner';
+import { Toast } from '@/components/ui/Toast';
 
 import { HomeView } from '@/components/views/HomeView';
+import { BrowseView } from '@/components/views/BrowseView';
 import { SearchView } from '@/components/views/SearchView';
 import { LibraryView } from '@/components/views/LibraryView';
 import { PlaylistDetailView } from '@/components/views/PlaylistDetailView';
@@ -71,6 +76,7 @@ export default function Page() {
 
       {/* Splash Screen Animation */}
       <SplashScreen />
+      <Toast />
 
       {/* Sidebar Navigation (Desktop Pane 1) */}
       <Sidebar />
@@ -86,6 +92,7 @@ export default function Page() {
           {/* View Switcher Container */}
           <main className="flex-1 pt-24 pb-[120px] md:pb-8 px-4 sm:px-8">
             {activeTab === 'home' && <HomeView />}
+            {activeTab === 'browse' && <BrowseView />}
             {activeTab === 'search' && <SearchView />}
             {activeTab === 'library' && <LibraryView />}
             {activeTab === 'radio' && <RadioView />}
@@ -121,6 +128,9 @@ export default function Page() {
       <OnboardingAuthModal />
       <KeyboardShortcutsModal />
       <MobileDeviceConnectModal />
+      <MobileApkPromoModal />
+      <AppUpdateModal />
+      <CreatePlaylistModal />
     </div>
   );
 }

@@ -217,6 +217,7 @@ export class DeviceSyncManager {
           // I am taking over! Seek to the exact transferred position and play
           if (cmd.positionMs !== undefined) {
             store.setCurrentTime(cmd.positionMs / 1000, true);
+            store.setSeekTarget(cmd.positionMs / 1000);
           }
           store.setIsPlaying(true, true);
           // Persist that I am now active
@@ -239,6 +240,7 @@ export class DeviceSyncManager {
             break;
           case 'SEEK':
             store.setCurrentTime(cmd.position, true);
+            store.setSeekTarget(cmd.position);
             this.persistState();
             break;
           case 'NEXT':
@@ -365,6 +367,7 @@ export class DeviceSyncManager {
     // I become active locally right away for responsiveness
     store.setRemoteState({ activeDeviceId: this.deviceId, isActiveDevice: true, remoteDeviceName: null });
     store.setCurrentTime(livePositionMs / 1000, true);
+    store.setSeekTarget(livePositionMs / 1000);
     store.setIsPlaying(true, true);
     this.persistState();
   }

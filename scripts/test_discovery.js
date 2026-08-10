@@ -1,0 +1,1 @@
+const Parser = require('rss-parser'); const parser = new Parser(); async function run() { try { const feedUrl = 'https://www.youtube.com/feeds/videos.xml?channel_id=UCX_uPA_dGf7wXjuMEaSKLJA'; const feed = await parser.parseURL(feedUrl); console.log(feed.items.slice(0, 3).map(i => i.title)); } catch (e) { console.error(e); } } run();

@@ -46,6 +46,10 @@ interface PlayerState {
   isCastModalOpen: boolean;
   isSleepTimerModalOpen: boolean;
   isDeviceModalOpen: boolean;
+  createPlaylistModalOpen: boolean;
+
+  toastMessage: string | null;
+  setToastMessage: (msg: string | null) => void;
 
   aiDjState: AIDJState;
   searchQuery: string;
@@ -128,6 +132,7 @@ interface PlayerState {
   toggleCastModal: () => void;
   toggleSleepTimerModal: () => void;
   toggleDeviceModal: () => void;
+  setCreatePlaylistModalOpen: (open: boolean) => void;
   openContextMenu: (song: Song) => void;
   closeContextMenu: () => void;
 
@@ -188,6 +193,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   isCastModalOpen: false,
   isSleepTimerModalOpen: false,
   isDeviceModalOpen: false,
+  createPlaylistModalOpen: false,
+  toastMessage: null,
+
+  setToastMessage: (msg) => set({ toastMessage: msg }),
 
   isAutoplayEnabled: true,
   playbackContext: null,
@@ -425,9 +434,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       return;
     }
 
-    const { queue, queueIndex, currentTime } = get();
-    if (currentTime > 5) {
-      set({ currentTime: 0 });
+    const { queue, queueIndex, currentTime, setCurrentTime, setSeekTarget } = get();
+    if (currentTime > 2) {
+      setCurrentTime(0);
+      setSeekTarget(0);
       return;
     }
     
@@ -441,7 +451,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         currentTime: 0,
       });
     } else {
-      set({ currentTime: 0 });
+      get().setCurrentTime(0);
+      get().setSeekTarget(0);
     }
   },
 
@@ -721,6 +732,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   toggleCastModal: () => set((state) => ({ isCastModalOpen: !state.isCastModalOpen })),
   toggleSleepTimerModal: () => set((state) => ({ isSleepTimerModalOpen: !state.isSleepTimerModalOpen })),
   toggleDeviceModal: () => set((state) => ({ isDeviceModalOpen: !state.isDeviceModalOpen })),
+  setCreatePlaylistModalOpen: (open) => set({ createPlaylistModalOpen: open }),
+  setToastMessage: (msg) => set({ toastMessage: msg }),
+
   openContextMenu: (song) => set({ contextMenuSong: song }),
   closeContextMenu: () => set({ contextMenuSong: null }),
 

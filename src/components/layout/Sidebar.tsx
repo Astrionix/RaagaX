@@ -13,8 +13,12 @@ import {
   Sparkles,
   ListMusic,
   Plus,
+  Download,
+  History,
+  Heart, 
+  LogOut, 
+  LogIn 
 } from 'lucide-react';
-import { Heart, LogOut, LogIn } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
@@ -27,7 +31,8 @@ export function Sidebar() {
     setSearchQuery,
     setSelectedPlaylistId,
     preferredLanguage,
-    selectedPlaylistId
+    selectedPlaylistId,
+    setCreatePlaylistModalOpen
   } = usePlayerStore();
   
   const { user, signOut, setAuthModalOpen } = useAuthStore();
@@ -71,9 +76,9 @@ export function Sidebar() {
           />
         </div>
 
-        {/* RaagaX Section */}
+        {/* DISCOVER Section */}
         <div className="space-y-0.5">
-          <span className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider block">RaagaX</span>
+          <span className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider block">DISCOVER</span>
           
           <button
             onClick={() => setActiveTab('home')}
@@ -86,9 +91,9 @@ export function Sidebar() {
           </button>
 
           <button
-            onClick={() => setActiveTab('album')}
+            onClick={() => setActiveTab('browse')}
             className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg font-bold transition-all ${
-              activeTab === 'album' ? 'bg-[#fa233b]/20 text-[#fa233b] shadow-[0_0_10px_rgba(239,35,60,0.1)]' : 'text-slate-300 hover:bg-white/10 hover:text-white'
+              activeTab === 'browse' ? 'bg-[#fa233b]/20 text-[#fa233b] shadow-[0_0_10px_rgba(239,35,60,0.1)]' : 'text-slate-300 hover:bg-white/10 hover:text-white'
             }`}
           >
             <Compass className="w-4 h-4" />
@@ -106,45 +111,47 @@ export function Sidebar() {
           </button>
         </div>
 
-        {/* Library Section */}
+        {/* LIBRARY Section */}
         <div className="space-y-0.5 pt-1">
-          <span className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Library</span>
+          <span className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider block">LIBRARY</span>
           
-          <button onClick={() => setActiveTab('library')} className="w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-slate-300 hover:bg-[#26262A] hover:text-white font-medium">
-            <Clock className="w-4 h-4 text-slate-400" />
-            <span>Recently Added</span>
+          <button onClick={() => setActiveTab('favorites')} className={`w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg font-medium transition-all ${activeTab === 'favorites' ? 'bg-[#26262A] text-white' : 'text-slate-300 hover:bg-[#26262A] hover:text-white'}`}>
+            <Heart className="w-4 h-4 text-slate-400" />
+            <span>Liked Songs</span>
           </button>
 
-          <button onClick={() => setActiveTab('artist')} className="w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-slate-300 hover:bg-[#26262A] hover:text-white font-medium">
+          <button onClick={() => setActiveTab('library')} className={`w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg font-medium transition-all ${activeTab === 'library' ? 'bg-[#26262A] text-white' : 'text-slate-300 hover:bg-[#26262A] hover:text-white'}`}>
+            <History className="w-4 h-4 text-slate-400" />
+            <span>Recently Played</span>
+          </button>
+
+          <button onClick={() => setActiveTab('artist')} className={`w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg font-medium transition-all ${activeTab === 'artist' ? 'bg-[#26262A] text-white' : 'text-slate-300 hover:bg-[#26262A] hover:text-white'}`}>
             <User className="w-4 h-4 text-slate-400" />
             <span>Artists</span>
           </button>
 
-          <button onClick={() => setActiveTab('album')} className="w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-slate-300 hover:bg-[#26262A] hover:text-white font-medium">
+          <button onClick={() => setActiveTab('album')} className={`w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg font-medium transition-all ${activeTab === 'album' ? 'bg-[#26262A] text-white' : 'text-slate-300 hover:bg-[#26262A] hover:text-white'}`}>
             <Disc className="w-4 h-4 text-slate-400" />
             <span>Albums</span>
           </button>
-
-          <button onClick={() => setActiveTab('library')} className="w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-slate-300 hover:bg-[#26262A] hover:text-white font-medium">
-            <Music className="w-4 h-4 text-slate-400" />
-            <span>Songs</span>
+          
+          <button onClick={() => setActiveTab('library')} className={`w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg font-medium transition-all ${activeTab === 'library' ? 'bg-[#26262A] text-white' : 'text-slate-300 hover:bg-[#26262A] hover:text-white'}`}>
+            <Clock className="w-4 h-4 text-slate-400" />
+            <span>Recently Added</span>
           </button>
 
-          <button onClick={() => setActiveTab('library')} className="w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-slate-300 hover:bg-[#26262A] hover:text-white font-medium">
-            <Sparkles className="w-4 h-4 text-slate-400" />
-            <span>Made For You</span>
+          <button onClick={() => setActiveTab('downloads')} className={`w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg font-medium transition-all ${activeTab === 'downloads' ? 'bg-[#26262A] text-white' : 'text-slate-300 hover:bg-[#26262A] hover:text-white'}`}>
+            <Download className="w-4 h-4 text-slate-400" />
+            <span>Downloaded</span>
           </button>
         </div>
 
         {/* Playlists Section */}
-        <div className="space-y-0.5 pt-1">
+        <div className="space-y-0.5 pt-1 border-t border-white/5 mt-2 pt-2">
           <div className="flex items-center justify-between px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            <span>Playlists</span>
+            <span>Your Playlists</span>
             <button 
-              onClick={() => {
-                const name = prompt("Enter new playlist name:");
-                if (name) createPlaylist(name, '', 'private');
-              }}
+              onClick={() => setCreatePlaylistModalOpen(true)}
               className="hover:text-white p-0.5"
               title="Create Playlist"
             >

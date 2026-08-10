@@ -5,7 +5,7 @@ import { X, Mic2, Music } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 
 export function LyricsPanel() {
-  const { isLyricsOpen, toggleLyrics, currentSong, currentTime, setCurrentTime } = usePlayerStore();
+  const { isLyricsOpen, toggleLyrics, currentSong, currentTime, setSeekTarget } = usePlayerStore();
   const activeLineRef = useRef<HTMLParagraphElement | null>(null);
 
   useEffect(() => {
@@ -31,11 +31,7 @@ export function LyricsPanel() {
   }, 0);
 
   const handleLineClick = (time: number) => {
-    setCurrentTime(time, true);
-    const audioEl = document.querySelector('audio');
-    if (audioEl) {
-      audioEl.currentTime = time;
-    }
+    setSeekTarget(time);
   };
 
   return (

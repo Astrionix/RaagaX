@@ -111,7 +111,8 @@ export function AudioPlayerController() {
     if (!audio) return;
 
     if (isVideoModeActive || !isActiveDevice) {
-      audio.pause();
+      audioRefA.current?.pause();
+      audioRefB.current?.pause();
     } else {
       if (isPlaying) {
         if (Math.abs(audio.currentTime - currentTime) > 2) {
