@@ -14,7 +14,7 @@ export class PlaylistResolver {
   /**
    * Resolves a Spotify Playlist ID into an array of playable JioSaavn Songs using Supabase Durable Cache.
    */
-  async resolveSpotifyPlaylist(playlistId: string, limit = 15): Promise<Song[]> {
+  async resolveSpotifyPlaylist(playlistId: string, limit = 100): Promise<Song[]> {
     try {
       // 1. Fetch Playlist Metadata & Tracks from Spotify
       const spotifyTracks = await SpotifyProvider.getPlaylistTracks(playlistId);
@@ -23,8 +23,8 @@ export class PlaylistResolver {
         return [];
       }
 
-      // Process only up to the requested limit + buffer
-      const tracksToProcess = spotifyTracks.slice(0, Math.max(limit + 5, 20));
+      // Process up to 100 tracks from Spotify
+      const tracksToProcess = spotifyTracks.slice(0, limit);
       const resolvedSongs: Song[] = [];
       const concurrencyLimit = 5;
 
