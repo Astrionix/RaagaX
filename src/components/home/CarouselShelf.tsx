@@ -347,7 +347,7 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
                     </div>
                     
                     <div className="flex items-center justify-end gap-3 min-w-0 pr-2">
-                      <div className="invisible group-hover:visible transition-opacity" onClick={e => e.stopPropagation()}>
+                      <div className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                         {item.type === 'song' ? (
                           <SongActionMenu song={item.rawItem as any} />
                         ) : (
