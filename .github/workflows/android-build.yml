@@ -1,0 +1,73 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'capacitor.config.json'
+      - 'android/**'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install NPM Dependencies
+        run: npm ci
+
+      - name: Sync Capacitor
+        run: |
+          npx cap copy android
+          npx cap sync android
+
+      - name: Build Android APK (Debug)
+        working-directory: ./android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RaagaX-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Commit APK to Public Folder
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          # Copy the built APK to the public directory
+          cp android/app/build/outputs/apk/debug/app-debug.apk public/RaagaX.apk
+          
+          git add public/RaagaX.apk
+          
+          # Only commit and push if there are changes
+          if git diff --staged --quiet; then
+            echo "No changes to APK, skipping commit."
+          else
+            git commit -m "chore: auto-build and update RaagaX.apk"
+            git push
+          fi
