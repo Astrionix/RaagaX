@@ -193,7 +193,7 @@ export class LibrarySyncManager {
       import('@/lib/discovery/SongResolver').then(({ SongResolver }) => {
         SongResolver.resolveSongs([songId]).then((resolved) => {
           if (resolved.length > 0) {
-            const currentLikedSongs = usePlayerStore.getState().likedSongs;
+            const currentLikedSongs = usePlayerStore.getState().likedSongs || [];
             if (!currentLikedSongs.find(s => s.id === songId)) {
               usePlayerStore.getState().setLikedSongs([...currentLikedSongs, resolved[0]]);
             }
@@ -203,7 +203,7 @@ export class LibrarySyncManager {
 
     } else if (type === 'UNLIKE' && currentLikes.includes(songId)) {
       store.setLikedSongIds(currentLikes.filter(id => id !== songId));
-      const currentLikedSongs = store.likedSongs;
+      const currentLikedSongs = store.likedSongs || [];
       store.setLikedSongs(currentLikedSongs.filter(s => s.id !== songId));
     }
   }
