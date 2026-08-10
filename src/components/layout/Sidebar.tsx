@@ -258,7 +258,7 @@ export function Sidebar() {
                 </div>
                 <div className="min-w-0">
                   <h4 className="text-xs font-bold text-white truncate leading-tight">
-                    {user.user_metadata?.name || 'RaagaX User'}
+                    {user.user_metadata?.name || user.email?.split('@')[0] || 'RaagaX User'}
                   </h4>
                 </div>
               </div>
