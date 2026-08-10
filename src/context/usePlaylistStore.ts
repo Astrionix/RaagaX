@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { supabase } from '@/lib/supabase';
 import { Playlist, Song } from '@/types/music';
 
@@ -22,8 +23,10 @@ interface PlaylistStore {
   reorderSongs: (playlistId: string, oldIndex: number, newIndex: number) => Promise<boolean>;
 }
 
-export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
-  playlists: [],
+export const usePlaylistStore = create<PlaylistStore>()(
+  persist(
+    (set, get) => ({
+      playlists: [],
   isLoading: false,
 
   fetchPlaylists: async () => {
@@ -195,4 +198,10 @@ export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
       return false;
     }
   }
-}));
+    }),
+    {
+      name: 'raagax_playlist_store',
+      partialize: (state) => ({ playlists: state.playlists }),
+    }
+  )
+);

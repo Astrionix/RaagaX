@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { Song, RepeatMode, AIDJState, ActiveTab } from '@/types/music';
 import { RecommendationEngine } from '@/lib/recommendationEngine';
 import { LocalDatabase } from '@/lib/localDatabase';
@@ -153,7 +154,9 @@ interface PlayerState {
   logCurrentTelemetry: (action: 'play' | 'skip' | 'complete') => void;
 }
 
-export const usePlayerStore = create<PlayerState>((set, get) => ({
+export const usePlayerStore = create<PlayerState>()(
+  persist(
+    (set, get) => ({
   currentSong: null,
   isPlaying: false,
   currentTime: 0,
@@ -270,12 +273,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         currentTime: session.currentTime || 0,
         queue: cleanQueue,
         queueIndex: Math.min(session.queueIndex || 0, Math.max(0, cleanQueue.length - 1)),
-        historySongIds: session.historySongIds || [],
-        likedSongIds: session.likedSongIds || [],
-        preferredLanguage: savedLanguage,
       });
-    } else {
-      set({ preferredLanguage: savedLanguage });
     }
   },
 
@@ -658,18 +656,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       const newLikedIds = isLiked
         ? state.likedSongIds.filter((id) => id !== songId)
         : [...state.likedSongIds, songId];
-        
-      // Save locally to persist for guests across reloads
-      LocalDatabase.getInstance().savePlaybackSession({
-        currentSong: state.currentSong,
-        currentTime: state.currentTime,
-        queue: state.queue,
-        queueIndex: state.queueIndex,
-        historySongIds: state.historySongIds,
-        likedSongIds: newLikedIds,
-        searchHistory: LocalDatabase.getInstance().getSearchHistory(),
-        preferredLanguage: state.preferredLanguage,
-      });
 
       return { likedSongIds: newLikedIds };
     });
@@ -893,4 +879,20 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       set({ sleepTimerMinutes: minutes, sleepTimerEndsAt: endsAt });
     }
   },
-}));
+    }),
+    {
+      name: 'raagax_player_prefs',
+      partialize: (state) => ({
+        likedSongIds: state.likedSongIds,
+        downloadedSongIds: state.downloadedSongIds,
+        historySongIds: state.historySongIds,
+        favoriteArtistIds: state.favoriteArtistIds,
+        favoriteAlbumIds: state.favoriteAlbumIds,
+        preferredLanguage: state.preferredLanguage,
+        crossfadeSec: state.crossfadeSec,
+        audioQualityPreset: state.audioQualityPreset,
+        isAutoplayEnabled: state.isAutoplayEnabled,
+      }),
+    }
+  )
+);
