@@ -52,6 +52,33 @@ export const NEW_RELEASES_SOURCES: Record<string, { id: string; title: string }>
   },
 };
 
+export const CLASSICS_SOURCES: Record<string, { id: string; title: string }> = {
+  Telugu: {
+    id: "4dzpSKUB2IlBGkQD5IVLD9",
+    title: "Telugu Old Melody Songs",
+  },
+  Kannada: {
+    id: "0iEJUBhOq5bSeu0Bsyu7vs",
+    title: "Kannada All Time Hit / Melody",
+  },
+  Tamil: {
+    id: "7ysyJuSXHV3JBkZ0n1B1dg",
+    title: "Tamil Old Golden Songs (80s+)",
+  },
+  Hindi: {
+    id: "0BKk3SchfjIinBX6biEQy7",
+    title: "Evergreen Old Bollywood Songs",
+  },
+  Malayalam: {
+    id: "321I9FccidF8E0irrX4dYz",
+    title: "Malayalam Old Songs - Evergreen",
+  },
+  English: {
+    id: "3z66YlKNJxRava5MreQKKO",
+    title: "English Classics Old / Retro 70s–90s",
+  },
+};
+
 export const NEW_SOURCES: Record<string, {
   primary: string[];
   secondary: string[];
@@ -60,7 +87,7 @@ export const NEW_SOURCES: Record<string, {
     primary: [
       "37i9dQZF1DWTt3gMo0DLxA", // Trending Now Telugu
       "37i9dQZF1DX6XE7HRLM75P", // Hot Hits Telugu
-      "0A6w9xDIYGrYgXtXEcUmM0"  // Top Telugu Hits 2026
+      "4dzpSKUB2IlBGkQD5IVLD9"  // Telugu Old Melody Songs
     ],
     secondary: [
       "7EpmzCQVjm6lz4GlBCNZYP"   // Thaman Top 200 Hits Telugu
@@ -71,7 +98,7 @@ export const NEW_SOURCES: Record<string, {
     primary: [
       "37i9dQZF1DWZqTcNLmb3sH", // Latest Kannada — Spotify
       "37i9dQZF1DX1ahAlaaz0ZE", // Hot Hits Kannada
-      "37i9dQZF1DX9i6vCEoH6jH"  // Kannada Party Time — Spotify
+      "0iEJUBhOq5bSeu0Bsyu7vs"  // Kannada All Time Hit / Melody
     ],
     secondary: [
       "2RPM7DnMrkGVtyGKluPb2P", // Sonu Nigam Kannada Hits
@@ -83,7 +110,7 @@ export const NEW_SOURCES: Record<string, {
   Tamil: {
     primary: [
       "37i9dQZF1DX1i3hvzHpcQV", // Hot Hits Tamil — Spotify
-      "0cJFpwIlxFm3NsKboxbQ6a", // Tamil Hits 2000–2025
+      "7ysyJuSXHV3JBkZ0n1B1dg", // Tamil Old Golden Songs (80s+)
       "3E7NJ4AE8fweSdoOgCQS0w"  // Tamil Hits 1990s–2022
     ],
     secondary: [
@@ -95,7 +122,7 @@ export const NEW_SOURCES: Record<string, {
     primary: [
       "37i9dQZF1DWTYKFynxp6Fs", // Trending Now Malayalam
       "37i9dQZF1DX688wU47emR9", // Hot Hits Malayalam
-      "5IqEQiJzYvJmkYirT8NqRx"  // 2026 Malayalam Top Hits
+      "321I9FccidF8E0irrX4dYz"  // Malayalam Old Songs - Evergreen
     ],
     secondary: []
   },
@@ -103,7 +130,7 @@ export const NEW_SOURCES: Record<string, {
   Hindi: {
     primary: [
       "37i9dQZF1DX0XUfTFmNBRM", // Hot Hits Hindi / Top Hits Hindi
-      "7hRdEVx3T8RF8s4QNNSORU", // Top Hindi Songs 2026
+      "0BKk3SchfjIinBX6biEQy7", // Evergreen Old Bollywood Songs
       "6vMOECoVzCMbqU5jPnfgIT"  // Hindi Songs 2026
     ],
     secondary: [
@@ -118,7 +145,7 @@ export const NEW_SOURCES: Record<string, {
     primary: [
       "37i9dQZF1DX4JAvHpjipBk", // New Music Friday — Spotify
       "37i9dQZF1DX0kbJZpiYdZl", // Hot Hits USA — Spotify
-      "4Ogw0Av7Zlpedzey04qScS"  // Top Hits English
+      "3z66YlKNJxRava5MreQKKO"  // English Classics Old / Retro 70s–90s
     ],
     secondary: [
       "1kFo0mfkxvUSe2GZcjzTHL", // Feel-Good Pop Hits 2026
@@ -139,7 +166,7 @@ export const CATEGORY_SPOTIFY_SOURCES: Record<string, Record<string, { id: strin
       charts: { id: TRENDING_SOURCES[lang]?.id || data.primary[0], title: TRENDING_SOURCES[lang]?.title || `${lang} Charts` },
       playlists: { id: data.primary[2] || data.secondary[0] || data.primary[0], title: `${lang} Curated Playlists` },
       mood: { id: data.secondary[0] || data.primary[0], title: `${lang} Mood & Love` },
-      genres: { id: data.secondary[1] || data.secondary[0] || data.primary[0], title: `${lang} Genres & Mixes` }
+      genres: { id: CLASSICS_SOURCES[lang]?.id || data.secondary[1] || data.primary[0], title: CLASSICS_SOURCES[lang]?.title || `${lang} Classics` }
     }
   ])
 );
