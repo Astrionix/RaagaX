@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AlbumResolver } from '@/lib/albumResolver';
 import { ShelfItem, HomeSection } from '@/types/home';
 import { JioSaavnProvider } from '@/lib/jioSaavnProvider';
+import { PlaylistResolver } from '@/lib/discovery/PlaylistResolver';
 import { Song } from '@/types/music';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
@@ -22,31 +23,56 @@ async function triggerBackgroundSync(baseUrl: string, playlistId: string, lang: 
   } catch(e) {}
 }
 
-async function getPlaylistWithSWR(baseUrl: string, playlistId: string | null, lang: string, category: string, fallbackQuery: string, saavn: JioSaavnProvider): Promise<Song[]> {
+async function getPlaylistWithSWR(
+  baseUrl: string,
+  playlistId: string | null,
+  lang: string,
+  category: string,
+  saavn: JioSaavnProvider,
+  resolver: PlaylistResolver
+): Promise<Song[]> {
   if (!playlistId) {
-    return saavn.searchSongs(fallbackQuery, 100);
+    return saavn.searchSongs(`${lang} Top Songs`, 100);
   }
 
-  // Check Supabase Cache
+  // 1. Check Supabase Cache
   const { data: cached } = await supabaseAdmin
     .from('spotify_playlist_cache')
     .select('*')
     .eq('playlist_id', playlistId)
     .maybeSingle();
 
-  if (cached && cached.data) {
-    // If expired OR if we have less than 100 songs, trigger background sync but return stale data immediately
+  if (cached && cached.data && (cached.data as Song[]).length > 0) {
     const isStale = new Date(cached.expires_at).getTime() < Date.now();
-    const isUndersized = (cached.data as Song[]).length < 100;
+    const isUndersized = (cached.data as Song[]).length < 50;
     if (isStale || isUndersized) {
       triggerBackgroundSync(baseUrl, playlistId, lang, category);
     }
     return (cached.data as Song[]).slice(0, 100);
   }
 
-  // Cache MISS. Trigger sync for future and fallback to JioSaavn for immediate response
-  triggerBackgroundSync(baseUrl, playlistId, lang, category);
-  return saavn.searchSongs(fallbackQuery, 100);
+  // 2. On Cache MISS: Resolve Spotify playlist live so we NEVER return random keyword search results!
+  try {
+    const liveResolved = await resolver.resolveSpotifyPlaylist(playlistId, 100);
+    if (liveResolved && liveResolved.length > 0) {
+      const expiresAt = new Date(Date.now() + 12 * 3600 * 1000).toISOString();
+      await supabaseAdmin.from('spotify_playlist_cache').upsert({
+        playlist_id: playlistId,
+        playlist_name: category,
+        language: lang,
+        data: liveResolved,
+        expires_at: expiresAt,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'playlist_id' });
+
+      return liveResolved.slice(0, 100);
+    }
+  } catch (err) {
+    console.error(`[getPlaylistWithSWR] Live resolution error for ${playlistId}:`, err);
+  }
+
+  // 3. Fallback to clean language top songs
+  return saavn.searchSongs(`${lang} Top Songs`, 100);
 }
 
 export async function GET(req: NextRequest) {
@@ -56,6 +82,7 @@ export async function GET(req: NextRequest) {
   try {
     const baseUrl = getBaseUrl(req);
     const albumResolver = new AlbumResolver(baseUrl);
+    const playlistResolver = new PlaylistResolver(baseUrl);
     const saavn = JioSaavnProvider.getInstance(baseUrl);
     
     const trendingSource = TRENDING_SOURCES[lang] || TRENDING_SOURCES['Telugu'];
@@ -75,14 +102,14 @@ export async function GET(req: NextRequest) {
       p5Songs,
       movieAlbums,
     ] = await Promise.all([
-      getPlaylistWithSWR(baseUrl, trendingSource.id, lang, 'trending', `${lang} Top Hits`, saavn),
-      getPlaylistWithSWR(baseUrl, newReleasesSource.id, lang, 'new_releases', `${lang} Latest Hits`, saavn),
-      getPlaylistWithSWR(baseUrl, classicsSource.id, lang, 'classics', `${lang} Melody Songs`, saavn),
-      getPlaylistWithSWR(baseUrl, extraPlaylists[0]?.id || null, lang, 'p1', extraPlaylists[0]?.title || `${lang} Hits`, saavn),
-      getPlaylistWithSWR(baseUrl, extraPlaylists[1]?.id || null, lang, 'p2', extraPlaylists[1]?.title || `${lang} Mix`, saavn),
-      getPlaylistWithSWR(baseUrl, extraPlaylists[2]?.id || null, lang, 'p3', extraPlaylists[2]?.title || `${lang} Indie`, saavn),
-      getPlaylistWithSWR(baseUrl, extraPlaylists[3]?.id || null, lang, 'p4', extraPlaylists[3]?.title || `${lang} Beats`, saavn),
-      getPlaylistWithSWR(baseUrl, extraPlaylists[4]?.id || null, lang, 'p5', extraPlaylists[4]?.title || `${lang} Popular`, saavn),
+      getPlaylistWithSWR(baseUrl, trendingSource.id, lang, trendingSource.title, saavn, playlistResolver),
+      getPlaylistWithSWR(baseUrl, newReleasesSource.id, lang, newReleasesSource.title, saavn, playlistResolver),
+      getPlaylistWithSWR(baseUrl, classicsSource.id, lang, classicsSource.title, saavn, playlistResolver),
+      getPlaylistWithSWR(baseUrl, extraPlaylists[0]?.id || null, lang, extraPlaylists[0]?.title || 'P1', saavn, playlistResolver),
+      getPlaylistWithSWR(baseUrl, extraPlaylists[1]?.id || null, lang, extraPlaylists[1]?.title || 'P2', saavn, playlistResolver),
+      getPlaylistWithSWR(baseUrl, extraPlaylists[2]?.id || null, lang, extraPlaylists[2]?.title || 'P3', saavn, playlistResolver),
+      getPlaylistWithSWR(baseUrl, extraPlaylists[3]?.id || null, lang, extraPlaylists[3]?.title || 'P4', saavn, playlistResolver),
+      getPlaylistWithSWR(baseUrl, extraPlaylists[4]?.id || null, lang, extraPlaylists[4]?.title || 'P5', saavn, playlistResolver),
       albumResolver.resolveAlbums(lang, `${lang} movies latest`, 15, 'album'),
     ]);
 
