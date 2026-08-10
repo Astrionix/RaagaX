@@ -79,10 +79,12 @@ interface PlayerState {
   // Autoplay and Context
   isAutoplayEnabled: boolean;
   playbackContext: import('@/types/music').PlaybackContext | null;
+  albumPlaybackQueue: string[];
   toggleAutoplay: () => void;
   setPlaybackContext: (context: import('@/types/music').PlaybackContext | null) => void;
 
   // Actions
+  playAlbumSequence: (albumIds: string[]) => Promise<void>;
   restoreLocalSession: () => Promise<void>;
   syncCloudLibrary: () => Promise<void>;
   autoRefillQueue: () => Promise<void>;
@@ -200,6 +202,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   isAutoplayEnabled: true,
   playbackContext: null,
+  albumPlaybackQueue: [],
   toggleAutoplay: () => set((state) => ({ isAutoplayEnabled: !state.isAutoplayEnabled })),
   setPlaybackContext: (context) => set({ playbackContext: context }),
 
@@ -290,6 +293,27 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       completionPercentage,
       'home'
     );
+  },
+
+  playAlbumSequence: async (albumIds: string[]) => {
+    if (albumIds.length === 0) return;
+    
+    // Play the first album immediately
+    const firstAlbumId = albumIds[0];
+    const remainingAlbums = albumIds.slice(1);
+    
+    const { RealMusicEngine } = await import('@/lib/realMusicEngine');
+    const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${firstAlbumId}`);
+    const tracks = details?.songs || [];
+    
+    if (tracks.length > 0) {
+      set({ 
+        albumPlaybackQueue: remainingAlbums,
+        playbackContext: { type: 'album_sequence', seedAlbumId: firstAlbumId },
+        isShuffle: false
+      });
+      get().playSong(tracks[0], tracks);
+    }
   },
 
   playSong: (song, newQueue) => {
@@ -490,11 +514,50 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   reorderQueue: (newQueue) => set({ queue: newQueue }),
 
   autoRefillQueue: async () => {
-    const { currentSong, historySongIds, likedSongIds, preferredLanguage, queue, queueIndex } = get();
+    const { currentSong, historySongIds, likedSongIds, preferredLanguage, queue, queueIndex, playbackContext, albumPlaybackQueue } = get();
     if (get().isRefillingQueue) return;
     set({ isRefillingQueue: true });
 
     try {
+      if (playbackContext?.type === 'album_sequence') {
+        const { RealMusicEngine } = await import('@/lib/realMusicEngine');
+        
+        if (albumPlaybackQueue.length > 0) {
+          // Play next album from the pre-defined 50-album sequence
+          const nextAlbumId = albumPlaybackQueue[0];
+          const remainingAlbums = albumPlaybackQueue.slice(1);
+          
+          const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${nextAlbumId}`);
+          if (details?.songs && details.songs.length > 0) {
+            set({ 
+              queue: [...queue, ...details.songs],
+              albumPlaybackQueue: remainingAlbums
+            });
+            return;
+          }
+        } else {
+          // Exhausted the 50 albums. Fetch a new unique album from the catalog.
+          const { AlbumCatalogEngine } = await import('@/lib/albumCatalog');
+          const allAlbums = await AlbumCatalogEngine.getInstance().getAlbumsByLanguage(preferredLanguage);
+          
+          // Find an album whose tracks are not already in the queue
+          const seenAlbumIds = new Set(queue.map(q => q.albumId).filter(Boolean));
+          // Also avoid seed if available
+          if (playbackContext.seedAlbumId) seenAlbumIds.add(playbackContext.seedAlbumId);
+          
+          const uniqueNewAlbums = allAlbums.filter(a => !seenAlbumIds.has(a.id));
+          if (uniqueNewAlbums.length > 0) {
+            // Pick a random unique album
+            const nextAlbum = uniqueNewAlbums[Math.floor(Math.random() * uniqueNewAlbums.length)];
+            const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${nextAlbum.id}`);
+            if (details?.songs && details.songs.length > 0) {
+              set({ queue: [...queue, ...details.songs] });
+              return;
+            }
+          }
+        }
+      }
+
       const { CandidateGenerator } = await import('@/lib/recommendation/CandidateGenerator');
       const { Ranker } = await import('@/lib/recommendation/Ranker');
 

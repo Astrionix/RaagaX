@@ -13,7 +13,8 @@ export function AlbumsView() {
     setPreferredLanguage, 
     setSelectedAlbumId, 
     playSong, 
-    setRemoteState 
+    setRemoteState,
+    playAlbumSequence
   } = usePlayerStore();
 
   const [activeTabFilter, setActiveTabFilter] = useState<'all' | 'recent' | 'trending' | 'top'>('all');
@@ -117,16 +118,8 @@ export function AlbumsView() {
             onClick={async () => {
               const list = activeTabFilter === 'recent' ? recentlyReleased : activeTabFilter === 'trending' ? trending : activeTabFilter === 'top' ? popular : allAlbums;
               if (list.length > 0) {
-                let tracks = list[0].tracks;
-                if (!tracks || tracks.length === 0) {
-                  const { RealMusicEngine } = await import('@/lib/realMusicEngine');
-                  const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${list[0].id}`);
-                  tracks = details?.songs || [];
-                }
-                if (tracks.length > 0) {
-                  setRemoteState({ isShuffle: false });
-                  playSong(tracks[0], tracks);
-                }
+                const albumIds = list.map(a => a.id);
+                await playAlbumSequence(albumIds);
               }
             }}
             className="px-4 py-2 rounded-xl bg-[#fa233b] hover:bg-[#fa233b]/90 text-white font-bold text-xs flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-md cursor-pointer"
@@ -137,18 +130,10 @@ export function AlbumsView() {
             onClick={async () => {
               const list = activeTabFilter === 'recent' ? recentlyReleased : activeTabFilter === 'trending' ? trending : activeTabFilter === 'top' ? popular : allAlbums;
               if (list.length > 0) {
-                const randomAlbum = list[Math.floor(Math.random() * list.length)];
-                let tracks = randomAlbum.tracks;
-                if (!tracks || tracks.length === 0) {
-                  const { RealMusicEngine } = await import('@/lib/realMusicEngine');
-                  const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${randomAlbum.id}`);
-                  tracks = details?.songs || [];
-                }
-                if (tracks.length > 0) {
-                  const randomTrack = tracks[Math.floor(Math.random() * tracks.length)];
-                  setRemoteState({ isShuffle: true });
-                  playSong(randomTrack, tracks);
-                }
+                // Shuffle the album IDs array
+                const albumIds = list.map(a => a.id).sort(() => Math.random() - 0.5);
+                setRemoteState({ isShuffle: true });
+                await playAlbumSequence(albumIds);
               }
             }}
             className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white font-bold text-xs flex items-center gap-2 transition-all hover:scale-105 active:scale-95 border border-white/10 cursor-pointer"
