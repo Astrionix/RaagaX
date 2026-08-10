@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AlbumResolver } from '@/lib/albumResolver';
 import { ShelfItem, HomeSection } from '@/types/home';
-import { DiscoveryEngine } from '@/lib/discoveryEngine';
+import { JioSaavnProvider } from '@/lib/jioSaavnProvider';
 
 function getBaseUrl(req: NextRequest): string {
   const host = req.headers.get('host') || 'localhost:3001';
@@ -36,23 +36,21 @@ export async function GET(req: NextRequest) {
   try {
     const baseUrl = getBaseUrl(req);
     const resolver = new AlbumResolver(baseUrl);
-    const engine = DiscoveryEngine.getInstance(baseUrl);
+    const saavn = JioSaavnProvider.getInstance(baseUrl);
 
     // Run parallel fetching
     const [
       trendingSongs,
       newReleases,
-      chartsPlaylists,
       moodsPlaylists,
       movieAlbums,
       topAlbums
     ] = await Promise.all([
-      engine.discover(lang as any).then(res => res?.topChart || []),
-      engine.discover(lang as any).then(res => res?.newReleases || []),
-      resolver.resolveAlbums(lang, `${lang} top charts`, 15, 'playlist'),
-      resolver.resolveAlbums(lang, `${lang} moods hits`, 12, 'playlist'),
-      resolver.resolveAlbums(lang, `${lang} movies latest`, 10, 'album'),
-      resolver.resolveAlbums(lang, `${lang} best albums`, 10, 'album')
+      saavn.searchSongs(`Trending ${lang} hits`, 15),
+      saavn.searchSongs(`New ${lang} songs`, 15),
+      resolver.resolveAlbums(lang, `${lang} moods hits`, 15, 'playlist'),
+      resolver.resolveAlbums(lang, `${lang} movies latest`, 30, 'album'),
+      resolver.resolveAlbums(lang, `${lang} best albums`, 30, 'album')
     ]);
 
     const sections: HomeSection[] = [];
@@ -62,13 +60,13 @@ export async function GET(req: NextRequest) {
         id: 'trending',
         title: 'Trending',
         type: 'carousel',
-        items: trendingSongs.map(entry => ({
-          id: entry.song.id,
-          title: entry.song.title,
-          subtitle: entry.song.artist,
+        items: trendingSongs.map(song => ({
+          id: song.id,
+          title: song.title,
+          subtitle: song.artist,
           type: 'song',
-          imageUrl: entry.song.coverUrl,
-          rawItem: entry.song // Store song data for instant play
+          imageUrl: song.coverUrl,
+          rawItem: song // Store song data for instant play
         }))
       });
     }
@@ -78,31 +76,18 @@ export async function GET(req: NextRequest) {
         id: 'new_releases',
         title: 'New Releases',
         type: 'carousel',
-        items: newReleases.map(entry => ({
-          id: entry.song.id,
-          title: entry.song.title,
-          subtitle: entry.song.artist,
+        items: newReleases.map(song => ({
+          id: song.id,
+          title: song.title,
+          subtitle: song.artist,
           type: 'song',
-          imageUrl: entry.song.coverUrl,
-          rawItem: entry.song
+          imageUrl: song.coverUrl,
+          rawItem: song
         }))
       });
     }
 
-    if (chartsPlaylists.length > 0) {
-      sections.push({
-        id: 'charts',
-        title: 'Charts',
-        type: 'carousel',
-        items: chartsPlaylists.map(item => ({
-          id: item.id,
-          title: item.title,
-          subtitle: 'Saavn',
-          type: 'playlist',
-          imageUrl: item.coverUrl
-        }))
-      });
-    }
+
 
     if (moodsPlaylists.length > 0) {
       sections.push({
