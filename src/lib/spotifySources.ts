@@ -1,3 +1,48 @@
+export const BROWSE_5_PLAYLISTS: Record<string, Array<{ id: string; title: string }>> = {
+  Telugu: [
+    { id: '37i9dQZF1DX5VOFoIqmrOV', title: 'Tollywood Pearls' },
+    { id: '37i9dQZF1DXcrFZ8UTtxv9', title: "All Out 00's Telugu" },
+    { id: '37i9dQZF1DX3I9bqAkK5Dr', title: 'Telugu Indie' },
+    { id: '37i9dQZF1DWTw6jXuVBprS', title: 'Telangana Folk Beats!' },
+    { id: '37i9dQZF1DWWwrjLPC16W7', title: 'Latest Telugu' },
+  ],
+  Tamil: [
+    { id: '37i9dQZF1DWTnDuST8OorZ', title: 'All out 00s Tamil' },
+    { id: '04wyLWYsskgWjn9827AQj3', title: 'Trending Tamil Songs 2026' },
+    { id: '37i9dQZF1DWVeJ1iLJWg8y', title: 'All Out 60s Tamil' },
+    { id: '3wVf2PduEomefWHxyzAQy9', title: 'A.R. Rahman Top 100 Tamil' },
+    { id: '37i9dQZF1DWVo4cdnikh7Z', title: 'Tamil Golden Hits 100' },
+  ],
+  Malayalam: [
+    { id: '37i9dQZF1DX0pL2mGKNaCP', title: 'All Out 80s Malayalam' },
+    { id: '4vgxhCITOiyJf6c4CscEcv', title: 'Retro Malayalam Hits - Carvaan Select' },
+    { id: '0WnQPikvoy2Bmxm9aYz57r', title: '2010s Malayalam - Best 100' },
+    { id: '3ZbWYBiVeapp2FNOP3xCQT', title: 'Athimanoharam Trending Malayalam Songs' },
+    { id: '17I0RT5oDNpbfcygYyJiZI', title: 'Aadu 3 Latest Malayalam Songs' },
+  ],
+  Hindi: [
+    { id: '37i9dQZF1DX5rOEFf3Iycd', title: 'All Out 80s Hindi' },
+    { id: '37i9dQZF1DX9kVlnA5Si6s', title: 'All Out 70s Hindi' },
+    { id: '37i9dQZF1DWZNJXX2UeBij', title: "All Out 00's Hindi" },
+    { id: '6EeFow2EmkVYH8HgsT4wEB', title: 'Most Listened Hindi Songs of July 2026' },
+    { id: '5gSVvj8ukLSQlSnClSp1sR', title: 'Best Bollywood Songs of All Time' },
+  ],
+  English: [
+    { id: '0QN2m4k1Mwgv6XO2UoVuNn', title: 'Top 100 Most Viewed English Songs of All Time' },
+    { id: '3Fvb75V9A1mS181CXBAt1m', title: 'Top 100 Songs on Spotify 2026' },
+    { id: '37i9dQZF1DX13sApGEHdQm', title: '100 Greatest Pop Songs of the Streaming Era' },
+    { id: '1NxJn9tmppNrsJBrudFQ7d', title: 'English Top Hits of all Time' },
+    { id: '30oqz6VqelMmEzAZ0b1VoO', title: 'Top Hits 2026 TOP 40 Popular Songs' },
+  ],
+  Kannada: [
+    { id: '37i9dQZF1DWZqTcNLmb3sH', title: 'Latest Kannada' },
+    { id: '37i9dQZF1DX1ahAlaaz0ZE', title: 'Hot Hits Kannada' },
+    { id: '6ppm1rd8zW1FfkWkLOJd80', title: 'Top Hits Kannada 2026' },
+    { id: '37i9dQZF1DX9i6vCEoH6jH', title: 'Kannada Party Time' },
+    { id: '2RPM7DnMrkGVtyGKluPb2P', title: 'Sonu Nigam Kannada Hits 100' },
+  ]
+};
+
 export const TRENDING_SOURCES: Record<string, { id: string; title: string }> = {
   Telugu: {
     id: "37i9dQZF1DWTt3gMo0DLxA",
@@ -87,72 +132,60 @@ export const NEW_SOURCES: Record<string, {
 }> = {
   Telugu: {
     primary: [
-      "37i9dQZF1DWTt3gMo0DLxA", // Trending Now Telugu
-      "37i9dQZF1DX6XE7HRLM75P", // Hot Hits Telugu
-      "4dzpSKUB2IlBGkQD5IVLD9"  // Telugu Old Melody Songs
+      "37i9dQZF1DWTt3gMo0DLxA",
+      "37i9dQZF1DX6XE7HRLM75P",
+      "4dzpSKUB2IlBGkQD5IVLD9"
     ],
     secondary: [
-      "7EpmzCQVjm6lz4GlBCNZYP"   // Thaman Top 200 Hits Telugu
+      "7EpmzCQVjm6lz4GlBCNZYP"
     ]
   },
-
   Kannada: {
     primary: [
-      "37i9dQZF1DWZqTcNLmb3sH", // Latest Kannada — Spotify
-      "37i9dQZF1DX1ahAlaaz0ZE", // Hot Hits Kannada
-      "0iEJUBhOq5bSeu0Bsyu7vs"  // Kannada All Time Hit / Melody
+      "37i9dQZF1DWZqTcNLmb3sH",
+      "37i9dQZF1DX1ahAlaaz0ZE",
+      "0iEJUBhOq5bSeu0Bsyu7vs"
     ],
     secondary: [
-      "2RPM7DnMrkGVtyGKluPb2P", // Sonu Nigam Kannada Hits
-      "4gEu20D7S53LUJqpma2MvS", // Puneeth Rajkumar Kannada Hits
-      "58vfzeU7ZGgmV2SzQ1vLPV"  // Raghu Dixit Kannada Hits
+      "2RPM7DnMrkGVtyGKluPb2P"
     ]
   },
-
   Tamil: {
     primary: [
-      "37i9dQZF1DX1i3hvzHpcQV", // Hot Hits Tamil — Spotify
-      "7ysyJuSXHV3JBkZ0n1B1dg", // Tamil Old Golden Songs (80s+)
-      "3E7NJ4AE8fweSdoOgCQS0w"  // Tamil Hits 1990s–2022
+      "37i9dQZF1DX1i3hvzHpcQV",
+      "7ysyJuSXHV3JBkZ0n1B1dg",
+      "3E7NJ4AE8fweSdoOgCQS0w"
     ],
     secondary: [
-      "1tvO8pnSjTe1Rxwm78FGnW"  // Tamil hits 1996–2000
+      "1tvO8pnSjTe1Rxwm78FGnW"
     ]
   },
-
   Malayalam: {
     primary: [
-      "37i9dQZF1DWTYKFynxp6Fs", // Trending Now Malayalam
-      "37i9dQZF1DX688wU47emR9", // Hot Hits Malayalam
-      "321I9FccidF8E0irrX4dYz"  // Malayalam Old Songs - Evergreen
+      "37i9dQZF1DWTYKFynxp6Fs",
+      "37i9dQZF1DX688wU47emR9",
+      "321I9FccidF8E0irrX4dYz"
     ],
     secondary: []
   },
-
   Hindi: {
     primary: [
-      "37i9dQZF1DX0XUfTFmNBRM", // Hot Hits Hindi / Top Hits Hindi
-      "0BKk3SchfjIinBX6biEQy7", // Evergreen Old Bollywood Songs
-      "6vMOECoVzCMbqU5jPnfgIT"  // Hindi Songs 2026
+      "37i9dQZF1DX0XUfTFmNBRM",
+      "0BKk3SchfjIinBX6biEQy7",
+      "6vMOECoVzCMbqU5jPnfgIT"
     ],
     secondary: [
-      "6Z3BmVoSFRvMeMkv9XclTb", // Top Bollywood Hits 2026
-      "6uI26cdAvrmMgTNHrF0g6j", // Hindi mixed moods
-      "0lgFD8THSkuGLc7HxdCoog", // Best Hindi Songs
-      "6RMAWr6LmvnNeuHZENr1V3"  // Best Hindi Songs 2026
+      "6Z3BmVoSFRvMeMkv9XclTb"
     ]
   },
-
   English: {
     primary: [
-      "37i9dQZF1DX4JAvHpjipBk", // New Music Friday — Spotify
-      "37i9dQZF1DX0kbJZpiYdZl", // Hot Hits USA — Spotify
-      "3z66YlKNJxRava5MreQKKO"  // English Classics Old / Retro 70s–90s
+      "37i9dQZF1DX4JAvHpjipBk",
+      "37i9dQZF1DX0kbJZpiYdZl",
+      "3z66YlKNJxRava5MreQKKO"
     ],
     secondary: [
-      "1kFo0mfkxvUSe2GZcjzTHL", // Feel-Good Pop Hits 2026
-      "0IixkV6ydpdcfsEtHxCPlP", // Viral Hits 2026
-      "23Q7biosrwvcqdnJgWEHYZ"  // Viral Hits Worldwide
+      "1kFo0mfkxvUSe2GZcjzTHL"
     ]
   }
 };
@@ -160,15 +193,15 @@ export const NEW_SOURCES: Record<string, {
 export const SOURCES = NEW_SOURCES;
 
 export const CATEGORY_SPOTIFY_SOURCES: Record<string, Record<string, { id: string; title: string }>> = Object.fromEntries(
-  Object.entries(NEW_SOURCES).map(([lang, data]) => [
+  Object.entries(BROWSE_5_PLAYLISTS).map(([lang, items]) => [
     lang,
     {
-      language: { id: data.primary[0], title: `${lang} Top Hits` },
-      new_music: { id: NEW_RELEASES_SOURCES[lang]?.id || data.primary[1] || data.primary[0], title: NEW_RELEASES_SOURCES[lang]?.title || `New ${lang} Releases` },
-      charts: { id: TRENDING_SOURCES[lang]?.id || data.primary[0], title: TRENDING_SOURCES[lang]?.title || `${lang} Charts` },
-      playlists: { id: data.primary[2] || data.secondary[0] || data.primary[0], title: `${lang} Curated Playlists` },
-      mood: { id: data.secondary[0] || data.primary[0], title: `${lang} Mood & Love` },
-      genres: { id: CLASSICS_SOURCES[lang]?.id || data.secondary[1] || data.primary[0], title: CLASSICS_SOURCES[lang]?.title || `${lang} Classics` }
+      language: items[0] || { id: '37i9dQZF1DWTt3gMo0DLxA', title: `${lang} Top Hits` },
+      new_music: items[1] || { id: '37i9dQZF1DX6XE7HRLM75P', title: `New ${lang} Releases` },
+      charts: items[0] || { id: '37i9dQZF1DWTt3gMo0DLxA', title: `${lang} Charts` },
+      playlists: items[2] || { id: '37i9dQZF1DX3I9bqAkK5Dr', title: `${lang} Curated Playlists` },
+      mood: items[3] || { id: '37i9dQZF1DWTw6jXuVBprS', title: `${lang} Mood & Beats` },
+      genres: items[4] || { id: '37i9dQZF1DWWwrjLPC16W7', title: `${lang} Genres & Mixes` }
     }
   ])
 );
