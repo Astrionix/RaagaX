@@ -152,9 +152,26 @@ export function SettingsModal() {
           </label>
           <button
             onClick={handleSignOut}
-            className="w-full py-2.5 px-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold flex items-center justify-center gap-2 border border-red-500/20 transition-all"
+            className="w-full py-2.5 px-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold flex items-center justify-center gap-2 border border-red-500/20 transition-all cursor-pointer"
           >
             <LogOut className="w-4 h-4" /> Sign Out
+          </button>
+        </div>
+
+        {/* Save Settings Action Button */}
+        <div className="pt-2">
+          <button
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('raagax_preferred_language', preferredLanguage);
+                localStorage.setItem('raagax_audio_quality', audioQualityPreset);
+                localStorage.setItem('raagax_crossfade', String(crossfadeSec));
+              }
+              toggleSettingsModal();
+            }}
+            className="w-full py-3.5 px-4 rounded-2xl bg-[#EF233C] hover:bg-[#d91e32] text-white font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl shadow-red-500/20 transition-all hover:scale-[1.01] active:scale-95 cursor-pointer"
+          >
+            <span>Save Settings & Remember Preference</span>
           </button>
         </div>
       </div>

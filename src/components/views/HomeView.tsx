@@ -169,23 +169,6 @@ export function HomeView() {
             </button>
           </div>
 
-          {/* Regional Language Selector Pills */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            {['Telugu', 'Tamil', 'Kannada', 'Malayalam', 'Hindi', 'English'].map((lang) => (
-              <button
-                key={lang}
-                onClick={() => setPreferredLanguage(lang)}
-                className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                  preferredLanguage.toLowerCase() === lang.toLowerCase()
-                    ? 'bg-[#fa233b] text-white shadow-md shadow-red-500/30'
-                    : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white border border-white/5'
-                }`}
-              >
-                {lang}
-              </button>
-            ))}
-          </div>
-
           {/* Top 10 Albums Showcase Horizontal Side-scroll on Mobile, Grid on Desktop */}
           <div className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory md:grid md:grid-cols-5 gap-3.5 sm:gap-4 pt-1 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
             {top10Albums.map((album, idx) => (

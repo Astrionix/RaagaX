@@ -93,12 +93,29 @@ function mapTrackToSong(track: any, idx: number): Song {
   };
 }
 
+const KIDS_KEYWORDS = [
+  'wowkidz', 'nursery', 'rhymes', 'chitti chilakamma', 'bujji meka', 
+  'akesi pappesi', 'burru pitta', 'bava bava', 'chuku chuku railu',
+  'infobells', 'chuchu tv', 'cocomelon', 'lullaby', 'kindergarten',
+  'baby shark', 'kids rhymes', 'rhyme', 'kids song'
+];
+
+export function isKidsOrNurseryTrack(track: { title?: string; artist?: string; album?: string; name?: string }): boolean {
+  if (!track) return true;
+  const title = track.title || track.name || '';
+  const artist = track.artist || '';
+  const album = track.album || '';
+  const combined = `${title} ${artist} ${album}`.toLowerCase();
+  return KIDS_KEYWORDS.some(kw => combined.includes(kw));
+}
+
 function deduplicateSongs(songs: Song[]): Song[] {
   const seenIds = new Set<string>();
   const seenTitles = new Set<string>();
   const unique: Song[] = [];
   for (const song of songs) {
     if (!song.id || seenIds.has(song.id)) continue;
+    if (isKidsOrNurseryTrack(song)) continue;
     const clean = song.title
       .toLowerCase()
       .replace(/\(from[^)]*\)/gi, '')

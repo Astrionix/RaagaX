@@ -72,23 +72,6 @@ export function AlbumsView() {
           <p className="text-xs sm:text-sm text-slate-300 font-medium leading-relaxed">
             Verified, ranked full releases and EPs (2+ tracks) curated directly across regional charts.
           </p>
-
-          {/* 6-Language Selector Pills */}
-          <div className="flex flex-wrap items-center gap-2 pt-2">
-            {LANGUAGES.map((lang) => (
-              <button
-                key={lang}
-                onClick={() => setPreferredLanguage(lang)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                  preferredLanguage.toLowerCase() === lang.toLowerCase()
-                    ? 'bg-[#fa233b] text-white shadow-lg shadow-red-500/30'
-                    : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white border border-white/5'
-                }`}
-              >
-                {lang}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 

@@ -242,16 +242,25 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     });
   },
 
-  setPreferredLanguage: (lang) => set({ preferredLanguage: lang }),
+  setPreferredLanguage: (lang) => {
+    set({ preferredLanguage: lang });
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('raagax_preferred_language', lang);
+    }
+  },
 
   restoreLocalSession: async () => {
     const session = await LocalDatabase.getInstance().loadPlaybackSession();
     if (session && session.currentSong) {
+      const { isKidsOrNurseryTrack } = await import('@/lib/jioSaavnProvider');
+      const cleanQueue = (session.queue || []).filter(s => s && !isKidsOrNurseryTrack(s));
+      const isCurrentClean = !isKidsOrNurseryTrack(session.currentSong);
+
       set({
-        currentSong: session.currentSong,
+        currentSong: isCurrentClean ? session.currentSong : (cleanQueue[0] || null),
         currentTime: session.currentTime || 0,
-        queue: session.queue || [],
-        queueIndex: session.queueIndex || 0,
+        queue: cleanQueue,
+        queueIndex: Math.min(session.queueIndex || 0, Math.max(0, cleanQueue.length - 1)),
         historySongIds: session.historySongIds || [],
         likedSongIds: session.likedSongIds || [],
         preferredLanguage: session.preferredLanguage || 'Telugu',

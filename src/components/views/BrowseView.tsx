@@ -16,9 +16,7 @@ const fetcher = (url: string) => fetch(url).then(res => res.json());
 export function BrowseView() {
   const { preferredLanguage, setPreferredLanguage, searchQuery, setSearchQuery } = usePlayerStore();
   
-  const [browseLang, setBrowseLang] = useState(preferredLanguage || 'Telugu');
-
-  const { data, error, isLoading } = useSWR(`/api/browse?lang=${browseLang}`, fetcher, {
+  const { data, error, isLoading } = useSWR(`/api/browse?lang=${preferredLanguage}`, fetcher, {
     keepPreviousData: true,
     revalidateOnFocus: false,
     dedupingInterval: 60000,
@@ -51,27 +49,6 @@ export function BrowseView() {
               placeholder="Search music, artists, albums..."
               className="w-full pl-9 pr-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder:text-slate-400 focus:bg-white/10 focus:border-[#fa233b] focus:outline-none transition-all"
             />
-          </div>
-
-          {/* Language Selector */}
-          <div className="relative group">
-            <select
-              value={browseLang}
-              onChange={(e) => {
-                setBrowseLang(e.target.value);
-                if (e.target.value !== 'All Languages') {
-                  setPreferredLanguage(e.target.value);
-                }
-              }}
-              className="appearance-none bg-[#fa233b] text-white font-bold text-sm py-2 pl-4 pr-10 rounded-xl cursor-pointer hover:bg-[#d91e32] transition-colors focus:outline-none"
-            >
-              {LANGUAGES.map(lang => (
-                <option key={lang} value={lang} className="bg-[#161618] text-white">
-                  {lang}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
         </div>
       </div>
