@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { HomePayload, HomeSection, ShelfItem } from '@/types/home';
 import { supabase } from '@/lib/supabase';
+
+export const dynamic = 'force-dynamic';
+
 function getGreeting(): string {
   const hour = new Date().getHours();
   if (hour < 12) return 'Good Morning 👋';
