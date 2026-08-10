@@ -104,6 +104,7 @@ export function ArtistDetailView() {
             <img src={artist.imageUrl || artist.image?.find?.((i: any) => i.quality === '500x500')?.url || artist.image?.[artist.image?.length - 1]?.url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819'} alt={artist.name} className="w-full h-full object-cover bg-slate-800" />
           </div>
 
+          <div className="space-y-2">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#fa233b]/20 border border-[#fa233b]/40 text-[10px] font-bold uppercase text-[#fa233b]">
               <ShieldCheck className="w-3 h-3 text-[#fa233b]" /> {artist.isVerified ? 'Verified Maestro' : 'Artist'}
             </div>
