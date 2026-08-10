@@ -1,0 +1,22 @@
+[
+  {
+    "title": "Chikiri Chikiri - Official Video Song",
+    "expected": "song"
+  },
+  {
+    "title": "Movie Official Trailer",
+    "expected": "trailer"
+  },
+  {
+    "title": "Old Song - 2022",
+    "expected": "old"
+  },
+  {
+    "title": "Some Teaser - Official",
+    "expected": "trailer"
+  },
+  {
+    "title": "Lyrical Video: Samajavaragamana",
+    "expected": "song"
+  }
+]
