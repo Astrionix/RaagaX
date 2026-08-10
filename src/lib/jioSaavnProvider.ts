@@ -242,4 +242,31 @@ export class JioSaavnProvider {
     }
     return [];
   }
+
+  async getPlaylistSongs(playlistId: string): Promise<Song[]> {
+    if (!playlistId) return [];
+    const urls = [
+      `${this.localBase}/api/playlists?id=${playlistId}`,
+      `${this.externalBase}/api/playlists?id=${playlistId}`,
+    ];
+
+    for (const url of urls) {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 6000);
+      try {
+        const res = await fetch(url, { signal: ctrl.signal });
+        clearTimeout(tid);
+        if (res.ok) {
+          const data = await res.json();
+          const songs = data.data?.songs || data.songs || [];
+          if (songs.length > 0) {
+            return deduplicateSongs(songs.map(mapTrackToSong));
+          }
+        }
+      } catch {
+        clearTimeout(tid);
+      }
+    }
+    return [];
+  }
 }

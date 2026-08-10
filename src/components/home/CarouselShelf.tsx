@@ -18,7 +18,8 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
       setSelectedPlaylistId(`album:${item.id}`);
       setActiveTab('playlist');
     } else if (item.type === 'song') {
-      playSong(item as any, items as any[]);
+      const rawSongs = items.map(i => i.rawItem).filter(Boolean);
+      playSong(item.rawItem || (item as any), rawSongs.length > 0 ? rawSongs : (items as any[]));
     }
   };
 
@@ -26,7 +27,8 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
     e.stopPropagation();
     
     if (item.type === 'song') {
-      playSong(item as any, items as any[]);
+      const rawSongs = items.map(i => i.rawItem).filter(Boolean);
+      playSong(item.rawItem || (item as any), rawSongs.length > 0 ? rawSongs : (items as any[]));
       return;
     }
 

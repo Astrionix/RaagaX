@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AlbumResolver } from '@/lib/albumResolver';
 import { ShelfItem, HomeSection } from '@/types/home';
 import { JioSaavnProvider } from '@/lib/jioSaavnProvider';
+import { Song } from '@/types/music';
 
 function getBaseUrl(req: NextRequest): string {
   const host = req.headers.get('host') || 'localhost:3001';
@@ -40,18 +41,36 @@ export async function GET(req: NextRequest) {
 
     // Run parallel fetching
     const [
-      trendingSongs,
-      newReleases,
+      trendingPlaylists,
+      newReleasePlaylists,
       moodsPlaylists,
       movieAlbums,
       topAlbums
     ] = await Promise.all([
-      saavn.searchSongs(`Trending ${lang} hits`, 15),
-      saavn.searchSongs(`New ${lang} songs`, 15),
+      saavn.searchPlaylists(`${lang} Trending Hits`, 1),
+      saavn.searchPlaylists(`New Releases ${lang}`, 1),
       resolver.resolveAlbums(lang, `${lang} moods hits`, 15, 'playlist'),
       resolver.resolveAlbums(lang, `${lang} movies latest`, 30, 'album'),
       resolver.resolveAlbums(lang, `${lang} best albums`, 30, 'album')
     ]);
+
+    let trendingSongs: Song[] = [];
+    let newReleases: Song[] = [];
+
+    const songPromises = [];
+    if (trendingPlaylists.length > 0) {
+      songPromises.push(saavn.getPlaylistSongs(trendingPlaylists[0].id).then(songs => trendingSongs = songs.slice(0, 15)));
+    } else {
+      songPromises.push(saavn.searchSongs(`Trending ${lang}`, 15).then(songs => trendingSongs = songs));
+    }
+
+    if (newReleasePlaylists.length > 0) {
+      songPromises.push(saavn.getPlaylistSongs(newReleasePlaylists[0].id).then(songs => newReleases = songs.slice(0, 15)));
+    } else {
+      songPromises.push(saavn.searchSongs(`Latest ${lang}`, 15).then(songs => newReleases = songs));
+    }
+
+    await Promise.all(songPromises);
 
     const sections: HomeSection[] = [];
 
