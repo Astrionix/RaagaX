@@ -73,10 +73,7 @@ export function Navbar() {
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTime = parseFloat(e.target.value);
     setCurrentTime(newTime, true);
-    const audioEl = document.querySelector('audio');
-    if (audioEl) {
-      audioEl.currentTime = newTime;
-    }
+    usePlayerStore.setState({ seekTarget: newTime });
   };
 
   return (

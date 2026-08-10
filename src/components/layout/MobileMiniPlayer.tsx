@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef } from 'react';
-import { Play, Pause, SkipForward, SkipBack, MonitorSpeaker, Heart } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, MonitorSpeaker, Heart, Tv } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SeekBar } from '@/components/player/SeekBar';
 
@@ -21,6 +21,7 @@ export function MobileMiniPlayer() {
     toggleLikeSong,
     isActiveDevice,
     remoteDeviceName,
+    activeRenderer,
   } = usePlayerStore();
 
   if (!currentSong) return null;
@@ -32,7 +33,7 @@ export function MobileMiniPlayer() {
       
       <div className="flex items-center justify-between w-full relative h-full">
       {/* Custom Draggable Progress Bar - Spotify Style */}
-      <div className="absolute bottom-0 left-0 w-full h-6 z-10 flex items-end translate-y-0">
+      <div className="absolute bottom-0 left-0 w-full h-4 z-10 flex items-end translate-y-0 pb-1">
         <SeekBar 
           className="w-full h-full"
           height="h-[2px]"
@@ -56,10 +57,11 @@ export function MobileMiniPlayer() {
         <div className="min-w-0 flex-1 pr-2 flex flex-col justify-center">
           <h4 className={`text-xs font-bold truncate leading-snug ${!isActiveDevice ? 'text-[#1ed760]' : 'text-white'}`}>
             {!isActiveDevice && <MonitorSpeaker className="w-3 h-3 inline-block mr-1 align-baseline -mt-0.5" />}
+            {activeRenderer === 'video' && isActiveDevice && <Tv className="w-3 h-3 inline-block mr-1 align-baseline -mt-0.5" />}
             {currentSong.title}
           </h4>
           <p className={`text-[11px] truncate leading-snug mt-0.5 ${!isActiveDevice ? 'text-[#1ed760]/80' : 'text-slate-400'}`}>
-            {!isActiveDevice ? `Playing on ${remoteDeviceName || 'Remote Device'}` : currentSong.artist}
+            {!isActiveDevice ? `Playing on ${remoteDeviceName || 'Remote Device'}` : (activeRenderer === 'video' ? 'Playing video' : currentSong.artist)}
           </p>
         </div>
       </div>

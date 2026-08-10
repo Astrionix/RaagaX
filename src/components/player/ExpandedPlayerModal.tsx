@@ -7,12 +7,14 @@ import { DeviceSelector } from '@/components/providers/DeviceSyncProvider';
 import { AudioSettingsDrawer } from './AudioSettingsDrawer';
 import { Settings2 } from 'lucide-react';
 
+import { MediaHandoffManager } from '@/lib/playback/MediaHandoffManager';
+
 export function ExpandedPlayerModal() {
   const {
     isPlayerExpanded,
     togglePlayerExpanded,
-    isVideoModeActive,
-    setVideoModeActive,
+    activeRenderer,
+    setRenderer,
     currentSong,
     isPlaying,
     currentTime,
@@ -24,48 +26,36 @@ export function ExpandedPlayerModal() {
     toggleLikeSong,
     downloadedSongIds,
     toggleDownloadSong,
-    toggleLyrics,
     toggleSettingsModal,
+    toggleLyrics,
   } = usePlayerStore();
 
-  const [isVideoMode, setIsVideoMode] = React.useState(false);
+  const isVideoMode = activeRenderer === 'video';
   const [candidateVideoIds, setCandidateVideoIds] = React.useState<string[]>([]);
   const [videoIndex, setVideoIndex] = React.useState<number>(0);
   const [videoStartSeconds, setVideoStartSeconds] = React.useState<number>(0);
 
-  const handleSwitchToVideoMode = () => {
+  const handleSwitchToVideoMode = async () => {
     // Capture current playback position before pausing audio
     const audioEl = document.querySelector('audio');
     const capturedTime = audioEl ? Math.floor(audioEl.currentTime) : Math.floor(currentTime || 0);
     setVideoStartSeconds(capturedTime);
-    setIsVideoMode(true);
-    setVideoModeActive(true);
-    // Audio controller will handle pausing via isVideoModeActive watcher
+    
+    await MediaHandoffManager.getInstance().transition('video');
   };
 
-  const handleSwitchToAudioMode = () => {
-    setIsVideoMode(false);
-    setVideoModeActive(false);
-    setIsPlaying(true);
-    const audioEl = document.querySelector('audio');
-    if (audioEl) {
-      audioEl.play().catch(() => {});
-    }
+  const handleSwitchToAudioMode = async () => {
+    await MediaHandoffManager.getInstance().transition('audio');
   };
 
   const handleCloseModal = () => {
-    setVideoModeActive(false);
+    if (isVideoMode) {
+        MediaHandoffManager.getInstance().transition('audio');
+    }
     togglePlayerExpanded();
   };
 
-  React.useEffect(() => {
-    if (isPlayerExpanded && isVideoModeActive) {
-      const audioEl = document.querySelector('audio');
-      const capturedTime = audioEl ? Math.floor(audioEl.currentTime) : Math.floor(currentTime || 0);
-      setVideoStartSeconds(capturedTime);
-      setIsVideoMode(true);
-    }
-  }, [isPlayerExpanded, isVideoModeActive]);
+
 
   React.useEffect(() => {
     if (!currentSong || !isVideoMode) return;

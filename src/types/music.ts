@@ -138,27 +138,55 @@ export interface Device {
 export interface PlaybackSession {
   sessionId: string;
   activeDeviceId: string | null;
+  activeRenderer?: 'audio' | 'video'; // Added for unified engine
+  status?: 'playing' | 'paused' | 'buffering' | 'transitioning'; // Added for unified engine
   songData: Song | null;
   positionMs: number;
-  isPlaying: boolean;
+  durationMs?: number; // Added for unified engine
+  isPlaying: boolean; // Legacy: prefer status
   queue: Song[];
   queueIndex: number;
   shuffle: boolean;
   repeatMode: RepeatMode;
-  stateVersion: number;
+  stateVersion: number; // deprecated: use sessionRevision
+  sessionRevision?: number; // The new authoritative revision tracker
+  serverTimestamp?: number; 
   updatedAt: string;
 }
 
-export type PlaybackCommand = 
-  | { type: 'PLAY'; deviceId?: string; stateVersion?: number }
-  | { type: 'PAUSE'; deviceId?: string; stateVersion?: number }
-  | { type: 'SEEK'; position: number; deviceId?: string; stateVersion?: number }
-  | { type: 'TRANSFER'; fromDeviceId?: string; toDeviceId: string; toDeviceName?: string; positionMs?: number; stateVersion?: number }
-  | { type: 'NEXT'; deviceId?: string; stateVersion?: number }
-  | { type: 'PREV'; deviceId?: string; stateVersion?: number }
-  | { type: 'SET_VOLUME'; percent: number; deviceId?: string; stateVersion?: number }
-  | { type: 'SET_SHUFFLE'; enabled: boolean; deviceId?: string; stateVersion?: number }
-  | { type: 'SET_REPEAT'; mode: RepeatMode; deviceId?: string; stateVersion?: number }
-  | { type: 'ADD_TO_QUEUE'; song: Song; deviceId?: string; stateVersion?: number }
-  | { type: 'REMOVE_FROM_QUEUE'; songId: string; deviceId?: string; stateVersion?: number }
-  | { type: 'SYNC_STATE'; state: Partial<PlaybackSession>; stateVersion?: number };
+export interface PlaybackEvent {
+  eventId: string;
+  sessionId: string;
+  deviceId: string;
+  sequence: number;
+  type: 
+    | "PLAY"
+    | "PAUSE"
+    | "SEEK"
+    | "NEXT"
+    | "PREV"
+    | "TRANSFER"
+    | "TRACK_CHANGE"
+    | "HANDOFF"
+    | "VOLUME"
+    | "REPEAT"
+    | "SHUFFLE"
+    | "QUEUE_ADD"
+    | "QUEUE_REMOVE";
+  
+  trackId?: string;
+  positionMs?: number;
+  serverTimestamp: number;
+  renderer?: "audio" | "video";
+  status?: "playing" | "paused" | "buffering" | "transitioning";
+  revision: number;
+
+  // Additional context depending on event type
+  volumePercent?: number;
+  shuffleEnabled?: boolean;
+  repeatMode?: RepeatMode;
+  queueSong?: Song;
+  queueSongId?: string;
+  transferToDeviceId?: string;
+  transferToDeviceName?: string;
+}

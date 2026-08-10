@@ -35,7 +35,6 @@ interface PlayerState {
 
   audioQualityPreset: AudioQualityPreset;
   isPlayerExpanded: boolean;
-  isVideoModeActive: boolean;
   isLyricsOpen: boolean;
   isQueueOpen: boolean;
   isMiniPlayerFloating: boolean;
@@ -64,13 +63,17 @@ interface PlayerState {
   // Cross-Device Sync State
   deviceId: string;
   activeDeviceId: string | null;
+  activeRenderer: 'audio' | 'video'; // Added for unified engine
+  playbackStatus: 'playing' | 'paused' | 'buffering' | 'transitioning'; // Added for unified engine
   isActiveDevice: boolean;
   remoteDeviceName: string | null;
   lastSyncDbTime: string | null;
   lastSyncPositionMs: number | null;
+  serverTimestamp: number | null; // Added for unified engine
   onlineDevices: { id: string; name: string }[];
   setOnlineDevices: (devices: { id: string; name: string }[]) => void;
   setRemoteState: (state: Partial<PlayerState>) => void;
+  setRenderer: (renderer: 'audio' | 'video') => void;
   transferPlayback: (targetDeviceId: string) => void;
 
   rightPanelMode: 'queue' | 'devices';
@@ -123,7 +126,6 @@ interface PlayerState {
   setAudioQualityPreset: (preset: AudioQualityPreset) => void;
 
   togglePlayerExpanded: () => void;
-  setVideoModeActive: (active: boolean) => void;
   toggleLyrics: () => void;
   toggleQueue: () => void;
   toggleMiniPlayerFloating: () => void;
@@ -179,9 +181,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   selectedAlbumId: null,
   selectedPlaylistId: null,
 
-  audioQualityPreset: '24-bit 96kHz FLAC',
+  audioQualityPreset: '320kbps MP3',
   isPlayerExpanded: false,
-  isVideoModeActive: false,
   isLyricsOpen: false,
   isQueueOpen: false,
   isMiniPlayerFloating: false,
@@ -223,10 +224,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   deviceId: typeof window !== 'undefined' ? localStorage.getItem('raagax_device_id') || '' : '',
   activeDeviceId: null,
+  activeRenderer: 'audio',
+  playbackStatus: 'paused',
   isActiveDevice: true, // Default to true until sync starts
   remoteDeviceName: null,
   lastSyncDbTime: null,
   lastSyncPositionMs: null,
+  serverTimestamp: null,
   onlineDevices: [],
   rightPanelMode: 'queue',
 
@@ -241,7 +245,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
     import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
       const syncManager = DeviceSyncManager.getInstance();
-      syncManager.dispatchCommand({ type: 'TRANSFER', toDeviceId: targetDeviceId, positionMs: currentTime * 1000 });
+      syncManager.dispatchCommand('TRANSFER', { transferToDeviceId: targetDeviceId, positionMs: currentTime * 1000 });
     });
   },
 
@@ -359,7 +363,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       set({ isPlaying: isNowPlaying });
     }
     import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
-      DeviceSyncManager.getInstance().dispatchCommand({ type: isNowPlaying ? 'PLAY' : 'PAUSE' });
+      DeviceSyncManager.getInstance().dispatchCommand(isNowPlaying ? 'PLAY' : 'PAUSE');
     });
   },
   setIsPlaying: (playing, fromRemote = false) => {
@@ -367,7 +371,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     set({ isPlaying: playing });
     if (!fromRemote) {
       import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
-        DeviceSyncManager.getInstance().dispatchCommand({ type: playing ? 'PLAY' : 'PAUSE' });
+        DeviceSyncManager.getInstance().dispatchCommand(playing ? 'PLAY' : 'PAUSE');
       });
     }
   },
@@ -377,7 +381,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     
     if (!fromRemote) {
       import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
-        DeviceSyncManager.getInstance().dispatchCommand({ type: 'SEEK', position: time });
+        DeviceSyncManager.getInstance().dispatchCommand('SEEK', { positionMs: time * 1000 });
       });
     }
 
@@ -401,7 +405,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   playNext: async () => {
     if (!get().isActiveDevice) {
       import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
-        DeviceSyncManager.getInstance().dispatchCommand({ type: 'NEXT' });
+        DeviceSyncManager.getInstance().dispatchCommand('NEXT');
       });
       return;
     }
@@ -466,7 +470,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   playPrev: () => {
     if (!get().isActiveDevice) {
       import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
-        DeviceSyncManager.getInstance().dispatchCommand({ type: 'PREV' });
+        DeviceSyncManager.getInstance().dispatchCommand('PREV');
       });
       return;
     }
@@ -810,7 +814,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   togglePlayerExpanded: () =>
     set((state) => ({ isPlayerExpanded: !state.isPlayerExpanded })),
-  setVideoModeActive: (active) => set({ isVideoModeActive: active, isPlayerExpanded: true }),
+  setRenderer: (renderer) => set({ activeRenderer: renderer }),
   toggleLyrics: () => set((state) => ({ isLyricsOpen: !state.isLyricsOpen })),
   toggleQueue: () => set((state) => ({ isQueueOpen: !state.isQueueOpen })),
   toggleMiniPlayerFloating: () =>

@@ -36,7 +36,7 @@ export function AudioPlayerController() {
     duration,
     volume,
     isMuted,
-    isVideoModeActive,
+    activeRenderer,
     queue,
     queueIndex,
     likedSongIds,
@@ -110,7 +110,7 @@ export function AudioPlayerController() {
     const audio = getActiveAudio();
     if (!audio) return;
 
-    if (isVideoModeActive || !isActiveDevice) {
+    if (activeRenderer !== 'audio' || !isActiveDevice) {
       audioRefA.current?.pause();
       audioRefB.current?.pause();
     } else {
@@ -127,7 +127,7 @@ export function AudioPlayerController() {
         audio.pause();
       }
     }
-  }, [isPlaying, isActiveDevice, isVideoModeActive]);
+  }, [isPlaying, isActiveDevice, activeRenderer]);
 
   // Handle Song Changes and Crossfading
   useEffect(() => {
@@ -216,7 +216,7 @@ export function AudioPlayerController() {
           oldAudio.pause();
           oldAudio.currentTime = 0;
           newAudio.volume = isMuted ? 0 : volume;
-          if (isPlaying && isActiveDevice && !isVideoModeActive) {
+          if (isPlaying && isActiveDevice && activeRenderer === 'audio') {
             newAudio.play().catch(console.warn);
           }
         }
