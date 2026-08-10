@@ -1,3 +1,54 @@
+export const CATEGORY_SPOTIFY_SOURCES: Record<string, Record<string, { id: string; title: string }>> = {
+  Telugu: {
+    language: { id: '1LdLGtTL7UDxYoCAvSu3sK', title: 'Telugu Super Hits 2026' },
+    new_music: { id: '7HMzUogD0VWQP60eBF3u4w', title: 'New Telugu Releases' },
+    charts: { id: '37i9dQZF1DWTt3gMo0DLxA', title: 'Trending Now Telugu' },
+    playlists: { id: '3kvyqwgQ7oSCvVr6zzkJZr', title: 'Telugu Top Playlists' },
+    mood: { id: '37i9dQZF1DX44F1QWqYoaV', title: 'Telugu Mood & Love' },
+    genres: { id: '0Xvf1SBb3pfHFLPWoqRjJ4', title: 'Telugu Melodies & Devotional' }
+  },
+  Tamil: {
+    language: { id: '3WgtrDIm5oHiYjrIpnxSiO', title: 'Tamil Super Hits 2026' },
+    new_music: { id: '6XHsgMiMkAlPwcBRa2AGZN', title: 'New Tamil Releases' },
+    charts: { id: '37i9dQZF1DX4Im4BTs2WMg', title: 'Trending Now Tamil' },
+    playlists: { id: '7cQEpNdqsuxRgM5LZ9OxCC', title: 'Tamil Top Playlists' },
+    mood: { id: '5TlgIY5CX9fQO4qvUWnPLh', title: 'Tamil Romance & Mood' },
+    genres: { id: '37i9dQZF1EIfX9is4kL8BA', title: 'Tamil Devotional & Genres' }
+  },
+  Kannada: {
+    language: { id: '4TvxxFHYjBvRtaOrGl25N8', title: 'Kannada Super Hits 2026' },
+    new_music: { id: '0LhvuW0vSFCqw0jDjLUm8l', title: 'New Kannada Releases' },
+    charts: { id: '37i9dQZF1DX1ahAlaaz0ZE', title: 'Hot Hits Kannada' },
+    playlists: { id: '37i9dQZF1EQoSpPa76iq3Q', title: 'Kannada Mix Playlists' },
+    mood: { id: '4pw9SyOxQ86b4JOGIAEvFY', title: 'Kannada Emotional & Mood' },
+    genres: { id: '1C2ZX32E6c5FgOwD3OWsbl', title: 'Kannada Devotional & Genres' }
+  },
+  Malayalam: {
+    language: { id: '42HxtIRmltLReIOaKfaj6x', title: 'Malayalam Super Hits 2026' },
+    new_music: { id: '2FW3fY7NnlBZAXXCTUEC8d', title: 'New Malayalam Releases' },
+    charts: { id: '37i9dQZF1DWTYKFynxp6Fs', title: 'Trending Now Malayalam' },
+    playlists: { id: '17nBGVOj4ZGTAd6O07fxbo', title: 'Malayalam Playlists' },
+    mood: { id: '6vfZ0qdHrsmOV1LUiaK7oS', title: 'Malayalam Party & Mood' },
+    genres: { id: '4liNg9aAikvomN66VYNmM3', title: 'Malayalam Devotional & Genres' }
+  },
+  Hindi: {
+    language: { id: '3wc6e5ZPCjXAxasjkWlcXc', title: 'Bollywood Super Hits 2026' },
+    new_music: { id: '108XK9LJh36fpDg4vhTx11', title: 'New Hindi Releases' },
+    charts: { id: '37i9dQZF1DX0XUfTFmNBRM', title: 'Hot Hits Hindi' },
+    playlists: { id: '0I6mu7LlHfxuCKx7yevUGr', title: 'Top Hindi Playlists' },
+    mood: { id: '6ir6Y9SxFL4mWTHFrYokbv', title: 'Hindi Love & Mood' },
+    genres: { id: '37i9dQZF1EIcMWU5aFysN5', title: 'Bollywood Mix Genres' }
+  },
+  English: {
+    language: { id: '3Zu0J0JzSRzAT32LgFyg7i', title: 'Global Pop Hits 2026' },
+    new_music: { id: '37i9dQZF1DX4JAvHpjipBk', title: 'New Music Friday Global' },
+    charts: { id: '4KjYpz6QCC7Y5VKBTygSfi', title: 'Top 50 English Charts' },
+    playlists: { id: '37i9dQZF1EQncLwOalG3K7', title: 'Pop & Rock Mix' },
+    mood: { id: '1VKhPo3RaqWoBbsAPsUuvl', title: 'English Sad & Mood' },
+    genres: { id: '37i9dQZF1EQpj7X7UK8OOF', title: 'Rock & Hip-Hop Genres' }
+  }
+};
+
 export const SOURCES: Record<string, any> = {
   Telugu: {
     primary: ["37i9dQZF1DWTt3gMo0DLxA", "1LdLGtTL7UDxYoCAvSu3sK", "37i9dQZF1DX44F1QWqYoaV"],

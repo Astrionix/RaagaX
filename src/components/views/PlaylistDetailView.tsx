@@ -90,6 +90,41 @@ export function PlaylistDetailView() {
           } as any);
           setIsLoading(false);
         }
+      } else if (selectedPlaylistId.startsWith('spotify:')) {
+        const spotifyId = selectedPlaylistId.replace('spotify:', '');
+        try {
+          const res = await fetch(`/api/cron/discovery?playlistId=${spotifyId}&lang=Telugu&category=Playlist`);
+          const json = await res.json();
+          if (json && json.success) {
+            const { supabaseAdmin } = await import('@/lib/supabaseAdmin');
+            const { data: cached } = await supabaseAdmin
+              .from('spotify_playlist_cache')
+              .select('*')
+              .eq('playlist_id', spotifyId)
+              .maybeSingle();
+
+            if (cached && cached.data && isMounted) {
+              setPlaylist({
+                id: spotifyId,
+                title: cached.playlist_name || 'Spotify Playlist',
+                coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=300&h=300',
+                songs: cached.data as Song[]
+              });
+              setIsLoading(false);
+              return;
+            }
+          }
+        } catch (e) {
+          console.error('Failed to resolve Spotify playlist in detail view:', e);
+        }
+
+        RealMusicEngine.getInstance().getPlaylistDetails(spotifyId)
+          .then((data) => {
+            if (isMounted) {
+              setPlaylist(data);
+              setIsLoading(false);
+            }
+          });
       } else {
         // JioSaavn Global Playlist
         RealMusicEngine.getInstance().getPlaylistDetails(selectedPlaylistId)

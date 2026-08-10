@@ -7,6 +7,7 @@ import { RealMusicEngine } from '@/lib/realMusicEngine';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { Song } from '@/types/music';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
+import { CATEGORY_SPOTIFY_SOURCES } from '@/lib/spotifySources';
 
 export function SearchView() {
   const {
@@ -34,16 +35,21 @@ export function SearchView() {
         return;
       }
       setIsSearching(true);
-      const [songResults, albumResults] = await Promise.all([
-        RealMusicEngine.getInstance().searchRealSongs(searchQuery, 16),
-        RealMusicEngine.getInstance().searchRealAlbums(searchQuery, 8)
-      ]);
-      if (!isCancelled) {
-        setRealSearchResults(songResults);
-        setRealAlbumResults(albumResults);
-        setIsSearching(false);
+      try {
+        const [songResults, albumResults] = await Promise.all([
+          RealMusicEngine.getInstance().searchRealSongs(searchQuery, 16),
+          RealMusicEngine.getInstance().searchRealAlbums(searchQuery, 8)
+        ]);
+        if (!isCancelled) {
+          setRealSearchResults(songResults);
+          setRealAlbumResults(albumResults);
+        }
+      } catch (err) {
+        console.error('Search failed:', err);
+      } finally {
+        if (!isCancelled) setIsSearching(false);
       }
-    }, 300);
+    }, 400);
 
     return () => {
       isCancelled = true;
@@ -51,7 +57,7 @@ export function SearchView() {
     };
   }, [searchQuery]);
 
-  const { preferredLanguage, setPreferredLanguage, setActiveTab } = usePlayerStore();
+  const { preferredLanguage, setPreferredLanguage, setActiveTab, setSelectedPlaylistId } = usePlayerStore();
 
   const categories = [
     { id: 'language', name: preferredLanguage || 'Telugu', bg: 'from-red-600 to-rose-800' },
@@ -105,7 +111,14 @@ export function SearchView() {
                       const nextIndex = (languages.indexOf(preferredLanguage) + 1) % languages.length;
                       setPreferredLanguage(languages[nextIndex]);
                     } else {
-                      setActiveTab('browse');
+                      const langSources = CATEGORY_SPOTIFY_SOURCES[preferredLanguage] || CATEGORY_SPOTIFY_SOURCES['Telugu'];
+                      const targetSource = langSources[cat.id];
+                      if (targetSource) {
+                        setSelectedPlaylistId(`spotify:${targetSource.id}`);
+                        setActiveTab('playlist');
+                      } else {
+                        setActiveTab('browse');
+                      }
                     }
                   }}
                   className={`h-24 rounded-2xl bg-gradient-to-br ${cat.bg} p-4 flex flex-col justify-between font-black text-base text-white shadow-lg active:scale-95 transition-transform text-left cursor-pointer group`}
