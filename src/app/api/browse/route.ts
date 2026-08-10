@@ -113,6 +113,8 @@ export async function GET(req: NextRequest) {
     const config = SPOTIFY_PLAYLISTS[lang] || SPOTIFY_PLAYLISTS['Hindi'];
 
     const trendingTitle = TRENDING_SOURCES[lang]?.title || `Trending Now ${lang !== 'All Languages' ? lang : ''}`;
+    const latestTitle = NEW_RELEASES_SOURCES[lang]?.title || 'New Releases';
+    const classicsTitle = CLASSICS_SOURCES[lang]?.title || 'Timeless Classics';
 
     // Parallel fetch using SWR logic
     const [
@@ -152,7 +154,7 @@ export async function GET(req: NextRequest) {
     if (latestSongs.length > 0) {
       sections.push({
         id: 'new_releases',
-        title: 'New Releases',
+        title: latestTitle,
         type: 'carousel',
         items: latestSongs.map(song => ({
           id: song.id,
@@ -200,7 +202,7 @@ export async function GET(req: NextRequest) {
     if (classicSongs.length > 0) {
       sections.push({
         id: 'classics',
-        title: 'Timeless Classics',
+        title: classicsTitle,
         type: 'carousel',
         items: classicSongs.map(song => ({
           id: song.id,

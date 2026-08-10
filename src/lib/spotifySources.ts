@@ -52,6 +52,8 @@ export const NEW_RELEASES_SOURCES: Record<string, { id: string; title: string }>
   },
 };
 
+export const HOT_HITS_SOURCES = NEW_RELEASES_SOURCES;
+
 export const CLASSICS_SOURCES: Record<string, { id: string; title: string }> = {
   Telugu: {
     id: "4dzpSKUB2IlBGkQD5IVLD9",
