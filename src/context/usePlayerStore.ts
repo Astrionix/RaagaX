@@ -733,7 +733,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   toggleSleepTimerModal: () => set((state) => ({ isSleepTimerModalOpen: !state.isSleepTimerModalOpen })),
   toggleDeviceModal: () => set((state) => ({ isDeviceModalOpen: !state.isDeviceModalOpen })),
   setCreatePlaylistModalOpen: (open) => set({ createPlaylistModalOpen: open }),
-  setToastMessage: (msg) => set({ toastMessage: msg }),
 
   openContextMenu: (song) => set({ contextMenuSong: song }),
   closeContextMenu: () => set({ contextMenuSong: null }),
