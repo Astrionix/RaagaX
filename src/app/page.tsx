@@ -20,7 +20,7 @@ import { ContextMenuModal } from '@/components/modals/ContextMenuModal';
 import { OnboardingAuthModal } from '@/components/modals/OnboardingAuthModal';
 import { KeyboardShortcutsModal } from '@/components/modals/KeyboardShortcutsModal';
 import { MobileDeviceConnectModal } from '@/components/modals/MobileDeviceConnectModal';
-import { MobileApkPromoModal } from '@/components/modals/MobileApkPromoModal';
+
 import { AppUpdateModal } from '@/components/modals/AppUpdateModal';
 import { CreatePlaylistModal } from '@/components/modals/CreatePlaylistModal';
 import { RemoteDeviceBanner } from '@/components/player/RemoteDeviceBanner';
@@ -128,7 +128,7 @@ export default function Page() {
       <OnboardingAuthModal />
       <KeyboardShortcutsModal />
       <MobileDeviceConnectModal />
-      <MobileApkPromoModal />
+
       <AppUpdateModal />
       <CreatePlaylistModal />
     </div>

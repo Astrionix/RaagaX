@@ -221,23 +221,23 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
 
           <div className="flex-1 overflow-y-auto pb-safe scroll-smooth">
             {/* Spotify-style Hero Section */}
-            <div className="relative pt-20 pb-6 px-4 sm:px-8 max-w-[1920px] mx-auto flex flex-col sm:flex-row items-end gap-6 mt-safe">
+            <div className="relative pt-20 pb-6 px-4 sm:px-8 max-w-[1920px] mx-auto flex flex-col sm:flex-row items-start sm:items-end gap-6 mt-safe">
               <img 
                 src={coverImageUrl} 
                 alt={title}
-                className="w-48 h-48 sm:w-60 sm:h-60 shadow-2xl object-cover rounded-md flex-shrink-0 bg-slate-800"
+                className="w-48 h-48 sm:w-60 sm:h-60 shadow-2xl object-cover rounded-md flex-shrink-0 bg-slate-800 self-center sm:self-auto"
               />
-              <div className="flex flex-col gap-2 pb-2">
+              <div className="flex flex-col gap-2 pb-2 w-full">
                 <span className="text-xs font-bold text-white uppercase tracking-wider">Playlist</span>
-                <h1 className="text-4xl sm:text-6xl md:text-8xl font-black text-white tracking-tighter leading-none mb-4 flex items-center gap-4">
+                <h1 className="text-3xl sm:text-6xl md:text-8xl font-black text-white tracking-tight leading-tight sm:leading-none mb-2 sm:mb-4 flex flex-wrap items-center gap-3">
                   {title}
                   {title.toLowerCase().includes('releases') && (
-                    <span className="px-3 py-1 rounded-full bg-blue-500 text-sm font-black tracking-wider uppercase text-white shadow-lg shadow-blue-500/30 align-middle">NEW</span>
+                    <span className="px-3 py-1 rounded-full bg-blue-500 text-xs sm:text-sm font-black tracking-wider uppercase text-white shadow-lg shadow-blue-500/30">NEW</span>
                   )}
                 </h1>
-                <div className="flex items-center gap-1.5 text-sm font-medium text-slate-300 mt-2">
+                <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-slate-300 mt-1 sm:mt-2">
                   <span className="font-bold text-white">RaagaX</span>
-                  <span>•</span>
+                  <span className="hidden sm:inline">•</span>
                   <span>{totalSongs} songs,</span>
                   <span className="text-slate-400">{durationText}</span>
                 </div>
