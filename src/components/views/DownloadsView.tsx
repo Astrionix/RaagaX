@@ -55,8 +55,8 @@ export function DownloadsView() {
         </div>
       </div>
 
-      {/* Storage Indicator */}
-      <div className="p-5 rounded-2xl bg-[#161618] border border-white/10 space-y-3">
+      {/* Storage & Entitlement Indicator */}
+      <div className="p-5 rounded-2xl bg-[#161618] border border-white/10 space-y-4">
         <div className="flex items-center justify-between text-xs font-bold">
           <span className="flex items-center gap-2 text-slate-300">
             <HardDrive className="w-4 h-4 text-[#fa233b]" /> Local Device Storage Used
@@ -65,12 +65,31 @@ export function DownloadsView() {
             {formatBytes(storageUsage.used)} <span className="text-slate-500 font-normal">/ {formatBytes(storageUsage.total)} available</span>
           </span>
         </div>
+
         <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
           <div className="h-full bg-[#fa233b] rounded-full transition-all duration-500" style={{ width: `${Math.max(1, usedPercent)}%` }} />
         </div>
-        <p className="text-[10px] text-slate-500">
-          Downloads are saved directly to your device's browser storage. No cloud limits apply.
-        </p>
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 border-t border-white/5 text-xs">
+          <div className="flex items-center gap-2 text-emerald-400 font-bold text-[11px]">
+            <CheckCircle2 className="w-4 h-4" /> Device Authorized • 30-Day Entitlement Active
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => useDownloadStore.getState().clearStreamingCache()}
+              className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-[11px] transition-colors"
+            >
+              Clear Streaming Cache
+            </button>
+            <button
+              onClick={() => useDownloadStore.getState().purgeOfflineDownloads()}
+              className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold text-[11px] transition-colors"
+            >
+              Purge Offline Downloads
+            </button>
+          </div>
+        </div>
       </div>
 
       {activeTasks.length > 0 && (

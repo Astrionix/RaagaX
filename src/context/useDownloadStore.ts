@@ -34,6 +34,8 @@ interface DownloadStore {
   pauseAll: () => void;
   resumeAll: () => void;
   cancelAll: () => void;
+  clearStreamingCache: () => Promise<void>;
+  purgeOfflineDownloads: () => Promise<void>;
 
   setWifiOnly: (wifiOnly: boolean) => void;
 
@@ -278,6 +280,33 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     set({ tasks });
     get()._persistTasks();
     get()._processQueue();
+  },
+
+  clearStreamingCache: async () => {
+    if (typeof window !== 'undefined' && 'caches' in window) {
+      try {
+        const keys = await caches.keys();
+        for (const key of keys) {
+          if (key.includes('streaming') || key.includes('temp') || key.includes('pre-cache')) {
+            await caches.delete(key);
+          }
+        }
+        console.log('[DownloadStore] Temporary streaming cache cleared.');
+      } catch (err) {
+        console.error('[DownloadStore] Failed to clear streaming cache:', err);
+      }
+    }
+  },
+
+  purgeOfflineDownloads: async () => {
+    get().cancelAll();
+    const tasks = get().tasks;
+    Object.keys(tasks).forEach(id => {
+      get().removeDownload(id);
+    });
+    set({ tasks: {}, activeCount: 0 });
+    get()._persistTasks();
+    console.log('[DownloadStore] All offline downloads purged.');
   },
 
   cancelAll: () => {

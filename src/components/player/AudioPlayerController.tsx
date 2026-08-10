@@ -146,27 +146,29 @@ export function AudioPlayerController() {
 
         if (!oldAudio || !newAudio) return;
 
-        let finalSrc = currentSong.audioUrl || FALLBACK_AUDIO_URL;
-        
-        // True PWA Offline Interception
-        if (typeof window !== 'undefined' && currentSong.audioUrl) {
+        // Enterprise Playback Source Resolution
+        let finalSrc = FALLBACK_AUDIO_URL;
+        if (currentSong) {
           try {
-            const { getCachedAudioUrl } = await import('@/lib/downloadHelper');
-            const cachedUrl = await getCachedAudioUrl(currentSong.audioUrl);
-            if (cachedUrl) {
-              finalSrc = cachedUrl;
-              console.log('[OfflineStorage] Playing from local cache:', currentSong.title);
-            } else if (!window.navigator.onLine) {
-              console.warn('[OfflineStorage] Song not cached and device is offline. Auto-skipping to next...');
-              // Stop playback attempt for this song
+            const { PlaybackSourceResolver } = await import('@/lib/playbackSourceResolver');
+            const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(currentSong);
+
+            if (source.type === 'unavailable') {
+              console.warn(`[AudioPlayerController] Song unavailable: ${source.reason}. Auto-skipping...`);
               setIsPlaying(false);
               setTimeout(() => {
                 usePlayerStore.getState().playNext();
               }, 1000);
-              return; // Abort loading this song
+              return;
+            }
+
+            finalSrc = source.uri;
+            if (source.type === 'offline') {
+              console.log(`[AudioPlayerController] Playing authorized offline copy (${source.quality}):`, currentSong.title);
             }
           } catch(e) {
-            console.error('[OfflineStorage] Failed to intercept offline audio:', e);
+            console.error('[AudioPlayerController] Failed to resolve playable source:', e);
+            finalSrc = currentSong.audioUrl || FALLBACK_AUDIO_URL;
           }
         }
 
