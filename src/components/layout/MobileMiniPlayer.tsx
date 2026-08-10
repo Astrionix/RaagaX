@@ -28,17 +28,9 @@ export function MobileMiniPlayer() {
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className={`md:hidden fixed z-40 bg-[#161618]/95 backdrop-blur-xl border-t border-white/10 px-3 flex flex-col justify-center select-none active:scale-[0.99] transition-all duration-300 w-full left-0 ${!isActiveDevice ? 'h-20 shadow-[0_-5px_20px_rgba(30,215,96,0.15)] border-[#1ed760]/30' : (isPlaying ? 'h-16 shadow-[0_-5px_20px_rgba(239,35,60,0.15)]' : 'h-16')}`} style={{ bottom: 'calc(3.75rem + env(safe-area-inset-bottom))' }}>
+    <div className={`md:hidden fixed z-40 bg-[#161618]/95 backdrop-blur-xl border-t border-white/10 px-3 flex flex-col justify-center select-none active:scale-[0.99] transition-all duration-300 w-full left-0 h-16 ${isPlaying ? 'shadow-[0_-5px_20px_rgba(239,35,60,0.15)]' : ''}`} style={{ bottom: 'calc(3.75rem + env(safe-area-inset-bottom))' }}>
       
-      {/* Remote Playback Banner integrated */}
-      {!isActiveDevice && (
-        <div className="w-full flex items-center gap-1.5 justify-center py-1 text-[#1ed760] font-bold text-[10px] uppercase tracking-widest border-b border-white/5 mb-1 animate-pulse">
-          <MonitorSpeaker className="w-3 h-3" />
-          <span>Playing on {remoteDeviceName || 'Remote Device'}</span>
-        </div>
-      )}
-
-      <div className="flex items-center justify-between w-full relative">
+      <div className="flex items-center justify-between w-full relative h-full">
       {/* Custom Draggable Progress Bar - Spotify Style */}
       <div className="absolute bottom-0 left-0 w-full h-6 z-10 flex items-end translate-y-0">
         <SeekBar 
@@ -51,7 +43,7 @@ export function MobileMiniPlayer() {
       {/* Left: Artwork & Song Info */}
       <div
         onClick={togglePlayerExpanded}
-        className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+        className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer h-full py-2"
       >
         <img
           src={currentSong.coverUrl}
@@ -61,9 +53,14 @@ export function MobileMiniPlayer() {
           }}
           className="w-10 h-10 rounded-lg object-cover shadow-sm flex-shrink-0"
         />
-        <div className="min-w-0 flex-1 pr-2">
-          <h4 className="text-xs font-bold text-white truncate leading-snug">{currentSong.title}</h4>
-          <p className="text-[11px] text-slate-400 truncate leading-snug mt-0.5">{currentSong.artist}</p>
+        <div className="min-w-0 flex-1 pr-2 flex flex-col justify-center">
+          <h4 className={`text-xs font-bold truncate leading-snug ${!isActiveDevice ? 'text-[#1ed760]' : 'text-white'}`}>
+            {!isActiveDevice && <MonitorSpeaker className="w-3 h-3 inline-block mr-1 align-baseline -mt-0.5" />}
+            {currentSong.title}
+          </h4>
+          <p className={`text-[11px] truncate leading-snug mt-0.5 ${!isActiveDevice ? 'text-[#1ed760]/80' : 'text-slate-400'}`}>
+            {!isActiveDevice ? `Playing on ${remoteDeviceName || 'Remote Device'}` : currentSong.artist}
+          </p>
         </div>
       </div>
 
