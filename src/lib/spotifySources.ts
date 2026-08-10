@@ -25,6 +25,33 @@ export const TRENDING_SOURCES: Record<string, { id: string; title: string }> = {
   },
 };
 
+export const NEW_RELEASES_SOURCES: Record<string, { id: string; title: string }> = {
+  Telugu: {
+    id: "37i9dQZF1DX6XE7HRLM75P",
+    title: "Hot Hits Telugu",
+  },
+  Tamil: {
+    id: "37i9dQZF1DX1i3hvzHpcQV",
+    title: "Hot Hits Tamil",
+  },
+  Kannada: {
+    id: "37i9dQZF1DX1ahAlaaz0ZE",
+    title: "Hot Hits Kannada",
+  },
+  Malayalam: {
+    id: "37i9dQZF1DX688wU47emR9",
+    title: "Hot Hits Malayalam",
+  },
+  Hindi: {
+    id: "37i9dQZF1DX0XUfTFmNBRM",
+    title: "Hot Hits Hindi",
+  },
+  English: {
+    id: "37i9dQZF1DX0kbJZpiYdZl",
+    title: "Hot Hits USA",
+  },
+};
+
 export const NEW_SOURCES: Record<string, {
   primary: string[];
   secondary: string[];
@@ -32,7 +59,7 @@ export const NEW_SOURCES: Record<string, {
   Telugu: {
     primary: [
       "37i9dQZF1DWTt3gMo0DLxA", // Trending Now Telugu
-      "6w4NVkOj7vHg8FUXyOF1f9", // Trending Telugu Songs 2026
+      "37i9dQZF1DX6XE7HRLM75P", // Hot Hits Telugu
       "0A6w9xDIYGrYgXtXEcUmM0"  // Top Telugu Hits 2026
     ],
     secondary: [
@@ -43,7 +70,7 @@ export const NEW_SOURCES: Record<string, {
   Kannada: {
     primary: [
       "37i9dQZF1DWZqTcNLmb3sH", // Latest Kannada — Spotify
-      "6ppm1rd8zW1FfkWkLOJd80", // Top Hits Kannada 2026
+      "37i9dQZF1DX1ahAlaaz0ZE", // Hot Hits Kannada
       "37i9dQZF1DX9i6vCEoH6jH"  // Kannada Party Time — Spotify
     ],
     secondary: [
@@ -66,8 +93,8 @@ export const NEW_SOURCES: Record<string, {
 
   Malayalam: {
     primary: [
-      "37i9dQZF1DWTYKFynxp6Fs", // Hot Hits Malayalam — Spotify
-      "37i9dQZF1DXaDDXaHNhJDD", // Mollywood Gold — Spotify
+      "37i9dQZF1DWTYKFynxp6Fs", // Trending Now Malayalam
+      "37i9dQZF1DX688wU47emR9", // Hot Hits Malayalam
       "5IqEQiJzYvJmkYirT8NqRx"  // 2026 Malayalam Top Hits
     ],
     secondary: []
@@ -75,7 +102,7 @@ export const NEW_SOURCES: Record<string, {
 
   Hindi: {
     primary: [
-      "37i9dQZF1DX0XUfTFmNBRM", // Top Hits Hindi
+      "37i9dQZF1DX0XUfTFmNBRM", // Hot Hits Hindi / Top Hits Hindi
       "7hRdEVx3T8RF8s4QNNSORU", // Top Hindi Songs 2026
       "6vMOECoVzCMbqU5jPnfgIT"  // Hindi Songs 2026
     ],
@@ -108,7 +135,7 @@ export const CATEGORY_SPOTIFY_SOURCES: Record<string, Record<string, { id: strin
     lang,
     {
       language: { id: data.primary[0], title: `${lang} Top Hits` },
-      new_music: { id: data.primary[1] || data.primary[0], title: `New ${lang} Releases` },
+      new_music: { id: NEW_RELEASES_SOURCES[lang]?.id || data.primary[1] || data.primary[0], title: NEW_RELEASES_SOURCES[lang]?.title || `New ${lang} Releases` },
       charts: { id: TRENDING_SOURCES[lang]?.id || data.primary[0], title: TRENDING_SOURCES[lang]?.title || `${lang} Charts` },
       playlists: { id: data.primary[2] || data.secondary[0] || data.primary[0], title: `${lang} Curated Playlists` },
       mood: { id: data.secondary[0] || data.primary[0], title: `${lang} Mood & Love` },

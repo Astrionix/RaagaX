@@ -5,56 +5,56 @@ import { JioSaavnProvider } from '@/lib/jioSaavnProvider';
 import { Song } from '@/types/music';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
-import { NEW_SOURCES, TRENDING_SOURCES } from '@/lib/spotifySources';
+import { NEW_SOURCES, TRENDING_SOURCES, NEW_RELEASES_SOURCES } from '@/lib/spotifySources';
 
 export const dynamic = 'force-dynamic';
 
 const SPOTIFY_PLAYLISTS: Record<string, any> = {
   Telugu: {
     trending: TRENDING_SOURCES.Telugu.id,
-    latest: NEW_SOURCES.Telugu.primary[1],
+    latest: NEW_RELEASES_SOURCES.Telugu.id,
     romance: NEW_SOURCES.Telugu.primary[2],
     pop: NEW_SOURCES.Telugu.secondary[0],
     classics: null,
   },
   Tamil: {
     trending: TRENDING_SOURCES.Tamil.id,
-    latest: NEW_SOURCES.Tamil.primary[1],
+    latest: NEW_RELEASES_SOURCES.Tamil.id,
     romance: NEW_SOURCES.Tamil.primary[2],
     pop: NEW_SOURCES.Tamil.secondary[0],
     classics: null,
   },
   Kannada: {
     trending: TRENDING_SOURCES.Kannada.id,
-    latest: NEW_SOURCES.Kannada.primary[1],
+    latest: NEW_RELEASES_SOURCES.Kannada.id,
     romance: NEW_SOURCES.Kannada.primary[2],
     pop: NEW_SOURCES.Kannada.secondary[0],
     classics: NEW_SOURCES.Kannada.secondary[1],
   },
   Malayalam: {
     trending: TRENDING_SOURCES.Malayalam.id,
-    latest: NEW_SOURCES.Malayalam.primary[1],
+    latest: NEW_RELEASES_SOURCES.Malayalam.id,
     romance: NEW_SOURCES.Malayalam.primary[2],
     pop: null,
     classics: null,
   },
   Hindi: {
     trending: TRENDING_SOURCES.Hindi.id,
-    latest: NEW_SOURCES.Hindi.primary[1],
+    latest: NEW_RELEASES_SOURCES.Hindi.id,
     romance: NEW_SOURCES.Hindi.primary[2],
     pop: NEW_SOURCES.Hindi.secondary[0],
     classics: NEW_SOURCES.Hindi.secondary[1],
   },
   English: {
     trending: TRENDING_SOURCES.English.id,
-    latest: NEW_SOURCES.English.primary[1],
+    latest: NEW_RELEASES_SOURCES.English.id,
     romance: NEW_SOURCES.English.primary[2],
     pop: NEW_SOURCES.English.secondary[0],
     classics: NEW_SOURCES.English.secondary[1],
   },
   'All Languages': {
     trending: TRENDING_SOURCES.Telugu.id,
-    latest: TRENDING_SOURCES.Hindi.id,
+    latest: NEW_RELEASES_SOURCES.Hindi.id,
     romance: TRENDING_SOURCES.Tamil.id,
     pop: TRENDING_SOURCES.English.id,
     classics: TRENDING_SOURCES.Malayalam.id,
