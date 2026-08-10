@@ -9,6 +9,16 @@ import type {
 } from '#modules/artists/models'
 import type { z } from 'zod'
 
+const parseJSON = (value: any) => {
+  if (!value) return null
+  if (typeof value !== 'string') return value
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
 export const createArtistPayload = (artist: z.infer<typeof ArtistAPIResponseModel>): z.infer<typeof ArtistModel> => ({
   id: artist.artistId || artist.id,
   name: artist.name,
@@ -19,7 +29,7 @@ export const createArtistPayload = (artist: z.infer<typeof ArtistAPIResponseMode
   isVerified: artist.isVerified || null,
   dominantLanguage: artist.dominantLanguage || null,
   dominantType: artist.dominantType || null,
-  bio: artist.bio ? JSON.parse(artist.bio) : null,
+  bio: parseJSON(artist.bio),
   dob: artist.dob || null,
   fb: artist.fb || null,
   twitter: artist.twitter || null,
@@ -36,7 +46,7 @@ export const createArtistPayload = (artist: z.infer<typeof ArtistAPIResponseMode
       name: similarArtist.name,
       url: similarArtist.perma_url,
       image: createImageLinks(similarArtist.image_url),
-      languages: similarArtist.languages ? JSON.parse(similarArtist.languages) : null,
+      languages: parseJSON(similarArtist.languages),
       wiki: similarArtist.wiki,
       dob: similarArtist.dob,
       fb: similarArtist.fb,
@@ -45,8 +55,8 @@ export const createArtistPayload = (artist: z.infer<typeof ArtistAPIResponseMode
       type: similarArtist.type,
       dominantType: similarArtist.dominantType,
       aka: similarArtist.aka,
-      bio: similarArtist.bio ? JSON.parse(similarArtist.bio) : null,
-      similarArtists: similarArtist.similar ? JSON.parse(similarArtist.similar) : null
+      bio: parseJSON(similarArtist.bio),
+      similarArtists: parseJSON(similarArtist.similar)
     })) || null
 })
 
