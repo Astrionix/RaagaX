@@ -1,10 +1,37 @@
+export const TRENDING_SOURCES: Record<string, { id: string; title: string }> = {
+  Telugu: {
+    id: "37i9dQZF1DWTt3gMo0DLxA",
+    title: "Trending Now Telugu",
+  },
+  Tamil: {
+    id: "37i9dQZF1DX1i3hvzHpcQV",
+    title: "Hot Hits Tamil",
+  },
+  Malayalam: {
+    id: "37i9dQZF1DWTYKFynxp6Fs",
+    title: "Trending Now Malayalam",
+  },
+  Kannada: {
+    id: "37i9dQZF1DWZqTcNLmb3sH",
+    title: "Latest Kannada",
+  },
+  Hindi: {
+    id: "37i9dQZF1DX0XUfTFmNBRM",
+    title: "Top Hits Hindi",
+  },
+  English: {
+    id: "37i9dQZF1DX4JAvHpjipBk",
+    title: "New Music Friday",
+  },
+};
+
 export const NEW_SOURCES: Record<string, {
   primary: string[];
   secondary: string[];
 }> = {
   Telugu: {
     primary: [
-      "37i9dQZF1DX6XE7HRLM75P", // Hot Hits Telugu — Spotify
+      "37i9dQZF1DWTt3gMo0DLxA", // Trending Now Telugu
       "6w4NVkOj7vHg8FUXyOF1f9", // Trending Telugu Songs 2026
       "0A6w9xDIYGrYgXtXEcUmM0"  // Top Telugu Hits 2026
     ],
@@ -39,7 +66,7 @@ export const NEW_SOURCES: Record<string, {
 
   Malayalam: {
     primary: [
-      "37i9dQZF1DX688wU47emR9", // Hot Hits Malayalam — Spotify
+      "37i9dQZF1DWTYKFynxp6Fs", // Hot Hits Malayalam — Spotify
       "37i9dQZF1DXaDDXaHNhJDD", // Mollywood Gold — Spotify
       "5IqEQiJzYvJmkYirT8NqRx"  // 2026 Malayalam Top Hits
     ],
@@ -48,7 +75,7 @@ export const NEW_SOURCES: Record<string, {
 
   Hindi: {
     primary: [
-      "74bgEPAY1s25NCojSShUGK", // 2026 Best Songs
+      "37i9dQZF1DX0XUfTFmNBRM", // Top Hits Hindi
       "7hRdEVx3T8RF8s4QNNSORU", // Top Hindi Songs 2026
       "6vMOECoVzCMbqU5jPnfgIT"  // Hindi Songs 2026
     ],
@@ -62,7 +89,7 @@ export const NEW_SOURCES: Record<string, {
 
   English: {
     primary: [
-      "37i9dQZF1DX2L0iB23Enbq", // Viral Hits — Spotify
+      "37i9dQZF1DX4JAvHpjipBk", // New Music Friday — Spotify
       "37i9dQZF1DX0kbJZpiYdZl", // Hot Hits USA — Spotify
       "4Ogw0Av7Zlpedzey04qScS"  // Top Hits English
     ],
@@ -82,7 +109,7 @@ export const CATEGORY_SPOTIFY_SOURCES: Record<string, Record<string, { id: strin
     {
       language: { id: data.primary[0], title: `${lang} Top Hits` },
       new_music: { id: data.primary[1] || data.primary[0], title: `New ${lang} Releases` },
-      charts: { id: data.primary[0], title: `${lang} Charts` },
+      charts: { id: TRENDING_SOURCES[lang]?.id || data.primary[0], title: TRENDING_SOURCES[lang]?.title || `${lang} Charts` },
       playlists: { id: data.primary[2] || data.secondary[0] || data.primary[0], title: `${lang} Curated Playlists` },
       mood: { id: data.secondary[0] || data.primary[0], title: `${lang} Mood & Love` },
       genres: { id: data.secondary[1] || data.secondary[0] || data.primary[0], title: `${lang} Genres & Mixes` }

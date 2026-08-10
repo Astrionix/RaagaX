@@ -5,59 +5,59 @@ import { JioSaavnProvider } from '@/lib/jioSaavnProvider';
 import { Song } from '@/types/music';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
-import { NEW_SOURCES } from '@/lib/spotifySources';
+import { NEW_SOURCES, TRENDING_SOURCES } from '@/lib/spotifySources';
 
 export const dynamic = 'force-dynamic';
 
 const SPOTIFY_PLAYLISTS: Record<string, any> = {
   Telugu: {
-    trending: NEW_SOURCES.Telugu.primary[0],
+    trending: TRENDING_SOURCES.Telugu.id,
     latest: NEW_SOURCES.Telugu.primary[1],
     romance: NEW_SOURCES.Telugu.primary[2],
     pop: NEW_SOURCES.Telugu.secondary[0],
     classics: null,
   },
   Tamil: {
-    trending: NEW_SOURCES.Tamil.primary[0],
+    trending: TRENDING_SOURCES.Tamil.id,
     latest: NEW_SOURCES.Tamil.primary[1],
     romance: NEW_SOURCES.Tamil.primary[2],
     pop: NEW_SOURCES.Tamil.secondary[0],
     classics: null,
   },
   Kannada: {
-    trending: NEW_SOURCES.Kannada.primary[0],
+    trending: TRENDING_SOURCES.Kannada.id,
     latest: NEW_SOURCES.Kannada.primary[1],
     romance: NEW_SOURCES.Kannada.primary[2],
     pop: NEW_SOURCES.Kannada.secondary[0],
     classics: NEW_SOURCES.Kannada.secondary[1],
   },
   Malayalam: {
-    trending: NEW_SOURCES.Malayalam.primary[0],
+    trending: TRENDING_SOURCES.Malayalam.id,
     latest: NEW_SOURCES.Malayalam.primary[1],
     romance: NEW_SOURCES.Malayalam.primary[2],
     pop: null,
     classics: null,
   },
   Hindi: {
-    trending: NEW_SOURCES.Hindi.primary[0],
+    trending: TRENDING_SOURCES.Hindi.id,
     latest: NEW_SOURCES.Hindi.primary[1],
     romance: NEW_SOURCES.Hindi.primary[2],
     pop: NEW_SOURCES.Hindi.secondary[0],
     classics: NEW_SOURCES.Hindi.secondary[1],
   },
   English: {
-    trending: NEW_SOURCES.English.primary[0],
+    trending: TRENDING_SOURCES.English.id,
     latest: NEW_SOURCES.English.primary[1],
     romance: NEW_SOURCES.English.primary[2],
     pop: NEW_SOURCES.English.secondary[0],
     classics: NEW_SOURCES.English.secondary[1],
   },
   'All Languages': {
-    trending: NEW_SOURCES.Telugu.primary[0],
-    latest: NEW_SOURCES.Hindi.primary[0],
-    romance: NEW_SOURCES.Tamil.primary[0],
-    pop: NEW_SOURCES.English.primary[0],
-    classics: NEW_SOURCES.Malayalam.primary[0],
+    trending: TRENDING_SOURCES.Telugu.id,
+    latest: TRENDING_SOURCES.Hindi.id,
+    romance: TRENDING_SOURCES.Tamil.id,
+    pop: TRENDING_SOURCES.English.id,
+    classics: TRENDING_SOURCES.Malayalam.id,
   }
 };
 
@@ -77,7 +77,7 @@ async function triggerBackgroundSync(baseUrl: string, playlistId: string, lang: 
 
 async function getPlaylistWithSWR(baseUrl: string, playlistId: string | null, lang: string, category: string, fallbackQuery: string, saavn: JioSaavnProvider): Promise<Song[]> {
   if (!playlistId) {
-    return saavn.searchSongs(fallbackQuery, 50);
+    return saavn.searchSongs(fallbackQuery, 75);
   }
 
   // Check Supabase Cache
@@ -90,7 +90,7 @@ async function getPlaylistWithSWR(baseUrl: string, playlistId: string | null, la
   if (cached && cached.data) {
     // If expired OR if we have less than 100 songs (from the old limit), trigger background sync but return stale data immediately
     const isStale = new Date(cached.expires_at).getTime() < Date.now();
-    const isUndersized = (cached.data as Song[]).length < 100;
+    const isUndersized = (cached.data as Song[]).length < 75;
     if (isStale || isUndersized) {
       triggerBackgroundSync(baseUrl, playlistId, lang, category);
     }
@@ -99,7 +99,7 @@ async function getPlaylistWithSWR(baseUrl: string, playlistId: string | null, la
 
   // Cache MISS. Trigger sync for future and fallback to JioSaavn for immediate response
   triggerBackgroundSync(baseUrl, playlistId, lang, category);
-  return saavn.searchSongs(fallbackQuery, 50);
+  return saavn.searchSongs(fallbackQuery, 75);
 }
 
 export async function GET(req: NextRequest) {
@@ -111,6 +111,8 @@ export async function GET(req: NextRequest) {
     const albumResolver = new AlbumResolver(baseUrl);
     const saavn = JioSaavnProvider.getInstance(baseUrl);
     const config = SPOTIFY_PLAYLISTS[lang] || SPOTIFY_PLAYLISTS['Hindi'];
+
+    const trendingTitle = TRENDING_SOURCES[lang]?.title || `Trending Now ${lang !== 'All Languages' ? lang : ''}`;
 
     // Parallel fetch using SWR logic
     const [
@@ -134,7 +136,7 @@ export async function GET(req: NextRequest) {
     if (trendingSongs.length > 0) {
       sections.push({
         id: 'trending',
-        title: `Trending Now ${lang !== 'All Languages' ? lang : ''}`,
+        title: trendingTitle,
         type: 'carousel',
         items: trendingSongs.map(song => ({
           id: song.id,
