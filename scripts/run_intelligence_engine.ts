@@ -141,7 +141,7 @@ async function scoreCandidate(candidate: Candidate, targetLang: string): Promise
   const searchResults = await engine.provider.searchSongs(`${cleanTitle} ${targetLang}`, 3);
   const langFiltered = engine.provider.filterByLanguage(searchResults, targetLang as any);
   
-  let matchedSong = null;
+  let matchedSong: any = null;
   if (langFiltered.length > 0) {
     matchedSong = langFiltered[0];
   } else if (searchResults.length > 0) {
@@ -212,7 +212,7 @@ async function run() {
           id: item.id || crypto.randomUUID(),
           title: item.title || 'Unknown',
           channelId: channel.channelId,
-          channelName: channel.name || channel.channelId,
+          channelName: channel.channelName || channel.channelId,
           publishedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
           rawItem: item
         };
@@ -231,7 +231,7 @@ async function run() {
         }
       }
     } catch (err) {
-      warnings.push(`Channel fetch failed: ${channel.name}`);
+      warnings.push(`Channel fetch failed: ${channel.channelName || channel.channelId}`);
     }
   }
   
