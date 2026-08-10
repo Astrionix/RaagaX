@@ -17,6 +17,8 @@ export class DeviceSyncManager {
   private unsubscribeZustand: (() => void) | null = null;
   private localStateVersion = 0;
   private isInitializing = false;
+  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private syncPingInterval: NodeJS.Timeout | null = null;
 
   private constructor() {
     this.deviceId = typeof window !== 'undefined' 
@@ -57,6 +59,16 @@ export class DeviceSyncManager {
         this.unsubscribeZustand();
         this.unsubscribeZustand = null;
       }
+      
+      if (this.heartbeatInterval) {
+        clearInterval(this.heartbeatInterval);
+        this.heartbeatInterval = null;
+      }
+
+      if (this.syncPingInterval) {
+        clearInterval(this.syncPingInterval);
+        this.syncPingInterval = null;
+      }
 
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData?.session?.user) {
@@ -76,7 +88,14 @@ export class DeviceSyncManager {
         device_name: `${deviceName} (${this.deviceId.substring(7, 11)})`,
         device_type: isMobile ? 'mobile' : 'desktop',
         is_online: true,
-        last_seen: new Date().toISOString()
+        last_seen: new Date().toISOString(),
+        capabilities: {
+          play: true,
+          pause: true,
+          seek: true,
+          volume: true,
+          queue: true
+        }
       }, { onConflict: 'device_id' });
 
       // Fetch latest Durable State (Postgres)
@@ -133,30 +152,36 @@ export class DeviceSyncManager {
         this.handleCommand(payload.payload);
       });
 
-      // Presence for discovering online devices
-      this.channel.on('presence', { event: 'sync' }, () => {
-        const newState = this.channel.presenceState();
-        const devices: { id: string; name: string }[] = [];
-        
-        for (const presenceId in newState) {
-          const presenceList = newState[presenceId] as any[];
-          presenceList.forEach(p => {
-            if (p.deviceId && p.deviceName && !devices.find(d => d.id === p.deviceId)) {
-              devices.push({ id: p.deviceId, name: p.deviceName });
-            }
-          });
-        }
-        usePlayerStore.getState().setOnlineDevices(devices);
-      });
+      this.channel.subscribe();
 
-      this.channel.subscribe(async (status: string) => {
-        if (status === 'SUBSCRIBED') {
-          await this.channel.track({
-            deviceId: this.deviceId,
-            deviceName: `${deviceName} (${this.deviceId.substring(7, 11)})`
-          });
+      // Database Heartbeat (Phase 3)
+      this.heartbeatInterval = setInterval(async () => {
+        await supabase.from('devices').update({
+          last_seen: new Date().toISOString()
+        }).eq('device_id', this.deviceId);
+
+        // Fetch online devices
+        const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
+        const { data: onlineDevices } = await supabase
+          .from('devices')
+          .select('device_id, device_name')
+          .eq('user_id', user.id)
+          .gte('last_seen', thirtySecondsAgo);
+
+        if (onlineDevices) {
+          usePlayerStore.getState().setOnlineDevices(
+            onlineDevices.map(d => ({ id: d.device_id, name: d.device_name }))
+          );
         }
-      });
+      }, 10000);
+
+      // Periodic Reconciliation (Phase 6)
+      this.syncPingInterval = setInterval(() => {
+        const state = usePlayerStore.getState();
+        if (state.isActiveDevice && !this.isProcessingRemote) {
+           this.persistState();
+        }
+      }, 10000);
 
       // Watch Zustand for significant state changes (Only Active Device pushes)
       let lastState = usePlayerStore.getState();

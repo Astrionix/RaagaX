@@ -19,6 +19,8 @@ export function MobileMiniPlayer() {
     toggleDeviceModal,
     likedSongIds,
     toggleLikeSong,
+    isActiveDevice,
+    remoteDeviceName,
   } = usePlayerStore();
 
   if (!currentSong) return null;
@@ -26,7 +28,17 @@ export function MobileMiniPlayer() {
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className={`md:hidden fixed z-40 h-16 bg-[#161618]/95 backdrop-blur-xl border-t border-white/10 px-3 flex items-center justify-between select-none active:scale-[0.99] transition-all duration-300 w-full left-0 ${isPlaying ? 'shadow-[0_-5px_20px_rgba(239,35,60,0.15)]' : ''}`} style={{ bottom: 'calc(3.75rem + env(safe-area-inset-bottom))' }}>
+    <div className={`md:hidden fixed z-40 bg-[#161618]/95 backdrop-blur-xl border-t border-white/10 px-3 flex flex-col justify-center select-none active:scale-[0.99] transition-all duration-300 w-full left-0 ${!isActiveDevice ? 'h-20 shadow-[0_-5px_20px_rgba(30,215,96,0.15)] border-[#1ed760]/30' : (isPlaying ? 'h-16 shadow-[0_-5px_20px_rgba(239,35,60,0.15)]' : 'h-16')}`} style={{ bottom: 'calc(3.75rem + env(safe-area-inset-bottom))' }}>
+      
+      {/* Remote Playback Banner integrated */}
+      {!isActiveDevice && (
+        <div className="w-full flex items-center gap-1.5 justify-center py-1 text-[#1ed760] font-bold text-[10px] uppercase tracking-widest border-b border-white/5 mb-1 animate-pulse">
+          <MonitorSpeaker className="w-3 h-3" />
+          <span>Playing on {remoteDeviceName || 'Remote Device'}</span>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between w-full relative">
       {/* Custom Draggable Progress Bar - Spotify Style */}
       <div className="absolute bottom-0 left-0 w-full h-6 z-10 flex items-end translate-y-0">
         <SeekBar 
@@ -107,6 +119,7 @@ export function MobileMiniPlayer() {
           <SkipForward className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />
         </button>
       </div>
+    </div>
     </div>
   );
 }

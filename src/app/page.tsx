@@ -24,7 +24,7 @@ import { OfflineStorageSetupModal } from '@/components/modals/OfflineStorageSetu
 
 
 import { CreatePlaylistModal } from '@/components/modals/CreatePlaylistModal';
-import { RemoteDeviceBanner } from '@/components/player/RemoteDeviceBanner';
+
 import { Toast } from '@/components/ui/Toast';
 
 import { HomeView } from '@/components/views/HomeView';
@@ -78,7 +78,7 @@ export default function Page() {
     <div className="min-h-screen w-full max-w-[100vw] overflow-x-hidden bg-[#07090E] text-white flex selection:bg-[#EF233C] selection:text-white transition-colors duration-300">
       {/* Audio Engine Controller */}
       <AudioPlayerController />
-      <RemoteDeviceBanner />
+
 
       {/* Splash Screen Animation */}
       <SplashScreen />
