@@ -12,7 +12,7 @@ export function MobileNav() {
 
   const navItems = [
     { id: 'home' as const, label: 'Home', icon: <Home className="w-5 h-5" /> },
-    { id: 'browse' as const, label: 'Browse', icon: <Compass className="w-5 h-5" /> },
+    { id: 'search' as const, label: 'Search', icon: <Search className="w-5 h-5" /> },
     { id: 'player' as const, label: 'Player', icon: <Disc3 className="w-5 h-5" /> },
     { id: 'library' as const, label: 'Library', icon: <Library className="w-5 h-5" /> },
     { id: 'profile' as const, label: user ? 'Profile' : 'Sign In', icon: user ? <User className="w-5 h-5" /> : <LogIn className="w-5 h-5" /> },
