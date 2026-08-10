@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
     let trendingSongs: Song[] = [];
     let newReleases: Song[] = [];
 
-    const songPromises = [];
+    const songPromises: Promise<any>[] = [];
     if (trendingPlaylists.length > 0) {
       songPromises.push(saavn.getPlaylistSongs(trendingPlaylists[0].id).then(songs => trendingSongs = songs.slice(0, 15)));
     } else {
