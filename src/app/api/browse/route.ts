@@ -119,11 +119,11 @@ export async function GET(req: NextRequest) {
       classicSongs,
       movieAlbums, 
     ] = await Promise.all([
-      getPlaylistWithSWR(baseUrl, config.trending, lang, 'trending', `Trending ${lang}`, saavn),
-      getPlaylistWithSWR(baseUrl, config.latest, lang, 'latest', `Latest ${lang}`, saavn),
-      getPlaylistWithSWR(baseUrl, config.romance, lang, 'romance', `${lang} Romance`, saavn),
-      getPlaylistWithSWR(baseUrl, config.pop, lang, 'pop', `${lang} Pop`, saavn),
-      getPlaylistWithSWR(baseUrl, config.classics, lang, 'classics', `${lang} Classics 90s`, saavn),
+      getPlaylistWithSWR(baseUrl, config.trending, lang, 'trending', `${lang} Top Hits`, saavn),
+      getPlaylistWithSWR(baseUrl, config.latest, lang, 'latest', `${lang} Latest Hits`, saavn),
+      getPlaylistWithSWR(baseUrl, config.romance, lang, 'romance', `${lang} Love Songs`, saavn),
+      getPlaylistWithSWR(baseUrl, config.pop, lang, 'pop', `${lang} Party Hits`, saavn),
+      getPlaylistWithSWR(baseUrl, config.classics, lang, 'classics', `${lang} Melody Songs`, saavn),
       albumResolver.resolveAlbums(lang, `${lang} movies latest`, 15, 'album'),
     ]);
 
