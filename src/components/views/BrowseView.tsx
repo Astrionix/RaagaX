@@ -18,7 +18,11 @@ export function BrowseView() {
   
   const [browseLang, setBrowseLang] = useState(preferredLanguage || 'Telugu');
 
-  const { data, error, isLoading } = useSWR(`/api/browse?lang=${browseLang}`, fetcher);
+  const { data, error, isLoading } = useSWR(`/api/browse?lang=${browseLang}`, fetcher, {
+    keepPreviousData: true,
+    revalidateOnFocus: false,
+    dedupingInterval: 60000,
+  });
 
   return (
     <div className="space-y-8 pb-10 text-white select-none max-w-7xl mx-auto w-full pt-4">
