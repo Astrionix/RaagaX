@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MoreVertical, ListPlus, Heart, Play, Share2, Plus, Music } from 'lucide-react';
+import { MoreVertical, ListPlus, Heart, Play, Share2, Plus, Music, Download, PauseCircle, CheckCircle2, XCircle } from 'lucide-react';
 import { Song } from '@/types/music';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
@@ -8,10 +8,15 @@ export function SongActionMenu({ song }: { song: Song }) {
   const [isOpen, setIsOpen] = useState(false);
   const [showPlaylists, setShowPlaylists] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { playSong, addToQueue, toggleLikeSong, likedSongIds } = usePlayerStore();
+  const { playSong, addToQueue, toggleLikeSong, likedSongIds, downloadedSongIds } = usePlayerStore();
   const { playlists, addSongToPlaylist } = usePlaylistStore();
 
+  if (!song) return null;
+
   const isLiked = likedSongIds.includes(song.id);
+  const { tasks, pauseDownload, resumeDownload, cancelDownload } = require('@/context/useDownloadStore').useDownloadStore();
+  const task = tasks[song.id];
+  const isDownloaded = downloadedSongIds.includes(song.id);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -76,6 +81,48 @@ export function SongActionMenu({ song }: { song: Song }) {
                 <Heart className={`w-3.5 h-3.5 ${isLiked ? 'text-[#fa233b] fill-[#fa233b]' : ''}`} /> 
                 {isLiked ? 'Unlike' : 'Like'}
               </button>
+
+              <div className="h-px bg-white/10 my-1 mx-2" />
+
+              {isDownloaded ? (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); handleAction(() => usePlayerStore.getState().toggleDownloadSong(song.id)); }}
+                  className="w-full text-left px-3 py-2 text-emerald-400 hover:bg-white/5 hover:text-emerald-300 flex items-center gap-2"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Downloaded (Remove)
+                </button>
+              ) : task ? (
+                task.status === 'downloading' || task.status === 'queued' ? (
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleAction(() => pauseDownload(song.id)); }}
+                    className="w-full text-left px-3 py-2 text-amber-400 hover:bg-white/5 flex items-center gap-2"
+                  >
+                    <PauseCircle className="w-3.5 h-3.5" /> Pause ({task.progress}%)
+                  </button>
+                ) : (
+                  <div className="flex items-center w-full">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleAction(() => resumeDownload(song.id)); }}
+                      className="flex-1 text-left px-3 py-2 text-slate-200 hover:bg-white/5 flex items-center gap-2"
+                    >
+                      <Play className="w-3.5 h-3.5" /> Resume
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleAction(() => cancelDownload(song.id)); }}
+                      className="px-3 py-2 text-red-400 hover:bg-white/5 hover:text-red-300"
+                    >
+                      <XCircle className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )
+              ) : (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); handleAction(() => usePlayerStore.getState().toggleDownloadSong(song.id)); }}
+                  className="w-full text-left px-3 py-2 text-slate-200 hover:bg-white/5 hover:text-white flex items-center gap-2"
+                >
+                  <Download className="w-3.5 h-3.5" /> Download
+                </button>
+              )}
             </>
           ) : (
             // Playlists Submenu
@@ -94,12 +141,7 @@ export function SongActionMenu({ song }: { song: Song }) {
                 onClick={(e) => {
                   e.stopPropagation();
                   handleAction(() => {
-                    const name = prompt("New playlist name:");
-                    if (name) {
-                      usePlaylistStore.getState().createPlaylist(name, '', 'private').then(pl => {
-                        if (pl) addSongToPlaylist(pl.id, song);
-                      });
-                    }
+                    usePlayerStore.getState().setCreatePlaylistModalOpen(true);
                   });
                 }}
                 className="w-full text-left px-3 py-2 text-[#fa233b] hover:bg-white/5 flex items-center gap-2 font-medium"

@@ -627,12 +627,27 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   toggleDownloadSong: (songId) => {
     const { queue, currentSong, downloadedSongIds } = get();
-    const targetSong = (currentSong && currentSong.id === songId) ? currentSong : queue.find((s) => s.id === songId);
+    const targetSong = (currentSong && currentSong.id === songId) ? currentSong : queue.find((s) => s && s.id === songId);
+
+    const isCurrentlyDownloaded = downloadedSongIds.includes(songId);
 
     if (targetSong) {
-      import('@/lib/downloadHelper').then(({ downloadSongFile }) => {
-        downloadSongFile(targetSong);
-      });
+      if (isCurrentlyDownloaded) {
+        import('@/lib/downloadHelper').then(({ removeCachedSong }) => {
+          removeCachedSong(targetSong);
+        });
+      } else {
+        import('@/context/useDownloadStore').then(({ useDownloadStore }) => {
+          const downloadStore = useDownloadStore.getState();
+          if (!downloadStore.isOfflineStorageEnabled) {
+            downloadStore.setSetupModalOpen(true);
+            // Optionally we could store the pending song to queue it after setup, 
+            // but for simplicity they can just tap download again after setup.
+          } else {
+            downloadStore.queueDownload(targetSong);
+          }
+        });
+      }
     }
 
     set((state) => {

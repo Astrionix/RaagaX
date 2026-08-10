@@ -26,7 +26,7 @@ export function MobileMiniPlayer() {
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className={`md:hidden fixed z-40 h-16 bg-[#161618]/95 backdrop-blur-xl border-t border-white/10 px-3 flex items-center justify-between select-none active:scale-[0.99] transition-all duration-300 w-full left-0 ${isPlaying ? 'shadow-[0_-5px_20px_rgba(239,35,60,0.15)]' : ''}`} style={{ bottom: 'calc(3.5rem + env(safe-area-inset-bottom))' }}>
+    <div className={`md:hidden fixed z-40 h-16 bg-[#161618]/95 backdrop-blur-xl border-t border-white/10 px-3 flex items-center justify-between select-none active:scale-[0.99] transition-all duration-300 w-full left-0 ${isPlaying ? 'shadow-[0_-5px_20px_rgba(239,35,60,0.15)]' : ''}`} style={{ bottom: 'calc(3.75rem + env(safe-area-inset-bottom))' }}>
       {/* Custom Draggable Progress Bar - Spotify Style */}
       <div className="absolute bottom-0 left-0 w-full h-6 z-10 flex items-end translate-y-0">
         <SeekBar 

@@ -1,7 +1,7 @@
 import { Song } from '@/types/music';
 
 const DB_NAME = 'RaagaX_LocalDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export interface PlaybackSessionCache {
   currentSong: Song | null;
@@ -56,6 +56,11 @@ export class LocalDatabase {
         // 4. Artwork cache store
         if (!db.objectStoreNames.contains('artwork')) {
           db.createObjectStore('artwork');
+        }
+
+        // 5. Download Tasks store
+        if (!db.objectStoreNames.contains('download_tasks')) {
+          db.createObjectStore('download_tasks', { keyPath: 'song.id' });
         }
       };
 
@@ -146,6 +151,54 @@ export class LocalDatabase {
       const updated = Array.from(new Set([term.trim(), ...existing])).slice(0, 15);
       localStorage.setItem('raagax_search_history', JSON.stringify(updated));
     } catch (e) {}
+  }
+
+  /**
+   * Save all download tasks
+   */
+  public async saveDownloadTasks(tasks: Record<string, any>): Promise<void> {
+    if (!this.dbPromise) return;
+    try {
+      const db = await this.dbPromise;
+      const tx = db.transaction('download_tasks', 'readwrite');
+      const store = tx.objectStore('download_tasks');
+      
+      // Clear existing to sync deletes
+      store.clear();
+      Object.values(tasks).forEach(task => {
+        // Exclude transient data like AbortController
+        const { abortController, ...persistTask } = task as any;
+        store.put(persistTask);
+      });
+    } catch (e) {
+      console.warn('Could not save download tasks:', e);
+    }
+  }
+
+  /**
+   * Load download tasks
+   */
+  public async loadDownloadTasks(): Promise<Record<string, any>> {
+    if (!this.dbPromise) return {};
+    try {
+      const db = await this.dbPromise;
+      return new Promise((resolve) => {
+        const tx = db.transaction('download_tasks', 'readonly');
+        const store = tx.objectStore('download_tasks');
+        const req = store.getAll();
+        
+        req.onsuccess = () => {
+          const tasks: Record<string, any> = {};
+          req.result.forEach((task: any) => {
+            tasks[task.song.id] = task;
+          });
+          resolve(tasks);
+        };
+        req.onerror = () => resolve({});
+      });
+    } catch (e) {
+      return {};
+    }
   }
 
   /**

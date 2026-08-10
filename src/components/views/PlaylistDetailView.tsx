@@ -6,6 +6,9 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { RealMusicEngine } from '@/lib/realMusicEngine';
 import { Song } from '@/types/music';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
+import { usePlaylistStore } from '@/context/usePlaylistStore';
+import { useDownloadStore } from '@/context/useDownloadStore';
+import { BulkDownloadConfirmModal } from '@/components/modals/BulkDownloadConfirmModal';
 
 export function PlaylistDetailView() {
   const { 
@@ -22,6 +25,15 @@ export function PlaylistDetailView() {
 
   const [playlist, setPlaylist] = useState<{ id: string; title: string; coverUrl: string; songs: Song[] } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 MB';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
 
   useEffect(() => {
     if (!selectedPlaylistId) return;
@@ -160,7 +172,7 @@ export function PlaylistDetailView() {
               {playlist.songs.length} Tracks • Curated by RaagaX
             </p>
 
-            <div className="flex items-center justify-center md:justify-start gap-3 pt-4">
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-4">
               <button
                 onClick={handlePlayAll}
                 className="px-6 py-2.5 rounded-full bg-[#EF233C] text-white font-black text-xs uppercase tracking-wider flex items-center gap-2 hover:scale-105 transition-transform shadow-lg shadow-red-500/30"
@@ -172,6 +184,12 @@ export function PlaylistDetailView() {
                 className="px-5 py-2.5 rounded-full font-bold text-xs flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all hover:scale-105"
               >
                 <Shuffle className="w-3.5 h-3.5 text-slate-300" /> Shuffle
+              </button>
+              <button
+                onClick={() => setShowDownloadModal(true)}
+                className="px-5 py-2.5 rounded-full font-bold text-xs flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all hover:scale-105"
+              >
+                <Download className="w-3.5 h-3.5 text-slate-300" /> Download
               </button>
               {(playlist as any).isUserOwned && (
                 <button
@@ -193,6 +211,19 @@ export function PlaylistDetailView() {
           </div>
         </div>
       </section>
+
+      {/* Download Playlist Modal */}
+      {playlist && showDownloadModal && (
+        <BulkDownloadConfirmModal
+          isOpen={showDownloadModal}
+          onClose={() => setShowDownloadModal(false)}
+          title={playlist.title}
+          subtitle={`${playlist.songs.length} songs`}
+          coverUrl={playlist.coverUrl}
+          songs={playlist.songs}
+        />
+      )}
+
 
       {/* Song List */}
       <section className="space-y-4">

@@ -2,7 +2,7 @@
   "framework": "nextjs",
   "crons": [
     {
-      "path": "/api/cron/youtube-discovery",
+      "path": "/api/cron/discovery",
       "schedule": "0 4 * * 1"
     }
   ]

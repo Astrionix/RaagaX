@@ -20,8 +20,9 @@ import { ContextMenuModal } from '@/components/modals/ContextMenuModal';
 import { OnboardingAuthModal } from '@/components/modals/OnboardingAuthModal';
 import { KeyboardShortcutsModal } from '@/components/modals/KeyboardShortcutsModal';
 import { MobileDeviceConnectModal } from '@/components/modals/MobileDeviceConnectModal';
+import { OfflineStorageSetupModal } from '@/components/modals/OfflineStorageSetupModal';
 
-import { AppUpdateModal } from '@/components/modals/AppUpdateModal';
+
 import { CreatePlaylistModal } from '@/components/modals/CreatePlaylistModal';
 import { RemoteDeviceBanner } from '@/components/player/RemoteDeviceBanner';
 import { Toast } from '@/components/ui/Toast';
@@ -33,15 +34,19 @@ import { LibraryView } from '@/components/views/LibraryView';
 import { PlaylistDetailView } from '@/components/views/PlaylistDetailView';
 import { RadioView } from '@/components/views/RadioView';
 import { ArtistDetailView } from '@/components/views/ArtistDetailView';
+import { AlbumsView } from '@/components/views/AlbumsView';
+import { AlbumDetailView } from '@/components/views/AlbumDetailView';
 import { ProfileView } from '@/components/views/ProfileView';
 import { DownloadsView } from '@/components/views/DownloadsView';
 import { FavoritesView } from '@/components/views/FavoritesView';
 import { SplashScreen } from '@/components/modals/SplashScreen';
 
+import { useDownloadStore } from '@/context/useDownloadStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
 
 export default function Page() {
-  const { activeTab, rightPanelMode } = usePlayerStore();
+  const { activeTab, selectedAlbumId, rightPanelMode } = usePlayerStore();
+  const { isSetupModalOpen, setSetupModalOpen } = useDownloadStore();
 
   // Sync activeTab to browser history for mobile back gesture support
   React.useEffect(() => {
@@ -77,12 +82,18 @@ export default function Page() {
       {/* Splash Screen Animation */}
       <SplashScreen />
       <Toast />
+      
+      <OfflineStorageSetupModal 
+        isOpen={isSetupModalOpen} 
+        onClose={() => setSetupModalOpen(false)} 
+        onComplete={() => setSetupModalOpen(false)} 
+      />
 
       {/* Sidebar Navigation (Desktop Pane 1) */}
       <Sidebar />
 
       {/* App Layout (Grid after Sidebar) */}
-      <div className="flex-1 ml-0 md:ml-64 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] min-h-screen transition-all duration-300 h-screen overflow-hidden">
+      <div className="flex-1 ml-0 md:ml-64 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] h-[calc(100vh-5rem)] overflow-hidden">
         
         {/* Main Content Column */}
         <div className="main-content min-w-0 min-h-0 overflow-y-auto overflow-x-hidden relative flex flex-col h-full">
@@ -90,14 +101,14 @@ export default function Page() {
           <Navbar />
 
           {/* View Switcher Container */}
-          <main className="flex-1 pt-24 pb-[120px] md:pb-8 px-4 sm:px-8">
+          <main className="flex-1 pt-16 md:pt-6 pb-8 md:pb-8 px-4 sm:px-8">
             {activeTab === 'home' && <HomeView />}
             {activeTab === 'browse' && <BrowseView />}
             {activeTab === 'search' && <SearchView />}
             {activeTab === 'library' && <LibraryView />}
             {activeTab === 'radio' && <RadioView />}
             {activeTab === 'artist' && <ArtistDetailView />}
-            {activeTab === 'album' && <HomeView />}
+            {activeTab === 'album' && (selectedAlbumId ? <AlbumDetailView /> : <AlbumsView />)}
             {activeTab === 'playlist' && <PlaylistDetailView />}
             {activeTab === 'profile' && <ProfileView />}
             {activeTab === 'downloads' && <DownloadsView />}
@@ -110,7 +121,7 @@ export default function Page() {
         </div>
 
         {/* Right Queue Column */}
-        <div className="queue-panel hidden xl:block w-[360px] min-w-[360px] h-full pt-24 pb-8 overflow-y-auto overflow-x-hidden border-l border-white/5 bg-[#07090E]">
+        <div className="queue-panel hidden xl:block w-[360px] min-w-[360px] h-full pt-6 pb-8 overflow-y-auto overflow-x-hidden border-l border-white/5 bg-[#07090E]">
           {rightPanelMode === 'devices' ? <RightDeviceConnectPanel /> : <RightQueuePanel />}
         </div>
       </div>
@@ -129,7 +140,7 @@ export default function Page() {
       <KeyboardShortcutsModal />
       <MobileDeviceConnectModal />
 
-      <AppUpdateModal />
+
       <CreatePlaylistModal />
     </div>
   );

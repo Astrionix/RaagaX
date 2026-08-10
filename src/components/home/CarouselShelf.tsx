@@ -199,7 +199,7 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
               </button>
             </div>
             <h3 className="font-bold text-sm text-white truncate">{item.title}</h3>
-            {item.subtitle && (
+            {item.subtitle && item.subtitle !== 'Unknown' && (
               <p className="text-xs text-slate-400 mt-1 line-clamp-2">{item.subtitle}</p>
             )}
           </div>

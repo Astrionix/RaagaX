@@ -138,60 +138,89 @@ export function AudioPlayerController() {
     prevSongIdRef.current = currentSong.id;
 
     if (isNewSong) {
-      const oldAudio = getActiveAudio();
-      const newAudioId = activePlayerRef.current === 'A' ? 'B' : 'A';
-      activePlayerRef.current = newAudioId;
-      const newAudio = getActiveAudio();
+      const initNewSong = async () => {
+        const oldAudio = getActiveAudio();
+        const newAudioId = activePlayerRef.current === 'A' ? 'B' : 'A';
+        activePlayerRef.current = newAudioId;
+        const newAudio = getActiveAudio();
 
-      if (!oldAudio || !newAudio) return;
+        if (!oldAudio || !newAudio) return;
 
-      const newSrc = currentSong.audioUrl || FALLBACK_AUDIO_URL;
-      if (!newAudio.src.includes(newSrc)) {
-         newAudio.src = newSrc;
-         newAudio.load();
-      }
-
-      if (crossfadeSec > 0 && oldAudio.currentTime > 0 && !oldAudio.paused && isPlaying && isActiveDevice) {
-        // Start Crossfade
-        newAudio.volume = 0;
-        newAudio.play().catch(() => {});
-
-        if (crossfadeIntervalRef.current) clearInterval(crossfadeIntervalRef.current);
-        const steps = 20; 
-        const intervalMs = 1000 / steps;
-        const totalSteps = crossfadeSec * steps;
-        let currentStep = 0;
-
-        crossfadeIntervalRef.current = setInterval(() => {
-          currentStep++;
-          const fadeOutVol = Math.max(0, volume * (1 - currentStep / totalSteps));
-          const fadeInVol = Math.min(volume, volume * (currentStep / totalSteps));
-          
-          if (!isMuted) {
-             oldAudio.volume = fadeOutVol;
-             newAudio.volume = fadeInVol;
-          } else {
-             oldAudio.volume = 0;
-             newAudio.volume = 0;
+        let finalSrc = currentSong.audioUrl || FALLBACK_AUDIO_URL;
+        
+        // True PWA Offline Interception
+        if (typeof window !== 'undefined' && currentSong.audioUrl) {
+          try {
+            const { getCachedAudioUrl } = await import('@/lib/downloadHelper');
+            const cachedUrl = await getCachedAudioUrl(currentSong.audioUrl);
+            if (cachedUrl) {
+              finalSrc = cachedUrl;
+              console.log('[OfflineStorage] Playing from local cache:', currentSong.title);
+            } else if (!window.navigator.onLine) {
+              console.warn('[OfflineStorage] Song not cached and device is offline. Auto-skipping to next...');
+              // Stop playback attempt for this song
+              setIsPlaying(false);
+              setTimeout(() => {
+                usePlayerStore.getState().playNext();
+              }, 1000);
+              return; // Abort loading this song
+            }
+          } catch(e) {
+            console.error('[OfflineStorage] Failed to intercept offline audio:', e);
           }
-
-          if (currentStep >= totalSteps) {
-            clearInterval(crossfadeIntervalRef.current!);
-            oldAudio.pause();
-            oldAudio.currentTime = 0;
-            if (!isMuted) newAudio.volume = volume;
-          }
-        }, intervalMs);
-
-      } else {
-        // Immediate switch
-        oldAudio.pause();
-        oldAudio.currentTime = 0;
-        newAudio.volume = isMuted ? 0 : volume;
-        if (isPlaying && isActiveDevice && !isVideoModeActive) {
-          newAudio.play().catch(console.warn);
         }
-      }
+
+        if (!newAudio.src.includes(finalSrc)) {
+           // Revoke old object URL to prevent memory leaks if we created one before
+           if (newAudio.src.startsWith('blob:')) URL.revokeObjectURL(newAudio.src);
+           newAudio.src = finalSrc;
+           newAudio.load();
+        }
+
+        if (crossfadeSec > 0 && oldAudio.currentTime > 0 && !oldAudio.paused && isPlaying && isActiveDevice) {
+          // Start Crossfade
+          newAudio.volume = 0;
+          newAudio.play().catch(() => {});
+
+          if (crossfadeIntervalRef.current) clearInterval(crossfadeIntervalRef.current);
+          const steps = 20; 
+          const intervalMs = 1000 / steps;
+          const totalSteps = crossfadeSec * steps;
+          let currentStep = 0;
+
+          crossfadeIntervalRef.current = setInterval(() => {
+            currentStep++;
+            const fadeOutVol = Math.max(0, volume * (1 - currentStep / totalSteps));
+            const fadeInVol = Math.min(volume, volume * (currentStep / totalSteps));
+            
+            if (!isMuted) {
+               oldAudio.volume = fadeOutVol;
+               newAudio.volume = fadeInVol;
+            } else {
+               oldAudio.volume = 0;
+               newAudio.volume = 0;
+            }
+
+            if (currentStep >= totalSteps) {
+              clearInterval(crossfadeIntervalRef.current!);
+              oldAudio.pause();
+              oldAudio.currentTime = 0;
+              if (!isMuted) newAudio.volume = volume;
+            }
+          }, intervalMs);
+
+        } else {
+          // Immediate switch
+          oldAudio.pause();
+          oldAudio.currentTime = 0;
+          newAudio.volume = isMuted ? 0 : volume;
+          if (isPlaying && isActiveDevice && !isVideoModeActive) {
+            newAudio.play().catch(console.warn);
+          }
+        }
+      };
+
+      initNewSong();
 
       // Media Session updates
       if ('mediaSession' in navigator) {

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PlaylistResolver } from '@/lib/discovery/PlaylistResolver';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { SOURCES } from '@/lib/spotifySources';
+import { Song } from '@/types/music';
 
 export const maxDuration = 300; // Allow up to 5 minutes for this cron on Vercel Pro
 
@@ -24,11 +26,18 @@ export async function GET(req: NextRequest) {
     const baseUrl = getBaseUrl(req);
     const resolver = new PlaylistResolver(baseUrl);
     
-    console.log(`[Cron] Syncing Spotify Playlist ${playlistId} for ${lang} ${category}`);
-    
-    // Resolve tracks from Spotify -> JioSaavn. 
-    // This internally leverages the `song_resolution_cache` to skip already resolved tracks.
-    const resolvedSongs = await resolver.resolveSpotifyPlaylist(playlistId, 100);
+    let resolvedSongs: Song[] = [];
+
+    if (playlistId === 'aggregated_new_releases') {
+      console.log(`[Cron] Running massive aggregation for ${lang} ${category}`);
+      const langSources = SOURCES[lang] || SOURCES['Hindi'];
+      const candidatePlaylists = [...(langSources.primary || []), ...(langSources.secondary || [])];
+      
+      resolvedSongs = await resolver.resolveAggregatedCandidates(candidatePlaylists, 100);
+    } else {
+      console.log(`[Cron] Syncing Spotify Playlist ${playlistId} for ${lang} ${category}`);
+      resolvedSongs = await resolver.resolveSpotifyPlaylist(playlistId, 100);
+    }
 
     // Save to Playlist Cache
     if (resolvedSongs.length > 0) {

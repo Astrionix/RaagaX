@@ -5,59 +5,58 @@ import { JioSaavnProvider } from '@/lib/jioSaavnProvider';
 import { Song } from '@/types/music';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
-// --- Spotify Discovery Configuration ---
-// These are Tier-1 Verified Editorial Playlists for high-quality discovery.
 const SPOTIFY_PLAYLISTS: Record<string, any> = {
   Telugu: {
-    trending: '37i9dQZF1DWTt3gMo0DLxA',   // Trending Now Telugu
-    latest: '37i9dQZF1DWWwrjLPC16W7',     // Latest Telugu
-    romance: '37i9dQZF1DX44F1QWqYoaV',    // Telugu Love Songs
-    pop: '37i9dQZF1EIdegp8DGOKNT',        // Telugu Pop Mix
-    classics: '37i9dQZF1DX5EEpa9ekxRI',   // All Out 90s Telugu
+    trending: '37i9dQZF1DWTt3gMo0DLxA',
+    latest: 'aggregated_new_releases', // Special ID to trigger aggregation
+    romance: '37i9dQZF1DX44F1QWqYoaV',
+    pop: '37i9dQZF1EIdegp8DGOKNT',
+    classics: '37i9dQZF1DX5EEpa9ekxRI',
   },
   Tamil: {
-    trending: '37i9dQZF1DX4Im4BTs2WMg',   // Trending Now Tamil
-    latest: '37i9dQZF1DWVo4cdnikh7Z',     // Latest Tamil
-    romance: '5TlgIY5CX9fQO4qvUWnPLh',    // Tamil Love Songs (Community Tier-2)
-    pop: '37i9dQZF1DXaVmfUr97Uve',        // Tamil Pop
+    trending: '37i9dQZF1DX4Im4BTs2WMg',
+    latest: 'aggregated_new_releases',
+    romance: '5TlgIY5CX9fQO4qvUWnPLh',
+    pop: '37i9dQZF1DXaVmfUr97Uve',
     classics: null,
   },
   Kannada: {
-    trending: '4TvxxFHYjBvRtaOrGl25N8',   // Trending Kannada 2026
-    latest: '37i9dQZF1DWZqTcNLmb3sH',     // Latest Kannada
-    romance: '37i9dQZF1DX2MvScOHAAiE',    // Kannada Romance
-    pop: '37i9dQZF1DX9i6vCEoH6jH',        // Kannada Party Time
-    classics: '7pQiU6Zl6PgDUHUHUMZxEM',   // Kannada 2000s Love
+    trending: '4TvxxFHYjBvRtaOrGl25N8',
+    latest: 'aggregated_new_releases',
+    romance: '37i9dQZF1DX2MvScOHAAiE',
+    pop: '37i9dQZF1DX9i6vCEoH6jH',
+    classics: '7pQiU6Zl6PgDUHUHUMZxEM',
   },
   Malayalam: {
-    trending: '37i9dQZF1DWTYKFynxp6Fs',   // Trending Now Malayalam
-    latest: '37i9dQZF1DX688wU47emR9',     // Hot Hits Malayalam
-    romance: '37i9dQZF1DX3lmpQSniUBH',    // Romantic Malayalam
-    pop: '37i9dQZF1DX0YqJHUZrLcd',        // Feel Good Malayalam
-    classics: '37i9dQZF1DXaDDXaHNhJDD',   // Mollywood Gold
+    trending: '37i9dQZF1DWTYKFynxp6Fs',
+    latest: 'aggregated_new_releases',
+    romance: '37i9dQZF1DX3lmpQSniUBH',
+    pop: '37i9dQZF1DX0YqJHUZrLcd',
+    classics: '37i9dQZF1DXaDDXaHNhJDD',
   },
   Hindi: {
-    trending: '37i9dQZF1DX0XUfTFmNBRM',   // Hot Hits Hindi
-    latest: '37i9dQZF1DX4ghkRUdIogy',     // New Music Friday India
-    romance: '37i9dQZF1EIeJhaZUDlJS8',    // Romantic Soft Bollywood Mix
-    pop: '37i9dQZF1EIcOc4ILc4bgO',        // Party Bollywood Mix
-    classics: '37i9dQZF1EIfFo1P2382IG',   // Energetic Classic Bollywood
+    trending: '37i9dQZF1DX0XUfTFmNBRM',
+    latest: 'aggregated_new_releases',
+    romance: '37i9dQZF1EIeJhaZUDlJS8',
+    pop: '37i9dQZF1EIcOc4ILc4bgO',
+    classics: '37i9dQZF1EIfFo1P2382IG',
   },
   English: {
-    trending: '37i9dQZF1DXcBWIGoYBM5M',   // Today's Top Hits
-    latest: '37i9dQZF1DX4JAvHpjipBk',     // New Music Friday
-    romance: '37i9dQZF1DX7rOY2tZUw1k',    // Timeless Love Songs
-    pop: '37i9dQZF1DWWEcRhUVtL8n',        // Indie Pop
-    classics: '37i9dQZF1DXaKIA8E7WcJj',   // All Out 2000s
+    trending: '37i9dQZF1DXcBWIGoYBM5M',
+    latest: 'aggregated_new_releases',
+    romance: '37i9dQZF1DX7rOY2tZUw1k',
+    pop: '37i9dQZF1DWWEcRhUVtL8n',
+    classics: '37i9dQZF1DXaKIA8E7WcJj',
   },
   'All Languages': {
-    trending: '37i9dQZF1DX4ghkRUdIogy',   // New Music Friday India
-    latest: '37i9dQZF1DXcBWIGoYBM5M',     // Global Top Hits
+    trending: '37i9dQZF1DX4ghkRUdIogy',
+    latest: 'aggregated_new_releases',
     romance: null,
-    pop: '37i9dQZF1EIe9njJIhd9wt',        // Happy Indian Music Mix
+    pop: '37i9dQZF1EIe9njJIhd9wt',
     classics: null,
   }
 };
+
 
 function getBaseUrl(req: NextRequest): string {
   const host = req.headers.get('host') || 'localhost:3001';
