@@ -216,7 +216,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   sleepTimerMinutes: null,
   sleepTimerEndsAt: null,
   contextMenuSong: null,
-  preferredLanguage: 'Telugu',
+  preferredLanguage: (typeof window !== 'undefined' && localStorage.getItem('raagax_preferred_language')) || 'Telugu',
 
   deviceId: typeof window !== 'undefined' ? localStorage.getItem('raagax_device_id') || '' : '',
   activeDeviceId: null,
@@ -251,6 +251,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   restoreLocalSession: async () => {
     const session = await LocalDatabase.getInstance().loadPlaybackSession();
+    const savedLanguage = (typeof window !== 'undefined' && localStorage.getItem('raagax_preferred_language')) || (session && session.preferredLanguage) || 'Telugu';
+
     if (session && session.currentSong) {
       const { isKidsOrNurseryTrack } = await import('@/lib/jioSaavnProvider');
       const cleanQueue = (session.queue || []).filter(s => s && !isKidsOrNurseryTrack(s));
@@ -263,8 +265,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         queueIndex: Math.min(session.queueIndex || 0, Math.max(0, cleanQueue.length - 1)),
         historySongIds: session.historySongIds || [],
         likedSongIds: session.likedSongIds || [],
-        preferredLanguage: session.preferredLanguage || 'Telugu',
+        preferredLanguage: savedLanguage,
       });
+    } else {
+      set({ preferredLanguage: savedLanguage });
     }
   },
 
