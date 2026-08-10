@@ -34,16 +34,34 @@ export function ArtistDetailView() {
   // Filter songs and albums by preferred language
   const artistSongs = useMemo(() => {
     if (!artist?.topSongs) return [];
-    // Prioritize preferred language, if none match fallback to all
-    const filtered = artist.topSongs.filter((s: any) => s.genre?.toLowerCase().includes(preferredLanguage.toLowerCase()));
-    return filtered.length > 0 ? filtered : artist.topSongs;
+    const filtered = artist.topSongs.filter((s: any) => s.language?.toLowerCase() === preferredLanguage.toLowerCase() || s.genre?.toLowerCase().includes(preferredLanguage.toLowerCase()));
+    const rawSongs = filtered.length > 0 ? filtered : artist.topSongs;
+    
+    return rawSongs.map((s: any) => ({
+      id: s.id,
+      title: s.name || s.title || 'Unknown',
+      artist: s.artists?.primary?.[0]?.name || artist.name,
+      artistId: s.artists?.primary?.[0]?.id || artist.id,
+      album: s.album?.name || '',
+      albumId: s.album?.id || '',
+      duration: s.duration || 210,
+      coverUrl: s.image?.find?.((i: any) => i.quality === '500x500')?.url || s.image?.[s.image?.length - 1]?.url || artist.image?.[0]?.url || '',
+      audioUrl: s.downloadUrl?.find?.((d: any) => d.quality === '320kbps')?.url || s.downloadUrl?.[s.downloadUrl?.length - 1]?.url || ''
+    }));
   }, [artist, preferredLanguage]);
 
   const artistAlbums = useMemo(() => {
     if (!artist?.topAlbums) return [];
-    // Prioritize preferred language
-    const filtered = artist.topAlbums.filter((a: any) => a.genre?.toLowerCase() === preferredLanguage.toLowerCase());
-    return filtered.length > 0 ? filtered : artist.topAlbums;
+    const filtered = artist.topAlbums.filter((a: any) => a.language?.toLowerCase() === preferredLanguage.toLowerCase() || a.genre?.toLowerCase() === preferredLanguage.toLowerCase());
+    const rawAlbums = filtered.length > 0 ? filtered : artist.topAlbums;
+
+    return rawAlbums.map((a: any) => ({
+      id: a.id,
+      title: a.name || a.title || 'Unknown',
+      coverUrl: a.image?.find?.((i: any) => i.quality === '500x500')?.url || a.image?.[a.image?.length - 1]?.url || '',
+      releaseYear: a.year || a.releaseYear || '',
+      trackCount: a.songCount || a.trackCount || 0
+    }));
   }, [artist, preferredLanguage]);
 
   if (isLoading) {
@@ -83,10 +101,9 @@ export function ArtistDetailView() {
       <section className="relative rounded-2xl bg-gradient-to-r from-slate-950 via-[#121622] to-slate-900 p-6 sm:p-10 overflow-hidden shadow-2xl border border-white/10 flex flex-col md:flex-row items-center md:items-end justify-between gap-6">
         <div className="flex flex-col md:flex-row items-center gap-6 z-10 text-center md:text-left">
           <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden shadow-2xl border-4 border-white/20 flex-shrink-0">
-            <img src={artist.imageUrl || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819'} alt={artist.name} className="w-full h-full object-cover bg-slate-800" />
+            <img src={artist.imageUrl || artist.image?.find?.((i: any) => i.quality === '500x500')?.url || artist.image?.[artist.image?.length - 1]?.url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819'} alt={artist.name} className="w-full h-full object-cover bg-slate-800" />
           </div>
 
-          <div className="space-y-2">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#fa233b]/20 border border-[#fa233b]/40 text-[10px] font-bold uppercase text-[#fa233b]">
               <ShieldCheck className="w-3 h-3 text-[#fa233b]" /> {artist.isVerified ? 'Verified Maestro' : 'Artist'}
             </div>
@@ -142,7 +159,7 @@ export function ArtistDetailView() {
                       <h4 className="text-xs font-bold text-white group-hover:text-[#fa233b] transition-colors truncate">
                         {song.title}
                       </h4>
-                      <p className="text-[11px] text-slate-400 truncate">{song.album || artist.name}</p>
+                      <p className="text-[11px] text-slate-400 truncate">{song.album || song.artist || artist.name}</p>
                     </div>
                   </div>
 
