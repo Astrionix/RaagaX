@@ -152,13 +152,22 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
             {title}
           </h2>
           {showPlayAll && items.length > 0 && (
-            <button 
-              onClick={handlePlayAll}
-              className="ml-1 p-2 rounded-full bg-[#fa233b] hover:bg-[#fa233b]/90 text-white transition-all hover:scale-105 active:scale-95 shadow-md flex items-center justify-center cursor-pointer"
-              title="Play All Songs"
-            >
-              <Play className="w-3.5 h-3.5 fill-white text-white ml-0.5" />
-            </button>
+            <div className="flex items-center gap-1.5 ml-1">
+              <button 
+                onClick={handlePlayAll}
+                className="p-2 rounded-full bg-[#fa233b] hover:bg-[#fa233b]/90 text-white transition-all hover:scale-105 active:scale-95 shadow-md flex items-center justify-center cursor-pointer"
+                title="Play All Songs"
+              >
+                <Play className="w-3.5 h-3.5 fill-white text-white ml-0.5" />
+              </button>
+              <button 
+                onClick={handleShufflePlayAll}
+                className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-all hover:scale-105 active:scale-95 flex items-center justify-center cursor-pointer border border-white/10"
+                title="Shuffle Play"
+              >
+                <Shuffle className="w-3.5 h-3.5" />
+              </button>
+            </div>
           )}
         </div>
       </div>

@@ -24,27 +24,55 @@ export function FavoritesView() {
         </div>
       </div>
 
-      {/* Sub Tabs */}
-      <div className="flex items-center gap-2 border-b border-white/10 pb-3">
-        {[
-          { id: 'songs', label: `Songs (${likedSongs.length})`, icon: Music },
-          { id: 'artists', label: `Artists (${favoriteArtists.length})`, icon: User },
-        ].map((t) => {
-          const Icon = t.icon;
-          const isActive = activeSubTab === t.id;
-          return (
+      {/* Sub Tabs and Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+        <div className="flex items-center gap-2">
+          {[
+            { id: 'songs', label: `Songs (${likedSongs.length})`, icon: Music },
+            { id: 'artists', label: `Artists (${favoriteArtists.length})`, icon: User },
+          ].map((t) => {
+            const Icon = t.icon;
+            const isActive = activeSubTab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setActiveSubTab(t.id as any)}
+                className={`px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all ${
+                  isActive ? 'bg-[#EF233C] text-white shadow-lg shadow-red-500/20' : 'bg-white/5 hover:bg-white/10 text-slate-300'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {activeSubTab === 'songs' && likedSongs.length > 0 && (
+          <div className="flex items-center gap-2">
             <button
-              key={t.id}
-              onClick={() => setActiveSubTab(t.id as any)}
-              className={`px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all ${
-                isActive ? 'bg-[#EF233C] text-white shadow-lg shadow-red-500/20' : 'bg-white/5 hover:bg-white/10 text-slate-300'
-              }`}
+              onClick={() => {
+                usePlayerStore.getState().setRemoteState({ isShuffle: false });
+                playSong(likedSongs[0], likedSongs);
+              }}
+              className="px-4 py-2 rounded-xl bg-[#fa233b] hover:bg-[#d91e32] text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
             >
-              <Icon className="w-3.5 h-3.5" />
-              <span>{t.label}</span>
+              <Play className="w-3.5 h-3.5 fill-white" />
+              <span>Play All</span>
             </button>
-          );
-        })}
+            <button
+              onClick={() => {
+                const shuffled = [...likedSongs].sort(() => Math.random() - 0.5);
+                usePlayerStore.getState().setRemoteState({ isShuffle: true });
+                playSong(shuffled[0], shuffled);
+              }}
+              className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-white/10"
+            >
+              <Radio className="w-3.5 h-3.5 text-slate-300" />
+              <span>Shuffle</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Content View */}
