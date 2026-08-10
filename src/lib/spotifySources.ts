@@ -31,8 +31,8 @@ export const NEW_RELEASES_SOURCES: Record<string, { id: string; title: string }>
     title: "Hot Hits Telugu",
   },
   Tamil: {
-    id: "37i9dQZF1DX1i3hvzHpcQV",
-    title: "Hot Hits Tamil",
+    id: "7bqFUglbXOoeAPRRNDTnf1",
+    title: "New Tamil Releases",
   },
   Kannada: {
     id: "37i9dQZF1DX1ahAlaaz0ZE",
@@ -43,8 +43,8 @@ export const NEW_RELEASES_SOURCES: Record<string, { id: string; title: string }>
     title: "Hot Hits Malayalam",
   },
   Hindi: {
-    id: "37i9dQZF1DX0XUfTFmNBRM",
-    title: "Hot Hits Hindi",
+    id: "1DO7dVkgzMUMwLqIQCLWYR",
+    title: "New Hindi Releases",
   },
   English: {
     id: "37i9dQZF1DX0kbJZpiYdZl",
