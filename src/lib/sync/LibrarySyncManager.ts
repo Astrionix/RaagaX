@@ -17,9 +17,12 @@ export class LibrarySyncManager {
   private mutationQueue: LibraryMutation[] = [];
   private isProcessingQueue = false;
   private deviceId: string;
+  private localRevision: number = 0;
 
   private constructor() {
     this.deviceId = this.getOrCreateDeviceId();
+    this.loadQueueFromStorage();
+
     // Start listening to auth changes
     supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
@@ -60,14 +63,36 @@ export class LibrarySyncManager {
     return id;
   }
 
+  private loadQueueFromStorage() {
+    try {
+      const stored = localStorage.getItem('raagax_library_mutation_queue');
+      if (stored) {
+        this.mutationQueue = JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error('Failed to load library mutation queue', e);
+    }
+  }
+
+  private saveQueueToStorage() {
+    try {
+      localStorage.setItem('raagax_library_mutation_queue', JSON.stringify(this.mutationQueue));
+    } catch (e) {
+      console.error('Failed to save library mutation queue', e);
+    }
+  }
+
   private async initialize() {
     if (!this.userId) return;
     
-    // 1. Reconcile local state with cloud
+    // 1. Reconcile local state with cloud (fetches library + current revision)
     await this.reconcile();
 
     // 2. Subscribe to realtime library channel
     this.subscribeToChannel();
+
+    // 3. Process any mutations that were pending while offline
+    this.processMutationQueue();
   }
 
   private cleanup() {
@@ -77,6 +102,8 @@ export class LibrarySyncManager {
     }
     this.userId = null;
     this.mutationQueue = [];
+    this.localRevision = 0;
+    this.saveQueueToStorage();
   }
 
   private async subscribeToChannel() {
@@ -104,22 +131,23 @@ export class LibrarySyncManager {
     if (!this.userId) return;
 
     try {
-      const { data, error } = await supabase
-        .from('liked_songs')
-        .select('song_id')
-        .eq('user_id', this.userId);
+      // Fetch both the liked songs and the user's library revision
+      const [songsResult, stateResult] = await Promise.all([
+        supabase.from('liked_songs').select('song_id').eq('user_id', this.userId),
+        supabase.from('user_library_state').select('revision').eq('user_id', this.userId).single()
+      ]);
 
-      if (error) {
-        console.error('[LibrarySync] Failed to reconcile library:', error);
+      if (songsResult.error) {
+        console.error('[LibrarySync] Failed to reconcile library:', songsResult.error);
         return;
       }
 
-      if (data) {
-        const cloudLikedSongs = data.map(row => row.song_id);
-        
-        // Update Zustand immediately
+      if (songsResult.data) {
+        const cloudLikedSongs = songsResult.data.map(row => row.song_id);
         usePlayerStore.getState().setLikedSongIds(cloudLikedSongs);
-        console.log('[LibrarySync] Reconciled library with cloud:', cloudLikedSongs.length, 'songs');
+        
+        this.localRevision = stateResult.data?.revision || 0;
+        console.log(`[LibrarySync] Reconciled library with cloud: ${cloudLikedSongs.length} songs. Revision: ${this.localRevision}`);
       }
     } catch (error) {
       console.error('[LibrarySync] Error during reconcile:', error);
@@ -129,11 +157,26 @@ export class LibrarySyncManager {
   private handleRemoteMutation(payload: any) {
     if (!payload || payload.deviceId === this.deviceId) return; // Ignore our own broadcasts
 
-    const { type, songId } = payload;
+    const { type, songId, revision } = payload;
+    
+    // Revision gap detection
+    if (revision <= this.localRevision) {
+      console.log(`[LibrarySync] Ignored outdated broadcast. Local: ${this.localRevision}, Broadcast: ${revision}`);
+      return;
+    }
+
+    if (revision > this.localRevision + 1) {
+      console.log(`[LibrarySync] Detected missed event! Local: ${this.localRevision}, Broadcast: ${revision}. Reconciling...`);
+      this.reconcile();
+      return;
+    }
+
+    // Perfect sequence: apply mutation and increment local revision
+    this.localRevision = revision;
     const store = usePlayerStore.getState();
     const currentLikes = store.likedSongIds;
 
-    console.log('[LibrarySync] Received remote mutation:', payload);
+    console.log('[LibrarySync] Applied remote mutation:', payload);
 
     if (type === 'LIKE' && !currentLikes.includes(songId)) {
       store.setLikedSongIds([...currentLikes, songId]);
@@ -152,27 +195,16 @@ export class LibrarySyncManager {
     };
     
     this.mutationQueue.push(mutation);
+    this.saveQueueToStorage();
     this.processMutationQueue();
   }
 
   public likeSong(songId: string) {
-    // 1. Optimistic UI update already happened in Zustand before calling this
-    
-    // 2. Enqueue cloud mutation
     this.enqueueMutation('LIKE', songId);
-    
-    // 3. Broadcast to other devices
-    this.broadcastMutation('LIKE', songId);
   }
 
   public unlikeSong(songId: string) {
-    // 1. Optimistic UI update already happened in Zustand before calling this
-    
-    // 2. Enqueue cloud mutation
     this.enqueueMutation('UNLIKE', songId);
-    
-    // 3. Broadcast to other devices
-    this.broadcastMutation('UNLIKE', songId);
   }
 
   private async processMutationQueue() {
@@ -181,32 +213,45 @@ export class LibrarySyncManager {
     this.isProcessingQueue = true;
 
     try {
-      // Create a copy of the queue to process
-      const queueToProcess = [...this.mutationQueue];
-      
-      for (const mutation of queueToProcess) {
+      // Process mutations sequentially
+      while (this.mutationQueue.length > 0) {
+        const mutation = this.mutationQueue[0];
         try {
           if (mutation.type === 'LIKE') {
             const { error } = await supabase.from('liked_songs').upsert({
               user_id: this.userId,
               song_id: mutation.songId
             }, { onConflict: 'user_id,song_id' });
-            
             if (error) throw error;
           } else if (mutation.type === 'UNLIKE') {
             const { error } = await supabase.from('liked_songs').delete()
               .eq('user_id', this.userId)
               .eq('song_id', mutation.songId);
-              
             if (error) throw error;
           }
 
+          // Increment cloud revision via RPC
+          const { data: newRevision, error: rpcError } = await supabase.rpc('increment_library_revision', {
+            p_user_id: this.userId
+          });
+          
+          if (rpcError) {
+            console.error('[LibrarySync] Failed to increment revision', rpcError);
+          }
+
+          const resolvedRevision = newRevision || (this.localRevision + 1);
+          this.localRevision = resolvedRevision;
+
+          // Broadcast with new revision
+          this.broadcastMutation(mutation.type, mutation.songId, resolvedRevision);
+
           // Remove successful mutation from queue
-          this.mutationQueue = this.mutationQueue.filter(m => m.id !== mutation.id);
+          this.mutationQueue.shift();
+          this.saveQueueToStorage();
         } catch (error) {
           console.error('[LibrarySync] Failed to process mutation:', mutation, error);
           mutation.retryCount++;
-          // If it fails too many times, we could drop it or keep retrying, let's keep it for now but maybe stop processing this loop
+          // Wait and retry later
           break;
         }
       }
@@ -215,7 +260,7 @@ export class LibrarySyncManager {
     }
   }
 
-  private async broadcastMutation(type: 'LIKE' | 'UNLIKE', songId: string) {
+  private async broadcastMutation(type: 'LIKE' | 'UNLIKE', songId: string, revision: number) {
     if (!this.channel) return;
 
     this.channel.send({
@@ -225,7 +270,7 @@ export class LibrarySyncManager {
         type,
         songId,
         deviceId: this.deviceId,
-        version: Date.now()
+        revision
       }
     });
   }
