@@ -15,6 +15,8 @@ export function CarouselShelf({ title, items }: { title: string; items: ShelfIte
       setSelectedArtistId(item.id);
     } else if (item.type === 'album') {
       setSelectedAlbumId(item.id);
+      setSelectedPlaylistId(`album:${item.id}`);
+      setActiveTab('playlist');
     } else if (item.type === 'song') {
       playSong(item as any, items as any[]);
     }
