@@ -10,6 +10,7 @@ import { ChartListShelf } from '@/components/home/ChartListShelf';
 import { SkeletonGrid } from '@/components/ui/SkeletonLoader';
 import { Disc, ChevronRight, Play } from 'lucide-react';
 import { AlbumCatalogEngine } from '@/lib/albumCatalog';
+import { ArtistDiscoveryShelves } from '@/components/home/ArtistDiscoveryShelves';
 
 import useSWR from 'swr';
 
@@ -215,6 +216,9 @@ export function HomeView() {
 
         </div>
       </section>
+
+      {/* Artist Discovery Shelves */}
+      <ArtistDiscoveryShelves />
 
       {/* Main Content Layout */}
       {isLoading || !payload ? (

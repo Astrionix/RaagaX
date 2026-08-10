@@ -286,4 +286,43 @@ export class JioSaavnProvider {
     }
     return [];
   }
+
+  async searchArtists(query: string, limit = 10): Promise<any[]> {
+    const encoded = encodeURIComponent(query.trim() || 'top artists');
+    const urls = [
+      `${this.localBase}/api/search/artists?query=${encoded}&limit=${limit}`,
+      `${this.externalBase}/api/search/artists?query=${encoded}&limit=${limit}`,
+    ];
+    for (const url of urls) {
+      const results = await safeFetch(url, 6000);
+      if (results) return results;
+    }
+    return [];
+  }
+
+  async getArtistDetails(artistId: string, songCount = 20, albumCount = 20): Promise<any | null> {
+    if (!artistId) return null;
+    const urls = [
+      `${this.localBase}/api/artists?id=${artistId}&page=0&songCount=${songCount}&albumCount=${albumCount}`,
+      `${this.externalBase}/api/artists?id=${artistId}&page=0&songCount=${songCount}&albumCount=${albumCount}`,
+    ];
+
+    for (const url of urls) {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 60000); // Wait up to 60s for Saavn
+      try {
+        const res = await fetch(url, { signal: ctrl.signal });
+        clearTimeout(tid);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.data) {
+            return data.data;
+          }
+        }
+      } catch {
+        clearTimeout(tid);
+      }
+    }
+    return null;
+  }
 }

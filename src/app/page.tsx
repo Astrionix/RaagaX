@@ -34,6 +34,7 @@ import { LibraryView } from '@/components/views/LibraryView';
 import { PlaylistDetailView } from '@/components/views/PlaylistDetailView';
 import { RadioView } from '@/components/views/RadioView';
 import { ArtistDetailView } from '@/components/views/ArtistDetailView';
+import { ArtistsView } from '@/components/views/ArtistsView';
 import { AlbumsView } from '@/components/views/AlbumsView';
 import { AlbumDetailView } from '@/components/views/AlbumDetailView';
 import { ProfileView } from '@/components/views/ProfileView';
@@ -45,7 +46,7 @@ import { useDownloadStore } from '@/context/useDownloadStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
 
 export default function Page() {
-  const { activeTab, selectedAlbumId, rightPanelMode } = usePlayerStore();
+  const { activeTab, selectedAlbumId, selectedArtistId, rightPanelMode } = usePlayerStore();
   const { isSetupModalOpen, setSetupModalOpen } = useDownloadStore();
 
   // Sync activeTab to browser history for mobile back gesture support
@@ -107,7 +108,7 @@ export default function Page() {
             {activeTab === 'search' && <SearchView />}
             {activeTab === 'library' && <LibraryView />}
             {activeTab === 'radio' && <RadioView />}
-            {activeTab === 'artist' && <ArtistDetailView />}
+            {activeTab === 'artist' && (selectedArtistId ? <ArtistDetailView /> : <ArtistsView />)}
             {activeTab === 'album' && (selectedAlbumId ? <AlbumDetailView /> : <AlbumsView />)}
             {activeTab === 'playlist' && <PlaylistDetailView />}
             {activeTab === 'profile' && <ProfileView />}
