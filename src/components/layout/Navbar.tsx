@@ -19,9 +19,12 @@ import {
   Heart,
   Download,
   Maximize2,
-  MonitorSmartphone
+  MonitorSmartphone,
+  User,
+  LogIn
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useAuthStore } from '@/context/useAuthStore';
 
 function formatTime(seconds: number): string {
   if (isNaN(seconds)) return '0:00';
@@ -63,6 +66,8 @@ export function Navbar() {
     setRightPanelMode,
   } = usePlayerStore();
 
+  const { user, setAuthModalOpen } = useAuthStore();
+
 
 
   const isLiked = currentSong ? likedSongIds.includes(currentSong.id) : false;
@@ -89,6 +94,19 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button 
+            onClick={() => {
+              if (user) {
+                usePlayerStore.getState().setActiveTab('profile');
+              } else {
+                setAuthModalOpen(true);
+              }
+            }} 
+            className="p-1.5 text-slate-300 hover:text-white" 
+            title="Profile"
+          >
+            {user ? <User className="w-4 h-4" /> : <LogIn className="w-4 h-4" />}
+          </button>
           <button onClick={toggleSettingsModal} className="p-1.5 text-slate-300 hover:text-white" title="Settings">
             <Settings className="w-4 h-4" />
           </button>

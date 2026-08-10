@@ -38,7 +38,12 @@ export function BrowseView() {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (e.target.value.trim() !== '') {
+                  usePlayerStore.getState().setActiveTab('search');
+                }
+              }}
               placeholder="Search music, artists, albums..."
               className="w-full pl-9 pr-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder:text-slate-400 focus:bg-white/10 focus:border-[#fa233b] focus:outline-none transition-all"
             />
