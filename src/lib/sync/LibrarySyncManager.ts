@@ -189,9 +189,7 @@ export class LibrarySyncManager {
           if (mutation.type === 'LIKE') {
             const { error } = await supabase.from('liked_songs').upsert({
               user_id: this.userId,
-              song_id: mutation.songId,
-              device_id: this.deviceId,
-              version: Date.now()
+              song_id: mutation.songId
             }, { onConflict: 'user_id,song_id' });
             
             if (error) throw error;
