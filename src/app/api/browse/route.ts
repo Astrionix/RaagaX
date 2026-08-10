@@ -35,7 +35,7 @@ async function getPlaylistWithSWR(
     return saavn.searchSongs(`${lang} Top Songs`, 100);
   }
 
-  // 1. Check Supabase Cache FIRST (Instant response)
+  // 1. Check Supabase Cache
   const { data: cached } = await supabaseAdmin
     .from('spotify_playlist_cache')
     .select('*')
@@ -51,16 +51,9 @@ async function getPlaylistWithSWR(
     return (cached.data as Song[]).slice(0, 100);
   }
 
-  // 2. On Cache MISS: Trigger background sync immediately so future loads are instant
-  triggerBackgroundSync(baseUrl, playlistId, lang, category);
-
-  // Try live resolution with a strict 1.5s max race condition so UI never hangs
+  // 2. On Cache MISS: Resolve Spotify playlist live so we NEVER return random keyword search results!
   try {
-    const livePromise = resolver.resolveSpotifyPlaylist(playlistId, 100);
-    const timeoutPromise = new Promise<Song[]>((_, reject) => 
-      setTimeout(() => reject(new Error('Timeout')), 1500)
-    );
-    const liveResolved = await Promise.race([livePromise, timeoutPromise]);
+    const liveResolved = await resolver.resolveSpotifyPlaylist(playlistId, 100);
     if (liveResolved && liveResolved.length > 0) {
       const expiresAt = new Date(Date.now() + 12 * 3600 * 1000).toISOString();
       await supabaseAdmin.from('spotify_playlist_cache').upsert({
@@ -75,10 +68,10 @@ async function getPlaylistWithSWR(
       return liveResolved.slice(0, 100);
     }
   } catch (err) {
-    // If live resolution times out or fails, fall back to fast JioSaavn response immediately
+    console.error(`[getPlaylistWithSWR] Live resolution error for ${playlistId}:`, err);
   }
 
-  // 3. Lightning-fast fallback
+  // 3. Fallback to clean language top songs
   return saavn.searchSongs(`${lang} Top Songs`, 100);
 }
 
@@ -93,7 +86,7 @@ export async function GET(req: NextRequest) {
     const saavn = JioSaavnProvider.getInstance(baseUrl);
     
     const trendingSource = TRENDING_SOURCES[lang] || TRENDING_SOURCES['Telugu'];
-    const newReleasesSource = WEEKLY_RELEASE_SOURCES[lang] || NEW_RELEASES_SOURCES[lang] || NEW_RELEASES_SOURCES['Telugu'];
+    const newReleasesSource = NEW_RELEASES_SOURCES[lang] || NEW_RELEASES_SOURCES['Telugu'];
     const classicsSource = CLASSICS_SOURCES[lang] || CLASSICS_SOURCES['Telugu'];
     const extraPlaylists = BROWSE_5_PLAYLISTS[lang] || BROWSE_5_PLAYLISTS['Telugu'];
 

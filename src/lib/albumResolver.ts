@@ -51,9 +51,11 @@ export class AlbumResolver {
       ? await this.saavn.searchAlbums(query, limit)
       : await this.saavn.searchPlaylists(query, limit);
 
+    // YouTube cross-check (placeholder for YT integration, we use Saavn as primary for albums)
+    const ytCandidates = await this.searchYouTubeAlbums(`${lang} ${query} full album jukebox`);
+
     const canonicalAlbums: CanonicalAlbum[] = [];
     const seenMap = new Map<string, CanonicalAlbum>();
-    const ytCandidates: any[] = [];
 
     // 1. Process Saavn as Primary source
     for (const item of rawItems) {
