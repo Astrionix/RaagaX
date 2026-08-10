@@ -6,7 +6,7 @@ import { PlaylistResolver } from '@/lib/discovery/PlaylistResolver';
 import { Song } from '@/types/music';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
-import { BROWSE_5_PLAYLISTS, TRENDING_SOURCES, NEW_RELEASES_SOURCES, CLASSICS_SOURCES } from '@/lib/spotifySources';
+import { BROWSE_5_PLAYLISTS, TRENDING_SOURCES, NEW_RELEASES_SOURCES, CLASSICS_SOURCES, WEEKLY_RELEASE_SOURCES } from '@/lib/spotifySources';
 
 export const dynamic = 'force-dynamic';
 
@@ -139,7 +139,7 @@ export async function GET(req: NextRequest) {
       addedPlaylistIds.add(newReleasesSource.id);
       sections.push({
         id: 'new_releases',
-        title: newReleasesSource.title,
+        title: "This Week's Releases",
         type: 'carousel',
         items: newReleaseSongs.map(song => ({
           id: song.id,
