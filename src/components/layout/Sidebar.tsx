@@ -130,15 +130,7 @@ export function Sidebar() {
             <span>Liked Songs</span>
           </button>
 
-          <button 
-            onClick={() => setActiveTab('playlist')} 
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all ${
-              activeTab === 'playlist' ? 'bg-white/10 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <ListMusic className="w-4 h-4 text-emerald-400" />
-            <span>Playlists</span>
-          </button>
+
 
           <button 
             onClick={() => setActiveTab('album')} 

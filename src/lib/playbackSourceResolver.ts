@@ -57,11 +57,27 @@ export class PlaybackSourceResolver {
       };
     }
 
+    // If audioUrl is empty, attempt to resolve via StreamResolver
+    let finalAudioUrl = song.audioUrl;
+    if (!finalAudioUrl) {
+      try {
+        const { StreamResolver } = await import('@/lib/streamResolver');
+        const resolution = await StreamResolver.getInstance().resolveTrackStream(`${song.title} ${song.artist}`);
+        if (resolution && resolution.song && resolution.song.audioUrl) {
+          finalAudioUrl = resolution.song.audioUrl;
+          // Update the song object implicitly
+          song.audioUrl = finalAudioUrl;
+        }
+      } catch (err) {
+        console.warn(`[PlaybackSourceResolver] Failed to resolve missing audioUrl for ${song.title}:`, err);
+      }
+    }
+
     // Fallback to Network Source
-    if (song.audioUrl) {
+    if (finalAudioUrl) {
       return {
         type: 'network',
-        uri: song.audioUrl,
+        uri: finalAudioUrl,
         trackId: song.id,
         quality: downloadState.offlineSettings.audioQuality || 'High'
       };
