@@ -8,23 +8,17 @@ import { ShelfItem } from '@/types/home';
 
 const LANGUAGES = ['Telugu', 'Tamil', 'Kannada', 'Malayalam', 'Hindi', 'English', 'All Languages'];
 
+import useSWR from 'swr';
+import { RefreshCw } from 'lucide-react';
+
+const fetcher = (url: string) => fetch(url).then(res => res.json());
+
 export function BrowseView() {
   const { preferredLanguage, setPreferredLanguage, searchQuery, setSearchQuery } = usePlayerStore();
   
-  // You can decouple this from global preferredLanguage if you want it to be distinct,
-  // but updating preferredLanguage is a nice way to globally pivot the app.
-  const [browseLang, setBrowseLang] = useState(preferredLanguage);
+  const [browseLang, setBrowseLang] = useState(preferredLanguage || 'Telugu');
 
-  // Generate Mock Data for Shelves
-  const generateMocks = (prefix: string, type: 'song' | 'playlist' | 'album' | 'artist', count: number = 10) => {
-    return Array.from({ length: count }).map((_, i) => ({
-      id: `${prefix}_${i}`,
-      title: `${browseLang === 'All Languages' ? 'Global' : browseLang} ${prefix} ${i + 1}`,
-      subtitle: type === 'song' ? 'Artist Name' : 'RaagaX',
-      type: type,
-      imageUrl: `https://picsum.photos/seed/${browseLang}${prefix}${i}/300/300`
-    })) as ShelfItem[];
-  };
+  const { data, error, isLoading } = useSWR(`/api/browse?lang=${browseLang}`, fetcher);
 
   return (
     <div className="space-y-8 pb-10 text-white select-none max-w-7xl mx-auto w-full pt-4">
@@ -76,48 +70,34 @@ export function BrowseView() {
       {/* Browse Catalog Content */}
       <div className="space-y-8 mt-8">
         
-        <div className="flex items-center gap-2 mb-[-1.5rem]">
-          <TrendingUp className="w-5 h-5 text-[#fa233b]" />
-          <h2 className="text-xl font-bold">Trending</h2>
-        </div>
-        <CarouselShelf title="" items={generateMocks('Trending', 'song', 15)} />
+        {isLoading && (
+          <div className="w-full flex flex-col items-center justify-center py-20 opacity-50">
+            <RefreshCw className="w-8 h-8 animate-spin text-[#fa233b] mb-4" />
+            <p className="text-sm font-medium text-slate-400">Discovering real albums...</p>
+          </div>
+        )}
 
-        <div className="flex items-center gap-2 mb-[-1.5rem]">
-          <Sparkles className="w-5 h-5 text-[#fa233b]" />
-          <h2 className="text-xl font-bold">New Releases</h2>
-        </div>
-        <CarouselShelf title="" items={generateMocks('New Release', 'song', 15)} />
+        {error && (
+          <div className="w-full text-center py-20 text-red-400">
+            Failed to load catalog. Please try again.
+          </div>
+        )}
 
-        <div className="flex items-center gap-2 mb-[-1.5rem]">
-          <TrendingUp className="w-5 h-5 text-[#fa233b]" />
-          <h2 className="text-xl font-bold">Charts</h2>
-        </div>
-        <CarouselShelf title="" items={generateMocks('Top 100', 'playlist', 10)} />
-
-        <div className="flex items-center gap-2 mb-[-1.5rem]">
-          <Music className="w-5 h-5 text-[#fa233b]" />
-          <h2 className="text-xl font-bold">Moods & Genres</h2>
-        </div>
-        <CarouselShelf title="" items={generateMocks('Mood', 'playlist', 12)} />
-
-        <div className="flex items-center gap-2 mb-[-1.5rem]">
-          <Film className="w-5 h-5 text-[#fa233b]" />
-          <h2 className="text-xl font-bold">Movies</h2>
-        </div>
-        <CarouselShelf title="" items={generateMocks('Movie Album', 'album', 10)} />
-
-        <div className="flex items-center gap-2 mb-[-1.5rem]">
-          <Mic2 className="w-5 h-5 text-[#fa233b]" />
-          <h2 className="text-xl font-bold">Popular Artists</h2>
-        </div>
-        <CarouselShelf title="" items={generateMocks('Artist', 'artist', 12)} />
-
-        <div className="flex items-center gap-2 mb-[-1.5rem]">
-          <Disc className="w-5 h-5 text-[#fa233b]" />
-          <h2 className="text-xl font-bold">Albums</h2>
-        </div>
-        <CarouselShelf title="" items={generateMocks('Album', 'album', 10)} />
-
+        {!isLoading && !error && data?.sections && data.sections.map((section: any) => (
+          <div key={section.id}>
+            <div className="flex items-center gap-2 mb-[-1.5rem]">
+              {section.id === 'trending' ? <TrendingUp className="w-5 h-5 text-[#fa233b]" /> :
+               section.id === 'new_releases' ? <Sparkles className="w-5 h-5 text-[#fa233b]" /> :
+               section.id === 'charts' ? <TrendingUp className="w-5 h-5 text-[#fa233b]" /> :
+               section.id === 'moods' ? <Music className="w-5 h-5 text-[#fa233b]" /> :
+               section.id === 'movies' ? <Film className="w-5 h-5 text-[#fa233b]" /> :
+               <Disc className="w-5 h-5 text-[#fa233b]" />
+              }
+              <h2 className="text-xl font-bold">{section.title}</h2>
+            </div>
+            <CarouselShelf title="" items={section.items} />
+          </div>
+        ))}
       </div>
     </div>
   );

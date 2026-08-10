@@ -216,4 +216,30 @@ export class JioSaavnProvider {
     // If filtering leaves nothing (language metadata missing), return original
     return filtered.length > 0 ? filtered : songs;
   }
+
+  async searchAlbums(query: string, limit = 10): Promise<any[]> {
+    const encoded = encodeURIComponent(query.trim() || 'latest albums');
+    const urls = [
+      `${this.localBase}/api/search/albums?query=${encoded}&limit=${limit}`,
+      `${this.externalBase}/api/search/albums?query=${encoded}&limit=${limit}`,
+    ];
+    for (const url of urls) {
+      const results = await safeFetch(url, 6000);
+      if (results) return results;
+    }
+    return [];
+  }
+
+  async searchPlaylists(query: string, limit = 10): Promise<any[]> {
+    const encoded = encodeURIComponent(query.trim() || 'top playlists');
+    const urls = [
+      `${this.localBase}/api/search/playlists?query=${encoded}&limit=${limit}`,
+      `${this.externalBase}/api/search/playlists?query=${encoded}&limit=${limit}`,
+    ];
+    for (const url of urls) {
+      const results = await safeFetch(url, 6000);
+      if (results) return results;
+    }
+    return [];
+  }
 }
