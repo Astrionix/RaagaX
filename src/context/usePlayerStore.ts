@@ -115,6 +115,7 @@ interface PlayerState {
 
   toggleLikeSong: (songId: string) => void;
   setLikedSongIds: (songIds: string[]) => void;
+  setLikedSongs: (songs: Song[]) => void;
   toggleDownloadSong: (songId: string) => void;
   toggleFavoriteArtist: (artistId: string) => void;
   toggleFavoriteAlbum: (albumId: string) => void;
@@ -655,11 +656,12 @@ export const usePlayerStore = create<PlayerState>()(
       }
     });
   },
-
   setLikedSongIds: (songIds) => {
     set({ likedSongIds: songIds });
-    // Note: We don't resolve the full Song objects here immediately because 
-    // it could be slow. `likedSongs` can be lazily loaded or synced separately if needed.
+  },
+
+  setLikedSongs: (songs) => {
+    set({ likedSongs: songs });
   },
 
   toggleDownloadSong: (songId) => {

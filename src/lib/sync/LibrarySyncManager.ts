@@ -146,6 +146,14 @@ export class LibrarySyncManager {
         const cloudLikedSongs = songsResult.data.map(row => row.song_id);
         usePlayerStore.getState().setLikedSongIds(cloudLikedSongs);
         
+        try {
+          const { SongResolver } = await import('@/lib/discovery/SongResolver');
+          const resolvedSongs = await SongResolver.resolveSongs(cloudLikedSongs);
+          usePlayerStore.getState().setLikedSongs(resolvedSongs);
+        } catch (resolveError) {
+          console.error('[LibrarySync] Failed to resolve song metadata:', resolveError);
+        }
+        
         this.localRevision = stateResult.data?.revision || 0;
         console.log(`[LibrarySync] Reconciled library with cloud: ${cloudLikedSongs.length} songs. Revision: ${this.localRevision}`);
       }
@@ -180,8 +188,23 @@ export class LibrarySyncManager {
 
     if (type === 'LIKE' && !currentLikes.includes(songId)) {
       store.setLikedSongIds([...currentLikes, songId]);
+      
+      // Attempt to resolve and append to likedSongs
+      import('@/lib/discovery/SongResolver').then(({ SongResolver }) => {
+        SongResolver.resolveSongs([songId]).then((resolved) => {
+          if (resolved.length > 0) {
+            const currentLikedSongs = usePlayerStore.getState().likedSongs;
+            if (!currentLikedSongs.find(s => s.id === songId)) {
+              usePlayerStore.getState().setLikedSongs([...currentLikedSongs, resolved[0]]);
+            }
+          }
+        });
+      });
+
     } else if (type === 'UNLIKE' && currentLikes.includes(songId)) {
       store.setLikedSongIds(currentLikes.filter(id => id !== songId));
+      const currentLikedSongs = store.likedSongs;
+      store.setLikedSongs(currentLikedSongs.filter(s => s.id !== songId));
     }
   }
 

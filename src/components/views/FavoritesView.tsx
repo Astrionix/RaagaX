@@ -7,9 +7,8 @@ import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 
 export function FavoritesView() {
   const [activeSubTab, setActiveSubTab] = useState<'songs' | 'artists' | 'albums'>('songs');
-  const { queue, likedSongIds, favoriteArtistIds, favoriteAlbumIds, playSong, toggleLikeSong, setSelectedArtistId } = usePlayerStore();
+  const { queue, likedSongIds, likedSongs, favoriteArtistIds, favoriteAlbumIds, playSong, toggleLikeSong, setSelectedArtistId } = usePlayerStore();
 
-  const likedSongs = queue.filter((s) => likedSongIds.includes(s.id));
   const favoriteArtists = POPULAR_ARTISTS.filter((a) => favoriteArtistIds.includes(a.id));
 
   return (
