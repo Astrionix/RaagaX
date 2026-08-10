@@ -110,25 +110,42 @@ export class AlbumCatalogEngine {
    */
   public static async fetchRealAlbumsForLanguage(lang: string): Promise<AlbumItem[]> {
     const language = lang || 'Telugu';
+    if (this.cache[language] && this.cache[language].length > 5) {
+      return this.cache[language];
+    }
+
     try {
-      // Just use the language name to get the most popular regional albums
-      const realResults = await RealMusicEngine.getInstance().searchRealAlbums(`${language}`, 50);
+      // Fetch regional album search results
+      const realResults = await RealMusicEngine.getInstance().searchRealAlbums(`${language}`, 30);
       
       const seenTitles = new Set<string>();
       const seenIds = new Set<string>();
       const albums: AlbumItem[] = [];
 
-      for (const item of realResults) {
-        if (!item.id || seenIds.has(item.id)) continue;
-        const cleanTitle = (item.title || item.name || '').trim();
+      // Fetch details in parallel for max speed
+      const detailsList = await Promise.all(
+        realResults.slice(0, 25).map(async (item) => {
+          if (!item.id) return null;
+          try {
+            const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${item.id}`);
+            return { item, details };
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      for (const entry of detailsList) {
+        if (!entry || !entry.item || !entry.details) continue;
+        const { item, details } = entry;
+        if (seenIds.has(item.id)) continue;
+
+        const cleanTitle = (item.title || item.name || details.title || '').trim();
         if (!cleanTitle || seenTitles.has(cleanTitle.toLowerCase())) continue;
 
-        // Verify album details to ensure trackCount >= 2
-        const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${item.id}`);
-        const tracks = details?.songs || [];
-
+        const tracks = details.songs || [];
         // Strictly reject singles (1-track releases)
-        if (tracks.length < 2 && details) continue;
+        if (tracks.length < 2) continue;
 
         seenTitles.add(cleanTitle.toLowerCase());
         seenIds.add(item.id);

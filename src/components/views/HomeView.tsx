@@ -22,15 +22,19 @@ const homeFetcher = async (url: string, preferredLanguage: string) => {
     ? `${url}&userId=${session.user.id}&name=${userName}`
     : url;
     
-  const res = await fetch(fullUrl);
-  if (!res.ok) throw new Error('Failed to fetch home');
+  // Fetch home payload and new releases in parallel
+  const [res, releasesRes] = await Promise.all([
+    fetch(fullUrl).catch(() => null),
+    fetch(`/api/home/new-releases?lang=${preferredLanguage}&limit=100`).catch(() => null)
+  ]);
+
+  if (!res || !res.ok) throw new Error('Failed to fetch home');
   const data: HomePayload = await res.json();
 
   try {
-    const releasesRes = await fetch(`/api/home/new-releases?lang=${preferredLanguage}&limit=100`);
     let usedCache = false;
     
-    if (releasesRes.ok) {
+    if (releasesRes && releasesRes.ok) {
       const releasesData = await releasesRes.json();
       if (releasesData.success && releasesData.data && releasesData.data.length > 0) {
         usedCache = true;
@@ -103,6 +107,7 @@ export function HomeView() {
     {
       revalidateOnFocus: false,
       dedupingInterval: 60000,
+      keepPreviousData: true,
     }
   );
 

@@ -20,7 +20,10 @@ export function AlbumDetailView() {
     preferredLanguage 
   } = usePlayerStore();
 
-  const [album, setAlbum] = useState<AlbumItem | null>(null);
+  const [album, setAlbum] = useState<AlbumItem | null>(() => {
+    if (!selectedAlbumId) return null;
+    return AlbumCatalogEngine.getAlbumById(selectedAlbumId, preferredLanguage) || null;
+  });
   const [isLoadingTracks, setIsLoadingTracks] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
 
@@ -29,7 +32,7 @@ export function AlbumDetailView() {
 
     let isMounted = true;
     const baseAlbum = AlbumCatalogEngine.getAlbumById(selectedAlbumId, preferredLanguage);
-    if (baseAlbum) setAlbum(baseAlbum);
+    if (baseAlbum && !album) setAlbum(baseAlbum);
 
     setIsLoadingTracks(true);
 
