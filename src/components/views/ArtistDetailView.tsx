@@ -24,20 +24,26 @@ export function ArtistDetailView() {
   const [isFollowing, setIsFollowing] = React.useState(false);
 
   const { data, error, isLoading } = useSWR(
-    selectedArtistId ? `/api/artists/${selectedArtistId}` : null,
+    selectedArtistId ? `/api/artists/${selectedArtistId}?songCount=20&albumCount=20` : null,
     fetcher,
     { revalidateOnFocus: false }
   );
 
   const artist = data?.data;
 
-  // Filter songs and albums by preferred language
+  // Prioritize preferred language tracks first without truncating discography
   const artistSongs = useMemo(() => {
     if (!artist?.topSongs) return [];
-    const filtered = artist.topSongs.filter((s: any) => s.language?.toLowerCase() === preferredLanguage.toLowerCase() || s.genre?.toLowerCase().includes(preferredLanguage.toLowerCase()));
-    const rawSongs = filtered.length > 0 ? filtered : artist.topSongs;
     
-    return rawSongs.map((s: any) => ({
+    const sorted = [...artist.topSongs].sort((a: any, b: any) => {
+      const aMatches = a.language?.toLowerCase() === preferredLanguage.toLowerCase() || a.genre?.toLowerCase().includes(preferredLanguage.toLowerCase());
+      const bMatches = b.language?.toLowerCase() === preferredLanguage.toLowerCase() || b.genre?.toLowerCase().includes(preferredLanguage.toLowerCase());
+      if (aMatches && !bMatches) return -1;
+      if (!aMatches && bMatches) return 1;
+      return 0;
+    });
+    
+    return sorted.map((s: any) => ({
       id: s.id,
       title: s.name || s.title || 'Unknown',
       artist: s.artists?.primary?.[0]?.name || artist.name,
@@ -52,10 +58,16 @@ export function ArtistDetailView() {
 
   const artistAlbums = useMemo(() => {
     if (!artist?.topAlbums) return [];
-    const filtered = artist.topAlbums.filter((a: any) => a.language?.toLowerCase() === preferredLanguage.toLowerCase() || a.genre?.toLowerCase() === preferredLanguage.toLowerCase());
-    const rawAlbums = filtered.length > 0 ? filtered : artist.topAlbums;
+    
+    const sorted = [...artist.topAlbums].sort((a: any, b: any) => {
+      const aMatches = a.language?.toLowerCase() === preferredLanguage.toLowerCase() || a.genre?.toLowerCase() === preferredLanguage.toLowerCase();
+      const bMatches = b.language?.toLowerCase() === preferredLanguage.toLowerCase() || b.genre?.toLowerCase() === preferredLanguage.toLowerCase();
+      if (aMatches && !bMatches) return -1;
+      if (!aMatches && bMatches) return 1;
+      return 0;
+    });
 
-    return rawAlbums.map((a: any) => ({
+    return sorted.map((a: any) => ({
       id: a.id,
       title: a.name || a.title || 'Unknown',
       coverUrl: a.image?.find?.((i: any) => i.quality === '500x500')?.url || a.image?.[a.image?.length - 1]?.url || '',
