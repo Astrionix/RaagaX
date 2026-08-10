@@ -31,43 +31,66 @@ export function ArtistDetailView() {
 
   const artist = data?.data;
 
-  // Prioritize preferred language tracks first without truncating discography
+  // Multilingual discovery pipeline: Preferred language first -> Retain other languages -> Deduplicate -> Map to Song type
   const artistSongs = useMemo(() => {
     if (!artist?.topSongs) return [];
-    
-    const sorted = [...artist.topSongs].sort((a: any, b: any) => {
-      const aMatches = a.language?.toLowerCase() === preferredLanguage.toLowerCase() || a.genre?.toLowerCase().includes(preferredLanguage.toLowerCase());
-      const bMatches = b.language?.toLowerCase() === preferredLanguage.toLowerCase() || b.genre?.toLowerCase().includes(preferredLanguage.toLowerCase());
-      if (aMatches && !bMatches) return -1;
-      if (!aMatches && bMatches) return 1;
-      return 0;
-    });
-    
-    return sorted.map((s: any) => ({
+
+    const preferred = artist.topSongs.filter((s: any) =>
+      s.language?.toLowerCase() === preferredLanguage.toLowerCase() ||
+      s.genre?.toLowerCase().includes(preferredLanguage.toLowerCase())
+    );
+    const others = artist.topSongs.filter((s: any) =>
+      s.language?.toLowerCase() !== preferredLanguage.toLowerCase() &&
+      !s.genre?.toLowerCase().includes(preferredLanguage.toLowerCase())
+    );
+
+    const combined = [...preferred, ...others];
+    const seenIds = new Set<string>();
+    const unique = combined.filter((s: any) => {
+      if (!s.id || seenIds.has(s.id)) return false;
+      seenIds.add(s.id);
+      return true;
+    }).slice(0, 20);
+
+    return unique.map((s: any) => ({
       id: s.id,
       title: s.name || s.title || 'Unknown',
       artist: s.artists?.primary?.[0]?.name || artist.name,
       artistId: s.artists?.primary?.[0]?.id || artist.id,
       album: s.album?.name || '',
       albumId: s.album?.id || '',
-      duration: s.duration || 210,
+      duration: Number(s.duration) || 210,
       coverUrl: s.image?.find?.((i: any) => i.quality === '500x500')?.url || s.image?.[s.image?.length - 1]?.url || artist.image?.[0]?.url || '',
-      audioUrl: s.downloadUrl?.find?.((d: any) => d.quality === '320kbps')?.url || s.downloadUrl?.[s.downloadUrl?.length - 1]?.url || ''
+      audioUrl: s.downloadUrl?.find?.((d: any) => d.quality === '320kbps')?.url || s.downloadUrl?.[s.downloadUrl?.length - 1]?.url || '',
+      genre: s.genre || s.language || 'Music',
+      category: 'global_trending' as const,
+      releaseYear: Number(s.year || s.releaseYear) || 2024,
+      plays: Number(s.playCount || s.plays) || 0,
+      likes: Number(s.likes) || 0
     }));
   }, [artist, preferredLanguage]);
 
   const artistAlbums = useMemo(() => {
     if (!artist?.topAlbums) return [];
-    
-    const sorted = [...artist.topAlbums].sort((a: any, b: any) => {
-      const aMatches = a.language?.toLowerCase() === preferredLanguage.toLowerCase() || a.genre?.toLowerCase() === preferredLanguage.toLowerCase();
-      const bMatches = b.language?.toLowerCase() === preferredLanguage.toLowerCase() || b.genre?.toLowerCase() === preferredLanguage.toLowerCase();
-      if (aMatches && !bMatches) return -1;
-      if (!aMatches && bMatches) return 1;
-      return 0;
-    });
 
-    return sorted.map((a: any) => ({
+    const preferred = artist.topAlbums.filter((a: any) =>
+      a.language?.toLowerCase() === preferredLanguage.toLowerCase() ||
+      a.genre?.toLowerCase() === preferredLanguage.toLowerCase()
+    );
+    const others = artist.topAlbums.filter((a: any) =>
+      a.language?.toLowerCase() !== preferredLanguage.toLowerCase() &&
+      a.genre?.toLowerCase() !== preferredLanguage.toLowerCase()
+    );
+
+    const combined = [...preferred, ...others];
+    const seenIds = new Set<string>();
+    const unique = combined.filter((a: any) => {
+      if (!a.id || seenIds.has(a.id)) return false;
+      seenIds.add(a.id);
+      return true;
+    }).slice(0, 20);
+
+    return unique.map((a: any) => ({
       id: a.id,
       title: a.name || a.title || 'Unknown',
       coverUrl: a.image?.find?.((i: any) => i.quality === '500x500')?.url || a.image?.[a.image?.length - 1]?.url || '',
