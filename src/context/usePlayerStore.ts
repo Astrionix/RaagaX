@@ -360,6 +360,15 @@ export const usePlayerStore = create<PlayerState>()(
   togglePlayPause: () => {
     const isNowPlaying = !get().isPlaying;
     if (get().isActiveDevice) {
+      if (!isNowPlaying) {
+        import('@/lib/playback/InterruptionCoordinator').then(({ InterruptionCoordinator }) => {
+          InterruptionCoordinator.getInstance().reportUserPause();
+        });
+      } else {
+        import('@/lib/playback/InterruptionCoordinator').then(({ InterruptionCoordinator }) => {
+          InterruptionCoordinator.getInstance().clearInterruption();
+        });
+      }
       set({ isPlaying: isNowPlaying });
     }
     import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
@@ -368,6 +377,15 @@ export const usePlayerStore = create<PlayerState>()(
   },
   setIsPlaying: (playing, fromRemote = false) => {
     // Optimistic UI: Always update local state immediately
+    if (!playing && !fromRemote) {
+      import('@/lib/playback/InterruptionCoordinator').then(({ InterruptionCoordinator }) => {
+        InterruptionCoordinator.getInstance().reportUserPause();
+      });
+    } else if (playing) {
+      import('@/lib/playback/InterruptionCoordinator').then(({ InterruptionCoordinator }) => {
+        InterruptionCoordinator.getInstance().clearInterruption();
+      });
+    }
     set({ isPlaying: playing });
     if (!fromRemote) {
       import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {

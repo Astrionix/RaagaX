@@ -5,6 +5,8 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { Song } from '@/types/music';
 import { RendererManager } from '@/lib/playback/RendererManager';
 import { PlaybackEngine } from '@/lib/playback/PlaybackEngine';
+import { AudioFocusManager } from '@/lib/playback/AudioFocusManager';
+import { InterruptionCoordinator } from '@/lib/playback/InterruptionCoordinator';
 const FALLBACK_AUDIO_URL = 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
 const QUEUE_REFILL_THRESHOLD = 3;
 
@@ -242,23 +244,35 @@ export function AudioPlayerController() {
 
       initNewSong();
 
-      // Media Session updates
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.metadata = new MediaMetadata({
-          title: currentSong.title,
-          artist: currentSong.artist,
-          album: currentSong.album || 'RaagaX',
-          artwork: [
-            { src: currentSong.coverUrl || '', sizes: '96x96', type: 'image/jpeg' },
-            { src: currentSong.coverUrl || '', sizes: '256x256', type: 'image/jpeg' },
-            { src: currentSong.coverUrl || '', sizes: '512x512', type: 'image/jpeg' },
-          ]
-        });
-        navigator.mediaSession.setActionHandler('play', () => setIsPlaying(true));
-        navigator.mediaSession.setActionHandler('pause', () => setIsPlaying(false));
-        navigator.mediaSession.setActionHandler('previoustrack', () => playPrev());
-        navigator.mediaSession.setActionHandler('nexttrack', () => playNext());
-      }
+      // Media Session & Audio Focus updates
+      const audioFocus = AudioFocusManager.getInstance();
+      audioFocus.updateMetadata({
+        title: currentSong.title,
+        artist: currentSong.artist,
+        album: currentSong.album || 'RaagaX',
+        artwork: [
+          { src: currentSong.coverUrl || '', sizes: '96x96', type: 'image/jpeg' },
+          { src: currentSong.coverUrl || '', sizes: '256x256', type: 'image/jpeg' },
+          { src: currentSong.coverUrl || '', sizes: '512x512', type: 'image/jpeg' },
+        ]
+      });
+
+      audioFocus.setActionHandlers({
+        onPlay: () => {
+           InterruptionCoordinator.getInstance().clearInterruption();
+           setIsPlaying(true);
+        },
+        onPause: () => {
+           InterruptionCoordinator.getInstance().reportUserPause();
+           setIsPlaying(false);
+        },
+        onNext: () => playNext(),
+        onPrev: () => playPrev(),
+        onSeek: (time: number) => {
+           usePlayerStore.getState().setCurrentTime(time);
+           usePlayerStore.getState().setSeekTarget(time);
+        }
+      });
     }
   }, [currentSong?.id]); 
 

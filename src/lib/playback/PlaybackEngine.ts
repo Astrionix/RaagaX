@@ -83,10 +83,13 @@ export class PlaybackEngine implements PlaybackClock {
     }
   }
 
-  public pause() {
+  public pause(reason?: string) {
     if (this.activeMediaElement) {
       this.activeMediaElement.pause();
       this.anchor();
+      if (reason) {
+        console.log(`[PlaybackEngine] Paused due to reason: ${reason}`);
+      }
     }
   }
 
