@@ -1,6 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!--
+    ╔══════════════════════════════════════════════════════════════════╗
+    ║  RaagaX — Permission Declaration                                ║
+    ║                                                                  ║
+    ║  Philosophy: Only what is needed. No runtime prompts at launch.  ║
+    ║  See PermissionManager.java for the contextual runtime flow.     ║
+    ╚══════════════════════════════════════════════════════════════════╝
+    -->
+
+    <!-- ── NETWORK ─────────────────────────────────────────────────── -->
+    <!-- Required for streaming audio and API calls. No user prompt.   -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- ── BACKGROUND MEDIA PLAYBACK ──────────────────────────────── -->
+    <!-- Required for Media3 ExoPlayer foreground service.             -->
+    <!-- No runtime user prompt — manifest-only declarations.          -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
+    <!-- ── WAKE LOCK ────────────────────────────────────────────────── -->
+    <!-- Prevents CPU sleep during network streaming. No user prompt.   -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- ── NOTIFICATIONS (Android 13+) ────────────────────────────── -->
+    <!-- Runtime prompt requested ONLY when user first plays a song.   -->
+    <!-- Not at launch. See NotificationPermission.java                -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- ── BLUETOOTH (Optional — requested only in Connect flow) ───── -->
+    <!-- Runtime prompt requested ONLY when user opens Connect Device.  -->
+    <!-- Never at first launch. See BluetoothPermission.java           -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_CONNECT"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+
+    <!-- ── EXPLICITLY NOT DECLARED ────────────────────────────────── -->
+    <!--  ✗ ACCESS_FINE_LOCATION   — not needed for music playback     -->
+    <!--  ✗ RECORD_AUDIO           — no voice features yet             -->
+    <!--  ✗ READ_CONTACTS          — not needed                        -->
+    <!--  ✗ READ_PHONE_STATE       — audio focus handles call pausing  -->
+    <!--  ✗ CAMERA                 — not needed                        -->
+    <!--  ✗ READ_EXTERNAL_STORAGE  — use app-specific storage APIs     -->
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -24,11 +70,17 @@
 
         </activity>
 
-        <!-- RaagaX Native Media3 Foreground Playback Service -->
+        <!--
+            RaagaX Native Media3 Foreground Playback Service
+            ─────────────────────────────────────────────────
+            - foregroundServiceType="mediaPlayback" is required on Android 14+
+            - exported="false": only accessible within this app (security)
+            - MediaSessionService intent-filter allows media buttons / BT controls
+        -->
         <service
             android:name=".RaagaXPlaybackService"
             android:foregroundServiceType="mediaPlayback"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>
@@ -45,11 +97,4 @@
         </provider>
     </application>
 
-    <!-- Permissions -->
-
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
 </manifest>
