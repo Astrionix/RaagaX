@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
-import { X, Smartphone, Monitor, Check, Volume2, VolumeX, Laptop, Play, Radio, Music } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Smartphone, Monitor, Check, Volume2, VolumeX, Laptop, Play, Radio, Loader2 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { TransferCoordinator } from '@/lib/connect/TransferCoordinator';
 
 export function MobileDeviceConnectModal() {
   const { 
@@ -23,6 +24,8 @@ export function MobileDeviceConnectModal() {
     duration
   } = usePlayerStore();
 
+  const [transferringId, setTransferringId] = useState<string | null>(null);
+
   if (!isDeviceModalOpen) return null;
 
   const activeDeviceObj = onlineDevices.find(d => d.id === activeDeviceId) || 
@@ -30,9 +33,12 @@ export function MobileDeviceConnectModal() {
 
   const availableDevices = onlineDevices.filter(d => d.id !== (activeDeviceObj?.id || deviceId));
 
-  const handleTransfer = (targetId: string) => {
+  const handleTransfer = async (targetId: string) => {
     if (targetId !== activeDeviceId) {
+      setTransferringId(targetId);
+      await TransferCoordinator.getInstance().initiateTransfer(targetId);
       transferPlayback(targetId);
+      setTimeout(() => setTransferringId(null), 1500);
     }
   };
 
@@ -41,6 +47,8 @@ export function MobileDeviceConnectModal() {
     const remaining = Math.floor(secs % 60);
     return `${mins}:${remaining < 10 ? '0' : ''}${remaining}`;
   };
+
+  const transferPhase = TransferCoordinator.getInstance().getPhase();
 
   return (
     <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 sm:p-6">
@@ -125,6 +133,7 @@ export function MobileDeviceConnectModal() {
               {!isActiveDevice && (
                 <button
                   onClick={() => handleTransfer(deviceId)}
+                  disabled={transferringId === deviceId}
                   className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all text-left group"
                 >
                   <div className="flex items-center gap-3">
@@ -134,8 +143,14 @@ export function MobileDeviceConnectModal() {
                       <p className="text-[11px] text-slate-400">Ready to play</p>
                     </div>
                   </div>
-                  <span className="text-xs font-bold text-[#1ed760] flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                    ▶ Play here
+                  <span className="text-xs font-bold text-[#1ed760] flex items-center gap-1">
+                    {transferringId === deviceId ? (
+                      <span className="flex items-center gap-1.5 text-amber-400">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Preparing...
+                      </span>
+                    ) : (
+                      '▶ Play here'
+                    )}
                   </span>
                 </button>
               )}
@@ -143,11 +158,13 @@ export function MobileDeviceConnectModal() {
               {/* Other Online Devices */}
               {availableDevices.map((device) => {
                 const isMobile = device.name.toLowerCase().includes('mobile') || device.name.toLowerCase().includes('phone');
+                const isTargetTransferring = transferringId === device.id;
 
                 return (
                   <button
                     key={device.id}
                     onClick={() => handleTransfer(device.id)}
+                    disabled={isTargetTransferring}
                     className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all text-left group"
                   >
                     <div className="flex items-center gap-3">
@@ -161,8 +178,14 @@ export function MobileDeviceConnectModal() {
                         <p className="text-[11px] text-slate-400">RaagaX Connect · Ready</p>
                       </div>
                     </div>
-                    <span className="text-xs font-bold text-[#1ed760] flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                      Transfer here →
+                    <span className="text-xs font-bold text-[#1ed760] flex items-center gap-1">
+                      {isTargetTransferring ? (
+                        <span className="flex items-center gap-1.5 text-amber-400">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Preparing...
+                        </span>
+                      ) : (
+                        'Transfer here →'
+                      )}
                     </span>
                   </button>
                 );
