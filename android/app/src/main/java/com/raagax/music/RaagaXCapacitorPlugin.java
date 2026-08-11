@@ -88,7 +88,7 @@ public class RaagaXCapacitorPlugin extends Plugin {
 
         RaagaXPlaybackService service = getService();
         if (service != null && url != null && !url.isEmpty()) {
-            service.playUrl(url, title, artist, artworkUrl);
+            service.playUrl(url, title, artist);
             call.resolve(new JSObject().put("success", true));
         } else {
             call.reject("Service not ready or URL missing");
