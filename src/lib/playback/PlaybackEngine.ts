@@ -44,6 +44,7 @@ export class PlaybackEngine implements PlaybackClock {
 
   public attachMediaElement(element: HTMLMediaElement) {
     this.activeMediaElement = element;
+    (this.stateMachine as any).currentState = 'PLAYING';
     this.anchor();
   }
 
@@ -51,7 +52,7 @@ export class PlaybackEngine implements PlaybackClock {
     this.activeRenderer = renderer;
     this.anchor();
   }
-  
+
   public detachMediaElement() {
     this.activeMediaElement = null;
     this.activeRenderer = null;
@@ -177,8 +178,6 @@ export class PlaybackEngine implements PlaybackClock {
     // Cancel any ongoing transitions when user seeks
     import('./TransitionManager').then(m => {
        const tm = m.TransitionManager.getInstance();
-       // Note: we can't fully call cancelTransition here without active/standby audio refs, 
-       // so we will trigger an event or handle it in AudioPlayerController.
     });
 
     this.activeMediaElement.currentTime = mediaMs / 1000;

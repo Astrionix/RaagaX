@@ -6,7 +6,13 @@ export type PlaybackInterruption =
   | "AUDIO_FOCUS_LOSS"
   | "HANDOFF"
   | "USER"
-  | "ERROR";
+  | "ERROR"
+  | "NOTIFICATION"
+  | "NAVIGATION"
+  | "CALL"
+  | "ALARM"
+  | "OTHER_MEDIA"
+  | "BLUETOOTH";
 
 export type ResumePolicy = "AUTO" | "MANUAL" | "NEVER";
 
