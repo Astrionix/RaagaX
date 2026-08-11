@@ -4,6 +4,8 @@ export interface MediaActionHandlers {
   onNext?: () => void;
   onPrev?: () => void;
   onSeek?: (time: number) => void;
+  onSeekBackward?: (offsetSeconds?: number) => void;
+  onSeekForward?: (offsetSeconds?: number) => void;
 }
 
 export class MediaSessionManager {
@@ -52,11 +54,25 @@ export class MediaSessionManager {
 
   public setActionHandlers(handlers: MediaActionHandlers): void {
     if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
-      if (handlers.onPlay) navigator.mediaSession.setActionHandler('play', handlers.onPlay);
-      if (handlers.onPause) navigator.mediaSession.setActionHandler('pause', handlers.onPause);
-      if (handlers.onNext) navigator.mediaSession.setActionHandler('nexttrack', handlers.onNext);
-      if (handlers.onPrev) navigator.mediaSession.setActionHandler('previoustrack', handlers.onPrev);
-      if (handlers.onSeek) navigator.mediaSession.setActionHandler('seekto', (d) => handlers.onSeek!(d.seekTime || 0));
+      const trySet = (action: MediaSessionAction, fn?: (details: any) => void) => {
+        try {
+          if (fn) {
+            navigator.mediaSession.setActionHandler(action, fn);
+          } else {
+            navigator.mediaSession.setActionHandler(action, null);
+          }
+        } catch (e) {
+          // Unsupported action on some browser engines
+        }
+      };
+
+      trySet('play', handlers.onPlay);
+      trySet('pause', handlers.onPause);
+      trySet('nexttrack', handlers.onNext);
+      trySet('previoustrack', handlers.onPrev);
+      trySet('seekto', handlers.onSeek ? (d) => handlers.onSeek!(d.seekTime || 0) : undefined);
+      trySet('seekbackward', handlers.onSeekBackward ? (d) => handlers.onSeekBackward!(d.seekOffset || 10) : undefined);
+      trySet('seekforward', handlers.onSeekForward ? (d) => handlers.onSeekForward!(d.seekOffset || 10) : undefined);
     }
   }
 

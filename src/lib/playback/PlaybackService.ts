@@ -115,6 +115,14 @@ export class PlaybackService {
       },
       onSeek: (time: number) => {
         this.seek(time);
+      },
+      onSeekBackward: (offset = 10) => {
+        const active = this.getActiveAudio();
+        if (active) this.seek(Math.max(0, active.currentTime - offset));
+      },
+      onSeekForward: (offset = 10) => {
+        const active = this.getActiveAudio();
+        if (active) this.seek(Math.min(active.duration || Infinity, active.currentTime + offset));
       }
     });
   }
