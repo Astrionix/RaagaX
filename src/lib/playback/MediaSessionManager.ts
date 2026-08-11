@@ -20,13 +20,33 @@ export class MediaSessionManager {
 
   public updateMetadata(metadata: MediaMetadataInit): void {
     if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
-      navigator.mediaSession.metadata = new MediaMetadata(metadata);
+      if (typeof MediaMetadata !== 'undefined') {
+        navigator.mediaSession.metadata = new MediaMetadata(metadata);
+      } else {
+        navigator.mediaSession.metadata = metadata as any;
+      }
     }
   }
 
   public setPlaybackState(state: 'playing' | 'paused' | 'none'): void {
     if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
       navigator.mediaSession.playbackState = state;
+    }
+  }
+
+  public setPositionState(state: { duration: number; playbackRate?: number; position: number }): void {
+    if (typeof navigator !== 'undefined' && 'mediaSession' in navigator && typeof navigator.mediaSession.setPositionState === 'function') {
+      try {
+        if (!isNaN(state.duration) && state.duration > 0 && !isNaN(state.position) && state.position >= 0) {
+          navigator.mediaSession.setPositionState({
+            duration: state.duration,
+            playbackRate: state.playbackRate ?? 1,
+            position: Math.min(state.position, state.duration)
+          });
+        }
+      } catch (e) {
+        console.warn('[MediaSessionManager] setPositionState warning:', e);
+      }
     }
   }
 

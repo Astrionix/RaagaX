@@ -26,48 +26,70 @@ export class PreloadManager {
     return this.status === 'READY' ? this.currentPreloadId : null;
   }
 
+  public async preloadTrack(song: import('@/types/music').Song, standbyElement: HTMLAudioElement, force: boolean = false) {
+    if (!song || !standbyElement) return;
+    if (!force && (this.status === 'LOADING' || (this.status === 'READY' && this.currentPreloadId === song.id))) {
+      return;
+    }
+
+    this.status = 'LOADING';
+    this.currentPreloadId = song.id;
+
+    try {
+      const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+      let finalSrc = song.audioUrl || '';
+      if (source && source.type === 'remote' && source.url) {
+        finalSrc = source.url;
+      }
+
+      if (!finalSrc) {
+        this.status = 'FAILED';
+        return;
+      }
+
+      if (standbyElement.src !== finalSrc) {
+        standbyElement.src = finalSrc;
+        standbyElement.preload = 'auto';
+        standbyElement.load();
+      }
+
+      const handleCanPlay = () => {
+        if (this.currentPreloadId === song.id) {
+          this.status = 'READY';
+        }
+        standbyElement.removeEventListener('canplay', handleCanPlay);
+        standbyElement.removeEventListener('canplaythrough', handleCanPlay);
+      };
+
+      standbyElement.addEventListener('canplay', handleCanPlay);
+      standbyElement.addEventListener('canplaythrough', handleCanPlay);
+      
+      // Fallback: If metadata is already loaded or readyState >= 2
+      if (standbyElement.readyState >= 2) {
+        this.status = 'READY';
+      }
+    } catch (e) {
+      console.error('[PreloadManager] Preload failed for song:', song.title, e);
+      this.status = 'FAILED';
+    }
+  }
+
   public async evaluatePreload(standbyElement: HTMLAudioElement) {
-    // Only preload if not already loading or ready
     if (this.status === 'LOADING' || this.status === 'READY') return;
 
     const nextItem = QueueManager.getInstance().peekNext();
-    if (!nextItem) return;
+    if (!nextItem || !nextItem.song) return;
 
     const trackId = nextItem.trackId;
     
-    // Check if remaining duration is small enough to start preloading
+    // Check if remaining duration is small enough to start preloading (or if overall track duration is known)
     const engine = PlaybackEngine.getInstance();
     const mediaMs = engine.getMediaPositionMs();
     const duration = engine.getDurationMs();
     
-    // Start preloading if within last 30s of track
-    if (duration > 0 && duration - mediaMs < 30000) {
-      this.status = 'LOADING';
-      this.currentPreloadId = trackId;
-      
-      try {
-        const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(nextItem.song);
-        if (source && source.type === 'remote') {
-          standbyElement.src = source.url;
-        } else {
-          // It's offline or we don't have a URL to preload
-          standbyElement.src = nextItem.song.audioUrl || '';
-        }
-        standbyElement.load();
-        
-        // Setup listener to mark ready
-        const handleCanPlayThrough = () => {
-          if (this.currentPreloadId === trackId) {
-            this.status = 'READY';
-          }
-          standbyElement.removeEventListener('canplaythrough', handleCanPlayThrough);
-        };
-        standbyElement.addEventListener('canplaythrough', handleCanPlayThrough);
-        
-      } catch (e) {
-        console.error('Preload failed', e);
-        this.status = 'FAILED';
-      }
+    // Start preloading if within last 30s of track or track has played > 5s
+    if (mediaMs > 5000 || (duration > 0 && duration - mediaMs < 30000)) {
+      await this.preloadTrack(nextItem.song, standbyElement);
     }
   }
 

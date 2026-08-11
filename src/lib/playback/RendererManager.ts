@@ -56,8 +56,8 @@ export class RendererManager {
     // Enforce ownership rules immediately
     for (const [key, state] of this.renderers.entries()) {
       state.isActive = key === type;
-      // If a renderer loses its lease, ensure it is paused/inaudible
-      if (!state.isActive && state.element && !state.element.paused) {
+      // Only pause other renderer types (e.g. video element when switching to audio)
+      if (!state.isActive && key !== type && state.element && !state.element.paused) {
          state.element.pause();
       }
     }

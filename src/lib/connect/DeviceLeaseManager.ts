@@ -80,6 +80,8 @@ export class DeviceLeaseManager {
   private startLeaseRenewal(sessionId: string) {
     if (this.leaseInterval) clearInterval(this.leaseInterval);
     
+    let consecutiveFailures = 0;
+
     // Renew every 25s for 60s lease window
     this.leaseInterval = setInterval(async () => {
       if (!this.currentLeaseToken) {
@@ -106,16 +108,43 @@ export class DeviceLeaseManager {
         if (data && data.success) {
            this.currentLeaseVersion = data.lease_version;
            this.leaseExpiresAt = expiresAtMs;
+           consecutiveFailures = 0;
         } else {
            throw new Error(data?.error || 'lease_denied');
         }
       } catch (e) {
-        console.warn('[DeviceLeaseManager] Lease renewal failed, losing ownership.', e);
-        this.currentLeaseToken = null;
-        this.leaseExpiresAt = 0;
-        clearInterval(this.leaseInterval!);
-        
-        usePlayerStore.setState({ isActiveDevice: false });
+        consecutiveFailures++;
+        console.warn(`[DeviceLeaseManager] Lease renewal attempt ${consecutiveFailures} failed:`, e);
+
+        // Retry once after 5s before losing lease (lease is 60s total)
+        if (consecutiveFailures < 3) {
+          setTimeout(async () => {
+             if (!this.currentLeaseToken) return;
+             try {
+               const retryStore = usePlayerStore.getState();
+               const retryExpires = new Date(Date.now() + 60000).toISOString();
+               const { data } = await supabase.rpc('claim_playback_lease', {
+                 p_session_id: sessionId,
+                 p_device_id: retryStore.deviceId,
+                 p_instance_id: retryStore.deviceInstanceId,
+                 p_lease_token: this.currentLeaseToken,
+                 p_expires_at: retryExpires,
+                 p_force_takeover: false
+               });
+               if (data && data.success) {
+                 this.currentLeaseVersion = data.lease_version;
+                 this.leaseExpiresAt = Date.now() + 60000;
+                 consecutiveFailures = 0;
+               }
+             } catch {}
+          }, 5000);
+        } else {
+          console.error('[DeviceLeaseManager] Lease renewal failed repeatedly, losing ownership.');
+          this.currentLeaseToken = null;
+          this.leaseExpiresAt = 0;
+          clearInterval(this.leaseInterval!);
+          usePlayerStore.setState({ isActiveDevice: false });
+        }
       }
     }, 25000);
   }

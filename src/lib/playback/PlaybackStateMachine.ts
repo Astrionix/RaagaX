@@ -10,21 +10,25 @@ export class PlaybackStateMachine {
   public canTransitionTo(newState: PlaybackState): boolean {
     switch (this.currentState) {
       case 'IDLE':
-        return ['LOADING', 'ERROR'].includes(newState);
+        return ['LOADING', 'ERROR', 'TRANSITIONING'].includes(newState);
       case 'LOADING':
-        return ['READY', 'ERROR', 'IDLE'].includes(newState);
+        return ['READY', 'ERROR', 'IDLE', 'PLAYING', 'TRANSITIONING'].includes(newState);
       case 'READY':
-        return ['PLAYING', 'ERROR', 'IDLE'].includes(newState);
+        return ['PLAYING', 'ERROR', 'IDLE', 'TRANSITIONING'].includes(newState);
       case 'PLAYING':
-        return ['PAUSED', 'INTERRUPTED', 'HANDOFF', 'ERROR', 'IDLE'].includes(newState);
+        return ['PAUSED', 'INTERRUPTED', 'TRANSITIONING', 'HANDOFF', 'ERROR', 'IDLE'].includes(newState);
       case 'PAUSED':
-        return ['PLAYING', 'LOADING', 'HANDOFF', 'ERROR', 'IDLE'].includes(newState);
+        return ['PLAYING', 'LOADING', 'TRANSITIONING', 'HANDOFF', 'ERROR', 'IDLE'].includes(newState);
       case 'INTERRUPTED':
         return ['PLAYING', 'PAUSED', 'ERROR', 'IDLE'].includes(newState);
+      case 'TRANSITIONING':
+        return ['PLAYING', 'LOADING', 'READY', 'RETRYING', 'ERROR', 'IDLE', 'PAUSED'].includes(newState);
+      case 'RETRYING':
+        return ['PLAYING', 'LOADING', 'ERROR', 'IDLE'].includes(newState);
       case 'HANDOFF':
         return ['PLAYING', 'PAUSED', 'ERROR', 'IDLE'].includes(newState);
       case 'ERROR':
-        return ['IDLE', 'LOADING'].includes(newState);
+        return ['IDLE', 'LOADING', 'RETRYING', 'TRANSITIONING'].includes(newState);
       default:
         return false;
     }

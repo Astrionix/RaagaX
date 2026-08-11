@@ -33,6 +33,8 @@ export type PlaybackState =
   | "PLAYING"
   | "PAUSED"
   | "INTERRUPTED"
+  | "TRANSITIONING"
+  | "RETRYING"
   | "HANDOFF"
   | "ERROR";
 
