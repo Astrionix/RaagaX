@@ -135,16 +135,12 @@ export function AudioPlayerController() {
     }
   }, [isPlaying, isActiveDevice, activeRenderer]);
 
-  // Handle currentSong change for lyrics & playback service
+  // Handle currentSong change for lyrics & audio graph state
   useEffect(() => {
     if (currentSong?.id) {
       LyricsEngine.getInstance().loadTrack(currentSong.id);
       WebAudioGraph.getInstance().resume();
-
-      if (prevSongIdRef.current !== currentSong.id) {
-        prevSongIdRef.current = currentSong.id;
-        PlaybackService.getInstance().playTrack(currentSong, isPlaying);
-      }
+      prevSongIdRef.current = currentSong.id;
     } else {
       LyricsEngine.getInstance().clear();
     }

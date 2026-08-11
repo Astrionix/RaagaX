@@ -349,29 +349,63 @@ export const usePlayerStore = create<PlayerState>()(
     }
   },
 
+  commitPlaybackTransition: (song: Song, queueIndex?: number, updatedQueue?: Song[]) => {
+    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    const snapshot = manager.getSnapshot();
+    const currentItem = manager.getCurrentItem();
+    const targetSong = song || (currentItem ? currentItem.song : null);
+    const finalQueue = updatedQueue || snapshot.items.map((i: any) => i.song);
+    const finalIndex = queueIndex !== undefined ? queueIndex : snapshot.currentIndex;
+
+    set({
+      currentSong: targetSong,
+      queue: finalQueue,
+      queueIndex: finalIndex >= 0 ? finalIndex : 0,
+      currentTime: 0,
+      isPlaying: true,
+    });
+
+    if (targetSong) {
+      import('@/lib/playback/MediaSessionManager').then(({ MediaSessionManager }) => {
+        MediaSessionManager.getInstance().updateMetadata({
+          title: targetSong.title,
+          artist: targetSong.artist || 'RaagaX',
+          album: targetSong.album || 'RaagaX Music',
+          artwork: targetSong.coverUrl ? [{ src: targetSong.coverUrl, sizes: '512x512', type: 'image/png' }] : [],
+        });
+        MediaSessionManager.getInstance().setPlaybackState('playing');
+        MediaSessionManager.getInstance().setPositionState({
+          duration: targetSong.duration || 0,
+          position: 0,
+        });
+      });
+    }
+  },
+
   playSong: (song, newQueue) => {
     get().logCurrentTelemetry('skip');
     
     // Check if newQueue was passed (e.g. from an album or playlist)
+    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
     if (newQueue && newQueue.length > 0) {
-       const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
        const index = newQueue.findIndex((s: Song) => s.id === song.id);
        manager.replaceQueue(newQueue, index !== -1 ? index : 0);
     } else {
        // Play now immediately overrides next
-       require('@/lib/queue/QueueManager').QueueManager.getInstance().playNow(song);
+       manager.playNow(song);
     }
 
-    // Atomically commit playing state & reset currentTime
-    set({ isPlaying: true, currentTime: 0, currentSong: song });
+    const snapshot = manager.getSnapshot();
+    const syncedQueue = snapshot.items.map((i: any) => i.song);
+    const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
+
+    // Atomically commit playing state, queue & queueIndex
+    set({ isPlaying: true, currentTime: 0, currentSong: song, queue: syncedQueue, queueIndex: syncedIndex });
 
     // Delegate immediately to PlaybackService for local or Connect dispatch for remote
     if (get().isActiveDevice) {
       import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
         PlaybackService.getInstance().playTrack(song, true);
-      });
-      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-        ConnectManager.getInstance().dispatchPlaybackCommand('PLAY', { trackId: song.id, positionMs: 0 });
       });
     } else {
       import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
@@ -455,11 +489,21 @@ export const usePlayerStore = create<PlayerState>()(
     const isComplete = duration > 0 && currentTime >= duration - 5;
     get().logCurrentTelemetry(isComplete ? 'complete' : 'skip');
 
-    // Get next item automatically orchestrates everything via QueueManager
-    const nextItem = require('@/lib/queue/QueueManager').QueueManager.getInstance().getNext();
+    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    const nextItem = manager.getNext();
     
-    if (nextItem) {
-      set({ isPlaying: true, currentTime: 0 });
+    if (nextItem && nextItem.song) {
+      const snapshot = manager.getSnapshot();
+      set({ 
+        currentSong: nextItem.song,
+        queue: snapshot.items.map((i: any) => i.song),
+        queueIndex: snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0,
+        isPlaying: true, 
+        currentTime: 0 
+      });
+      import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
+        PlaybackService.getInstance().playTrack(nextItem.song, true);
+      });
     } else {
       set({ isPlaying: false });
     }
@@ -481,8 +525,22 @@ export const usePlayerStore = create<PlayerState>()(
     }
     
     get().logCurrentTelemetry('skip');
-    require('@/lib/queue/QueueManager').QueueManager.getInstance().getPrevious();
-    set({ isPlaying: true, currentTime: 0 });
+    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    const prevItem = manager.getPrevious();
+
+    if (prevItem && prevItem.song) {
+      const snapshot = manager.getSnapshot();
+      set({
+        currentSong: prevItem.song,
+        queue: snapshot.items.map((i: any) => i.song),
+        queueIndex: snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0,
+        isPlaying: true,
+        currentTime: 0
+      });
+      import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
+        PlaybackService.getInstance().playTrack(prevItem.song, true);
+      });
+    }
   },
 
   toggleShuffle: () => require('@/lib/queue/QueueManager').QueueManager.getInstance().toggleShuffle(),

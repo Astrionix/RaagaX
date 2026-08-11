@@ -155,6 +155,10 @@ export class QueueManager {
     return null;
   }
 
+  public getSnapshot() {
+    return this.engine.getSnapshot();
+  }
+
   public getCurrentItem(): QueueItem | null {
     return this.engine.getCurrentItem();
   }

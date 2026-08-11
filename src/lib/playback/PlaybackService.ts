@@ -274,10 +274,12 @@ export class PlaybackService {
     this.isTransitioning = true;
 
     try {
-      const nextItem = QueueManager.getInstance().getNext();
+      const manager = QueueManager.getInstance();
+      const nextItem = manager.getNext();
       if (nextItem && nextItem.song) {
         const store = require('@/context/usePlayerStore').usePlayerStore.getState();
-        store.setCurrentTime(0);
+        const snapshot = manager.getSnapshot();
+        store.commitPlaybackTransition(nextItem.song, snapshot.currentIndex, snapshot.items.map((i: any) => i.song));
         const success = await this.playTrack(nextItem.song, true);
         return success;
       } else {
@@ -296,10 +298,12 @@ export class PlaybackService {
     this.isTransitioning = true;
 
     try {
-      const prevItem = QueueManager.getInstance().getPrevious();
+      const manager = QueueManager.getInstance();
+      const prevItem = manager.getPrevious();
       if (prevItem && prevItem.song) {
         const store = require('@/context/usePlayerStore').usePlayerStore.getState();
-        store.setCurrentTime(0);
+        const snapshot = manager.getSnapshot();
+        store.commitPlaybackTransition(prevItem.song, snapshot.currentIndex, snapshot.items.map((i: any) => i.song));
         const success = await this.playTrack(prevItem.song, true);
         return success;
       }
