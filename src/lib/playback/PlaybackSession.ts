@@ -37,6 +37,10 @@ export interface UnifiedPlaybackSession {
   updatedAt: number;
   serverTimestamp: number;
 
+  queueId?: string;
+  queueRevision?: number;
+  currentItemId?: string | null;
+
   queue: Song[];
   queueIndex: number;
   shuffle: boolean;

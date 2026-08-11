@@ -34,24 +34,28 @@ function mapTrackToSong(track: any, idx: number): Song {
 
   let coverUrl =
     'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop&q=80';
-  if (Array.isArray(track.image)) {
+  if (Array.isArray(track.image) && track.image.length > 0) {
     const hi =
-      track.image.find((i: any) => i.quality === '500x500') ||
+      track.image.find((i: any) => i?.quality === '500x500' || i?.quality === '500X500') ||
       track.image[track.image.length - 1];
-    if (hi?.url) coverUrl = hi.url.replace('http://', 'https://');
+    const rawUrl = hi?.url || hi?.link || (typeof hi === 'string' ? hi : '');
+    if (rawUrl) coverUrl = rawUrl.replace('http://', 'https://');
   } else if (typeof track.image === 'string' && track.image) {
     coverUrl = track.image.replace('http://', 'https://');
   }
 
   let audioUrl = '';
-  if (Array.isArray(track.downloadUrl)) {
+  if (Array.isArray(track.downloadUrl) && track.downloadUrl.length > 0) {
     const best =
-      track.downloadUrl.find((a: any) => a.quality === '320kbps') ||
-      track.downloadUrl.find((a: any) => a.quality === '160kbps') ||
+      track.downloadUrl.find((a: any) => a?.quality === '320kbps') ||
+      track.downloadUrl.find((a: any) => a?.quality === '160kbps') ||
       track.downloadUrl[track.downloadUrl.length - 1];
-    if (best?.url) audioUrl = best.url;
+    const rawAudio = best?.url || best?.link || (typeof best === 'string' ? best : '');
+    if (rawAudio) audioUrl = rawAudio.replace('http://', 'https://');
   } else if (typeof track.downloadUrl === 'string' && track.downloadUrl) {
-    audioUrl = track.downloadUrl;
+    audioUrl = track.downloadUrl.replace('http://', 'https://');
+  } else if (track.media_preview_url) {
+    audioUrl = track.media_preview_url.replace('http://', 'https://').replace('_preview.mp3', '_320.mp4');
   }
 
   const duration =

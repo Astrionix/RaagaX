@@ -3,6 +3,7 @@ import { PlaybackSource } from '@/lib/offline/types';
 import { OfflineCatalog } from '@/lib/offline/OfflineCatalog';
 import { NetworkManager } from '@/lib/offline/NetworkManager';
 import { QualityManager } from '@/lib/playback/QualityManager';
+import { RealMusicEngine } from '@/lib/realMusicEngine';
 import { usePlayerStore } from '@/context/usePlayerStore';
 
 export class PlaybackSourceResolver {
@@ -24,7 +25,7 @@ export class PlaybackSourceResolver {
     const isOfflineForced = networkMode === 'offline_forced';
     const isOffline = networkMode === 'offline' || isOfflineForced;
 
-    // 1. Valid local download
+    // 1. Valid local download check
     const catalog = OfflineCatalog.getInstance();
     const isDownloaded = await catalog.isDownloaded(song.id);
 
@@ -35,38 +36,45 @@ export class PlaybackSourceResolver {
       };
     }
 
-    // 2. If forced offline, fail here
+    // 2. If forced offline and not downloaded, fail cleanly
     if (isOffline) {
       console.warn(`[PlaybackSourceResolver] Song unavailable offline: ${song.title}`);
       return null;
     }
 
-    // 3. Fallback to network
-    // Fetch video fallback if needed (e.g., if audioUrl is missing or we want to have video ready)
-    let videoId: string | undefined = song.id;
-
     // Quality check
     const qualityDecision = await QualityManager.getInstance().getTargetQuality();
     usePlayerStore.getState().setDeliveredQuality(qualityDecision.target);
 
-    if (song.audioUrl) {
-      // Return the URL directly — JioSaavn URLs are pre-signed and cannot be
-      // modified by string replacement. Quality selection happens at search time.
-      return {
-        type: 'remote',
-        url: song.audioUrl,
-        videoId: videoId,
-      };
+    // 3. Direct valid HTTPS audioUrl check
+    let validAudioUrl = song.audioUrl ? song.audioUrl.replace('http://', 'https://') : '';
+    const isPixabay = validAudioUrl.includes('pixabay.com');
+
+    if (!validAudioUrl || isPixabay) {
+      // Perform live dynamic JioSaavn stream lookup for the track
+      try {
+        const query = `${song.title} ${song.artist}`.trim();
+        console.log(`[PlaybackSourceResolver] Resolving real JioSaavn audio URL for: "${query}"`);
+        const realSongs = await RealMusicEngine.getInstance().searchRealSongs(query, 1);
+        
+        if (realSongs.length > 0 && realSongs[0].audioUrl && !realSongs[0].audioUrl.includes('pixabay.com')) {
+          validAudioUrl = realSongs[0].audioUrl.replace('http://', 'https://');
+          song.audioUrl = validAudioUrl;
+          if (realSongs[0].coverUrl) {
+            song.coverUrl = realSongs[0].coverUrl.replace('http://', 'https://');
+          }
+        }
+      } catch (err) {
+        console.warn(`[PlaybackSourceResolver] Failed live JioSaavn stream resolution for "${song.title}":`, err);
+      }
     }
 
-    // 4. Missing remote URL
-    if (videoId) {
-       // We can fall back to playing YouTube audio if we don't have an audioUrl!
-       return {
-         type: 'remote',
-         url: '',
-         videoId: videoId
-       };
+    if (validAudioUrl && !validAudioUrl.includes('pixabay.com')) {
+      return {
+        type: 'remote',
+        url: validAudioUrl,
+        videoId: song.id,
+      };
     }
 
     return null;

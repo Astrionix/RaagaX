@@ -246,19 +246,17 @@ export class RealMusicEngine {
       if (typeof rawImages === 'string') {
         coverUrl = rawImages.replace('http://', 'https://');
       } else if (Array.isArray(rawImages) && rawImages.length > 0) {
-        const hi = rawImages.find((i: any) => i.quality === '500x500') || rawImages[rawImages.length - 1];
-        if (hi?.url) {
-          coverUrl = hi.url.replace('http://', 'https://');
-        } else if (hi?.link) {
-          coverUrl = hi.link.replace('http://', 'https://');
+        const hi = rawImages.find((i: any) => i?.quality === '500x500' || i?.quality === '500X500') || rawImages[rawImages.length - 1];
+        const rawUrl = hi?.url || hi?.link || (typeof hi === 'string' ? hi : '');
+        if (rawUrl) {
+          coverUrl = rawUrl.replace('http://', 'https://');
         } else if (typeof rawImages[0] === 'string') {
           coverUrl = rawImages[rawImages.length - 1].replace('http://', 'https://');
         }
       }
 
-      let audioUrl =
-        'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
-      if (Array.isArray(track.downloadUrl)) {
+      let audioUrl = '';
+      if (Array.isArray(track.downloadUrl) && track.downloadUrl.length > 0) {
         const qualityPreset = usePlayerStore.getState().streamingQuality;
         const wantsDataSaver = (qualityPreset as string) === '320kbps MP3' || qualityPreset === 'LOW';
         
@@ -266,12 +264,18 @@ export class RealMusicEngine {
         const fallbackQuality = wantsDataSaver ? '96kbps' : '160kbps';
 
         const best =
-          track.downloadUrl.find((a: any) => a.quality === preferredQuality) ||
-          track.downloadUrl.find((a: any) => a.quality === fallbackQuality) ||
+          track.downloadUrl.find((a: any) => a?.quality === preferredQuality) ||
+          track.downloadUrl.find((a: any) => a?.quality === fallbackQuality) ||
+          track.downloadUrl.find((a: any) => a?.quality === '320kbps') ||
+          track.downloadUrl.find((a: any) => a?.quality === '160kbps') ||
           track.downloadUrl[track.downloadUrl.length - 1];
-        if (best?.url) audioUrl = best.url;
+          
+        const rawAudio = best?.url || best?.link || (typeof best === 'string' ? best : '');
+        if (rawAudio) audioUrl = rawAudio.replace('http://', 'https://');
       } else if (typeof track.downloadUrl === 'string' && track.downloadUrl) {
-        audioUrl = track.downloadUrl;
+        audioUrl = track.downloadUrl.replace('http://', 'https://');
+      } else if (track.media_preview_url) {
+        audioUrl = track.media_preview_url.replace('http://', 'https://').replace('_preview.mp3', '_320.mp4');
       }
 
       const albumName = decode(track.album?.name || 'JioSaavn Single');
