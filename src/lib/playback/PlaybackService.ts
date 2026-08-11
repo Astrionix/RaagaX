@@ -191,10 +191,11 @@ export class PlaybackService {
     const store = require('@/context/usePlayerStore').usePlayerStore.getState();
     if (!store.isActiveDevice) return false;
 
-    // Check if standby audio is already preloaded with this song
+    // Check if standby audio is already preloaded with this song (only when crossfade/gapless is enabled)
     const preloader = PreloadManager.getInstance();
     const preloadedId = preloader.getPreloadedTrackId();
-    const isPreloadedInStandby = !!(standbyAudio && standbyAudio.src && (preloadedId === song.id || (song.audioUrl && standbyAudio.src.includes(song.audioUrl))));
+    const transitionMode = TransitionManager.getInstance().getMode();
+    const isPreloadedInStandby = transitionMode !== 'NONE' && !!(standbyAudio && standbyAudio.src && (preloadedId === song.id || (song.audioUrl && standbyAudio.src.includes(song.audioUrl))));
 
     let targetAudio = activeAudio;
 
