@@ -55,15 +55,21 @@ export class CommandBus {
            const estimatedNow = clock.getEstimatedServerNow();
            const drift = estimatedNow - p.serverTimestamp;
            const targetMs = p.positionMs + Math.max(0, drift);
-           engine.seekCanonical(targetMs);
+           if (store.isActiveDevice) {
+             engine.seekCanonical(targetMs);
+           }
         }
-        engine.play();
-        store.setIsPlaying(true);
+        if (store.isActiveDevice) {
+          engine.play();
+        }
+        store.setIsPlaying(true, true);
         break;
 
       case 'PAUSE':
-        engine.pause();
-        store.setIsPlaying(false);
+        if (store.isActiveDevice) {
+          engine.pause();
+        }
+        store.setIsPlaying(false, true);
         break;
 
       case 'SEEK':
