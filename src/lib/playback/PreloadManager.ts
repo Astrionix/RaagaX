@@ -40,6 +40,7 @@ export class PreloadManager {
       let finalSrc = song.audioUrl || '';
       if (source && source.type === 'remote' && source.url) {
         finalSrc = source.url;
+        song.audioUrl = finalSrc;
       }
 
       if (!finalSrc) {
@@ -75,22 +76,13 @@ export class PreloadManager {
   }
 
   public async evaluatePreload(standbyElement: HTMLAudioElement) {
-    if (this.status === 'LOADING' || this.status === 'READY') return;
+    if (this.status === 'LOADING' || (this.status === 'READY' && standbyElement && standbyElement.src)) return;
 
     const nextItem = QueueManager.getInstance().peekNext();
     if (!nextItem || !nextItem.song) return;
 
-    const trackId = nextItem.trackId;
-    
-    // Check if remaining duration is small enough to start preloading (or if overall track duration is known)
-    const engine = PlaybackEngine.getInstance();
-    const mediaMs = engine.getMediaPositionMs();
-    const duration = engine.getDurationMs();
-    
-    // Start preloading if within last 30s of track or track has played > 5s
-    if (mediaMs > 5000 || (duration > 0 && duration - mediaMs < 30000)) {
-      await this.preloadTrack(nextItem.song, standbyElement);
-    }
+    // Start preloading standby element immediately
+    await this.preloadTrack(nextItem.song, standbyElement);
   }
 
   public reset() {

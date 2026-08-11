@@ -49,6 +49,18 @@ export class PlaybackService {
       RendererManager.getInstance().registerRenderer('audio', active);
       PlaybackEngine.getInstance().attachMediaElement(active);
     }
+
+    this.primeAudioElements();
+  }
+
+  public primeAudioElements() {
+    [this.audioA, this.audioB].forEach((audio) => {
+      if (!audio) return;
+      if (!audio.src) {
+        audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+        audio.play().then(() => audio.pause()).catch(() => {});
+      }
+    });
   }
 
   public getActiveAudio(): HTMLAudioElement | null {
@@ -161,7 +173,8 @@ export class PlaybackService {
 
     // Check if standby audio is already preloaded with this song
     const preloader = PreloadManager.getInstance();
-    const isPreloadedInStandby = preloader.getPreloadedTrackId() === song.id && standbyAudio && standbyAudio.src;
+    const preloadedId = preloader.getPreloadedTrackId();
+    const isPreloadedInStandby = !!(standbyAudio && standbyAudio.src && (preloadedId === song.id || (song.audioUrl && standbyAudio.src.includes(song.audioUrl))));
 
     let targetAudio = activeAudio;
 
@@ -174,15 +187,20 @@ export class PlaybackService {
       activeAudio.pause();
       activeAudio.currentTime = 0;
     } else {
-      // Resolve source for active audio
-      let finalSrc = song.audioUrl || FALLBACK_AUDIO_URL;
-      try {
-        const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
-        if (source && source.type === 'remote' && source.url) {
-          finalSrc = source.url;
+      // Resolve source for active audio only if audioUrl is missing or fallback
+      let finalSrc = song.audioUrl || '';
+      if (!finalSrc || finalSrc.includes('pixabay.com')) {
+        try {
+          const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+          if (source && source.type === 'remote' && source.url) {
+            finalSrc = source.url;
+          }
+        } catch (e) {
+          console.warn('[PlaybackService] Source resolution failed, using fallback:', e);
         }
-      } catch (e) {
-        console.warn('[PlaybackService] Source resolution failed, using fallback:', e);
+      }
+      if (!finalSrc) {
+        finalSrc = FALLBACK_AUDIO_URL;
       }
 
       if (targetAudio.src !== finalSrc) {
@@ -356,6 +374,9 @@ export class PlaybackService {
     if (!isNaN(dur) && Number.isFinite(dur) && dur > 0 && store.duration !== dur) {
       store.setDuration(dur);
     }
+
+    // Continuously evaluate and pre-resolve next track into standby audio element for mobile background playback
+    PreloadManager.getInstance().evaluatePreload(standby);
 
     // Boundary check for Crossfade / Gapless
     TransitionManager.getInstance().checkBoundary(active, standby, () => {
