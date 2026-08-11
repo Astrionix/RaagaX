@@ -110,6 +110,15 @@ export class PlaybackEngine implements PlaybackClock {
     return this.activeMediaElement !== null && !this.activeMediaElement.paused;
   }
 
+  public getPlaybackState(): { trackId?: string; isPlaying: boolean; positionMs: number } {
+    const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+    return {
+      trackId: store.activeTrack?.id,
+      isPlaying: this.isPlayingLocally(),
+      positionMs: this.getCanonicalPositionMs()
+    };
+  }
+
   public pause(reason?: PlaybackInterruption | 'USER') {
     if (this.activeMediaElement) {
       this.activeMediaElement.pause();

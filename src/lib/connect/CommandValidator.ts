@@ -1,35 +1,11 @@
-export interface PlaybackCommand {
-  commandId: string;
-  sessionId: string;
-
-  epoch: number;
-  sequence: number;
-
-  senderDeviceId: string;
-  targetDeviceId?: string;
-
-  type:
-    | "PLAY"
-    | "PAUSE"
-    | "SEEK"
-    | "NEXT"
-    | "PREV"
-    | "TRANSFER"
-    | "HANDOFF";
-
-  canonicalPositionMs?: number;
-
-  createdAt: number;
-}
-
-export type ValidationResult = 'DROP' | 'RECONCILE' | 'APPLY';
+import { ConnectCommand } from './types';
+import { CommandSequencer } from './CommandSequencer';
 
 export class CommandValidator {
   private static instance: CommandValidator;
   
-  private localEpoch = 0;
-  private localSequence = 0;
-  private processedCommandIds = new Set<string>();
+  // Track highest sequence seen per source device to prevent replays
+  private highestSequenceByDevice: Map<string, number> = new Map();
 
   private constructor() {}
 
@@ -40,55 +16,38 @@ export class CommandValidator {
     return CommandValidator.instance;
   }
 
-  public setLocalState(epoch: number, sequence: number) {
-    this.localEpoch = epoch;
-    this.localSequence = sequence;
-  }
+  /**
+   * Validates an incoming command against epoch and sequence ordering rules.
+   * Returns true if valid, false if stale or out-of-order.
+   */
+  public validate(command: ConnectCommand): boolean {
+    const sequencer = CommandSequencer.getInstance();
+    const currentEpoch = sequencer.getEpoch();
 
-  public validate(command: PlaybackCommand): ValidationResult {
-    // Has this exact command already been processed? (Idempotency)
-    if (this.processedCommandIds.has(command.commandId)) {
-      console.warn(`[CommandValidator] Dropping duplicate command: ${command.commandId}`);
-      return 'DROP';
-    }
-
-    // Is the command from a stale generation?
-    if (command.epoch < this.localEpoch) {
-      console.warn(`[CommandValidator] Dropping stale epoch (local: ${this.localEpoch}, incoming: ${command.epoch})`);
-      return 'DROP';
-    }
-
-    // Is the command from a future generation?
-    if (command.epoch > this.localEpoch) {
-      console.warn(`[CommandValidator] Incoming epoch is newer. Triggering reconcile (local: ${this.localEpoch}, incoming: ${command.epoch})`);
-      return 'RECONCILE';
-    }
-
-    // Same epoch: Is this an old sequence number?
-    if (command.sequence <= this.localSequence) {
-      console.warn(`[CommandValidator] Dropping stale sequence (local: ${this.localSequence}, incoming: ${command.sequence})`);
-      return 'DROP';
-    }
-
-    // Command is valid
-    return 'APPLY';
-  }
-
-  public markProcessed(commandId: string, epoch: number, sequence: number) {
-    this.processedCommandIds.add(commandId);
-    
-    // Update local watermark
-    if (epoch > this.localEpoch || (epoch === this.localEpoch && sequence > this.localSequence)) {
-      this.localEpoch = epoch;
-      this.localSequence = sequence;
+    // 1. Epoch Validation
+    if (command.epoch < currentEpoch) {
+      console.warn(`[CommandValidator] Rejected stale epoch. Command epoch ${command.epoch} < current ${currentEpoch}`);
+      return false;
     }
     
-    // Prevent unbounded memory growth
-    if (this.processedCommandIds.size > 1000) {
-      const iterator = this.processedCommandIds.values();
-      for (let i = 0; i < 500; i++) {
-        this.processedCommandIds.delete(iterator.next().value);
-      }
+    // If command brings a strictly newer epoch (e.g. from a successful transfer), we must adopt it.
+    if (command.epoch > currentEpoch) {
+      console.log(`[CommandValidator] Adopting newer epoch ${command.epoch} from command.`);
+      sequencer.setEpoch(command.epoch);
+      // Reset sequence trackers on new epoch
+      this.highestSequenceByDevice.clear();
     }
+
+    // 2. Sequence Validation
+    const lastSeenSeq = this.highestSequenceByDevice.get(command.sourceDeviceId) || 0;
+    if (command.sequence <= lastSeenSeq) {
+      console.warn(`[CommandValidator] Rejected stale sequence from ${command.sourceDeviceId}. Seq ${command.sequence} <= last ${lastSeenSeq}`);
+      return false;
+    }
+
+    // Update highest sequence
+    this.highestSequenceByDevice.set(command.sourceDeviceId, command.sequence);
+    
+    return true;
   }
 }

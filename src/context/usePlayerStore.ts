@@ -253,13 +253,8 @@ export const usePlayerStore = create<PlayerState>()(
   setRemoteState: (newState) => set((state) => ({ ...state, ...newState })),
   
   transferPlayback: (targetDeviceId) => {
-    const { deviceId, currentTime } = get();
-    set({ activeDeviceId: targetDeviceId, isActiveDevice: targetDeviceId === deviceId });
-    if (targetDeviceId !== deviceId) set({ isPlaying: false });
-
-    import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
-      const syncManager = DeviceSyncManager.getInstance();
-      syncManager.dispatchCommand('TRANSFER_REQUEST', currentTime * 1000, { transferToDeviceId: targetDeviceId });
+    import('@/lib/connect/TransferManager').then(({ TransferManager }) => {
+      TransferManager.getInstance().initiateTransfer(targetDeviceId);
     });
   },
 
@@ -380,8 +375,8 @@ export const usePlayerStore = create<PlayerState>()(
       }
       set({ isPlaying: isNowPlaying });
     }
-    import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
-      DeviceSyncManager.getInstance().dispatchCommand(isNowPlaying ? 'PLAY' : 'PAUSE');
+    import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+      ConnectManager.getInstance().dispatchPlaybackCommand(isNowPlaying ? 'PLAY' : 'PAUSE', { positionMs: get().currentTime * 1000 });
     });
   },
   setIsPlaying: (playing, fromRemote = false) => {
@@ -397,8 +392,8 @@ export const usePlayerStore = create<PlayerState>()(
     }
     set({ isPlaying: playing });
     if (!fromRemote) {
-      import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
-        DeviceSyncManager.getInstance().dispatchCommand(playing ? 'PLAY' : 'PAUSE');
+      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+        ConnectManager.getInstance().dispatchPlaybackCommand(playing ? 'PLAY' : 'PAUSE', { positionMs: get().currentTime * 1000 });
       });
     }
   },
@@ -407,8 +402,8 @@ export const usePlayerStore = create<PlayerState>()(
     set({ currentTime: time });
     
     if (!fromRemote) {
-      import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
-        DeviceSyncManager.getInstance().dispatchCommand('SEEK', time * 1000);
+      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+        ConnectManager.getInstance().dispatchPlaybackCommand('SEEK', { positionMs: time * 1000 });
       });
     }
 
@@ -431,8 +426,8 @@ export const usePlayerStore = create<PlayerState>()(
 
   playNext: async () => {
     if (!get().isActiveDevice) {
-      import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
-        DeviceSyncManager.getInstance().dispatchCommand('NEXT');
+      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+        ConnectManager.getInstance().dispatchPlaybackCommand('NEXT');
       });
       return;
     }
@@ -496,8 +491,8 @@ export const usePlayerStore = create<PlayerState>()(
 
   playPrev: () => {
     if (!get().isActiveDevice) {
-      import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
-        DeviceSyncManager.getInstance().dispatchCommand('PREV');
+      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+        ConnectManager.getInstance().dispatchPlaybackCommand('PREV');
       });
       return;
     }

@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
-import { PlaybackCommand } from './CommandValidator';
+import { ConnectCommand } from './types';
 import { CommandBus } from './CommandBus';
 
 export class ConnectManager {
@@ -41,12 +41,10 @@ export class ConnectManager {
       config: { broadcast: { self: false } }
     })
     .on('broadcast', { event: 'COMMAND' }, (payload) => {
-       const command = payload.payload as PlaybackCommand;
+       const command = payload.payload as ConnectCommand;
        CommandBus.getInstance().handleIncomingCommand(command);
     })
-    .subscribe((status) => {
-      console.log(`[ConnectManager] Inbox channel status: ${status}`);
-    });
+    .subscribe();
   }
 
   public subscribeSession(sessionId: string) {
@@ -64,12 +62,10 @@ export class ConnectManager {
       config: { broadcast: { self: false } }
     })
     .on('broadcast', { event: 'COMMAND' }, (payload) => {
-       const command = payload.payload as PlaybackCommand;
+       const command = payload.payload as ConnectCommand;
        CommandBus.getInstance().handleIncomingCommand(command);
     })
-    .subscribe((status) => {
-       console.log(`[ConnectManager] Session channel status: ${status}`);
-    });
+    .subscribe();
   }
 
   public unsubscribeSession() {
@@ -80,15 +76,10 @@ export class ConnectManager {
     }
   }
 
-  public async sendTargetedCommand(targetDeviceId: string, command: PlaybackCommand) {
+  public async sendTargetedCommand(targetDeviceId: string, command: ConnectCommand) {
     if (!this.userId) return;
     const targetTopic = `user:${this.userId}:device:${targetDeviceId}`;
     
-    // Use the inbox channel to send the targeted command
-    // Realtime allows sending messages to other channels if configured, or we just create a temporary send channel
-    // but the easiest is using our established inboxChannel to broadcast OUT to a specific topic
-    
-    // Actually, in Supabase, you must send ON the channel that matches the topic.
     const tempChannel = supabase.channel(targetTopic, { config: { broadcast: { self: false } } });
     tempChannel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
@@ -102,7 +93,7 @@ export class ConnectManager {
     });
   }
 
-  public async sendSessionCommand(command: PlaybackCommand) {
+  public async sendSessionCommand(command: ConnectCommand) {
     if (!this.sessionChannel) return;
     
     await this.sessionChannel.send({
@@ -110,5 +101,27 @@ export class ConnectManager {
       event: 'COMMAND',
       payload: command
     });
+  }
+
+  public async dispatchPlaybackCommand(type: ConnectCommand['type'], payload: any = {}) {
+    const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+    const sequencer = require('./CommandSequencer').CommandSequencer.getInstance();
+    const clock = require('./ClockSynchronizer').ClockSynchronizer.getInstance();
+    
+    const command: ConnectCommand = {
+      commandId: crypto.randomUUID(),
+      sessionId: this.sessionId || 'global',
+      epoch: sequencer.getEpoch(),
+      sequence: sequencer.nextSequence(),
+      sourceDeviceId: this.deviceId || store.deviceId,
+      type,
+      sentAt: Date.now(),
+      payload: {
+        ...payload,
+        serverTimestamp: clock.getEstimatedServerNow()
+      }
+    };
+    
+    await CommandBus.getInstance().dispatch(command);
   }
 }

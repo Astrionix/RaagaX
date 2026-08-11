@@ -1,7 +1,7 @@
 import React from 'react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { MonitorSpeaker, Play, Pause } from 'lucide-react';
-import { DeviceSyncManager } from '@/lib/sync/DeviceSyncManager';
+
 
 export function RemoteDeviceBanner() {
   const { isActiveDevice, remoteDeviceName, currentSong, isPlaying, togglePlayPause } = usePlayerStore();
@@ -39,7 +39,8 @@ export function RemoteDeviceBanner() {
 
         <button 
           onClick={() => {
-            DeviceSyncManager.getInstance().takeOverPlayback();
+            const state = usePlayerStore.getState();
+            state.transferPlayback(state.deviceId);
           }}
           className="w-full py-2 rounded-xl bg-[#fa233b] hover:bg-[#e01f35] text-white text-xs font-bold transition-colors active:scale-95"
         >

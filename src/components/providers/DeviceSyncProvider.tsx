@@ -1,11 +1,15 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { DeviceSyncManager } from '@/lib/sync/DeviceSyncManager';
+import { ConnectManager } from '@/lib/connect/ConnectManager';
+import { CommandBus } from '@/lib/connect/CommandBus';
+import { DeviceRegistry } from '@/lib/connect/DeviceRegistry';
+import { ClockSynchronizer } from '@/lib/connect/ClockSynchronizer';
 import { LibrarySyncManager } from '@/lib/sync/LibrarySyncManager';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
 import { MonitorSmartphone, Laptop, Smartphone, Wifi, Check, ChevronUp, X, Sparkles } from 'lucide-react';
+import { TransferManager } from '@/lib/connect/TransferManager';
 
 export function DeviceSyncProvider({ children }: { children: React.ReactNode }) {
   const [isInitializing, setIsInitializing] = useState(true);
@@ -32,8 +36,21 @@ export function DeviceSyncProvider({ children }: { children: React.ReactNode }) 
         }
       }
       
-      const manager = DeviceSyncManager.getInstance();
-      await manager.initSync();
+      const deviceId = usePlayerStore.getState().deviceId;
+
+      // Initialize Phase 3 Connect Subsystems
+      CommandBus.getInstance().init(deviceId, sessionId);
+      ConnectManager.getInstance().init(sessionId, deviceId);
+      ConnectManager.getInstance().subscribeSession(sessionId);
+      
+      DeviceRegistry.getInstance().registerDevice(
+        navigator.userAgent.includes('Mobile') ? 'Mobile Browser' : 'Desktop Browser',
+        'browser',
+        'web',
+        { audio: true, video: true, connect: true }
+      );
+      
+      ClockSynchronizer.getInstance().synchronize();
       
       // Initialize LibrarySyncManager for Liked Songs
       LibrarySyncManager.getInstance();
