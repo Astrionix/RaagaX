@@ -12,6 +12,7 @@ import { TransitionManager } from '@/lib/playback/TransitionManager';
 import { WebAudioGraph } from '@/lib/playback/WebAudioGraph';
 import { BufferMonitor } from '@/lib/playback/BufferMonitor';
 import { LyricsEngine } from '@/lib/lyrics/LyricsEngine';
+import { RaagaXNativePlayer } from '@/lib/playback/native/RaagaXNativePlayer';
 const FALLBACK_AUDIO_URL = 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
 const QUEUE_REFILL_THRESHOLD = 3;
 
@@ -49,14 +50,24 @@ export function AudioPlayerController() {
     isAutoplayEnabled,
   } = usePlayerStore();
 
-  // Register Audio Elements with PlaybackService
+  // Register Audio Elements with PlaybackService (web only)
   useEffect(() => {
+    if (RaagaXNativePlayer.isNative()) return; // native path
     if (audioRefA.current && audioRefB.current) {
       PlaybackService.getInstance().registerElements(audioRefA.current, audioRefB.current);
       PlaybackService.getInstance().setupMediaSessionHandlers();
       WebAudioGraph.getInstance().init(audioRefA.current, audioRefB.current);
     }
   }, [audioRefA.current, audioRefB.current]);
+
+  // Native Android: hook into ExoPlayer track-ended event to advance queue
+  useEffect(() => {
+    if (!RaagaXNativePlayer.isNative()) return;
+    const unsub = RaagaXNativePlayer.addTrackEndedListener(() => {
+      usePlayerStore.getState().playNext();
+    });
+    return unsub;
+  }, []);
 
   // Restore Instant Playback Session
   useEffect(() => {
@@ -66,7 +77,11 @@ export function AudioPlayerController() {
   // Watch for explicit seek targets from UI
   useEffect(() => {
     if (seekTarget !== null) {
-      PlaybackService.getInstance().seek(seekTarget);
+      if (RaagaXNativePlayer.isNative()) {
+        RaagaXNativePlayer.seekTo(seekTarget * 1000);
+      } else {
+        PlaybackService.getInstance().seek(seekTarget);
+      }
       LyricsEngine.getInstance().seek(seekTarget * 1000);
       usePlayerStore.setState({ seekTarget: null });
     }
@@ -116,10 +131,28 @@ export function AudioPlayerController() {
 
   // Handle Play/Pause State Synchronization
   useEffect(() => {
+    const shouldRenderAudio = activeRenderer === 'audio' && isActiveDevice;
+
+    if (RaagaXNativePlayer.isNative()) {
+      // Native path: route to ExoPlayer foreground service
+      if (!shouldRenderAudio) {
+        RaagaXNativePlayer.pause();
+        LyricsEngine.getInstance().setPlaying(false);
+      } else {
+        if (isPlaying) {
+          RaagaXNativePlayer.resume();
+          LyricsEngine.getInstance().setPlaying(true);
+        } else {
+          RaagaXNativePlayer.pause();
+          LyricsEngine.getInstance().setPlaying(false);
+        }
+      }
+      return;
+    }
+
+    // Web path: HTMLAudioElement
     const activeAudio = PlaybackService.getInstance().getActiveAudio();
     if (!activeAudio) return;
-
-    const shouldRenderAudio = activeRenderer === 'audio' && isActiveDevice;
 
     if (!shouldRenderAudio) {
       PlaybackService.getInstance().pause();
@@ -135,12 +168,25 @@ export function AudioPlayerController() {
     }
   }, [isPlaying, isActiveDevice, activeRenderer]);
 
-  // Handle currentSong change for lyrics & audio graph state
+  // Handle currentSong change — native: send to ExoPlayer; web: audio graph
   useEffect(() => {
     if (currentSong?.id) {
       LyricsEngine.getInstance().loadTrack(currentSong.id);
-      WebAudioGraph.getInstance().resume();
       prevSongIdRef.current = currentSong.id;
+
+      if (RaagaXNativePlayer.isNative()) {
+        // Route directly to native ExoPlayer with full metadata
+        if (currentSong.audioUrl && isPlaying && isActiveDevice) {
+          RaagaXNativePlayer.play({
+            url: currentSong.audioUrl,
+            title: currentSong.title ?? 'Unknown Title',
+            artist: currentSong.artist ?? 'Unknown Artist',
+            artworkUrl: currentSong.coverArt ?? currentSong.thumbnail ?? '',
+          });
+        }
+      } else {
+        WebAudioGraph.getInstance().resume();
+      }
     } else {
       LyricsEngine.getInstance().clear();
     }
@@ -148,11 +194,15 @@ export function AudioPlayerController() {
 
   // Handle Volume & Mute dynamically
   useEffect(() => {
-    const tm = TransitionManager.getInstance();
-    if (tm.getState() === 'CROSSFADING') return;
     const effectiveVolume = isMuted ? 0 : volume;
-    const activeAudio = PlaybackService.getInstance().getActiveAudio();
-    if (activeAudio) activeAudio.volume = effectiveVolume;
+    if (RaagaXNativePlayer.isNative()) {
+      RaagaXNativePlayer.setVolume(effectiveVolume);
+    } else {
+      const tm = TransitionManager.getInstance();
+      if (tm.getState() === 'CROSSFADING') return;
+      const activeAudio = PlaybackService.getInstance().getActiveAudio();
+      if (activeAudio) activeAudio.volume = effectiveVolume;
+    }
   }, [volume, isMuted]);
 
   // Handle Sleep Timer
