@@ -1,34 +1,13 @@
-import { AudioFocusManager, AudioFocusEvent } from './AudioFocusManager';
+import { AudioFocusManager } from './AudioFocusManager';
+import { AudioFocusEvent } from './AudioFocusAdapter';
 import { PlaybackEngine } from './PlaybackEngine';
-
-export type PauseReason = 
-  | "USER" 
-  | "REMOTE" 
-  | "HANDOFF" 
-  | "EXTERNAL_AUDIO" 
-  | "AUDIO_FOCUS_LOSS" 
-  | "PHONE_CALL" 
-  | "SYSTEM" 
-  | "ERROR";
-
-export type ResumePolicy = "AUTO" | "MANUAL" | "NEVER";
-
-export interface InterruptionToken {
-  id: string;
-  trackId: string;
-  canonicalPositionMs: number;
-  renderer: "audio" | "video";
-  startedAt: number;
-  reason: PauseReason;
-  resumePolicy: ResumePolicy;
-}
+import { InterruptionToken, PlaybackInterruption, ResumePolicy } from './types';
 
 export class InterruptionCoordinator {
   private static instance: InterruptionCoordinator;
   private currentToken: InterruptionToken | null = null;
   private unsubscribeFocus: (() => void) | null = null;
   
-  // Callback to inform UI state if needed, without tight coupling
   public onInterruptionStateChange: ((token: InterruptionToken | null) => void) | null = null;
 
   private constructor() {
@@ -44,30 +23,42 @@ export class InterruptionCoordinator {
 
   private handleFocusEvent(event: AudioFocusEvent) {
     console.log('[InterruptionCoordinator] AudioFocus event:', event.type);
+    
+    // Only interrupt if RaagaX is actually playing.
+    const engine = PlaybackEngine.getInstance();
+    if (!engine.isPlayingLocally()) {
+      return;
+    }
+
     switch (event.type) {
       case 'LOSS':
+        this.interrupt('EXTERNAL_AUDIO', 'MANUAL');
+        break;
       case 'LOSS_TRANSIENT':
-        this.handleSystemInterruption('AUDIO_FOCUS_LOSS', 'AUTO');
+        this.interrupt('PHONE_CALL', 'AUTO');
         break;
       case 'LOSS_DUCK':
-        // Typically ducking means lower volume, but we can treat as PAUSE or handle volume later
-        this.handleSystemInterruption('AUDIO_FOCUS_LOSS', 'AUTO');
+        // Future enhancement: ducking logic instead of pause
+        this.interrupt('AUDIO_FOCUS_LOSS', 'AUTO');
         break;
       case 'GAIN':
-        this.handleFocusRestored();
+        this.resumeIfEligible();
         break;
     }
   }
 
-  public handleSystemInterruption(reason: PauseReason, resumePolicy: ResumePolicy, currentTrackId?: string, currentRenderer?: "audio" | "video") {
+  public interrupt(reason: PlaybackInterruption, resumePolicy: ResumePolicy, currentTrackId?: string, currentRenderer?: "audio" | "video") {
     const engine = PlaybackEngine.getInstance();
+    
+    // Do not interrupt if we are already interrupted or not playing
+    if (!engine.isPlayingLocally()) return;
+
     const positionMs = engine.getCanonicalPositionMs();
     
-    // Create token
     this.currentToken = {
       id: crypto.randomUUID(),
       trackId: currentTrackId || 'unknown',
-      canonicalPositionMs: positionMs,
+      positionMs,
       renderer: currentRenderer || 'audio',
       startedAt: Date.now(),
       reason,
@@ -82,24 +73,20 @@ export class InterruptionCoordinator {
     engine.pause(reason);
   }
 
-  public async handleFocusRestored() {
+  public async resumeIfEligible() {
     if (!this.currentToken) return;
 
     if (this.currentToken.resumePolicy === 'AUTO') {
       console.log('[InterruptionCoordinator] Resuming playback from token:', this.currentToken);
       const engine = PlaybackEngine.getInstance();
       
-      // Ensure we reconcile position if needed (it should still be near canonicalPositionMs)
-      // and command play.
-      engine.seekCanonical(this.currentToken.canonicalPositionMs);
+      // We could verify token trackId matches engine.getCurrentTrackId() here
+      engine.seekCanonical(this.currentToken.positionMs);
       await engine.play();
     }
 
     // Clear token after processing
-    this.currentToken = null;
-    if (this.onInterruptionStateChange) {
-      this.onInterruptionStateChange(null);
-    }
+    this.clearInterruption();
   }
 
   public reportUserPause() {
@@ -107,11 +94,10 @@ export class InterruptionCoordinator {
     if (this.currentToken) {
       this.currentToken.resumePolicy = 'NEVER';
     } else {
-      // Record a manual pause so if focus returns, we don't accidentally play
       this.currentToken = {
         id: crypto.randomUUID(),
         trackId: 'unknown',
-        canonicalPositionMs: PlaybackEngine.getInstance().getCanonicalPositionMs(),
+        positionMs: PlaybackEngine.getInstance().getCanonicalPositionMs(),
         renderer: 'audio',
         startedAt: Date.now(),
         reason: 'USER',

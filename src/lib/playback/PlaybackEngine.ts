@@ -1,4 +1,6 @@
 import { MediaTimelineMapper, TimelineMap } from './TimelineMapper';
+import { PlaybackStateMachine } from './PlaybackStateMachine';
+import { PlaybackInterruption } from './types';
 import { PlaybackClock } from './PlaybackClock';
 
 type FalliblePlayResult = { success: boolean; error?: Error };
@@ -7,6 +9,7 @@ export class PlaybackEngine implements PlaybackClock {
   private static instance: PlaybackEngine;
   private timelineMapper: MediaTimelineMapper;
   private activeMediaElement: HTMLMediaElement | null = null;
+  private stateMachine: PlaybackStateMachine;
   
   // For prediction between media time updates
   private lastAnchorMediaMs: number = 0;
@@ -14,6 +17,7 @@ export class PlaybackEngine implements PlaybackClock {
 
   private constructor() {
     this.timelineMapper = new MediaTimelineMapper();
+    this.stateMachine = new PlaybackStateMachine();
   }
 
   public static getInstance(): PlaybackEngine {
@@ -72,21 +76,38 @@ export class PlaybackEngine implements PlaybackClock {
   public async play(): Promise<FalliblePlayResult> {
     if (!this.activeMediaElement) return { success: false, error: new Error('No media element attached') };
 
+    if (!this.stateMachine.canTransitionTo('PLAYING')) {
+      return { success: false, error: new Error('Invalid state transition to PLAYING') };
+    }
+
     try {
       this.anchor();
       await this.activeMediaElement.play();
       this.anchor();
+      this.stateMachine.transitionTo('PLAYING');
       return { success: true };
     } catch (error: any) {
       console.warn('[PlaybackEngine] Fallible play rejected:', error);
+      this.stateMachine.transitionTo('ERROR');
       return { success: false, error };
     }
   }
 
-  public pause(reason?: string) {
+  public isPlayingLocally(): boolean {
+    return this.activeMediaElement !== null && !this.activeMediaElement.paused;
+  }
+
+  public pause(reason?: PlaybackInterruption | 'USER') {
     if (this.activeMediaElement) {
       this.activeMediaElement.pause();
       this.anchor();
+      
+      const targetState = reason === 'HANDOFF' ? 'HANDOFF' :
+                          reason === 'USER' ? 'PAUSED' : 
+                          reason ? 'INTERRUPTED' : 'PAUSED';
+                          
+      this.stateMachine.transitionTo(targetState);
+      
       if (reason) {
         console.log(`[PlaybackEngine] Paused due to reason: ${reason}`);
       }
