@@ -72,19 +72,13 @@
 
         <!--
             RaagaX Native Media3 Foreground Playback Service
-            ─────────────────────────────────────────────────
-            - foregroundServiceType="mediaPlayback" is required on Android 14+
-            - exported="false": only accessible within this app (security)
-            - MediaSessionService intent-filter allows media buttons / BT controls
+            Plain Service (not MediaSessionService) — calls startForeground()
+            immediately in onStartCommand() — no 5-second timeout issue.
         -->
         <service
             android:name=".RaagaXPlaybackService"
             android:foregroundServiceType="mediaPlayback"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="androidx.media3.session.MediaSessionService" />
-            </intent-filter>
-        </service>
+            android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -4,15 +4,15 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.app.Service;
 import android.content.Intent;
-import android.os.Binder;
 import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.OptIn;
+import androidx.core.app.NotificationCompat;
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
@@ -20,32 +20,37 @@ import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
-import androidx.media3.session.MediaSession;
-import androidx.media3.session.MediaSessionService;
-import androidx.media3.ui.PlayerNotificationManager;
 
+/**
+ * RaagaXPlaybackService — Plain foreground Service (not MediaSessionService).
+ *
+ * Uses a standard Android Service so Capacitor's BridgeActivity lifecycle
+ * does not conflict with MediaSessionService's internal session management.
+ *
+ * Calls startForeground() immediately in onStartCommand() to satisfy
+ * Android 12+'s 5-second foreground-service timeout requirement.
+ */
 @OptIn(markerClass = UnstableApi.class)
-public class RaagaXPlaybackService extends MediaSessionService {
+public class RaagaXPlaybackService extends Service {
 
-    private static final String TAG = "RaagaXPlaybackService";
-    private static final String CHANNEL_ID = "raagax_playback_channel";
-    private static final int NOTIFICATION_ID = 1001;
+    private static final String TAG         = "RaagaXPlaybackService";
+    public  static final String CHANNEL_ID  = "raagax_playback_channel";
+    public  static final int    NOTIF_ID    = 1001;
 
-    private ExoPlayer player;
-    private MediaSession mediaSession;
-
-    // Singleton reference for Capacitor plugin access
     private static RaagaXPlaybackService instance;
 
-    public static RaagaXPlaybackService getInstance() {
-        return instance;
-    }
+    public static RaagaXPlaybackService getInstance() { return instance; }
+
+    private ExoPlayer player;
+    private String    currentTitle  = "RaagaX";
+    private String    currentArtist = "";
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     @Override
     public void onCreate() {
         super.onCreate();
         instance = this;
-
         createNotificationChannel();
 
         AudioAttributes audioAttributes = new AudioAttributes.Builder()
@@ -54,126 +59,110 @@ public class RaagaXPlaybackService extends MediaSessionService {
                 .build();
 
         player = new ExoPlayer.Builder(this)
-                .setAudioAttributes(audioAttributes, true) // handle audio focus
-                .setHandleAudioBecomingNoisy(true)          // pause on headset unplug
-                .setWakeMode(C.WAKE_MODE_NETWORK)           // keep CPU awake during network streaming
+                .setAudioAttributes(audioAttributes, /* handleAudioFocus= */ true)
+                .setHandleAudioBecomingNoisy(true)
+                .setWakeMode(C.WAKE_MODE_NETWORK)
                 .build();
 
         player.addListener(new Player.Listener() {
             @Override
-            public void onPlaybackStateChanged(int playbackState) {
-                if (playbackState == Player.STATE_ENDED) {
-                    // Notify JS side via broadcast
-                    Intent intent = new Intent("com.raagax.music.TRACK_ENDED");
-                    sendBroadcast(intent);
+            public void onPlaybackStateChanged(int state) {
+                if (state == Player.STATE_ENDED) {
+                    sendBroadcast(new Intent("com.raagax.music.TRACK_ENDED"));
                 }
+                updateNotification();
             }
 
             @Override
             public void onIsPlayingChanged(boolean isPlaying) {
-                Intent intent = new Intent("com.raagax.music.PLAYBACK_STATE");
-                intent.putExtra("isPlaying", isPlaying);
-                sendBroadcast(intent);
+                Intent i = new Intent("com.raagax.music.PLAYBACK_STATE");
+                i.putExtra("isPlaying", isPlaying);
+                sendBroadcast(i);
+                updateNotification();
             }
         });
-
-        mediaSession = new MediaSession.Builder(this, player)
-                .build();
-    }
-
-    @Nullable
-    @Override
-    public MediaSession onGetSession(@NonNull MediaSession.ControllerInfo controllerInfo) {
-        return mediaSession;
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        super.onStartCommand(intent, flags, startId);
+        // ✅ Call startForeground() IMMEDIATELY — satisfies Android 12+ 5-second rule
+        startForeground(NOTIF_ID, buildNotification());
         return START_STICKY;
     }
 
     @Override
     public void onDestroy() {
         instance = null;
-        if (mediaSession != null) {
-            mediaSession.release();
-            mediaSession = null;
-        }
-        if (player != null) {
-            player.release();
-            player = null;
-        }
+        if (player != null) { player.release(); player = null; }
         super.onDestroy();
     }
 
-    // ── Public API (called from RaagaXCapacitorPlugin) ────────────────────────
+    @Nullable
+    @Override
+    public IBinder onBind(Intent intent) { return null; }
 
-    public void playUrl(String url, String title, String artist, String artworkUrl) {
+    // ── Playback API (called by RaagaXCapacitorPlugin) ────────────────────────
+
+    public void playUrl(String url, String title, String artist) {
         if (player == null) return;
+        currentTitle  = title  != null ? title  : "RaagaX";
+        currentArtist = artist != null ? artist : "";
 
-        MediaMetadata metadata = new MediaMetadata.Builder()
-                .setTitle(title)
-                .setArtist(artist)
-                .setArtworkUri(artworkUrl != null && !artworkUrl.isEmpty()
-                        ? android.net.Uri.parse(artworkUrl) : null)
-                .build();
-
-        MediaItem mediaItem = new MediaItem.Builder()
+        MediaItem item = new MediaItem.Builder()
                 .setUri(url)
-                .setMediaMetadata(metadata)
+                .setMediaMetadata(new MediaMetadata.Builder()
+                        .setTitle(currentTitle)
+                        .setArtist(currentArtist)
+                        .build())
                 .build();
 
-        player.setMediaItem(mediaItem);
+        player.setMediaItem(item);
         player.prepare();
         player.play();
-
-        Log.d(TAG, "playUrl: " + title + " — " + url);
+        updateNotification();
+        Log.d(TAG, "playUrl: " + currentTitle);
     }
 
-    public void resume() {
-        if (player != null) player.play();
-    }
+    public void resume()               { if (player != null) player.play(); }
+    public void pause()                { if (player != null) player.pause(); }
+    public void seekTo(long posMs)     { if (player != null) player.seekTo(posMs); }
+    public void setVolume(float v)     { if (player != null) player.setVolume(v); }
+    public long getCurrentPosition()   { return player != null ? player.getCurrentPosition() : 0L; }
+    public long getDuration()          { return player != null ? player.getDuration() : 0L; }
+    public boolean isPlaying()         { return player != null && player.isPlaying(); }
 
-    public void pause() {
-        if (player != null) player.pause();
-    }
-
-    public void seekTo(long positionMs) {
-        if (player != null) player.seekTo(positionMs);
-    }
-
-    public void setVolume(float volume) {
-        if (player != null) player.setVolume(volume);
-    }
-
-    public long getCurrentPosition() {
-        return player != null ? player.getCurrentPosition() : 0L;
-    }
-
-    public long getDuration() {
-        return player != null ? player.getDuration() : 0L;
-    }
-
-    public boolean isPlaying() {
-        return player != null && player.isPlaying();
-    }
-
-    // ── Notification Channel ─────────────────────────────────────────────────
+    // ── Notification ──────────────────────────────────────────────────────────
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
-                    "RaagaX Music Playback",
-                    NotificationManager.IMPORTANCE_LOW
-            );
-            channel.setDescription("Controls for RaagaX background playback");
-            channel.setShowBadge(false);
-            NotificationManager manager = getSystemService(NotificationManager.class);
-            if (manager != null) {
-                manager.createNotificationChannel(channel);
-            }
+            NotificationChannel ch = new NotificationChannel(
+                    CHANNEL_ID, "RaagaX Music", NotificationManager.IMPORTANCE_LOW);
+            ch.setDescription("RaagaX background playback");
+            ch.setShowBadge(false);
+            NotificationManager nm = getSystemService(NotificationManager.class);
+            if (nm != null) nm.createNotificationChannel(ch);
         }
+    }
+
+    private Notification buildNotification() {
+        Intent launchIntent = getPackageManager()
+                .getLaunchIntentForPackage(getPackageName());
+        PendingIntent pi = PendingIntent.getActivity(this, 0, launchIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        return new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_media_play)
+                .setContentTitle(currentTitle)
+                .setContentText(currentArtist)
+                .setContentIntent(pi)
+                .setOngoing(true)
+                .setSilent(true)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .build();
+    }
+
+    private void updateNotification() {
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        if (nm != null) nm.notify(NOTIF_ID, buildNotification());
     }
 }
