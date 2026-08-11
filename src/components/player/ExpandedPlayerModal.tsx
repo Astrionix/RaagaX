@@ -380,10 +380,16 @@ export function ExpandedPlayerModal() {
         {/* Cover Artwork or YouTube Player */}
         <div className="flex-1 min-h-0 flex flex-col items-center justify-center w-full py-2 sm:py-6 overflow-hidden">
           {isVideoMode ? (
-            <div className="w-full flex-1 min-h-0 flex flex-col items-center justify-center space-y-2 sm:space-y-4">
-              <div 
-                className="relative w-full aspect-video rounded-xl sm:rounded-3xl overflow-hidden border border-white/20 shadow-2xl bg-black shrink-0"
-                style={{ maxWidth: 'min(100%, 50vh * 1.7778)' }}
+            <div className="w-full flex-1 min-h-0 flex flex-col items-center justify-center gap-2 sm:gap-3 overflow-hidden">
+              {/* YouTube iframe — constrained to available height, never overflows */}
+              <div
+                className="relative rounded-xl sm:rounded-2xl overflow-hidden border border-white/20 shadow-2xl bg-black w-full"
+                style={{
+                  maxWidth: '100%',
+                  aspectRatio: '16 / 9',
+                  maxHeight: 'min(45vh, 100%)',
+                  width: 'calc(min(45vh, 100%) * (16/9))',
+                }}
               >
                 <iframe
                   key={youtubeEmbedUrl}
@@ -394,10 +400,8 @@ export function ExpandedPlayerModal() {
                   allowFullScreen
                 />
               </div>
-              <div 
-                className="flex items-center justify-between w-full gap-2 text-[10px] sm:text-xs shrink-0 px-1"
-                style={{ maxWidth: 'min(100%, 50vh * 1.7778)' }}
-              >
+              {/* Toolbar row below video */}
+              <div className="flex items-center justify-between w-full gap-2 text-[10px] sm:text-xs shrink-0 px-1" style={{ maxWidth: 'calc(min(45vh, 100%) * (16/9))' }}>
                 {candidateVideoIds.length > 1 && (
                   <button
                     onClick={handleNextCandidate}
@@ -417,7 +421,14 @@ export function ExpandedPlayerModal() {
               </div>
             </div>
           ) : (
-            <div className="relative w-full max-w-[42vh] sm:max-w-[52vh] aspect-square rounded-[8%] sm:rounded-2xl overflow-hidden shadow-2xl border border-white/5 shrink min-h-0 max-h-full">
+            <div
+              className="relative rounded-[8%] sm:rounded-2xl overflow-hidden shadow-2xl border border-white/5"
+              style={{
+                width: 'min(42vh, 92vw, 480px)',
+                height: 'min(42vh, 92vw, 480px)',
+                flexShrink: 0,
+              }}
+            >
               <img
                 src={currentSong.coverUrl}
                 alt={currentSong.title}

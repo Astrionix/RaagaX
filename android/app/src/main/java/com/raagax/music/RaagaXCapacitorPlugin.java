@@ -40,7 +40,7 @@ public class RaagaXCapacitorPlugin extends Plugin {
 
     @Override
     public void load() {
-        // Register broadcast receiver
+        // Register broadcast receiver for track-ended / playback-state events
         IntentFilter filter = new IntentFilter();
         filter.addAction("com.raagax.music.TRACK_ENDED");
         filter.addAction("com.raagax.music.PLAYBACK_STATE");
@@ -51,8 +51,11 @@ public class RaagaXCapacitorPlugin extends Plugin {
             getContext().registerReceiver(playbackReceiver, filter);
         }
 
-        // Start the foreground service immediately
-        startPlaybackService();
+        // ⚠️ Do NOT start the foreground service here.
+        // On Android 12+, startForegroundService() requires startForeground() within 5 seconds.
+        // Media3 only posts the foreground notification when playback actually begins.
+        // Starting eagerly here causes the app to be killed immediately on launch.
+        // The service is started lazily from play() instead.
     }
 
     private void startPlaybackService() {
