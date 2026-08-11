@@ -51,6 +51,26 @@ export class PlaybackService {
     }
 
     this.primeAudioElements();
+    this.startWatchdog();
+  }
+
+  private watchdogInterval: any = null;
+
+  public startWatchdog() {
+    if (typeof window === 'undefined' || this.watchdogInterval) return;
+    this.watchdogInterval = setInterval(() => {
+      const active = this.getActiveAudio();
+      if (!active) return;
+      const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+      if (store.isActiveDevice && store.isPlaying && active.paused && !active.ended && !this.isTransitioning) {
+        if (active.readyState >= 2) {
+          console.warn('[PlaybackService Watchdog] Active audio paused unexpectedly while isPlaying=true. Recovering play()...');
+          active.play().catch((err) => {
+            console.warn('[PlaybackService Watchdog] Auto-resume recovery failed:', err);
+          });
+        }
+      }
+    }, 3000);
   }
 
   public primeAudioElements() {
