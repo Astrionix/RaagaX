@@ -101,17 +101,20 @@ apiApp.get('/charts', async (c) => {
 
 // ─── Queue Refill API ─────────────────────────────────────────────────────────
 
-apiApp.get('/queue-refill', async (c) => {
-  const language = (c.req.query('language') || 'Telugu') as DiscoveryLanguage;
-  const count = parseInt(c.req.query('count') || '20');
-  const excludeRaw = c.req.query('exclude') || '';
-  const excludeIds = excludeRaw ? excludeRaw.split(',').filter(Boolean) : [];
-
+apiApp.post('/queue-refill', async (c) => {
   try {
+    const body = await c.req.json();
+    const language = (body.language || 'Telugu') as DiscoveryLanguage;
+    const count = Math.min(Number(body.count) || 20, 30);
+    // Cap each category to avoid giant payloads
+    const excludeIds: string[] = (body.excludeIds || []).slice(0, 50);
+    const likedIds: string[] = (body.likedIds || []).slice(0, 20);
+    const historyIds: string[] = (body.historyIds || []).slice(0, 20);
+
     const reqUrl = new URL(c.req.url);
     const baseUrl = `${reqUrl.protocol}//${reqUrl.host}`;
     const engine = DiscoveryEngine.getInstance(baseUrl);
-    const songs = await engine.getQueueRefill(language, excludeIds, [], [], count);
+    const songs = await engine.getQueueRefill(language, excludeIds, likedIds, historyIds, count);
     return c.json({ success: true, data: { songs, count: songs.length } });
   } catch {
     return c.json({ success: false, error: 'Queue refill failed' }, 500);

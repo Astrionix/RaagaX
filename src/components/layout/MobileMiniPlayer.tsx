@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React from 'react';
 import { Play, Pause, MonitorSpeaker, Heart, Tv } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SeekBar } from '@/components/player/SeekBar';
@@ -23,7 +23,8 @@ export function MobileMiniPlayer() {
   if (!currentSong) return null;
 
   return (
-    <div className={`md:hidden fixed z-40 bg-[#192629] border-t border-black/20 px-2 flex flex-col justify-center select-none active:scale-[0.99] transition-all duration-300 w-[calc(100%-16px)] left-2 rounded-md h-[54px] shadow-lg`} style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
+    <div className="md:hidden fixed z-40 bg-[#192629] border-t border-black/20 px-2 flex flex-col justify-center select-none active:scale-[0.99] transition-all duration-300 w-[calc(100%-16px)] left-2 rounded-md h-[54px] shadow-lg"
+      style={{ bottom: 'calc(3.75rem + env(safe-area-inset-bottom))' }}>
       
       <div className="flex items-center justify-between w-full relative h-full">
       {/* Custom Draggable Progress Bar - Spotify Style */}

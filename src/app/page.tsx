@@ -8,7 +8,7 @@ import { RightDeviceConnectPanel } from '@/components/layout/RightDeviceConnectP
 import { MobileNav } from '@/components/layout/MobileNav';
 import { MobileMiniPlayer } from '@/components/layout/MobileMiniPlayer';
 import { AudioPlayerController } from '@/components/player/AudioPlayerController';
-import { LyricsPanel } from '@/components/player/LyricsPanel';
+import { LyricsPanel } from '@/components/lyrics/LyricsPanel';
 import { QueueModal } from '@/components/player/QueueModal';
 import { ExpandedPlayerModal } from '@/components/player/ExpandedPlayerModal';
 import { PlaylistImporterModal } from '@/components/modals/PlaylistImporterModal';
@@ -94,7 +94,7 @@ export default function Page() {
       <Sidebar />
 
       {/* App Layout (Grid after Sidebar) */}
-      <div className="flex-1 ml-0 md:ml-64 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] h-[calc(100vh-5rem)] overflow-hidden">
+      <div className="flex-1 ml-0 md:ml-64 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] md:h-[calc(100vh-5rem)] overflow-hidden">
         
         {/* Main Content Column */}
         <div className="main-content min-w-0 min-h-0 overflow-y-auto overflow-x-hidden relative flex flex-col h-full">
@@ -102,7 +102,7 @@ export default function Page() {
           <Navbar />
 
           {/* View Switcher Container */}
-          <main className="flex-1 pt-16 md:pt-6 pb-8 md:pb-8 px-4 sm:px-8">
+          <main className="flex-1 pt-16 md:pt-6 pb-[calc(7.5rem+env(safe-area-inset-bottom))] md:pb-8 px-4 sm:px-8">
             {activeTab === 'home' && <HomeView />}
             {activeTab === 'browse' && <BrowseView />}
             {activeTab === 'search' && <SearchView />}
