@@ -1,9 +1,11 @@
 import { Song } from '@/types/music';
 import { QueueItem } from './types';
+import { PlaybackQueue } from './PlaybackQueue';
 import { RealMusicEngine } from '@/lib/realMusicEngine';
 
 export interface AlbumCollectionResult {
   queueId: string;
+  playbackQueue: PlaybackQueue;
   items: QueueItem[];
   songs: Song[];
   uniqueTrackCount: number;
@@ -40,17 +42,20 @@ export class AlbumCollectionBuilder {
     const realEngine = RealMusicEngine.getInstance();
 
     // 1. Process requested albums sequentially to preserve exact album display order
-    for (const albumId of albumIds) {
+    for (let albIdx = 0; albIdx < albumIds.length; albIdx++) {
+      const albumId = albumIds[albIdx];
       if (!albumId) continue;
       try {
         const cleanId = albumId.startsWith('album:') ? albumId : `album:${albumId}`;
-        const details = await realEngine.getPlaylistDetails(cleanId);
+        const details: any = await realEngine.getPlaylistDetails(cleanId);
         const tracks = details?.songs || [];
+        const albumTitle = details?.name || details?.title || `Album ${albIdx + 1}`;
 
+        let trkIdx = 0;
         for (const track of tracks) {
           if (!track || !track.id) continue;
 
-          // Global Canonical Track Deduplication
+          // Global Canonical Track Deduplication Across All 50 Albums
           if (seenTrackIds.has(track.id)) {
             continue; // Skip duplicate track
           }
@@ -61,7 +66,11 @@ export class AlbumCollectionBuilder {
             queueItemId: crypto.randomUUID(),
             trackId: track.id,
             song: track,
-            source: 'ALBUM',
+            albumId,
+            albumTitle,
+            albumIndex: albIdx,
+            trackIndex: trkIdx,
+            source: 'ALBUM_COLLECTION',
             sourceId: albumId,
             addedAt: Date.now(),
             playable: true,
@@ -70,6 +79,7 @@ export class AlbumCollectionBuilder {
 
           items.push(queueItem);
           songs.push(track);
+          trkIdx++;
         }
 
         albumsProcessed++;
@@ -79,11 +89,11 @@ export class AlbumCollectionBuilder {
     }
 
     // 2. Enforce minimum 100 unique tracks guarantee
-    // If the provided albums yielded fewer than minUniqueTracks, fetch top catalog Telugu/Hindi songs to top up
     if (seenTrackIds.size < minUniqueTracks) {
       console.log(`[AlbumCollectionBuilder] Collection has ${seenTrackIds.size} unique tracks < ${minUniqueTracks}. Fetching catalog fallback tracks...`);
       try {
         const fallbackSongs = await realEngine.searchRealSongs('latest telugu hits', 50);
+        let fallbackTrkIdx = 0;
         for (const track of fallbackSongs) {
           if (seenTrackIds.size >= minUniqueTracks) break;
           if (!track || !track.id || seenTrackIds.has(track.id)) continue;
@@ -94,6 +104,8 @@ export class AlbumCollectionBuilder {
             queueItemId: crypto.randomUUID(),
             trackId: track.id,
             song: track,
+            albumIndex: albumsProcessed,
+            trackIndex: fallbackTrkIdx,
             source: 'RECOMMENDATION',
             addedAt: Date.now(),
             playable: true,
@@ -102,16 +114,25 @@ export class AlbumCollectionBuilder {
 
           items.push(queueItem);
           songs.push(track);
+          fallbackTrkIdx++;
         }
       } catch (err) {
         console.warn('[AlbumCollectionBuilder] Fallback catalog query failed:', err);
       }
     }
 
+    const playbackQueue = new PlaybackQueue(
+      queueId,
+      items,
+      items.length > 0 ? items[0].queueItemId : null,
+      { type: 'ALBUM_COLLECTION', sourceIds: albumIds }
+    );
+
     console.log(`[AlbumCollectionBuilder] Built collection queue "${queueId}": ${items.length} items (${seenTrackIds.size} unique tracks) across ${albumsProcessed} albums.`);
 
     return {
       queueId,
+      playbackQueue,
       items,
       songs,
       uniqueTrackCount: seenTrackIds.size,

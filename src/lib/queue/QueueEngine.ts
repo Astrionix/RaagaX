@@ -39,6 +39,7 @@ export class QueueEngine {
     return {
       queueId: this.queueId,
       revision: this.revision,
+      currentItemId: this.items[this.currentIndex]?.queueItemId || null,
       currentIndex: this.currentIndex,
       items: [...this.items],
       autoplayEnabled: this.autoplayEnabled,
