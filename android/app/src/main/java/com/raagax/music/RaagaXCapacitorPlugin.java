@@ -131,13 +131,17 @@ public class RaagaXCapacitorPlugin extends Plugin {
         if (service != null) {
             new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
                 try {
+                    RaagaXPlaybackService.PlaybackSnapshot snapshot = service.getPlaybackSnapshot();
                     JSObject result = new JSObject();
-                    result.put("isPlaying", service.isPlaying());
-                    result.put("positionMs", service.getCurrentPosition());
-                    result.put("durationMs", service.getDuration());
+                    result.put("isPlaying", snapshot.isPlaying);
+                    result.put("positionMs", snapshot.positionMs);
+                    result.put("durationMs", snapshot.durationMs);
+                    result.put("bufferedPositionMs", snapshot.bufferedPositionMs);
+                    result.put("title", snapshot.currentTitle);
+                    result.put("artist", snapshot.currentArtist);
                     call.resolve(result);
                 } catch (Exception e) {
-                    call.reject("Error getting playback state: " + e.getMessage());
+                    call.reject("Error getting playback snapshot: " + e.getMessage());
                 }
             });
         } else {

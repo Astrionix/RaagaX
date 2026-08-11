@@ -126,46 +126,120 @@ public class RaagaXPlaybackService extends Service {
 
     // ── Playback API (called by RaagaXCapacitorPlugin) ────────────────────────
 
-    public void playUrl(String url, String title, String artist) {
-        if (player == null || url == null || url.isEmpty()) return;
+    private final android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
 
-        // If the exact same track URL is already loaded in ExoPlayer, do NOT reload or seek
-        MediaItem currentItem = player.getCurrentMediaItem();
-        if (currentItem != null && currentItem.localConfiguration != null) {
-            String currentUri = currentItem.localConfiguration.uri.toString();
-            if (url.equals(currentUri)) {
-                if (!player.isPlaying()) {
-                    player.play();
-                }
-                return;
-            }
+    private void runOnMainThread(Runnable r) {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            r.run();
+        } else {
+            mainHandler.post(r);
         }
-
-        currentTitle  = title  != null ? title  : "RaagaX";
-        currentArtist = artist != null ? artist : "";
-
-        MediaItem item = new MediaItem.Builder()
-                .setUri(url)
-                .setMediaMetadata(new MediaMetadata.Builder()
-                        .setTitle(currentTitle)
-                        .setArtist(currentArtist)
-                        .build())
-                .build();
-
-        player.setMediaItem(item);
-        player.prepare();
-        player.play();
-        updateNotification();
-        Log.d(TAG, "playUrl: " + currentTitle);
     }
 
-    public void resume()               { if (player != null) player.play(); }
-    public void pause()                { if (player != null) player.pause(); }
-    public void seekTo(long posMs)     { if (player != null) player.seekTo(posMs); }
-    public void setVolume(float v)     { if (player != null) player.setVolume(v); }
-    public long getCurrentPosition()   { return player != null ? player.getCurrentPosition() : 0L; }
-    public long getDuration()          { return player != null ? player.getDuration() : 0L; }
-    public boolean isPlaying()         { return player != null && player.isPlaying(); }
+    // ── Playback API (called by RaagaXCapacitorPlugin) ────────────────────────
+
+    public static class PlaybackSnapshot {
+        public final boolean isPlaying;
+        public final int playbackState;
+        public final long positionMs;
+        public final long durationMs;
+        public final long bufferedPositionMs;
+        public final String currentTitle;
+        public final String currentArtist;
+
+        public PlaybackSnapshot(boolean isPlaying, int playbackState, long positionMs, long durationMs, long bufferedPositionMs, String currentTitle, String currentArtist) {
+            this.isPlaying = isPlaying;
+            this.playbackState = playbackState;
+            this.positionMs = positionMs;
+            this.durationMs = durationMs;
+            this.bufferedPositionMs = bufferedPositionMs;
+            this.currentTitle = currentTitle;
+            this.currentArtist = currentArtist;
+        }
+    }
+
+    public PlaybackSnapshot getPlaybackSnapshot() {
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            Log.w(TAG, "getPlaybackSnapshot called off main thread");
+            return new PlaybackSnapshot(false, Player.STATE_IDLE, 0L, 0L, 0L, currentTitle, currentArtist);
+        }
+        if (player == null) {
+            return new PlaybackSnapshot(false, Player.STATE_IDLE, 0L, 0L, 0L, currentTitle, currentArtist);
+        }
+        return new PlaybackSnapshot(
+                player.isPlaying(),
+                player.getPlaybackState(),
+                player.getCurrentPosition(),
+                player.getDuration() < 0 ? 0L : player.getDuration(),
+                player.getBufferedPosition(),
+                currentTitle,
+                currentArtist
+        );
+    }
+
+    public void playUrl(String url, String title, String artist) {
+        runOnMainThread(() -> {
+            if (player == null || url == null || url.isEmpty()) return;
+
+            // If the exact same track URL is already loaded in ExoPlayer, do NOT reload or seek
+            MediaItem currentItem = player.getCurrentMediaItem();
+            if (currentItem != null && currentItem.localConfiguration != null) {
+                String currentUri = currentItem.localConfiguration.uri.toString();
+                if (url.equals(currentUri)) {
+                    if (!player.isPlaying()) {
+                        player.play();
+                    }
+                    return;
+                }
+            }
+
+            currentTitle  = title  != null ? title  : "RaagaX";
+            currentArtist = artist != null ? artist : "";
+
+            MediaItem item = new MediaItem.Builder()
+                    .setUri(url)
+                    .setMediaMetadata(new MediaMetadata.Builder()
+                            .setTitle(currentTitle)
+                            .setArtist(currentArtist)
+                            .build())
+                    .build();
+
+            player.setMediaItem(item);
+            player.prepare();
+            player.play();
+            updateNotification();
+            Log.d(TAG, "playUrl: " + currentTitle);
+        });
+    }
+
+    public void resume()           { runOnMainThread(() -> { if (player != null) player.play(); }); }
+    public void pause()            { runOnMainThread(() -> { if (player != null) player.pause(); }); }
+    public void seekTo(long posMs) { runOnMainThread(() -> { if (player != null) player.seekTo(posMs); }); }
+    public void setVolume(float v) { runOnMainThread(() -> { if (player != null) player.setVolume(v); }); }
+
+    public long getCurrentPosition() {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            return player != null ? player.getCurrentPosition() : 0L;
+        }
+        Log.w(TAG, "getCurrentPosition() called off main thread — use getPlaybackSnapshot()");
+        return 0L;
+    }
+
+    public long getDuration() {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            return player != null ? player.getDuration() : 0L;
+        }
+        Log.w(TAG, "getDuration() called off main thread — use getPlaybackSnapshot()");
+        return 0L;
+    }
+
+    public boolean isPlaying() {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            return player != null && player.isPlaying();
+        }
+        Log.w(TAG, "isPlaying() called off main thread — use getPlaybackSnapshot()");
+        return false;
+    }
 
     // ── Notification ──────────────────────────────────────────────────────────
 
