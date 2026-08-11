@@ -129,11 +129,17 @@ public class RaagaXCapacitorPlugin extends Plugin {
     public void getPlaybackState(PluginCall call) {
         RaagaXPlaybackService service = getService();
         if (service != null) {
-            JSObject result = new JSObject();
-            result.put("isPlaying", service.isPlaying());
-            result.put("positionMs", service.getCurrentPosition());
-            result.put("durationMs", service.getDuration());
-            call.resolve(result);
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                try {
+                    JSObject result = new JSObject();
+                    result.put("isPlaying", service.isPlaying());
+                    result.put("positionMs", service.getCurrentPosition());
+                    result.put("durationMs", service.getDuration());
+                    call.resolve(result);
+                } catch (Exception e) {
+                    call.reject("Error getting playback state: " + e.getMessage());
+                }
+            });
         } else {
             call.reject("Service not available");
         }

@@ -1,6 +1,5 @@
 package com.raagax.music;
 
-import android.app.AlertDialog;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
@@ -19,7 +18,6 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(RaagaXCapacitorPlugin.class);
         registerPlugin(RaagaXPermissionsPlugin.class);
         super.onCreate(savedInstanceState);
-        checkAndShowCrash();
     }
 
     private void setupCrashHandler() {
@@ -39,18 +37,5 @@ public class MainActivity extends BridgeActivity {
                 System.exit(2);
             }
         });
-    }
-
-    private void checkAndShowCrash() {
-        SharedPreferences prefs = getSharedPreferences("CrashLog", Context.MODE_PRIVATE);
-        String lastCrash = prefs.getString("last_crash", null);
-        if (lastCrash != null) {
-            prefs.edit().remove("last_crash").apply();
-            new AlertDialog.Builder(this)
-                .setTitle("App Crashed Last Time")
-                .setMessage(lastCrash)
-                .setPositiveButton("OK", null)
-                .show();
-        }
     }
 }
