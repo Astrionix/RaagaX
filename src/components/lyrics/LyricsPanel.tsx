@@ -78,7 +78,7 @@ export function LyricsPanel() {
       return (
         <div className="flex-1 flex flex-col items-center justify-center h-full text-slate-400">
           <p className="font-bold text-lg mb-2">Lyrics unavailable</p>
-          <p className="text-sm">We couldn't find lyrics for this song.</p>
+          <p className="text-sm">We couldn&apos;t find lyrics for this song.</p>
         </div>
       );
     }

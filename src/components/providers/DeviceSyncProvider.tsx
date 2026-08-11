@@ -42,12 +42,7 @@ export function DeviceSyncProvider({ children }: { children: React.ReactNode }) 
       // inbox subscription → session create/join → lease → session subscribe → CommandBus/PSM init
       await ConnectManager.getInstance().init(userId, deviceId);
 
-      DeviceRegistry.getInstance().registerDevice(
-        navigator.userAgent.includes('Mobile') ? 'Mobile Browser' : 'Desktop Browser',
-        'browser',
-        'web',
-        { audio: true, video: true, connect: true }
-      );
+      DeviceRegistry.getInstance().registerDevice();
       
       ClockSynchronizer.getInstance().synchronize();
       LibrarySyncManager.getInstance();

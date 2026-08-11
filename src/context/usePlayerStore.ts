@@ -754,6 +754,22 @@ export const usePlayerStore = create<PlayerState>()(
     }),
     {
       name: 'raagax_player_prefs',
+      version: 2,
+      migrate: (persistedState: any, version: number) => {
+        if (version === 0 || version === 1) {
+          // Migration from legacy schema: ensure arrays and required defaults exist
+          return {
+            ...persistedState,
+            likedSongIds: Array.isArray(persistedState.likedSongIds) ? persistedState.likedSongIds : [],
+            downloadedSongIds: Array.isArray(persistedState.downloadedSongIds) ? persistedState.downloadedSongIds : [],
+            historySongIds: Array.isArray(persistedState.historySongIds) ? persistedState.historySongIds : [],
+            favoriteArtistIds: Array.isArray(persistedState.favoriteArtistIds) ? persistedState.favoriteArtistIds : [],
+            favoriteAlbumIds: Array.isArray(persistedState.favoriteAlbumIds) ? persistedState.favoriteAlbumIds : [],
+            streamingQuality: persistedState.streamingQuality || 'AUTO',
+          };
+        }
+        return persistedState;
+      },
       partialize: (state) => ({
         likedSongIds: state.likedSongIds,
         downloadedSongIds: state.downloadedSongIds,

@@ -1,17 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const ALLOWED_HOSTS = [
+  'saavncdn.com',
+  'jiosaavn.com',
+  'googlevideo.com',
+  'ytimg.com',
+  'cloudfront.net',
+  'unpkg.com'
+];
+
 export async function GET(req: NextRequest) {
-  const url = req.nextUrl.searchParams.get('url');
+  const urlStr = req.nextUrl.searchParams.get('url');
   const filename = req.nextUrl.searchParams.get('name') || 'RaagaX_Track.mp3';
 
-  if (!url) {
+  if (!urlStr) {
     return NextResponse.json({ error: 'Missing audio URL' }, { status: 400 });
   }
 
   try {
-    const audioRes = await fetch(url);
+    const parsedUrl = new URL(urlStr);
+
+    // Enforce HTTPS protocol
+    if (parsedUrl.protocol !== 'https:') {
+      return NextResponse.json({ error: 'Only HTTPS URLs are allowed' }, { status: 400 });
+    }
+
+    // Host allowlist check (SSRF protection)
+    const isAllowedHost = ALLOWED_HOSTS.some((host) => parsedUrl.hostname.endsWith(host));
+    if (!isAllowedHost) {
+      return NextResponse.json({ error: 'Disallowed host domain for download' }, { status: 403 });
+    }
+
+    const audioRes = await fetch(parsedUrl.href);
     if (!audioRes.ok) {
-      return NextResponse.redirect(url);
+      return NextResponse.json({ error: 'Failed to fetch upstream media' }, { status: audioRes.status });
     }
 
     const headers = new Headers(audioRes.headers);
@@ -23,6 +45,6 @@ export async function GET(req: NextRequest) {
       headers,
     });
   } catch (error) {
-    return NextResponse.redirect(url);
+    return NextResponse.json({ error: 'Invalid media URL provided' }, { status: 400 });
   }
 }

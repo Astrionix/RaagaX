@@ -2,18 +2,23 @@ import { supabase } from '@/lib/supabase';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { CommandSequencer } from './CommandSequencer';
 import { PlaybackEngine } from '../playback/PlaybackEngine';
+import { CommandValidator } from './CommandValidator';
 
 export interface PlaybackSnapshot {
   sessionId: string;
   sessionEpoch: number;
+  revision: number;
   sequenceNumber: number;
   stateVersion: number;
   trackId: string;
+  songData?: any;
   status: 'playing' | 'paused' | 'buffering';
   positionMs: number;
   serverTimestamp: number;
   ownerDeviceId: string;
-  ownerInstanceId: string;
+  ownerInstanceId?: string;
+  queue?: any[];
+  queueIndex?: number;
 }
 
 export class SessionReconciler {
@@ -46,15 +51,19 @@ export class SessionReconciler {
 
       return {
         sessionId: data.session_id,
-        sessionEpoch: data.session_epoch,
-        sequenceNumber: data.sequence_number,
-        stateVersion: data.state_version || 1,
-        trackId: data.track_id,
-        status: data.status,
-        positionMs: data.canonical_position_ms,
-        serverTimestamp: data.server_timestamp,
+        sessionEpoch: Number(data.epoch || data.session_epoch || 1),
+        revision: Number(data.revision || 1),
+        sequenceNumber: Number(data.sequence_number || 1),
+        stateVersion: Number(data.state_version || 1),
+        trackId: data.song_id || data.track_id,
+        songData: data.song_data,
+        status: data.is_playing ? 'playing' : (data.status || 'paused'),
+        positionMs: Number(data.position_ms || data.canonical_position_ms || 0),
+        serverTimestamp: new Date(data.updated_at || Date.now()).getTime(),
         ownerDeviceId: data.active_device_id,
-        ownerInstanceId: data.owner_instance_id
+        ownerInstanceId: data.owner_instance_id,
+        queue: data.queue || [],
+        queueIndex: data.queue_index || 0
       };
     } catch (e) {
       console.error('[SessionReconciler] fetch snapshot failed:', e);
@@ -65,76 +74,62 @@ export class SessionReconciler {
   public async applySnapshot(snapshot: PlaybackSnapshot): Promise<void> {
     const store = usePlayerStore.getState();
     const sequencer = CommandSequencer.getInstance();
+    const validator = CommandValidator.getInstance();
     
-    console.log(`[SessionReconciler] Applying snapshot: Epoch ${snapshot.sessionEpoch}, Seq ${snapshot.sequenceNumber}, StateVersion ${snapshot.stateVersion}`);
+    console.log(`[SessionReconciler] Applying snapshot: Epoch ${snapshot.sessionEpoch}, Revision ${snapshot.revision}`);
     
     sequencer.setEpoch(snapshot.sessionEpoch);
-    sequencer.setSequence(snapshot.sequenceNumber);
+    validator.setRevision(snapshot.revision);
     
-    const isOwner = snapshot.ownerDeviceId === store.deviceId && snapshot.ownerInstanceId === store.deviceInstanceId;
+    const isOwner = snapshot.ownerDeviceId === store.deviceId;
     
     if (store.isActiveDevice && !isOwner) {
-      console.warn('[SessionReconciler] Lost lease. Transitioning to controller.');
+      console.warn('[SessionReconciler] Lost lease. Transitioning to remote controller.');
     }
     
     usePlayerStore.setState({ 
       isActiveDevice: isOwner,
-      isPlaying: snapshot.status === 'playing'
+      isPlaying: snapshot.status === 'playing',
+      activeDeviceId: snapshot.ownerDeviceId
     });
 
-    // If we are the owner, we update the local engine
+    // If we are the active renderer device, apply state to PlaybackEngine
     if (isOwner) {
       const engine = PlaybackEngine.getInstance();
       const currentTrack = store.currentSong;
       
-      // Calculate elapsed time if playing
+      // Calculate server time signed drift: target = positionMs + (serverNow - serverTimestamp)
       let expectedPosition = snapshot.positionMs;
       if (snapshot.status === 'playing') {
-        // Very basic server time delta interpolation
         const clock = require('./ClockSynchronizer').ClockSynchronizer.getInstance();
         const now = clock.getEstimatedServerNow();
-        expectedPosition += Math.max(0, now - snapshot.serverTimestamp);
+        const drift = now - snapshot.serverTimestamp;
+        expectedPosition += drift;
       }
       
       if (currentTrack?.id === snapshot.trackId) {
-        await engine.seekCanonical(expectedPosition);
+        await engine.seekCanonical(Math.max(0, expectedPosition));
         if (snapshot.status === 'playing') {
            await engine.play();
         } else {
            await engine.pause();
         }
       } else if (snapshot.trackId) {
-        // Track has changed — find it in queue first, then fall back to Supabase fetch
-        const queue = store.queue;
-        const queueIdx = queue.findIndex(s => s.id === snapshot.trackId);
+        const queue = snapshot.queue && snapshot.queue.length > 0 ? snapshot.queue : store.queue;
+        const queueIdx = queue.findIndex((s: any) => s.id === snapshot.trackId);
         
         if (queueIdx !== -1) {
-          // Track is already in the queue — play that Song object directly
           store.playSong(queue[queueIdx], queue);
-          // Seek after a short delay to let the player load
           setTimeout(() => {
-            engine.seekCanonical(expectedPosition);
+            engine.seekCanonical(Math.max(0, expectedPosition));
             if (snapshot.status === 'playing') engine.play();
-          }, 800);
-        } else {
-          // Track is not in queue — fetch from Supabase canonical_songs
-          try {
-            const { data } = await supabase
-              .from('canonical_songs')
-              .select('*')
-              .eq('id', snapshot.trackId)
-              .single();
-              
-            if (data) {
-              store.playSong(data, [data]);
-              setTimeout(() => {
-                engine.seekCanonical(expectedPosition);
-                if (snapshot.status === 'playing') engine.play();
-              }, 800);
-            }
-          } catch (e) {
-            console.error('[SessionReconciler] Could not fetch track for snapshot recovery:', e);
-          }
+          }, 600);
+        } else if (snapshot.songData) {
+          store.playSong(snapshot.songData, [snapshot.songData]);
+          setTimeout(() => {
+            engine.seekCanonical(Math.max(0, expectedPosition));
+            if (snapshot.status === 'playing') engine.play();
+          }, 600);
         }
       }
     }

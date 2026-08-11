@@ -1,24 +1,41 @@
-import { Renderer } from '@/types/music';
+import { Renderer, Song } from '@/types/music';
 
 export interface UnifiedPlaybackSession {
   sessionId: string;
+  userId?: string;
   trackId: string;
+  songData?: Song;
 
   canonicalPositionMs: number;
   durationMs: number;
 
-  status: 'playing' | 'paused' | 'buffering' | 'transitioning' | 'ended';
+  status: 'idle' | 'loading' | 'ready' | 'playing' | 'paused' | 'buffering' | 'transitioning' | 'ended';
 
-  renderer: Renderer;
+  activeDeviceId: string;
+  activeRenderer: Renderer;
 
   playbackRate: number;
   volume: number;
   muted: boolean;
 
   epoch: number;
-  sequence: number;
+  revision: number;
+  leaseId: string | null;
+  leaseExpiresAt?: string | null;
 
   updatedAt: number;
+  serverTimestamp: number;
+
+  queue: Song[];
+  queueIndex: number;
+  shuffle: boolean;
+  repeatMode: 'off' | 'all' | 'one';
+
+  contextData?: {
+    type?: string;
+    seedId?: string;
+    title?: string;
+  };
 
   source: {
     audioUrl?: string;
@@ -44,6 +61,7 @@ export class SessionManager {
     trackId: string,
     durationMs: number,
     source: UnifiedPlaybackSession['source'],
+    activeDeviceId: string,
     initialRenderer: Renderer = 'audio'
   ): UnifiedPlaybackSession {
     this.currentSession = {
@@ -52,13 +70,20 @@ export class SessionManager {
       canonicalPositionMs: 0,
       durationMs,
       status: 'paused',
-      renderer: initialRenderer,
+      activeDeviceId,
+      activeRenderer: initialRenderer,
       playbackRate: 1.0,
       volume: 1.0,
       muted: false,
       epoch: 1,
-      sequence: 1,
+      revision: 1,
+      leaseId: null,
       updatedAt: Date.now(),
+      serverTimestamp: Date.now(),
+      queue: [],
+      queueIndex: 0,
+      shuffle: false,
+      repeatMode: 'off',
       source,
     };
     return this.currentSession;
@@ -74,7 +99,7 @@ export class SessionManager {
     this.currentSession = {
       ...this.currentSession,
       ...updates,
-      sequence: this.currentSession.sequence + 1,
+      revision: (this.currentSession.revision || 0) + 1,
       updatedAt: Date.now(),
     };
 
@@ -83,7 +108,7 @@ export class SessionManager {
 
   public setRenderer(renderer: Renderer): void {
     if (this.currentSession) {
-      this.updateSession({ renderer });
+      this.updateSession({ activeRenderer: renderer });
     }
   }
 
