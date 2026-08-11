@@ -42,6 +42,7 @@ public class RaagaXPlaybackService extends Service {
     public static RaagaXPlaybackService getInstance() { return instance; }
 
     private ExoPlayer player;
+    private androidx.media3.session.MediaSession mediaSession;
     private String    currentTitle  = "RaagaX";
     private String    currentArtist = "";
 
@@ -63,6 +64,12 @@ public class RaagaXPlaybackService extends Service {
                 .setHandleAudioBecomingNoisy(true)
                 .setWakeMode(C.WAKE_MODE_NETWORK)
                 .build();
+
+        try {
+            mediaSession = new androidx.media3.session.MediaSession.Builder(this, player).build();
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to create MediaSession: " + e.getMessage());
+        }
 
         player.addListener(new Player.Listener() {
             @Override
@@ -121,6 +128,25 @@ public class RaagaXPlaybackService extends Service {
                 String title = intent.getStringExtra("title");
                 String artist = intent.getStringExtra("artist");
                 if (url != null) setNextTrack(url, title, artist);
+            } else if ("TOGGLE_PLAY".equals(action)) {
+                runOnMainThread(() -> {
+                    if (player != null) {
+                        if (player.isPlaying()) player.pause();
+                        else player.play();
+                    }
+                });
+            } else if ("PREV".equals(action)) {
+                runOnMainThread(() -> {
+                    if (player != null && player.hasPreviousMediaItem()) {
+                        player.seekToPreviousMediaItem();
+                    }
+                });
+            } else if ("NEXT".equals(action)) {
+                runOnMainThread(() -> {
+                    if (player != null && player.hasNextMediaItem()) {
+                        player.seekToNextMediaItem();
+                    }
+                });
             } else if ("PAUSE".equals(action)) {
                 pause();
             } else if ("RESUME".equals(action)) {
@@ -138,6 +164,7 @@ public class RaagaXPlaybackService extends Service {
     @Override
     public void onDestroy() {
         instance = null;
+        if (mediaSession != null) { mediaSession.release(); mediaSession = null; }
         if (player != null) { player.release(); player = null; }
         super.onDestroy();
     }
@@ -304,14 +331,31 @@ public class RaagaXPlaybackService extends Service {
         PendingIntent pi = PendingIntent.getActivity(this, 0, launchIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
+        Intent prevIntent = new Intent(this, RaagaXPlaybackService.class).setAction("PREV");
+        PendingIntent prevPending = PendingIntent.getService(this, 1, prevIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        Intent playPauseIntent = new Intent(this, RaagaXPlaybackService.class).setAction("TOGGLE_PLAY");
+        PendingIntent playPausePending = PendingIntent.getService(this, 2, playPauseIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        Intent nextIntent = new Intent(this, RaagaXPlaybackService.class).setAction("NEXT");
+        PendingIntent nextPending = PendingIntent.getService(this, 3, nextIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        boolean isPlaying = player != null && player.isPlaying();
+        int playPauseIcon = isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play;
+
         return new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_media_play)
+                .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle(currentTitle)
                 .setContentText(currentArtist)
                 .setContentIntent(pi)
                 .setOngoing(true)
                 .setSilent(true)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .addAction(android.R.drawable.ic_media_previous, "Previous", prevPending)
+                .addAction(playPauseIcon, isPlaying ? "Pause" : "Play", playPausePending)
+                .addAction(android.R.drawable.ic_media_next, "Next", nextPending)
+                .setStyle(new androidx.media.app.NotificationCompat.MediaStyle()
+                        .setShowActionsInCompactView(0, 1, 2))
                 .build();
     }
 
