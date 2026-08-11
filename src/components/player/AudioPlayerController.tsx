@@ -181,7 +181,7 @@ export function AudioPlayerController() {
             url: currentSong.audioUrl,
             title: currentSong.title ?? 'Unknown Title',
             artist: currentSong.artist ?? 'Unknown Artist',
-            artworkUrl: currentSong.coverArt ?? currentSong.thumbnail ?? '',
+            artworkUrl: currentSong.coverUrl ?? '',
           });
         }
       } else {
