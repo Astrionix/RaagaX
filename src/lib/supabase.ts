@@ -21,7 +21,7 @@ function createStubClient(): SupabaseClient {
           get(_t2, p2) {
             return async () => {
               console.warn(`[Supabase] Auth.${String(p2)} called but Supabase is not configured.`);
-              return { data: null, error: { message: 'Supabase not configured' } };
+              return { data: { session: null, user: null }, error: { message: 'Supabase not configured' } };
             };
           }
         });
@@ -30,6 +30,7 @@ function createStubClient(): SupabaseClient {
         const stub = {
           select: () => stub, insert: () => stub, update: () => stub,
           upsert: () => stub, delete: () => stub, eq: () => stub,
+          on: () => stub, subscribe: (cb?: any) => { if (typeof cb === 'function') cb('SUBSCRIBED'); return stub; },
           single: async () => ({ data: null, error: { message: 'Supabase not configured' } }),
           then: (resolve: any) => resolve({ data: null, error: { message: 'Supabase not configured' } }),
           order: () => stub, limit: () => stub, match: () => stub,

@@ -44,6 +44,10 @@ export class ConnectManager {
     
     this.transitionState('CONNECTING');
     
+    // 0. Register device identity and subscribe to real-time presence changes
+    await DeviceRegistry.getInstance().registerDevice();
+    await DeviceRegistry.getInstance().subscribeToUserDevices(userId);
+
     // 1. Subscribe to this device's persistent inbox (always, even as follower)
     this.subscribeInbox();
     

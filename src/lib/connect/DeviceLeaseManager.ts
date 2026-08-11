@@ -22,7 +22,8 @@ export class DeviceLeaseManager {
     const store = usePlayerStore.getState();
     const deviceId = store.deviceId;
     const instanceId = store.deviceInstanceId;
-    const { data: { session } } = await supabase.auth.getSession();
+    const authRes = await supabase.auth.getSession();
+    const session = authRes?.data?.session;
     if (!session?.user) return false;
 
     const leaseToken = crypto.randomUUID();
