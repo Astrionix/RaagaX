@@ -80,6 +80,10 @@ export class AutoPlayEngine {
     
     // Track seen keys in this batch and from history/buffer
     const seenKeys = new Set<string>();
+    const recentArtists = new Set<string>(seedItems.slice(-3).map(s => s.song.artist).filter(Boolean));
+    const recentAlbums = new Set<string>(seedItems.slice(-3).map(s => s.song.album).filter(Boolean));
+
+    const seedSong = seedItems[seedItems.length - 1]?.song;
 
     for (const song of candidates) {
       // 1. Strict Validation
@@ -88,28 +92,56 @@ export class AutoPlayEngine {
         continue;
       }
 
-      // 2. Strict Deduplication
+      // 2. Strict Deduplication by trackId and dedupKey
       const dedupKey = QueueValidator.getDeduplicationKey(song);
       if (seenKeys.has(dedupKey) || history.wasRecentlyPlayed(song.id)) {
         continue;
       }
       seenKeys.add(dedupKey);
 
-      // Score logic can be improved, but candidate generator already ordered them logically.
-      // We just push them as queue items.
+      // 3. Soft Artist and Album Spacing Penalty
+      let score = 1.0;
+      let reasonType: import('./types').SmartQueueReasonType = 'DISCOVERY';
+
+      if (seedSong && song.artist && song.artist === seedSong.artist) {
+        reasonType = 'SAME_ARTIST';
+        score += 0.4;
+      } else if (seedSong && song.album && song.album === seedSong.album) {
+        reasonType = 'SAME_ALBUM';
+        score += 0.3;
+      } else if (seedSong && (song as any).language && (song as any).language === (seedSong as any).language) {
+        reasonType = 'LANGUAGE_MATCH';
+        score += 0.2;
+      }
+
+      // Apply penalty if same artist appeared in recent 3 items
+      if (song.artist && recentArtists.has(song.artist)) {
+        score -= 0.3;
+      }
+      if (song.album && recentAlbums.has(song.album)) {
+        score -= 0.2;
+      }
+
       ranked.push({
         item: {
           queueItemId: crypto.randomUUID(),
           trackId: song.id,
           song: song,
           source: 'AUTOPLAY',
+          smartQueueReason: {
+            type: reasonType,
+            score: Math.round(score * 100) / 100,
+          },
           addedAt: Date.now(),
           playable: true,
-          offlineAvailable: false // This will be resolved later
+          offlineAvailable: false
         },
-        score: 1.0 // If we wanted further client ranking, we could adjust this
+        score
       });
     }
+
+    // Sort candidates by calculated score descending
+    ranked.sort((a, b) => b.score - a.score);
     
     return ranked.map(r => r.item);
   }

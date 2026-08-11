@@ -12,6 +12,19 @@ export type QueueSource =
   | 'AUTOPLAY'
   | 'OFFLINE';
 
+export type SmartQueueReasonType =
+  | 'SAME_ALBUM'
+  | 'SAME_ARTIST'
+  | 'SIMILAR_GENRE'
+  | 'USER_AFFINITY'
+  | 'LANGUAGE_MATCH'
+  | 'DISCOVERY';
+
+export interface SmartQueueReason {
+  type: SmartQueueReasonType;
+  score: number;
+}
+
 export interface QueueItem {
   queueItemId: string; // Unique ID for this specific position in the queue
   trackId: string;
@@ -24,6 +37,8 @@ export interface QueueItem {
 
   source: QueueSource;
   sourceId?: string;
+
+  smartQueueReason?: SmartQueueReason;
 
   addedAt: number;
 

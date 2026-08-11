@@ -20,6 +20,7 @@ export class SmartQueue {
   public async evaluateRefill(engine: QueueEngine) {
     if (this.isGenerating) return;
     if (!engine.isAutoplayEnabled()) return;
+    if (engine.getRepeatMode() !== 'OFF') return;
 
     const remaining = engine.getRemainingCount();
     
