@@ -11,6 +11,7 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { DeviceSelector } from '@/components/providers/DeviceSyncProvider';
 import { AudioSettingsDrawer } from './AudioSettingsDrawer';
 import { MediaHandoffManager } from '@/lib/playback/MediaHandoffManager';
+import { SeekBar } from './SeekBar';
 
 export function ExpandedPlayerModal() {
   const {
@@ -56,6 +57,24 @@ export function ExpandedPlayerModal() {
   const [videoStartSeconds, setVideoStartSeconds] = useState<number>(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [visualTime, setVisualTime] = useState(0);
+  const [isSeeking, setIsSeeking] = useState(false);
+
+  useEffect(() => {
+    if (!isPlayerExpanded || isSeeking) return;
+    let frame: number;
+    const tick = () => {
+      const engine = require('@/lib/playback/PlaybackEngine').PlaybackEngine.getInstance();
+      if (engine.isPlayingLocally()) {
+        setVisualTime(engine.getCanonicalPositionMs() / 1000);
+      } else {
+        setVisualTime(currentTime);
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [isPlayerExpanded, isSeeking, currentTime]);
 
   useEffect(() => {
     if (!isMenuOpen) return;
@@ -435,17 +454,13 @@ export function ExpandedPlayerModal() {
 
         {/* Timeline Seekbar - Spotify Inspired */}
         <div className="max-w-4xl mx-auto w-full space-y-1 sm:space-y-2 px-1 sm:px-2">
-          <input
-            type="range"
-            min={0}
-            max={duration || 100}
-            step={0.1}
-            value={currentTime}
-            onChange={handleSeek}
-            className="w-full h-1 sm:h-1.5 bg-white/20 rounded-full appearance-none cursor-pointer accent-white hover:accent-[#1ed760] hover:h-1.5 sm:hover:h-2 transition-all"
+          <SeekBar 
+            height="h-1 sm:h-1.5"
+            thumbSize="w-3 h-3"
+            activeColor="bg-white group-hover:bg-[#1ed760]"
           />
           <div className="flex items-center justify-between text-[10px] sm:text-xs font-mono text-white/60 font-semibold px-0.5">
-            <span>{formatTime(currentTime)}</span>
+            <span>{formatTime(visualTime)}</span>
             <span>{formatTime(duration)}</span>
           </div>
         </div>

@@ -10,7 +10,7 @@ export class PlaybackStateMachine {
   public canTransitionTo(newState: PlaybackState): boolean {
     switch (this.currentState) {
       case 'IDLE':
-        return ['LOADING', 'ERROR', 'TRANSITIONING'].includes(newState);
+        return ['LOADING', 'READY', 'PLAYING', 'ERROR', 'TRANSITIONING'].includes(newState);
       case 'LOADING':
         return ['READY', 'ERROR', 'IDLE', 'PLAYING', 'TRANSITIONING'].includes(newState);
       case 'READY':
@@ -35,6 +35,7 @@ export class PlaybackStateMachine {
   }
 
   public transitionTo(newState: PlaybackState): boolean {
+    if (this.currentState === newState) return true;
     if (this.canTransitionTo(newState)) {
       this.currentState = newState;
       return true;

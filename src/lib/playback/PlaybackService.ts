@@ -59,23 +59,40 @@ export class PlaybackService {
     return this.activeTag === 'A' ? this.audioB : this.audioA;
   }
 
+  private attachedListenersMap = new Map<HTMLAudioElement, Array<{ event: string; fn: EventListener }>>();
+
   private attachListeners() {
     [this.audioA, this.audioB].forEach((audio, idx) => {
       if (!audio) return;
       const tag = idx === 0 ? 'A' : 'B';
+      const listenerList: Array<{ event: string; fn: EventListener }> = [];
 
-      audio.addEventListener('ended', () => this.handleNativeEnded(tag));
-      audio.addEventListener('timeupdate', () => this.handleNativeTimeUpdate(tag));
-      audio.addEventListener('error', (e) => this.handleNativeError(tag, e));
+      const add = (event: string, fn: EventListener) => {
+        audio.addEventListener(event, fn);
+        listenerList.push({ event, fn });
+      };
+
+      add('ended', () => this.handleNativeEnded(tag));
+      add('timeupdate', () => this.handleNativeTimeUpdate(tag));
+      add('loadedmetadata', () => this.handleNativeMetadata(tag));
+      add('durationchange', () => this.handleNativeMetadata(tag));
+      add('play', () => this.handleNativePlayState(tag, true));
+      add('playing', () => this.handleNativePlayState(tag, true));
+      add('pause', () => this.handleNativePlayState(tag, false));
+      add('error', (e) => this.handleNativeError(tag, e));
+
+      this.attachedListenersMap.set(audio, listenerList);
     });
   }
 
   private detachListeners() {
     [this.audioA, this.audioB].forEach((audio) => {
       if (!audio) return;
-      audio.onended = null;
-      audio.ontimeupdate = null;
-      audio.onerror = null;
+      const list = this.attachedListenersMap.get(audio);
+      if (list) {
+        list.forEach(({ event, fn }) => audio.removeEventListener(event, fn));
+        this.attachedListenersMap.delete(audio);
+      }
     });
   }
 
@@ -280,6 +297,25 @@ export class PlaybackService {
     }
   }
 
+  private handleNativeMetadata(tag: 'A' | 'B') {
+    if (tag !== this.activeTag) return;
+    const active = this.getActiveAudio();
+    if (!active) return;
+
+    const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+    if (!isNaN(active.duration) && Number.isFinite(active.duration) && active.duration > 0) {
+      store.setDuration(active.duration);
+    }
+  }
+
+  private handleNativePlayState(tag: 'A' | 'B', isPlaying: boolean) {
+    if (tag !== this.activeTag) return;
+    const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+    if (store.isActiveDevice && store.isPlaying !== isPlaying) {
+      store.setIsPlaying(isPlaying, true);
+    }
+  }
+
   private handleNativeEnded(tag: 'A' | 'B') {
     if (tag !== this.activeTag) return;
 
@@ -298,6 +334,20 @@ export class PlaybackService {
 
     const store = require('@/context/usePlayerStore').usePlayerStore.getState();
     if (!store.isActiveDevice) return;
+
+    // Anchor PlaybackEngine clock for smooth 60fps rAF predictions
+    PlaybackEngine.getInstance().anchor();
+
+    // Project currentTime and duration to Zustand store
+    const curTime = active.currentTime;
+    const dur = active.duration;
+
+    if (Math.abs(store.currentTime - curTime) > 0.3) {
+      store.setCurrentTime(curTime, true);
+    }
+    if (!isNaN(dur) && Number.isFinite(dur) && dur > 0 && store.duration !== dur) {
+      store.setDuration(dur);
+    }
 
     // Boundary check for Crossfade / Gapless
     TransitionManager.getInstance().checkBoundary(active, standby, () => {

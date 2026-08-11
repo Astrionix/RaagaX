@@ -23,11 +23,26 @@ export function SeekBar({
   const [localProgress, setLocalProgress] = useState(0); // 0 to 1
   const [hoverProgress, setHoverProgress] = useState<number | null>(null);
 
-  // Sync with global time when not seeking
+  // 60 FPS ultra-smooth local progress prediction driven by PlaybackEngine
   useEffect(() => {
-    if (!isSeeking && duration > 0) {
-      setLocalProgress(currentTime / duration);
-    }
+    let animFrame: number;
+
+    const tick = () => {
+      if (!isSeeking && duration > 0) {
+        const engine = require('@/lib/playback/PlaybackEngine').PlaybackEngine.getInstance();
+        if (engine.isPlayingLocally()) {
+          const liveSec = engine.getCanonicalPositionMs() / 1000;
+          setLocalProgress(Math.min(1, Math.max(0, liveSec / duration)));
+        } else {
+          setLocalProgress(Math.min(1, Math.max(0, currentTime / duration)));
+        }
+      }
+      animFrame = requestAnimationFrame(tick);
+    };
+
+    animFrame = requestAnimationFrame(tick);
+
+    return () => cancelAnimationFrame(animFrame);
   }, [currentTime, duration, isSeeking]);
 
   const calculateProgressFromEvent = (e: React.PointerEvent) => {

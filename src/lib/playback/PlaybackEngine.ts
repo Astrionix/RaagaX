@@ -44,7 +44,12 @@ export class PlaybackEngine implements PlaybackClock {
 
   public attachMediaElement(element: HTMLMediaElement) {
     this.activeMediaElement = element;
-    (this.stateMachine as any).currentState = 'PLAYING';
+    const isPlaying = !element.paused && !element.ended && (element.readyState === undefined || element.readyState >= 2);
+    if (isPlaying) {
+      this.stateMachine.transitionTo('PLAYING');
+    } else {
+      this.stateMachine.transitionTo('READY');
+    }
     this.anchor();
   }
 
