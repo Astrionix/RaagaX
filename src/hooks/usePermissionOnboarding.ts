@@ -80,7 +80,6 @@ export function usePermissionOnboarding(): OnboardingState {
     // Record that user chose not to grant — never ask again
     const store = RaagaXPermissions.getStoredState();
     store.notification = 'denied';
-    // @ts-expect-error — accessing internal save directly
     localStorage.setItem('raagax_permission_state', JSON.stringify(store));
     RaagaXPermissions.markSetupCompleted();
     setPermissions(RaagaXPermissions.getStoredState());
