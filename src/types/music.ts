@@ -135,58 +135,55 @@ export interface Device {
   volume: number;
 }
 
+export type Renderer = 'audio' | 'video' | 'remote';
+
 export interface PlaybackSession {
   sessionId: string;
   activeDeviceId: string | null;
-  activeRenderer?: 'audio' | 'video'; // Added for unified engine
-  status?: 'playing' | 'paused' | 'buffering' | 'transitioning'; // Added for unified engine
+  activeRenderer: Renderer;
+  status: 'playing' | 'paused' | 'buffering' | 'transitioning';
   songData: Song | null;
   positionMs: number;
-  durationMs?: number; // Added for unified engine
-  isPlaying: boolean; // Legacy: prefer status
+  durationMs: number;
   queue: Song[];
   queueIndex: number;
   shuffle: boolean;
   repeatMode: RepeatMode;
-  stateVersion: number; // deprecated: use sessionRevision
-  sessionRevision?: number; // The new authoritative revision tracker
-  serverTimestamp?: number; 
+  sessionEpoch: number;
+  sequenceNumber: number;
+  serverTimestamp: number;
+  leaseId?: string;
+  leaseExpiresAt?: string;
   updatedAt: string;
 }
 
-export interface PlaybackEvent {
-  eventId: string;
-  sessionId: string;
-  deviceId: string;
-  sequence: number;
-  type: 
-    | "PLAY"
-    | "PAUSE"
-    | "SEEK"
-    | "NEXT"
-    | "PREV"
-    | "TRANSFER"
-    | "TRACK_CHANGE"
-    | "HANDOFF"
-    | "VOLUME"
-    | "REPEAT"
-    | "SHUFFLE"
-    | "QUEUE_ADD"
-    | "QUEUE_REMOVE";
-  
-  trackId?: string;
-  positionMs?: number;
-  serverTimestamp: number;
-  renderer?: "audio" | "video";
-  status?: "playing" | "paused" | "buffering" | "transitioning";
-  revision: number;
+export type PlaybackEventType =
+  | "PLAY"
+  | "PAUSE"
+  | "SEEK"
+  | "NEXT"
+  | "PREV"
+  | "TRACK_CHANGE"
+  | "TRANSFER_REQUEST"
+  | "TRANSFER_ACCEPT"
+  | "HANDOFF_PREPARE"
+  | "HANDOFF_READY"
+  | "HANDOFF_COMMIT"
+  | "QUEUE_UPDATE"
+  | "VOLUME"
+  | "REPEAT"
+  | "SHUFFLE";
 
-  // Additional context depending on event type
-  volumePercent?: number;
-  shuffleEnabled?: boolean;
-  repeatMode?: RepeatMode;
-  queueSong?: Song;
-  queueSongId?: string;
-  transferToDeviceId?: string;
-  transferToDeviceName?: string;
+export interface PlaybackCommand {
+  commandId: string;
+  sessionId: string;
+  sessionEpoch: number;
+  sequenceNumber: number;
+  senderDeviceId: string;
+  event: PlaybackEventType;
+  positionMs: number;
+  serverTimestamp: number;
+  renderer: Renderer;
+  trackId?: string;
+  payload?: any;
 }

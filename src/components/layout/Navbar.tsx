@@ -21,10 +21,11 @@ import {
   Maximize2,
   MonitorSmartphone,
   User,
-  LogIn
+  LogIn,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
+import { DeviceSelector } from '@/components/providers/DeviceSyncProvider';
 
 function formatTime(seconds: number): string {
   if (isNaN(seconds)) return '0:00';
@@ -215,13 +216,7 @@ export function Navbar() {
 
         {/* Right Tools Bar */}
         <div className="flex items-center gap-2 w-72 justify-end">
-          <button
-            onClick={() => setRightPanelMode(rightPanelMode === 'devices' ? 'queue' : 'devices')}
-            className={`p-2 rounded-xl transition-colors ${rightPanelMode === 'devices' ? 'text-[#fa233b] bg-[#fa233b]/10' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
-            title="Connect to a device"
-          >
-            <MonitorSmartphone className="w-4 h-4" />
-          </button>
+          <DeviceSelector variant="icon" align="right" />
 
           <div className="flex items-center gap-2">
             <button onClick={toggleMute} className="p-1.5 text-slate-400 hover:text-white">

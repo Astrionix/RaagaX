@@ -110,7 +110,9 @@ export function AudioPlayerController() {
     const audio = getActiveAudio();
     if (!audio) return;
 
-    if (activeRenderer !== 'audio' || !isActiveDevice) {
+    const shouldRenderAudio = activeRenderer === 'audio' && isActiveDevice;
+
+    if (!shouldRenderAudio) {
       audioRefA.current?.pause();
       audioRefB.current?.pause();
     } else {
@@ -287,6 +289,8 @@ export function AudioPlayerController() {
     return () => clearInterval(interval);
   }, [isActiveDevice, isPlaying]);
 
+  const lastZustandUpdateTimeRef = useRef(0);
+
   const handleTimeUpdate = (e: React.SyntheticEvent<HTMLAudioElement>) => {
     if (!isActiveDevice) return;
     const audio = e.currentTarget;
@@ -294,7 +298,11 @@ export function AudioPlayerController() {
     // Only dispatch time updates if this is the active player
     const isActive = audio === getActiveAudio();
     if (isActive) {
-      setCurrentTime(audio.currentTime);
+      const now = Date.now();
+      if (now - lastZustandUpdateTimeRef.current > 500) {
+        setCurrentTime(audio.currentTime);
+        lastZustandUpdateTimeRef.current = now;
+      }
 
       // Trigger early next track for crossfade
       if (crossfadeSec > 0 && audio.duration > 0 && queue.length > 0) {

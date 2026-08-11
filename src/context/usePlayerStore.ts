@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Song, RepeatMode, AIDJState, ActiveTab } from '@/types/music';
+import { Song, RepeatMode, AIDJState, ActiveTab, Renderer } from '@/types/music';
 import { RecommendationEngine } from '@/lib/recommendationEngine';
 import { LocalDatabase } from '@/lib/localDatabase';
 
@@ -64,8 +64,8 @@ interface PlayerState {
   // Cross-Device Sync State
   deviceId: string;
   activeDeviceId: string | null;
-  activeRenderer: 'audio' | 'video'; // Added for unified engine
-  playbackStatus: 'playing' | 'paused' | 'buffering' | 'transitioning'; // Added for unified engine
+  activeRenderer: Renderer;
+  playbackStatus: 'playing' | 'paused' | 'buffering' | 'transitioning';
   isActiveDevice: boolean;
   remoteDeviceName: string | null;
   lastSyncDbTime: string | null;
@@ -74,7 +74,7 @@ interface PlayerState {
   onlineDevices: { id: string; name: string }[];
   setOnlineDevices: (devices: { id: string; name: string }[]) => void;
   setRemoteState: (state: Partial<PlayerState>) => void;
-  setRenderer: (renderer: 'audio' | 'video') => void;
+  setRenderer: (renderer: Renderer) => void;
   transferPlayback: (targetDeviceId: string) => void;
 
   rightPanelMode: 'queue' | 'devices';
@@ -250,7 +250,7 @@ export const usePlayerStore = create<PlayerState>()(
 
     import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
       const syncManager = DeviceSyncManager.getInstance();
-      syncManager.dispatchCommand('TRANSFER', { transferToDeviceId: targetDeviceId, positionMs: currentTime * 1000 });
+      syncManager.dispatchCommand('TRANSFER_REQUEST', currentTime * 1000, { transferToDeviceId: targetDeviceId });
     });
   },
 
@@ -381,7 +381,7 @@ export const usePlayerStore = create<PlayerState>()(
     
     if (!fromRemote) {
       import('@/lib/sync/DeviceSyncManager').then(({ DeviceSyncManager }) => {
-        DeviceSyncManager.getInstance().dispatchCommand('SEEK', { positionMs: time * 1000 });
+        DeviceSyncManager.getInstance().dispatchCommand('SEEK', time * 1000);
       });
     }
 
