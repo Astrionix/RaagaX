@@ -191,7 +191,7 @@ export class ConnectManager {
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
          this.transitionState('CONNECTED');
-         this.transitionState('RECOVERING');
+         this.initiateRecovery();
       } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
          console.warn('[ConnectManager] Session channel disconnected, scheduling resync...');
          this.sessionChannel = null;
@@ -206,11 +206,6 @@ export class ConnectManager {
     if (this.currentState === 'RECOVERING' || this.currentState === 'CONNECTING') {
       console.log('[ConnectManager] Queuing command during recovery state:', command.type);
       this.recoveryQueue.push(command);
-      return;
-    }
-
-    if (this.currentState !== 'READY') {
-      console.log(`[ConnectManager] Discarding command ${command.type} due to state ${this.currentState}`);
       return;
     }
 
@@ -258,7 +253,7 @@ export class ConnectManager {
       return;
     }
     
-    if (this.currentState !== 'READY') {
+    if (this.currentState === 'OFFLINE') {
       console.warn(`[ConnectManager] Cannot dispatch ${type} command while in state: ${this.currentState}`);
       return;
     }

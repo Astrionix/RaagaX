@@ -86,10 +86,16 @@ export class SessionReconciler {
     // Calculate server time signed drift: expected = positionMs + (serverNow - serverTimestamp)
     let expectedPositionMs = snapshot.positionMs;
     if (snapshot.status === 'playing') {
-      const clock = require('./ClockSynchronizer').ClockSynchronizer.getInstance();
-      const now = clock.getEstimatedServerNow();
-      const signedDrift = now - snapshot.serverTimestamp;
-      expectedPositionMs += signedDrift;
+      try {
+        const { ClockSynchronizer } = await import('./ClockSynchronizer');
+        const now = ClockSynchronizer.getInstance().getEstimatedServerNow();
+        const signedDrift = now - snapshot.serverTimestamp;
+        if (signedDrift > 0 && signedDrift < 30000) {
+          expectedPositionMs += signedDrift;
+        }
+      } catch (err) {
+        // Fallback to positionMs if ClockSynchronizer not initialized
+      }
     }
     const derivedTimeSec = Math.max(0, expectedPositionMs / 1000);
 
@@ -120,24 +126,28 @@ export class SessionReconciler {
       const currentTrack = store.currentSong;
       
       if (currentTrack?.id === snapshot.trackId) {
-        await engine.seekCanonical(Math.max(0, expectedPositionMs));
+        engine.seekCanonical(Math.max(0, expectedPositionMs));
         if (snapshot.status === 'playing') {
-           await engine.play();
+          await engine.play();
         } else {
-           await engine.pause();
+          engine.pause();
         }
       } else if (snapshot.trackId) {
         if (targetSong) {
-          store.playSong(targetSong, snapshot.queue || store.queue);
-          setTimeout(() => {
-            engine.seekCanonical(Math.max(0, expectedPositionMs));
-            if (snapshot.status === 'playing') engine.play();
-          }, 500);
+          // Immediately set store state and seek prior to playing to avoid 500ms 0:00 audio stutter
+          usePlayerStore.setState({ currentSong: targetSong, isPlaying: snapshot.status === 'playing' });
+          engine.seekCanonical(Math.max(0, expectedPositionMs));
+          if (snapshot.status === 'playing') {
+            await engine.play();
+          } else {
+            engine.pause();
+          }
         }
       }
     } else {
-      // FOLLOWER DEVICE: Ensure local engine is muted/paused so it acts purely as controller
-      PlaybackEngine.getInstance().pause();
+      // FOLLOWER DEVICE: Ensure local engine is completely paused and silent so it acts purely as controller
+      const engine = PlaybackEngine.getInstance();
+      engine.pause();
     }
   }
 }
