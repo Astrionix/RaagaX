@@ -4,9 +4,18 @@ import { PlaybackSourceResolver } from '@/lib/playbackSourceResolver';
 
 export type PreloadStatus = 'IDLE' | 'LOADING' | 'READY' | 'FAILED';
 
+export interface PreloadToken {
+  queueItemId: string | null;
+  trackId: string | null;
+  sourceUrl: string | null;
+  state: PreloadStatus;
+}
+
 export class PreloadManager {
   private static instance: PreloadManager;
   private currentPreloadId: string | null = null;
+  private currentQueueItemId: string | null = null;
+  private currentSourceUrl: string | null = null;
   private status: PreloadStatus = 'IDLE';
 
   private constructor() {}
@@ -24,6 +33,15 @@ export class PreloadManager {
 
   public getPreloadedTrackId(): string | null {
     return this.status === 'READY' ? this.currentPreloadId : null;
+  }
+
+  public getPreloadToken(): PreloadToken {
+    return {
+      queueItemId: this.currentQueueItemId,
+      trackId: this.currentPreloadId,
+      sourceUrl: this.currentSourceUrl,
+      state: this.status,
+    };
   }
 
   public async preloadTrack(song: import('@/types/music').Song, standbyElement: HTMLAudioElement, force: boolean = false) {
@@ -47,6 +65,8 @@ export class PreloadManager {
         this.status = 'FAILED';
         return;
       }
+
+      this.currentSourceUrl = finalSrc;
 
       if (standbyElement.src !== finalSrc) {
         standbyElement.src = finalSrc;
@@ -79,6 +99,8 @@ export class PreloadManager {
     const nextItem = QueueManager.getInstance().peekNext();
     if (!nextItem || !nextItem.song) return;
 
+    this.currentQueueItemId = nextItem.queueItemId;
+
     if (
       this.status === 'LOADING' ||
       (this.status === 'READY' && this.currentPreloadId === nextItem.song.id && standbyElement && standbyElement.src)
@@ -93,5 +115,7 @@ export class PreloadManager {
   public reset() {
     this.status = 'IDLE';
     this.currentPreloadId = null;
+    this.currentQueueItemId = null;
+    this.currentSourceUrl = null;
   }
 }
