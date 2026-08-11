@@ -236,8 +236,9 @@ export class PlaybackService {
           this.triggerNextPreload();
           return true;
         } catch (retryErr) {
-          console.error('[PlaybackService] Play retry failed:', retryErr);
-          store.setIsPlaying(false);
+          console.error('[PlaybackService] Play retry failed for song:', song.title, retryErr);
+          // Skip broken/unplayable track and continue queue playback
+          this.playNextTrack();
           return false;
         }
       }
