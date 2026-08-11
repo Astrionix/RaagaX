@@ -2,12 +2,16 @@
   "name": "raagax",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=20.11.0"
+  },
   "description": "RaagaX - Futuristic Music Streaming Platform & High Performance Music API Engine",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "apk:sync": "npx cap copy android && npx cap sync android",
     "apk:open": "npx cap open android"
@@ -49,6 +53,6 @@
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.11",
     "typescript": "^5.8.2",
-    "vitest": "^3.0.9"
+    "vitest": "2.1.9"
   }
 }
