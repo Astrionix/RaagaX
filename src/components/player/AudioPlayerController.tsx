@@ -3,7 +3,8 @@
 import React, { useEffect, useRef } from 'react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { Song } from '@/types/music';
-
+import { RendererManager } from '@/lib/playback/RendererManager';
+import { PlaybackEngine } from '@/lib/playback/PlaybackEngine';
 const FALLBACK_AUDIO_URL = 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
 const QUEUE_REFILL_THRESHOLD = 3;
 
@@ -62,6 +63,21 @@ export function AudioPlayerController() {
   useEffect(() => {
     restoreLocalSession();
   }, [restoreLocalSession]);
+
+  // Wire up to the new Hybrid Architecture
+  useEffect(() => {
+    const activeAudio = getActiveAudio();
+    if (activeAudio) {
+      const rendererManager = RendererManager.getInstance();
+      rendererManager.registerRenderer('audio', activeAudio);
+      
+      // If we are the active renderer, attach to engine
+      if (activeRenderer === 'audio') {
+         rendererManager.acquireLease('audio');
+         PlaybackEngine.getInstance().attachMediaElement(activeAudio);
+      }
+    }
+  }, [activePlayerRef.current, activeRenderer]);
 
   // Auto-refill queue (Continuous Radio Mode)
   useEffect(() => {

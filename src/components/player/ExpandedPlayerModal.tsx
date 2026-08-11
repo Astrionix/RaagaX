@@ -201,13 +201,13 @@ export function ExpandedPlayerModal() {
       <div className="relative z-10 flex items-center justify-between w-full pt-1 pb-2 sm:pb-4 max-w-6xl mx-auto flex-shrink-0">
         <button 
           onClick={handleCloseModal}
-          className="p-2 -ml-2 text-white hover:bg-white/10 rounded-full transition-colors"
+          className="p-2 -ml-2 text-white hover:bg-white/10 rounded-full transition-colors relative z-10"
           title="Minimize modal"
         >
           <ChevronDown className="w-7 h-7 sm:w-8 sm:h-8" />
         </button>
 
-        <div className="flex-1 text-center min-w-0 px-2 sm:px-4">
+        <div className="absolute left-1/2 -translate-x-1/2 text-center min-w-0 px-2 sm:px-4 w-full max-w-[45%] sm:max-w-[50%] pointer-events-none">
           <p className="text-[9px] sm:text-[10px] text-white/70 font-bold uppercase tracking-wider mb-0.5">
             {isVideoMode ? '🎬 YouTube Music Video' : 'PLAYING FROM ALBUM'}
           </p>
@@ -217,29 +217,29 @@ export function ExpandedPlayerModal() {
         </div>
 
         {/* Top Right Utilities */}
-        <div className="flex items-center justify-end flex-shrink-0 relative">
-          <div className="flex bg-black/40 border border-white/10 rounded-2xl p-0.5 sm:p-1 items-center mr-1 sm:mr-2">
+        <div className="flex items-center justify-end flex-shrink-0 relative z-10">
+          <div className="flex bg-black/40 border border-white/10 rounded-full sm:rounded-2xl p-0.5 sm:p-1 items-center mr-1 sm:mr-2">
             <button
               onClick={handleSwitchToAudioMode}
-              className={`px-2 sm:px-3 py-1 rounded-xl text-[10px] sm:text-[11px] font-bold transition-all ${
+              className={`px-2.5 sm:px-3 py-1.5 sm:py-1 rounded-full sm:rounded-xl text-[10px] sm:text-[11px] font-bold transition-all flex items-center gap-1 sm:gap-1.5 ${
                 !isVideoMode ? 'bg-[#fa233b] text-white shadow-lg' : 'text-slate-400 hover:text-white'
               }`}
+              title="Audio Mode"
             >
-              Audio
+              <Music className="w-3.5 h-3.5 sm:w-3.5 sm:h-3.5" /> <span className="hidden sm:inline">Audio</span>
             </button>
             <button
               onClick={handleSwitchToVideoMode}
-              className={`px-2 sm:px-3 py-1 rounded-xl text-[10px] sm:text-[11px] font-bold transition-all flex items-center gap-1 sm:gap-1.5 ${
+              className={`px-2.5 sm:px-3 py-1.5 sm:py-1 rounded-full sm:rounded-xl text-[10px] sm:text-[11px] font-bold transition-all flex items-center gap-1 sm:gap-1.5 ${
                 isVideoMode ? 'bg-[#fa233b] text-white shadow-lg' : 'text-slate-400 hover:text-white'
               }`}
+              title="Video Mode"
             >
-              <Tv className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Video
+              <Tv className="w-3.5 h-3.5 sm:w-3.5 sm:h-3.5" /> <span className="hidden sm:inline">Video</span>
             </button>
           </div>
 
-          <div className="hidden sm:block mr-2">
-            <DeviceSelector variant="icon" align="right" />
-          </div>
+
 
           {/* 3 Dots Options Button & Popover */}
           <div className="relative inline-block" ref={menuRef}>
@@ -390,7 +390,7 @@ export function ExpandedPlayerModal() {
               </div>
             </div>
           ) : (
-            <div className="relative w-full max-w-[42vh] sm:max-w-[52vh] aspect-square rounded-[8%] sm:rounded-2xl overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.8)] border border-white/5 shrink-0">
+            <div className="relative w-full max-w-[42vh] sm:max-w-[52vh] aspect-square rounded-[8%] sm:rounded-2xl overflow-hidden shadow-2xl border border-white/5 shrink min-h-0 max-h-full">
               <img
                 src={currentSong.coverUrl}
                 alt={currentSong.title}
@@ -446,7 +446,7 @@ export function ExpandedPlayerModal() {
         <div className="flex items-center justify-between sm:justify-center gap-2 sm:gap-8 max-w-4xl mx-auto w-full px-1">
           <button
             onClick={toggleShuffle}
-            className={`p-2 transition-colors relative ${
+            className={`p-2 transition-colors relative hover:scale-110 active:scale-95 ${
               isShuffle ? 'text-[#1ed760]' : 'text-white/70 hover:text-white'
             }`}
             title="Shuffle"
@@ -457,16 +457,16 @@ export function ExpandedPlayerModal() {
 
           <button
             onClick={playPrev}
-            className="p-2 text-white hover:scale-105 active:scale-95 transition-transform"
+            className="p-2 text-white/80 hover:text-white hover:scale-110 active:scale-95 transition-all"
             title="Previous Track"
           >
             <SkipBack className="w-7 h-7 sm:w-9 sm:h-9 fill-current" />
           </button>
 
-          {/* Spotify Iconic Circular White Play Button */}
+          {/* Spotify Iconic Circular White Play Button with Pulse/Glow */}
           <button
             onClick={togglePlayPause}
-            className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white text-black hover:scale-105 active:scale-95 flex items-center justify-center shadow-lg transition-all cursor-pointer"
+            className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white text-black hover:scale-105 active:scale-95 flex items-center justify-center shadow-lg transition-all cursor-pointer ${isPlaying ? 'shadow-[0_0_20px_rgba(255,255,255,0.3)]' : ''}`}
             title={isPlaying ? "Pause" : "Play"}
           >
             {isPlaying ? (
@@ -478,7 +478,7 @@ export function ExpandedPlayerModal() {
 
           <button
             onClick={playNext}
-            className="p-2 text-white hover:scale-105 active:scale-95 transition-transform"
+            className="p-2 text-white/80 hover:text-white hover:scale-110 active:scale-95 transition-all"
             title="Next Track"
           >
             <SkipForward className="w-7 h-7 sm:w-9 sm:h-9 fill-current" />

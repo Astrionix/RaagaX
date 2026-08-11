@@ -1,215 +1,96 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AlbumResolver } from '@/lib/albumResolver';
-import { ShelfItem, HomeSection } from '@/types/home';
-import { JioSaavnProvider } from '@/lib/jioSaavnProvider';
-import { PlaylistResolver } from '@/lib/discovery/PlaylistResolver';
-import { Song } from '@/types/music';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-
-import { BROWSE_5_PLAYLISTS, TRENDING_SOURCES, NEW_RELEASES_SOURCES, CLASSICS_SOURCES, WEEKLY_RELEASE_SOURCES } from '@/lib/spotifySources';
+import { BROWSE_5_PLAYLISTS, TRENDING_SOURCES, NEW_RELEASES_SOURCES, CLASSICS_SOURCES } from '@/lib/spotifySources';
+import { DiscoveryQueue } from '@/lib/discovery/DiscoveryQueue';
 
 export const dynamic = 'force-dynamic';
-
-function getBaseUrl(req: NextRequest): string {
-  const host = req.headers.get('host') || 'localhost:3001';
-  const proto = req.headers.get('x-forwarded-proto') || 'http';
-  return `${proto}://${host}`;
-}
-
-async function triggerBackgroundSync(baseUrl: string, playlistId: string, lang: string, category: string) {
-  try {
-    // Fire and forget - do not await
-    fetch(`${baseUrl}/api/cron/discovery?playlistId=${playlistId}&lang=${lang}&category=${category}`).catch(() => {});
-  } catch(e) {}
-}
-
-async function getPlaylistWithSWR(
-  baseUrl: string,
-  playlistId: string | null,
-  lang: string,
-  category: string,
-  saavn: JioSaavnProvider,
-  resolver: PlaylistResolver
-): Promise<Song[]> {
-  if (!playlistId) {
-    return saavn.searchSongs(`${lang} Top Songs`, 100);
-  }
-
-  // 1. Check Supabase Cache
-  const { data: cached } = await supabaseAdmin
-    .from('spotify_playlist_cache')
-    .select('*')
-    .eq('playlist_id', playlistId)
-    .maybeSingle();
-
-  if (cached && cached.data && (cached.data as Song[]).length > 0) {
-    const isStale = new Date(cached.expires_at).getTime() < Date.now();
-    const isUndersized = (cached.data as Song[]).length < 50;
-    if (isStale || isUndersized) {
-      triggerBackgroundSync(baseUrl, playlistId, lang, category);
-    }
-    return (cached.data as Song[]).slice(0, 100);
-  }
-
-  // 2. On Cache MISS: Resolve Spotify playlist live so we NEVER return random keyword search results!
-  try {
-    const liveResolved = await resolver.resolveSpotifyPlaylist(playlistId, 100);
-    if (liveResolved && liveResolved.length > 0) {
-      const expiresAt = new Date(Date.now() + 12 * 3600 * 1000).toISOString();
-      await supabaseAdmin.from('spotify_playlist_cache').upsert({
-        playlist_id: playlistId,
-        playlist_name: category,
-        language: lang,
-        data: liveResolved,
-        expires_at: expiresAt,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'playlist_id' });
-
-      return liveResolved.slice(0, 100);
-    }
-  } catch (err) {
-    console.error(`[getPlaylistWithSWR] Live resolution error for ${playlistId}:`, err);
-  }
-
-  // 3. Fallback to clean language top songs
-  return saavn.searchSongs(`${lang} Top Songs`, 100);
-}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const lang = searchParams.get('lang') || 'Telugu';
 
   try {
-    const baseUrl = getBaseUrl(req);
-    const albumResolver = new AlbumResolver(baseUrl);
-    const playlistResolver = new PlaylistResolver(baseUrl);
-    const saavn = JioSaavnProvider.getInstance(baseUrl);
-    
     const trendingSource = TRENDING_SOURCES[lang] || TRENDING_SOURCES['Telugu'];
     const newReleasesSource = NEW_RELEASES_SOURCES[lang] || NEW_RELEASES_SOURCES['Telugu'];
     const classicsSource = CLASSICS_SOURCES[lang] || CLASSICS_SOURCES['Telugu'];
     const extraPlaylists = BROWSE_5_PLAYLISTS[lang] || BROWSE_5_PLAYLISTS['Telugu'];
 
-    // Parallel fetch all core categories + expanded playlists + movie albums
-    const [
-      trendingSongs,
-      newReleaseSongs,
-      classicSongs,
-      p1Songs,
-      p2Songs,
-      p3Songs,
-      p4Songs,
-      p5Songs,
-      movieAlbums,
-    ] = await Promise.all([
-      getPlaylistWithSWR(baseUrl, trendingSource.id, lang, trendingSource.title, saavn, playlistResolver),
-      getPlaylistWithSWR(baseUrl, newReleasesSource.id, lang, newReleasesSource.title, saavn, playlistResolver),
-      getPlaylistWithSWR(baseUrl, classicsSource.id, lang, classicsSource.title, saavn, playlistResolver),
-      getPlaylistWithSWR(baseUrl, extraPlaylists[0]?.id || null, lang, extraPlaylists[0]?.title || 'P1', saavn, playlistResolver),
-      getPlaylistWithSWR(baseUrl, extraPlaylists[1]?.id || null, lang, extraPlaylists[1]?.title || 'P2', saavn, playlistResolver),
-      getPlaylistWithSWR(baseUrl, extraPlaylists[2]?.id || null, lang, extraPlaylists[2]?.title || 'P3', saavn, playlistResolver),
-      getPlaylistWithSWR(baseUrl, extraPlaylists[3]?.id || null, lang, extraPlaylists[3]?.title || 'P4', saavn, playlistResolver),
-      getPlaylistWithSWR(baseUrl, extraPlaylists[4]?.id || null, lang, extraPlaylists[4]?.title || 'P5', saavn, playlistResolver),
-      albumResolver.resolveAlbums(lang, `${lang} movies latest`, 15, 'album'),
-    ]);
+    const requestedSections = [
+      { id: 'trending', source: trendingSource },
+      { id: 'new_releases', source: newReleasesSource },
+      { id: 'classics', source: classicsSource },
+      { id: 'p1', source: extraPlaylists[0] },
+      { id: 'p2', source: extraPlaylists[1] },
+      { id: 'p3', source: extraPlaylists[2] },
+      { id: 'p4', source: extraPlaylists[3] },
+      { id: 'p5', source: extraPlaylists[4] },
+    ].filter(s => s.source && s.source.id);
 
-    const sections: HomeSection[] = [];
+    const playlistIds = requestedSections.map(s => s.source.id);
+
+    // 1. Single batch query to Supabase for all requested playlists
+    const { data: cachedPlaylists, error } = await supabaseAdmin
+      .from('spotify_playlist_cache')
+      .select('*')
+      .in('playlist_id', playlistIds);
+
+    if (error) {
+      console.error('[BROWSE API] DB Cache Error:', error);
+    }
+
+    const cacheMap = new Map();
+    if (cachedPlaylists) {
+      cachedPlaylists.forEach(row => {
+        cacheMap.set(row.playlist_id, row);
+      });
+    }
+
+    const sections = [];
     const addedPlaylistIds = new Set<string>();
 
-    // 1. Trending Now Section
-    if (trendingSongs.length > 0) {
-      addedPlaylistIds.add(trendingSource.id);
-      sections.push({
-        id: 'trending',
-        title: trendingSource.title,
-        type: 'carousel',
-        items: trendingSongs.map(song => ({
-          id: song.id,
-          title: song.title,
-          subtitle: song.artist,
-          type: 'song',
-          imageUrl: song.coverUrl,
-          rawItem: song
-        }))
-      });
-    }
+    for (const section of requestedSections) {
+      if (addedPlaylistIds.has(section.source.id)) continue;
+      addedPlaylistIds.add(section.source.id);
 
-    // 2. New Releases Section
-    if (newReleaseSongs.length > 0 && !addedPlaylistIds.has(newReleasesSource.id)) {
-      addedPlaylistIds.add(newReleasesSource.id);
-      sections.push({
-        id: 'new_releases',
-        title: "This Week's Releases",
-        type: 'carousel',
-        items: newReleaseSongs.map(song => ({
-          id: song.id,
-          title: song.title,
-          subtitle: song.artist,
-          type: 'song',
-          imageUrl: song.coverUrl,
-          rawItem: song
-        }))
-      });
-    }
+      const cached = cacheMap.get(section.source.id);
+      let status: 'ready' | 'stale' | 'loading' = 'loading';
+      let items: any[] = [];
+      let total = 0;
 
-    // 3. Timeless Classics Section
-    if (classicSongs.length > 0 && !addedPlaylistIds.has(classicsSource.id)) {
-      addedPlaylistIds.add(classicsSource.id);
-      sections.push({
-        id: 'classics',
-        title: classicsSource.title,
-        type: 'carousel',
-        items: classicSongs.map(song => ({
-          id: song.id,
-          title: song.title,
-          subtitle: song.artist,
-          type: 'song',
-          imageUrl: song.coverUrl,
-          rawItem: song
-        }))
-      });
-    }
+      if (cached && cached.data && Array.isArray(cached.data) && cached.data.length > 0) {
+        const isStale = new Date(cached.expires_at).getTime() < Date.now();
+        const isUndersized = cached.data.length < 50;
+        total = cached.data.length;
 
-    // 4. Expanded Curated Playlists
-    const extraFetched = [
-      { info: extraPlaylists[0], songs: p1Songs, id: 'p1' },
-      { info: extraPlaylists[1], songs: p2Songs, id: 'p2' },
-      { info: extraPlaylists[2], songs: p3Songs, id: 'p3' },
-      { info: extraPlaylists[3], songs: p4Songs, id: 'p4' },
-      { info: extraPlaylists[4], songs: p5Songs, id: 'p5' },
-    ];
-
-    extraFetched.forEach(({ info, songs, id }) => {
-      if (info && songs && songs.length > 0 && !addedPlaylistIds.has(info.id)) {
-        addedPlaylistIds.add(info.id);
-        sections.push({
-          id,
-          title: info.title,
-          type: 'carousel',
-          items: songs.map(song => ({
-            id: song.id,
-            title: song.title,
-            subtitle: song.artist,
-            type: 'song',
-            imageUrl: song.coverUrl,
-            rawItem: song
-          }))
-        });
+        if (isStale || isUndersized) {
+          status = 'stale';
+          // Enqueue refresh without awaiting
+          DiscoveryQueue.enqueue(section.source.id, lang, section.source.title);
+        } else {
+          status = 'ready';
+        }
+        items = cached.data.slice(0, 20); // Return initial 20 songs
+      } else {
+        // Cache MISS - enqueue immediately and return loading
+        status = 'loading';
+        DiscoveryQueue.enqueue(section.source.id, lang, section.source.title);
       }
-    });
 
-    // 5. Movies & Soundtracks Section
-    if (movieAlbums.length > 0) {
       sections.push({
-        id: 'movies',
-        title: 'Movies & Soundtracks',
+        id: section.id,
+        sourceId: section.source.id,
+        title: section.source.title,
         type: 'carousel',
-        items: movieAlbums.map(item => ({
-          id: item.id,
-          title: item.title,
-          subtitle: item.artist,
-          type: 'album',
-          imageUrl: item.coverUrl
+        status,
+        total,
+        hasMore: total > items.length,
+        items: items.map(song => ({
+          id: song.id,
+          title: song.title,
+          subtitle: song.artist,
+          type: 'song',
+          imageUrl: song.coverUrl,
+          rawItem: song
         }))
       });
     }
@@ -217,6 +98,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: true, sections });
   } catch (err) {
     console.error('[BROWSE API] Error:', err);
-    return NextResponse.json({ success: false, sections: [] });
+    return NextResponse.json({ success: false, sections: [] }, { status: 500 });
   }
 }

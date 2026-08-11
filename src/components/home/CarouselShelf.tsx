@@ -1,12 +1,128 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ShelfItem } from '@/types/home';
 import { Play, ChevronRight, ChevronDown, X, Shuffle, MoreHorizontal } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 
-export function CarouselShelf({ title, items, icon, showPlayAll }: { title: string; items: ShelfItem[]; icon?: React.ReactNode; showPlayAll?: boolean }) {
+export interface PaginationConfig {
+  enabled: boolean;
+  source: {
+    type: 'spotify_playlist' | 'editorial' | 'database';
+    id: string;
+  };
+  initialHasMore?: boolean;
+  total?: number;
+}
+
+interface CarouselShelfProps {
+  title: string;
+  items: ShelfItem[];
+  icon?: React.ReactNode;
+  showPlayAll?: boolean;
+  pagination?: PaginationConfig;
+}
+
+export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: CarouselShelfProps) {
   const { setActiveTab, setSelectedPlaylistId, setSelectedArtistId, setSelectedAlbumId, playSong, currentSong, isPlaying } = usePlayerStore();
+  
+  // UI State
   const [showAll, setShowAll] = useState(false);
+  
+  // Pagination State
+  const [shelfItems, setShelfItems] = useState<ShelfItem[]>(items);
+  const [hasMore, setHasMore] = useState(pagination?.initialHasMore ?? false);
+  const [status, setStatus] = useState<'ready' | 'warming' | 'empty'>(items.length > 0 ? 'ready' : 'empty');
+  
+  // Pagination Locks & Tracking
+  const loadingRef = useRef(false);
+  const loadedOffsets = useRef(new Set<number>([0])); // Initial 20 is offset 0
+  const abortControllerRef = useRef<AbortController | null>(null);
+  
+  const observer = useRef<IntersectionObserver | null>(null);
+
+  // Update local state if props change (e.g., language switch)
+  useEffect(() => {
+    setShelfItems(items);
+    setHasMore(pagination?.initialHasMore ?? false);
+    loadedOffsets.current = new Set([0]);
+  }, [items, pagination?.initialHasMore]);
+
+  const loadMore = useCallback(async () => {
+    if (!pagination?.enabled || !hasMore || loadingRef.current) return;
+    
+    const nextOffset = shelfItems.length;
+    if (loadedOffsets.current.has(nextOffset)) return;
+
+    loadingRef.current = true;
+    
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
+    try {
+      const res = await fetch(
+        `/api/browse/section?playlistId=${pagination.source.id}&offset=${nextOffset}&limit=20`,
+        { signal: abortControllerRef.current.signal }
+      );
+      
+      if (!res.ok) throw new Error('Network response was not ok');
+      const data = await res.json();
+      
+      if (data.success) {
+        setStatus(data.status || 'ready');
+        
+        if (data.status === 'warming') {
+          // If the worker is still warming this chunk, we can retry once later, 
+          // but for now we just stop and keep hasMore=true so the observer can re-trigger if they scroll back and forth.
+          setHasMore(data.hasMore ?? true);
+        } else if (data.items && data.items.length > 0) {
+          loadedOffsets.current.add(nextOffset);
+          
+          setShelfItems(prev => {
+            const existingIds = new Set(prev.map(s => s.id));
+            const uniqueNew = data.items.filter((item: ShelfItem) => !existingIds.has(item.id));
+            return [...prev, ...uniqueNew];
+          });
+          
+          setHasMore(data.hasMore ?? false);
+        } else {
+          setHasMore(false);
+        }
+      }
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.error('Failed to load more shelf items:', err);
+      }
+    } finally {
+      loadingRef.current = false;
+    }
+  }, [pagination, hasMore, shelfItems.length]);
+
+  const sentinelRef = useCallback((node: HTMLDivElement | null) => {
+    if (loadingRef.current) return;
+    if (observer.current) observer.current.disconnect();
+
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore) {
+        loadMore();
+      }
+    }, {
+      root: null,
+      rootMargin: '0px 200px 0px 0px', // Trigger slightly before the sentinel is visible
+      threshold: 0
+    });
+
+    if (node) observer.current.observe(node);
+  }, [loadMore, hasMore]);
+
+  // Clean up observer and fetch on unmount
+  useEffect(() => {
+    return () => {
+      if (observer.current) observer.current.disconnect();
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+    };
+  }, []);
 
   const handleItemClick = (item: ShelfItem) => {
     if (item.type === 'playlist' || item.type === 'mix') {
@@ -19,8 +135,8 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
       setSelectedPlaylistId(`album:${item.id}`);
       setActiveTab('playlist');
     } else if (item.type === 'song') {
-      const rawSongs = items.map(i => i.rawItem).filter(Boolean);
-      playSong(item.rawItem || (item as any), rawSongs.length > 0 ? rawSongs : (items as any[]));
+      const rawSongs = shelfItems.map(i => i.rawItem).filter(Boolean);
+      playSong(item.rawItem || (item as any), rawSongs.length > 0 ? rawSongs : (shelfItems as any[]));
     }
   };
 
@@ -28,13 +144,12 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
     e.stopPropagation();
     
     if (item.type === 'song') {
-      const rawSongs = items.map(i => i.rawItem).filter(Boolean);
-      playSong(item.rawItem || (item as any), rawSongs.length > 0 ? rawSongs : (items as any[]));
+      const rawSongs = shelfItems.map(i => i.rawItem).filter(Boolean);
+      playSong(item.rawItem || (item as any), rawSongs.length > 0 ? rawSongs : (shelfItems as any[]));
       return;
     }
 
     try {
-      // Create a temporary loading state by animating the button or something if needed
       const btn = e.currentTarget as HTMLButtonElement;
       const originalHtml = btn.innerHTML;
       btn.innerHTML = '<svg class="animate-spin w-4 h-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
@@ -50,15 +165,12 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
         const details = await engine.getPlaylistDetails('album:' + item.id);
         songs = details?.songs || [];
       } else if (item.type === 'artist') {
-        // Fallback for artist if we want to support it later, but RealMusicEngine doesn't have it yet
         songs = [];
       }
 
       if (songs.length > 0) {
         playSong(songs[0], songs);
       }
-      
-      // Restore icon if it didn't play (or it played successfully)
       btn.innerHTML = originalHtml;
     } catch (err) {
       console.error('Failed to quick play:', err);
@@ -67,29 +179,28 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
 
   const handlePlayAll = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (items.length === 0) return;
+    if (shelfItems.length === 0) return;
 
     const btn = e.currentTarget as HTMLButtonElement;
     const originalHtml = btn.innerHTML;
     btn.innerHTML = '<svg class="animate-spin w-4 h-4 text-[#fa233b]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
 
     try {
-      if (items[0].type === 'song') {
-        const rawSongs = items.map(i => i.rawItem).filter(Boolean);
+      if (shelfItems[0].type === 'song') {
+        const rawSongs = shelfItems.map(i => i.rawItem).filter(Boolean);
         if (rawSongs.length > 0) {
           playSong(rawSongs[0] as any, rawSongs as any[]);
         }
       } else {
-        // For albums/playlists, just quick play the first one to avoid massive API spam
         const { RealMusicEngine } = await import('@/lib/realMusicEngine');
         const engine = RealMusicEngine.getInstance();
         let songs: any[] = [];
         
-        if (items[0].type === 'playlist' || items[0].type === 'mix') {
-          const details = await engine.getPlaylistDetails(items[0].id);
+        if (shelfItems[0].type === 'playlist' || shelfItems[0].type === 'mix') {
+          const details = await engine.getPlaylistDetails(shelfItems[0].id);
           songs = details?.songs || [];
-        } else if (items[0].type === 'album') {
-          const details = await engine.getPlaylistDetails('album:' + items[0].id);
+        } else if (shelfItems[0].type === 'album') {
+          const details = await engine.getPlaylistDetails('album:' + shelfItems[0].id);
           songs = details?.songs || [];
         }
 
@@ -106,11 +217,11 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
 
   const handleShufflePlayAll = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (items.length === 0) return;
+    if (shelfItems.length === 0) return;
 
     try {
-      if (items[0].type === 'song') {
-        const rawSongs = items.map(i => i.rawItem).filter(Boolean);
+      if (shelfItems[0].type === 'song') {
+        const rawSongs = shelfItems.map(i => i.rawItem).filter(Boolean);
         if (rawSongs.length > 0) {
           const randomIndex = Math.floor(Math.random() * rawSongs.length);
           usePlayerStore.getState().setRemoteState({ isShuffle: true });
@@ -122,12 +233,8 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
     }
   };
 
-  const uniqueItems = items.filter((item, index, self) =>
-    index === self.findIndex((t) => t.title === item.title)
-  );
-
-  const visibleItems = showAll ? uniqueItems : uniqueItems.slice(0, 10);
-  const totalSongs = uniqueItems.length;
+  const visibleItems = showAll ? shelfItems : shelfItems.slice(0, pagination?.enabled ? shelfItems.length : 10);
+  const totalSongs = pagination?.total || shelfItems.length;
 
   const formatTime = (s: number) => {
     if (!s) return '3:42'; // fallback
@@ -136,22 +243,27 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
     return `${m}:${sec < 10 ? '0' : ''}${sec}`;
   };
 
-  const totalDurationSec = uniqueItems.reduce((acc, item) => acc + (item.type === 'song' ? (item.rawItem?.duration || 0) : 0), 0);
+  const totalDurationSec = shelfItems.reduce((acc, item) => acc + (item.type === 'song' ? (item.rawItem?.duration || 0) : 0), 0);
   const totalDurationHrs = Math.floor(totalDurationSec / 3600);
   const totalDurationMins = Math.floor((totalDurationSec % 3600) / 60);
   const durationText = totalDurationHrs > 0 ? `${totalDurationHrs} hr ${totalDurationMins} min` : `${totalDurationMins} min`;
 
-  const coverImageUrl = items[0]?.imageUrl || 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300';
+  const coverImageUrl = shelfItems[0]?.imageUrl || 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300';
+
+  if (shelfItems.length === 0) return null;
+
+  // The sentinel is placed ~75% of the way through the current items
+  const sentinelIndex = Math.max(0, shelfItems.length - 5);
 
   return (
     <section className="mb-8">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 px-4 sm:px-0">
         <div className="flex items-center gap-2.5">
           {icon}
           <h2 className="text-xl font-bold text-white cursor-pointer inline-block">
             {title}
           </h2>
-          {showPlayAll && items.length > 0 && (
+          {showPlayAll && shelfItems.length > 0 && (
             <div className="flex items-center gap-1.5 ml-1">
               <button 
                 onClick={handlePlayAll}
@@ -171,48 +283,63 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
           )}
         </div>
         
-        {items.length > 0 && (
+        {shelfItems.length > 0 && (
           <button 
             onClick={() => setShowAll(true)}
             className="text-xs font-bold text-slate-400 hover:text-white transition-colors uppercase tracking-wider flex items-center gap-1 cursor-pointer"
           >
-            {items[0]?.type === 'song' ? 'See All Songs' : 'See All'} <ChevronRight className="w-3.5 h-3.5" />
+            {shelfItems[0]?.type === 'song' ? 'See All Songs' : 'See All'} <ChevronRight className="w-3.5 h-3.5" />
           </button>
         )}
       </div>
       
-      <div className="grid grid-rows-2 auto-cols-[144px] sm:auto-cols-[176px] grid-flow-col overflow-x-auto no-scrollbar gap-4 pb-4">
-        {visibleItems.map((item) => (
-          <div
-            key={item.id}
-            onClick={() => handleItemClick(item)}
-            className={`group glass-card p-4 rounded-xl hover:bg-white/5 transition-colors cursor-pointer w-full`}
-          >
-            <div className="relative w-full aspect-square mb-3 shadow-lg rounded-md overflow-hidden bg-slate-800">
-              <img
-                src={item.imageUrl || 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300'}
-                alt={item.title}
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300';
-                }}
-                className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 ${
-                  item.type === 'artist' ? 'rounded-full' : 'rounded-md'
-                }`}
-              />
-              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <button 
-                onClick={(e) => handleQuickPlay(e, item)}
-                className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-[#fa233b] flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-transform"
-              >
-                <Play className="w-4 h-4 fill-white text-white ml-0.5" />
-              </button>
+      <div className="grid grid-rows-2 auto-cols-[144px] sm:auto-cols-[176px] grid-flow-col overflow-x-auto no-scrollbar gap-4 pb-4 px-4 sm:px-0">
+        {visibleItems.map((item, index) => {
+          const isSentinel = pagination?.enabled && index === sentinelIndex;
+          
+          return (
+            <div
+              key={`${item.id}-${index}`}
+              ref={isSentinel ? sentinelRef : null}
+              onClick={() => handleItemClick(item)}
+              className={`group glass-card p-4 rounded-xl hover:bg-white/5 transition-colors cursor-pointer w-full`}
+            >
+              <div className="relative w-full aspect-square mb-3 shadow-lg rounded-md overflow-hidden bg-slate-800">
+                <img
+                  src={item.imageUrl || 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300'}
+                  alt={item.title}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300';
+                  }}
+                  className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 ${
+                    item.type === 'artist' ? 'rounded-full' : 'rounded-md'
+                  }`}
+                />
+                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <button 
+                  onClick={(e) => handleQuickPlay(e, item)}
+                  className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-[#fa233b] flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-transform opacity-0 group-hover:opacity-100"
+                >
+                  <Play className="w-4 h-4 fill-white text-white ml-0.5" />
+                </button>
+              </div>
+              <h3 className="font-bold text-sm text-white truncate">{item.title}</h3>
+              {item.subtitle && item.subtitle !== 'Unknown' && (
+                <p className="text-xs text-slate-400 mt-1 line-clamp-2">{item.subtitle}</p>
+              )}
             </div>
-            <h3 className="font-bold text-sm text-white truncate">{item.title}</h3>
-            {item.subtitle && item.subtitle !== 'Unknown' && (
-              <p className="text-xs text-slate-400 mt-1 line-clamp-2">{item.subtitle}</p>
-            )}
-          </div>
-        ))}
+          );
+        })}
+        
+        {/* Placeholder skeleton elements when hasMore is true, so UI indicates more is coming seamlessly */}
+        {hasMore && (
+          <>
+            <div className="glass-card p-4 rounded-xl w-full flex items-center justify-center animate-pulse">
+               <div className="w-8 h-8 rounded-full border-2 border-[#fa233b] border-t-transparent animate-spin"></div>
+            </div>
+            <div className="glass-card p-4 rounded-xl w-full animate-pulse bg-white/5"></div>
+          </>
+        )}
       </div>
 
       {showAll && (
@@ -240,9 +367,6 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
                 <span className="text-xs font-bold text-white uppercase tracking-wider">Playlist</span>
                 <h1 className="text-3xl sm:text-6xl md:text-8xl font-black text-white tracking-tight leading-tight sm:leading-none mb-2 sm:mb-4 flex flex-wrap items-center gap-3">
                   {title}
-                  {title.toLowerCase().includes('releases') && (
-                    <span className="px-3 py-1 rounded-full bg-blue-500 text-xs sm:text-sm font-black tracking-wider uppercase text-white shadow-lg shadow-blue-500/30">NEW</span>
-                  )}
                 </h1>
                 <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-slate-300 mt-1 sm:mt-2">
                   <span className="font-bold text-white">RaagaX</span>
@@ -253,7 +377,7 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
               </div>
             </div>
 
-            {/* Action Bar Background Overlay (appears on scroll ideally, but static here for simplicity) */}
+            {/* Action Bar Background Overlay */}
             <div className="bg-black/20 backdrop-blur-3xl border-b border-white/5 sticky top-0 z-10">
               <div className="max-w-[1920px] mx-auto px-4 sm:px-8 py-4 flex items-center gap-6">
                 <button 
@@ -269,12 +393,9 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
                 >
                   <Shuffle className="w-8 h-8" />
                 </button>
-                <button className="p-2 text-slate-400 hover:text-white transition-colors">
-                  <MoreHorizontal className="w-8 h-8" />
-                </button>
               </div>
 
-              {/* Table Header - hidden on mobile */}
+              {/* Table Header */}
               <div className="hidden md:grid max-w-[1920px] mx-auto px-4 sm:px-8 py-2 md:grid-cols-[40px_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1fr)_100px] gap-4 text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-white/10 sticky top-[88px] bg-[#121212]/95 backdrop-blur-xl z-10">
                 <div className="text-center">#</div>
                 <div>Title</div>
@@ -288,12 +409,14 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
 
             {/* Modal Track List */}
             <div className="max-w-[1920px] mx-auto px-4 sm:px-8 py-4 pb-8">
-              {uniqueItems.map((item, idx) => {
+              {shelfItems.map((item, idx) => {
                 const isCurrentlyPlaying = currentSong?.id === item.id;
+                const isSentinel = pagination?.enabled && idx === Math.max(0, shelfItems.length - 15);
                 
                 return (
                   <div
-                    key={item.id}
+                    key={`${item.id}-${idx}`}
+                    ref={isSentinel ? sentinelRef : null}
                     onClick={() => handleItemClick(item)}
                     className={`group grid grid-cols-[32px_minmax(0,1fr)_40px] md:grid-cols-[40px_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1fr)_100px] gap-3 sm:gap-4 items-center p-2 rounded-md hover:bg-white/10 transition-colors cursor-pointer ${isCurrentlyPlaying ? 'bg-white/5' : ''}`}
                   >
@@ -360,6 +483,12 @@ export function CarouselShelf({ title, items, icon, showPlayAll }: { title: stri
                   </div>
                 );
               })}
+              
+              {hasMore && (
+                 <div className="py-8 flex justify-center">
+                   <div className="w-6 h-6 rounded-full border-2 border-[#fa233b] border-t-transparent animate-spin"></div>
+                 </div>
+              )}
             </div>
           </div>
         </div>
