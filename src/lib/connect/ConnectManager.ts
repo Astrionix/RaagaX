@@ -134,13 +134,17 @@ export class ConnectManager {
   }
 
   private processRecoveryQueue() {
-    // Process commands that arrived while we were recovering (but ignore outdated ones)
     console.log(`[ConnectManager] Processing recovery queue: ${this.recoveryQueue.length} commands`);
     const toProcess = [...this.recoveryQueue];
     this.recoveryQueue = [];
     
+    const validator = require('./CommandValidator').CommandValidator.getInstance();
     for (const cmd of toProcess) {
-      CommandBus.getInstance().handleIncomingCommand(cmd);
+      if (validator.validate(cmd)) {
+        CommandBus.getInstance().handleIncomingCommand(cmd);
+      } else {
+        console.log('[ConnectManager] Dropped stale recovery command:', cmd.type, cmd.commandId);
+      }
     }
   }
 
@@ -157,12 +161,14 @@ export class ConnectManager {
     .on('broadcast', { event: 'COMMAND' }, (payload) => this.handleBroadcastCommand(payload))
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
-         if (this.currentState === 'CONNECTING') {
+         if (this.currentState === 'CONNECTING' || this.currentState === 'RECOVERING') {
            this.transitionState('SUBSCRIBING');
          }
       } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+         console.warn('[ConnectManager] Inbox channel disconnected, attempting reconnect...');
          this.transitionState('OFFLINE');
          this.inboxChannel = null;
+         setTimeout(() => this.handleNetworkOnline(), 3000);
       }
     });
   }
@@ -185,10 +191,11 @@ export class ConnectManager {
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
          this.transitionState('CONNECTED');
-         // Automatically transition to recovering upon connection to ensure state consistency
          this.transitionState('RECOVERING');
       } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+         console.warn('[ConnectManager] Session channel disconnected, scheduling resync...');
          this.sessionChannel = null;
+         this.transitionState('RECOVERING');
       }
     });
   }

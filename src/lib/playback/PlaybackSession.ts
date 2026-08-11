@@ -1,5 +1,12 @@
 import { Renderer, Song } from '@/types/music';
 
+export interface DeviceRoleDescriptor {
+  deviceId: string;
+  instanceId: string;
+  leaseId?: string | null;
+  lastActive?: number;
+}
+
 export interface UnifiedPlaybackSession {
   sessionId: string;
   userId?: string;
@@ -10,6 +17,10 @@ export interface UnifiedPlaybackSession {
   durationMs: number;
 
   status: 'idle' | 'loading' | 'ready' | 'playing' | 'paused' | 'buffering' | 'transitioning' | 'ended';
+
+  // Explicit Renderer vs Controller Role Separation
+  renderer: DeviceRoleDescriptor;
+  controllers: DeviceRoleDescriptor[];
 
   activeDeviceId: string;
   activeRenderer: Renderer;
@@ -70,6 +81,12 @@ export class SessionManager {
       canonicalPositionMs: 0,
       durationMs,
       status: 'paused',
+      renderer: {
+        deviceId: activeDeviceId,
+        instanceId: 'inst_' + activeDeviceId,
+        leaseId: null,
+      },
+      controllers: [],
       activeDeviceId,
       activeRenderer: initialRenderer,
       playbackRate: 1.0,

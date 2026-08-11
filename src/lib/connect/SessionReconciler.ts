@@ -83,55 +83,61 @@ export class SessionReconciler {
     
     const isOwner = snapshot.ownerDeviceId === store.deviceId;
     
-    if (store.isActiveDevice && !isOwner) {
-      console.warn('[SessionReconciler] Lost lease. Transitioning to remote controller.');
+    // Calculate server time signed drift: expected = positionMs + (serverNow - serverTimestamp)
+    let expectedPositionMs = snapshot.positionMs;
+    if (snapshot.status === 'playing') {
+      const clock = require('./ClockSynchronizer').ClockSynchronizer.getInstance();
+      const now = clock.getEstimatedServerNow();
+      const signedDrift = now - snapshot.serverTimestamp;
+      expectedPositionMs += signedDrift;
     }
-    
+    const derivedTimeSec = Math.max(0, expectedPositionMs / 1000);
+
+    // Find song object from snapshot or queue
+    const targetSong = snapshot.songData || 
+      (snapshot.queue ? snapshot.queue.find((s: any) => s.id === snapshot.trackId) : null) ||
+      (store.queue ? store.queue.find((s: any) => s.id === snapshot.trackId) : null) ||
+      store.currentSong;
+
+    // Find device name for display
+    const activeDeviceObj = store.onlineDevices.find((d: any) => d.id === snapshot.ownerDeviceId);
+    const remoteName = activeDeviceObj ? activeDeviceObj.name : 'Remote Device';
+
+    // 1. ALL DEVICES (Followers + Renderer) synchronize UI State
     usePlayerStore.setState({ 
       isActiveDevice: isOwner,
       isPlaying: snapshot.status === 'playing',
-      activeDeviceId: snapshot.ownerDeviceId
+      activeDeviceId: snapshot.ownerDeviceId,
+      remoteDeviceName: isOwner ? null : remoteName,
+      currentSong: targetSong || store.currentSong,
+      currentTime: derivedTimeSec,
+      queue: snapshot.queue && snapshot.queue.length > 0 ? snapshot.queue : store.queue
     });
 
-    // If we are the active renderer device, apply state to PlaybackEngine
+    // 2. ACTIVE RENDERER DEVICE: Synchronize local HTMLAudioElement / PlaybackEngine
     if (isOwner) {
       const engine = PlaybackEngine.getInstance();
       const currentTrack = store.currentSong;
       
-      // Calculate server time signed drift: target = positionMs + (serverNow - serverTimestamp)
-      let expectedPosition = snapshot.positionMs;
-      if (snapshot.status === 'playing') {
-        const clock = require('./ClockSynchronizer').ClockSynchronizer.getInstance();
-        const now = clock.getEstimatedServerNow();
-        const drift = now - snapshot.serverTimestamp;
-        expectedPosition += drift;
-      }
-      
       if (currentTrack?.id === snapshot.trackId) {
-        await engine.seekCanonical(Math.max(0, expectedPosition));
+        await engine.seekCanonical(Math.max(0, expectedPositionMs));
         if (snapshot.status === 'playing') {
            await engine.play();
         } else {
            await engine.pause();
         }
       } else if (snapshot.trackId) {
-        const queue = snapshot.queue && snapshot.queue.length > 0 ? snapshot.queue : store.queue;
-        const queueIdx = queue.findIndex((s: any) => s.id === snapshot.trackId);
-        
-        if (queueIdx !== -1) {
-          store.playSong(queue[queueIdx], queue);
+        if (targetSong) {
+          store.playSong(targetSong, snapshot.queue || store.queue);
           setTimeout(() => {
-            engine.seekCanonical(Math.max(0, expectedPosition));
+            engine.seekCanonical(Math.max(0, expectedPositionMs));
             if (snapshot.status === 'playing') engine.play();
-          }, 600);
-        } else if (snapshot.songData) {
-          store.playSong(snapshot.songData, [snapshot.songData]);
-          setTimeout(() => {
-            engine.seekCanonical(Math.max(0, expectedPosition));
-            if (snapshot.status === 'playing') engine.play();
-          }, 600);
+          }, 500);
         }
       }
+    } else {
+      // FOLLOWER DEVICE: Ensure local engine is muted/paused so it acts purely as controller
+      PlaybackEngine.getInstance().pause();
     }
   }
 }
