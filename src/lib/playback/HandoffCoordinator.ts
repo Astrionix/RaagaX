@@ -42,7 +42,7 @@ export class HandoffCoordinator {
     sourceUri: string
   ): Promise<boolean> {
     const rendererManager = RendererManager.getInstance();
-    const sourceRendererType = rendererManager.getActiveRenderer();
+    const sourceRendererType = rendererManager.getActiveRenderer() || 'audio';
 
     if (sourceRendererType === targetRendererType) {
       console.log('[HandoffCoordinator] Source and target renderer types are identical, skipping handoff.');
