@@ -123,6 +123,20 @@ export class CandidateGenerator {
          if (addCandidates(popular, 'popular')) return Array.from(candidates.values());
       }
 
+      // 6. Dynamic RealMusicEngine Fallback for Live API songs (e.g. JioSaavn / Tabahi)
+      if (candidates.size < limit) {
+        try {
+          const { RealMusicEngine } = await import('@/lib/realMusicEngine');
+          const query = currentSong?.artist ? `${currentSong.artist} songs` : `Trending ${language || 'Telugu'} Songs`;
+          const realSongs = await RealMusicEngine.getInstance().searchRealSongs(query, limit * 2);
+          if (realSongs && realSongs.length > 0) {
+            addCandidates(realSongs, 'trending');
+          }
+        } catch (realErr) {
+          console.warn('[CandidateGenerator] RealMusicEngine fallback error:', realErr);
+        }
+      }
+
     } catch (e) {
       console.error('[CandidateGenerator] Error in fallback hierarchy:', e);
     }
