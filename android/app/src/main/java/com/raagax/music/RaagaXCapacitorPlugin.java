@@ -58,17 +58,14 @@ public class RaagaXCapacitorPlugin extends Plugin {
         // The service is started lazily from play() instead.
     }
 
-    private void startPlaybackService() {
-        if (!serviceStarted) {
-            Intent serviceIntent = new Intent(getContext(), RaagaXPlaybackService.class);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                getContext().startForegroundService(serviceIntent);
-            } else {
-                getContext().startService(serviceIntent);
-            }
-            serviceStarted = true;
-            Log.d(TAG, "RaagaXPlaybackService started");
+    private void sendCommandToService(Intent intent) {
+        intent.setClass(getContext(), RaagaXPlaybackService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            getContext().startForegroundService(intent);
+        } else {
+            getContext().startService(intent);
         }
+        serviceStarted = true;
     }
 
     private RaagaXPlaybackService getService() {
@@ -84,61 +81,48 @@ public class RaagaXCapacitorPlugin extends Plugin {
         String artist = call.getString("artist", "");
         String artworkUrl = call.getString("artworkUrl", "");
 
-        startPlaybackService();
-
-        RaagaXPlaybackService service = getService();
-        if (service != null && url != null && !url.isEmpty()) {
-            service.playUrl(url, title, artist);
-            call.resolve(new JSObject().put("success", true));
-        } else {
-            call.reject("Service not ready or URL missing");
+        if (url == null || url.isEmpty()) {
+            call.reject("URL missing");
+            return;
         }
+
+        Intent intent = new Intent("PLAY");
+        intent.putExtra("url", url);
+        intent.putExtra("title", title);
+        intent.putExtra("artist", artist);
+        sendCommandToService(intent);
+
+        call.resolve(new JSObject().put("success", true));
     }
 
     @PluginMethod
     public void resume(PluginCall call) {
-        RaagaXPlaybackService service = getService();
-        if (service != null) {
-            service.resume();
-            call.resolve(new JSObject().put("success", true));
-        } else {
-            call.reject("Service not available");
-        }
+        sendCommandToService(new Intent("RESUME"));
+        call.resolve(new JSObject().put("success", true));
     }
 
     @PluginMethod
     public void pause(PluginCall call) {
-        RaagaXPlaybackService service = getService();
-        if (service != null) {
-            service.pause();
-            call.resolve(new JSObject().put("success", true));
-        } else {
-            call.reject("Service not available");
-        }
+        sendCommandToService(new Intent("PAUSE"));
+        call.resolve(new JSObject().put("success", true));
     }
 
     @PluginMethod
     public void seekTo(PluginCall call) {
         long positionMs = call.getLong("positionMs", 0L);
-        RaagaXPlaybackService service = getService();
-        if (service != null) {
-            service.seekTo(positionMs);
-            call.resolve(new JSObject().put("success", true));
-        } else {
-            call.reject("Service not available");
-        }
+        Intent intent = new Intent("SEEK");
+        intent.putExtra("positionMs", positionMs);
+        sendCommandToService(intent);
+        call.resolve(new JSObject().put("success", true));
     }
 
     @PluginMethod
     public void setVolume(PluginCall call) {
         float volume = call.getFloat("volume", 1.0f);
-        RaagaXPlaybackService service = getService();
-        if (service != null) {
-            service.setVolume(volume);
-            call.resolve(new JSObject().put("success", true));
-        } else {
-            call.reject("Service not available");
-        }
+        Intent intent = new Intent("SET_VOLUME");
+        intent.putExtra("volume", volume);
+        sendCommandToService(intent);
+        call.resolve(new JSObject().put("success", true));
     }
 
     @PluginMethod

@@ -91,6 +91,25 @@ public class RaagaXPlaybackService extends Service {
         } else {
             startForeground(NOTIF_ID, buildNotification());
         }
+
+        if (intent != null) {
+            String action = intent.getAction();
+            if ("PLAY".equals(action)) {
+                String url = intent.getStringExtra("url");
+                String title = intent.getStringExtra("title");
+                String artist = intent.getStringExtra("artist");
+                if (url != null) playUrl(url, title, artist);
+            } else if ("PAUSE".equals(action)) {
+                pause();
+            } else if ("RESUME".equals(action)) {
+                resume();
+            } else if ("SEEK".equals(action)) {
+                seekTo(intent.getLongExtra("positionMs", 0));
+            } else if ("SET_VOLUME".equals(action)) {
+                setVolume(intent.getFloatExtra("volume", 1.0f));
+            }
+        }
+
         return START_STICKY;
     }
 
@@ -162,8 +181,8 @@ public class RaagaXPlaybackService extends Service {
     }
 
     private Notification buildNotification() {
-        Intent launchIntent = getPackageManager()
-                .getLaunchIntentForPackage(getPackageName());
+        Intent launchIntent = new Intent(this, MainActivity.class);
+        launchIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent pi = PendingIntent.getActivity(this, 0, launchIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
