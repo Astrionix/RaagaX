@@ -2,6 +2,8 @@ import { AudioFocusManager } from './AudioFocusManager';
 import { AudioFocusEvent } from './AudioFocusAdapter';
 import { PlaybackEngine } from './PlaybackEngine';
 import { InterruptionToken, PlaybackInterruption, ResumePolicy } from './types';
+import { usePlayerStore } from '@/context/usePlayerStore';
+import { RendererManager } from './RendererManager';
 
 export class InterruptionCoordinator {
   private static instance: InterruptionCoordinator;
@@ -32,16 +34,18 @@ export class InterruptionCoordinator {
 
     switch (event.type) {
       case 'LOSS':
+        engine.setDucked(false);
         this.interrupt('EXTERNAL_AUDIO', 'MANUAL');
         break;
       case 'LOSS_TRANSIENT':
+        engine.setDucked(false);
         this.interrupt('PHONE_CALL', 'AUTO');
         break;
       case 'LOSS_DUCK':
-        // Future enhancement: ducking logic instead of pause
-        this.interrupt('AUDIO_FOCUS_LOSS', 'AUTO');
+        engine.setDucked(true);
         break;
       case 'GAIN':
+        engine.setDucked(false);
         this.resumeIfEligible();
         break;
     }
@@ -50,16 +54,22 @@ export class InterruptionCoordinator {
   public interrupt(reason: PlaybackInterruption, resumePolicy: ResumePolicy, currentTrackId?: string, currentRenderer?: "audio" | "video") {
     const engine = PlaybackEngine.getInstance();
     
-    // Do not interrupt if we are already interrupted or not playing
+    // Do not interrupt if we are already interrupted or not playing locally
     if (!engine.isPlayingLocally()) return;
+    if (this.currentToken && this.currentToken.reason === reason) return; // Deduplicate
 
+    const activeSong = usePlayerStore.getState().currentSong;
+    const activeRenderer = RendererManager.getInstance().getActiveRenderer();
+
+    const trackId = currentTrackId || activeSong?.id || 'unknown_track';
+    const renderer = currentRenderer || activeRenderer || 'audio';
     const positionMs = engine.getCanonicalPositionMs();
     
     this.currentToken = {
       id: crypto.randomUUID(),
-      trackId: currentTrackId || 'unknown',
+      trackId,
       positionMs,
-      renderer: currentRenderer || 'audio',
+      renderer,
       startedAt: Date.now(),
       reason,
       resumePolicy
@@ -90,15 +100,18 @@ export class InterruptionCoordinator {
   }
 
   public reportUserPause() {
+    const activeSong = usePlayerStore.getState().currentSong;
+    const activeRenderer = RendererManager.getInstance().getActiveRenderer();
+
     // A deliberate user pause invalidates any automatic resume.
     if (this.currentToken) {
       this.currentToken.resumePolicy = 'NEVER';
     } else {
       this.currentToken = {
         id: crypto.randomUUID(),
-        trackId: 'unknown',
+        trackId: activeSong?.id || 'unknown_track',
         positionMs: PlaybackEngine.getInstance().getCanonicalPositionMs(),
-        renderer: 'audio',
+        renderer: activeRenderer || 'audio',
         startedAt: Date.now(),
         reason: 'USER',
         resumePolicy: 'NEVER'

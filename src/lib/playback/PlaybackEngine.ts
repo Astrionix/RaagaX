@@ -2,6 +2,7 @@ import { MediaTimelineMapper, TimelineMap } from './TimelineMapper';
 import { PlaybackStateMachine } from './PlaybackStateMachine';
 import { PlaybackInterruption } from './types';
 import { PlaybackClock } from './PlaybackClock';
+import { MediaSessionManager } from './MediaSessionManager';
 
 type FalliblePlayResult = { success: boolean; error?: Error };
 
@@ -10,6 +11,8 @@ export class PlaybackEngine implements PlaybackClock {
   private timelineMapper: MediaTimelineMapper;
   private activeMediaElement: HTMLMediaElement | null = null;
   private stateMachine: PlaybackStateMachine;
+  private isDucked: boolean = false;
+  private unduckedVolume: number = 1.0;
   
   // For prediction between media time updates
   private lastAnchorMediaMs: number = 0;
@@ -85,10 +88,12 @@ export class PlaybackEngine implements PlaybackClock {
       await this.activeMediaElement.play();
       this.anchor();
       this.stateMachine.transitionTo('PLAYING');
+      MediaSessionManager.getInstance().setPlaybackState('playing');
       return { success: true };
     } catch (error: any) {
       console.warn('[PlaybackEngine] Fallible play rejected:', error);
       this.stateMachine.transitionTo('ERROR');
+      MediaSessionManager.getInstance().setPlaybackState('none');
       return { success: false, error };
     }
   }
@@ -107,10 +112,26 @@ export class PlaybackEngine implements PlaybackClock {
                           reason ? 'INTERRUPTED' : 'PAUSED';
                           
       this.stateMachine.transitionTo(targetState);
+      MediaSessionManager.getInstance().setPlaybackState('paused');
       
       if (reason) {
         console.log(`[PlaybackEngine] Paused due to reason: ${reason}`);
       }
+    }
+  }
+
+  public setDucked(ducked: boolean, duckedVolumeRatio: number = 0.2) {
+    if (!this.activeMediaElement) return;
+    
+    if (ducked && !this.isDucked) {
+      this.unduckedVolume = this.activeMediaElement.volume;
+      this.activeMediaElement.volume = this.unduckedVolume * duckedVolumeRatio;
+      this.isDucked = true;
+      console.log(`[PlaybackEngine] Volume ducked to ${(duckedVolumeRatio * 100).toFixed(0)}%`);
+    } else if (!ducked && this.isDucked) {
+      this.activeMediaElement.volume = this.unduckedVolume;
+      this.isDucked = false;
+      console.log(`[PlaybackEngine] Volume restored to ${(this.unduckedVolume * 100).toFixed(0)}%`);
     }
   }
 

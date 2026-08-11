@@ -29,3 +29,18 @@ export type PlaybackState =
   | "INTERRUPTED"
   | "HANDOFF"
   | "ERROR";
+
+export interface PlaybackCapabilities {
+  audioSession: boolean;
+  mediaSession: boolean;
+  nativeAudioFocus: boolean;
+}
+
+export function getPlaybackCapabilities(): PlaybackCapabilities {
+  const isNavDefined = typeof navigator !== 'undefined';
+  return {
+    audioSession: isNavDefined && 'audioSession' in navigator,
+    mediaSession: isNavDefined && 'mediaSession' in navigator,
+    nativeAudioFocus: isNavDefined && typeof (window as any).AndroidAudioFocus !== 'undefined',
+  };
+}
