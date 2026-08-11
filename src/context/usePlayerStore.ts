@@ -69,7 +69,13 @@ interface PlayerState {
   isActiveDevice: boolean;
   remoteDeviceName: string | null;
   lastSyncDbTime: string | null;
-  lastSyncPositionMs: number | null;
+  playbackSession: import('@/lib/playback/PlaybackSession').UnifiedPlaybackSession | null;
+  handoffState: {
+    from: Renderer;
+    to: Renderer;
+    phase: import('@/lib/playback/HandoffCoordinator').HandoffPhase;
+    positionMs: number;
+  } | null;
   serverTimestamp: number | null; // Added for unified engine
   onlineDevices: { id: string; name: string }[];
   setOnlineDevices: (devices: { id: string; name: string }[]) => void;
@@ -236,6 +242,8 @@ export const usePlayerStore = create<PlayerState>()(
   lastSyncDbTime: null,
   lastSyncPositionMs: null,
   serverTimestamp: null,
+  playbackSession: null,
+  handoffState: null,
   onlineDevices: [],
   rightPanelMode: 'queue',
 

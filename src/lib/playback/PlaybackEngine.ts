@@ -3,6 +3,7 @@ import { PlaybackStateMachine } from './PlaybackStateMachine';
 import { PlaybackInterruption } from './types';
 import { PlaybackClock } from './PlaybackClock';
 import { MediaSessionManager } from './MediaSessionManager';
+import { PlaybackRenderer } from './renderers/PlaybackRenderer';
 
 type FalliblePlayResult = { success: boolean; error?: Error };
 
@@ -10,6 +11,7 @@ export class PlaybackEngine implements PlaybackClock {
   private static instance: PlaybackEngine;
   private timelineMapper: MediaTimelineMapper;
   private activeMediaElement: HTMLMediaElement | null = null;
+  private activeRenderer: PlaybackRenderer | null = null;
   private stateMachine: PlaybackStateMachine;
   private isDucked: boolean = false;
   private unduckedVolume: number = 1.0;
@@ -43,9 +45,15 @@ export class PlaybackEngine implements PlaybackClock {
     this.activeMediaElement = element;
     this.anchor();
   }
+
+  public attachRenderer(renderer: PlaybackRenderer) {
+    this.activeRenderer = renderer;
+    this.anchor();
+  }
   
   public detachMediaElement() {
     this.activeMediaElement = null;
+    this.activeRenderer = null;
   }
 
   public anchor() {
