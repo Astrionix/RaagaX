@@ -1,4 +1,4 @@
-import { ConnectCommand } from './types';
+import { ConnectCommand, CommandAckPayload } from './types';
 import { ConnectManager } from './ConnectManager';
 import { CommandSequencer } from './CommandSequencer';
 import { usePlayerStore } from '@/context/usePlayerStore';
@@ -8,6 +8,7 @@ import { DeviceLeaseManager } from './DeviceLeaseManager';
 export class TransferManager {
   private static instance: TransferManager;
   private pendingTransferTimeout: NodeJS.Timeout | null = null;
+  private activeTransitionId: string | null = null;
 
   private constructor() {}
 
@@ -18,20 +19,27 @@ export class TransferManager {
     return TransferManager.instance;
   }
 
+  public getActiveTransitionId(): string | null {
+    return this.activeTransitionId;
+  }
+
   /**
-   * (Sender side) Initiates a transfer to another device.
+   * (Sender side) Initiates a transactional transfer to target device.
    */
-  public async initiateTransfer(targetDeviceId: string) {
+  public async initiateTransfer(targetDeviceId: string): Promise<string> {
     const store = usePlayerStore.getState();
     const sequencer = CommandSequencer.getInstance();
     const engine = PlaybackEngine.getInstance();
     
-    // 1. Capture current state
+    const transitionId = 'tr_' + Math.random().toString(36).substring(2, 10);
+    this.activeTransitionId = transitionId;
+
     const positionMs = engine.getCanonicalPositionMs();
     
     const command: ConnectCommand = {
       commandId: crypto.randomUUID(),
       sessionId: ConnectManager.getInstance().getSessionId() || 'global-session',
+      transitionId,
       epoch: sequencer.getEpoch(),
       sequence: sequencer.nextSequence(),
       sourceDeviceId: store.deviceId,
@@ -40,19 +48,21 @@ export class TransferManager {
       sentAt: Date.now(),
       payload: {
         trackId: store.currentSong?.id,
-        positionMs: positionMs,
+        positionMs,
         isPlaying: store.isPlaying
       }
     };
 
-    // 2. Send via Inbox
+    console.log(`[TransferManager] Initiating transfer transaction ${transitionId} to ${targetDeviceId}`);
     await ConnectManager.getInstance().sendTargetedCommand(targetDeviceId, command);
     
-    // 3. Set timeout for rollback
+    // Set 8s timeout for target confirmation; rollback if target fails to ACK
     this.pendingTransferTimeout = setTimeout(() => {
-      console.warn('[TransferManager] Transfer to', targetDeviceId, 'timed out. Rolling back.');
-      // Rollback logic...
-    }, 10000); // 10s timeout
+      console.warn(`[TransferManager] Transfer transition ${transitionId} timed out. Executing ROLLBACK.`);
+      this.handleTransferRollback(transitionId);
+    }, 8000);
+
+    return transitionId;
   }
 
   /**
@@ -64,64 +74,102 @@ export class TransferManager {
     const store = usePlayerStore.getState();
     const engine = PlaybackEngine.getInstance();
     const payload = command.payload as any;
+    const transitionId = command.transitionId || 'tr_fallback';
 
     try {
-      // 1. Prepare playback locally (buffer track, etc.)
-      console.log('[TransferManager] PREPARE phase...');
-      
-      // 2. Acquire Lease with forceTakeover to increment epoch
-      console.log('[TransferManager] COMMIT phase... acquiring lease');
+      // 1. PREPARE phase: seek canonical position
+      if (payload.positionMs !== undefined) {
+         engine.seekCanonical(payload.positionMs);
+      }
+
+      // 2. COMMIT phase: Acquire lease server-side with forceTakeover
       const leaseSuccess = await DeviceLeaseManager.getInstance().acquireLease(command.sessionId, true);
       
       if (!leaseSuccess) {
         throw new Error('Failed to acquire lease during transfer.');
       }
       
-      // 3. Setup playback state
-      if (payload.positionMs !== undefined) {
-         engine.seekCanonical(payload.positionMs);
-      }
+      // 3. START phase: play audio locally
       if (payload.isPlaying) {
-         engine.play();
+         await engine.play();
       }
       
-      // 4. Send TRANSFER_COMMIT (or ACK) back to source so it knows to stop
+      // 4. Send COMMAND_ACK back to source device
       const sequencer = CommandSequencer.getInstance();
+      const ackPayload: CommandAckPayload = {
+        commandId: command.commandId,
+        transitionId,
+        status: 'APPLIED',
+        epoch: sequencer.getEpoch()
+      };
+
       const ackCommand: ConnectCommand = {
         commandId: crypto.randomUUID(),
         sessionId: command.sessionId,
-        epoch: sequencer.getEpoch(), // Now at new epoch!
+        transitionId,
+        epoch: sequencer.getEpoch(),
         sequence: sequencer.nextSequence(),
         sourceDeviceId: store.deviceId,
         targetDeviceId: command.sourceDeviceId,
         type: 'COMMAND_ACK',
         sentAt: Date.now(),
-        payload: {
-          status: 'APPLIED',
-          originalCommandId: command.commandId
-        }
+        payload: ackPayload
       };
       
       await ConnectManager.getInstance().sendTargetedCommand(command.sourceDeviceId, ackCommand);
-      
+      console.log(`[TransferManager] Transfer transition ${transitionId} successfully committed on target.`);
     } catch (e) {
-       console.error('[TransferManager] Failed to apply transfer request', e);
+       console.error(`[TransferManager] Transfer transition ${transitionId} failed on target:`, e);
+       // Send Rollback ACK to source
+       const sequencer = CommandSequencer.getInstance();
+       const rollbackAck: ConnectCommand = {
+         commandId: crypto.randomUUID(),
+         sessionId: command.sessionId,
+         transitionId,
+         epoch: sequencer.getEpoch(),
+         sequence: sequencer.nextSequence(),
+         sourceDeviceId: store.deviceId,
+         targetDeviceId: command.sourceDeviceId,
+         type: 'COMMAND_ACK',
+         sentAt: Date.now(),
+         payload: {
+           commandId: command.commandId,
+           transitionId,
+           status: 'TRANSITION_ROLLED_BACK',
+           reason: String(e)
+         } as CommandAckPayload
+       };
+       await ConnectManager.getInstance().sendTargetedCommand(command.sourceDeviceId, rollbackAck);
     }
   }
 
   /**
-   * (Sender side) Handles incoming ACK (TRANSFER_COMMIT essentially)
+   * (Sender side) Handles incoming ACK (TRANSFER_COMMIT / ROLLBACK)
    */
   public handleTransferAck(command: ConnectCommand) {
-     if (this.pendingTransferTimeout) {
-       clearTimeout(this.pendingTransferTimeout);
-       this.pendingTransferTimeout = null;
-     }
-     
-     console.log('[TransferManager] Transfer committed by target. Relinquishing local control.');
-     
-     // Stop local playback, we are no longer owner
-     PlaybackEngine.getInstance().pause();
-     usePlayerStore.setState({ isActiveDevice: false, isPlaying: false });
+    const payload = command.payload as CommandAckPayload;
+    
+    if (this.pendingTransferTimeout) {
+      clearTimeout(this.pendingTransferTimeout);
+      this.pendingTransferTimeout = null;
+    }
+
+    if (payload.status === 'APPLIED') {
+      console.log(`[TransferManager] Transfer ${command.transitionId} committed by target. Relinquishing local control.`);
+      PlaybackEngine.getInstance().pause();
+      usePlayerStore.setState({ isActiveDevice: false, isPlaying: false });
+    } else {
+      console.warn(`[TransferManager] Target rejected transition ${command.transitionId}. Retaining local control.`);
+      this.handleTransferRollback(command.transitionId);
+    }
+
+    this.activeTransitionId = null;
+  }
+
+  private handleTransferRollback(transitionId?: string) {
+    console.warn(`[TransferManager] Rollback transition ${transitionId || 'unknown'}: Source device retains active renderer ownership.`);
+    const store = usePlayerStore.getState();
+    usePlayerStore.setState({ isActiveDevice: true });
+    this.activeTransitionId = null;
   }
 }

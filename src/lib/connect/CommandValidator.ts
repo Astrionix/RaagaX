@@ -8,6 +8,7 @@ export class CommandValidator {
   private highestSequenceByDevice: Map<string, number> = new Map();
   private currentRevision: number = 0;
   private processedCommandIds: Set<string> = new Set();
+  private processedCommandHashes: Map<string, string> = new Map();
 
   private constructor() {}
 
@@ -19,11 +20,20 @@ export class CommandValidator {
   }
 
   /**
-   * Validates an incoming command against epoch, revision, and sequence ordering rules.
-   * Returns true if valid, false if stale, duplicate, or out-of-order.
+   * Validates an incoming command against epoch, revision, sequence ordering, and hash integrity.
+   * Returns true if valid, false if stale, duplicate, tampered, or out-of-order.
    */
   public validate(command: ConnectCommand): boolean {
-    // 1. Idempotency Check
+    // 1. Command Hash & Payload Tampering Check
+    if (command.commandHash && this.processedCommandHashes.has(command.commandId)) {
+      const existingHash = this.processedCommandHashes.get(command.commandId);
+      if (existingHash !== command.commandHash) {
+        console.warn(`[CommandValidator] Rejected payload tampering mismatch for command: ${command.commandId}`);
+        return false;
+      }
+    }
+
+    // 2. Idempotency Check
     if (this.processedCommandIds.has(command.commandId)) {
       console.warn(`[CommandValidator] Duplicate command ignored: ${command.commandId}`);
       return false;
@@ -32,7 +42,7 @@ export class CommandValidator {
     const sequencer = CommandSequencer.getInstance();
     const currentEpoch = sequencer.getEpoch();
 
-    // 2. Epoch Validation
+    // 3. Epoch Validation
     if (command.epoch < currentEpoch) {
       console.warn(`[CommandValidator] Rejected stale epoch. Command epoch ${command.epoch} < current ${currentEpoch}`);
       return false;
@@ -50,13 +60,13 @@ export class CommandValidator {
       }
     }
 
-    // 3. Revision Validation
+    // 4. Revision Validation
     if (command.revision && command.revision < this.currentRevision) {
       console.warn(`[CommandValidator] Rejected stale revision ${command.revision} < current ${this.currentRevision}`);
       return false;
     }
 
-    // 4. Sequence Validation per Source Device
+    // 5. Sequence Validation per Source Device
     const lastSeenSeq = this.highestSequenceByDevice.get(command.sourceDeviceId) || 0;
     if (command.sequence <= lastSeenSeq) {
       console.warn(`[CommandValidator] Rejected stale sequence from ${command.sourceDeviceId}. Seq ${command.sequence} <= last ${lastSeenSeq}`);
@@ -70,9 +80,16 @@ export class CommandValidator {
     }
 
     this.processedCommandIds.add(command.commandId);
+    if (command.commandHash) {
+      this.processedCommandHashes.set(command.commandId, command.commandHash);
+    }
+
     if (this.processedCommandIds.size > 500) {
       const firstKey = this.processedCommandIds.values().next().value;
-      if (firstKey) this.processedCommandIds.delete(firstKey);
+      if (firstKey) {
+        this.processedCommandIds.delete(firstKey);
+        this.processedCommandHashes.delete(firstKey);
+      }
     }
     
     return true;
@@ -80,5 +97,12 @@ export class CommandValidator {
 
   public setRevision(revision: number): void {
     this.currentRevision = revision;
+  }
+
+  public reset(): void {
+    this.highestSequenceByDevice.clear();
+    this.processedCommandIds.clear();
+    this.processedCommandHashes.clear();
+    this.currentRevision = 0;
   }
 }

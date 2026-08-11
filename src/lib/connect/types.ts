@@ -42,6 +42,8 @@ export type ConnectCommandType =
 export interface ConnectCommand<T = unknown> {
   commandId: string;
   sessionId: string;
+  transitionId?: string;
+  commandHash?: string;
   epoch: number;
   revision?: number;
   sequence: number;
@@ -52,9 +54,22 @@ export interface ConnectCommand<T = unknown> {
   payload: T;
 }
 
+export type CommandAckStatus =
+  | "APPLIED"
+  | "DUPLICATE"
+  | "STALE_EPOCH"
+  | "STALE_REVISION"
+  | "INVALID_LEASE"
+  | "TARGET_OFFLINE"
+  | "UNAUTHORIZED"
+  | "TRANSITION_ROLLED_BACK"
+  | "PAYLOAD_TAMPERED"
+  | "REJECTED";
+
 export interface CommandAckPayload {
   commandId: string;
-  status: "APPLIED" | "REJECTED";
+  transitionId?: string;
+  status: CommandAckStatus;
   reason?: string;
   revision?: number;
   epoch?: number;
