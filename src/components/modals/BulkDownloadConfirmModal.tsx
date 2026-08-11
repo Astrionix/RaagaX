@@ -90,9 +90,15 @@ export function BulkDownloadConfirmModal({
               </div>
             </div>
 
-            <div className="flex items-center gap-3 bg-white/5 px-4 py-3 rounded-xl border border-white/5">
-              <input type="checkbox" checked={require('@/context/useDownloadStore').useDownloadStore.getState().wifiOnly} onChange={(e) => require('@/context/useDownloadStore').useDownloadStore.getState().setWifiOnly(e.target.checked)} className="w-4 h-4 rounded border-white/20 text-[#fa233b] focus:ring-[#fa233b] focus:ring-offset-0 bg-transparent" />
-              <label className="text-sm font-medium text-slate-300">Wi-Fi only</label>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-3 bg-white/5 px-4 py-3 rounded-xl border border-white/5">
+                <input type="checkbox" checked={require('@/context/useDownloadStore').useDownloadStore.getState().wifiOnly} onChange={(e) => require('@/context/useDownloadStore').useDownloadStore.getState().setWifiOnly(e.target.checked)} className="w-4 h-4 rounded border-white/20 text-[#fa233b] focus:ring-[#fa233b] focus:ring-offset-0 bg-transparent" />
+                <label className="text-sm font-medium text-slate-300">Wi-Fi only</label>
+              </div>
+              <div className="flex items-center gap-3 bg-white/5 px-4 py-3 rounded-xl border border-white/5 opacity-50 cursor-not-allowed">
+                <input type="checkbox" disabled checked={false} className="w-4 h-4 rounded border-white/20 bg-transparent cursor-not-allowed" />
+                <label className="text-sm font-medium text-slate-300 cursor-not-allowed">Include videos (Online only)</label>
+              </div>
             </div>
           </div>
 

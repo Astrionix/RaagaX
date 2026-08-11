@@ -1,4 +1,5 @@
 import { Renderer } from '@/types/music';
+import { PlaybackSource } from '../../offline/types';
 
 export interface PlaybackRenderer {
   readonly type: Renderer;
@@ -6,7 +7,7 @@ export interface PlaybackRenderer {
   attach(element: HTMLMediaElement): void;
   detach(): void;
 
-  prepare(sourceUri: string): Promise<void>;
+  prepare(source: PlaybackSource): Promise<void>;
 
   seekCanonical(positionMs: number): Promise<void>;
 

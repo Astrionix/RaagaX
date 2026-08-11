@@ -1,0 +1,232 @@
+import { QueueItem, QueueSnapshot, RepeatMode, ShuffleMode } from './types';
+import { QueuePersistence } from './QueuePersistence';
+
+export class QueueEngine {
+  private queueId: string;
+  private revision: number = 0;
+  private items: QueueItem[] = [];
+  private currentIndex: number = -1;
+  
+  private autoplayEnabled: boolean = true;
+  private shuffleMode: ShuffleMode = 'OFF';
+  private repeatMode: RepeatMode = 'OFF';
+  
+  private shuffleSeed: string = '';
+  private originalItems: QueueItem[] = []; // For unshuffling
+
+  constructor() {
+    this.queueId = crypto.randomUUID();
+  }
+
+  public async loadFromSnapshot(snapshot: QueueSnapshot) {
+    this.queueId = snapshot.queueId;
+    this.revision = snapshot.revision;
+    this.items = snapshot.items;
+    this.currentIndex = snapshot.currentIndex;
+    this.autoplayEnabled = snapshot.autoplayEnabled;
+    this.shuffleMode = snapshot.shuffleMode || 'OFF';
+    this.repeatMode = snapshot.repeatMode;
+    this.shuffleSeed = snapshot.shuffleSeed || '';
+    
+    if (this.shuffleMode !== 'OFF') {
+      // In a real unshuffle implementation, you'd retain the un-shuffled array in snapshot, 
+      // but for this implementation we'll assume the snapshot represents the current physical order.
+      this.originalItems = [...this.items]; 
+    }
+  }
+
+  public getSnapshot(): QueueSnapshot {
+    return {
+      queueId: this.queueId,
+      revision: this.revision,
+      currentIndex: this.currentIndex,
+      items: [...this.items],
+      autoplayEnabled: this.autoplayEnabled,
+      shuffleMode: this.shuffleMode,
+      repeatMode: this.repeatMode,
+      shuffleSeed: this.shuffleSeed
+    };
+  }
+
+  private mutate() {
+    this.revision++;
+    QueuePersistence.getInstance().saveSnapshot(this.getSnapshot());
+  }
+
+  public isAutoplayEnabled() { return this.autoplayEnabled; }
+  public toggleAutoplay() { 
+    this.autoplayEnabled = !this.autoplayEnabled; 
+    this.mutate();
+  }
+
+  public setRepeatMode(mode: RepeatMode) {
+    this.repeatMode = mode;
+    this.mutate();
+  }
+  public getRepeatMode() { return this.repeatMode; }
+
+  public async toggleShuffle() {
+    if (this.shuffleMode === 'OFF') {
+      this.shuffleMode = 'STANDARD';
+    } else if (this.shuffleMode === 'STANDARD') {
+      this.shuffleMode = 'SMART';
+    } else {
+      this.shuffleMode = 'OFF';
+    }
+    
+    if (this.shuffleMode === 'STANDARD') {
+      this.shuffleSeed = crypto.randomUUID();
+      this.originalItems = [...this.items];
+      
+      if (this.currentIndex >= 0 && this.currentIndex < this.items.length) {
+        const currentItem = this.items[this.currentIndex];
+        const remaining = this.items.filter((_, i) => i !== this.currentIndex);
+        
+        let seed = this.shuffleSeed.charCodeAt(0);
+        remaining.sort(() => {
+          seed = (seed * 9301 + 49297) % 233280;
+          return (seed / 233280) - 0.5;
+        });
+        
+        this.items = [currentItem, ...remaining];
+        this.currentIndex = 0;
+      }
+    } else if (this.shuffleMode === 'SMART') {
+      this.shuffleSeed = crypto.randomUUID();
+      if (this.originalItems.length === 0) {
+        this.originalItems = [...this.items];
+      }
+      
+      if (this.currentIndex >= 0 && this.currentIndex < this.items.length) {
+        const currentItem = this.items[this.currentIndex];
+        const remaining = this.items.filter((_, i) => i !== this.currentIndex);
+        
+        // Let SmartShuffleEngine do the heavy lifting
+        const smartSequence = await import('./SmartShuffleEngine').then(m => 
+          m.SmartShuffleEngine.generateSmartSequence(remaining, this.shuffleSeed, 'Telugu')
+        );
+        
+        this.items = [currentItem, ...smartSequence];
+        this.currentIndex = 0;
+      }
+    } else {
+      // Unshuffle
+      if (this.originalItems.length > 0) {
+        const currentItem = this.items[this.currentIndex];
+        this.items = [...this.originalItems];
+        this.currentIndex = this.items.findIndex(i => i.queueItemId === currentItem?.queueItemId);
+        if (this.currentIndex === -1) this.currentIndex = 0;
+      }
+    }
+    
+    this.mutate();
+  }
+  public getShuffleMode() { return this.shuffleMode; }
+
+  public getCurrentItem(): QueueItem | null {
+    if (this.currentIndex >= 0 && this.currentIndex < this.items.length) {
+      return this.items[this.currentIndex];
+    }
+    return null;
+  }
+
+  public getNextItem(): QueueItem | null {
+    if (this.repeatMode === 'TRACK') {
+      return this.getCurrentItem();
+    }
+
+    if (this.currentIndex + 1 < this.items.length) {
+      this.currentIndex++;
+      this.mutate();
+      return this.items[this.currentIndex];
+    }
+
+    if (this.repeatMode === 'CONTEXT' && this.items.length > 0) {
+      this.currentIndex = 0;
+      this.mutate();
+      return this.items[0];
+    }
+
+    return null;
+  }
+
+  public getPreviousItem(): QueueItem | null {
+    if (this.currentIndex - 1 >= 0) {
+      this.currentIndex--;
+      this.mutate();
+      return this.items[this.currentIndex];
+    }
+    return this.getCurrentItem(); // Fallback to current if at start
+  }
+
+  public playNow(item: QueueItem) {
+    // Current -> selected song -> remaining existing queue
+    this.items.splice(this.currentIndex + 1, 0, item);
+    this.currentIndex++;
+    this.mutate();
+  }
+
+  public playNext(item: QueueItem) {
+    // Current -> selected song -> existing next
+    this.items.splice(this.currentIndex + 1, 0, item);
+    this.mutate();
+  }
+
+  public addToQueue(item: QueueItem) {
+    // Current -> existing queue -> selected song
+    this.items.push(item);
+    this.mutate();
+  }
+
+  public replaceQueue(items: QueueItem[], startIndex: number = 0) {
+    this.items = [...items];
+    this.currentIndex = startIndex;
+    if (this.shuffleMode !== 'OFF') {
+      this.originalItems = [...this.items];
+      // Perform initial shuffle logic here if needed, keeping startIndex at top
+    }
+    this.mutate();
+  }
+
+  public appendAutoplayItems(items: QueueItem[]) {
+    this.items.push(...items);
+    this.mutate();
+  }
+
+  public clearQueue() {
+    const current = this.getCurrentItem();
+    this.items = current ? [current] : [];
+    this.currentIndex = current ? 0 : -1;
+    this.mutate();
+  }
+
+  public removeItem(queueItemId: string) {
+    const idx = this.items.findIndex(i => i.queueItemId === queueItemId);
+    if (idx > -1) {
+      this.items.splice(idx, 1);
+      if (idx < this.currentIndex) {
+        this.currentIndex--;
+      }
+      this.mutate();
+    }
+  }
+
+  public getRemainingCount(): number {
+    if (this.currentIndex < 0) return 0;
+    return this.items.length - 1 - this.currentIndex;
+  }
+
+  public getRecentItems(count: number): QueueItem[] {
+    if (this.currentIndex < 0) return [];
+    const start = Math.max(0, this.currentIndex - count + 1);
+    return this.items.slice(start, this.currentIndex + 1);
+  }
+
+  public getAllItems(): QueueItem[] {
+    return [...this.items];
+  }
+
+  public getCurrentIndex(): number {
+    return this.currentIndex;
+  }
+}

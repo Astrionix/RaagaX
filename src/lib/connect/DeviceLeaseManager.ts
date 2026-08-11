@@ -6,6 +6,7 @@ export class DeviceLeaseManager {
   private static instance: DeviceLeaseManager;
   private leaseInterval: NodeJS.Timeout | null = null;
   private currentLeaseToken: string | null = null;
+  private currentLeaseVersion: number = 0;
 
   private constructor() {}
 
@@ -16,34 +17,42 @@ export class DeviceLeaseManager {
     return DeviceLeaseManager.instance;
   }
 
-  public async acquireLease(sessionId: string, currentEpoch: number): Promise<boolean> {
+  public async acquireLease(sessionId: string, forceTakeover: boolean = false): Promise<boolean> {
     const store = usePlayerStore.getState();
     const deviceId = store.deviceId;
+    const instanceId = store.deviceInstanceId;
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) return false;
 
     const leaseToken = crypto.randomUUID();
-    const newEpoch = currentEpoch + 1; // Increment epoch on transfer
     const expiresAt = new Date(Date.now() + 60000).toISOString(); // 60s lease
 
     try {
-      const { error } = await supabase.from('device_leases').upsert({
-        user_id: session.user.id,
-        session_id: sessionId,
-        device_id: deviceId,
-        lease_token: leaseToken,
-        lease_epoch: newEpoch,
-        expires_at: expiresAt
-      }, { onConflict: 'session_id' });
+      const { data, error } = await supabase.rpc('claim_playback_lease', {
+        p_session_id: sessionId,
+        p_device_id: deviceId,
+        p_instance_id: instanceId,
+        p_lease_token: leaseToken,
+        p_expires_at: expiresAt,
+        p_force_takeover: forceTakeover
+      });
 
       if (error) throw error;
 
-      this.currentLeaseToken = leaseToken;
-      CommandSequencer.getInstance().setEpoch(newEpoch);
-      
-      this.startLeaseRenewal(sessionId);
-      console.log(`[DeviceLeaseManager] Acquired lease! Epoch ${newEpoch}`);
-      return true;
+      if (data && data.success) {
+        this.currentLeaseToken = leaseToken;
+        this.currentLeaseVersion = data.lease_version;
+        CommandSequencer.getInstance().setEpoch(data.epoch);
+        
+        this.startLeaseRenewal(sessionId);
+        console.log(`[DeviceLeaseManager] Acquired lease! Epoch ${data.epoch}, Version ${this.currentLeaseVersion}`);
+        
+        usePlayerStore.setState({ isActiveDevice: true });
+        return true;
+      } else {
+        console.warn(`[DeviceLeaseManager] Lease acquisition denied: ${data?.error}`);
+        return false;
+      }
     } catch (e) {
       console.error('[DeviceLeaseManager] Failed to acquire lease:', e);
       return false;
@@ -53,8 +62,8 @@ export class DeviceLeaseManager {
   public async checkLeaseValid(sessionId: string): Promise<boolean> {
     if (!this.currentLeaseToken) return false;
     
-    // In a full implementation, you'd verify against DB if critical. 
-    // For most operations, relying on CommandValidator epoch rejection is enough.
+    // Most validation occurs on the epoch/sequence during command execution.
+    // The lease interval ensures this token expires server-side if network drops.
     return true;
   }
 
@@ -68,27 +77,34 @@ export class DeviceLeaseManager {
         return;
       }
 
+      // Essentially renewing is the same RPC but not forcing takeover.
       const store = usePlayerStore.getState();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return;
-
       const expiresAt = new Date(Date.now() + 60000).toISOString();
 
       try {
-        const { error } = await supabase.from('device_leases')
-          .update({ expires_at: expiresAt })
-          .match({ 
-            user_id: session.user.id, 
-            session_id: sessionId,
-            lease_token: this.currentLeaseToken 
-          });
+        const { data, error } = await supabase.rpc('claim_playback_lease', {
+          p_session_id: sessionId,
+          p_device_id: store.deviceId,
+          p_instance_id: store.deviceInstanceId,
+          p_lease_token: this.currentLeaseToken,
+          p_expires_at: expiresAt,
+          p_force_takeover: false
+        });
           
         if (error) throw error;
+
+        if (data && data.success) {
+           this.currentLeaseVersion = data.lease_version;
+        } else {
+           throw new Error(data?.error || 'lease_denied');
+        }
       } catch (e) {
         console.warn('[DeviceLeaseManager] Lease renewal failed, losing ownership.', e);
         this.currentLeaseToken = null;
         clearInterval(this.leaseInterval!);
-        // Transition device to non-owner state
+        
+        // Note: we DO NOT pause local playback here! We just mark ourselves as non-controller
+        // so that if we reconnect later, we fetch snapshot instead of broadcasting stale commands.
         usePlayerStore.setState({ isActiveDevice: false });
       }
     }, 30000);

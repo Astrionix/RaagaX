@@ -5,6 +5,16 @@ export interface DeviceCapabilities {
   connect: boolean;
 }
 
+export type ConnectState =
+  | "OFFLINE"
+  | "CONNECTING"
+  | "SUBSCRIBING"
+  | "CONNECTED"
+  | "RECOVERING"
+  | "READY"
+  | "STALE"
+  | "TAKEOVER_PENDING";
+
 export type ConnectCommandType = 
   | "PLAY"
   | "PAUSE"
@@ -15,6 +25,7 @@ export type ConnectCommandType =
   | "TRANSFER_READY"
   | "TRANSFER_COMMIT"
   | "HANDOFF"
+  | "QUEUE_SHUFFLE_COMMIT"
   | "COMMAND_ACK";
 
 export interface ConnectCommand<T = unknown> {
@@ -24,6 +35,7 @@ export interface ConnectCommand<T = unknown> {
   sequence: number;
   sourceDeviceId: string;
   targetDeviceId?: string;
+  expectedStateVersion?: number;
   type: ConnectCommandType;
   sentAt: number;
   payload: T;

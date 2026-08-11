@@ -82,6 +82,7 @@ export class CommandBus {
         
       case 'COMMAND_ACK':
         console.log('[CommandBus] Received ACK:', command.payload);
+        TransferManager.getInstance().handleTransferAck(command);
         break;
 
       default:

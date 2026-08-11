@@ -48,7 +48,7 @@ export function AlbumsView() {
       tracks = details?.songs || [];
     }
     if (tracks.length > 0) {
-      setRemoteState({ isShuffle: false });
+      setRemoteState({ shuffleMode: 'OFF' });
       playSong(tracks[0], tracks);
     }
   };
@@ -132,7 +132,7 @@ export function AlbumsView() {
               if (list.length > 0) {
                 // Shuffle the album IDs array
                 const albumIds = list.map(a => a.id).sort(() => Math.random() - 0.5);
-                setRemoteState({ isShuffle: true });
+                setRemoteState({ shuffleMode: 'STANDARD' });
                 await playAlbumSequence(albumIds);
               }
             }}
@@ -289,3 +289,4 @@ export function AlbumsView() {
     </div>
   );
 }
+

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { X, Sliders, Volume2, Wifi } from 'lucide-react';
-import { usePlayerStore, AudioQualityPreset } from '@/context/usePlayerStore';
+import { usePlayerStore } from '@/context/usePlayerStore';
 
 export function AudioSettingsDrawer() {
   const {
@@ -10,8 +10,14 @@ export function AudioSettingsDrawer() {
     toggleSettingsModal,
     crossfadeSec,
     setCrossfadeSec,
-    audioQualityPreset,
-    setAudioQualityPreset,
+    isGaplessEnabled,
+    setGaplessEnabled,
+    streamingQuality,
+    setStreamingQuality,
+    isDataSaverEnabled,
+    setDataSaverEnabled,
+    downloadQuality,
+    setDownloadQuality,
   } = usePlayerStore();
 
   if (!isSettingsModalOpen) return null;
@@ -38,6 +44,30 @@ export function AudioSettingsDrawer() {
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Gapless Section */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-emerald-500/20 flex items-center justify-center">
+                <div className="w-2 h-2 rounded bg-emerald-400" />
+              </div>
+              <h3 className="text-sm font-bold text-white">Gapless Playback</h3>
+            </div>
+            
+            <button
+              onClick={() => setGaplessEnabled(!isGaplessEnabled)}
+              className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ${isGaplessEnabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
+            >
+              <div className={`w-4 h-4 bg-white rounded-full transition-transform duration-300 ${isGaplessEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+          </div>
+          <p className="text-xs text-slate-400">
+            Allow gapless transitions between consecutive tracks. Automatically handled when Crossfade is active.
+          </p>
+        </div>
+
+        <div className="h-px w-full bg-white/10" />
 
         {/* Crossfade Section */}
         <div className="space-y-4">
@@ -85,33 +115,60 @@ export function AudioSettingsDrawer() {
 
           <div className="flex flex-col gap-2.5">
             {[
-              { label: 'Data Saver', value: '320kbps MP3', desc: 'Best for slow connections' },
-              { label: 'High Quality', value: '1411kbps Lossless', desc: 'Standard CD quality' },
-              { label: 'Master Quality', value: '24-bit 96kHz FLAC', desc: 'Studio resolution (Requires fast Wi-Fi)' },
+              { label: 'Automatic', value: 'AUTO', desc: 'Best available quality based on connection' },
+              { label: 'Low', value: 'LOW', desc: '64 kbps (Saves data)' },
+              { label: 'Normal', value: 'NORMAL', desc: '128 kbps (Standard)' },
+              { label: 'High', value: 'HIGH', desc: '192 kbps (High quality)' },
+              { label: 'Very High', value: 'VERY_HIGH', desc: '320 kbps (Best audio)' },
+              { label: 'Lossless', value: 'LOSSLESS', desc: 'FLAC / CD quality when available' },
             ].map((option) => (
               <button
                 key={option.value}
-                onClick={() => setAudioQualityPreset(option.value as AudioQualityPreset)}
+                onClick={() => setStreamingQuality(option.value as import('@/lib/playback/types').AudioQuality)}
                 className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all ${
-                  audioQualityPreset === option.value
+                  streamingQuality === option.value
                     ? 'border-emerald-500/50 bg-emerald-500/10'
                     : 'border-white/5 bg-white/5 hover:bg-white/10'
                 }`}
               >
                 <div className="text-left">
-                  <div className={`text-sm font-bold ${audioQualityPreset === option.value ? 'text-emerald-400' : 'text-slate-200'}`}>
+                  <div className={`text-sm font-bold ${streamingQuality === option.value ? 'text-emerald-400' : 'text-slate-200'}`}>
                     {option.label}
                   </div>
                   <div className="text-[10px] text-slate-400 mt-0.5">{option.desc}</div>
                 </div>
                 <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                  audioQualityPreset === option.value ? 'border-emerald-400' : 'border-slate-500'
+                  streamingQuality === option.value ? 'border-emerald-400' : 'border-slate-500'
                 }`}>
-                  {audioQualityPreset === option.value && <div className="w-2 h-2 bg-emerald-400 rounded-full" />}
+                  {streamingQuality === option.value && <div className="w-2 h-2 bg-emerald-400 rounded-full" />}
                 </div>
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="h-px w-full bg-white/10" />
+
+        {/* Data Saver Section */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-[#fa233b]/20 flex items-center justify-center">
+                <div className="w-2 h-2 rounded bg-[#fa233b]" />
+              </div>
+              <h3 className="text-sm font-bold text-white">Data Saver</h3>
+            </div>
+            
+            <button
+              onClick={() => setDataSaverEnabled(!isDataSaverEnabled)}
+              className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ${isDataSaverEnabled ? 'bg-[#fa233b]' : 'bg-slate-700'}`}
+            >
+              <div className={`w-4 h-4 bg-white rounded-full transition-transform duration-300 ${isDataSaverEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+          </div>
+          <p className="text-xs text-slate-400">
+            Caps streaming quality to Normal or Low when on cellular networks.
+          </p>
         </div>
 
       </div>

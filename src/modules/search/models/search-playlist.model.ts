@@ -37,7 +37,6 @@ export const SearchPlaylistModel = z.object({
   total: z.number(),
   start: z.number(),
   results: z.array(
-    // TODO: Do this for all search models
     z.object({
       id: z.string(),
       name: z.string(),

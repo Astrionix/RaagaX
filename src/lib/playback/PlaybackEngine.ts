@@ -4,6 +4,7 @@ import { PlaybackInterruption } from './types';
 import { PlaybackClock } from './PlaybackClock';
 import { MediaSessionManager } from './MediaSessionManager';
 import { PlaybackRenderer } from './renderers/PlaybackRenderer';
+import { PlaybackSource } from '../offline/types';
 
 type FalliblePlayResult = { success: boolean; error?: Error };
 
@@ -62,6 +63,11 @@ export class PlaybackEngine implements PlaybackClock {
     this.lastAnchorPerfNow = performance.now();
   }
 
+  public getDurationMs(): number {
+    if (!this.activeMediaElement || isNaN(this.activeMediaElement.duration)) return 0;
+    return this.activeMediaElement.duration * 1000;
+  }
+
   public getMediaPositionMs(): number {
     if (!this.activeMediaElement) return 0;
     
@@ -82,6 +88,18 @@ export class PlaybackEngine implements PlaybackClock {
   public getCanonicalPositionMs(): number {
     const mediaMs = this.getMediaPositionMs();
     return this.timelineMapper.mediaToCanonical(mediaMs);
+  }
+
+  public async load(source: PlaybackSource) {
+    if (!this.activeRenderer) return;
+    this.stateMachine.transitionTo('LOADING');
+    try {
+      await this.activeRenderer.prepare(source);
+      this.stateMachine.transitionTo('READY');
+    } catch (e) {
+      this.stateMachine.transitionTo('ERROR');
+      throw e;
+    }
   }
 
   public async play(): Promise<FalliblePlayResult> {
@@ -152,11 +170,22 @@ export class PlaybackEngine implements PlaybackClock {
     }
   }
 
-  public seekCanonical(canonicalMs: number) {
+  public seekCanonical(targetMs: number) {
     if (!this.activeMediaElement) return;
+    const mediaMs = this.timelineMapper.canonicalToMedia(targetMs);
     
-    const mediaMs = this.timelineMapper.canonicalToMedia(canonicalMs);
+    // Cancel any ongoing transitions when user seeks
+    import('./TransitionManager').then(m => {
+       const tm = m.TransitionManager.getInstance();
+       // Note: we can't fully call cancelTransition here without active/standby audio refs, 
+       // so we will trigger an event or handle it in AudioPlayerController.
+    });
+
     this.activeMediaElement.currentTime = mediaMs / 1000;
     this.anchor();
+    
+    if (this.stateMachine.canTransitionTo('PLAYING') && !this.activeMediaElement.paused) {
+      this.stateMachine.transitionTo('PLAYING');
+    }
   }
 }

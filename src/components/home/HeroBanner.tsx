@@ -20,13 +20,13 @@ export function HeroBanner({ featuredSongs, language, onLanguageChange }: HeroBa
 
   const handlePlayAll = () => {
     if (featuredSongs.length === 0) return;
-    setRemoteState({ isShuffle: false });
+    setRemoteState({ shuffleMode: 'OFF' });
     playSong(featuredSongs[0], featuredSongs);
   };
 
   const handleShufflePlay = () => {
     if (featuredSongs.length === 0) return;
-    setRemoteState({ isShuffle: true });
+    setRemoteState({ shuffleMode: 'STANDARD' });
     const randomIndex = Math.floor(Math.random() * featuredSongs.length);
     playSong(featuredSongs[randomIndex], featuredSongs);
   };

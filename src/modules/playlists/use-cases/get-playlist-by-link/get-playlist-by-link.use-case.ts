@@ -1,5 +1,5 @@
 import { Endpoints } from '#common/constants'
-import { useFetch } from '#common/helpers'
+import { apiFetch } from '#common/helpers'
 import { createPlaylistPayload } from '#modules/playlists/helpers'
 import { HTTPException } from 'hono/http-exception'
 import type { IUseCase } from '#common/types'
@@ -16,7 +16,7 @@ export class GetPlaylistByLinkUseCase implements IUseCase<GetPlaylistByLinkArgs,
   constructor() {}
 
   async execute({ token, limit, page }: GetPlaylistByLinkArgs) {
-    const { data } = await useFetch<z.infer<typeof PlaylistAPIResponseModel>>({
+    const { data } = await apiFetch<z.infer<typeof PlaylistAPIResponseModel>>({
       endpoint: Endpoints.albums.link,
       params: {
         token,

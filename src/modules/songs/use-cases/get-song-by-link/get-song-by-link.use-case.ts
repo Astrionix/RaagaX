@@ -1,5 +1,5 @@
 import { Endpoints } from '#common/constants'
-import { useFetch } from '#common/helpers'
+import { apiFetch } from '#common/helpers'
 import { createSongPayload } from '#modules/songs/helpers'
 import { HTTPException } from 'hono/http-exception'
 import type { IUseCase } from '#common/types'
@@ -10,7 +10,7 @@ export class GetSongByLinkUseCase implements IUseCase<string, z.infer<typeof Son
   constructor() {}
 
   async execute(token: string) {
-    const { data } = await useFetch<{ songs: z.infer<typeof SongAPIResponseModel>[] }>({
+    const { data } = await apiFetch<{ songs: z.infer<typeof SongAPIResponseModel>[] }>({
       endpoint: Endpoints.songs.link,
       params: { token, type: 'song' }
     })

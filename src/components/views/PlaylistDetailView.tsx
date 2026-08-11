@@ -166,13 +166,13 @@ export function PlaylistDetailView() {
 
   const handlePlayAll = () => {
     if (playlist.songs.length === 0) return;
-    setRemoteState({ isShuffle: false });
+    setRemoteState({ shuffleMode: 'OFF' });
     playSong(playlist.songs[0], playlist.songs);
   };
 
   const handleShufflePlay = () => {
     if (playlist.songs.length === 0) return;
-    setRemoteState({ isShuffle: true });
+    setRemoteState({ shuffleMode: 'STANDARD' });
     const randomIndex = Math.floor(Math.random() * playlist.songs.length);
     playSong(playlist.songs[randomIndex], playlist.songs);
   };
@@ -293,3 +293,4 @@ export function PlaylistDetailView() {
     </div>
   );
 }
+

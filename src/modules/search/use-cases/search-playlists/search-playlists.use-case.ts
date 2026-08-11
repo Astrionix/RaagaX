@@ -1,5 +1,5 @@
 import { Endpoints } from '#common/constants'
-import { useFetch } from '#common/helpers'
+import { apiFetch } from '#common/helpers'
 import { createSearchPlaylistPayload } from '#modules/search/helpers'
 import { HTTPException } from 'hono/http-exception'
 import type { IUseCase } from '#common/types'
@@ -16,7 +16,7 @@ export class SearchPlaylistsUseCase implements IUseCase<SearchPlaylistsArgs, z.i
   constructor() {}
 
   async execute({ query, limit, page }: SearchPlaylistsArgs): Promise<z.infer<typeof SearchPlaylistModel>> {
-    const { data } = await useFetch<z.infer<typeof SearchPlaylistAPIResponseModel>>({
+    const { data } = await apiFetch<z.infer<typeof SearchPlaylistAPIResponseModel>>({
       endpoint: Endpoints.search.playlists,
       params: {
         q: query,

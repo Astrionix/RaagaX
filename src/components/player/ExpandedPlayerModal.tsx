@@ -5,7 +5,7 @@ import {
   X, ChevronDown, Heart, Download, Play, Pause, SkipBack, SkipForward, 
   Disc3, Mic2, Music, Tv, RefreshCw, ExternalLink, Shuffle, Repeat, Repeat1, 
   ListMusic, Settings2, MonitorSmartphone, Check, MoreHorizontal, Share2, 
-  User, Disc, ListPlus, Radio
+  User, Disc, ListPlus, Radio, Sparkles
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { DeviceSelector } from '@/components/providers/DeviceSyncProvider';
@@ -31,7 +31,7 @@ export function ExpandedPlayerModal() {
     toggleSettingsModal,
     toggleLyrics,
     toggleQueue,
-    isShuffle,
+    shuffleMode,
     toggleShuffle,
     repeatMode,
     cycleRepeatMode,
@@ -47,6 +47,7 @@ export function ExpandedPlayerModal() {
     toggleDeviceModal,
     setSelectedArtistId,
     setSelectedAlbumId,
+    networkMode,
   } = usePlayerStore();
 
   const isVideoMode = activeRenderer === 'video';
@@ -230,12 +231,13 @@ export function ExpandedPlayerModal() {
             </button>
             <button
               onClick={handleSwitchToVideoMode}
+              disabled={networkMode === 'offline' || networkMode === 'offline_forced'}
               className={`px-2.5 sm:px-3 py-1.5 sm:py-1 rounded-full sm:rounded-xl text-[10px] sm:text-[11px] font-bold transition-all flex items-center gap-1 sm:gap-1.5 ${
                 isVideoMode ? 'bg-[#fa233b] text-white shadow-lg' : 'text-slate-400 hover:text-white'
-              }`}
-              title="Video Mode"
+              } disabled:opacity-30 disabled:cursor-not-allowed`}
+              title={networkMode === 'offline' || networkMode === 'offline_forced' ? 'Video unavailable offline' : 'Video Mode'}
             >
-              <Tv className="w-3.5 h-3.5 sm:w-3.5 sm:h-3.5" /> <span className="hidden sm:inline">Video</span>
+              <Tv className="w-3.5 h-3.5 sm:w-3.5 sm:h-3.5" /> <span className="hidden sm:inline">Video {(networkMode === 'offline' || networkMode === 'offline_forced') && '🔒'}</span>
             </button>
           </div>
 
@@ -453,12 +455,19 @@ export function ExpandedPlayerModal() {
           <button
             onClick={toggleShuffle}
             className={`p-2 transition-colors relative hover:scale-110 active:scale-95 ${
-              isShuffle ? 'text-[#1ed760]' : 'text-white/70 hover:text-white'
+              shuffleMode !== 'OFF' ? 'text-[#1ed760]' : 'text-white/70 hover:text-white'
             }`}
-            title="Shuffle"
+            title={`Shuffle: ${shuffleMode}`}
           >
-            <Shuffle className="w-5 h-5 sm:w-6 sm:h-6" />
-            {isShuffle && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#1ed760]" />}
+            {shuffleMode === 'SMART' ? (
+              <div className="relative">
+                <Shuffle className="w-5 h-5 sm:w-6 sm:h-6" />
+                <Sparkles className="w-3 h-3 absolute -top-1 -right-1 text-yellow-400" />
+              </div>
+            ) : (
+              <Shuffle className="w-5 h-5 sm:w-6 sm:h-6" />
+            )}
+            {shuffleMode !== 'OFF' && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#1ed760]" />}
           </button>
 
           <button

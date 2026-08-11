@@ -1,6 +1,6 @@
 import { Endpoints } from '#common/constants'
 import { ApiContextEnum } from '#common/enums'
-import { useFetch } from '#common/helpers'
+import { apiFetch } from '#common/helpers'
 import { createSongPayload } from '#modules/songs/helpers'
 import { CreateSongStationUseCase } from '#modules/songs/use-cases'
 import { HTTPException } from 'hono/http-exception'
@@ -23,7 +23,7 @@ export class GetSongSuggestionsUseCase implements IUseCase<GetSongSuggestionsArg
   async execute({ songId, limit }: GetSongSuggestionsArgs) {
     const stationId = await this.createSongStation.execute(songId)
 
-    const { data, ok } = await useFetch<z.infer<typeof SongSuggestionAPIResponseModel>>({
+    const { data, ok } = await apiFetch<z.infer<typeof SongSuggestionAPIResponseModel>>({
       endpoint: Endpoints.songs.suggestions,
       params: {
         stationid: stationId,

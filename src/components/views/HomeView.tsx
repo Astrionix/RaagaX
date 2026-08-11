@@ -139,7 +139,7 @@ export function HomeView() {
       tracks = details?.songs || [];
     }
     if (tracks && tracks.length > 0) {
-      setRemoteState({ isShuffle: false });
+      setRemoteState({ shuffleMode: 'OFF' });
       playSong(tracks[0], tracks);
     }
   };
@@ -254,3 +254,4 @@ export function HomeView() {
     </div>
   );
 }
+

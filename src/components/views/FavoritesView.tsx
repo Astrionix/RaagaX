@@ -51,7 +51,7 @@ export function FavoritesView() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
-                usePlayerStore.getState().setRemoteState({ isShuffle: false });
+                usePlayerStore.getState().setRemoteState({ shuffleMode: 'OFF' });
                 playSong(likedSongs[0], likedSongs);
               }}
               className="px-4 py-2 rounded-xl bg-[#fa233b] hover:bg-[#d91e32] text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
@@ -62,7 +62,7 @@ export function FavoritesView() {
             <button
               onClick={() => {
                 const shuffled = [...likedSongs].sort(() => Math.random() - 0.5);
-                usePlayerStore.getState().setRemoteState({ isShuffle: true });
+                usePlayerStore.getState().setRemoteState({ shuffleMode: 'STANDARD' });
                 playSong(shuffled[0], shuffled);
               }}
               className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-white/10"
@@ -132,3 +132,4 @@ export function FavoritesView() {
     </div>
   );
 }
+

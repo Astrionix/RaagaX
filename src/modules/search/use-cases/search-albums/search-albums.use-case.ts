@@ -1,5 +1,5 @@
 import { Endpoints } from '#common/constants'
-import { useFetch } from '#common/helpers'
+import { apiFetch } from '#common/helpers'
 import { createSearchAlbumPayload } from '#modules/search/helpers'
 import type { IUseCase } from '#common/types'
 import type { SearchAlbumAPIResponseModel, SearchAlbumModel } from '#modules/search/models'
@@ -15,7 +15,7 @@ export class SearchAlbumsUseCase implements IUseCase<SearchAlbumsArgs, z.infer<t
   constructor() {}
 
   async execute({ query, limit, page }: SearchAlbumsArgs): Promise<z.infer<typeof SearchAlbumModel>> {
-    const { data } = await useFetch<z.infer<typeof SearchAlbumAPIResponseModel>>({
+    const { data } = await apiFetch<z.infer<typeof SearchAlbumAPIResponseModel>>({
       endpoint: Endpoints.search.albums,
       params: {
         q: query,

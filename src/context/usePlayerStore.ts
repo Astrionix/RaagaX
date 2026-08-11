@@ -4,7 +4,7 @@ import { Song, RepeatMode, AIDJState, ActiveTab, Renderer } from '@/types/music'
 import { RecommendationEngine } from '@/lib/recommendationEngine';
 import { LocalDatabase } from '@/lib/localDatabase';
 
-export type AudioQualityPreset = '320kbps MP3' | '1411kbps Lossless' | '24-bit 96kHz FLAC';
+import { AudioQuality, AudioQualityState } from '@/lib/playback/types';
 
 interface PlayerState {
   currentSong: Song | null;
@@ -16,7 +16,7 @@ interface PlayerState {
   
   queue: Song[];
   queueIndex: number;
-  isShuffle: boolean;
+  shuffleMode: import('@/lib/queue/types').ShuffleMode;
   repeatMode: RepeatMode;
   isRefillingQueue: boolean;
 
@@ -28,13 +28,18 @@ interface PlayerState {
   favoriteAlbumIds: string[];
 
   crossfadeSec: number;
+  isGaplessEnabled: boolean;
+  playbackContext: any[];
 
   activeTab: ActiveTab;
   selectedArtistId: string | null;
   selectedAlbumId: string | null;
   selectedPlaylistId: string | null;
-
-  audioQualityPreset: AudioQualityPreset;
+  streamingQuality: AudioQuality;
+  downloadQuality: AudioQuality;
+  isDataSaverEnabled: boolean;
+  deliveredQuality: AudioQuality;
+  
   isPlayerExpanded: boolean;
   isLyricsOpen: boolean;
   isQueueOpen: boolean;
@@ -61,8 +66,13 @@ interface PlayerState {
   contextMenuSong: Song | null;
   preferredLanguage: string;
 
+  // Offline Mode State
+  networkMode: 'online' | 'offline' | 'offline_forced';
+  setNetworkMode: (mode: 'online' | 'offline' | 'offline_forced') => void;
+
   // Cross-Device Sync State
   deviceId: string;
+  deviceInstanceId: string;
   activeDeviceId: string | null;
   activeRenderer: Renderer;
   playbackStatus: 'playing' | 'paused' | 'buffering' | 'transitioning';
@@ -89,7 +99,7 @@ interface PlayerState {
 
   // Autoplay and Context
   isAutoplayEnabled: boolean;
-  playbackContext: import('@/types/music').PlaybackContext | null;
+  playbackContextData: import('@/types/music').PlaybackContext | null;
   albumPlaybackQueue: string[];
   toggleAutoplay: () => void;
   setPlaybackContext: (context: import('@/types/music').PlaybackContext | null) => void;
@@ -113,6 +123,7 @@ interface PlayerState {
   playNext: () => void;
   playPrev: () => void;
   toggleShuffle: () => void;
+  setRepeatMode: (mode: RepeatMode) => void;
   cycleRepeatMode: () => void;
   addToQueue: (song: Song) => void;
   playNextInQueue: (song: Song) => void;
@@ -128,12 +139,16 @@ interface PlayerState {
   toggleFavoriteAlbum: (albumId: string) => void;
 
   setCrossfadeSec: (sec: number) => void;
+  setGaplessEnabled: (enabled: boolean) => void;
 
   setActiveTab: (tab: ActiveTab) => void;
   setSelectedArtistId: (id: string | null) => void;
   setSelectedAlbumId: (id: string | null) => void;
   setSelectedPlaylistId: (id: string | null) => void;
-  setAudioQualityPreset: (preset: AudioQualityPreset) => void;
+  setStreamingQuality: (quality: AudioQuality) => void;
+  setDownloadQuality: (quality: AudioQuality) => void;
+  setDataSaverEnabled: (enabled: boolean) => void;
+  setDeliveredQuality: (quality: AudioQuality) => void;
 
   togglePlayerExpanded: () => void;
   toggleLyrics: () => void;
@@ -175,9 +190,12 @@ export const usePlayerStore = create<PlayerState>()(
 
   queue: [],
   queueIndex: 0,
-  isShuffle: false,
+  shuffleMode: 'OFF',
   repeatMode: 'off',
   isRefillingQueue: false,
+  crossfadeSec: 0,
+  isGaplessEnabled: true,
+  playbackContext: ['EXPLORE'],
 
   likedSongIds: [],
   likedSongs: [],
@@ -186,14 +204,15 @@ export const usePlayerStore = create<PlayerState>()(
   favoriteArtistIds: [],
   favoriteAlbumIds: [],
 
-  crossfadeSec: 2,
-
   activeTab: 'home',
   selectedArtistId: null,
   selectedAlbumId: null,
   selectedPlaylistId: null,
 
-  audioQualityPreset: '320kbps MP3',
+  streamingQuality: 'AUTO',
+  downloadQuality: 'HIGH',
+  isDataSaverEnabled: false,
+  deliveredQuality: 'AUTO',
   isPlayerExpanded: false,
   isLyricsOpen: false,
   isQueueOpen: false,
@@ -214,10 +233,10 @@ export const usePlayerStore = create<PlayerState>()(
   setToastMessage: (msg) => set({ toastMessage: msg }),
 
   isAutoplayEnabled: true,
-  playbackContext: null,
+  playbackContextData: null,
   albumPlaybackQueue: [],
   toggleAutoplay: () => set((state) => ({ isAutoplayEnabled: !state.isAutoplayEnabled })),
-  setPlaybackContext: (context) => set({ playbackContext: context }),
+  setPlaybackContext: (context) => set({ playbackContextData: context }),
 
   aiDjState: {
     isActive: false,
@@ -232,9 +251,15 @@ export const usePlayerStore = create<PlayerState>()(
   sleepTimerMinutes: null,
   sleepTimerEndsAt: null,
   contextMenuSong: null,
+  
+  // Offline Mode State
+  networkMode: 'online',
+  setNetworkMode: (mode) => set({ networkMode: mode }),
+  
   preferredLanguage: (typeof window !== 'undefined' && localStorage.getItem('raagax_preferred_language')) || 'Telugu',
 
   deviceId: typeof window !== 'undefined' ? localStorage.getItem('raagax_device_id') || '' : '',
+  deviceInstanceId: typeof window !== 'undefined' ? localStorage.getItem('raagax_device_instance_id') || '' : '',
   activeDeviceId: null,
   activeRenderer: 'audio',
   playbackStatus: 'paused',
@@ -317,48 +342,24 @@ export const usePlayerStore = create<PlayerState>()(
     if (tracks.length > 0) {
       set({ 
         albumPlaybackQueue: remainingAlbums,
-        playbackContext: { type: 'album_sequence', seedAlbumId: firstAlbumId },
-        isShuffle: false
+        playbackContextData: { type: 'album_sequence', seedAlbumId: firstAlbumId },
       });
       get().playSong(tracks[0], tracks);
     }
   },
 
   playSong: (song, newQueue) => {
-    get().logCurrentTelemetry('skip'); // Log previous song before switching
-    const queue = newQueue || get().queue;
-    let index = queue.findIndex((s) => s.id === song.id);
-    if (index === -1) {
-      queue.unshift(song);
-      index = 0;
-    }
+    get().logCurrentTelemetry('skip');
     
-    // Guess context if not explicitly set
-    const currentContext = get().playbackContext;
-    const newContext = currentContext && (currentContext.seedAlbumId === song.albumId || currentContext.seedPlaylistId === song.genre) 
-      ? currentContext 
-      : { type: 'recommendation' as const, seedSongId: song.id, language: song.genre?.split(' ')[0] || 'Telugu' };
-
-    const newHistory = Array.from(new Set([song.id, ...get().historySongIds]));
-    set({
-      currentSong: song,
-      isPlaying: true,
-      queue,
-      queueIndex: index,
-      currentTime: 0,
-      historySongIds: newHistory,
-      playbackContext: newContext,
-    });
-    LocalDatabase.getInstance().savePlaybackSession({
-      currentSong: song,
-      currentTime: 0,
-      queue,
-      queueIndex: index,
-      historySongIds: newHistory,
-      likedSongIds: get().likedSongIds,
-      searchHistory: LocalDatabase.getInstance().getSearchHistory(),
-      preferredLanguage: get().preferredLanguage,
-    });
+    // Check if newQueue was passed (e.g. from an album or playlist)
+    if (newQueue && newQueue.length > 0) {
+       const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+       const index = newQueue.findIndex(s => s.id === song.id);
+       manager.replaceQueue(newQueue, index !== -1 ? index : 0);
+    } else {
+       // Play now immediately overrides next
+       require('@/lib/queue/QueueManager').QueueManager.getInstance().playNow(song);
+    }
   },
 
   togglePlayPause: () => {
@@ -432,60 +433,17 @@ export const usePlayerStore = create<PlayerState>()(
       return;
     }
 
-    const { queue, queueIndex, isShuffle, repeatMode, currentSong, currentTime, duration } = get();
-    if (queue.length === 0) return;
-
-    // If currentTime is close to duration, it finished. Otherwise it was skipped.
+    const { duration, currentTime } = get();
     const isComplete = duration > 0 && currentTime >= duration - 5;
     get().logCurrentTelemetry(isComplete ? 'complete' : 'skip');
 
-    if (repeatMode === 'one' && currentSong) {
-      set({ currentSong: { ...currentSong }, currentTime: 0, isPlaying: true });
-      return;
-    }
-
-    let nextIndex = queueIndex + 1;
-    if (isShuffle) {
-      nextIndex = Math.floor(Math.random() * queue.length);
+    // Get next item automatically orchestrates everything via QueueManager
+    const nextItem = require('@/lib/queue/QueueManager').QueueManager.getInstance().getNext();
+    
+    if (nextItem) {
+      set({ isPlaying: true, currentTime: 0 });
     } else {
-      if (nextIndex >= queue.length) {
-        if (repeatMode === 'all') {
-          nextIndex = 0;
-        } else {
-          // Attempt Autoplay via Queue Engine
-          await get().autoRefillQueue();
-          
-          // Check if queue successfully grew
-          const newQueue = get().queue;
-          if (nextIndex < newQueue.length) {
-            set({
-              currentSong: newQueue[nextIndex],
-              queueIndex: nextIndex,
-              isPlaying: true,
-              currentTime: 0,
-            });
-            return;
-          } else {
-            set({ isPlaying: false });
-            return;
-          }
-        }
-      }
-    }
-
-    const nextSong = get().queue[nextIndex];
-    if (nextSong) {
-      set({
-        currentSong: nextSong,
-        queueIndex: nextIndex,
-        isPlaying: true,
-        currentTime: 0,
-      });
-      
-      // Trigger background auto-refill if running low
-      if (!isShuffle && (get().queue.length - 1 - nextIndex) <= 3) {
-        get().autoRefillQueue();
-      }
+      set({ isPlaying: false });
     }
   },
 
@@ -497,7 +455,7 @@ export const usePlayerStore = create<PlayerState>()(
       return;
     }
 
-    const { queue, queueIndex, currentTime, setCurrentTime, setSeekTarget } = get();
+    const { currentTime, setCurrentTime, setSeekTarget } = get();
     if (currentTime > 2) {
       setCurrentTime(0);
       setSeekTarget(0);
@@ -505,119 +463,34 @@ export const usePlayerStore = create<PlayerState>()(
     }
     
     get().logCurrentTelemetry('skip');
-    if (queueIndex > 0) {
-      const prevIndex = queueIndex - 1;
-      set({
-        currentSong: queue[prevIndex],
-        queueIndex: prevIndex,
-        isPlaying: true,
-        currentTime: 0,
-      });
-    } else {
-      get().setCurrentTime(0);
-      get().setSeekTarget(0);
-    }
+    require('@/lib/queue/QueueManager').QueueManager.getInstance().getPrevious();
+    set({ isPlaying: true, currentTime: 0 });
   },
 
-  toggleShuffle: () => set((state) => ({ isShuffle: !state.isShuffle })),
-  cycleRepeatMode: () =>
-    set((state) => {
-      const modes: RepeatMode[] = ['off', 'all', 'one'];
-      const nextIdx = (modes.indexOf(state.repeatMode) + 1) % modes.length;
-      return { repeatMode: modes[nextIdx] };
-    }),
+  toggleShuffle: () => require('@/lib/queue/QueueManager').QueueManager.getInstance().toggleShuffle(),
+  setRepeatMode: (mode) => require('@/lib/queue/QueueManager').QueueManager.getInstance().setRepeatMode(mode),
+  cycleRepeatMode: () => {
+    const modes: import('@/lib/queue/types').RepeatMode[] = ['OFF', 'CONTEXT', 'TRACK'];
+    const current = require('@/lib/queue/QueueManager').QueueManager.getInstance().getRepeatMode();
+    const nextIdx = (modes.indexOf(current) + 1) % modes.length;
+    require('@/lib/queue/QueueManager').QueueManager.getInstance().setRepeatMode(modes[nextIdx]);
+  },
 
-  addToQueue: (song) => set((state) => ({ queue: [...state.queue, song] })),
-  playNextInQueue: (song) =>
-    set((state) => {
-      const newQueue = [...state.queue];
-      newQueue.splice(state.queueIndex + 1, 0, song);
-      return { queue: newQueue };
-    }),
-  playLastInQueue: (song) => set((state) => ({ queue: [...state.queue, song] })),
-  removeFromQueue: (songId) =>
-    set((state) => ({ queue: state.queue.filter((s) => s.id !== songId) })),
-  reorderQueue: (newQueue) => set({ queue: newQueue }),
-
-  autoRefillQueue: async () => {
-    const { currentSong, historySongIds, likedSongIds, preferredLanguage, queue, queueIndex, playbackContext, albumPlaybackQueue } = get();
-    if (get().isRefillingQueue) return;
-    set({ isRefillingQueue: true });
-
-    try {
-      if (playbackContext?.type === 'album_sequence') {
-        const { RealMusicEngine } = await import('@/lib/realMusicEngine');
-        
-        if (albumPlaybackQueue.length > 0) {
-          // Play next album from the pre-defined 50-album sequence
-          const nextAlbumId = albumPlaybackQueue[0];
-          const remainingAlbums = albumPlaybackQueue.slice(1);
-          
-          const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${nextAlbumId}`);
-          if (details?.songs && details.songs.length > 0) {
-            set({ 
-              queue: [...queue, ...details.songs],
-              albumPlaybackQueue: remainingAlbums
-            });
-            return;
-          }
-        } else {
-          // Exhausted the 50 albums. Fetch a new unique album from the catalog.
-          const { AlbumCatalogEngine } = await import('@/lib/albumCatalog');
-          const allAlbums = await AlbumCatalogEngine.getAlbumsForLanguage(preferredLanguage);
-          
-          // Find an album whose tracks are not already in the queue
-          const seenAlbumIds = new Set(queue.map(q => q.albumId).filter(Boolean));
-          // Also avoid seed if available
-          if (playbackContext.seedAlbumId) seenAlbumIds.add(playbackContext.seedAlbumId);
-          
-          const uniqueNewAlbums = allAlbums.filter(a => !seenAlbumIds.has(a.id));
-          if (uniqueNewAlbums.length > 0) {
-            // Pick a random unique album
-            const nextAlbum = uniqueNewAlbums[Math.floor(Math.random() * uniqueNewAlbums.length)];
-            const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${nextAlbum.id}`);
-            if (details?.songs && details.songs.length > 0) {
-              set({ queue: [...queue, ...details.songs] });
-              return;
-            }
-          }
-        }
-      }
-
-      const { CandidateGenerator } = await import('@/lib/recommendation/CandidateGenerator');
-      const { Ranker } = await import('@/lib/recommendation/Ranker');
-
-      const candidates = await CandidateGenerator.generateCandidates(
-        currentSong,
-        historySongIds,
-        likedSongIds,
-        preferredLanguage,
-        50
-      );
-
-      const lastArtists = queue.slice(Math.max(0, queueIndex - 5), queueIndex + 1).map(s => s.artist);
-      const rankedCandidates = Ranker.rankCandidates(candidates, lastArtists, 15);
-
-      const getCleanTitle = (title: string) => title.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').split('-')[0].trim().toLowerCase();
-      const seenTitles = new Set<string>();
-      queue.forEach(q => seenTitles.add(getCleanTitle(q.title)));
-
-      const uniqueSongs = rankedCandidates.filter((s: any) => {
-        const cleanTitle = getCleanTitle(s.title);
-        if (seenTitles.has(cleanTitle)) return false;
-        seenTitles.add(cleanTitle);
-        return true;
-      }).slice(0, 10);
-
-      if (uniqueSongs.length > 0) {
-        set({ queue: [...queue, ...uniqueSongs] });
-      }
-    } catch (e) {
-      console.error('Auto-refill failed:', e);
-    } finally {
-      set({ isRefillingQueue: false });
+  addToQueue: (song) => require('@/lib/queue/QueueManager').QueueManager.getInstance().addToQueue(song),
+  playNextInQueue: (song) => require('@/lib/queue/QueueManager').QueueManager.getInstance().playNext(song),
+  playLastInQueue: (song) => require('@/lib/queue/QueueManager').QueueManager.getInstance().addToQueue(song),
+  removeFromQueue: (songId) => {
+    const items = require('@/lib/queue/QueueManager').QueueManager.getInstance().getAllItems();
+    const target = items.find((i: any) => i.trackId === songId);
+    if (target) {
+      require('@/lib/queue/QueueManager').QueueManager.getInstance().removeItem(target.queueItemId);
     }
   },
+  reorderQueue: (newQueue) => {
+    require('@/lib/queue/QueueManager').QueueManager.getInstance().replaceQueue(newQueue, get().queueIndex, 'USER');
+  },
+
+  autoRefillQueue: async () => {},
 
   syncCloudLibrary: async () => {
     try {
@@ -786,12 +659,16 @@ export const usePlayerStore = create<PlayerState>()(
   },
 
   setCrossfadeSec: (sec) => set({ crossfadeSec: sec }),
+  setGaplessEnabled: (enabled) => set({ isGaplessEnabled: enabled }),
 
   setActiveTab: (tab) => set({ activeTab: tab }),
   setSelectedArtistId: (id) => set({ selectedArtistId: id, activeTab: 'artist' }),
   setSelectedAlbumId: (id) => set({ selectedAlbumId: id, activeTab: 'album' }),
   setSelectedPlaylistId: (id) => set({ selectedPlaylistId: id, activeTab: 'playlist' }),
-  setAudioQualityPreset: (preset) => set({ audioQualityPreset: preset }),
+  setStreamingQuality: (quality) => set({ streamingQuality: quality }),
+  setDownloadQuality: (quality) => set({ downloadQuality: quality }),
+  setDataSaverEnabled: (enabled) => set({ isDataSaverEnabled: enabled }),
+  setDeliveredQuality: (quality) => set({ deliveredQuality: quality }),
 
   togglePlayerExpanded: () =>
     set((state) => ({ isPlayerExpanded: !state.isPlayerExpanded })),
@@ -825,7 +702,7 @@ export const usePlayerStore = create<PlayerState>()(
   },
 
   exportBackupJson: () => {
-    const { likedSongIds, downloadedSongIds, historySongIds, audioQualityPreset } = get();
+    const { likedSongIds, downloadedSongIds, historySongIds, streamingQuality } = get();
     const backupData = {
       app: 'RaagaX Music Engine',
       version: '2.0.0',
@@ -833,7 +710,7 @@ export const usePlayerStore = create<PlayerState>()(
       likedSongIds,
       downloadedSongIds,
       historySongIds,
-      audioQualityPreset,
+      streamingQuality,
     };
     return JSON.stringify(backupData, null, 2);
   },
@@ -845,7 +722,7 @@ export const usePlayerStore = create<PlayerState>()(
         set({
           likedSongIds: data.likedSongIds,
           downloadedSongIds: data.downloadedSongIds || get().downloadedSongIds,
-          audioQualityPreset: data.audioQualityPreset || get().audioQualityPreset,
+          streamingQuality: data.streamingQuality || get().streamingQuality,
         });
         return true;
       }
@@ -885,7 +762,7 @@ export const usePlayerStore = create<PlayerState>()(
         favoriteAlbumIds: state.favoriteAlbumIds,
         preferredLanguage: state.preferredLanguage,
         crossfadeSec: state.crossfadeSec,
-        audioQualityPreset: state.audioQualityPreset,
+        streamingQuality: state.streamingQuality,
         isAutoplayEnabled: state.isAutoplayEnabled,
       }),
     }

@@ -1,4 +1,5 @@
 import { Renderer } from '@/types/music';
+import { PlaybackSource } from '../offline/types';
 import { PlaybackRenderer } from './renderers/PlaybackRenderer';
 import { RendererManager } from './RendererManager';
 import { PlaybackEngine } from './PlaybackEngine';
@@ -39,7 +40,7 @@ export class HandoffCoordinator {
   public async performHandoff(
     targetRendererType: Renderer,
     targetRenderer: PlaybackRenderer,
-    sourceUri: string
+    source: PlaybackSource
   ): Promise<boolean> {
     const rendererManager = RendererManager.getInstance();
     const sourceRendererType = rendererManager.getActiveRenderer() || 'audio';
@@ -79,7 +80,7 @@ export class HandoffCoordinator {
 
     try {
       // 2. PREPARE TARGET RENDERER (do NOT stop source renderer yet!)
-      await targetRenderer.prepare(sourceUri);
+      await targetRenderer.prepare(source);
 
       // Race check
       if (this.generation !== currentGeneration) {

@@ -14,7 +14,7 @@ interface FetchResponse<T> {
   ok: Response['ok']
 }
 
-export const useFetch = async <T>({ endpoint, params, context }: FetchParams): Promise<FetchResponse<T>> => {
+export const apiFetch = async <T>({ endpoint, params, context }: FetchParams): Promise<FetchResponse<T>> => {
   const url = new URL('https://www.jiosaavn.com/api.php')
 
   url.searchParams.append('__call', endpoint.toString())

@@ -44,3 +44,20 @@ export function getPlaybackCapabilities(): PlaybackCapabilities {
     nativeAudioFocus: isNavDefined && typeof (window as any).AndroidAudioFocus !== 'undefined',
   };
 }
+
+export type AudioQuality = 
+  | 'AUTO'
+  | 'LOW'
+  | 'NORMAL'
+  | 'HIGH'
+  | 'VERY_HIGH'
+  | 'LOSSLESS';
+
+export interface AudioQualityState {
+  requested: AudioQuality;
+  delivered: AudioQuality;
+  
+  codec?: string;
+  bitrateKbps?: number;
+  sampleRate?: number;
+}

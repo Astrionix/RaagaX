@@ -7,6 +7,7 @@ import {
   SkipBack,
   SkipForward,
   Shuffle,
+  Sparkles,
   Repeat,
   Repeat1,
   Volume2,
@@ -42,7 +43,7 @@ export function Navbar() {
     duration,
     volume,
     isMuted,
-    isShuffle,
+    shuffleMode,
     repeatMode,
     likedSongIds,
     downloadedSongIds,
@@ -164,12 +165,19 @@ export function Navbar() {
           <div className="flex items-center gap-4">
             <button
               onClick={toggleShuffle}
-              className={`p-1 rounded-lg transition-colors ${
-                isShuffle ? 'text-[#fa233b]' : 'text-slate-400 hover:text-white'
+              className={`p-1 rounded-lg transition-colors relative ${
+                shuffleMode !== 'OFF' ? 'text-[#fa233b]' : 'text-slate-400 hover:text-white'
               }`}
-              title="Shuffle"
+              title={`Shuffle: ${shuffleMode}`}
             >
-              <Shuffle className="w-4 h-4" />
+              {shuffleMode === 'SMART' ? (
+                <div className="relative">
+                  <Shuffle className="w-4 h-4" />
+                  <Sparkles className="w-2 h-2 absolute -top-1 -right-1 text-yellow-400" />
+                </div>
+              ) : (
+                <Shuffle className="w-4 h-4" />
+              )}
             </button>
             <button onClick={playPrev} className="p-1 text-slate-300 hover:text-white transition-colors">
               <SkipBack className="w-4 h-4 fill-current" />

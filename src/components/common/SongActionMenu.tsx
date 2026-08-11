@@ -12,12 +12,10 @@ export function SongActionMenu({ song }: { song: Song }) {
   const { playSong, addToQueue, toggleLikeSong, likedSongIds, downloadedSongIds } = usePlayerStore();
   const { playlists, addSongToPlaylist } = usePlaylistStore();
 
-  if (!song) return null;
-
-  const isLiked = likedSongIds.includes(song.id);
   const { tasks, pauseDownload, resumeDownload, cancelDownload } = require('@/context/useDownloadStore').useDownloadStore();
-  const task = tasks[song.id];
-  const isDownloaded = downloadedSongIds.includes(song.id);
+  const task = song ? tasks[song.id] : null;
+  const isDownloaded = song ? downloadedSongIds.includes(song.id) : false;
+  const isLiked = song ? likedSongIds.includes(song.id) : false;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -29,6 +27,8 @@ export function SongActionMenu({ song }: { song: Song }) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  if (!song) return null;
 
   const handleAction = (action: () => void) => {
     action();

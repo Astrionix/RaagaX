@@ -15,17 +15,20 @@ export class Ranker {
 
       // Base weight from source
       switch (song.candidateSource) {
-        case 'vector':
-          score += 0.20 * song.baseScore;
+        case 'similar':
+          score += 0.20 * (song.baseScore ?? 1);
           break;
-        case 'affinity':
-          score += 0.25 * song.baseScore;
+        case 'personalized':
+          score += 0.25 * (song.baseScore ?? 1);
           break;
         case 'trending':
-          score += 0.15 * song.baseScore;
+          score += 0.15 * (song.baseScore ?? 1);
           break;
-        case 'fresh':
-          score += 0.10 * song.baseScore;
+        case 'context':
+          score += 0.10 * (song.baseScore ?? 1);
+          break;
+        case 'popular':
+          score += 0.05 * (song.baseScore ?? 1);
           break;
       }
 

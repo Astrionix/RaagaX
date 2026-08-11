@@ -259,8 +259,8 @@ export class RealMusicEngine {
       let audioUrl =
         'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
       if (Array.isArray(track.downloadUrl)) {
-        const qualityPreset = usePlayerStore.getState().audioQualityPreset;
-        const wantsDataSaver = qualityPreset === '320kbps MP3';
+        const qualityPreset = usePlayerStore.getState().streamingQuality;
+        const wantsDataSaver = (qualityPreset as string) === '320kbps MP3' || qualityPreset === 'LOW';
         
         const preferredQuality = wantsDataSaver ? '160kbps' : '320kbps';
         const fallbackQuality = wantsDataSaver ? '96kbps' : '160kbps';

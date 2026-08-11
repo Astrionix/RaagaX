@@ -1,5 +1,7 @@
 import { Renderer } from '@/types/music';
 import { PlaybackRenderer } from './PlaybackRenderer';
+import { PlaybackSource } from '../../offline/types';
+import { DownloadStorage } from '../../offline/DownloadStorage';
 
 export abstract class BaseRenderer implements PlaybackRenderer {
   public abstract readonly type: Renderer;
@@ -15,7 +17,18 @@ export abstract class BaseRenderer implements PlaybackRenderer {
     this.isPrepared = false;
   }
 
-  public async prepare(sourceUri: string): Promise<void> {
+  public async prepare(source: PlaybackSource): Promise<void> {
+    if (source.type === 'offline') {
+      const storage = DownloadStorage.getInstance();
+      const url = await storage.getMediaUrl(source.localId);
+      if (!url) throw new Error('Local media not found');
+      return this.prepareImplementation(url);
+    } else {
+      return this.prepareImplementation(source.url);
+    }
+  }
+
+  public async prepareImplementation(sourceUri: string): Promise<void> {
     if (!this.element) throw new Error(`[${this.type}Renderer] Element not attached`);
 
     return new Promise((resolve, reject) => {

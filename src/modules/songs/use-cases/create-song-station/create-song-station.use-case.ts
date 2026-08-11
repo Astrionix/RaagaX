@@ -1,6 +1,6 @@
 import { Endpoints } from '#common/constants'
 import { ApiContextEnum } from '#common/enums'
-import { useFetch } from '#common/helpers'
+import { apiFetch } from '#common/helpers'
 import { HTTPException } from 'hono/http-exception'
 import type { IUseCase } from '#common/types'
 
@@ -10,7 +10,7 @@ export class CreateSongStationUseCase implements IUseCase<string, string> {
   async execute(songId: string) {
     const encodedSongId = JSON.stringify([encodeURIComponent(songId)])
 
-    const { data, ok } = await useFetch<{ stationid: string }>({
+    const { data, ok } = await apiFetch<{ stationid: string }>({
       endpoint: Endpoints.songs.station,
       params: {
         entity_id: encodedSongId,

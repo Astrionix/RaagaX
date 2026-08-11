@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { ConnectManager } from '@/lib/connect/ConnectManager';
-import { CommandBus } from '@/lib/connect/CommandBus';
 import { DeviceRegistry } from '@/lib/connect/DeviceRegistry';
 import { ClockSynchronizer } from '@/lib/connect/ClockSynchronizer';
 import { LibrarySyncManager } from '@/lib/sync/LibrarySyncManager';
@@ -10,6 +9,7 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
 import { MonitorSmartphone, Laptop, Smartphone, Wifi, Check, ChevronUp, X, Sparkles } from 'lucide-react';
 import { TransferManager } from '@/lib/connect/TransferManager';
+import { initQueueSystem } from '@/lib/queue/initQueue';
 
 export function DeviceSyncProvider({ children }: { children: React.ReactNode }) {
   const [isInitializing, setIsInitializing] = useState(true);
@@ -22,27 +22,26 @@ export function DeviceSyncProvider({ children }: { children: React.ReactNode }) 
 
   // 2. Once Auth is loaded, connect the Sync Engine
   useEffect(() => {
-    if (isLoading) return; // Wait for auth to finish loading!
+    if (isLoading) return;
 
     const initSync = async () => {
-      // Use secure Supabase Auth ID if logged in, otherwise fallback to guest
-      let sessionId = user?.id;
-      
-      if (!sessionId) {
-        sessionId = localStorage.getItem('raagax_session_id') || '';
-        if (!sessionId) {
-          sessionId = 'guest_' + Math.random().toString(36).substring(2, 10);
-          localStorage.setItem('raagax_session_id', sessionId);
-        }
-      }
-      
       const deviceId = usePlayerStore.getState().deviceId;
 
-      // Initialize Phase 3 Connect Subsystems
-      CommandBus.getInstance().init(deviceId, sessionId);
-      ConnectManager.getInstance().init(sessionId, deviceId);
-      ConnectManager.getInstance().subscribeSession(sessionId);
-      
+      // Use the real Supabase Auth user ID so session can be tied server-side.
+      // Fall back to a stable guest ID for unauthenticated users.
+      let userId = user?.id;
+      if (!userId) {
+        userId = localStorage.getItem('raagax_session_id') || '';
+        if (!userId) {
+          userId = 'guest_' + Math.random().toString(36).substring(2, 10);
+          localStorage.setItem('raagax_session_id', userId);
+        }
+      }
+
+      // ConnectManager.init now handles the full bootstrap:
+      // inbox subscription → session create/join → lease → session subscribe → CommandBus/PSM init
+      await ConnectManager.getInstance().init(userId, deviceId);
+
       DeviceRegistry.getInstance().registerDevice(
         navigator.userAgent.includes('Mobile') ? 'Mobile Browser' : 'Desktop Browser',
         'browser',
@@ -51,9 +50,8 @@ export function DeviceSyncProvider({ children }: { children: React.ReactNode }) 
       );
       
       ClockSynchronizer.getInstance().synchronize();
-      
-      // Initialize LibrarySyncManager for Liked Songs
       LibrarySyncManager.getInstance();
+      initQueueSystem();
       
       if (user?.id) {
         await usePlayerStore.getState().syncCloudLibrary();
@@ -63,7 +61,7 @@ export function DeviceSyncProvider({ children }: { children: React.ReactNode }) 
     };
     
     initSync();
-  }, [user?.id, isLoading]); // Re-connect sync ONLY if user ID changes or loading finishes
+  }, [user?.id, isLoading]);
 
   return <>{children}</>;
 }

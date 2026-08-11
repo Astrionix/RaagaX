@@ -14,11 +14,43 @@ export class DeviceRegistry {
     return DeviceRegistry.instance;
   }
 
+  public getOrCreateDeviceInstanceId(): string {
+    if (typeof window === 'undefined') return 'server_instance';
+    let instanceId = sessionStorage.getItem('raagax_device_instance_id');
+    if (!instanceId) {
+      instanceId = 'inst_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
+      sessionStorage.setItem('raagax_device_instance_id', instanceId);
+      localStorage.setItem('raagax_device_instance_id', instanceId);
+    }
+    return instanceId;
+  }
+
+  /**
+   * Gets the canonical playback session for a user, creating one if it doesn't exist.
+   * This is the single source of truth for session bootstrap.
+   */
+  public async createOrJoinSession(userId: string): Promise<string | null> {
+    try {
+      const { data, error } = await supabase.rpc('get_or_create_playback_session', {
+        p_user_id: userId
+      });
+
+      if (error) throw error;
+      return data as string;
+    } catch (e) {
+      console.error('[DeviceRegistry] Failed to create/join session:', e);
+      // Fallback: use a local session ID so offline/guest mode still works
+      const fallback = localStorage.getItem('raagax_fallback_session') ||
+        'local_sess_' + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem('raagax_fallback_session', fallback);
+      return fallback;
+    }
+  }
+
   public async registerDevice(deviceName: string, type: string, platform: string, capabilities: any): Promise<void> {
     const store = usePlayerStore.getState();
     const deviceId = store.deviceId;
     
-    // Check if logged in (user_id is needed by RLS)
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) return;
 
@@ -42,13 +74,8 @@ export class DeviceRegistry {
   private startAdaptiveHeartbeat() {
     if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
     
-    // Adaptive heartbeat: check active renderer vs controller status periodically
     this.heartbeatInterval = setInterval(async () => {
       const store = usePlayerStore.getState();
-      const isActive = store.isActiveDevice;
-      
-      // If active renderer, heartbeat every 30s. If controller, every 120s. 
-      // We skip if we just shouldn't heartbeat. (For simple interval logic, we just do it every 60s for now)
       
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
@@ -60,6 +87,6 @@ export class DeviceRegistry {
       } catch (e) {
         console.warn('[DeviceRegistry] Heartbeat failed:', e);
       }
-    }, 60000); // 60 seconds
+    }, 60000);
   }
 }

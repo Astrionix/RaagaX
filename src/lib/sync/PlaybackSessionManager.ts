@@ -48,17 +48,22 @@ export class PlaybackSessionManager {
 
     const store = usePlayerStore.getState();
     const status = store.isPlaying ? 'playing' : 'paused';
+    const sequencer = (await import('../connect/CommandSequencer')).CommandSequencer.getInstance();
     
     try {
       console.log(`[PlaybackSessionManager] Checkpointing durable state... (force=${force})`);
       await supabase
         .from('playback_sessions')
-        .update({
+        .upsert({
+          session_id: this.sessionId,
+          user_id: (await supabase.auth.getSession()).data.session?.user.id,
           status,
           canonical_position_ms: currentPosition,
+          session_epoch: sequencer.getEpoch(),
+          sequence_number: sequencer.getLastAppliedSequence(),
+          server_timestamp: Date.now(),
           updated_at: new Date().toISOString()
-        })
-        .eq('session_id', this.sessionId);
+        }, { onConflict: 'session_id' });
         
       this.lastCheckpointTime = Date.now();
       this.lastCheckpointPosition = currentPosition;

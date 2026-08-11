@@ -224,7 +224,7 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
         const rawSongs = shelfItems.map(i => i.rawItem).filter(Boolean);
         if (rawSongs.length > 0) {
           const randomIndex = Math.floor(Math.random() * rawSongs.length);
-          usePlayerStore.getState().setRemoteState({ isShuffle: true });
+          usePlayerStore.getState().setRemoteState({ shuffleMode: 'STANDARD' });
           playSong(rawSongs[randomIndex] as any, rawSongs as any[]);
         }
       }

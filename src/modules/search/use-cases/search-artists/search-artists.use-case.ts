@@ -1,5 +1,5 @@
 import { Endpoints } from '#common/constants'
-import { useFetch } from '#common/helpers'
+import { apiFetch } from '#common/helpers'
 import { createArtistMapPayload } from '#modules/artists/helpers'
 import { HTTPException } from 'hono/http-exception'
 import type { IUseCase } from '#common/types'
@@ -16,7 +16,7 @@ export class SearchArtistsUseCase implements IUseCase<SearchArtistsArgs, z.infer
   constructor() {}
 
   async execute({ query, limit, page }: SearchArtistsArgs): Promise<z.infer<typeof SearchArtistModel>> {
-    const { data } = await useFetch<z.infer<typeof SearchArtistAPIResponseModel>>({
+    const { data } = await apiFetch<z.infer<typeof SearchArtistAPIResponseModel>>({
       endpoint: Endpoints.search.artists,
       params: {
         q: query,

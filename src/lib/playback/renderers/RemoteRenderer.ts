@@ -1,6 +1,8 @@
 import { Renderer } from '@/types/music';
 import { PlaybackRenderer } from './PlaybackRenderer';
 
+import { PlaybackSource } from '../../offline/types';
+
 export class RemoteRenderer implements PlaybackRenderer {
   public readonly type: Renderer = 'remote';
   private positionMs: number = 0;
@@ -9,8 +11,8 @@ export class RemoteRenderer implements PlaybackRenderer {
   public attach(element: HTMLMediaElement): void {}
   public detach(): void {}
 
-  public async prepare(sourceUri: string): Promise<void> {
-    console.log('[RemoteRenderer] Preparing remote stream:', sourceUri);
+  public async prepare(source: PlaybackSource): Promise<void> {
+    console.log('[RemoteRenderer] Preparing remote stream:', source);
   }
 
   public async seekCanonical(positionMs: number): Promise<void> {

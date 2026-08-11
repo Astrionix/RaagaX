@@ -3,6 +3,7 @@ import { ConnectManager } from './ConnectManager';
 import { CommandSequencer } from './CommandSequencer';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { PlaybackEngine } from '../playback/PlaybackEngine';
+import { DeviceLeaseManager } from './DeviceLeaseManager';
 
 export class TransferManager {
   private static instance: TransferManager;
@@ -26,11 +27,11 @@ export class TransferManager {
     const engine = PlaybackEngine.getInstance();
     
     // 1. Capture current state
-    const state = engine.getPlaybackState();
+    const positionMs = engine.getCanonicalPositionMs();
     
     const command: ConnectCommand = {
       commandId: crypto.randomUUID(),
-      sessionId: 'global-session-1', // Simplified for now
+      sessionId: ConnectManager.getInstance().getSessionId() || 'global-session',
       epoch: sequencer.getEpoch(),
       sequence: sequencer.nextSequence(),
       sourceDeviceId: store.deviceId,
@@ -38,9 +39,9 @@ export class TransferManager {
       type: 'TRANSFER_REQUEST',
       sentAt: Date.now(),
       payload: {
-        trackId: state.trackId,
-        positionMs: state.positionMs,
-        isPlaying: state.isPlaying
+        trackId: store.currentSong?.id,
+        positionMs: positionMs,
+        isPlaying: store.isPlaying
       }
     };
 
@@ -65,11 +66,18 @@ export class TransferManager {
     const payload = command.payload as any;
 
     try {
-      // 1. Attempt to claim lease
-      // (Skipped DB call for brevity, assuming success in this mock flow)
-      usePlayerStore.setState({ isActiveDevice: true });
+      // 1. Prepare playback locally (buffer track, etc.)
+      console.log('[TransferManager] PREPARE phase...');
       
-      // 2. Prepare playback
+      // 2. Acquire Lease with forceTakeover to increment epoch
+      console.log('[TransferManager] COMMIT phase... acquiring lease');
+      const leaseSuccess = await DeviceLeaseManager.getInstance().acquireLease(command.sessionId, true);
+      
+      if (!leaseSuccess) {
+        throw new Error('Failed to acquire lease during transfer.');
+      }
+      
+      // 3. Setup playback state
       if (payload.positionMs !== undefined) {
          engine.seekCanonical(payload.positionMs);
       }
@@ -77,12 +85,12 @@ export class TransferManager {
          engine.play();
       }
       
-      // 3. Send TRANSFER_READY ACK back
+      // 4. Send TRANSFER_COMMIT (or ACK) back to source so it knows to stop
       const sequencer = CommandSequencer.getInstance();
       const ackCommand: ConnectCommand = {
         commandId: crypto.randomUUID(),
         sessionId: command.sessionId,
-        epoch: sequencer.getEpoch(),
+        epoch: sequencer.getEpoch(), // Now at new epoch!
         sequence: sequencer.nextSequence(),
         sourceDeviceId: store.deviceId,
         targetDeviceId: command.sourceDeviceId,
@@ -99,5 +107,21 @@ export class TransferManager {
     } catch (e) {
        console.error('[TransferManager] Failed to apply transfer request', e);
     }
+  }
+
+  /**
+   * (Sender side) Handles incoming ACK (TRANSFER_COMMIT essentially)
+   */
+  public handleTransferAck(command: ConnectCommand) {
+     if (this.pendingTransferTimeout) {
+       clearTimeout(this.pendingTransferTimeout);
+       this.pendingTransferTimeout = null;
+     }
+     
+     console.log('[TransferManager] Transfer committed by target. Relinquishing local control.');
+     
+     // Stop local playback, we are no longer owner
+     PlaybackEngine.getInstance().pause();
+     usePlayerStore.setState({ isActiveDevice: false, isPlaying: false });
   }
 }

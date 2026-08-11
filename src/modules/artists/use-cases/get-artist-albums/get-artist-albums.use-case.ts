@@ -1,5 +1,5 @@
 import { Endpoints } from '#common/constants'
-import { useFetch } from '#common/helpers'
+import { apiFetch } from '#common/helpers'
 import { createAlbumPayload } from '#modules/albums/helpers'
 import { HTTPException } from 'hono/http-exception'
 import type { IUseCase } from '#common/types'
@@ -17,7 +17,7 @@ export class GetArtistAlbumsUseCase implements IUseCase<GetArtistAlbumsArgs, z.i
   constructor() {}
 
   async execute({ artistId, page, sortOrder, sortBy }: GetArtistAlbumsArgs) {
-    const { data } = await useFetch<z.infer<typeof ArtistAlbumAPIResponseModel>>({
+    const { data } = await apiFetch<z.infer<typeof ArtistAlbumAPIResponseModel>>({
       endpoint: Endpoints.artists.albums,
       params: {
         artistId,

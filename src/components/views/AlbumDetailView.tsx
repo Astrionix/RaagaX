@@ -90,13 +90,13 @@ export function AlbumDetailView() {
 
   const handlePlayAll = () => {
     if (!album.tracks || album.tracks.length === 0) return;
-    setRemoteState({ isShuffle: false });
+    setRemoteState({ shuffleMode: 'OFF' });
     playSong(album.tracks[0], album.tracks);
   };
 
   const handleShufflePlay = () => {
     if (!album.tracks || album.tracks.length === 0) return;
-    setRemoteState({ isShuffle: true });
+    setRemoteState({ shuffleMode: 'STANDARD' });
     const randIdx = Math.floor(Math.random() * album.tracks.length);
     playSong(album.tracks[randIdx], album.tracks);
   };
@@ -241,3 +241,4 @@ export function AlbumDetailView() {
     </div>
   );
 }
+
