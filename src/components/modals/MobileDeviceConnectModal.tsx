@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { X, Smartphone, Monitor, Check, Volume2, VolumeX, Radio, Laptop } from 'lucide-react';
+import { X, Smartphone, Monitor, Check, Volume2, VolumeX, Laptop, Play, Radio, Music } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 
 export function MobileDeviceConnectModal() {
@@ -16,13 +16,30 @@ export function MobileDeviceConnectModal() {
     setVolume,
     isMuted,
     toggleMute,
-    isActiveDevice
+    isActiveDevice,
+    currentSong,
+    isPlaying,
+    currentTime,
+    duration
   } = usePlayerStore();
 
   if (!isDeviceModalOpen) return null;
 
-  const handleDeviceClick = (targetId: string) => {
-    transferPlayback(targetId);
+  const activeDeviceObj = onlineDevices.find(d => d.id === activeDeviceId) || 
+    (isActiveDevice ? { id: deviceId, name: 'This Device (Web Browser)', platform: 'Web' } : null);
+
+  const availableDevices = onlineDevices.filter(d => d.id !== (activeDeviceObj?.id || deviceId));
+
+  const handleTransfer = (targetId: string) => {
+    if (targetId !== activeDeviceId) {
+      transferPlayback(targetId);
+    }
+  };
+
+  const formatTime = (secs: number) => {
+    const mins = Math.floor(secs / 60);
+    const remaining = Math.floor(secs % 60);
+    return `${mins}:${remaining < 10 ? '0' : ''}${remaining}`;
   };
 
   return (
@@ -33,7 +50,7 @@ export function MobileDeviceConnectModal() {
         onClick={toggleDeviceModal}
       />
 
-      {/* Modal Card - Spotify Connect Inspired */}
+      {/* Modal Card - Spotify Connect Hierarchy */}
       <div className="relative w-full max-w-md bg-[#09090b] border border-white/10 rounded-3xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-300 overscroll-none overflow-hidden text-white z-10">
         
         {/* Top Header */}
@@ -44,113 +61,129 @@ export function MobileDeviceConnectModal() {
           >
             <X className="w-6 h-6" />
           </button>
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">RaagaX Connect</span>
+          <div className="flex items-center gap-2">
+            <Radio className="w-4 h-4 text-[#1ed760] animate-pulse" />
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">RaagaX Connect</span>
+          </div>
           <div className="w-8" />
         </div>
 
-        <div className="px-6 py-6 overflow-y-auto max-h-[75vh] no-scrollbar">
+        <div className="px-6 py-5 overflow-y-auto max-h-[75vh] no-scrollbar space-y-6">
           
-          {/* Spotify Vector Graphic Illustration */}
-          <div className="my-2 py-4 flex flex-col items-center justify-center">
-            <svg className="w-48 h-20 text-slate-300/90 mx-auto" viewBox="0 0 200 90" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              {/* Desktop Monitor / Laptop */}
-              <rect x="20" y="20" width="60" height="42" rx="3" />
-              <path d="M10 62h80v4H10z" />
-              {/* Console Game Controller */}
-              <path d="M105 45c0-4 4-8 8-8s8 4 8 8v8h-16z" />
-              <rect x="100" y="50" width="26" height="14" rx="4" />
-              {/* Speaker Box */}
-              <rect x="138" y="15" width="30" height="52" rx="4" />
-              <circle cx="153" cy="30" r="5" />
-              <circle cx="153" cy="52" r="8" />
-              {/* Smartphone */}
-              <rect x="176" y="38" width="14" height="28" rx="3" />
-            </svg>
-            <h2 className="text-xl sm:text-2xl font-black text-white mt-4 text-center tracking-tight">
-              Connect to a device
-            </h2>
-          </div>
+          {/* SECTION 1: CURRENTLY PLAYING ON */}
+          <div>
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">
+              Currently Playing On
+            </h3>
 
-          {/* Devices List */}
-          <div className="space-y-3 mt-4">
-            {/* Current Device Item */}
-            <button
-              onClick={() => handleDeviceClick(deviceId)}
-              className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-200 text-left border ${
-                isActiveDevice 
-                  ? 'bg-[#1ed760]/10 border-[#1ed760]/40' 
-                  : 'bg-white/5 border-transparent hover:bg-white/10'
-              }`}
-            >
-              <div className="flex items-center gap-4 min-w-0">
-                <Laptop className={`w-7 h-7 flex-shrink-0 ${isActiveDevice ? 'text-[#1ed760]' : 'text-white'}`} />
-                <div className="min-w-0">
-                  <h4 className={`text-base font-extrabold truncate leading-tight ${isActiveDevice ? 'text-[#1ed760]' : 'text-white'}`}>
-                    This Web Browser
-                  </h4>
-                  <p className={`text-xs font-semibold mt-0.5 ${isActiveDevice ? 'text-[#1ed760]/80' : 'text-slate-400'}`}>
-                    RaagaX Connect
-                  </p>
+            <div className="bg-[#1ed760]/10 border border-[#1ed760]/40 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Laptop className="w-6 h-6 text-[#1ed760]" />
+                  <div>
+                    <h4 className="text-base font-extrabold text-[#1ed760] leading-tight">
+                      {activeDeviceObj ? activeDeviceObj.name : 'This Device'}
+                    </h4>
+                    <p className="text-[11px] font-semibold text-[#1ed760]/80 mt-0.5">
+                      {isActiveDevice ? 'This device · Active Renderer' : 'Remote Renderer'}
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              {isActiveDevice && (
-                <div className="flex items-center gap-2 text-[#1ed760] flex-shrink-0">
+                <div className="flex items-center gap-2 text-[#1ed760]">
                   <span className="relative flex h-2.5 w-2.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#1ed760] opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#1ed760]"></span>
                   </span>
-                  <Check className="w-5 h-5 ml-1" />
+                  <span className="text-xs font-black uppercase tracking-wider">Playing</span>
+                </div>
+              </div>
+
+              {/* Active Song Details & Progress */}
+              {currentSong && (
+                <div className="pt-2 border-t border-[#1ed760]/20 flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-white truncate">{currentSong.title}</p>
+                    <p className="text-[11px] text-slate-300 truncate">{currentSong.artist}</p>
+                  </div>
+                  <div className="text-right text-[10px] font-bold text-slate-400">
+                    {formatTime(currentTime)} / {formatTime(duration || 0)}
+                  </div>
                 </div>
               )}
-            </button>
-
-            {/* Other Online Devices */}
-            {onlineDevices.filter(d => d.id !== deviceId).map((device) => {
-              const isActive = activeDeviceId === device.id;
-              const isMobile = device.name.toLowerCase().includes('mobile') || device.name.toLowerCase().includes('phone');
-
-              return (
-                <button
-                  key={device.id}
-                  onClick={() => handleDeviceClick(device.id)}
-                  className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-200 text-left border ${
-                    isActive 
-                      ? 'bg-[#1ed760]/10 border-[#1ed760]/40' 
-                      : 'bg-white/5 border-transparent hover:bg-white/10'
-                  }`}
-                >
-                  <div className="flex items-center gap-4 min-w-0">
-                    {isMobile ? (
-                      <Smartphone className={`w-7 h-7 flex-shrink-0 ${isActive ? 'text-[#1ed760]' : 'text-white'}`} />
-                    ) : (
-                      <Monitor className={`w-7 h-7 flex-shrink-0 ${isActive ? 'text-[#1ed760]' : 'text-white'}`} />
-                    )}
-                    
-                    <div className="min-w-0">
-                      <h4 className={`text-base font-extrabold truncate leading-tight ${isActive ? 'text-[#1ed760]' : 'text-white'}`}>
-                        {device.name}
-                      </h4>
-                      <p className={`text-xs font-semibold mt-0.5 ${isActive ? 'text-[#1ed760]/80' : 'text-slate-400'}`}>
-                        RaagaX Connect
-                      </p>
-                    </div>
-                  </div>
-
-                  {isActive && <Check className="w-5 h-5 text-[#1ed760]" />}
-                </button>
-              );
-            })}
+            </div>
           </div>
 
-          {/* Device Sync Network Info */}
-          <div className="mt-6 pt-5 border-t border-white/10 text-center space-y-1">
-            <p className="text-xs font-bold text-slate-400">Listening on other networks or apps?</p>
-            <p className="text-[11px] text-slate-500">Ensure devices are signed in under the same RaagaX user account.</p>
+          {/* SECTION 2: AVAILABLE DEVICES */}
+          <div>
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">
+              Select a Device to Play
+            </h3>
+
+            <div className="space-y-2.5">
+              {/* Local Device Option if not currently active */}
+              {!isActiveDevice && (
+                <button
+                  onClick={() => handleTransfer(deviceId)}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all text-left group"
+                >
+                  <div className="flex items-center gap-3">
+                    <Laptop className="w-5 h-5 text-slate-300 group-hover:text-white" />
+                    <div>
+                      <h4 className="text-sm font-extrabold text-white">This Web Browser</h4>
+                      <p className="text-[11px] text-slate-400">Ready to play</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-[#1ed760] flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                    ▶ Play here
+                  </span>
+                </button>
+              )}
+
+              {/* Other Online Devices */}
+              {availableDevices.map((device) => {
+                const isMobile = device.name.toLowerCase().includes('mobile') || device.name.toLowerCase().includes('phone');
+
+                return (
+                  <button
+                    key={device.id}
+                    onClick={() => handleTransfer(device.id)}
+                    className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all text-left group"
+                  >
+                    <div className="flex items-center gap-3">
+                      {isMobile ? (
+                        <Smartphone className="w-5 h-5 text-slate-300 group-hover:text-white" />
+                      ) : (
+                        <Monitor className="w-5 h-5 text-slate-300 group-hover:text-white" />
+                      )}
+                      <div>
+                        <h4 className="text-sm font-extrabold text-white">{device.name}</h4>
+                        <p className="text-[11px] text-slate-400">RaagaX Connect · Ready</p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-bold text-[#1ed760] flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                      Transfer here →
+                    </span>
+                  </button>
+                );
+              })}
+
+              {availableDevices.length === 0 && isActiveDevice && (
+                <div className="p-4 rounded-2xl bg-white/5 text-center text-xs text-slate-400">
+                  No other Connect devices online. Open RaagaX on mobile or laptop to switch playback.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* User Actions */}
+          <div className="pt-4 border-t border-white/10 flex items-center justify-between text-xs text-slate-400">
+            <span className="hover:text-white cursor-pointer transition-colors">See all devices</span>
+            <span className="hover:text-white cursor-pointer transition-colors">Manage devices</span>
           </div>
         </div>
 
-        {/* Spotify Bottom Volume Slider */}
+        {/* Volume Slider */}
         <div className="p-4 bg-black/40 border-t border-white/10 flex items-center gap-3">
           <button onClick={toggleMute} className="text-slate-400 hover:text-white transition-colors">
             {isMuted || volume === 0 ? <VolumeX className="w-5 h-5 text-[#fa233b]" /> : <Volume2 className="w-5 h-5 text-white" />}
@@ -170,4 +203,3 @@ export function MobileDeviceConnectModal() {
     </div>
   );
 }
-
