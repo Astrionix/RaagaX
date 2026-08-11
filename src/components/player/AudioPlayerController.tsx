@@ -7,6 +7,7 @@ import { RendererManager } from '@/lib/playback/RendererManager';
 import { PlaybackEngine } from '@/lib/playback/PlaybackEngine';
 import { AudioFocusManager } from '@/lib/playback/AudioFocusManager';
 import { InterruptionCoordinator } from '@/lib/playback/InterruptionCoordinator';
+import { MediaSessionManager } from '@/lib/playback/MediaSessionManager';
 const FALLBACK_AUDIO_URL = 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
 const QUEUE_REFILL_THRESHOLD = 3;
 
@@ -244,9 +245,9 @@ export function AudioPlayerController() {
 
       initNewSong();
 
-      // Media Session & Audio Focus updates
-      const audioFocus = AudioFocusManager.getInstance();
-      audioFocus.updateMetadata({
+      // Media Session updates
+      const mediaSession = MediaSessionManager.getInstance();
+      mediaSession.updateMetadata({
         title: currentSong.title,
         artist: currentSong.artist,
         album: currentSong.album || 'RaagaX',
@@ -257,7 +258,7 @@ export function AudioPlayerController() {
         ]
       });
 
-      audioFocus.setActionHandlers({
+      mediaSession.setActionHandlers({
         onPlay: () => {
            InterruptionCoordinator.getInstance().clearInterruption();
            setIsPlaying(true);
