@@ -329,22 +329,23 @@ export const usePlayerStore = create<PlayerState>()(
   },
 
   playAlbumSequence: async (albumIds: string[]) => {
-    if (albumIds.length === 0) return;
+    if (!albumIds || albumIds.length === 0) return;
     
-    // Play the first album immediately
-    const firstAlbumId = albumIds[0];
-    const remainingAlbums = albumIds.slice(1);
+    const { AlbumCollectionBuilder } = await import('@/lib/queue/AlbumCollectionBuilder');
+    const collectionResult = await AlbumCollectionBuilder.getInstance().buildCollectionQueue(albumIds, 100);
     
-    const { RealMusicEngine } = await import('@/lib/realMusicEngine');
-    const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${firstAlbumId}`);
-    const tracks = details?.songs || [];
-    
-    if (tracks.length > 0) {
+    if (collectionResult.songs.length > 0) {
       set({ 
-        albumPlaybackQueue: remainingAlbums,
-        playbackContextData: { type: 'album_sequence', seedAlbumId: firstAlbumId },
+        albumPlaybackQueue: albumIds,
+        playbackContextData: { type: 'album_sequence', collectionId: collectionResult.queueId },
       });
-      get().playSong(tracks[0], tracks);
+      
+      const firstSong = collectionResult.songs[0];
+      const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+      manager.replaceQueue(collectionResult.songs, 0);
+
+      // Play first song
+      get().playSong(firstSong, collectionResult.songs);
     }
   },
 
