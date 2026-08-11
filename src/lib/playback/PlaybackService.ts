@@ -248,7 +248,11 @@ export class PlaybackService {
         // Proactively preload the NEXT track in standby element
         this.triggerNextPreload();
         return true;
-      } catch (e) {
+      } catch (e: any) {
+        if (e?.name === 'AbortError') {
+          console.warn('[PlaybackService] Play request interrupted by another call:', e);
+          return false;
+        }
         console.warn('[PlaybackService] Play failed:', e);
         // Retry play once after brief delay
         try {
@@ -257,7 +261,11 @@ export class PlaybackService {
           store.setIsPlaying(true);
           this.triggerNextPreload();
           return true;
-        } catch (retryErr) {
+        } catch (retryErr: any) {
+          if (retryErr?.name === 'AbortError') {
+            console.warn('[PlaybackService] Play retry interrupted:', retryErr);
+            return false;
+          }
           console.error('[PlaybackService] Play retry failed for song:', song.title, retryErr);
           // Skip broken/unplayable track and continue queue playback
           this.playNextTrack();
@@ -363,6 +371,13 @@ export class PlaybackService {
 
   private handleNativePlayState(tag: 'A' | 'B', isPlaying: boolean) {
     if (tag !== this.activeTag) return;
+
+    // Ignore native pause events caused by track ending or during transition
+    const active = this.getActiveAudio();
+    if (!isPlaying && (this.isTransitioning || (active && active.ended))) {
+      return;
+    }
+
     const store = require('@/context/usePlayerStore').usePlayerStore.getState();
     if (store.isActiveDevice && store.isPlaying !== isPlaying) {
       store.setIsPlaying(isPlaying, true);

@@ -14,7 +14,7 @@ export class PlaybackStateMachine {
       case 'LOADING':
         return ['READY', 'ERROR', 'IDLE', 'PLAYING', 'TRANSITIONING'].includes(newState);
       case 'READY':
-        return ['PLAYING', 'ERROR', 'IDLE', 'TRANSITIONING'].includes(newState);
+        return ['PLAYING', 'PAUSED', 'ERROR', 'IDLE', 'TRANSITIONING'].includes(newState);
       case 'PLAYING':
         return ['PAUSED', 'INTERRUPTED', 'TRANSITIONING', 'HANDOFF', 'ERROR', 'IDLE'].includes(newState);
       case 'PAUSED':
