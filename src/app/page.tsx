@@ -21,7 +21,7 @@ import { OnboardingAuthModal } from '@/components/modals/OnboardingAuthModal';
 import { KeyboardShortcutsModal } from '@/components/modals/KeyboardShortcutsModal';
 import { MobileDeviceConnectModal } from '@/components/modals/MobileDeviceConnectModal';
 import { OfflineStorageSetupModal } from '@/components/modals/OfflineStorageSetupModal';
-
+import { PermissionOnboardingModal } from '@/components/onboarding/PermissionOnboardingModal';
 
 import { CreatePlaylistModal } from '@/components/modals/CreatePlaylistModal';
 
@@ -143,6 +143,9 @@ export default function Page() {
 
 
       <CreatePlaylistModal />
+
+      {/* One-time permission onboarding — shown only on first install, never again */}
+      <PermissionOnboardingModal />
     </div>
   );
 }

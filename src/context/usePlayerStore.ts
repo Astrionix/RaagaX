@@ -402,11 +402,6 @@ export const usePlayerStore = create<PlayerState>()(
     // Atomically commit playing state, queue & queueIndex
     set({ isPlaying: true, currentTime: 0, currentSong: song, queue: syncedQueue, queueIndex: syncedIndex });
 
-    // Request notification permission contextually on first play (never at launch)
-    import('@/lib/playback/native/RaagaXPermissions').then(({ RaagaXPermissions }) => {
-      RaagaXPermissions.requestNotificationsOnFirstPlay();
-    });
-
     // Delegate immediately to PlaybackService for local or Connect dispatch for remote
     if (get().isActiveDevice) {
       import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
