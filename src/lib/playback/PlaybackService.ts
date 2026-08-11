@@ -209,6 +209,9 @@ export class PlaybackService {
         artist: song.artist ?? 'Unknown Artist',
         artworkUrl: song.coverUrl ?? '',
       });
+
+      // Preload next track into native ExoPlayer queue for seamless background playback
+      this.preloadNativeNextTrack();
       return true;
     }
 
@@ -531,6 +534,34 @@ export class PlaybackService {
     const nextItem = QueueManager.getInstance().peekNext();
     if (nextItem && nextItem.song) {
       PreloadManager.getInstance().preloadTrack(nextItem.song, standby);
+    }
+  }
+
+  private async preloadNativeNextTrack() {
+    if (!RaagaXNativePlayer.isNative()) return;
+    try {
+      const nextItem = QueueManager.getInstance().peekNext();
+      if (!nextItem || !nextItem.song) return;
+
+      const song = nextItem.song;
+      let finalSrc = song.audioUrl || '';
+      if (!finalSrc || finalSrc.includes('pixabay.com')) {
+        const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+        if (source && source.type === 'remote' && source.url) {
+          finalSrc = source.url;
+        }
+      }
+      if (!finalSrc) finalSrc = FALLBACK_AUDIO_URL;
+
+      await RaagaXNativePlayer.setNextTrack({
+        url: finalSrc,
+        title: song.title ?? 'Unknown Title',
+        artist: song.artist ?? 'Unknown Artist',
+        artworkUrl: song.coverUrl ?? '',
+      });
+      console.log('[PlaybackService] Preloaded native next track into ExoPlayer queue:', song.title);
+    } catch (e) {
+      console.warn('[PlaybackService] Failed to preload native next track:', e);
     }
   }
 

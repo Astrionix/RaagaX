@@ -40,6 +40,17 @@ export const RaagaXNativePlayer = {
     await plugin.play(options);
   },
 
+  async setNextTrack(options: {
+    url: string;
+    title: string;
+    artist: string;
+    artworkUrl?: string;
+  }): Promise<void> {
+    const plugin = getPlugin();
+    if (!plugin) return;
+    await plugin.setNextTrack(options);
+  },
+
   async pause(): Promise<void> {
     const plugin = getPlugin();
     if (!plugin) return;
@@ -75,6 +86,13 @@ export const RaagaXNativePlayer = {
     if (!plugin) return () => {};
     plugin.addListener('trackEnded', callback);
     return () => plugin.removeAllListeners('trackEnded');
+  },
+
+  addTrackChangedListener(callback: (data: { title?: string; artist?: string; url?: string }) => void): () => void {
+    const plugin = getPlugin();
+    if (!plugin) return () => {};
+    plugin.addListener('trackChanged', callback);
+    return () => plugin.removeAllListeners('trackChanged');
   },
 
   addPlaybackStateListener(callback: (state: { isPlaying: boolean }) => void): () => void {

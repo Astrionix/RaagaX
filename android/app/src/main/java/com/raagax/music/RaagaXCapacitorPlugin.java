@@ -29,6 +29,12 @@ public class RaagaXCapacitorPlugin extends Plugin {
             String action = intent.getAction();
             if ("com.raagax.music.TRACK_ENDED".equals(action)) {
                 notifyListeners("trackEnded", new JSObject());
+            } else if ("com.raagax.music.TRACK_CHANGED".equals(action)) {
+                JSObject data = new JSObject();
+                data.put("title", intent.getStringExtra("title"));
+                data.put("artist", intent.getStringExtra("artist"));
+                data.put("url", intent.getStringExtra("url"));
+                notifyListeners("trackChanged", data);
             } else if ("com.raagax.music.PLAYBACK_STATE".equals(action)) {
                 boolean isPlaying = intent.getBooleanExtra("isPlaying", false);
                 JSObject data = new JSObject();
@@ -43,6 +49,7 @@ public class RaagaXCapacitorPlugin extends Plugin {
         // Register broadcast receiver for track-ended / playback-state events
         IntentFilter filter = new IntentFilter();
         filter.addAction("com.raagax.music.TRACK_ENDED");
+        filter.addAction("com.raagax.music.TRACK_CHANGED");
         filter.addAction("com.raagax.music.PLAYBACK_STATE");
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -91,6 +98,23 @@ public class RaagaXCapacitorPlugin extends Plugin {
         intent.putExtra("title", title);
         intent.putExtra("artist", artist);
         sendCommandToService(intent);
+
+        call.resolve(new JSObject().put("success", true));
+    }
+
+    @PluginMethod
+    public void setNextTrack(PluginCall call) {
+        String url = call.getString("url", "");
+        String title = call.getString("title", "RaagaX");
+        String artist = call.getString("artist", "");
+
+        if (url != null && !url.isEmpty()) {
+            Intent intent = new Intent("SET_NEXT");
+            intent.putExtra("url", url);
+            intent.putExtra("title", title);
+            intent.putExtra("artist", artist);
+            sendCommandToService(intent);
+        }
 
         call.resolve(new JSObject().put("success", true));
     }

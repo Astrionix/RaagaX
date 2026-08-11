@@ -66,6 +66,23 @@ public class RaagaXPlaybackService extends Service {
 
         player.addListener(new Player.Listener() {
             @Override
+            public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
+                if (mediaItem != null && mediaItem.mediaMetadata != null) {
+                    currentTitle  = mediaItem.mediaMetadata.title != null ? mediaItem.mediaMetadata.title.toString() : "RaagaX";
+                    currentArtist = mediaItem.mediaMetadata.artist != null ? mediaItem.mediaMetadata.artist.toString() : "";
+                    updateNotification();
+
+                    Intent i = new Intent("com.raagax.music.TRACK_CHANGED");
+                    i.putExtra("title", currentTitle);
+                    i.putExtra("artist", currentArtist);
+                    if (mediaItem.localConfiguration != null) {
+                        i.putExtra("url", mediaItem.localConfiguration.uri.toString());
+                    }
+                    sendBroadcast(i);
+                }
+            }
+
+            @Override
             public void onPlaybackStateChanged(int state) {
                 if (state == Player.STATE_ENDED) {
                     sendBroadcast(new Intent("com.raagax.music.TRACK_ENDED"));
@@ -99,6 +116,11 @@ public class RaagaXPlaybackService extends Service {
                 String title = intent.getStringExtra("title");
                 String artist = intent.getStringExtra("artist");
                 if (url != null) playUrl(url, title, artist);
+            } else if ("SET_NEXT".equals(action)) {
+                String url = intent.getStringExtra("url");
+                String title = intent.getStringExtra("title");
+                String artist = intent.getStringExtra("artist");
+                if (url != null) setNextTrack(url, title, artist);
             } else if ("PAUSE".equals(action)) {
                 pause();
             } else if ("RESUME".equals(action)) {
@@ -209,6 +231,28 @@ public class RaagaXPlaybackService extends Service {
             player.play();
             updateNotification();
             Log.d(TAG, "playUrl: " + currentTitle);
+        });
+    }
+
+    public void setNextTrack(String url, String title, String artist) {
+        runOnMainThread(() -> {
+            if (player == null || url == null || url.isEmpty()) return;
+
+            // Remove any queued items after current position
+            while (player.getMediaItemCount() > player.getCurrentMediaItemIndex() + 1) {
+                player.removeMediaItem(player.getCurrentMediaItemIndex() + 1);
+            }
+
+            MediaItem item = new MediaItem.Builder()
+                    .setUri(url)
+                    .setMediaMetadata(new MediaMetadata.Builder()
+                            .setTitle(title != null ? title : "RaagaX")
+                            .setArtist(artist != null ? artist : "")
+                            .build())
+                    .build();
+
+            player.addMediaItem(item);
+            Log.d(TAG, "setNextTrack added to ExoPlayer queue: " + title);
         });
     }
 
