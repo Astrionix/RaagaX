@@ -9,7 +9,7 @@ export type TransitionState = 'IDLE' | 'PRELOADING' | 'READY' | 'WAITING_FOR_BOU
 export class TransitionManager {
   private static instance: TransitionManager;
   private state: TransitionState = 'IDLE';
-  private mode: TransitionMode = 'CROSSFADE';
+  private mode: TransitionMode = 'NONE';
   private durationMs: number = 8000;
 
   private constructor() {}

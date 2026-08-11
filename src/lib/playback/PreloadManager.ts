@@ -76,10 +76,15 @@ export class PreloadManager {
   }
 
   public async evaluatePreload(standbyElement: HTMLAudioElement) {
-    if (this.status === 'LOADING' || (this.status === 'READY' && standbyElement && standbyElement.src)) return;
-
     const nextItem = QueueManager.getInstance().peekNext();
     if (!nextItem || !nextItem.song) return;
+
+    if (
+      this.status === 'LOADING' ||
+      (this.status === 'READY' && this.currentPreloadId === nextItem.song.id && standbyElement && standbyElement.src)
+    ) {
+      return;
+    }
 
     // Start preloading standby element immediately
     await this.preloadTrack(nextItem.song, standbyElement);

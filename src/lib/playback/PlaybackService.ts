@@ -183,9 +183,10 @@ export class PlaybackService {
       targetAudio = standbyAudio;
       this.activeTag = this.activeTag === 'A' ? 'B' : 'A';
       
-      // Pause former active audio
+      // Pause former active audio & reset preload state
       activeAudio.pause();
       activeAudio.currentTime = 0;
+      preloader.reset();
     } else {
       // Resolve source for active audio only if audioUrl is missing or fallback
       let finalSrc = song.audioUrl || '';
