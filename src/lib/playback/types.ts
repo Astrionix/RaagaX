@@ -14,7 +14,7 @@ export interface InterruptionToken {
   id: string;
   trackId: string;
   positionMs: number;
-  renderer: "audio" | "video";
+  renderer: "audio" | "video" | "remote";
   reason: PlaybackInterruption;
   startedAt: number;
   resumePolicy: ResumePolicy;

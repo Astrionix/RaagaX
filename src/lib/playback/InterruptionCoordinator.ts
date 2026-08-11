@@ -51,7 +51,7 @@ export class InterruptionCoordinator {
     }
   }
 
-  public interrupt(reason: PlaybackInterruption, resumePolicy: ResumePolicy, currentTrackId?: string, currentRenderer?: "audio" | "video") {
+  public interrupt(reason: PlaybackInterruption, resumePolicy: ResumePolicy, currentTrackId?: string, currentRenderer?: "audio" | "video" | "remote") {
     const engine = PlaybackEngine.getInstance();
     
     // Do not interrupt if we are already interrupted or not playing locally
