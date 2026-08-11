@@ -7,6 +7,7 @@ import { AudioFocusManager } from './AudioFocusManager';
 import { RendererManager } from './RendererManager';
 import { QueueManager } from '../queue/QueueManager';
 import { PlaybackSourceResolver } from '@/lib/playbackSourceResolver';
+import { RaagaXNativePlayer } from './native/RaagaXNativePlayer';
 import { Song } from '@/types/music';
 
 const FALLBACK_AUDIO_URL = 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
@@ -184,6 +185,33 @@ export class PlaybackService {
   public async playTrack(song: Song, forceResume: boolean = true): Promise<boolean> {
     if (!song) return false;
 
+    // ── Native Android Path (ExoPlayer Service) ──────────────────────────────
+    if (RaagaXNativePlayer.isNative()) {
+      let finalSrc = song.audioUrl || '';
+      if (!finalSrc || finalSrc.includes('pixabay.com')) {
+        try {
+          const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+          if (source && source.type === 'remote' && source.url) {
+            finalSrc = source.url;
+          }
+        } catch (e) {
+          console.warn('[PlaybackService] Native source resolution failed:', e);
+        }
+      }
+      if (!finalSrc) finalSrc = FALLBACK_AUDIO_URL;
+
+      const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+      store.setIsPlaying(true);
+
+      await RaagaXNativePlayer.play({
+        url: finalSrc,
+        title: song.title ?? 'Unknown Title',
+        artist: song.artist ?? 'Unknown Artist',
+        artworkUrl: song.coverUrl ?? '',
+      });
+      return true;
+    }
+
     const activeAudio = this.getActiveAudio();
     const standbyAudio = this.getStandbyAudio();
     if (!activeAudio) return false;
@@ -322,6 +350,13 @@ export class PlaybackService {
   }
 
   public play() {
+    if (RaagaXNativePlayer.isNative()) {
+      RaagaXNativePlayer.resume();
+      const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+      store.setIsPlaying(true);
+      return;
+    }
+
     const active = this.getActiveAudio();
     if (active) {
       active.play().then(() => {
@@ -334,6 +369,13 @@ export class PlaybackService {
   }
 
   public pause() {
+    if (RaagaXNativePlayer.isNative()) {
+      RaagaXNativePlayer.pause();
+      const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+      store.setIsPlaying(false, true);
+      return;
+    }
+
     const active = this.getActiveAudio();
     if (active) {
       active.pause();
@@ -345,6 +387,13 @@ export class PlaybackService {
   }
 
   public seek(timeSeconds: number) {
+    if (RaagaXNativePlayer.isNative()) {
+      RaagaXNativePlayer.seekTo(timeSeconds * 1000);
+      const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+      store.setCurrentTime(timeSeconds);
+      return;
+    }
+
     const active = this.getActiveAudio();
     if (active) {
       active.currentTime = timeSeconds;
@@ -357,6 +406,7 @@ export class PlaybackService {
       });
     }
   }
+
 
   private handleNativeMetadata(tag: 'A' | 'B') {
     if (tag !== this.activeTag) return;

@@ -86,7 +86,11 @@ public class RaagaXPlaybackService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         // ✅ Call startForeground() IMMEDIATELY — satisfies Android 12+ 5-second rule
-        startForeground(NOTIF_ID, buildNotification());
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIF_ID, buildNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+        } else {
+            startForeground(NOTIF_ID, buildNotification());
+        }
         return START_STICKY;
     }
 

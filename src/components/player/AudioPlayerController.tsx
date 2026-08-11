@@ -60,7 +60,7 @@ export function AudioPlayerController() {
     }
   }, [audioRefA.current, audioRefB.current]);
 
-  // Native Android: hook into ExoPlayer track-ended event to advance queue
+  // Native Android: hook into ExoPlayer track-ended event & sync position/duration
   useEffect(() => {
     if (!RaagaXNativePlayer.isNative()) return;
     const unsub = RaagaXNativePlayer.addTrackEndedListener(() => {
@@ -68,6 +68,21 @@ export function AudioPlayerController() {
     });
     return unsub;
   }, []);
+
+  // Native Android: poll ExoPlayer playback state for position & duration
+  useEffect(() => {
+    if (!RaagaXNativePlayer.isNative() || !isPlaying) return;
+    const interval = setInterval(async () => {
+      const state = await RaagaXNativePlayer.getPlaybackState();
+      if (state && state.positionMs >= 0) {
+        usePlayerStore.getState().setCurrentTime(state.positionMs / 1000, true);
+        if (state.durationMs > 0) {
+          usePlayerStore.getState().setDuration(state.durationMs / 1000);
+        }
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isPlaying]);
 
   // Restore Instant Playback Session
   useEffect(() => {
