@@ -8,7 +8,7 @@ describe('MediaSessionManager', () => {
   });
 
   it('updates metadata when mediaSession is available', () => {
-    const mockMediaSession = {
+    const mockMediaSession: any = {
       metadata: null,
       setActionHandler: vi.fn(),
       setPositionState: vi.fn(),

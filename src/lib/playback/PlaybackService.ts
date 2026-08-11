@@ -102,6 +102,28 @@ export class PlaybackService {
     });
   }
 
+  public async playContext(options: {
+    type: 'ALBUM' | 'PLAYLIST' | 'SEARCH' | 'SONG';
+    songs: Song[];
+    startIndex?: number;
+  }): Promise<boolean> {
+    if (!options.songs || options.songs.length === 0) return false;
+    const index = options.startIndex || 0;
+    const firstSong = options.songs[index] || options.songs[0];
+    
+    const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+    store.playSong(firstSong, options.songs);
+    return true;
+  }
+
+  public async playAlbum(songs: Song[], startIndex: number = 0): Promise<boolean> {
+    return this.playContext({ type: 'ALBUM', songs, startIndex });
+  }
+
+  public async playPlaylist(songs: Song[], startIndex: number = 0): Promise<boolean> {
+    return this.playContext({ type: 'PLAYLIST', songs, startIndex });
+  }
+
   public async playTrack(song: Song, forceResume: boolean = true): Promise<boolean> {
     if (!song) return false;
 

@@ -355,11 +355,28 @@ export const usePlayerStore = create<PlayerState>()(
     // Check if newQueue was passed (e.g. from an album or playlist)
     if (newQueue && newQueue.length > 0) {
        const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
-       const index = newQueue.findIndex(s => s.id === song.id);
+       const index = newQueue.findIndex((s: Song) => s.id === song.id);
        manager.replaceQueue(newQueue, index !== -1 ? index : 0);
     } else {
        // Play now immediately overrides next
        require('@/lib/queue/QueueManager').QueueManager.getInstance().playNow(song);
+    }
+
+    // Atomically commit playing state & reset currentTime
+    set({ isPlaying: true, currentTime: 0, currentSong: song });
+
+    // Delegate immediately to PlaybackService for local or Connect dispatch for remote
+    if (get().isActiveDevice) {
+      import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
+        PlaybackService.getInstance().playTrack(song, true);
+      });
+      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+        ConnectManager.getInstance().dispatchPlaybackCommand('PLAY', { trackId: song.id, positionMs: 0 });
+      });
+    } else {
+      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+        ConnectManager.getInstance().dispatchPlaybackCommand('PLAY', { trackId: song.id, positionMs: 0 });
+      });
     }
   },
 
