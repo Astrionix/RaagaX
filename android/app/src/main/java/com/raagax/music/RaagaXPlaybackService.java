@@ -104,7 +104,20 @@ public class RaagaXPlaybackService extends Service {
     // ── Playback API (called by RaagaXCapacitorPlugin) ────────────────────────
 
     public void playUrl(String url, String title, String artist) {
-        if (player == null) return;
+        if (player == null || url == null || url.isEmpty()) return;
+
+        // If the exact same track URL is already loaded in ExoPlayer, do NOT reload or seek
+        MediaItem currentItem = player.getCurrentMediaItem();
+        if (currentItem != null && currentItem.localConfiguration != null) {
+            String currentUri = currentItem.localConfiguration.uri.toString();
+            if (url.equals(currentUri)) {
+                if (!player.isPlaying()) {
+                    player.play();
+                }
+                return;
+            }
+        }
+
         currentTitle  = title  != null ? title  : "RaagaX";
         currentArtist = artist != null ? artist : "";
 

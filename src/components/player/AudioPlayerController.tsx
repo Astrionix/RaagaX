@@ -170,25 +170,32 @@ export function AudioPlayerController() {
 
   // Handle currentSong change — native: send to ExoPlayer; web: audio graph
   useEffect(() => {
-    if (currentSong?.id) {
-      LyricsEngine.getInstance().loadTrack(currentSong.id);
-      prevSongIdRef.current = currentSong.id;
+    if (!currentSong?.id) {
+      LyricsEngine.getInstance().clear();
+      prevSongIdRef.current = null;
+      return;
+    }
 
-      if (RaagaXNativePlayer.isNative()) {
-        // Route directly to native ExoPlayer with full metadata
-        if (currentSong.audioUrl && isPlaying && isActiveDevice) {
-          RaagaXNativePlayer.play({
-            url: currentSong.audioUrl,
-            title: currentSong.title ?? 'Unknown Title',
-            artist: currentSong.artist ?? 'Unknown Artist',
-            artworkUrl: currentSong.coverUrl ?? '',
-          });
-        }
-      } else {
-        WebAudioGraph.getInstance().resume();
+    if (prevSongIdRef.current === currentSong.id) {
+      // Same song — DO NOT re-initialize or trigger play on app resume/open
+      return;
+    }
+    prevSongIdRef.current = currentSong.id;
+
+    LyricsEngine.getInstance().loadTrack(currentSong.id);
+
+    if (RaagaXNativePlayer.isNative()) {
+      // Route directly to native ExoPlayer with full metadata
+      if (currentSong.audioUrl && isPlaying && isActiveDevice) {
+        RaagaXNativePlayer.play({
+          url: currentSong.audioUrl,
+          title: currentSong.title ?? 'Unknown Title',
+          artist: currentSong.artist ?? 'Unknown Artist',
+          artworkUrl: currentSong.coverUrl ?? '',
+        });
       }
     } else {
-      LyricsEngine.getInstance().clear();
+      WebAudioGraph.getInstance().resume();
     }
   }, [currentSong?.id]);
 
@@ -241,9 +248,6 @@ export function AudioPlayerController() {
     const audio = e.currentTarget;
     if (audio === PlaybackService.getInstance().getActiveAudio()) {
       setDuration(audio.duration);
-      if (isActiveDevice && Math.abs(audio.currentTime - currentTime) > 2) {
-        audio.currentTime = currentTime;
-      }
     }
   };
 
