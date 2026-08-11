@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 
     const movieAlbums = await albumResolver.resolveAlbums(lang, `${lang} movies latest`, 15, 'album');
 
-    const sections = [];
+    const sections: any[] = [];
     if (movieAlbums.length > 0) {
       sections.push({
         id: 'movies',

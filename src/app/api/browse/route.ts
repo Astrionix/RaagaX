@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const sections = [];
+    const sections: any[] = [];
     const addedPlaylistIds = new Set<string>();
 
     for (const section of requestedSections) {
