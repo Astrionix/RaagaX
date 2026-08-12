@@ -205,6 +205,18 @@ public class RaagaXCapacitorPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void next(PluginCall call) {
+        sendCommandToService(new Intent("NEXT"));
+        call.resolve(new JSObject().put("success", true));
+    }
+
+    @PluginMethod
+    public void previous(PluginCall call) {
+        sendCommandToService(new Intent("PREV"));
+        call.resolve(new JSObject().put("success", true));
+    }
+
+    @PluginMethod
     public void seekTo(PluginCall call) {
         long positionMs = call.getLong("positionMs", 0L);
         Intent intent = new Intent("SEEK");

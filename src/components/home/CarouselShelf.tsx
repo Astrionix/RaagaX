@@ -219,15 +219,37 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
     e.stopPropagation();
     if (shelfItems.length === 0) return;
 
+    const btn = e.currentTarget as HTMLButtonElement;
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<svg class="animate-spin w-4 h-4 text-[#fa233b]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+
     try {
       if (shelfItems[0].type === 'song') {
         const rawSongs = shelfItems.map(i => i.rawItem).filter(Boolean);
         if (rawSongs.length > 0) {
-          usePlayerStore.getState().shufflePlay(rawSongs as any[]);
+          await usePlayerStore.getState().shufflePlay(rawSongs as any[]);
+        }
+      } else {
+        const { RealMusicEngine } = await import('@/lib/realMusicEngine');
+        const engine = RealMusicEngine.getInstance();
+        let songs: any[] = [];
+
+        if (shelfItems[0].type === 'playlist' || shelfItems[0].type === 'mix') {
+          const details = await engine.getPlaylistDetails(shelfItems[0].id);
+          songs = details?.songs || [];
+        } else if (shelfItems[0].type === 'album') {
+          const details = await engine.getPlaylistDetails('album:' + shelfItems[0].id);
+          songs = details?.songs || [];
+        }
+
+        if (songs.length > 0) {
+          await usePlayerStore.getState().shufflePlay(songs);
         }
       }
     } catch (err) {
       console.error('Failed to shuffle play all:', err);
+    } finally {
+      btn.innerHTML = originalHtml;
     }
   };
 

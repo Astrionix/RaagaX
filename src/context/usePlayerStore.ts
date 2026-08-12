@@ -627,6 +627,12 @@ export const usePlayerStore = create<PlayerState>()(
     const isComplete = duration > 0 && currentTime >= duration - 5;
     get().logCurrentTelemetry(isComplete ? 'complete' : 'skip');
 
+    const { RaagaXNativePlayer } = await import('@/lib/playback/native/RaagaXNativePlayer');
+    if (RaagaXNativePlayer.isNative()) {
+      await RaagaXNativePlayer.next();
+      return;
+    }
+
     const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
     const nextItem = manager.getNext();
     
@@ -647,7 +653,7 @@ export const usePlayerStore = create<PlayerState>()(
     }
   },
 
-  playPrev: () => {
+  playPrev: async () => {
     if (!get().isActiveDevice) {
       import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
         ConnectManager.getInstance().dispatchPlaybackCommand('PREV');
@@ -663,6 +669,13 @@ export const usePlayerStore = create<PlayerState>()(
     }
     
     get().logCurrentTelemetry('skip');
+
+    const { RaagaXNativePlayer } = await import('@/lib/playback/native/RaagaXNativePlayer');
+    if (RaagaXNativePlayer.isNative()) {
+      await RaagaXNativePlayer.previous();
+      return;
+    }
+
     const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
     const prevItem = manager.getPrevious();
 
@@ -678,6 +691,8 @@ export const usePlayerStore = create<PlayerState>()(
       import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
         PlaybackService.getInstance().playTrack(prevItem.song, true);
       });
+    } else {
+      set({ isPlaying: false });
     }
   },
 
