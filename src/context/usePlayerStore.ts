@@ -407,6 +407,8 @@ export const usePlayerStore = create<PlayerState>()(
     // Delegate immediately to PlaybackService for local or Connect dispatch for remote
     if (get().isActiveDevice) {
       import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
+        // Eagerly pre-feed the entire queue context before starting
+        PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
         PlaybackService.getInstance().playTrack(song, true);
       });
     } else {

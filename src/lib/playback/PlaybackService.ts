@@ -184,6 +184,56 @@ export class PlaybackService {
     return this.playContext({ type: 'PLAYLIST', songs, startIndex });
   }
 
+  /**
+   * CRITICAL FIX: For albums and playlists, eagerly resolves all track URLs
+   * in parallel and feeds the full playlist into native ExoPlayer BEFORE song 1 plays.
+   *
+   * Without this, ExoPlayer only has 1 item when song 1 starts. If song 1 finishes
+   * before the async URL resolution for song 2 completes, ExoPlayer reaches STATE_ENDED
+   * and stops — only resuming when the user re-opens the app and JS wakes up.
+   *
+   * With this, ExoPlayer has all tracks queued upfront and auto-advances natively
+   * in the background, even while the WebView / JS is fully suspended.
+   */
+  public async loadQueueContext(songs: Song[], startIndex: number): Promise<void> {
+    if (!RaagaXNativePlayer.isNative()) return;
+    if (!songs || songs.length <= 1) return;
+
+    try {
+      // Resolve the upcoming songs after startIndex (skip song at startIndex — that's
+      // handled by playTrack() directly)
+      const upcoming = songs.slice(startIndex + 1, startIndex + 10);
+      if (upcoming.length === 0) return;
+
+      // Resolve all URLs in parallel — much faster than sequential
+      const resolvedBatch = await Promise.all(
+        upcoming.map(async (song) => {
+          let finalSrc = song.audioUrl || '';
+          if (!finalSrc || finalSrc.includes('pixabay.com')) {
+            try {
+              const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+              if (source?.type === 'remote' && source.url) finalSrc = source.url;
+            } catch {}
+          }
+          return {
+            url: finalSrc || FALLBACK_AUDIO_URL,
+            title: song.title ?? 'Unknown Title',
+            artist: song.artist ?? 'Unknown Artist',
+            artworkUrl: song.coverUrl ?? '',
+          };
+        })
+      );
+
+      const validBatch = resolvedBatch.filter(t => !!t.url);
+      if (validBatch.length === 0) return;
+
+      await RaagaXNativePlayer.setNextTracksBatch(validBatch);
+      console.log(`[PlaybackService] loadQueueContext: pre-fed ${validBatch.length} tracks into ExoPlayer queue before playback started`);
+    } catch (e) {
+      console.warn('[PlaybackService] loadQueueContext failed:', e);
+    }
+  }
+
   public async playTrack(song: Song, forceResume: boolean = true): Promise<boolean> {
     if (!song) return false;
 
