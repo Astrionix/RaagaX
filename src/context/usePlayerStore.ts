@@ -115,6 +115,7 @@ interface PlayerState {
   autoRefillQueue: () => Promise<void>;
   setPreferredLanguage: (lang: string) => void;
   playSong: (song: Song, newQueue?: Song[]) => void;
+  shufflePlay: (songs: Song[], context?: import('@/lib/queue/types').PlaybackContext) => Promise<void>;
   commitPlaybackTransition: (song: Song, queueIndex?: number, updatedQueue?: Song[]) => void;
   togglePlayPause: () => void;
   setIsPlaying: (playing: boolean, fromRemote?: boolean) => void;
@@ -492,6 +493,41 @@ export const usePlayerStore = create<PlayerState>()(
     } else {
       import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
         ConnectManager.getInstance().dispatchPlaybackCommand('PLAY', { trackId: song.id, positionMs: 0 });
+      });
+    }
+  },
+
+  shufflePlay: async (songs, context) => {
+    if (!songs || songs.length === 0) return;
+
+    get().logCurrentTelemetry('skip');
+
+    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    manager.replaceQueue(songs, 0, 'PLAYLIST', context);
+    await manager.toggleShuffle();
+
+    const snapshot = manager.getSnapshot();
+    const syncedQueue = snapshot.items.map((i: any) => i.song);
+    const firstSong = syncedQueue[0] || songs[0];
+
+    set({
+      isPlaying: true,
+      currentTime: 0,
+      currentSong: firstSong,
+      queue: syncedQueue,
+      queueIndex: 0,
+    });
+
+    if (get().isActiveDevice) {
+      import('@/lib/playback/PlaybackService').then(async ({ PlaybackService }) => {
+        import('@/lib/playback/native/RaagaXNativePlayer').then(async ({ RaagaXNativePlayer }) => {
+          const service = PlaybackService.getInstance();
+          if (RaagaXNativePlayer.isNative()) {
+            await service.loadQueueContext(syncedQueue, 0);
+          } else {
+            await service.playTrack(firstSong, true);
+          }
+        });
       });
     }
   },

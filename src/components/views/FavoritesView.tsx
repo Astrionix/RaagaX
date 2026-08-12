@@ -61,9 +61,11 @@ export function FavoritesView() {
             </button>
             <button
               onClick={() => {
-                const shuffled = [...likedSongs].sort(() => Math.random() - 0.5);
-                usePlayerStore.getState().setRemoteState({ shuffleMode: 'STANDARD' });
-                playSong(shuffled[0], shuffled);
+                usePlayerStore.getState().shufflePlay(likedSongs, {
+                  contextType: 'PLAYLIST',
+                  contextUri: 'raagax:playlist:favorites',
+                  title: 'Liked Songs',
+                });
               }}
               className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-white/10"
             >

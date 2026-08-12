@@ -26,9 +26,11 @@ export function HeroBanner({ featuredSongs, language, onLanguageChange }: HeroBa
 
   const handleShufflePlay = () => {
     if (featuredSongs.length === 0) return;
-    setRemoteState({ shuffleMode: 'STANDARD' });
-    const randomIndex = Math.floor(Math.random() * featuredSongs.length);
-    playSong(featuredSongs[randomIndex], featuredSongs);
+    usePlayerStore.getState().shufflePlay(featuredSongs, {
+      contextType: 'PLAYLIST',
+      contextUri: 'raagax:playlist:featured',
+      title: 'Featured Tracks',
+    });
   };
 
   return (

@@ -172,9 +172,11 @@ export function PlaylistDetailView() {
 
   const handleShufflePlay = () => {
     if (playlist.songs.length === 0) return;
-    setRemoteState({ shuffleMode: 'STANDARD' });
-    const randomIndex = Math.floor(Math.random() * playlist.songs.length);
-    playSong(playlist.songs[randomIndex], playlist.songs);
+    usePlayerStore.getState().shufflePlay(playlist.songs, {
+      contextType: 'PLAYLIST',
+      contextUri: `raagax:playlist:${playlist.id}`,
+      title: playlist.title,
+    });
   };
 
   return (

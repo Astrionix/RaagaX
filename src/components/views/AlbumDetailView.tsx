@@ -96,9 +96,11 @@ export function AlbumDetailView() {
 
   const handleShufflePlay = () => {
     if (!album.tracks || album.tracks.length === 0) return;
-    setRemoteState({ shuffleMode: 'STANDARD' });
-    const randIdx = Math.floor(Math.random() * album.tracks.length);
-    playSong(album.tracks[randIdx], album.tracks);
+    usePlayerStore.getState().shufflePlay(album.tracks, {
+      contextType: 'ALBUM',
+      contextUri: `raagax:album:${album.id}`,
+      title: album.title,
+    });
   };
 
   const formatDuration = (sec: number) => {
