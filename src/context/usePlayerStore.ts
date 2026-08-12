@@ -480,6 +480,9 @@ export const usePlayerStore = create<PlayerState>()(
   toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 
   playNext: async () => {
+    const { PlaybackWatchdog } = await import('@/lib/playback/PlaybackWatchdog');
+    if (!PlaybackWatchdog.getInstance().acquireTransitionLock()) return;
+
     if (!get().isActiveDevice) {
       import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
         ConnectManager.getInstance().dispatchPlaybackCommand('NEXT');
