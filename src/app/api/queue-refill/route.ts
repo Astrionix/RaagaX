@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DiscoveryEngine } from '@/lib/discoveryEngine';
+import { UserLifecycleManager } from '@/lib/lifecycle/UserLifecycleManager';
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,25 +17,34 @@ export async function POST(req: NextRequest) {
     const baseUrl = `${proto}://${host}`;
     const engine = DiscoveryEngine.getInstance(baseUrl);
 
-    // If context has a seed song, push it to historyIds to prioritize it for recommendations
     if (playbackContext && playbackContext.seedSongId) {
       if (!historyIds.includes(playbackContext.seedSongId)) {
-         historyIds.unshift(playbackContext.seedSongId);
+        historyIds.unshift(playbackContext.seedSongId);
       }
     }
 
-    // Use DiscoveryEngine which guarantees real, playable audio URLs from the provider
+    const lifecycle = UserLifecycleManager.getInstance();
+    const ratios = lifecycle.getCompositionRatios();
+
     const songs = await engine.getQueueRefill(language, excludeIds, likedIds, historyIds, count);
 
     const safeSongs = songs.map(song => ({
       ...song,
       candidateSource: 'autoplay',
-      baseScore: 1.0
+      baseScore: 1.0,
+      lifecyclePhase: lifecycle.getData().phase,
+      confidenceMode: lifecycle.getData().confidenceMode,
     }));
 
     return NextResponse.json({
       success: true,
-      data: { language, count: safeSongs.length, songs: safeSongs },
+      data: {
+        language,
+        count: safeSongs.length,
+        songs: safeSongs,
+        ratios,
+        phase: lifecycle.getData().phase,
+      },
     });
   } catch (err) {
     console.error('[QUEUE REFILL API]', err);

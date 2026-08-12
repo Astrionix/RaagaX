@@ -101,6 +101,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get('userId');
   const lang = searchParams.get('lang') || 'Telugu';
+  const phase = searchParams.get('phase') || 'BOOTSTRAP';
 
   let releaseRadar: ShelfItem[] = [];
   let daylist: any = null;
@@ -138,10 +139,37 @@ export async function GET(request: Request) {
     releaseRadar = releaseRadar.map((s: any) => ({ ...s, type: 'song', subtitle: s.artist }));
   }
 
-  const greetingStr = name ? getGreeting().replace('👋', `, ${name} 👋`) : getGreeting();
-  const content = getLanguageContent(lang);
+  let greetingStr = name ? getGreeting().replace('👋', `, ${name} 👋`) : getGreeting();
+  if (phase === 'BOOTSTRAP' && !name) {
+    greetingStr = 'Welcome to RaagaX 🎵';
+  }
 
+  const content = getLanguageContent(lang);
   const sections: HomeSection[] = [];
+
+  // Lifecycle Gated Sections
+  if (phase === 'BOOTSTRAP') {
+    sections.push({
+      id: 'bootstrap_discovery',
+      type: 'carousel',
+      title: '✨ Discover Your Sound',
+      items: content.quick_access || []
+    });
+  } else if (phase === 'EARLY') {
+    sections.push({
+      id: 'early_favorites',
+      type: 'carousel',
+      title: '🌱 Early Favorites for You',
+      items: content.trending || []
+    });
+  } else if (phase === 'MATURE' || phase === 'DEVELOPING') {
+    sections.push({
+      id: 'made_for_you',
+      type: 'carousel',
+      title: '❤️ Made For You',
+      items: content.romantic || content.quick_access || []
+    });
+  }
 
   if (daylist && daylist.songs && daylist.songs.length > 0) {
     sections.push({
@@ -184,7 +212,6 @@ export async function GET(request: Request) {
     ...(content.sad || [])
   ];
 
-  // Deduplicate by ID and remove empty items
   const uniquePlaylists = Array.from(new Map(
     allPlaylists
       .filter(item => item && item.id)

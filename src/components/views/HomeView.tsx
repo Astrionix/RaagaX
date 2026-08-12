@@ -16,12 +16,14 @@ import useSWR from 'swr';
 
 const homeFetcher = async (url: string, preferredLanguage: string) => {
   const { supabase } = await import('@/lib/supabase');
+  const { UserLifecycleManager } = await import('@/lib/lifecycle/UserLifecycleManager');
   const { data: { session } } = await supabase.auth.getSession();
+  const phase = UserLifecycleManager.getInstance().getData().phase;
   
   const userName = session?.user?.user_metadata?.full_name ? encodeURIComponent(session.user.user_metadata.full_name.split(' ')[0]) : '';
   const fullUrl = session?.user?.id 
-    ? `${url}&userId=${session.user.id}&name=${userName}`
-    : url;
+    ? `${url}&userId=${session.user.id}&name=${userName}&phase=${phase}`
+    : `${url}&phase=${phase}`;
     
   // Fetch home payload and new releases in parallel
   const [res, releasesRes] = await Promise.all([

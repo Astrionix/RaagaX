@@ -227,6 +227,8 @@ export function AudioPlayerController() {
     }
   }, [isPlaying, isActiveDevice, activeRenderer]);
 
+  const songStartTimeRef = useRef<number>(Date.now());
+
   // Handle currentSong change — native: send to ExoPlayer; web: audio graph
   useEffect(() => {
     if (!currentSong?.id) {
@@ -236,15 +238,19 @@ export function AudioPlayerController() {
     }
 
     if (prevSongIdRef.current === currentSong.id) {
-      // Same song — DO NOT re-initialize or trigger play on app resume/open
       return;
     }
     prevSongIdRef.current = currentSong.id;
+    songStartTimeRef.current = Date.now();
 
     LyricsEngine.getInstance().loadTrack(currentSong.id);
 
+    // Trigger asynchronous adaptive dynamic zone update (+2 through +6)
+    import('@/lib/queue/AdaptiveQueueController').then(({ AdaptiveQueueController }) => {
+      AdaptiveQueueController.getInstance().regenerateDynamicZone();
+    });
+
     if (RaagaXNativePlayer.isNative()) {
-      // Route directly to native ExoPlayer with full metadata
       if (currentSong.audioUrl && isPlaying && isActiveDevice) {
         RaagaXNativePlayer.play({
           url: currentSong.audioUrl,

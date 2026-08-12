@@ -151,6 +151,15 @@ export class QueueEngine {
     return null;
   }
 
+  public skipTo(index: number): QueueItem | null {
+    if (index >= 0 && index < this.items.length) {
+      this.currentIndex = index;
+      this.mutate();
+      return this.items[this.currentIndex];
+    }
+    return null;
+  }
+
   public getPreviousItem(): QueueItem | null {
     if (this.currentIndex - 1 >= 0) {
       this.currentIndex--;

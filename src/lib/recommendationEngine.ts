@@ -63,20 +63,39 @@ export class RecommendationEngine {
     action: 'play' | 'skip' | 'complete',
     durationSec: number,
     completionPercentage: number,
-    context: string = 'home'
+    context: string = 'home',
+    skippedAtSec?: number
   ) {
     const artist = song.artist || 'Unknown';
     const genre = song.genre || 'Telugu';
 
+    // Update UserLifecycleManager
+    try {
+      const { UserLifecycleManager } = await import('@/lib/lifecycle/UserLifecycleManager');
+      UserLifecycleManager.getInstance().trackEngagement(song, action, durationSec, completionPercentage);
+    } catch {}
+
     // Update Local Preferences
     if (action === 'skip') {
-      this.preferences.artistScores[artist] = Math.max(0, (this.preferences.artistScores[artist] || 0) - 5);
-      this.preferences.genreScores[genre] = Math.max(0, (this.preferences.genreScores[genre] || 0) - 3);
+      let artistPenalty = -5;
+      let genrePenalty = -3;
+      if (skippedAtSec !== undefined) {
+        try {
+          const { UserLifecycleManager } = await import('@/lib/lifecycle/UserLifecycleManager');
+          const p = UserLifecycleManager.getInstance().calculateSkipPenalty(skippedAtSec);
+          artistPenalty = p.artistPenalty;
+          genrePenalty = p.genrePenalty;
+        } catch {}
+      }
+      this.preferences.artistScores[artist] = Math.max(0, (this.preferences.artistScores[artist] || 0) + artistPenalty);
+      this.preferences.genreScores[genre] = Math.max(0, (this.preferences.genreScores[genre] || 0) + genrePenalty);
       this.preferences.skipCounts[song.id] = (this.preferences.skipCounts[song.id] || 0) + 1;
     } else {
       let artistWeight = 10;
       let genreWeight = 5;
-      if (completionPercentage < 0.5) {
+      if (completionPercentage >= 0.8) {
+        artistWeight = 15; genreWeight = 8;
+      } else if (completionPercentage < 0.5) {
         artistWeight = 2; genreWeight = 1;
       }
 

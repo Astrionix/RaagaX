@@ -8,7 +8,21 @@ import { supabase } from '@/lib/supabase';
 import { RecommendationEngine } from '@/lib/recommendationEngine';
 import { Song } from '@/types/music';
 
+import { UserLifecycleManager } from '@/lib/lifecycle/UserLifecycleManager';
+
 const TOP_LANGUAGES = ['Telugu', 'Hindi', 'Tamil', 'Malayalam', 'Kannada', 'English'];
+const TOP_MOODS = [
+  { name: 'Melodies', icon: '🎵' },
+  { name: 'Mass', icon: '🔥' },
+  { name: 'Party', icon: '💃' },
+  { name: 'Love', icon: '❤️' },
+  { name: 'Devotional', icon: '🙏' },
+  { name: 'Lofi', icon: '🌙' },
+  { name: 'Workout', icon: '🏋️' },
+  { name: 'Sad', icon: '😢' },
+  { name: 'Indie', icon: '🎸' },
+  { name: 'Movie Songs', icon: '🎬' }
+];
 const TOP_ARTISTS = [
   { name: 'Anirudh Ravichander', img: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150&h=150&fit=crop' },
   { name: 'Thaman S', img: 'https://images.unsplash.com/photo-1493225457124-a1a2a5956093?w=150&h=150&fit=crop' },
@@ -22,8 +36,8 @@ export function OnboardingAuthModal() {
   const { isAuthModalOpen, setAuthModalOpen, user } = useAuthStore();
   const { setPreferredLanguage } = usePlayerStore();
   
-  // Progression States: 'login' | 'register-credentials' | 'register-language' | 'register-artists' | 'loading'
-  const [mode, setMode] = useState<'login' | 'register-credentials' | 'register-language' | 'register-artists'>('login');
+  // Progression States: 'login' | 'register-credentials' | 'register-language' | 'register-moods' | 'register-artists'
+  const [mode, setMode] = useState<'login' | 'register-credentials' | 'register-language' | 'register-moods' | 'register-artists'>('login');
   
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -32,7 +46,8 @@ export function OnboardingAuthModal() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
-  const [selectedLanguage, setSelectedLanguage] = useState('Telugu');
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(['Telugu']);
+  const [selectedMoods, setSelectedMoods] = useState<string[]>(['Melodies', 'Love']);
   const [selectedArtists, setSelectedArtists] = useState<string[]>([]);
   
   const [isLoading, setIsLoading] = useState(false);
@@ -84,7 +99,13 @@ export function OnboardingAuthModal() {
   };
 
   const handleRegisterLanguage = () => {
-    setPreferredLanguage(selectedLanguage);
+    if (selectedLanguages.length > 0) {
+      setPreferredLanguage(selectedLanguages[0]);
+    }
+    setMode('register-moods');
+  };
+
+  const handleRegisterMoods = () => {
     setMode('register-artists');
   };
 
@@ -92,7 +113,9 @@ export function OnboardingAuthModal() {
     setErrorMsg('');
     setIsLoading(true);
     
-    // Bootstrap recommendation engine with selected artists
+    // Bootstrap recommendation engine & lifecycle manager
+    UserLifecycleManager.getInstance().bootstrapFromOnboarding(selectedLanguages, selectedMoods, selectedArtists);
+
     selectedArtists.forEach(artist => {
       RecommendationEngine.getInstance().trackEngagement({
         id: `bootstrap_${artist}`,
@@ -117,7 +140,7 @@ export function OnboardingAuthModal() {
       setAuthModalOpen(false);
     } catch (err: any) {
       setErrorMsg(err.message || 'Authentication failed');
-      setMode('register-credentials'); // Go back if error
+      setMode('register-credentials');
     } finally {
       setIsLoading(false);
     }
@@ -163,12 +186,14 @@ export function OnboardingAuthModal() {
               {mode === 'login' && <>Welcome <span className="text-[#F51B3D]">back</span></>}
               {mode === 'register-credentials' && 'Join RaagaX'}
               {mode === 'register-language' && 'What languages do you listen to?'}
+              {mode === 'register-moods' && 'What music moves you?'}
               {mode === 'register-artists' && 'Pick some favorites'}
             </h1>
             <p className="text-[14px] text-[#9AA0AE] font-medium">
               {mode === 'login' && 'Your music is waiting.'}
               {mode === 'register-credentials' && 'Your music. Your library. Everywhere.'}
-              {mode === 'register-language' && 'This helps us personalize your discovery.'}
+              {mode === 'register-language' && 'Select all languages you enjoy.'}
+              {mode === 'register-moods' && 'We\'ll tailor your initial discovery queue.'}
               {mode === 'register-artists' && 'We\'ll build a profile just for you.'}
             </p>
           </div>
@@ -277,22 +302,68 @@ export function OnboardingAuthModal() {
               </>
             )}
 
-            {/* --- REGISTER LANGUAGES --- */}
+            {/* --- REGISTER LANGUAGES (Multi-Select) --- */}
             {mode === 'register-language' && (
               <div className="animate-in slide-in-from-right-4 duration-300">
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {TOP_LANGUAGES.map(lang => (
-                    <button
-                      key={lang}
-                      onClick={() => setSelectedLanguage(lang)}
-                      className={`h-[56px] rounded-[16px] border ${selectedLanguage === lang ? 'bg-[#F51B3D]/10 border-[#F51B3D] text-white' : 'bg-[#101116] border-[#272A33] text-[#9AA0AE] hover:border-[#F51B3D]/50 hover:text-white'} text-[15px] font-semibold transition-all flex items-center justify-center`}
-                    >
-                      {lang}
-                    </button>
-                  ))}
+                  {TOP_LANGUAGES.map(lang => {
+                    const isSelected = selectedLanguages.includes(lang);
+                    return (
+                      <button
+                        key={lang}
+                        onClick={() => {
+                          if (isSelected) {
+                            if (selectedLanguages.length > 1) {
+                              setSelectedLanguages(prev => prev.filter(l => l !== lang));
+                            }
+                          } else {
+                            setSelectedLanguages(prev => [...prev, lang]);
+                          }
+                        }}
+                        className={`h-[56px] rounded-[16px] border ${isSelected ? 'bg-[#F51B3D]/10 border-[#F51B3D] text-white font-bold' : 'bg-[#101116] border-[#272A33] text-[#9AA0AE] hover:border-[#F51B3D]/50 hover:text-white'} text-[15px] font-semibold transition-all flex items-center justify-center gap-2`}
+                      >
+                        {isSelected && <Check className="w-4 h-4 text-[#F51B3D]" />}
+                        {lang}
+                      </button>
+                    );
+                  })}
                 </div>
                 <button
                   onClick={handleRegisterLanguage}
+                  className="w-full h-[56px] mt-8 rounded-[16px] bg-[#F51B3D] text-white font-bold text-[15px] hover:bg-gradient-to-r hover:from-[#F51B3D] hover:to-[#FF2347] hover:scale-[1.01] active:scale-[0.98] transition-all flex items-center justify-center gap-2 group"
+                >
+                  Continue <ArrowRight className="w-5 h-5 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                </button>
+              </div>
+            )}
+
+            {/* --- REGISTER MOODS / GENRES --- */}
+            {mode === 'register-moods' && (
+              <div className="animate-in slide-in-from-right-4 duration-300">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {TOP_MOODS.map(mood => {
+                    const isSelected = selectedMoods.includes(mood.name);
+                    return (
+                      <button
+                        key={mood.name}
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedMoods(prev => prev.filter(m => m !== mood.name));
+                          } else {
+                            setSelectedMoods(prev => [...prev, mood.name]);
+                          }
+                        }}
+                        className={`h-[56px] px-3 rounded-[16px] border ${isSelected ? 'bg-[#F51B3D]/10 border-[#F51B3D] text-white font-bold' : 'bg-[#101116] border-[#272A33] text-[#9AA0AE] hover:border-[#F51B3D]/50 hover:text-white'} text-[14px] transition-all flex items-center justify-start gap-2.5`}
+                      >
+                        <span className="text-xl">{mood.icon}</span>
+                        <span className="truncate">{mood.name}</span>
+                        {isSelected && <Check className="w-4 h-4 text-[#F51B3D] ml-auto flex-shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={handleRegisterMoods}
                   className="w-full h-[56px] mt-8 rounded-[16px] bg-[#F51B3D] text-white font-bold text-[15px] hover:bg-gradient-to-r hover:from-[#F51B3D] hover:to-[#FF2347] hover:scale-[1.01] active:scale-[0.98] transition-all flex items-center justify-center gap-2 group"
                 >
                   Continue <ArrowRight className="w-5 h-5 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />

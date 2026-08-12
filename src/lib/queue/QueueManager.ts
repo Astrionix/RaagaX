@@ -136,6 +136,15 @@ export class QueueManager {
     return item;
   }
 
+  public skipTo(index: number): QueueItem | null {
+    const item = this.engine.skipTo(index);
+    if (item) {
+      this.history.recordPlay(item);
+    }
+    this.notify();
+    return item;
+  }
+
   public getPrevious(): QueueItem | null {
     const item = this.engine.getPreviousItem();
     if (item) {

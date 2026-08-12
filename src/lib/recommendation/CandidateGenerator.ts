@@ -143,4 +143,56 @@ export class CandidateGenerator {
 
     return Array.from(candidates.values());
   }
+
+  /**
+   * Generates categorized candidate buckets for lifecycle composition ratio blending
+   */
+  public static async generateBuckets(
+    currentSong: Song | null,
+    historyIds: string[],
+    language: string
+  ): Promise<{
+    personalized: CandidateSong[];
+    popular: CandidateSong[];
+    newRelease: CandidateSong[];
+    adjacent: CandidateSong[];
+    exploration: CandidateSong[];
+  }> {
+    const buckets = {
+      personalized: [] as CandidateSong[],
+      popular: [] as CandidateSong[],
+      newRelease: [] as CandidateSong[],
+      adjacent: [] as CandidateSong[],
+      exploration: [] as CandidateSong[],
+    };
+
+    try {
+      const { RealMusicEngine } = await import('@/lib/realMusicEngine');
+
+      // Popular Bucket
+      const popularQuery = `${language || 'Telugu'} Hits`;
+      const popSongs = await RealMusicEngine.getInstance().searchRealSongs(popularQuery, 15);
+      buckets.popular = popSongs.filter(s => !historyIds.includes(s.id)).map(s => ({ ...s, candidateSource: 'popular' }));
+
+      // New Releases Bucket
+      const newQuery = `Latest ${language || 'Telugu'} Songs 2025`;
+      const newSongs = await RealMusicEngine.getInstance().searchRealSongs(newQuery, 15);
+      buckets.newRelease = newSongs.filter(s => !historyIds.includes(s.id)).map(s => ({ ...s, candidateSource: 'trending' }));
+
+      // Context / Personalized Bucket
+      if (currentSong?.artist) {
+        const artistSongs = await RealMusicEngine.getInstance().searchRealSongs(`${currentSong.artist} songs`, 15);
+        buckets.personalized = artistSongs.filter(s => !historyIds.includes(s.id)).map(s => ({ ...s, candidateSource: 'personalized' }));
+      }
+
+      // Adjacent / Exploration
+      const expQuery = `${language || 'Telugu'} Melodies`;
+      const expSongs = await RealMusicEngine.getInstance().searchRealSongs(expQuery, 15);
+      buckets.exploration = expSongs.filter(s => !historyIds.includes(s.id)).map(s => ({ ...s, candidateSource: 'similar' }));
+    } catch (e) {
+      console.warn('[CandidateGenerator] Error generating buckets:', e);
+    }
+
+    return buckets;
+  }
 }

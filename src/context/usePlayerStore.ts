@@ -325,7 +325,8 @@ export const usePlayerStore = create<PlayerState>()(
       finalAction,
       currentTime,
       completionPercentage,
-      'home'
+      'home',
+      finalAction === 'skip' ? currentTime : undefined
     );
   },
 
