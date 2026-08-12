@@ -72,6 +72,33 @@ export class RaagaXPlayer {
     return RaagaXPlayer.instance;
   }
 
+  // ── Unified Read-Only Attachment ──────────────────────────────────────────
+
+  /**
+   * READ-ONLY ATTACHMENT — Connects to the underlying native or web player
+   * and returns the live state snapshot WITHOUT issuing any playback commands.
+   */
+  public async connectAndAttach(): Promise<RaagaXPlayerState> {
+    if (RaagaXNativePlayer.isNative()) {
+      const nativeState = await RaagaXNativePlayer.getPlaybackState();
+      if (nativeState) {
+        const manager = QueueManager.getInstance();
+        const currentItem = manager.getCurrentItem();
+        if (currentItem?.song) {
+          const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+          store.setState({
+            isPlaying: nativeState.isPlaying,
+            currentSong: currentItem.song,
+            currentTime: nativeState.positionMs / 1000,
+          });
+        }
+      }
+    }
+    const state = this.getState();
+    this.notifyListeners();
+    return state;
+  }
+
   // ── Unified Playback Controls ─────────────────────────────────────────────
 
   public async play(): Promise<void> {
