@@ -252,14 +252,8 @@ export function AudioPlayerController() {
     });
 
     if (RaagaXNativePlayer.isNative()) {
-      if (currentSong.audioUrl && isPlaying && isActiveDevice) {
-        RaagaXNativePlayer.play({
-          url: currentSong.audioUrl,
-          title: currentSong.title ?? 'Unknown Title',
-          artist: currentSong.artist ?? 'Unknown Artist',
-          artworkUrl: currentSong.coverUrl ?? '',
-        });
-      }
+      // Native ExoPlayer is autonomous and driven by setQueue / loadQueueContext in PlaybackService.
+      // The UI component MUST NOT trigger single-track play commands on mount or currentSong change!
     } else {
       WebAudioGraph.getInstance().resume();
     }

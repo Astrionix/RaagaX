@@ -346,9 +346,30 @@ export const usePlayerStore = create<PlayerState>()(
   },
 
   restoreLocalSession: async () => {
-    const session = await LocalDatabase.getInstance().loadPlaybackSession();
-    const savedLanguage = (typeof window !== 'undefined' && localStorage.getItem('raagax_preferred_language')) || (session && session.preferredLanguage) || 'Telugu';
+    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    const { RaagaXNativePlayer } = await import('@/lib/playback/native/RaagaXNativePlayer');
 
+    // Case 1 & 2: Native playback service is already active in background
+    if (RaagaXNativePlayer.isNative()) {
+      const nativeState = await RaagaXNativePlayer.getPlaybackState();
+      if (nativeState && (nativeState.isPlaying || nativeState.positionMs > 0)) {
+        const snapshot = manager.getSnapshot();
+        const currentItem = manager.getCurrentItem();
+        if (currentItem?.song) {
+          set({
+            isPlaying: nativeState.isPlaying,
+            currentSong: currentItem.song,
+            currentTime: nativeState.positionMs / 1000,
+            queue: snapshot.items.map((i: any) => i.song),
+            queueIndex: snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0,
+          });
+          return;
+        }
+      }
+    }
+
+    // Case 3: Cold boot / App killed — PASSIVE restoration (isPlaying = false, DO NOT AUTOPLAY)
+    const session = await LocalDatabase.getInstance().loadPlaybackSession();
     if (session && session.currentSong) {
       const { isKidsOrNurseryTrack } = await import('@/lib/jioSaavnProvider');
       const cleanQueue = (session.queue || []).filter(s => s && !isKidsOrNurseryTrack(s));
@@ -359,22 +380,18 @@ export const usePlayerStore = create<PlayerState>()(
         let safeIndex = cleanQueue.findIndex(s => s.id === activeSong.id);
         if (safeIndex === -1) safeIndex = Math.min(session.queueIndex || 0, Math.max(0, cleanQueue.length - 1));
 
-        // 1. Populate QueueManager engine with full restored queue so getNext() and shuffle have all songs
-        const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
         manager.replaceQueue(cleanQueue, safeIndex);
 
-        // 2. Sync to Zustand store state
         set({
+          isPlaying: false,
           currentSong: activeSong,
           currentTime: session.currentTime || 0,
           queue: cleanQueue,
           queueIndex: safeIndex,
         });
 
-        // 3. Pre-feed full restored queue into native ExoPlayer
-        import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
-          PlaybackService.getInstance().loadQueueContext(cleanQueue, safeIndex);
-        });
+        const { PlaybackService } = await import('@/lib/playback/PlaybackService');
+        await PlaybackService.getInstance().loadQueueContext(cleanQueue, safeIndex);
       }
     }
   },
