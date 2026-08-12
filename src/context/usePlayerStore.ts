@@ -519,13 +519,15 @@ export const usePlayerStore = create<PlayerState>()(
 
     get().logCurrentTelemetry('skip');
 
+    // Truly randomize full sequence so starting song is never forced to track 1
+    const shuffledSongs = [...songs].sort(() => Math.random() - 0.5);
+
     const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
-    manager.replaceQueue(songs, 0, 'PLAYLIST', context);
-    await manager.toggleShuffle();
+    manager.replaceQueue(shuffledSongs, 0, 'PLAYLIST', context);
 
     const snapshot = manager.getSnapshot();
     const syncedQueue = snapshot.items.map((i: any) => i.song);
-    const firstSong = syncedQueue[0] || songs[0];
+    const firstSong = syncedQueue[0] || shuffledSongs[0];
 
     set({
       isPlaying: true,
