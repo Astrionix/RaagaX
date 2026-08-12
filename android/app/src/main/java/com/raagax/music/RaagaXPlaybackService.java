@@ -188,6 +188,16 @@ public class RaagaXPlaybackService extends Service {
             else if ("RESUME".equals(action))    { resume(); }
             else if ("SEEK".equals(action))      { seekTo(intent.getLongExtra("positionMs", 0)); }
             else if ("SET_VOLUME".equals(action)){ setVolume(intent.getFloatExtra("volume", 1.0f)); }
+            else if ("STOP".equals(action)) {
+                runOnMainThread(() -> {
+                    if (player != null) {
+                        player.stop();
+                        player.clearMediaItems();
+                    }
+                    stopForeground(true);
+                    stopSelf();
+                });
+            }
         }
 
         return START_STICKY;
@@ -320,10 +330,14 @@ public class RaagaXPlaybackService extends Service {
     @Override
     public void onTaskRemoved(Intent rootIntent) {
         super.onTaskRemoved(rootIntent);
-        Log.d(TAG, "onTaskRemoved: Activity swiped away. Player isPlaying=" + isPlaying());
+        Log.d(TAG, "onTaskRemoved: Activity swiped away from Recents. Player isPlaying=" + isPlaying());
         if (player != null && player.isPlaying()) {
-            // Keep foreground playback active even if Activity was closed
+            // Keep foreground playback active — swiping app away does NOT stop active playback
             updateNotification();
+        } else {
+            // If user swiped app away while paused, clean up foreground service
+            stopForeground(true);
+            stopSelf();
         }
     }
 
