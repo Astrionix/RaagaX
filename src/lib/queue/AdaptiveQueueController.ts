@@ -54,11 +54,19 @@ export class AdaptiveQueueController {
       const candidates: QueueItem[] = [];
       const sessionIntent = lifecycleData.sessionIntentCategory;
 
+      const cooldown = (await import('./CooldownManager')).CooldownManager.getInstance();
+      const recentSlice = items.slice(Math.max(0, currentIndex - 2), currentIndex + 2);
+
       const pickCandidates = (sourceList: any[], count: number, reason: any) => {
-        for (const s of sourceList) {
+        const filtered = cooldown.filterWithCooldowns(sourceList, recentSlice);
+        const listToUse = filtered.length > 0 ? filtered : sourceList; // fallback if all cooled down
+
+        for (const s of listToUse) {
           if (candidates.length >= count) break;
           if (!candidates.some(c => c.trackId === s.id)) {
-            candidates.push(manager.createQueueItem(s, 'RECOMMENDATION'));
+            const item = manager.createQueueItem(s, 'RECOMMENDATION');
+            item.smartQueueReason = { type: 'DISCOVERY', score: 0.95 };
+            candidates.push(item);
           }
         }
       };
