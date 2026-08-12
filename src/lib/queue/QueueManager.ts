@@ -108,6 +108,14 @@ export class QueueManager {
     this.notify();
   }
 
+  public getWindow(): import('../playback/types').PlayerQueueWindow {
+    return this.engine.getWindow();
+  }
+
+  public getRestrictions(): import('../playback/types').PlayerRestrictions {
+    return this.engine.getRestrictions();
+  }
+
   public setPlaybackContext(context: PlaybackContext) {
     this.engine.setPlaybackContext(context);
     this.notify();

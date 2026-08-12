@@ -61,11 +61,59 @@ export type AudioQuality =
   | 'VERY_HIGH'
   | 'LOSSLESS';
 
-export interface AudioQualityState {
+export type AudioQualityState = {
   requested: AudioQuality;
   delivered: AudioQuality;
   
   codec?: string;
   bitrateKbps?: number;
   sampleRate?: number;
+};
+
+export type AdvanceReason =
+  | 'NATURAL_END'
+  | 'USER_NEXT'
+  | 'USER_PREV'
+  | 'AUTOPLAY'
+  | 'REPEAT_TRACK'
+  | 'REPEAT_CONTEXT'
+  | 'ERROR_RECOVERY';
+
+export interface PlayerRestrictions {
+  disallowSkipNext: string[];
+  disallowSkipPrev: string[];
+  disallowSeek: string[];
+  disallowPause: string[];
+  disallowSetQueue: string[];
+  disallowTransfer: string[];
+}
+
+export interface PlayerQueueWindow {
+  revision: number;
+  prevTracks: import('@/types/music').Song[];
+  currentTrack: import('@/types/music').Song | null;
+  nextTracks: import('@/types/music').Song[];
+}
+
+export type PlayerCommandType =
+  | 'SET_QUEUE'
+  | 'ADD_TO_QUEUE'
+  | 'PLAY_AS_NEXT'
+  | 'SKIP_TO_NEXT'
+  | 'SKIP_TO_PREV'
+  | 'SEEK'
+  | 'SET_REPEAT'
+  | 'SET_SHUFFLE'
+  | 'UPDATE_CONTEXT';
+
+export interface PlayerCommand<T = unknown> {
+  commandId: string;
+  sessionId: string;
+  sessionCommandId: string;
+  sourceDeviceId: string;
+  expectedQueueRevision?: number;
+  type: PlayerCommandType;
+  sentAt: number;
+  playOrigin?: 'HOME' | 'SEARCH' | 'ALBUM' | 'PLAYLIST' | 'RECOMMENDATION' | 'AUTOPLAY';
+  payload: T;
 }

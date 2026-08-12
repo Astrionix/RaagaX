@@ -59,6 +59,30 @@ export class QueueEngine {
     };
   }
 
+  public getWindow(): import('../playback/types').PlayerQueueWindow {
+    const prevTracks = this.currentIndex > 0 ? this.items.slice(0, this.currentIndex).map(i => i.song) : [];
+    const currentTrack = this.getCurrentItem()?.song || null;
+    const nextTracks = this.currentIndex < this.items.length - 1 ? this.items.slice(this.currentIndex + 1).map(i => i.song) : [];
+
+    return {
+      revision: this.revision,
+      prevTracks,
+      currentTrack,
+      nextTracks,
+    };
+  }
+
+  public getRestrictions(): import('../playback/types').PlayerRestrictions {
+    const { RestrictionsEngine } = require('../playback/RestrictionsEngine');
+    return RestrictionsEngine.getInstance().evaluate({
+      queueItems: this.items.map(i => i.song),
+      currentIndex: this.currentIndex,
+      isPlaying: true,
+      isOffline: false,
+      repeatMode: this.repeatMode,
+    });
+  }
+
   private mutate() {
     this.revision++;
     QueuePersistence.getInstance().saveSnapshot(this.getSnapshot());

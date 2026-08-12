@@ -105,6 +105,8 @@ interface PlayerState {
   setPlaybackContext: (context: import('@/types/music').PlaybackContext | null) => void;
   getPlaybackSnapshot: () => import('@/lib/connect/types').PlaybackSnapshot;
   calculateLiveTime: () => number;
+  restrictions: import('@/lib/playback/types').PlayerRestrictions;
+  executePlayerCommand: (type: import('@/lib/playback/types').PlayerCommandType, payload?: any, origin?: any) => Promise<{ success: boolean; reason?: string }>;
 
   // Actions
   playAlbumSequence: (albumIds: string[]) => Promise<void>;
@@ -295,6 +297,34 @@ export const usePlayerStore = create<PlayerState>()(
     const { calculateLivePositionMs } = require('@/lib/connect/types');
     const snapshot = get().getPlaybackSnapshot();
     return calculateLivePositionMs(snapshot) / 1000;
+  },
+
+  restrictions: {
+    disallowSkipNext: [],
+    disallowSkipPrev: [],
+    disallowSeek: [],
+    disallowPause: [],
+    disallowSetQueue: [],
+    disallowTransfer: [],
+  },
+
+  executePlayerCommand: async (type, payload, origin) => {
+    const { PlayerCommandBus } = await import('@/lib/playback/PlayerCommandBus');
+    const bus = PlayerCommandBus.getInstance();
+    const command = bus.createCommand(type, payload, origin);
+    const result = await bus.executeCommand(command);
+
+    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    const newRestrictions = manager.getRestrictions();
+    const newSnapshot = manager.getSnapshot();
+    set({
+      restrictions: newRestrictions,
+      queue: newSnapshot.items.map((i: any) => i.song),
+      queueIndex: newSnapshot.currentIndex >= 0 ? newSnapshot.currentIndex : 0,
+      currentSong: newSnapshot.items[newSnapshot.currentIndex]?.song || get().currentSong,
+    });
+
+    return result;
   },
 
   setRightPanelMode: (mode) => set({ rightPanelMode: mode }),
