@@ -185,29 +185,21 @@ export class PlaybackService {
   }
 
   /**
-   * CRITICAL FIX: For albums and playlists, eagerly resolves all track URLs
-   * in parallel and feeds the full playlist into native ExoPlayer BEFORE song 1 plays.
+   * loadQueueContext — Resolve all songs in a context (album/playlist) in parallel
+   * and hand the FULL playlist to native ExoPlayer via setQueue() BEFORE song 1 starts.
    *
-   * Without this, ExoPlayer only has 1 item when song 1 starts. If song 1 finishes
-   * before the async URL resolution for song 2 completes, ExoPlayer reaches STATE_ENDED
-   * and stops — only resuming when the user re-opens the app and JS wakes up.
-   *
-   * With this, ExoPlayer has all tracks queued upfront and auto-advances natively
-   * in the background, even while the WebView / JS is fully suspended.
+   * This is the definitive fix for background stop on albums/playlists:
+   * ExoPlayer receives the complete ordered playlist and auto-advances natively
+   * without requiring WebView/JS to wake up between tracks.
    */
   public async loadQueueContext(songs: Song[], startIndex: number): Promise<void> {
     if (!RaagaXNativePlayer.isNative()) return;
-    if (!songs || songs.length <= 1) return;
+    if (!songs || songs.length === 0) return;
 
     try {
-      // Resolve the upcoming songs after startIndex (skip song at startIndex — that's
-      // handled by playTrack() directly)
-      const upcoming = songs.slice(startIndex + 1, startIndex + 10);
-      if (upcoming.length === 0) return;
-
-      // Resolve all URLs in parallel — much faster than sequential
-      const resolvedBatch = await Promise.all(
-        upcoming.map(async (song) => {
+      // Resolve ALL songs in parallel (including the starting song)
+      const resolvedTracks = await Promise.all(
+        songs.map(async (song) => {
           let finalSrc = song.audioUrl || '';
           if (!finalSrc || finalSrc.includes('pixabay.com')) {
             try {
@@ -224,11 +216,13 @@ export class PlaybackService {
         })
       );
 
-      const validBatch = resolvedBatch.filter(t => !!t.url);
-      if (validBatch.length === 0) return;
+      const validTracks = resolvedTracks.filter(t => !!t.url);
+      if (validTracks.length === 0) return;
 
-      await RaagaXNativePlayer.setNextTracksBatch(validBatch);
-      console.log(`[PlaybackService] loadQueueContext: pre-fed ${validBatch.length} tracks into ExoPlayer queue before playback started`);
+      // setQueue() hands ExoPlayer the entire playlist with the correct start index.
+      // ExoPlayer then owns all transitions — no WebView involvement needed.
+      await RaagaXNativePlayer.setQueue(validTracks, startIndex);
+      console.log(`[PlaybackService] loadQueueContext: setQueue(${validTracks.length} tracks, startIndex=${startIndex}) — ExoPlayer owns all transitions`);
     } catch (e) {
       console.warn('[PlaybackService] loadQueueContext failed:', e);
     }
@@ -237,7 +231,9 @@ export class PlaybackService {
   public async playTrack(song: Song, forceResume: boolean = true): Promise<boolean> {
     if (!song) return false;
 
-    // ── Native Android Path (ExoPlayer Service) ──────────────────────────────
+    // ── Native Android Path: single-song fallback only ───────────────────────
+    // For albums/playlists, loadQueueContext() should be called first via playSong().
+    // This path is only used for single-song plays or NEXT commands.
     if (RaagaXNativePlayer.isNative()) {
       let finalSrc = song.audioUrl || '';
       if (!finalSrc || finalSrc.includes('pixabay.com')) {
@@ -262,7 +258,7 @@ export class PlaybackService {
         artworkUrl: song.coverUrl ?? '',
       });
 
-      // Preload next track into native ExoPlayer queue for seamless background playback
+      // Preload upcoming tracks into native ExoPlayer queue
       this.preloadNativeNextTrack();
       return true;
     }

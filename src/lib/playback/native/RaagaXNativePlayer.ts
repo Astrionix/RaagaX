@@ -1,9 +1,17 @@
 /**
  * RaagaXNativePlayer
- * 
+ *
  * TypeScript adapter that routes playback through the native Android
  * Media3 ExoPlayer foreground service when running inside the Capacitor APK.
  * Falls back to HTMLAudioElement on web/PWA.
+ *
+ * ── Contract ────────────────────────────────────────────────────────────────
+ * The primary API is now setQueue() — which hands ExoPlayer the FULL playlist
+ * upfront so it can auto-advance natively in the background without requiring
+ * the WebView to wake up on every song transition.
+ *
+ * play() / setNextTrack() / setNextTracksBatch() are kept for compatibility
+ * but should be considered deprecated in favour of setQueue().
  */
 
 const IS_CAPACITOR_NATIVE =
@@ -18,10 +26,20 @@ function getPlugin() {
   return cap?.Plugins?.RaagaXPlayer ?? null;
 }
 
+export interface NativeTrackItem {
+  url: string;
+  title: string;
+  artist: string;
+  artworkUrl?: string;
+}
+
 export interface NativePlaybackState {
   isPlaying: boolean;
   positionMs: number;
   durationMs: number;
+  bufferedPositionMs?: number;
+  title?: string;
+  artist?: string;
 }
 
 export const RaagaXNativePlayer = {
@@ -29,38 +47,41 @@ export const RaagaXNativePlayer = {
     return IS_CAPACITOR_NATIVE && getPlugin() !== null;
   },
 
-  async play(options: {
-    url: string;
-    title: string;
-    artist: string;
-    artworkUrl?: string;
-  }): Promise<void> {
+  /**
+   * PRIMARY API — hands the complete playlist to ExoPlayer.
+   * ExoPlayer auto-advances through all items natively in the background.
+   * The WebView does NOT need to wake up for each track transition.
+   *
+   * @param tracks  Full ordered list of tracks for this playback session
+   * @param startIndex  Index of the track to start playing immediately
+   */
+  async setQueue(tracks: NativeTrackItem[], startIndex: number = 0): Promise<void> {
+    const plugin = getPlugin();
+    if (!plugin || !tracks || tracks.length === 0) return;
+    await plugin.setQueue({ tracks, startIndex });
+  },
+
+  // ── Legacy single-track API (kept for compatibility) ──────────────────────
+
+  async play(options: NativeTrackItem): Promise<void> {
     const plugin = getPlugin();
     if (!plugin) return;
     await plugin.play(options);
   },
 
-  async setNextTrack(options: {
-    url: string;
-    title: string;
-    artist: string;
-    artworkUrl?: string;
-  }): Promise<void> {
+  async setNextTrack(options: NativeTrackItem): Promise<void> {
     const plugin = getPlugin();
     if (!plugin) return;
     await plugin.setNextTrack(options);
   },
 
-  async setNextTracksBatch(tracks: Array<{
-    url: string;
-    title: string;
-    artist: string;
-    artworkUrl?: string;
-  }>): Promise<void> {
+  async setNextTracksBatch(tracks: NativeTrackItem[]): Promise<void> {
     const plugin = getPlugin();
     if (!plugin || !tracks || tracks.length === 0) return;
     await plugin.setNextTracksBatch({ tracks });
   },
+
+  // ── Playback controls ─────────────────────────────────────────────────────
 
   async pause(): Promise<void> {
     const plugin = getPlugin();
@@ -92,18 +113,30 @@ export const RaagaXNativePlayer = {
     return plugin.getPlaybackState();
   },
 
+  // ── Event listeners ───────────────────────────────────────────────────────
+
+  /** Fires when the native queue is completely exhausted (not per-track) */
+  addQueueEndedListener(callback: () => void): () => void {
+    const plugin = getPlugin();
+    if (!plugin) return () => {};
+    plugin.addListener('queueEnded', callback);
+    return () => plugin.removeAllListeners('queueEnded');
+  },
+
+  /** Fires on every track change (auto-advance or manual next/prev) */
+  addTrackChangedListener(callback: (data: { title?: string; artist?: string; url?: string; index?: number }) => void): () => void {
+    const plugin = getPlugin();
+    if (!plugin) return () => {};
+    plugin.addListener('trackChanged', callback);
+    return () => plugin.removeAllListeners('trackChanged');
+  },
+
+  /** @deprecated Use addQueueEndedListener instead */
   addTrackEndedListener(callback: () => void): () => void {
     const plugin = getPlugin();
     if (!plugin) return () => {};
     plugin.addListener('trackEnded', callback);
     return () => plugin.removeAllListeners('trackEnded');
-  },
-
-  addTrackChangedListener(callback: (data: { title?: string; artist?: string; url?: string }) => void): () => void {
-    const plugin = getPlugin();
-    if (!plugin) return () => {};
-    plugin.addListener('trackChanged', callback);
-    return () => plugin.removeAllListeners('trackChanged');
   },
 
   addPlaybackStateListener(callback: (state: { isPlaying: boolean }) => void): () => void {

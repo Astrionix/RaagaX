@@ -22,47 +22,49 @@ public class RaagaXCapacitorPlugin extends Plugin {
     private static final String TAG = "RaagaXCapacitorPlugin";
     private boolean serviceStarted = false;
 
-    // ── Broadcast Receiver: track ended / playback state from service ─────────
+    // ── Broadcast Receiver ────────────────────────────────────────────────────
     private final BroadcastReceiver playbackReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
-            if ("com.raagax.music.TRACK_ENDED".equals(action)) {
-                notifyListeners("trackEnded", new JSObject());
-            } else if ("com.raagax.music.TRACK_CHANGED".equals(action)) {
+
+            if ("com.raagax.music.TRACK_CHANGED".equals(action)) {
                 JSObject data = new JSObject();
-                data.put("title", intent.getStringExtra("title"));
+                data.put("title",  intent.getStringExtra("title"));
                 data.put("artist", intent.getStringExtra("artist"));
-                data.put("url", intent.getStringExtra("url"));
+                data.put("url",    intent.getStringExtra("url"));
+                data.put("index",  intent.getIntExtra("index", 0));
                 notifyListeners("trackChanged", data);
+
+            } else if ("com.raagax.music.QUEUE_ENDED".equals(action)) {
+                // Whole queue is exhausted — ask web layer to generate autoplay continuation
+                notifyListeners("queueEnded", new JSObject());
+
             } else if ("com.raagax.music.PLAYBACK_STATE".equals(action)) {
-                boolean isPlaying = intent.getBooleanExtra("isPlaying", false);
                 JSObject data = new JSObject();
-                data.put("isPlaying", isPlaying);
+                data.put("isPlaying", intent.getBooleanExtra("isPlaying", false));
                 notifyListeners("playbackStateChanged", data);
+
+            } else if ("com.raagax.music.TRACK_ENDED".equals(action)) {
+                // Legacy — kept for compatibility
+                notifyListeners("trackEnded", new JSObject());
             }
         }
     };
 
     @Override
     public void load() {
-        // Register broadcast receiver for track-ended / playback-state events
         IntentFilter filter = new IntentFilter();
-        filter.addAction("com.raagax.music.TRACK_ENDED");
         filter.addAction("com.raagax.music.TRACK_CHANGED");
+        filter.addAction("com.raagax.music.QUEUE_ENDED");
         filter.addAction("com.raagax.music.PLAYBACK_STATE");
+        filter.addAction("com.raagax.music.TRACK_ENDED");
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             getContext().registerReceiver(playbackReceiver, filter, Context.RECEIVER_EXPORTED);
         } else {
             getContext().registerReceiver(playbackReceiver, filter);
         }
-
-        // ⚠️ Do NOT start the foreground service here.
-        // On Android 12+, startForegroundService() requires startForeground() within 5 seconds.
-        // Media3 only posts the foreground notification when playback actually begins.
-        // Starting eagerly here causes the app to be killed immediately on launch.
-        // The service is started lazily from play() instead.
     }
 
     private void sendCommandToService(Intent intent) {
@@ -79,13 +81,57 @@ public class RaagaXCapacitorPlugin extends Plugin {
         return RaagaXPlaybackService.getInstance();
     }
 
-    // ── Plugin Methods (called from JavaScript via Capacitor) ─────────────────
+    // ── Plugin Methods ────────────────────────────────────────────────────────
+
+    /**
+     * PRIMARY API — sends the complete ordered playlist to native ExoPlayer.
+     * ExoPlayer auto-advances through all items natively without WebView involvement.
+     *
+     * Expected JS call:
+     *   RaagaXPlayer.setQueue({ tracks: [{url, title, artist, artworkUrl},...], startIndex: 0 })
+     */
+    @PluginMethod
+    public void setQueue(PluginCall call) {
+        com.getcapacitor.JSArray tracks = call.getArray("tracks");
+        int startIndex = call.getInt("startIndex", 0);
+
+        if (tracks == null || tracks.length() == 0) {
+            call.reject("tracks array is required");
+            return;
+        }
+
+        try {
+            int len = tracks.length();
+            String[] urls    = new String[len];
+            String[] titles  = new String[len];
+            String[] artists = new String[len];
+
+            for (int i = 0; i < len; i++) {
+                org.json.JSONObject obj = tracks.getJSONObject(i);
+                urls[i]    = obj.optString("url", "");
+                titles[i]  = obj.optString("title", "RaagaX");
+                artists[i] = obj.optString("artist", "");
+            }
+
+            Intent intent = new Intent("SET_QUEUE");
+            intent.putExtra("urls",       urls);
+            intent.putExtra("titles",     titles);
+            intent.putExtra("artists",    artists);
+            intent.putExtra("startIndex", startIndex);
+            sendCommandToService(intent);
+
+            call.resolve(new JSObject().put("success", true));
+        } catch (Exception e) {
+            Log.e(TAG, "Error in setQueue: " + e.getMessage());
+            call.reject("Failed to set queue: " + e.getMessage());
+        }
+    }
 
     @PluginMethod
     public void play(PluginCall call) {
-        String url = call.getString("url", "");
-        String title = call.getString("title", "RaagaX");
-        String artist = call.getString("artist", "");
+        String url       = call.getString("url", "");
+        String title     = call.getString("title", "RaagaX");
+        String artist    = call.getString("artist", "");
         String artworkUrl = call.getString("artworkUrl", "");
 
         if (url == null || url.isEmpty()) {
@@ -94,28 +140,26 @@ public class RaagaXCapacitorPlugin extends Plugin {
         }
 
         Intent intent = new Intent("PLAY");
-        intent.putExtra("url", url);
-        intent.putExtra("title", title);
+        intent.putExtra("url",    url);
+        intent.putExtra("title",  title);
         intent.putExtra("artist", artist);
         sendCommandToService(intent);
-
         call.resolve(new JSObject().put("success", true));
     }
 
     @PluginMethod
     public void setNextTrack(PluginCall call) {
-        String url = call.getString("url", "");
-        String title = call.getString("title", "RaagaX");
+        String url    = call.getString("url", "");
+        String title  = call.getString("title", "RaagaX");
         String artist = call.getString("artist", "");
 
         if (url != null && !url.isEmpty()) {
             Intent intent = new Intent("SET_NEXT");
-            intent.putExtra("url", url);
-            intent.putExtra("title", title);
+            intent.putExtra("url",    url);
+            intent.putExtra("title",  title);
             intent.putExtra("artist", artist);
             sendCommandToService(intent);
         }
-
         call.resolve(new JSObject().put("success", true));
     }
 
@@ -125,20 +169,20 @@ public class RaagaXCapacitorPlugin extends Plugin {
         if (tracks != null && tracks.length() > 0) {
             try {
                 int len = tracks.length();
-                String[] urls = new String[len];
-                String[] titles = new String[len];
+                String[] urls    = new String[len];
+                String[] titles  = new String[len];
                 String[] artists = new String[len];
 
                 for (int i = 0; i < len; i++) {
                     org.json.JSONObject obj = tracks.getJSONObject(i);
-                    urls[i] = obj.optString("url", "");
-                    titles[i] = obj.optString("title", "RaagaX");
+                    urls[i]    = obj.optString("url", "");
+                    titles[i]  = obj.optString("title", "RaagaX");
                     artists[i] = obj.optString("artist", "");
                 }
 
                 Intent intent = new Intent("SET_NEXT_BATCH");
-                intent.putExtra("urls", urls);
-                intent.putExtra("titles", titles);
+                intent.putExtra("urls",    urls);
+                intent.putExtra("titles",  titles);
                 intent.putExtra("artists", artists);
                 sendCommandToService(intent);
             } catch (Exception e) {
@@ -186,12 +230,12 @@ public class RaagaXCapacitorPlugin extends Plugin {
                 try {
                     RaagaXPlaybackService.PlaybackSnapshot snapshot = service.getPlaybackSnapshot();
                     JSObject result = new JSObject();
-                    result.put("isPlaying", snapshot.isPlaying);
-                    result.put("positionMs", snapshot.positionMs);
-                    result.put("durationMs", snapshot.durationMs);
-                    result.put("bufferedPositionMs", snapshot.bufferedPositionMs);
-                    result.put("title", snapshot.currentTitle);
-                    result.put("artist", snapshot.currentArtist);
+                    result.put("isPlaying",          snapshot.isPlaying);
+                    result.put("positionMs",          snapshot.positionMs);
+                    result.put("durationMs",          snapshot.durationMs);
+                    result.put("bufferedPositionMs",  snapshot.bufferedPositionMs);
+                    result.put("title",               snapshot.currentTitle);
+                    result.put("artist",              snapshot.currentArtist);
                     call.resolve(result);
                 } catch (Exception e) {
                     call.reject("Error getting playback snapshot: " + e.getMessage());

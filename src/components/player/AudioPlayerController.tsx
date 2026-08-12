@@ -60,55 +60,56 @@ export function AudioPlayerController() {
     }
   }, [audioRefA.current, audioRefB.current]);
 
-  // Native Android: hook into ExoPlayer track-ended & track-changed events
+  // Native Android: hook into ExoPlayer queueEnded & trackChanged events.
+  // NOTE: We do NOT trigger playNext() on trackChanged — ExoPlayer auto-advances
+  // natively via the full playlist set by setQueue(). We only sync the UI state.
   useEffect(() => {
     if (!RaagaXNativePlayer.isNative()) return;
 
-    const unsubEnded = RaagaXNativePlayer.addTrackEndedListener(() => {
-      console.log('[AudioPlayerController] Native queue reached end, fallback playNext()');
+    // queueEnded fires only when ExoPlayer has exhausted the entire playlist.
+    // This is where we trigger autoplay continuation, NOT on every song end.
+    const unsubQueueEnded = RaagaXNativePlayer.addQueueEndedListener(() => {
+      console.log('[AudioPlayerController] Native queue exhausted — triggering autoplay continuation');
       const store = usePlayerStore.getState();
-      if (store.isPlaying && store.isActiveDevice) {
-        store.playNext();
+      if (store.isActiveDevice) {
+        store.setIsPlaying(false, true);
+        // Let the autoplay/recommendation engine load the next batch
+        if (store.isAutoplayEnabled) {
+          store.playNext();
+        }
       }
     });
 
+    // trackChanged fires on every auto-advance. We sync the JS queue index to
+    // match what ExoPlayer is already playing — no JS-side queue advancement needed.
     const unsubChanged = RaagaXNativePlayer.addTrackChangedListener((data) => {
-      console.log('[AudioPlayerController] Native track changed to:', data.title);
+      console.log('[AudioPlayerController] Native track changed — index:', data.index, 'title:', data.title);
       const store = usePlayerStore.getState();
-      const current = store.currentSong;
-
-      // Avoid re-synchronizing if already on the current song
-      if (current && ((data.url && current.audioUrl === data.url) || (data.title && current.title === data.title))) {
-        return;
-      }
-
-      // Find the song in the queue matching the native track's URL or title, or default to queueIndex + 1
       const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
       const snapshot = manager.getSnapshot();
       const queue = snapshot.items.map((i: any) => i.song);
-      const currentIndex = snapshot.currentIndex;
 
+      // Use native index first (most reliable), then fall back to URL/title matching
       let targetIndex = -1;
-      if (data.url) {
+      if (typeof data.index === 'number' && data.index >= 0 && data.index < queue.length) {
+        targetIndex = data.index;
+      } else if (data.url) {
         targetIndex = queue.findIndex((s: Song) => s.audioUrl === data.url);
-      }
-      if (targetIndex === -1 && data.title) {
+      } else if (data.title) {
         targetIndex = queue.findIndex((s: Song) => s.title === data.title);
-      }
-      if (targetIndex === -1 && currentIndex + 1 < queue.length) {
-        targetIndex = currentIndex + 1;
       }
 
       if (targetIndex >= 0 && targetIndex < queue.length) {
         const nextSong = queue[targetIndex];
+        // Avoid re-sync if already on this song
+        if (store.currentSong?.id === nextSong?.id) return;
         manager.skipTo(targetIndex);
         store.commitPlaybackTransition(nextSong, targetIndex);
-        PlaybackService.getInstance().preloadNativeNextTrack();
       }
     });
 
     return () => {
-      unsubEnded();
+      unsubQueueEnded();
       unsubChanged();
     };
   }, []);

@@ -22,13 +22,19 @@ import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
 
 /**
- * RaagaXPlaybackService — Plain foreground Service (not MediaSessionService).
+ * RaagaXPlaybackService — Native Android foreground playback service.
  *
- * Uses a standard Android Service so Capacitor's BridgeActivity lifecycle
- * does not conflict with MediaSessionService's internal session management.
+ * ── Architecture ─────────────────────────────────────────────────────────────
+ * The primary command is now SET_QUEUE which hands ExoPlayer the FULL ordered
+ * playlist. ExoPlayer then auto-advances through all items natively in the
+ * background without requiring the WebView or JavaScript to wake up.
  *
- * Calls startForeground() immediately in onStartCommand() to satisfy
- * Android 12+'s 5-second foreground-service timeout requirement.
+ * TRACK_ENDED is no longer broadcast on every song end. Instead:
+ *   • onMediaItemTransition  → TRACK_CHANGED   (UI sync)
+ *   • STATE_ENDED (queue exhausted) → QUEUE_ENDED
+ *
+ * This breaks the dependency where the WebView had to call SET_NEXT for every
+ * song transition, which caused playback to stop if the WebView was suspended.
  */
 @OptIn(markerClass = UnstableApi.class)
 public class RaagaXPlaybackService extends Service {
@@ -38,7 +44,6 @@ public class RaagaXPlaybackService extends Service {
     public  static final int    NOTIF_ID    = 1001;
 
     private static RaagaXPlaybackService instance;
-
     public static RaagaXPlaybackService getInstance() { return instance; }
 
     private ExoPlayer player;
@@ -72,16 +77,19 @@ public class RaagaXPlaybackService extends Service {
         }
 
         player.addListener(new Player.Listener() {
+
+            // ── Track changed (auto-advance or manual next/prev) ──────────────
             @Override
             public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
                 if (mediaItem != null && mediaItem.mediaMetadata != null) {
-                    currentTitle  = mediaItem.mediaMetadata.title != null ? mediaItem.mediaMetadata.title.toString() : "RaagaX";
+                    currentTitle  = mediaItem.mediaMetadata.title  != null ? mediaItem.mediaMetadata.title.toString()  : "RaagaX";
                     currentArtist = mediaItem.mediaMetadata.artist != null ? mediaItem.mediaMetadata.artist.toString() : "";
                     updateNotification();
 
                     Intent i = new Intent("com.raagax.music.TRACK_CHANGED");
-                    i.putExtra("title", currentTitle);
+                    i.putExtra("title",  currentTitle);
                     i.putExtra("artist", currentArtist);
+                    i.putExtra("index",  player.getCurrentMediaItemIndex());
                     i.putExtra("reason", reason);
                     if (mediaItem.localConfiguration != null) {
                         i.putExtra("url", mediaItem.localConfiguration.uri.toString());
@@ -90,10 +98,15 @@ public class RaagaXPlaybackService extends Service {
                 }
             }
 
+            // ── Playback state ────────────────────────────────────────────────
             @Override
             public void onPlaybackStateChanged(int state) {
                 if (state == Player.STATE_ENDED) {
-                    sendBroadcast(new Intent("com.raagax.music.TRACK_ENDED"));
+                    // The ENTIRE queue is exhausted — no more MediaItems to play.
+                    // DO NOT call seekToNextMediaItem() here; ExoPlayer already tried.
+                    // Signal the web layer so it can replenish (autoplay) if desired.
+                    Log.d(TAG, "onPlaybackStateChanged: STATE_ENDED — queue exhausted, sending QUEUE_ENDED");
+                    sendBroadcast(new Intent("com.raagax.music.QUEUE_ENDED"));
                 }
                 updateNotification();
             }
@@ -119,23 +132,36 @@ public class RaagaXPlaybackService extends Service {
 
         if (intent != null) {
             String action = intent.getAction();
-            if ("PLAY".equals(action)) {
-                String url = intent.getStringExtra("url");
-                String title = intent.getStringExtra("title");
+
+            if ("SET_QUEUE".equals(action)) {
+                // ── PRIMARY command: full ordered playlist ────────────────────
+                String[] urls    = intent.getStringArrayExtra("urls");
+                String[] titles  = intent.getStringArrayExtra("titles");
+                String[] artists = intent.getStringArrayExtra("artists");
+                int startIndex   = intent.getIntExtra("startIndex", 0);
+                if (urls != null && urls.length > 0) {
+                    setQueue(urls, titles, artists, startIndex);
+                }
+
+            } else if ("PLAY".equals(action)) {
+                // Legacy single-track play
+                String url    = intent.getStringExtra("url");
+                String title  = intent.getStringExtra("title");
                 String artist = intent.getStringExtra("artist");
                 if (url != null) playUrl(url, title, artist);
+
             } else if ("SET_NEXT".equals(action)) {
-                String url = intent.getStringExtra("url");
-                String title = intent.getStringExtra("title");
+                String url    = intent.getStringExtra("url");
+                String title  = intent.getStringExtra("title");
                 String artist = intent.getStringExtra("artist");
                 if (url != null) setNextTrack(url, title, artist);
+
             } else if ("SET_NEXT_BATCH".equals(action)) {
-                String[] urls = intent.getStringArrayExtra("urls");
-                String[] titles = intent.getStringArrayExtra("titles");
+                String[] urls    = intent.getStringArrayExtra("urls");
+                String[] titles  = intent.getStringArrayExtra("titles");
                 String[] artists = intent.getStringArrayExtra("artists");
-                if (urls != null && urls.length > 0) {
-                    setNextTracksBatch(urls, titles, artists);
-                }
+                if (urls != null && urls.length > 0) setNextTracksBatch(urls, titles, artists);
+
             } else if ("TOGGLE_PLAY".equals(action)) {
                 runOnMainThread(() -> {
                     if (player != null) {
@@ -143,27 +169,25 @@ public class RaagaXPlaybackService extends Service {
                         else player.play();
                     }
                 });
+
             } else if ("PREV".equals(action)) {
                 runOnMainThread(() -> {
                     if (player != null && player.hasPreviousMediaItem()) {
                         player.seekToPreviousMediaItem();
                     }
                 });
+
             } else if ("NEXT".equals(action)) {
                 runOnMainThread(() -> {
                     if (player != null && player.hasNextMediaItem()) {
                         player.seekToNextMediaItem();
                     }
                 });
-            } else if ("PAUSE".equals(action)) {
-                pause();
-            } else if ("RESUME".equals(action)) {
-                resume();
-            } else if ("SEEK".equals(action)) {
-                seekTo(intent.getLongExtra("positionMs", 0));
-            } else if ("SET_VOLUME".equals(action)) {
-                setVolume(intent.getFloatExtra("volume", 1.0f));
-            }
+
+            } else if ("PAUSE".equals(action))  { pause(); }
+            else if ("RESUME".equals(action))    { resume(); }
+            else if ("SEEK".equals(action))      { seekTo(intent.getLongExtra("positionMs", 0)); }
+            else if ("SET_VOLUME".equals(action)){ setVolume(intent.getFloatExtra("volume", 1.0f)); }
         }
 
         return START_STICKY;
@@ -181,19 +205,16 @@ public class RaagaXPlaybackService extends Service {
     @Override
     public IBinder onBind(Intent intent) { return null; }
 
-    // ── Playback API (called by RaagaXCapacitorPlugin) ────────────────────────
+    // ── Main-thread helper ────────────────────────────────────────────────────
 
     private final android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
 
     private void runOnMainThread(Runnable r) {
-        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
-            r.run();
-        } else {
-            mainHandler.post(r);
-        }
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) r.run();
+        else mainHandler.post(r);
     }
 
-    // ── Playback API (called by RaagaXCapacitorPlugin) ────────────────────────
+    // ── PlaybackSnapshot ──────────────────────────────────────────────────────
 
     public static class PlaybackSnapshot {
         public final boolean isPlaying;
@@ -205,19 +226,18 @@ public class RaagaXPlaybackService extends Service {
         public final String currentArtist;
 
         public PlaybackSnapshot(boolean isPlaying, int playbackState, long positionMs, long durationMs, long bufferedPositionMs, String currentTitle, String currentArtist) {
-            this.isPlaying = isPlaying;
-            this.playbackState = playbackState;
-            this.positionMs = positionMs;
-            this.durationMs = durationMs;
+            this.isPlaying          = isPlaying;
+            this.playbackState      = playbackState;
+            this.positionMs         = positionMs;
+            this.durationMs         = durationMs;
             this.bufferedPositionMs = bufferedPositionMs;
-            this.currentTitle = currentTitle;
-            this.currentArtist = currentArtist;
+            this.currentTitle       = currentTitle;
+            this.currentArtist      = currentArtist;
         }
     }
 
     public PlaybackSnapshot getPlaybackSnapshot() {
         if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
-            Log.w(TAG, "getPlaybackSnapshot called off main thread");
             return new PlaybackSnapshot(false, Player.STATE_IDLE, 0L, 0L, 0L, currentTitle, currentArtist);
         }
         if (player == null) {
@@ -234,100 +254,125 @@ public class RaagaXPlaybackService extends Service {
         );
     }
 
+    // ── PRIMARY API ───────────────────────────────────────────────────────────
+
+    /**
+     * setQueue — THE primary playback command.
+     *
+     * Replaces the entire ExoPlayer playlist with the provided ordered list of
+     * tracks and starts playing from startIndex. ExoPlayer then auto-advances
+     * through all items natively without WebView involvement.
+     */
+    public void setQueue(String[] urls, String[] titles, String[] artists, int startIndex) {
+        runOnMainThread(() -> {
+            if (player == null || urls == null || urls.length == 0) return;
+
+            java.util.List<MediaItem> items = new java.util.ArrayList<>();
+            for (int i = 0; i < urls.length; i++) {
+                String u = urls[i];
+                if (u == null || u.isEmpty()) continue;
+                String t = (titles  != null && i < titles.length  && titles[i]  != null) ? titles[i]  : "RaagaX";
+                String a = (artists != null && i < artists.length && artists[i] != null) ? artists[i] : "";
+
+                items.add(new MediaItem.Builder()
+                        .setUri(u)
+                        .setMediaMetadata(new MediaMetadata.Builder()
+                                .setTitle(t)
+                                .setArtist(a)
+                                .build())
+                        .build());
+            }
+
+            if (items.isEmpty()) return;
+
+            int safeIndex = Math.max(0, Math.min(startIndex, items.size() - 1));
+
+            // Set the complete playlist — ExoPlayer handles all subsequent transitions
+            player.setMediaItems(items, safeIndex, /* startPositionMs= */ 0L);
+            player.prepare();
+            player.play();
+            updateNotification();
+            Log.d(TAG, "setQueue: " + items.size() + " items, starting at index " + safeIndex);
+        });
+    }
+
+    // ── Legacy single-track API (kept for compatibility) ─────────────────────
+
     public void playUrl(String url, String title, String artist) {
         runOnMainThread(() -> {
             if (player == null || url == null || url.isEmpty()) return;
 
-            // If the exact same track URL is already loaded in ExoPlayer, do NOT reload or seek
+            // Reuse existing player position if same track already loaded
             MediaItem currentItem = player.getCurrentMediaItem();
-            if (currentItem != null && currentItem.localConfiguration != null) {
-                String currentUri = currentItem.localConfiguration.uri.toString();
-                if (url.equals(currentUri)) {
-                    if (!player.isPlaying()) {
-                        player.play();
-                    }
-                    return;
-                }
+            if (currentItem != null && currentItem.localConfiguration != null &&
+                    url.equals(currentItem.localConfiguration.uri.toString())) {
+                if (!player.isPlaying()) player.play();
+                return;
             }
 
             currentTitle  = title  != null ? title  : "RaagaX";
             currentArtist = artist != null ? artist : "";
 
-            MediaItem item = new MediaItem.Builder()
+            player.setMediaItem(new MediaItem.Builder()
                     .setUri(url)
                     .setMediaMetadata(new MediaMetadata.Builder()
                             .setTitle(currentTitle)
                             .setArtist(currentArtist)
                             .build())
-                    .build();
-
-            player.setMediaItem(item);
+                    .build());
             player.prepare();
             player.play();
             updateNotification();
-            Log.d(TAG, "playUrl: " + currentTitle);
         });
     }
 
     public void setNextTrack(String url, String title, String artist) {
         runOnMainThread(() -> {
             if (player == null || url == null || url.isEmpty()) return;
-
-            // Remove any queued items after current position
+            // Remove stale items after current position
             while (player.getMediaItemCount() > player.getCurrentMediaItemIndex() + 1) {
                 player.removeMediaItem(player.getCurrentMediaItemIndex() + 1);
             }
-
-            MediaItem item = new MediaItem.Builder()
+            player.addMediaItem(new MediaItem.Builder()
                     .setUri(url)
                     .setMediaMetadata(new MediaMetadata.Builder()
                             .setTitle(title != null ? title : "RaagaX")
                             .setArtist(artist != null ? artist : "")
                             .build())
-                    .build();
-
-            player.addMediaItem(item);
+                    .build());
             if (player.getPlaybackState() == Player.STATE_ENDED) {
                 player.prepare();
                 player.play();
             }
-            Log.d(TAG, "setNextTrack added to ExoPlayer queue: " + title);
         });
     }
 
     public void setNextTracksBatch(String[] urls, String[] titles, String[] artists) {
         runOnMainThread(() -> {
             if (player == null || urls == null || urls.length == 0) return;
-
-            // Remove any queued items after current position
             while (player.getMediaItemCount() > player.getCurrentMediaItemIndex() + 1) {
                 player.removeMediaItem(player.getCurrentMediaItemIndex() + 1);
             }
-
-            java.util.List<MediaItem> mediaItems = new java.util.ArrayList<>();
+            java.util.List<MediaItem> items = new java.util.ArrayList<>();
             for (int i = 0; i < urls.length; i++) {
                 String u = urls[i];
                 if (u == null || u.isEmpty()) continue;
-                String t = (titles != null && i < titles.length && titles[i] != null) ? titles[i] : "RaagaX";
+                String t = (titles  != null && i < titles.length  && titles[i]  != null) ? titles[i]  : "RaagaX";
                 String a = (artists != null && i < artists.length && artists[i] != null) ? artists[i] : "";
-
-                MediaItem item = new MediaItem.Builder()
+                items.add(new MediaItem.Builder()
                         .setUri(u)
                         .setMediaMetadata(new MediaMetadata.Builder()
                                 .setTitle(t)
                                 .setArtist(a)
                                 .build())
-                        .build();
-                mediaItems.add(item);
+                        .build());
             }
-
-            if (!mediaItems.isEmpty()) {
-                player.addMediaItems(mediaItems);
+            if (!items.isEmpty()) {
+                player.addMediaItems(items);
                 if (player.getPlaybackState() == Player.STATE_ENDED) {
                     player.prepare();
                     player.play();
                 }
-                Log.d(TAG, "setNextTracksBatch added " + mediaItems.size() + " items to ExoPlayer queue");
             }
         });
     }
@@ -338,26 +383,20 @@ public class RaagaXPlaybackService extends Service {
     public void setVolume(float v) { runOnMainThread(() -> { if (player != null) player.setVolume(v); }); }
 
     public long getCurrentPosition() {
-        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper())
             return player != null ? player.getCurrentPosition() : 0L;
-        }
-        Log.w(TAG, "getCurrentPosition() called off main thread — use getPlaybackSnapshot()");
         return 0L;
     }
 
     public long getDuration() {
-        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper())
             return player != null ? player.getDuration() : 0L;
-        }
-        Log.w(TAG, "getDuration() called off main thread — use getPlaybackSnapshot()");
         return 0L;
     }
 
     public boolean isPlaying() {
-        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper())
             return player != null && player.isPlaying();
-        }
-        Log.w(TAG, "isPlaying() called off main thread — use getPlaybackSnapshot()");
         return false;
     }
 
@@ -380,17 +419,19 @@ public class RaagaXPlaybackService extends Service {
         PendingIntent pi = PendingIntent.getActivity(this, 0, launchIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        Intent prevIntent = new Intent(this, RaagaXPlaybackService.class).setAction("PREV");
-        PendingIntent prevPending = PendingIntent.getService(this, 1, prevIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent prevPending = PendingIntent.getService(this, 1,
+                new Intent(this, RaagaXPlaybackService.class).setAction("PREV"),
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        Intent playPauseIntent = new Intent(this, RaagaXPlaybackService.class).setAction("TOGGLE_PLAY");
-        PendingIntent playPausePending = PendingIntent.getService(this, 2, playPauseIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent playPausePending = PendingIntent.getService(this, 2,
+                new Intent(this, RaagaXPlaybackService.class).setAction("TOGGLE_PLAY"),
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        Intent nextIntent = new Intent(this, RaagaXPlaybackService.class).setAction("NEXT");
-        PendingIntent nextPending = PendingIntent.getService(this, 3, nextIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent nextPending = PendingIntent.getService(this, 3,
+                new Intent(this, RaagaXPlaybackService.class).setAction("NEXT"),
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         boolean isPlaying = player != null && player.isPlaying();
-        int playPauseIcon = isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play;
 
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.mipmap.ic_launcher)
@@ -401,7 +442,8 @@ public class RaagaXPlaybackService extends Service {
                 .setSilent(true)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .addAction(android.R.drawable.ic_media_previous, "Previous", prevPending)
-                .addAction(playPauseIcon, isPlaying ? "Pause" : "Play", playPausePending)
+                .addAction(isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play,
+                        isPlaying ? "Pause" : "Play", playPausePending)
                 .addAction(android.R.drawable.ic_media_next, "Next", nextPending)
                 .setStyle(new androidx.media.app.NotificationCompat.MediaStyle()
                         .setShowActionsInCompactView(0, 1, 2))

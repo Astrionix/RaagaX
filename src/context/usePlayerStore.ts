@@ -404,12 +404,21 @@ export const usePlayerStore = create<PlayerState>()(
     // Atomically commit playing state, queue & queueIndex
     set({ isPlaying: true, currentTime: 0, currentSong: song, queue: syncedQueue, queueIndex: syncedIndex });
 
-    // Delegate immediately to PlaybackService for local or Connect dispatch for remote
+    // Delegate to PlaybackService (local) or ConnectManager (remote)
     if (get().isActiveDevice) {
-      import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
-        // Eagerly pre-feed the entire queue context before starting
-        PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
-        PlaybackService.getInstance().playTrack(song, true);
+      import('@/lib/playback/PlaybackService').then(async ({ PlaybackService }) => {
+        import('@/lib/playback/native/RaagaXNativePlayer').then(async ({ RaagaXNativePlayer }) => {
+          const service = PlaybackService.getInstance();
+          if (RaagaXNativePlayer.isNative() && syncedQueue.length > 0) {
+            // ── Native path: loadQueueContext resolves ALL URLs in parallel and calls
+            // setQueue() which hands ExoPlayer the complete playlist.
+            // ExoPlayer auto-advances natively — WebView does NOT need to wake up.
+            await service.loadQueueContext(syncedQueue, syncedIndex);
+          } else {
+            // ── Web / PWA path: use HTMLAudioElement + queue management
+            service.playTrack(song, true);
+          }
+        });
       });
     } else {
       import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
