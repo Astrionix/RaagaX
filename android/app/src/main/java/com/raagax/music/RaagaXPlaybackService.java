@@ -291,9 +291,40 @@ public class RaagaXPlaybackService extends Service {
             player.setMediaItems(items, safeIndex, /* startPositionMs= */ 0L);
             player.prepare();
             player.play();
+            saveNativeQueueToPrefs(urls, titles, artists, safeIndex);
             updateNotification();
             Log.d(TAG, "setQueue: " + items.size() + " items, starting at index " + safeIndex);
         });
+    }
+
+    private void saveNativeQueueToPrefs(String[] urls, String[] titles, String[] artists, int startIndex) {
+        try {
+            android.content.SharedPreferences prefs = getSharedPreferences("raagax_native_playback", android.content.Context.MODE_PRIVATE);
+            android.content.SharedPreferences.Editor editor = prefs.edit();
+            org.json.JSONArray array = new org.json.JSONArray();
+            for (int i = 0; i < urls.length; i++) {
+                org.json.JSONObject obj = new org.json.JSONObject();
+                obj.put("url", urls[i]);
+                obj.put("title", titles != null && i < titles.length ? titles[i] : "RaagaX");
+                obj.put("artist", artists != null && i < artists.length ? artists[i] : "");
+                array.put(obj);
+            }
+            editor.putString("queue_json", array.toString());
+            editor.putInt("start_index", startIndex);
+            editor.apply();
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to save native queue: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        super.onTaskRemoved(rootIntent);
+        Log.d(TAG, "onTaskRemoved: Activity swiped away. Player isPlaying=" + isPlaying());
+        if (player != null && player.isPlaying()) {
+            // Keep foreground playback active even if Activity was closed
+            updateNotification();
+        }
     }
 
     // ── Legacy single-track API (kept for compatibility) ─────────────────────
