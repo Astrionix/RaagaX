@@ -74,3 +74,30 @@ export interface CommandAckPayload {
   revision?: number;
   epoch?: number;
 }
+
+export interface PlaybackSnapshot {
+  sessionId: string;
+  deviceId: string;
+  currentTrackId: string | null;
+  positionMs: number;
+  timestampMs: number; // Date.now() when state was checkpointed
+  isPlaying: boolean;
+  sequence: number;
+  context?: import('../queue/types').PlaybackContext;
+  durationMs?: number;
+}
+
+/**
+ * Calculates current live playback position dynamically based on timestamped snapshot:
+ * positionMs = snapshot.positionMs + (snapshot.isPlaying ? (now - snapshot.timestampMs) : 0)
+ */
+export function calculateLivePositionMs(snapshot: PlaybackSnapshot | null, now: number = Date.now()): number {
+  if (!snapshot) return 0;
+  if (!snapshot.isPlaying) return snapshot.positionMs;
+  const elapsed = Math.max(0, now - snapshot.timestampMs);
+  const calculated = snapshot.positionMs + elapsed;
+  if (snapshot.durationMs && snapshot.durationMs > 0) {
+    return Math.min(calculated, snapshot.durationMs);
+  }
+  return calculated;
+}

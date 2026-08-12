@@ -26,6 +26,20 @@ export class DeviceRegistry {
     return DeviceRegistry.instance;
   }
 
+  public getOrCreateDeviceId(): string {
+    if (typeof window === 'undefined') return 'server-001';
+    let deviceId = localStorage.getItem('raagax_device_id');
+    if (!deviceId) {
+      const friendly = this.getFriendlyDeviceName();
+      const capNative = typeof (window as any).Capacitor?.isNativePlatform === 'function' && (window as any).Capacitor.isNativePlatform();
+      const prefix = capNative ? 'android-apk' : `${friendly.platform.toLowerCase()}-${friendly.type}`;
+      const rand = Math.floor(100 + Math.random() * 900);
+      deviceId = `${prefix}-${rand}`;
+      localStorage.setItem('raagax_device_id', deviceId);
+    }
+    return deviceId;
+  }
+
   public getOrCreateDeviceInstanceId(): string {
     if (typeof window === 'undefined') return 'server_instance';
     let instanceId = sessionStorage.getItem('raagax_device_instance_id');

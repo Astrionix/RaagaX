@@ -1,4 +1,4 @@
-import { QueueItem, QueueSnapshot, RepeatMode, ShuffleMode } from './types';
+import { QueueItem, QueueSnapshot, RepeatMode, ShuffleMode, PlaybackContext, ContextType } from './types';
 import { QueuePersistence } from './QueuePersistence';
 
 export class QueueEngine {
@@ -11,6 +11,7 @@ export class QueueEngine {
   private shuffleMode: ShuffleMode = 'OFF';
   private repeatMode: RepeatMode = 'OFF';
   
+  private context?: PlaybackContext;
   private shuffleSeed: string = '';
   private originalItems: QueueItem[] = []; // For unshuffling
 
@@ -27,12 +28,20 @@ export class QueueEngine {
     this.shuffleMode = snapshot.shuffleMode || 'OFF';
     this.repeatMode = snapshot.repeatMode;
     this.shuffleSeed = snapshot.shuffleSeed || '';
+    this.context = snapshot.context;
     
     if (this.shuffleMode !== 'OFF') {
-      // In a real unshuffle implementation, you'd retain the un-shuffled array in snapshot, 
-      // but for this implementation we'll assume the snapshot represents the current physical order.
       this.originalItems = [...this.items]; 
     }
+  }
+
+  public setPlaybackContext(context: PlaybackContext) {
+    this.context = context;
+    this.mutate();
+  }
+
+  public getPlaybackContext(): PlaybackContext | undefined {
+    return this.context;
   }
 
   public getSnapshot(): QueueSnapshot {
@@ -45,7 +54,8 @@ export class QueueEngine {
       autoplayEnabled: this.autoplayEnabled,
       shuffleMode: this.shuffleMode,
       repeatMode: this.repeatMode,
-      shuffleSeed: this.shuffleSeed
+      shuffleSeed: this.shuffleSeed,
+      context: this.context,
     };
   }
 

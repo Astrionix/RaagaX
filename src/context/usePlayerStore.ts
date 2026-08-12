@@ -29,7 +29,6 @@ interface PlayerState {
 
   crossfadeSec: number;
   isGaplessEnabled: boolean;
-  playbackContext: any[];
 
   activeTab: ActiveTab;
   selectedArtistId: string | null;
@@ -100,9 +99,12 @@ interface PlayerState {
   // Autoplay and Context
   isAutoplayEnabled: boolean;
   playbackContextData: import('@/types/music').PlaybackContext | null;
+  playbackContext: import('@/lib/queue/types').PlaybackContext | null;
   albumPlaybackQueue: string[];
   toggleAutoplay: () => void;
   setPlaybackContext: (context: import('@/types/music').PlaybackContext | null) => void;
+  getPlaybackSnapshot: () => import('@/lib/connect/types').PlaybackSnapshot;
+  calculateLiveTime: () => number;
 
   // Actions
   playAlbumSequence: (albumIds: string[]) => Promise<void>;
@@ -196,7 +198,7 @@ export const usePlayerStore = create<PlayerState>()(
   isRefillingQueue: false,
   crossfadeSec: 0,
   isGaplessEnabled: true,
-  playbackContext: ['EXPLORE'],
+  playbackContext: null,
 
   likedSongIds: [],
   likedSongs: [],
@@ -259,8 +261,8 @@ export const usePlayerStore = create<PlayerState>()(
   
   preferredLanguage: (typeof window !== 'undefined' && localStorage.getItem('raagax_preferred_language')) || 'Telugu',
 
-  deviceId: typeof window !== 'undefined' ? localStorage.getItem('raagax_device_id') || '' : '',
-  deviceInstanceId: typeof window !== 'undefined' ? localStorage.getItem('raagax_device_instance_id') || '' : '',
+  deviceId: typeof window !== 'undefined' ? (require('@/lib/connect/DeviceRegistry').DeviceRegistry.getInstance().getOrCreateDeviceId()) : '',
+  deviceInstanceId: typeof window !== 'undefined' ? (require('@/lib/connect/DeviceRegistry').DeviceRegistry.getInstance().getOrCreateDeviceInstanceId()) : '',
   activeDeviceId: null,
   activeRenderer: 'audio',
   playbackStatus: 'paused',
@@ -273,6 +275,27 @@ export const usePlayerStore = create<PlayerState>()(
   serverTimestamp: null,
   onlineDevices: [],
   rightPanelMode: 'queue',
+
+  getPlaybackSnapshot: () => {
+    const state = get();
+    return {
+      sessionId: state.playbackSession?.sessionId || 'local_session',
+      deviceId: state.deviceId || 'local_device',
+      currentTrackId: state.currentSong?.id || null,
+      positionMs: state.currentTime * 1000,
+      timestampMs: state.serverTimestamp || Date.now(),
+      isPlaying: state.isPlaying,
+      sequence: state.playbackSession?.revision || 1,
+      context: state.playbackContext || undefined,
+      durationMs: state.duration * 1000,
+    };
+  },
+
+  calculateLiveTime: () => {
+    const { calculateLivePositionMs } = require('@/lib/connect/types');
+    const snapshot = get().getPlaybackSnapshot();
+    return calculateLivePositionMs(snapshot) / 1000;
+  },
 
   setRightPanelMode: (mode) => set({ rightPanelMode: mode }),
   setOnlineDevices: (devices) => set({ onlineDevices: devices }),
@@ -299,13 +322,29 @@ export const usePlayerStore = create<PlayerState>()(
       const { isKidsOrNurseryTrack } = await import('@/lib/jioSaavnProvider');
       const cleanQueue = (session.queue || []).filter(s => s && !isKidsOrNurseryTrack(s));
       const isCurrentClean = !isKidsOrNurseryTrack(session.currentSong);
+      const activeSong = isCurrentClean ? session.currentSong : (cleanQueue[0] || null);
 
-      set({
-        currentSong: isCurrentClean ? session.currentSong : (cleanQueue[0] || null),
-        currentTime: session.currentTime || 0,
-        queue: cleanQueue,
-        queueIndex: Math.min(session.queueIndex || 0, Math.max(0, cleanQueue.length - 1)),
-      });
+      if (cleanQueue.length > 0 && activeSong) {
+        let safeIndex = cleanQueue.findIndex(s => s.id === activeSong.id);
+        if (safeIndex === -1) safeIndex = Math.min(session.queueIndex || 0, Math.max(0, cleanQueue.length - 1));
+
+        // 1. Populate QueueManager engine with full restored queue so getNext() and shuffle have all songs
+        const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+        manager.replaceQueue(cleanQueue, safeIndex);
+
+        // 2. Sync to Zustand store state
+        set({
+          currentSong: activeSong,
+          currentTime: session.currentTime || 0,
+          queue: cleanQueue,
+          queueIndex: safeIndex,
+        });
+
+        // 3. Pre-feed full restored queue into native ExoPlayer
+        import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
+          PlaybackService.getInstance().loadQueueContext(cleanQueue, safeIndex);
+        });
+      }
     }
   },
 
@@ -559,7 +598,20 @@ export const usePlayerStore = create<PlayerState>()(
     }
   },
 
-  toggleShuffle: () => require('@/lib/queue/QueueManager').QueueManager.getInstance().toggleShuffle(),
+  toggleShuffle: async () => {
+    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    await manager.toggleShuffle();
+    const snapshot = manager.getSnapshot();
+    const syncedQueue = snapshot.items.map((i: any) => i.song);
+    const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
+    const currentSong = syncedQueue[syncedIndex] || get().currentSong;
+
+    set({ queue: syncedQueue, queueIndex: syncedIndex, currentSong });
+
+    import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
+      PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
+    });
+  },
   setRepeatMode: (mode) => require('@/lib/queue/QueueManager').QueueManager.getInstance().setRepeatMode(mode),
   cycleRepeatMode: () => {
     const modes: import('@/lib/queue/types').RepeatMode[] = ['OFF', 'CONTEXT', 'TRACK'];
@@ -568,18 +620,66 @@ export const usePlayerStore = create<PlayerState>()(
     require('@/lib/queue/QueueManager').QueueManager.getInstance().setRepeatMode(modes[nextIdx]);
   },
 
-  addToQueue: (song) => require('@/lib/queue/QueueManager').QueueManager.getInstance().addToQueue(song),
-  playNextInQueue: (song) => require('@/lib/queue/QueueManager').QueueManager.getInstance().playNext(song),
-  playLastInQueue: (song) => require('@/lib/queue/QueueManager').QueueManager.getInstance().addToQueue(song),
+  addToQueue: (song) => {
+    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    manager.addToQueue(song);
+    const snapshot = manager.getSnapshot();
+    const syncedQueue = snapshot.items.map((i: any) => i.song);
+    const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
+    set({ queue: syncedQueue, queueIndex: syncedIndex });
+
+    import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
+      PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
+    });
+  },
+  playNextInQueue: (song) => {
+    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    manager.playNext(song);
+    const snapshot = manager.getSnapshot();
+    const syncedQueue = snapshot.items.map((i: any) => i.song);
+    const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
+    set({ queue: syncedQueue, queueIndex: syncedIndex });
+
+    import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
+      PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
+    });
+  },
+  playLastInQueue: (song) => {
+    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    manager.addToQueue(song);
+    const snapshot = manager.getSnapshot();
+    const syncedQueue = snapshot.items.map((i: any) => i.song);
+    const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
+    set({ queue: syncedQueue, queueIndex: syncedIndex });
+
+    import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
+      PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
+    });
+  },
   removeFromQueue: (songId) => {
-    const items = require('@/lib/queue/QueueManager').QueueManager.getInstance().getAllItems();
+    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    const items = manager.getAllItems();
     const target = items.find((i: any) => i.trackId === songId);
     if (target) {
-      require('@/lib/queue/QueueManager').QueueManager.getInstance().removeItem(target.queueItemId);
+      manager.removeItem(target.queueItemId);
+      const snapshot = manager.getSnapshot();
+      const syncedQueue = snapshot.items.map((i: any) => i.song);
+      const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
+      set({ queue: syncedQueue, queueIndex: syncedIndex });
+
+      import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
+        PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
+      });
     }
   },
   reorderQueue: (newQueue) => {
-    require('@/lib/queue/QueueManager').QueueManager.getInstance().replaceQueue(newQueue, get().queueIndex, 'USER');
+    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    manager.replaceQueue(newQueue, get().queueIndex, 'USER');
+    set({ queue: newQueue });
+
+    import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
+      PlaybackService.getInstance().loadQueueContext(newQueue, get().queueIndex);
+    });
   },
 
   autoRefillQueue: async () => {},

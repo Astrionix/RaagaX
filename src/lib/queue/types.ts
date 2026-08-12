@@ -65,10 +65,18 @@ export interface ShuffleState {
   cursor: number;
 }
 
-export interface PlaybackQueueContext {
-  type: 'ALBUM_COLLECTION' | 'ALBUM' | 'PLAYLIST' | 'SEARCH' | 'USER';
+export type ContextType = 'ALBUM' | 'PLAYLIST' | 'ARTIST' | 'AUTOPLAY' | 'RADIO' | 'SEARCH' | 'USER' | string;
+
+export interface PlaybackContext {
+  contextType?: ContextType;
+  type?: string; // Backwards compatibility
+  contextUri?: string;
+  collectionId?: string;
+  title?: string;
   sourceIds?: string[];
 }
+
+export type PlaybackQueueContext = PlaybackContext;
 
 export interface QueueSnapshot {
   queueId: string;
@@ -81,5 +89,5 @@ export interface QueueSnapshot {
   repeatMode: RepeatMode;
   shuffleSeed?: string;
   shuffleState?: ShuffleState;
-  context?: PlaybackQueueContext;
+  context?: PlaybackContext;
 }

@@ -2,7 +2,7 @@ import { QueueEngine } from './QueueEngine';
 import { QueueHistory } from './QueueHistory';
 import { SmartQueue } from './SmartQueue';
 import { QueuePersistence } from './QueuePersistence';
-import { QueueItem, QueueSource, RepeatMode } from './types';
+import { QueueItem, QueueSource, RepeatMode, PlaybackContext, ContextType } from './types';
 import { Song } from '@/types/music';
 
 // Event bus for UI updates
@@ -108,10 +108,30 @@ export class QueueManager {
     this.notify();
   }
 
-  public replaceQueue(songs: Song[], startIndex: number = 0, source: QueueSource = 'PLAYLIST') {
+  public setPlaybackContext(context: PlaybackContext) {
+    this.engine.setPlaybackContext(context);
+    this.notify();
+  }
+
+  public getPlaybackContext(): PlaybackContext | undefined {
+    return this.engine.getPlaybackContext();
+  }
+
+  public replaceQueue(songs: Song[], startIndex: number = 0, source: QueueSource = 'PLAYLIST', context?: PlaybackContext) {
     const items = songs.map(s => this.createQueueItem(s, source));
     this.engine.replaceQueue(items, startIndex);
     
+    if (context) {
+      this.engine.setPlaybackContext(context);
+    } else {
+      // Auto-generate context if none provided
+      const contextType: ContextType = source === 'ALBUM' ? 'ALBUM' : source === 'ARTIST' ? 'ARTIST' : source === 'RADIO' ? 'RADIO' : 'PLAYLIST';
+      this.engine.setPlaybackContext({
+        contextType,
+        contextUri: `raagax:${contextType.toLowerCase()}:${items[0]?.albumId || items[0]?.trackId || 'session'}`,
+      });
+    }
+
     const current = this.engine.getCurrentItem();
     if (current) this.history.recordPlay(current);
     
