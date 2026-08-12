@@ -1,7 +1,7 @@
 import { Song } from '@/types/music';
 
 const DB_NAME = 'RaagaX_LocalDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export interface PlaybackSessionCache {
   currentSong: Song | null;
@@ -38,29 +38,32 @@ export class LocalDatabase {
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
         
-        // 1. Session store (playback position, current song, queue)
         if (!db.objectStoreNames.contains('session')) {
           db.createObjectStore('session');
         }
-
-        // 2. Lyrics cache store
         if (!db.objectStoreNames.contains('lyrics')) {
           db.createObjectStore('lyrics', { keyPath: 'songId' });
         }
-
-        // 3. Search history store
         if (!db.objectStoreNames.contains('search_history')) {
           db.createObjectStore('search_history', { autoIncrement: true });
         }
-
-        // 4. Artwork cache store
         if (!db.objectStoreNames.contains('artwork')) {
           db.createObjectStore('artwork');
         }
-
-        // 5. Download Tasks store
         if (!db.objectStoreNames.contains('download_tasks')) {
           db.createObjectStore('download_tasks', { keyPath: 'song.id' });
+        }
+        if (!db.objectStoreNames.contains('liked_songs')) {
+          db.createObjectStore('liked_songs', { keyPath: 'songId' });
+        }
+        if (!db.objectStoreNames.contains('playlists')) {
+          db.createObjectStore('playlists', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('playlist_items')) {
+          db.createObjectStore('playlist_items', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('sync_operations')) {
+          db.createObjectStore('sync_operations', { keyPath: 'operationId' });
         }
       };
 

@@ -287,6 +287,10 @@ public class RaagaXPlaybackService extends Service {
                     .build();
 
             player.addMediaItem(item);
+            if (player.getPlaybackState() == Player.STATE_ENDED) {
+                player.prepare();
+                player.play();
+            }
             Log.d(TAG, "setNextTrack added to ExoPlayer queue: " + title);
         });
     }
@@ -319,6 +323,10 @@ public class RaagaXPlaybackService extends Service {
 
             if (!mediaItems.isEmpty()) {
                 player.addMediaItems(mediaItems);
+                if (player.getPlaybackState() == Player.STATE_ENDED) {
+                    player.prepare();
+                    player.play();
+                }
                 Log.d(TAG, "setNextTracksBatch added " + mediaItems.size() + " items to ExoPlayer queue");
             }
         });

@@ -620,7 +620,16 @@ export const usePlayerStore = create<PlayerState>()(
       return { likedSongIds: newLikedIds };
     });
 
-    // Delegate cloud mutation and broadcasting to LibrarySyncManager
+    // Delegate cloud mutation to LibrarySyncEngine & LibrarySyncManager
+    import('@/lib/sync/LibrarySyncEngine').then(({ LibrarySyncEngine }) => {
+      const songToLike = get().currentSong?.id === songId ? get().currentSong : get().queue.find(s => s?.id === songId);
+      if (isLiked) {
+        LibrarySyncEngine.getInstance().unlikeSong(songId);
+      } else if (songToLike) {
+        LibrarySyncEngine.getInstance().likeSong(songToLike);
+      }
+    });
+
     import('@/lib/sync/LibrarySyncManager').then(({ LibrarySyncManager }) => {
       if (isLiked) {
         LibrarySyncManager.getInstance().unlikeSong(songId);

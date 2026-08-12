@@ -68,6 +68,10 @@ export class QueueManager {
     for (const listener of this.listeners) {
       listener(items, index);
     }
+    // Automatically keep native ExoPlayer background queue synchronized
+    import('../playback/PlaybackService').then(({ PlaybackService }) => {
+      PlaybackService.getInstance().preloadNativeNextTrack();
+    });
   }
 
   // --- API ---

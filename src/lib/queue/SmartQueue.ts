@@ -32,6 +32,9 @@ export class SmartQueue {
         
         if (newItems.length > 0) {
           engine.appendAutoplayItems(newItems);
+          import('../playback/PlaybackService').then(({ PlaybackService }) => {
+            PlaybackService.getInstance().preloadNativeNextTrack();
+          });
         }
       } catch (e) {
         console.error('[SmartQueue] Refill failed', e);
