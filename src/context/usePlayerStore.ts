@@ -111,6 +111,7 @@ interface PlayerState {
   autoRefillQueue: () => Promise<void>;
   setPreferredLanguage: (lang: string) => void;
   playSong: (song: Song, newQueue?: Song[]) => void;
+  commitPlaybackTransition: (song: Song, queueIndex?: number, updatedQueue?: Song[]) => void;
   togglePlayPause: () => void;
   setIsPlaying: (playing: boolean, fromRemote?: boolean) => void;
   setCurrentTime: (time: number, isManualSeek?: boolean) => void;

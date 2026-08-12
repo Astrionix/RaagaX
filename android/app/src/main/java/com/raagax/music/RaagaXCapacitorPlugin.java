@@ -120,6 +120,35 @@ public class RaagaXCapacitorPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void setNextTracksBatch(PluginCall call) {
+        com.getcapacitor.JSArray tracks = call.getArray("tracks");
+        if (tracks != null && tracks.length() > 0) {
+            try {
+                int len = tracks.length();
+                String[] urls = new String[len];
+                String[] titles = new String[len];
+                String[] artists = new String[len];
+
+                for (int i = 0; i < len; i++) {
+                    org.json.JSONObject obj = tracks.getJSONObject(i);
+                    urls[i] = obj.optString("url", "");
+                    titles[i] = obj.optString("title", "RaagaX");
+                    artists[i] = obj.optString("artist", "");
+                }
+
+                Intent intent = new Intent("SET_NEXT_BATCH");
+                intent.putExtra("urls", urls);
+                intent.putExtra("titles", titles);
+                intent.putExtra("artists", artists);
+                sendCommandToService(intent);
+            } catch (Exception e) {
+                Log.e(TAG, "Error in setNextTracksBatch: " + e.getMessage());
+            }
+        }
+        call.resolve(new JSObject().put("success", true));
+    }
+
+    @PluginMethod
     public void resume(PluginCall call) {
         sendCommandToService(new Intent("RESUME"));
         call.resolve(new JSObject().put("success", true));

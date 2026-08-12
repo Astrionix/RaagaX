@@ -51,6 +51,17 @@ export const RaagaXNativePlayer = {
     await plugin.setNextTrack(options);
   },
 
+  async setNextTracksBatch(tracks: Array<{
+    url: string;
+    title: string;
+    artist: string;
+    artworkUrl?: string;
+  }>): Promise<void> {
+    const plugin = getPlugin();
+    if (!plugin || !tracks || tracks.length === 0) return;
+    await plugin.setNextTracksBatch({ tracks });
+  },
+
   async pause(): Promise<void> {
     const plugin = getPlugin();
     if (!plugin) return;

@@ -6,10 +6,13 @@ export class AudioFocusManager {
   private adapter: AudioFocusAdapter;
 
   private constructor() {
-    // For now, use the browser adapter. 
-    // If native integration (Capacitor/Tauri/React Native) exists, 
-    // feature detection would select the native adapter here.
-    this.adapter = new BrowserAudioFocusAdapter();
+    const isCapacitor = typeof window !== 'undefined' && (window as any).Capacitor && typeof (window as any).Capacitor.isNativePlatform === 'function' && (window as any).Capacitor.isNativePlatform();
+    if (isCapacitor) {
+      const { CapacitorAndroidAudioAdapter } = require('./platform/CapacitorAndroidAudioAdapter');
+      this.adapter = new CapacitorAndroidAudioAdapter();
+    } else {
+      this.adapter = new BrowserAudioFocusAdapter();
+    }
   }
 
   public static getInstance(): AudioFocusManager {

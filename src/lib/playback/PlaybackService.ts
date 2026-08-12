@@ -22,6 +22,8 @@ export class PlaybackService {
   private isInitializing = false;
   private isTransitioning = false;
   private lastPositionReportTime = 0;
+  private playbackGeneration = 0;
+  private lastEndedGeneration = -1;
 
   private constructor() {}
 
@@ -262,6 +264,10 @@ export class PlaybackService {
       }
     }
 
+    const currentGen = ++this.playbackGeneration;
+    targetAudio.dataset.playbackGeneration = String(currentGen);
+    targetAudio.dataset.trackId = song.id;
+
     PlaybackEngine.getInstance().attachMediaElement(targetAudio);
     RendererManager.getInstance().registerRenderer('audio', targetAudio);
 
@@ -419,6 +425,10 @@ export class PlaybackService {
     const store = require('@/context/usePlayerStore').usePlayerStore.getState();
     if (!isNaN(active.duration) && Number.isFinite(active.duration) && active.duration > 0) {
       store.setDuration(active.duration);
+      MediaSessionManager.getInstance().setPositionState({
+        duration: active.duration,
+        position: active.currentTime || 0
+      });
     }
   }
 
@@ -440,10 +450,36 @@ export class PlaybackService {
   private handleNativeEnded(tag: 'A' | 'B') {
     if (tag !== this.activeTag) return;
 
+    const active = this.getActiveAudio();
+    if (!active) return;
+
+    const generation = Number(active.dataset.playbackGeneration || 0);
+    const endedTrackId = active.dataset.trackId;
+    const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+
+    // Idempotency check: ignore stale or duplicate ended events
+    if (generation > 0 && generation !== this.playbackGeneration) {
+      console.log(`[PlaybackService] Ignoring stale ended event (gen ${generation} vs current ${this.playbackGeneration})`);
+      return;
+    }
+    if (generation > 0 && this.lastEndedGeneration === generation) {
+      console.log(`[PlaybackService] Ignoring duplicate ended event for generation ${generation}`);
+      return;
+    }
+
+    if (endedTrackId && store.currentSong?.id && endedTrackId !== store.currentSong.id) {
+      console.log(`[PlaybackService] Ignoring ended event for inactive track ${endedTrackId}`);
+      return;
+    }
+
+    if (generation > 0) {
+      this.lastEndedGeneration = generation;
+    }
+
     // Check if crossfade/gapless is actively committing
     if (TransitionManager.getInstance().getState() !== 'IDLE') return;
 
-    console.log(`[PlaybackService] Active track ended naturally on audio ${tag}. Triggering next track...`);
+    console.log(`[PlaybackService] Track ended naturally on audio ${tag} (gen ${generation}). Advancing queue...`);
     this.playNextTrack();
   }
 
@@ -473,22 +509,12 @@ export class PlaybackService {
     // Continuously evaluate and pre-resolve next track into standby audio element for mobile background playback
     PreloadManager.getInstance().evaluatePreload(standby);
 
-    // Boundary check for Crossfade / Gapless
-    TransitionManager.getInstance().checkBoundary(active, standby, () => {
-      this.activeTag = this.activeTag === 'A' ? 'B' : 'A';
-      this.playNextTrack();
-    });
-
-    // Report Position State to MediaSession lockscreen every 2s
-    const now = Date.now();
-    if (now - this.lastPositionReportTime > 2000) {
-      this.lastPositionReportTime = now;
-      if (!isNaN(active.duration) && active.duration > 0) {
-        MediaSessionManager.getInstance().setPositionState({
-          duration: active.duration,
-          position: active.currentTime
-        });
-      }
+    // Boundary check for Crossfade (only if crossfade is explicitly enabled and tab is active)
+    if (store.crossfadeSec > 0 && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+      TransitionManager.getInstance().checkBoundary(active, standby, () => {
+        this.activeTag = this.activeTag === 'A' ? 'B' : 'A';
+        this.playNextTrack();
+      });
     }
   }
 
@@ -537,29 +563,48 @@ export class PlaybackService {
     }
   }
 
-  private async preloadNativeNextTrack() {
+  public async preloadNativeNextTrack() {
     if (!RaagaXNativePlayer.isNative()) return;
     try {
-      const nextItem = QueueManager.getInstance().peekNext();
-      if (!nextItem || !nextItem.song) return;
+      const manager = QueueManager.getInstance();
+      const snapshot = manager.getSnapshot();
+      const currentIndex = snapshot.currentIndex;
+      if (currentIndex < 0 || currentIndex >= snapshot.items.length - 1) return;
 
-      const song = nextItem.song;
-      let finalSrc = song.audioUrl || '';
-      if (!finalSrc || finalSrc.includes('pixabay.com')) {
-        const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
-        if (source && source.type === 'remote' && source.url) {
-          finalSrc = source.url;
+      const upcomingItems = snapshot.items.slice(currentIndex + 1, currentIndex + 6);
+      if (upcomingItems.length === 0) return;
+
+      const batch: Array<{ url: string; title: string; artist: string; artworkUrl?: string }> = [];
+
+      for (const item of upcomingItems) {
+        if (!item?.song) continue;
+        const song = item.song;
+        let finalSrc = song.audioUrl || '';
+        if (!finalSrc || finalSrc.includes('pixabay.com')) {
+          try {
+            const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+            if (source && source.type === 'remote' && source.url) {
+              finalSrc = source.url;
+            }
+          } catch {}
         }
-      }
-      if (!finalSrc) finalSrc = FALLBACK_AUDIO_URL;
+        if (!finalSrc) finalSrc = FALLBACK_AUDIO_URL;
 
-      await RaagaXNativePlayer.setNextTrack({
-        url: finalSrc,
-        title: song.title ?? 'Unknown Title',
-        artist: song.artist ?? 'Unknown Artist',
-        artworkUrl: song.coverUrl ?? '',
-      });
-      console.log('[PlaybackService] Preloaded native next track into ExoPlayer queue:', song.title);
+        batch.push({
+          url: finalSrc,
+          title: song.title ?? 'Unknown Title',
+          artist: song.artist ?? 'Unknown Artist',
+          artworkUrl: song.coverUrl ?? '',
+        });
+      }
+
+      if (batch.length > 1) {
+        await RaagaXNativePlayer.setNextTracksBatch(batch);
+        console.log(`[PlaybackService] Batch preloaded ${batch.length} native tracks into ExoPlayer queue`);
+      } else if (batch.length === 1) {
+        await RaagaXNativePlayer.setNextTrack(batch[0]);
+        console.log('[PlaybackService] Preloaded native next track into ExoPlayer queue:', batch[0].title);
+      }
     } catch (e) {
       console.warn('[PlaybackService] Failed to preload native next track:', e);
     }

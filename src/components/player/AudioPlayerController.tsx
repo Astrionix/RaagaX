@@ -63,13 +63,50 @@ export function AudioPlayerController() {
   // Native Android: hook into ExoPlayer track-ended & track-changed events
   useEffect(() => {
     if (!RaagaXNativePlayer.isNative()) return;
+
     const unsubEnded = RaagaXNativePlayer.addTrackEndedListener(() => {
-      usePlayerStore.getState().playNext();
+      console.log('[AudioPlayerController] Native queue reached end, fallback playNext()');
+      const store = usePlayerStore.getState();
+      if (store.isPlaying && store.isActiveDevice) {
+        store.playNext();
+      }
     });
+
     const unsubChanged = RaagaXNativePlayer.addTrackChangedListener((data) => {
-      console.log('[AudioPlayerController] Native track auto-advanced to:', data.title);
-      usePlayerStore.getState().playNext();
+      console.log('[AudioPlayerController] Native track changed to:', data.title);
+      const store = usePlayerStore.getState();
+      const current = store.currentSong;
+
+      // Avoid re-synchronizing if already on the current song
+      if (current && ((data.url && current.audioUrl === data.url) || (data.title && current.title === data.title))) {
+        return;
+      }
+
+      // Find the song in the queue matching the native track's URL or title, or default to queueIndex + 1
+      const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+      const snapshot = manager.getSnapshot();
+      const queue = snapshot.items.map((i: any) => i.song);
+      const currentIndex = snapshot.currentIndex;
+
+      let targetIndex = -1;
+      if (data.url) {
+        targetIndex = queue.findIndex((s: Song) => s.audioUrl === data.url);
+      }
+      if (targetIndex === -1 && data.title) {
+        targetIndex = queue.findIndex((s: Song) => s.title === data.title);
+      }
+      if (targetIndex === -1 && currentIndex + 1 < queue.length) {
+        targetIndex = currentIndex + 1;
+      }
+
+      if (targetIndex >= 0 && targetIndex < queue.length) {
+        const nextSong = queue[targetIndex];
+        manager.skipTo(targetIndex);
+        store.commitPlaybackTransition(nextSong, targetIndex);
+        PlaybackService.getInstance().preloadNativeNextTrack();
+      }
     });
+
     return () => {
       unsubEnded();
       unsubChanged();

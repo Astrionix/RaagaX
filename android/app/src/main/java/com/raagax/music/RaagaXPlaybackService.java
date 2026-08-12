@@ -82,6 +82,7 @@ public class RaagaXPlaybackService extends Service {
                     Intent i = new Intent("com.raagax.music.TRACK_CHANGED");
                     i.putExtra("title", currentTitle);
                     i.putExtra("artist", currentArtist);
+                    i.putExtra("reason", reason);
                     if (mediaItem.localConfiguration != null) {
                         i.putExtra("url", mediaItem.localConfiguration.uri.toString());
                     }
@@ -128,6 +129,13 @@ public class RaagaXPlaybackService extends Service {
                 String title = intent.getStringExtra("title");
                 String artist = intent.getStringExtra("artist");
                 if (url != null) setNextTrack(url, title, artist);
+            } else if ("SET_NEXT_BATCH".equals(action)) {
+                String[] urls = intent.getStringArrayExtra("urls");
+                String[] titles = intent.getStringArrayExtra("titles");
+                String[] artists = intent.getStringArrayExtra("artists");
+                if (urls != null && urls.length > 0) {
+                    setNextTracksBatch(urls, titles, artists);
+                }
             } else if ("TOGGLE_PLAY".equals(action)) {
                 runOnMainThread(() -> {
                     if (player != null) {
@@ -280,6 +288,39 @@ public class RaagaXPlaybackService extends Service {
 
             player.addMediaItem(item);
             Log.d(TAG, "setNextTrack added to ExoPlayer queue: " + title);
+        });
+    }
+
+    public void setNextTracksBatch(String[] urls, String[] titles, String[] artists) {
+        runOnMainThread(() -> {
+            if (player == null || urls == null || urls.length == 0) return;
+
+            // Remove any queued items after current position
+            while (player.getMediaItemCount() > player.getCurrentMediaItemIndex() + 1) {
+                player.removeMediaItem(player.getCurrentMediaItemIndex() + 1);
+            }
+
+            java.util.List<MediaItem> mediaItems = new java.util.ArrayList<>();
+            for (int i = 0; i < urls.length; i++) {
+                String u = urls[i];
+                if (u == null || u.isEmpty()) continue;
+                String t = (titles != null && i < titles.length && titles[i] != null) ? titles[i] : "RaagaX";
+                String a = (artists != null && i < artists.length && artists[i] != null) ? artists[i] : "";
+
+                MediaItem item = new MediaItem.Builder()
+                        .setUri(u)
+                        .setMediaMetadata(new MediaMetadata.Builder()
+                                .setTitle(t)
+                                .setArtist(a)
+                                .build())
+                        .build();
+                mediaItems.add(item);
+            }
+
+            if (!mediaItems.isEmpty()) {
+                player.addMediaItems(mediaItems);
+                Log.d(TAG, "setNextTracksBatch added " + mediaItems.size() + " items to ExoPlayer queue");
+            }
         });
     }
 
