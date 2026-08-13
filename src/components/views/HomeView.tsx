@@ -126,6 +126,7 @@ export function HomeView() {
     currentTime,
     isPlaying,
     togglePlayPause,
+    setActiveTab,
     likedSongs = []
   } = usePlayerStore();
   const { user } = useAuthStore();
@@ -214,8 +215,37 @@ export function HomeView() {
     load();
   }, [preferredLanguage, activeUserId, payload?.sections?.length]);
 
-  return (
-    <div className="space-y-8 pb-4 select-none">
+    const hours = new Date().getHours();
+    const greeting = hours < 12 ? 'Good morning' : hours < 17 ? 'Good afternoon' : 'Good evening';
+    const displayName = user?.user_metadata?.full_name?.split(' ')[0] || 'Music Lover';
+
+    return (
+      <div className="space-y-8 pb-4 select-none">
+        {/* Mobile Native Greeting Header */}
+        <div className="md:hidden pt-2 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-xs font-semibold text-[#8E92A4] uppercase tracking-wider">{greeting}</span>
+              <h1 className="text-2xl font-black text-white tracking-tight">{displayName}</h1>
+            </div>
+            <button
+              onClick={() => setActiveTab('settings')}
+              aria-label="Settings"
+              className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors"
+            >
+              <Disc className="w-5 h-5 text-slate-300" />
+            </button>
+          </div>
+
+          {/* Mobile Quick Search Bar */}
+          <div
+            onClick={() => setActiveTab('search')}
+            className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/[0.04] border border-white/10 hover:border-white/20 text-[#8E92A4] cursor-pointer transition-all active:scale-[0.99]"
+          >
+            <Sparkles className="w-4 h-4 text-[#F51B3D]" />
+            <span className="text-xs font-medium text-slate-400">Search songs, artists, albums...</span>
+          </div>
+        </div>
 
       {/* Continue Listening Section (Unfinished track checkpoint) */}
       {currentSong && currentTime > 15 && (
