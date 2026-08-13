@@ -7,7 +7,7 @@ import { RealMusicEngine } from '@/lib/realMusicEngine';
 import { CarouselShelf } from '@/components/home/CarouselShelf';
 import { ChartListShelf } from '@/components/home/ChartListShelf';
 import { SkeletonGrid } from '@/components/ui/SkeletonLoader';
-import { Play, Pause, Clock, Sparkles } from 'lucide-react';
+import { Play, Pause, Clock, Sparkles, Disc } from 'lucide-react';
 import { ArtistDiscoveryShelves } from '@/components/home/ArtistDiscoveryShelves';
 import { Song } from '@/types/music';
 
@@ -105,6 +105,17 @@ function songsToShelfItems(songs: Song[]): ShelfItem[] {
   }));
 }
 
+function albumsToShelfItems(albums: any[]): ShelfItem[] {
+  return albums.map(alb => ({
+    id: alb.id,
+    title: alb.title,
+    subtitle: `${alb.artist} • ${alb.year || ''}`,
+    type: 'album' as const,
+    imageUrl: alb.coverUrl || '/app-icon.png',
+    rawItem: alb,
+  }));
+}
+
 import { useAuthStore } from '@/context/useAuthStore';
 
 // ─── HomeView ────────────────────────────────────────────────────────────────
@@ -177,18 +188,25 @@ export function HomeView() {
     load();
   }, [currentSong?.id, likedSongs.length]);
 
-  // 2. Recommended For You: random selection of songs in the preferred language
+  const [recommendedAlbums, setRecommendedAlbums] = useState<any[]>([]);
+
+  // 2. Recommended For You: random selection of songs & 2-day albums in preferred language
   useEffect(() => {
     const load = async () => {
       try {
         const { UserLifecycleManager } = await import('@/lib/lifecycle/UserLifecycleManager');
         const { RecommendationEngine } = await import('@/lib/recommendation/RecommendationEngine');
+        const { AlbumRecommendationEngine } = await import('@/lib/recommendation/AlbumRecommendationEngine');
 
         const language = UserLifecycleManager.getInstance().getData().selectedLanguages[0] || preferredLanguage || 'Telugu';
 
         // Fetch 3-day stable snapshot recommendations from RecommendationEngine
         const recSongs = await RecommendationEngine.getInstance().getRecommendations(activeUserId, language);
         setRecommended(recSongs);
+
+        // Fetch 2-day 10-album stable snapshot recommendations
+        const recAlbums = await AlbumRecommendationEngine.getInstance().getRecommendedAlbums(activeUserId, language);
+        setRecommendedAlbums(recAlbums);
       } catch (e) {
         console.warn('[HomeView] Could not load recommendations:', e);
       }
@@ -256,6 +274,16 @@ export function HomeView() {
           icon={<Sparkles className="w-5 h-5 text-violet-400" />}
           items={songsToShelfItems(recommended)}
           showPlayAll={true}
+        />
+      )}
+
+      {/* Suggested Albums For You — 2-Day Refresh */}
+      {recommendedAlbums.length > 0 && (
+        <CarouselShelf
+          title="Suggested Albums For You"
+          icon={<Disc className="w-5 h-5 text-amber-400" />}
+          items={albumsToShelfItems(recommendedAlbums)}
+          showPlayAll={false}
         />
       )}
 

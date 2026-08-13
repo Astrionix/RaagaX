@@ -19,6 +19,7 @@ export function AlbumsView() {
 
   const [activeTabFilter, setActiveTabFilter] = useState<'all' | 'recent' | 'trending' | 'top'>('all');
   const [realAlbums, setRealAlbums] = useState<AlbumItem[]>([]);
+  const [recommendedAlbums, setRecommendedAlbums] = useState<any[]>([]);
 
   React.useEffect(() => {
     let isMounted = true;
@@ -29,6 +30,17 @@ export function AlbumsView() {
       if (isMounted && fetched && fetched.length > 0) {
         setRealAlbums(fetched);
       }
+    });
+
+    import('@/lib/recommendation/AlbumRecommendationEngine').then(({ AlbumRecommendationEngine }) => {
+      import('@/context/useAuthStore').then(({ useAuthStore }) => {
+        const userId = useAuthStore.getState().user?.id || 'guest';
+        AlbumRecommendationEngine.getInstance().getRecommendedAlbums(userId, preferredLanguage).then(rec => {
+          if (isMounted && rec && rec.length > 0) {
+            setRecommendedAlbums(rec);
+          }
+        });
+      });
     });
 
     return () => {
@@ -143,6 +155,50 @@ export function AlbumsView() {
           </button>
         </div>
       </div>
+
+      {/* 2-Day Suggested Albums Shelf */}
+      {recommendedAlbums.length > 0 && (
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-amber-400" /> 🌟 Suggested Albums For You
+            </h2>
+            <span className="text-xs text-slate-400 font-bold">10 Personalized Albums</span>
+          </div>
+
+          <div className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5 sm:gap-4 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
+            {recommendedAlbums.map((album) => (
+              <div 
+                key={album.id}
+                onClick={() => handleOpenAlbum(album)}
+                className="group relative bg-[#12141c]/60 p-3 rounded-2xl border border-white/5 hover:border-white/20 transition-all hover:scale-[1.02] cursor-pointer shadow-lg w-[145px] sm:w-auto flex-shrink-0 snap-start"
+              >
+                <div className="relative aspect-square rounded-xl overflow-hidden mb-2.5">
+                  <img 
+                    src={album.coverUrl || '/app-icon.png'} 
+                    alt={album.title} 
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 bg-slate-800" 
+                  />
+                  <button
+                    onClick={(e) => handlePlayAlbum(e, album)}
+                    className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-[#fa233b] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-105 shadow-xl"
+                  >
+                    <Play className="w-4 h-4 fill-white ml-0.5" />
+                  </button>
+                </div>
+                <h3 className="font-bold text-xs text-white truncate">{album.title}</h3>
+                <p className="text-[11px] text-slate-400 truncate mt-0.5 font-medium">{album.artist}</p>
+                <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500 font-medium">
+                  <span className="text-amber-400 font-bold">Recommended</span>
+                  <span>•</span>
+                  <span>{album.year || 2024}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Shelf 1: Recently Released Albums */}
       {(activeTabFilter === 'all' || activeTabFilter === 'recent') && (

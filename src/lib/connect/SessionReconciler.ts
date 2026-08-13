@@ -109,10 +109,10 @@ export class SessionReconciler {
     const activeDeviceObj = store.onlineDevices.find((d: any) => d.id === snapshot.ownerDeviceId);
     const remoteName = activeDeviceObj ? activeDeviceObj.name : 'Remote Device';
 
-    // 1. ALL DEVICES (Followers + Renderer) synchronize UI State
+    // 1. ALL DEVICES synchronize UI State as PAUSED (Zero Autoplay on Startup/Sync)
     usePlayerStore.setState({ 
       isActiveDevice: isOwner,
-      isPlaying: snapshot.status === 'playing',
+      isPlaying: false,
       activeDeviceId: snapshot.ownerDeviceId,
       remoteDeviceName: isOwner ? null : remoteName,
       currentSong: targetSong || store.currentSong,
@@ -120,28 +120,19 @@ export class SessionReconciler {
       queue: snapshot.queue && snapshot.queue.length > 0 ? snapshot.queue : store.queue
     });
 
-    // 2. ACTIVE RENDERER DEVICE: Synchronize local HTMLAudioElement / PlaybackEngine
+    // 2. ACTIVE RENDERER DEVICE: Synchronize local HTMLAudioElement position as PAUSED
     if (isOwner) {
       const engine = PlaybackEngine.getInstance();
       const currentTrack = store.currentSong;
       
       if (currentTrack?.id === snapshot.trackId) {
         engine.seekCanonical(Math.max(0, expectedPositionMs));
-        if (snapshot.status === 'playing') {
-          await engine.play();
-        } else {
-          engine.pause();
-        }
+        engine.pause();
       } else if (snapshot.trackId) {
         if (targetSong) {
-          // Immediately set store state and seek prior to playing to avoid 500ms 0:00 audio stutter
-          usePlayerStore.setState({ currentSong: targetSong, isPlaying: snapshot.status === 'playing' });
+          usePlayerStore.setState({ currentSong: targetSong, isPlaying: false });
           engine.seekCanonical(Math.max(0, expectedPositionMs));
-          if (snapshot.status === 'playing') {
-            await engine.play();
-          } else {
-            engine.pause();
-          }
+          engine.pause();
         }
       }
     } else {
