@@ -42,17 +42,17 @@ describe('Connect Device Reconciliation & Zero-Stutter Tests', () => {
     };
 
     const seekSpy = vi.spyOn(PlaybackEngine.getInstance(), 'seekCanonical');
-    const playSpy = vi.spyOn(PlaybackEngine.getInstance(), 'play');
+    const pauseSpy = vi.spyOn(PlaybackEngine.getInstance(), 'pause');
 
     await reconciler.applySnapshot(snapshot);
 
-    // Verify seekCanonical was called immediately (accounting for clock drift calculation)
+    // Verify seekCanonical was called immediately to restore position as PAUSED (Zero Autoplay)
     expect(seekSpy).toHaveBeenCalled();
     expect(seekSpy.mock.calls[0][0]).toBeGreaterThanOrEqual(45000);
-    expect(playSpy).toHaveBeenCalled();
+    expect(pauseSpy).toHaveBeenCalled();
 
     seekSpy.mockRestore();
-    playSpy.mockRestore();
+    pauseSpy.mockRestore();
   });
 
   it('Test 2 (Follower Audio Suppression): Follower device pauses local audio engine to act purely as remote controller', async () => {
