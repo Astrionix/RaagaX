@@ -32,6 +32,7 @@ export class PlaybackSourceResolver {
     if (isDownloaded) {
       return {
         type: 'offline',
+        mediaId: song.id,
         localId: song.id,
       };
     }

@@ -7,6 +7,7 @@ interface DownloadDBSchema extends DBSchema {
       id: string; // trackId
       blob: Blob;
       mimeType: string;
+      references: string[]; // e.g. ['liked_songs', 'playlist_123']
       createdAt: number;
     };
   };
@@ -27,21 +28,51 @@ export class DownloadStorage {
     if (!this.dbPromise) {
       this.dbPromise = openDB<DownloadDBSchema>('raagax-downloads', 1, {
         upgrade(db) {
-          db.createObjectStore('media', { keyPath: 'id' });
+          if (!db.objectStoreNames.contains('media')) {
+            db.createObjectStore('media', { keyPath: 'id' });
+          }
         },
       });
     }
     return this.dbPromise;
   }
 
-  public async saveMedia(trackId: string, blob: Blob, mimeType: string): Promise<void> {
+  public async saveMedia(trackId: string, blob: Blob, mimeType: string, initialReference: string = 'manual'): Promise<void> {
     const db = await this.getDB();
+    const existing = await db.get('media', trackId);
+    const references = existing?.references ? Array.from(new Set([...existing.references, initialReference])) : [initialReference];
+
     await db.put('media', {
       id: trackId,
       blob,
       mimeType,
+      references,
       createdAt: Date.now(),
     });
+  }
+
+  public async addReference(trackId: string, refId: string): Promise<void> {
+    const db = await this.getDB();
+    const entry = await db.get('media', trackId);
+    if (entry) {
+      const updatedRefs = Array.from(new Set([...(entry.references || []), refId]));
+      await db.put('media', { ...entry, references: updatedRefs });
+    }
+  }
+
+  public async removeReference(trackId: string, refId: string): Promise<boolean> {
+    const db = await this.getDB();
+    const entry = await db.get('media', trackId);
+    if (!entry) return true;
+
+    const remaining = (entry.references || []).filter((r) => r !== refId);
+    if (remaining.length === 0) {
+      await db.delete('media', trackId);
+      return true; // Fully purged
+    } else {
+      await db.put('media', { ...entry, references: remaining });
+      return false; // Still referenced by other entities
+    }
   }
 
   public async getMediaBlob(trackId: string): Promise<Blob | null> {
@@ -59,5 +90,15 @@ export class DownloadStorage {
     const blob = await this.getMediaBlob(trackId);
     if (!blob) return null;
     return URL.createObjectURL(blob);
+  }
+
+  public async getAllDownloadedTrackIds(): Promise<string[]> {
+    const db = await this.getDB();
+    return db.getAllKeys('media');
+  }
+
+  public async clearAllMedia(): Promise<void> {
+    const db = await this.getDB();
+    await db.clear('media');
   }
 }

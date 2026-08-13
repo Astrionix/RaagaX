@@ -73,8 +73,6 @@ export class RecommendationEngine {
 
       await localDb.setUserStore(userId, 'recommendation_snapshot', snapshot);
       return shuffled;
-
-      return shuffled;
     } catch (e) {
       console.warn('[RecommendationEngine] Candidate generation error:', e);
       return [];

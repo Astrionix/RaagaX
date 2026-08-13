@@ -20,7 +20,8 @@ export abstract class BaseRenderer implements PlaybackRenderer {
   public async prepare(source: PlaybackSource): Promise<void> {
     if (source.type === 'offline') {
       const storage = DownloadStorage.getInstance();
-      const url = await storage.getMediaUrl(source.localId);
+      const mediaId = source.mediaId || source.localId || '';
+      const url = await storage.getMediaUrl(mediaId);
       if (!url) throw new Error('Local media not found');
       return this.prepareImplementation(url);
     } else {

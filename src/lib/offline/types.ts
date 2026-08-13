@@ -27,7 +27,9 @@ export interface OfflineTrack {
   artist: string;
   album?: string;
   durationMs: number;
+  duration?: number;
   artworkId?: string;
+  artworkUrl?: string;
   downloadedAt: number;
   version: string; // Used for invalidation/updates
 }
@@ -40,5 +42,6 @@ export type PlaybackSource =
     }
   | {
       type: 'offline';
-      localId: string;
+      mediaId: string;
+      localId?: string;
     };

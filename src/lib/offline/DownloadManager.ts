@@ -14,6 +14,8 @@ export class DownloadManager {
   private storageManager = StorageManager.getInstance();
   private networkManager = NetworkManager.getInstance();
   
+  // Track metadata for active tasks
+  private songMetadataMap: Map<string, Song> = new Map();
   // Track aborted fetch controllers
   private abortControllers: Map<string, AbortController> = new Map();
 
@@ -38,10 +40,15 @@ export class DownloadManager {
     });
   }
 
-  public async downloadSong(song: Song) {
+  public async downloadSong(song: Song, contextRef: string = 'liked_songs') {
     if (this.queue.getTaskByTrackId(song.id)) return;
 
-    if (await this.catalog.isDownloaded(song.id)) return;
+    if (await this.catalog.isDownloaded(song.id)) {
+      await this.storage.addReference(song.id, contextRef);
+      return;
+    }
+
+    this.songMetadataMap.set(song.id, song);
 
     const task: DownloadTask = {
       id: crypto.randomUUID(),
@@ -55,6 +62,14 @@ export class DownloadManager {
     };
 
     this.queue.addTask(task);
+  }
+
+  public async removeSongDownload(songId: string, contextRef: string = 'liked_songs'): Promise<boolean> {
+    const isFullyPurged = await this.storage.removeReference(songId, contextRef);
+    if (isFullyPurged) {
+      await this.catalog.removeTrack(songId);
+    }
+    return isFullyPurged;
   }
 
   private pauseAllActiveDownloads() {
@@ -84,7 +99,6 @@ export class DownloadManager {
     const task = this.queue.getTask(taskId);
     if (task) {
       this.queue.removeTask(taskId);
-      // clean up any partial blob if needed (or keep for resume)
     }
   }
 
@@ -100,7 +114,6 @@ export class DownloadManager {
       
       this.executeDownload(nextTask).catch(err => {
         console.error('[DownloadManager] Download failed', err);
-        // On error, pause or fail
         this.queue.markAsInactive(nextTask.id);
         this.queue.updateTask(nextTask.id, { status: 'failed' });
         this.processNextInQueue();
@@ -113,24 +126,20 @@ export class DownloadManager {
     this.abortControllers.set(task.id, controller);
 
     try {
-      // In a real implementation, we would fetch the audioUrl from Supabase or your API
-      // Since we don't have the full song object here, we might need to look it up
-      // For now, let's assume we can fetch the stream URL somehow.
-      // (Mock implementation of fetch logic)
-      const res = await fetch(`/api/audio?id=${task.trackId}`, { 
+      const song = this.songMetadataMap.get(task.trackId);
+      const targetUrl = song?.audioUrl || `/api/download?id=${task.trackId}`;
+
+      const res = await fetch(targetUrl, { 
         signal: controller.signal 
       });
 
-      if (!res.ok) throw new Error('Failed to fetch audio stream');
-      if (!res.body) throw new Error('No body returned');
+      if (!res.ok) throw new Error('Failed to fetch audio stream for download');
+      if (!res.body) throw new Error('No body returned from audio endpoint');
 
       const contentLength = Number(res.headers.get('Content-Length')) || 0;
       this.queue.updateTask(task.id, { totalBytes: contentLength });
 
       const mimeType = res.headers.get('Content-Type') || 'audio/mpeg';
-      
-      // Note: for partial resume, we would use Range headers. 
-      // This is a simplified full-blob download for phase 4 initially.
       const blob = await res.blob();
 
       // Check quota
@@ -138,14 +147,17 @@ export class DownloadManager {
         throw new Error('Storage quota exceeded');
       }
 
-      await this.storage.saveMedia(task.trackId, blob, mimeType);
+      await this.storage.saveMedia(task.trackId, blob, mimeType, 'liked_songs');
 
       const trackMeta: OfflineTrack = {
         trackId: task.trackId,
         localMediaId: task.trackId,
-        title: `Track ${task.trackId}`, // Should be passed in real implementation
-        artist: 'Unknown',
-        durationMs: 0,
+        title: song?.title || `Track ${task.trackId}`,
+        artist: song?.artist || 'Unknown',
+        album: song?.album,
+        artworkUrl: song?.coverUrl,
+        duration: song?.duration || 0,
+        durationMs: (song?.duration || 0) * 1000,
         downloadedAt: Date.now(),
         version: '1'
       };
@@ -167,7 +179,7 @@ export class DownloadManager {
     } finally {
       this.abortControllers.delete(task.id);
       this.queue.markAsInactive(task.id);
-      this.processNextInQueue(); // trigger next
+      this.processNextInQueue();
     }
   }
 }
