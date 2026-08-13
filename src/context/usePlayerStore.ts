@@ -88,8 +88,8 @@ interface PlayerState {
     positionMs: number;
   } | null;
   serverTimestamp: number | null; // Added for unified engine
-  onlineDevices: { id: string; name: string }[];
-  setOnlineDevices: (devices: { id: string; name: string }[]) => void;
+  onlineDevices: { id: string; name: string; platform?: string; isOnline?: boolean }[];
+  setOnlineDevices: (devices: { id: string; name: string; platform?: string; isOnline?: boolean }[]) => void;
   setRemoteState: (state: Partial<PlayerState>) => void;
   setRenderer: (renderer: Renderer) => void;
   transferPlayback: (targetDeviceId: string) => void;
