@@ -24,12 +24,12 @@ const TOP_MOODS = [
   { name: 'Movie Songs', icon: '🎬' }
 ];
 const TOP_ARTISTS = [
-  { name: 'Anirudh Ravichander', img: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150&h=150&fit=crop' },
-  { name: 'Thaman S', img: 'https://images.unsplash.com/photo-1493225457124-a1a2a5956093?w=150&h=150&fit=crop' },
-  { name: 'A.R. Rahman', img: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=150&h=150&fit=crop' },
-  { name: 'Sid Sriram', img: 'https://images.unsplash.com/photo-1520872024865-3ff2805d8bb3?w=150&h=150&fit=crop' },
-  { name: 'Devi Sri Prasad', img: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=150&h=150&fit=crop' },
-  { name: 'Harris Jayaraj', img: 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=150&h=150&fit=crop' },
+  { name: 'Anirudh Ravichander', img: 'https://c.saavncdn.com/artists/Anirudh_Ravichander_002_20230104094030_500x500.jpg' },
+  { name: 'Thaman S', img: 'https://c.saavncdn.com/artists/S_Thaman_002_20200810103759_500x500.jpg' },
+  { name: 'A.R. Rahman', img: 'https://c.saavncdn.com/artists/A_R_Rahman_002_20210322074345_500x500.jpg' },
+  { name: 'Sid Sriram', img: 'https://c.saavncdn.com/artists/Sid_Sriram_003_20230104093817_500x500.jpg' },
+  { name: 'Devi Sri Prasad', img: 'https://c.saavncdn.com/artists/Devi_Sri_Prasad_002_20200810103445_500x500.jpg' },
+  { name: 'Harris Jayaraj', img: 'https://c.saavncdn.com/artists/Harris_Jayaraj_002_20200810103649_500x500.jpg' },
 ];
 
 export function OnboardingAuthModal() {
@@ -390,7 +390,12 @@ export function OnboardingAuthModal() {
                         className="flex flex-col items-center gap-2 group outline-none"
                       >
                         <div className={`relative w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden border-4 transition-all duration-300 ${isSelected ? 'border-[#F51B3D] scale-105' : 'border-transparent group-hover:border-[#272A33]'}`}>
-                          <img src={artist.img} alt={artist.name} className="w-full h-full object-cover" />
+                          <img 
+                            src={artist.img || '/app-icon.png'} 
+                            alt={artist.name} 
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+                            className="w-full h-full object-cover bg-slate-800" 
+                          />
                           {isSelected && (
                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                               <Check className="w-8 h-8 text-white" />

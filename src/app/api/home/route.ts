@@ -34,47 +34,47 @@ function getLanguageContent(lang: string): Record<string, ShelfItem[]> {
 
   const fallback: Record<string, ShelfItem[]> = {
     quick_access: [
-      { id: '1', title: 'Liked Songs', type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, 'Mix', '150750109'), title: `${defaultLang} Mix`, type: 'mix', imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, 'Trending', '1266643840'), title: `Trending ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, 'Hits', '1170578801'), title: `${defaultLang} Hits`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1593697821252-0c9137d9fc45?auto=format&fit=crop&q=80&w=300&h=300' },
+      { id: '1', title: 'Liked Songs', type: 'playlist', imageUrl: '/app-icon.png' },
+      { id: getPlaylistId(defaultLang, 'Mix', '150750109'), title: `${defaultLang} Mix`, type: 'mix', imageUrl: '/app-icon.png' },
+      { id: getPlaylistId(defaultLang, 'Trending', '1266643840'), title: `Trending ${defaultLang}`, type: 'playlist', imageUrl: '/app-icon.png' },
+      { id: getPlaylistId(defaultLang, 'Hits', '1170578801'), title: `${defaultLang} Hits`, type: 'playlist', imageUrl: '/app-icon.png' },
       { id: getPlaylistId(defaultLang, 'New Releases', '1266094331'), title: `New Releases`, type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/LatestTollywood_20250814091215_500x500.jpg' },
     ],
     trending: [
-      { id: getPlaylistId(defaultLang, 'Trending', '1134643225'), title: `Trending Now`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, 'Viral', '1302089242'), title: `Viral Hits`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, 'Popular', '814453257'), title: `Popular in ${defaultLang}`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1493225457124-a1a2a5f5f924?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, 'Top Charts', '951897805'), title: `Top Charts`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=300&h=300' }
+      { id: getPlaylistId(defaultLang, 'Trending', '1134643225'), title: `Trending Now`, type: 'playlist', imageUrl: '/app-icon.png' },
+      { id: getPlaylistId(defaultLang, 'Viral', '1302089242'), title: `Viral Hits`, type: 'playlist', imageUrl: '/app-icon.png' },
+      { id: getPlaylistId(defaultLang, 'Popular', '814453257'), title: `Popular in ${defaultLang}`, type: 'playlist', imageUrl: '/app-icon.png' },
+      { id: getPlaylistId(defaultLang, 'Top Charts', '951897805'), title: `Top Charts`, type: 'playlist', imageUrl: '/app-icon.png' }
     ],
     hits: [
-      { id: getPlaylistId(defaultLang, 'Hits', '1170578805'), title: `${defaultLang} Superhits`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, 'Chartbusters', '1170578801'), title: `Chartbusters`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1516280440502-86846f4142d1?auto=format&fit=crop&q=80&w=300&h=300' }
+      { id: getPlaylistId(defaultLang, 'Hits', '1170578805'), title: `${defaultLang} Superhits`, type: 'playlist', imageUrl: '/app-icon.png' },
+      { id: getPlaylistId(defaultLang, 'Chartbusters', '1170578801'), title: `Chartbusters`, type: 'playlist', imageUrl: '/app-icon.png' }
     ],
     romantic: [
-      { id: getPlaylistId(defaultLang, 'Romantic', '1170578801'), title: `Romantic`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, 'Melodies', '1170578805'), title: `Melodies`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, 'Love', '110048908'), title: `Love Songs`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1460036521480-c11c52536c99?auto=format&fit=crop&q=80&w=300&h=300' }
+      { id: getPlaylistId(defaultLang, 'Romantic', '1170578801'), title: `Romantic`, type: 'playlist', imageUrl: '/app-icon.png' },
+      { id: getPlaylistId(defaultLang, 'Melodies', '1170578805'), title: `Melodies`, type: 'playlist', imageUrl: '/app-icon.png' },
+      { id: getPlaylistId(defaultLang, 'Love', '110048908'), title: `Love Songs`, type: 'playlist', imageUrl: '/app-icon.png' }
     ],
     party: [
-      { id: getPlaylistId(defaultLang, 'Party', '1170578801'), title: `Party Anthems`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1516280440502-86846f4142d1?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, 'EDM', '1170578805'), title: `EDM Mix`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, 'Energetic', '110048908'), title: `Energetic Beats`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1460036521480-c11c52536c99?auto=format&fit=crop&q=80&w=300&h=300' }
+      { id: getPlaylistId(defaultLang, 'Party', '1170578801'), title: `Party Anthems`, type: 'playlist', imageUrl: '/app-icon.png' },
+      { id: getPlaylistId(defaultLang, 'EDM', '1170578805'), title: `EDM Mix`, type: 'playlist', imageUrl: '/app-icon.png' },
+      { id: getPlaylistId(defaultLang, 'Energetic', '110048908'), title: `Energetic Beats`, type: 'playlist', imageUrl: '/app-icon.png' }
     ],
     devotional: [
-      { id: getPlaylistId(defaultLang, 'Devotional', '84999330'), title: `Devotional`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1604169720546-b333a595908b?auto=format&fit=crop&q=80&w=300&h=300' }
+      { id: getPlaylistId(defaultLang, 'Devotional', '84999330'), title: `Devotional`, type: 'playlist', imageUrl: '/app-icon.png' }
     ],
     workout: [
-      { id: getPlaylistId(defaultLang, 'Workout', '84999330'), title: `Workout`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&q=80&w=300&h=300' }
+      { id: getPlaylistId(defaultLang, 'Workout', '84999330'), title: `Workout`, type: 'playlist', imageUrl: '/app-icon.png' }
     ],
     chill: [
-      { id: getPlaylistId(defaultLang, 'Lofi', '84999330'), title: `Lofi & Chill`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=300&h=300' }
+      { id: getPlaylistId(defaultLang, 'Lofi', '84999330'), title: `Lofi & Chill`, type: 'playlist', imageUrl: '/app-icon.png' }
     ],
     road_trip: [
-      { id: getPlaylistId(defaultLang, 'Travel', '84999330'), title: `Travel`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300' }
+      { id: getPlaylistId(defaultLang, 'Travel', '84999330'), title: `Travel`, type: 'playlist', imageUrl: '/app-icon.png' }
     ],
     sad: [
-      { id: getPlaylistId(defaultLang, 'Sad', '84999330'), title: `Sad & Emotional`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=300&h=300' },
-      { id: getPlaylistId(defaultLang, 'Emotional', '84999330'), title: `Emotional`, type: 'playlist', imageUrl: 'https://images.unsplash.com/photo-1516280440502-86846f4142d1?auto=format&fit=crop&q=80&w=300&h=300' }
+      { id: getPlaylistId(defaultLang, 'Sad', '84999330'), title: `Sad & Emotional`, type: 'playlist', imageUrl: '/app-icon.png' },
+      { id: getPlaylistId(defaultLang, 'Emotional', '84999330'), title: `Emotional`, type: 'playlist', imageUrl: '/app-icon.png' }
     ],
     evergreen: []
   };

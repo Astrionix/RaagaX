@@ -74,21 +74,7 @@ export async function GET(request: Request) {
           // If the best playlist we found has at least 5 songs, accept it
           if (bestPlaylist && maxSongs >= 5) {
             const p = bestPlaylist;
-            // Diverse fallback images based on category
-            const fallbacks: Record<string, string> = {
-              'trending': 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=500&h=500',
-              'hits': 'https://images.unsplash.com/photo-1593697821252-0c9137d9fc45?auto=format&fit=crop&q=80&w=500&h=500',
-              'romantic': 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=500&h=500',
-              'party': 'https://images.unsplash.com/photo-1516280440502-86846f4142d1?auto=format&fit=crop&q=80&w=500&h=500',
-              'devotional': 'https://images.unsplash.com/photo-1604169720546-b333a595908b?auto=format&fit=crop&q=80&w=500&h=500',
-              'workout': 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&q=80&w=500&h=500',
-              'chill': 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=500&h=500',
-              'road_trip': 'https://images.unsplash.com/photo-1493225457124-a1a2a5f5f924?auto=format&fit=crop&q=80&w=500&h=500',
-              'sad': 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&q=80&w=500&h=500',
-              'evergreen': 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&q=80&w=500&h=500'
-            };
-            
-            let imageUrl = fallbacks[cat.key] || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=500&h=500';
+            let imageUrl = '/app-icon.png';
             if (p.image && p.image.trim() !== '') {
                imageUrl = p.image.replace('150x150', '500x500').replace('50x50', '500x500');
             }

@@ -181,7 +181,7 @@ export class ArtistDiscoveryEngine {
       const best = imageArray.find(i => i.quality === '500x500') || imageArray[imageArray.length - 1];
       return best?.url ? best.url.replace('http://', 'https://') : '';
     }
-    return 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop&q=80';
+    return '/app-icon.png';
   }
 
   private extractBio(bioArray: any[]): string {
@@ -195,7 +195,7 @@ export class ArtistDiscoveryEngine {
       // Basic mapping, assuming jioSaavnProvider logic
       const title = track.name || track.title || 'Unknown';
       const artist = track.primaryArtists || 'Unknown Artist';
-      let coverUrl = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop&q=80';
+      let coverUrl = '/app-icon.png';
       if (Array.isArray(track.image)) {
         const hi = track.image.find((i: any) => i.quality === '500x500') || track.image[track.image.length - 1];
         if (hi?.url) coverUrl = hi.url.replace('http://', 'https://');
@@ -229,7 +229,7 @@ export class ArtistDiscoveryEngine {
 
   private mapSaavnAlbums(albums: any[]): Album[] {
     return albums.map(album => {
-      let coverUrl = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop&q=80';
+      let coverUrl = '/app-icon.png';
       if (Array.isArray(album.image)) {
         const hi = album.image.find((i: any) => i.quality === '500x500') || album.image[album.image.length - 1];
         if (hi?.url) coverUrl = hi.url.replace('http://', 'https://');

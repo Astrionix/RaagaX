@@ -4,9 +4,9 @@ import React from 'react';
 import { Radio as RadioIcon, Play, Signal, Users } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 const LIVE_RADIO_STATIONS = [
-  { id: 'r1', name: 'Telugu Melodies 24/7', genre: 'Sid Sriram & Melody FM', frequency: '98.3 FM', listeners: 142000, coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80', audioUrl: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3' },
-  { id: 'r2', name: 'Bollywood Hits Radio', genre: 'Arijit Singh & Pritam FM', frequency: '104.0 FM', listeners: 289000, coverUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&auto=format&fit=crop&q=80', audioUrl: 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=energy-10499.mp3' },
-  { id: 'r3', name: 'Mass Beats & Party FM', genre: 'High Energy Anthems', frequency: '93.5 FM', listeners: 98000, coverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&auto=format&fit=crop&q=80', audioUrl: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73373.mp3?filename=pop-beat-110298.mp3' }
+  { id: 'r1', name: 'Telugu Melodies 24/7', genre: 'Sid Sriram & Melody FM', frequency: '98.3 FM', listeners: 142000, coverUrl: 'https://c.saavncdn.com/artists/Sid_Sriram_003_20230104093817_500x500.jpg', audioUrl: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3' },
+  { id: 'r2', name: 'Bollywood Hits Radio', genre: 'Arijit Singh & Pritam FM', frequency: '104.0 FM', listeners: 289000, coverUrl: 'https://c.saavncdn.com/artists/Arijit_Singh_002_20230323062147_500x500.jpg', audioUrl: 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=energy-10499.mp3' },
+  { id: 'r3', name: 'Mass Beats & Party FM', genre: 'High Energy Anthems', frequency: '93.5 FM', listeners: 98000, coverUrl: 'https://c.saavncdn.com/artists/S_Thaman_002_20200810103759_500x500.jpg', audioUrl: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73373.mp3?filename=pop-beat-110298.mp3' }
 ];
 
 export function RadioView() {

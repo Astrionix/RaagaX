@@ -36,27 +36,27 @@ const REAL_SEED_ALBUMS: Record<string, { id: string; title: string; artist: stri
     { id: "13383078", title: "Geetha Govindam", artist: "Gopi Sundar", year: 2018, coverUrl: "https://c.saavncdn.com/237/Geetha-Govindam-Telugu-2018-20180921-500x500.jpg" }
   ],
   Tamil: [
-    { id: "1124619", title: "Leo", artist: "Anirudh Ravichander", year: 2023, coverUrl: "https://images.unsplash.com/photo-1493225457124-a1a2a5f5f924?auto=format&fit=crop&q=80&w=500&h=500" },
-    { id: "1124620", title: "Jailer", artist: "Anirudh Ravichander", year: 2023, coverUrl: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=500&h=500" },
-    { id: "1124621", title: "Vikram", artist: "Anirudh Ravichander", year: 2022, coverUrl: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=500&h=500" },
-    { id: "1124622", title: "Master", artist: "Anirudh Ravichander", year: 2021, coverUrl: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=500&h=500" }
+    { id: "1124619", title: "Leo", artist: "Anirudh Ravichander", year: 2023, coverUrl: "https://c.saavncdn.com/269/Leo-Tamil-2023-20231019213702-500x500.jpg" },
+    { id: "1124620", title: "Jailer", artist: "Anirudh Ravichander", year: 2023, coverUrl: "https://c.saavncdn.com/137/Jailer-Tamil-2023-20230728084050-500x500.jpg" },
+    { id: "1124621", title: "Vikram", artist: "Anirudh Ravichander", year: 2022, coverUrl: "https://c.saavncdn.com/970/Vikram-Tamil-2022-20220515174005-500x500.jpg" },
+    { id: "1124622", title: "Master", artist: "Anirudh Ravichander", year: 2021, coverUrl: "https://c.saavncdn.com/830/Master-Tamil-2020-20200315201103-500x500.jpg" }
   ],
   Hindi: [
-    { id: "1124623", title: "Animal", artist: "JAM8, Vishal Mishra", year: 2023, coverUrl: "https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=500&h=500" },
-    { id: "1124624", title: "Jawan", artist: "Anirudh Ravichander", year: 2023, coverUrl: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&q=80&w=500&h=500" },
-    { id: "1124625", title: "Kabir Singh", artist: "Sachet-Parampara, Mithoon", year: 2019, coverUrl: "https://images.unsplash.com/photo-1460036521480-c11c52536c99?auto=format&fit=crop&q=80&w=500&h=500" }
+    { id: "1124623", title: "Animal", artist: "JAM8, Vishal Mishra", year: 2023, coverUrl: "https://c.saavncdn.com/393/Animal-Hindi-2023-20231124191036-500x500.jpg" },
+    { id: "1124624", title: "Jawan", artist: "Anirudh Ravichander", year: 2023, coverUrl: "https://c.saavncdn.com/335/Jawan-Hindi-2023-20230907101839-500x500.jpg" },
+    { id: "1124625", title: "Kabir Singh", artist: "Sachet-Parampara, Mithoon", year: 2019, coverUrl: "https://c.saavncdn.com/911/Kabir-Singh-Hindi-2019-20190614081109-500x500.jpg" }
   ],
   Malayalam: [
-    { id: "1124626", title: "Aavesham", artist: "Sushin Shyam", year: 2024, coverUrl: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=500&h=500" },
-    { id: "1124627", title: "Manjummel Boys", artist: "Sushin Shyam", year: 2024, coverUrl: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=500&h=500" }
+    { id: "1124626", title: "Aavesham", artist: "Sushin Shyam", year: 2024, coverUrl: "https://c.saavncdn.com/219/Aavesham-Malayalam-2024-20240409163236-500x500.jpg" },
+    { id: "1124627", title: "Manjummel Boys", artist: "Sushin Shyam", year: 2024, coverUrl: "https://c.saavncdn.com/326/Manjummel-Boys-Malayalam-2024-20240126162234-500x500.jpg" }
   ],
   Kannada: [
-    { id: "1124628", title: "KGF Chapter 2", artist: "Ravi Basrur", year: 2022, coverUrl: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&q=80&w=500&h=500" },
-    { id: "1124629", title: "Kantara", artist: "B. Ajaneesh Loknath", year: 2022, coverUrl: "https://images.unsplash.com/photo-1493225457124-a1a2a5f5f924?auto=format&fit=crop&q=80&w=500&h=500" }
+    { id: "1124628", title: "KGF Chapter 2", artist: "Ravi Basrur", year: 2022, coverUrl: "https://c.saavncdn.com/229/KGF-Chapter-2-Kannada-2022-20220413184646-500x500.jpg" },
+    { id: "1124629", title: "Kantara", artist: "B. Ajaneesh Loknath", year: 2022, coverUrl: "https://c.saavncdn.com/786/Kantara-Kannada-2022-20221008182046-500x500.jpg" }
   ],
   English: [
-    { id: "1124630", title: "Hit Me Hard and Soft", artist: "Billie Eilish", year: 2024, coverUrl: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=500&h=500" },
-    { id: "1124631", title: "Short n' Sweet", artist: "Sabrina Carpenter", year: 2024, coverUrl: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=500&h=500" }
+    { id: "1124630", title: "Hit Me Hard and Soft", artist: "Billie Eilish", year: 2024, coverUrl: "https://c.saavncdn.com/936/HIT-ME-HARD-AND-SOFT-English-2024-20240517094002-500x500.jpg" },
+    { id: "1124631", title: "Short n' Sweet", artist: "Sabrina Carpenter", year: 2024, coverUrl: "https://c.saavncdn.com/978/Short-n-Sweet-English-2024-20240823075210-500x500.jpg" }
   ]
 };
 
