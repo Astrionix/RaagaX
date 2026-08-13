@@ -108,7 +108,7 @@ export function DownloadsView() {
           <div className="space-y-2">
             {downloadingTasks.map((task) => (
               <div key={task.song.id} className="p-4 rounded-xl bg-[#161618] border border-white/10 flex items-center gap-4">
-                <img src={task.song.coverUrl} className="w-12 h-12 rounded-lg object-cover" />
+                <img src={task.song.coverUrl} alt={task.song.title || 'Song artwork'} className="w-12 h-12 rounded-lg object-cover" />
                 <div className="flex-1 min-w-0">
                   <h4 className="text-sm font-bold truncate">{task.song.title}</h4>
                   <p className="text-xs text-slate-400 truncate">{task.song.artist}</p>

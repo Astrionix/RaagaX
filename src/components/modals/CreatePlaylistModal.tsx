@@ -27,23 +27,7 @@ export function CreatePlaylistModal() {
     }
   }, [createPlaylistModalOpen]);
 
-  // Handle keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!createPlaylistModalOpen) return;
-      if (e.key === 'Escape') setCreatePlaylistModalOpen(false);
-      if (e.key === 'Enter' && name.trim() && !isCreating) {
-        e.preventDefault(); // Prevent accidental form submissions if wrapped in a form
-        handleCreate();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [createPlaylistModalOpen, name, isCreating]);
-
-  if (!createPlaylistModalOpen) return null;
-
-  const handleCreate = async () => {
+  const handleCreate = React.useCallback(async () => {
     if (!name.trim()) return;
     
     setIsCreating(true);
@@ -59,12 +43,26 @@ export function CreatePlaylistModal() {
       setActiveTab('playlist');
       setToastMessage('Playlist created successfully');
     } else {
-      // If error occurs, maybe show error toast
       setToastMessage('Failed to create playlist');
-      // Auto dismiss modal on fail too, or leave open? Let's leave open so they can retry.
       setTimeout(() => setToastMessage(null), 3000);
     }
-  };
+  }, [name, description, createPlaylist, setCreatePlaylistModalOpen, setSelectedPlaylistId, setActiveTab, setToastMessage]);
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!createPlaylistModalOpen) return;
+      if (e.key === 'Escape') setCreatePlaylistModalOpen(false);
+      if (e.key === 'Enter' && name.trim() && !isCreating) {
+        e.preventDefault(); // Prevent accidental form submissions if wrapped in a form
+        handleCreate();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [createPlaylistModalOpen, name, isCreating, handleCreate, setCreatePlaylistModalOpen]);
+
+  if (!createPlaylistModalOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">

@@ -186,7 +186,7 @@ export function HomeView() {
       }
     };
     load();
-  }, [currentSong?.id, likedSongs.length]);
+  }, [currentSong, likedSongs]);
 
   const [recommendedAlbums, setRecommendedAlbums] = useState<any[]>([]);
 

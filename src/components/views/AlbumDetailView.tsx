@@ -32,7 +32,7 @@ export function AlbumDetailView() {
 
     let isMounted = true;
     const baseAlbum = AlbumCatalogEngine.getAlbumById(selectedAlbumId, preferredLanguage);
-    if (baseAlbum && !album) setAlbum(baseAlbum);
+    if (baseAlbum) setAlbum(prev => prev || baseAlbum);
 
     setIsLoadingTracks(true);
 

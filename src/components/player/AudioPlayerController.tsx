@@ -58,7 +58,7 @@ export function AudioPlayerController() {
       PlaybackService.getInstance().setupMediaSessionHandlers();
       WebAudioGraph.getInstance().init(audioRefA.current, audioRefB.current);
     }
-  }, [audioRefA.current, audioRefB.current]);
+  }, []);
 
   // Native Android: hook into ExoPlayer queueEnded & trackChanged events.
   // NOTE: We do NOT trigger playNext() on trackChanged — ExoPlayer auto-advances
@@ -187,7 +187,7 @@ export function AudioPlayerController() {
       })
       .catch(() => {})
       .finally(() => { isRefilling.current = false; });
-  }, [queueIndex, queue.length, currentSong?.id, isAutoplayEnabled]);
+  }, [queueIndex, queue, currentSong, isAutoplayEnabled, addToQueue, historySongIds, likedSongIds]);
 
   // Handle Play/Pause State Synchronization
   useEffect(() => {
