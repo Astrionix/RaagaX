@@ -90,43 +90,21 @@ export function PlaylistDetailView() {
           } as any);
           setIsLoading(false);
         }
-      } else if (selectedPlaylistId.startsWith('spotify:')) {
-        const spotifyId = selectedPlaylistId.replace('spotify:', '');
+      } else {
+        const prefLang = usePlayerStore.getState().preferredLanguage || 'Telugu';
         try {
-          const res = await fetch(`/api/cron/discovery?playlistId=${spotifyId}&lang=Telugu&category=Playlist`);
+          const res = await fetch(`/api/playlist/details?playlistId=${encodeURIComponent(selectedPlaylistId)}&lang=${encodeURIComponent(prefLang)}`);
           const json = await res.json();
-          if (json && json.success) {
-            const { supabaseAdmin } = await import('@/lib/supabaseAdmin');
-            const { data: cached } = await supabaseAdmin
-              .from('spotify_playlist_cache')
-              .select('*')
-              .eq('playlist_id', spotifyId)
-              .maybeSingle();
-
-            if (cached && cached.data && isMounted) {
-              setPlaylist({
-                id: spotifyId,
-                title: cached.playlist_name || 'Spotify Playlist',
-                coverUrl: '/app-icon.png',
-                songs: cached.data as Song[]
-              });
-              setIsLoading(false);
-              return;
-            }
+          if (json && json.success && json.playlist && isMounted) {
+            setPlaylist(json.playlist);
+            setIsLoading(false);
+            return;
           }
         } catch (e) {
-          console.error('Failed to resolve Spotify playlist in detail view:', e);
+          console.warn('Playlist detail endpoint fallback:', e);
         }
 
-        RealMusicEngine.getInstance().getPlaylistDetails(spotifyId)
-          .then((data) => {
-            if (isMounted) {
-              setPlaylist(data);
-              setIsLoading(false);
-            }
-          });
-      } else {
-        // JioSaavn Global Playlist
+        // JioSaavn / Engine Fallback
         RealMusicEngine.getInstance().getPlaylistDetails(selectedPlaylistId)
           .then((data) => {
             if (isMounted) {

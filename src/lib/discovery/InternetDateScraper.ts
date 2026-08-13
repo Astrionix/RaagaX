@@ -19,8 +19,8 @@ export class InternetDateScraper {
       const url = `https://itunes.apple.com/search?term=${query}&entity=song&limit=1`;
       
       const response = await fetch(url, {
-        // Adding a short timeout so we don't hang the discovery process
-        signal: AbortSignal.timeout(3000) 
+        // Short timeout (800ms) to ensure discovery pipelines never hang
+        signal: AbortSignal.timeout(800) 
       });
       
       if (!response.ok) return null;

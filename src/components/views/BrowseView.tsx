@@ -42,7 +42,11 @@ export function BrowseView() {
   const { data, error, isLoading } = useSWR(`/api/browse?lang=${preferredLanguage}`, fetcherWithCache, {
     keepPreviousData: true,
     revalidateOnFocus: false,
-    dedupingInterval: 60000,
+    refreshInterval: (latestData) => {
+      const isAnyLoading = latestData?.sections?.some((s: any) => s.status === 'loading');
+      return isAnyLoading ? 3000 : 0;
+    },
+    dedupingInterval: 5000,
   });
 
   const { data: albumData, isLoading: albumsLoading } = useSWR(`/api/browse/albums?lang=${preferredLanguage}`, fetcher, {
@@ -74,7 +78,7 @@ export function BrowseView() {
 
         {/* Playlists */}
         {data?.sections?.map((section: any) => {
-          if (section.status === 'loading') {
+          if (section.status === 'loading' && (!section.items || section.items.length === 0)) {
             return (
               <div key={section.id} className="space-y-3 px-4 sm:px-0">
                 <div className="h-4 bg-white/10 rounded w-44 animate-pulse" />
@@ -83,7 +87,7 @@ export function BrowseView() {
             );
           }
           
-          if (section.items?.length === 0) return null;
+          if (!section.items || section.items.length === 0) return null;
 
           return (
             <CarouselShelf 

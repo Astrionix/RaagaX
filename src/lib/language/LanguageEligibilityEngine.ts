@@ -59,7 +59,7 @@ export class LanguageEligibilityEngine {
   /**
    * Calculates language state for a specific user and language
    */
-  public async getLanguageState(userId: string, language: string, selectedLanguages: string[] = ['Telugu']): Promise<LanguageState> {
+  public async getLanguageState(userId: string, language: string, selectedLanguages: string[] = []): Promise<LanguageState> {
     const targetLang = this.normalizeLanguage(language);
     const selected = selectedLanguages.map(l => this.normalizeLanguage(l));
 
@@ -73,8 +73,7 @@ export class LanguageEligibilityEngine {
 
     if (score >= 30) return 'ACTIVE';
     if (score >= 15) return 'EXPLICIT';
-    if (score >= 5) return 'DISCOVERED';
-    return 'BLOCKED';
+    return 'DISCOVERED';
   }
 
   /**
@@ -85,7 +84,7 @@ export class LanguageEligibilityEngine {
     song: Song,
     contextType: ContextType,
     targetCategoryLanguage?: string,
-    userSelectedLanguages: string[] = ['Telugu']
+    userSelectedLanguages: string[] = []
   ): Promise<boolean> {
     // 1. User Explicit Action / Library / Search / User-Created Playlist -> UNRESTRICTED
     if (
@@ -97,22 +96,16 @@ export class LanguageEligibilityEngine {
     }
 
     const songLang = this.normalizeLanguage((song as any).language || (song as any).languageId || song.genre);
-    const targetLang = this.normalizeLanguage(targetCategoryLanguage || userSelectedLanguages[0] || 'Telugu');
+    const targetLang = targetCategoryLanguage ? this.normalizeLanguage(targetCategoryLanguage) : '';
 
-    // 2. Strict Category Rule: e.g., Top Telugu Albums, Telugu Mix MUST match song language exactly
-    if (contextType === 'STRICT_CATEGORY') {
+    // 2. Strict Category Rule: e.g., Top Telugu Albums, Tamil Mix MUST match song language exactly
+    if (contextType === 'STRICT_CATEGORY' && targetLang) {
       return songLang === targetLang;
     }
 
-    // 3. Personalized Recommendation / Discovery Context
+    // 3. Personalized Recommendation / Discovery Context: Language is a preference signal, allow all non-blocked languages
     const state = await this.getLanguageState(userId, songLang, userSelectedLanguages);
-
-    if (contextType === 'DISCOVERY') {
-      return state !== 'BLOCKED'; // DISCOVERED, EXPLICIT, SELECTED, ACTIVE allowed
-    }
-
-    // PERSONALIZED_RECOMMENDATION: Requires EXPLICIT, SELECTED, or ACTIVE state
-    return state === 'EXPLICIT' || state === 'SELECTED' || state === 'ACTIVE';
+    return state !== 'BLOCKED';
   }
 
   /**
@@ -169,7 +162,7 @@ export class LanguageEligibilityEngine {
     candidates: Song[],
     contextType: ContextType,
     targetCategoryLanguage?: string,
-    userSelectedLanguages: string[] = ['Telugu']
+    userSelectedLanguages: string[] = []
   ): Promise<Song[]> {
     const eligible: Song[] = [];
     for (const song of candidates) {

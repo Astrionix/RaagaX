@@ -52,14 +52,17 @@ export class AdaptiveQueueController {
 
       const lifecycle = UserLifecycleManager.getInstance();
       const lifecycleData = lifecycle.getData();
-      const language = lifecycleData.selectedLanguages[0] || 'Telugu';
+      const store = (await import('@/context/usePlayerStore')).usePlayerStore.getState();
+      const selectedLanguages = lifecycleData.selectedLanguages ?? (store.preferredLanguage ? [store.preferredLanguage] : []);
       const historyIds = items.map(i => i.trackId);
+
+      const activeUserId = (await import('@/context/useAuthStore')).useAuthStore.getState().user?.id || 'guest';
 
       // Generate categorized candidate buckets
       const buckets = await CandidateGenerator.generateBuckets(
         currentItem?.song || null,
         historyIds,
-        language
+        { selectedLanguages, userId: activeUserId }
       );
 
       // Combine candidates based on current lifecycle phase composition ratios
@@ -136,12 +139,15 @@ export class AdaptiveQueueController {
       const lastItem = snapshot.items[snapshot.items.length - 1];
       const lifecycle = UserLifecycleManager.getInstance();
       const lifecycleData = lifecycle.getData();
-      const language = lifecycleData.selectedLanguages[0] || 'Telugu';
+      const store = (await import('@/context/usePlayerStore')).usePlayerStore.getState();
+      const selectedLanguages = lifecycleData.selectedLanguages ?? (store.preferredLanguage ? [store.preferredLanguage] : []);
+
+      const activeUserId = (await import('@/context/useAuthStore')).useAuthStore.getState().user?.id || 'guest';
 
       const buckets = await CandidateGenerator.generateBuckets(
         lastItem?.song || null,
         snapshot.items.map(i => i.trackId),
-        language
+        { selectedLanguages, userId: activeUserId }
       );
 
       const allCandidates = [...buckets.personalized, ...buckets.popular, ...buckets.newRelease];

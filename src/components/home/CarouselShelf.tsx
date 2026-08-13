@@ -61,8 +61,9 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
     abortControllerRef.current = new AbortController();
 
     try {
+      const prefLang = usePlayerStore.getState().preferredLanguage || 'Telugu';
       const res = await fetch(
-        `/api/browse/section?playlistId=${pagination.source.id}&offset=${nextOffset}&limit=20`,
+        `/api/browse/section?playlistId=${pagination.source.id}&lang=${encodeURIComponent(prefLang)}&offset=${nextOffset}&limit=20`,
         { signal: abortControllerRef.current.signal }
       );
       
@@ -109,7 +110,7 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
       }
     }, {
       root: null,
-      rootMargin: '0px 200px 0px 0px', // Trigger slightly before the sentinel is visible
+      rootMargin: '300px 300px 300px 300px', // Triggers for both horizontal carousels and vertical modal lists
       threshold: 0
     });
 

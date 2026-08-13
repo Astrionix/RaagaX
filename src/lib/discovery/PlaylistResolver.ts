@@ -49,16 +49,7 @@ export class PlaylistResolver {
               return null;
             }
             if (cachedRes.status === 'resolved' && cachedRes.raw_response) {
-              const song = cachedRes.raw_response as Song;
-              // Retroactively fetch date if missing in cache
-              if (!song.releaseDate) {
-                const scrapedDate = await InternetDateScraper.fetchExactReleaseDate(song.title, song.artist);
-                if (scrapedDate) {
-                  song.releaseDate = scrapedDate;
-                  await supabaseAdmin.from('song_resolution_cache').update({ raw_response: song }).eq('cache_key', cacheKey);
-                }
-              }
-              return song;
+              return cachedRes.raw_response as Song;
             }
           }
 
@@ -189,15 +180,7 @@ export class PlaylistResolver {
           if (cachedRes) {
             if (cachedRes.status === 'not_found' || cachedRes.status === 'failed') return null;
             if (cachedRes.status === 'resolved' && cachedRes.raw_response) {
-              const song = cachedRes.raw_response as Song;
-              if (!song.releaseDate) {
-                const scrapedDate = await InternetDateScraper.fetchExactReleaseDate(song.title, song.artist);
-                if (scrapedDate) {
-                  song.releaseDate = scrapedDate;
-                  await supabaseAdmin.from('song_resolution_cache').update({ raw_response: song }).eq('cache_key', cacheKey);
-                }
-              }
-              return song;
+              return cachedRes.raw_response as Song;
             }
           }
 

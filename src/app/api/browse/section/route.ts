@@ -5,6 +5,7 @@ import { BROWSE_5_PLAYLISTS, TRENDING_SOURCES, NEW_RELEASES_SOURCES, CLASSICS_SO
 export const dynamic = 'force-dynamic';
 
 function isAllowedSource(playlistId: string): boolean {
+  if (playlistId === 'aggregated_new_releases') return true;
   const languages = ['Telugu', 'Tamil', 'Kannada', 'Malayalam', 'Hindi', 'English'];
   for (const lang of languages) {
     if (TRENDING_SOURCES[lang]?.id === playlistId) return true;
@@ -19,6 +20,7 @@ function isAllowedSource(playlistId: string): boolean {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const playlistId = searchParams.get('playlistId');
+  const lang = searchParams.get('lang') || 'Telugu';
   const offsetParam = searchParams.get('offset') || '20';
   const limitParam = searchParams.get('limit') || '20';
 
@@ -40,18 +42,23 @@ export async function GET(req: NextRequest) {
 
   try {
     // Strictly read from the cache for pagination
-    const { data: cached, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('spotify_playlist_cache')
       .select('data')
-      .eq('playlist_id', playlistId)
-      .maybeSingle();
+      .eq('playlist_id', playlistId);
+
+    if (playlistId === 'aggregated_new_releases') {
+      query = query.eq('language', lang);
+    }
+
+    const { data: cachedRow, error } = await query.maybeSingle();
 
     if (error) {
       console.error('[BROWSE SECTION API] DB Error:', error);
       return NextResponse.json({ success: false, error: 'Database error' }, { status: 500 });
     }
 
-    if (!cached || !cached.data || !Array.isArray(cached.data)) {
+    if (!cachedRow || !cachedRow.data || !Array.isArray(cachedRow.data)) {
       // Cache MISS or empty. Return warming state so frontend can retry
       return NextResponse.json({ 
         success: true, 
@@ -61,8 +68,8 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const total = cached.data.length;
-    const items = cached.data.slice(offset, offset + limit);
+    const total = cachedRow.data.length;
+    const items = cachedRow.data.slice(offset, offset + limit);
     const hasMore = offset + items.length < total;
 
     return NextResponse.json({ 

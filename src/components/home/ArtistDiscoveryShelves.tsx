@@ -11,10 +11,24 @@ const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 export function ArtistDiscoveryShelves() {
   const { preferredLanguage } = usePlayerStore();
-  
+  const [activeLanguages, setActiveLanguages] = useState<string[]>([preferredLanguage]);
+
+  useEffect(() => {
+    import('@/lib/lifecycle/UserLifecycleManager').then(({ UserLifecycleManager }) => {
+      const langs = UserLifecycleManager.getInstance().getData().selectedLanguages;
+      if (langs && langs.length > 0) {
+        setActiveLanguages(langs);
+      } else {
+        setActiveLanguages([preferredLanguage]);
+      }
+    });
+  }, [preferredLanguage]);
+
   return (
     <div className="space-y-10 pt-6">
-      <ArtistLanguageShelf language={preferredLanguage} />
+      {activeLanguages.map((lang) => (
+        <ArtistLanguageShelf key={lang} language={lang} />
+      ))}
     </div>
   );
 }

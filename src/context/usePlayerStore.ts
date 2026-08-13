@@ -344,6 +344,9 @@ export const usePlayerStore = create<PlayerState>()(
     if (typeof window !== 'undefined') {
       localStorage.setItem('raagax_preferred_language', lang);
     }
+    import('@/lib/lifecycle/UserLifecycleManager').then(({ UserLifecycleManager }) => {
+      UserLifecycleManager.getInstance().setSelectedLanguages([lang]);
+    });
   },
 
   restoreLocalSession: async () => {

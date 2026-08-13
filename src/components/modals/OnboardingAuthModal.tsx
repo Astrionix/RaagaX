@@ -23,14 +23,56 @@ const TOP_MOODS = [
   { name: 'Indie', icon: '🎸' },
   { name: 'Movie Songs', icon: '🎬' }
 ];
-const TOP_ARTISTS = [
-  { name: 'Anirudh Ravichander', img: 'https://c.saavncdn.com/artists/Anirudh_Ravichander_002_20230104094030_500x500.jpg' },
-  { name: 'Thaman S', img: 'https://c.saavncdn.com/artists/S_Thaman_002_20200810103759_500x500.jpg' },
-  { name: 'A.R. Rahman', img: 'https://c.saavncdn.com/artists/A_R_Rahman_002_20210322074345_500x500.jpg' },
-  { name: 'Sid Sriram', img: 'https://c.saavncdn.com/artists/Sid_Sriram_003_20230104093817_500x500.jpg' },
-  { name: 'Devi Sri Prasad', img: 'https://c.saavncdn.com/artists/Devi_Sri_Prasad_002_20200810103445_500x500.jpg' },
-  { name: 'Harris Jayaraj', img: 'https://c.saavncdn.com/artists/Harris_Jayaraj_002_20200810103649_500x500.jpg' },
-];
+const ARTISTS_BY_LANGUAGE: Record<string, Array<{ name: string; img: string }>> = {
+  Telugu: [
+    { name: 'Thaman S', img: 'https://c.saavncdn.com/artists/S_Thaman_002_20200810103759_500x500.jpg' },
+    { name: 'Devi Sri Prasad', img: 'https://c.saavncdn.com/artists/Devi_Sri_Prasad_002_20200810103445_500x500.jpg' },
+    { name: 'Sid Sriram', img: 'https://c.saavncdn.com/artists/Sid_Sriram_003_20230104093817_500x500.jpg' },
+    { name: 'Anirudh Ravichander', img: 'https://c.saavncdn.com/artists/Anirudh_Ravichander_002_20230104094030_500x500.jpg' },
+    { name: 'M. M. Keeravani', img: 'https://c.saavncdn.com/artists/M_M_Keeravani_002_20230315061618_500x500.jpg' },
+    { name: 'Ram Miriyala', img: 'https://c.saavncdn.com/artists/Ram_Miriyala_000_20211027110123_500x500.jpg' }
+  ],
+  Hindi: [
+    { name: 'Arijit Singh', img: 'https://c.saavncdn.com/artists/Arijit_Singh_004_20241118063717_500x500.jpg' },
+    { name: 'Pritam', img: 'https://c.saavncdn.com/artists/Pritam_Chakraborty-20170711073326_500x500.jpg' },
+    { name: 'A.R. Rahman', img: 'https://c.saavncdn.com/artists/AR_Rahman_002_20210120084455_500x500.jpg' },
+    { name: 'Shreya Ghoshal', img: 'https://c.saavncdn.com/artists/Shreya_Ghoshal_003_20230104093405_500x500.jpg' },
+    { name: 'Badshah', img: 'https://c.saavncdn.com/artists/Badshah_005_20230605090710_500x500.jpg' },
+    { name: 'Sachin-Jigar', img: 'https://c.saavncdn.com/artists/Sachin_Jigar_003_20230104094119_500x500.jpg' }
+  ],
+  Tamil: [
+    { name: 'Anirudh Ravichander', img: 'https://c.saavncdn.com/artists/Anirudh_Ravichander_002_20230104094030_500x500.jpg' },
+    { name: 'A.R. Rahman', img: 'https://c.saavncdn.com/artists/AR_Rahman_002_20210120084455_500x500.jpg' },
+    { name: 'Harris Jayaraj', img: 'https://c.saavncdn.com/artists/Harris_Jayaraj_002_20200810103649_500x500.jpg' },
+    { name: 'Yuvan Shankar Raja', img: 'https://c.saavncdn.com/artists/Yuvan_Shankar_Raja_003_20230104093845_500x500.jpg' },
+    { name: 'G.V. Prakash Kumar', img: 'https://c.saavncdn.com/artists/G_V_Prakash_Kumar_002_20200810103551_500x500.jpg' },
+    { name: 'Santhosh Narayanan', img: 'https://c.saavncdn.com/artists/Santhosh_Narayanan_002_20200810103723_500x500.jpg' }
+  ],
+  Malayalam: [
+    { name: 'Sushin Shyam', img: 'https://c.saavncdn.com/artists/Sushin_Shyam_000_20200305072044_500x500.jpg' },
+    { name: 'Gopi Sundar', img: 'https://c.saavncdn.com/artists/Gopi_Sundar_002_20200810103606_500x500.jpg' },
+    { name: 'Hesham Abdul Wahab', img: 'https://c.saavncdn.com/artists/Hesham_Abdul_Wahab_000_20220119102434_500x500.jpg' },
+    { name: 'Shaan Rahman', img: 'https://c.saavncdn.com/artists/Shaan_Rahman_002_20200810103732_500x500.jpg' },
+    { name: 'Vidyasagar', img: 'https://c.saavncdn.com/artists/Vidyasagar_002_20200810103957_500x500.jpg' },
+    { name: 'K.S. Chithra', img: 'https://c.saavncdn.com/artists/K_S_Chithra_002_20200810103816_500x500.jpg' }
+  ],
+  Kannada: [
+    { name: 'Arjun Janya', img: 'https://c.saavncdn.com/artists/Arjun_Janya_002_20200810103507_500x500.jpg' },
+    { name: 'B. Ajaneesh Loknath', img: 'https://c.saavncdn.com/artists/B_Ajaneesh_Loknath_000_20221003112836_500x500.jpg' },
+    { name: 'Charan Raj', img: 'https://c.saavncdn.com/artists/Charan_Raj_000_20191101083416_500x500.jpg' },
+    { name: 'V. Harikrishna', img: 'https://c.saavncdn.com/artists/V_Harikrishna_002_20200810103949_500x500.jpg' },
+    { name: 'Vijay Prakash', img: 'https://c.saavncdn.com/artists/Vijay_Prakash_002_20200810104008_500x500.jpg' },
+    { name: 'Sanjith Hegde', img: 'https://c.saavncdn.com/artists/Sanjith_Hegde_000_20200326084012_500x500.jpg' }
+  ],
+  English: [
+    { name: 'Taylor Swift', img: 'https://c.saavncdn.com/artists/Taylor_Swift_004_20230628080644_500x500.jpg' },
+    { name: 'Ed Sheeran', img: 'https://c.saavncdn.com/artists/Ed_Sheeran_003_20230504062402_500x500.jpg' },
+    { name: 'The Weeknd', img: 'https://c.saavncdn.com/artists/The_Weeknd_003_20230303080721_500x500.jpg' },
+    { name: 'Dua Lipa', img: 'https://c.saavncdn.com/artists/Dua_Lipa_003_20230303080630_500x500.jpg' },
+    { name: 'Billie Eilish', img: 'https://c.saavncdn.com/artists/Billie_Eilish_003_20230303080608_500x500.jpg' },
+    { name: 'Drake', img: 'https://c.saavncdn.com/artists/Drake_003_20230303080619_500x500.jpg' }
+  ]
+};
 
 export function OnboardingAuthModal() {
   const { isAuthModalOpen, setAuthModalOpen, user } = useAuthStore();
@@ -101,6 +143,9 @@ export function OnboardingAuthModal() {
   const handleRegisterLanguage = () => {
     if (selectedLanguages.length > 0) {
       setPreferredLanguage(selectedLanguages[0]);
+      import('@/lib/lifecycle/UserLifecycleManager').then(({ UserLifecycleManager }) => {
+        UserLifecycleManager.getInstance().setSelectedLanguages(selectedLanguages);
+      });
     }
     setMode('register-moods');
   };
@@ -113,6 +158,10 @@ export function OnboardingAuthModal() {
     setErrorMsg('');
     setIsLoading(true);
     
+    if (selectedLanguages.length > 0) {
+      setPreferredLanguage(selectedLanguages[0]);
+    }
+
     // Bootstrap recommendation engine & lifecycle manager
     UserLifecycleManager.getInstance().bootstrapFromOnboarding(selectedLanguages, selectedMoods, selectedArtists);
 
@@ -372,10 +421,23 @@ export function OnboardingAuthModal() {
             )}
 
             {/* --- REGISTER ARTISTS --- */}
-            {mode === 'register-artists' && (
-              <div className="animate-in slide-in-from-right-4 duration-300">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {TOP_ARTISTS.map(artist => {
+            {mode === 'register-artists' && (() => {
+              const activeArtists = (() => {
+                const map = new Map<string, { name: string; img: string }>();
+                selectedLanguages.forEach(lang => {
+                  const list = ARTISTS_BY_LANGUAGE[lang] || ARTISTS_BY_LANGUAGE['Telugu'];
+                  list.forEach(a => { if (!map.has(a.name)) map.set(a.name, a); });
+                });
+                if (map.size === 0) {
+                  ARTISTS_BY_LANGUAGE['Telugu'].forEach(a => map.set(a.name, a));
+                }
+                return Array.from(map.values()).slice(0, 9);
+              })();
+
+              return (
+                <div className="animate-in slide-in-from-right-4 duration-300">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {activeArtists.map(artist => {
                     const isSelected = selectedArtists.includes(artist.name);
                     return (
                       <button
@@ -421,7 +483,8 @@ export function OnboardingAuthModal() {
                   )}
                 </button>
               </div>
-            )}
+              );
+            })()}
 
             {/* TOGGLE MODE */}
             {(mode === 'login' || mode === 'register-credentials') && (

@@ -198,14 +198,14 @@ export function HomeView() {
         const { RecommendationEngine } = await import('@/lib/recommendation/RecommendationEngine');
         const { AlbumRecommendationEngine } = await import('@/lib/recommendation/AlbumRecommendationEngine');
 
-        const language = UserLifecycleManager.getInstance().getData().selectedLanguages[0] || preferredLanguage || 'Telugu';
+        const selectedLangs = UserLifecycleManager.getInstance().getData().selectedLanguages ?? (preferredLanguage ? [preferredLanguage] : []);
 
-        // Fetch 3-day stable snapshot recommendations from RecommendationEngine
-        const recSongs = await RecommendationEngine.getInstance().getRecommendations(activeUserId, language);
+        // Fetch 3-day stable snapshot recommendations across user selected languages
+        const recSongs = await RecommendationEngine.getInstance().getRecommendations(activeUserId, selectedLangs);
         setRecommended(recSongs);
 
-        // Fetch 2-day 10-album stable snapshot recommendations
-        const recAlbums = await AlbumRecommendationEngine.getInstance().getRecommendedAlbums(activeUserId, language);
+        // Fetch 2-day 10-album stable snapshot recommendations across user selected languages
+        const recAlbums = await AlbumRecommendationEngine.getInstance().getRecommendedAlbums(activeUserId, selectedLangs);
         setRecommendedAlbums(recAlbums);
       } catch (e) {
         console.warn('[HomeView] Could not load recommendations:', e);

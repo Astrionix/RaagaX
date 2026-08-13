@@ -7,28 +7,34 @@ export interface CandidateSong extends Song {
   baseScore?: number;
 }
 
+export interface CandidateContext {
+  selectedLanguages?: string[];
+  userId?: string;
+}
+
 export class CandidateGenerator {
   
   /**
-   * Generates candidate tracks for queue refill using strict fallback hierarchy & language eligibility
+   * Generates candidate tracks for queue refill using multilingual signals & candidate source hierarchy
    */
   public static async generateCandidates(
     currentSong: Song | null,
     historyIds: string[],
-    language: string,
+    context?: CandidateContext | string,
     limit: number = 20
   ): Promise<CandidateSong[]> {
     const candidates = new Map<string, CandidateSong>();
     const userId = (await supabase.auth.getSession()).data.session?.user?.id || 'guest';
+    const langs = typeof context === 'string' ? [context] : (context?.selectedLanguages && context.selectedLanguages.length > 0 ? context.selectedLanguages : ['Telugu', 'Tamil', 'Hindi', 'Kannada', 'Malayalam', 'English']);
     
     const addCandidates = async (songs: any[], source: CandidateSong['candidateSource']): Promise<boolean> => {
-      // Filter songs for language eligibility
+      // Pass multilingual preferences as ranking signals across all selected languages
       const eligibleSongs = await LanguageEligibilityEngine.getInstance().filterCandidates(
         userId,
         songs,
         'PERSONALIZED_RECOMMENDATION',
-        language,
-        [language]
+        undefined,
+        langs
       );
 
       for (const song of eligibleSongs) {
@@ -45,7 +51,7 @@ export class CandidateGenerator {
              audioUrl: (song as any).playable_url || song.audioUrl || '',
              duration: song.duration ? parseInt(String(song.duration), 10) : 0,
              genre: (song as any).language ? `${String((song as any).language).toUpperCase()} HITS` : 'HITS',
-             category: 'latest_telugu',
+             category: 'global_trending',
              releaseYear: (song as any).release_year || song.releaseYear || new Date().getFullYear(),
              plays: (song as any).play_count || song.plays || 0,
              likes: 0,
@@ -107,11 +113,11 @@ export class CandidateGenerator {
         }
       }
 
-      // 4. Cached trending in target language
+      // 4. Cached trending in selected user languages
       const { data: trending, error: trendingError } = await supabase
         .from('canonical_songs')
         .select('*')
-        .eq('language', language)
+        .in('language', langs)
         .order('trend_score', { ascending: false, nullsFirst: false })
         .limit(limit * 2);
         
@@ -119,26 +125,17 @@ export class CandidateGenerator {
          if (await addCandidates(trending, 'trending')) return Array.from(candidates.values());
       }
 
-      // 5. Language popular
-      const { data: popular, error: popularError } = await supabase
-        .from('canonical_songs')
-        .select('*')
-        .eq('language', language)
-        .order('popularity_score', { ascending: false, nullsFirst: false })
-        .limit(limit * 2);
-        
-      if (!popularError && popular) {
-         if (await addCandidates(popular, 'popular')) return Array.from(candidates.values());
-      }
-
-      // 6. Dynamic RealMusicEngine Fallback for Live API songs
+      // 5. Dynamic RealMusicEngine Fallback balanced across all selected user languages
       if (candidates.size < limit) {
         try {
           const { RealMusicEngine } = await import('@/lib/realMusicEngine');
-          const query = currentSong?.artist ? `${currentSong.artist} songs` : `Trending ${language || 'Telugu'} Songs`;
-          const realSongs = await RealMusicEngine.getInstance().searchRealSongs(query, limit * 2);
-          if (realSongs && realSongs.length > 0) {
-            await addCandidates(realSongs, 'trending');
+          for (const searchLang of langs) {
+            if (candidates.size >= limit) break;
+            const query = currentSong?.artist ? `${currentSong.artist} songs` : `Trending ${searchLang} Songs`;
+            const realSongs = await RealMusicEngine.getInstance().searchRealSongs(query, Math.max(5, Math.ceil(limit / langs.length)));
+            if (realSongs && realSongs.length > 0) {
+              await addCandidates(realSongs, 'trending');
+            }
           }
         } catch (realErr) {
           console.warn('[CandidateGenerator] RealMusicEngine fallback error:', realErr);
@@ -153,12 +150,12 @@ export class CandidateGenerator {
   }
 
   /**
-   * Generates categorized candidate buckets for lifecycle composition ratio blending
+   * Generates categorized candidate buckets across user's multilingual preferences
    */
   public static async generateBuckets(
     currentSong: Song | null,
     historyIds: string[],
-    language: string
+    context?: CandidateContext | string
   ): Promise<{
     personalized: CandidateSong[];
     popular: CandidateSong[];
@@ -176,27 +173,46 @@ export class CandidateGenerator {
 
     try {
       const { RealMusicEngine } = await import('@/lib/realMusicEngine');
-      const lang = language || 'Telugu';
+      const selectedLangs = typeof context === 'string' 
+        ? [context] 
+        : (context?.selectedLanguages && context.selectedLanguages.length > 0 
+            ? context.selectedLanguages 
+            : ['Telugu', 'Tamil', 'Hindi', 'Kannada', 'Malayalam', 'English']);
+      
       const primaryArtist = currentSong?.artist ? currentSong.artist.split(',')[0].split('&')[0].trim() : '';
 
-      const [popRes, newRes, artistRes, expRes] = await Promise.allSettled([
-        RealMusicEngine.getInstance().searchRealSongs(`${lang} Hits`, 15),
-        RealMusicEngine.getInstance().searchRealSongs(`Latest ${lang} Songs`, 15),
-        primaryArtist ? RealMusicEngine.getInstance().searchRealSongs(`${primaryArtist} songs`, 15) : Promise.resolve([]),
-        RealMusicEngine.getInstance().searchRealSongs(`${lang} Melodies`, 15),
+      // Query across all selected languages in parallel for balanced candidates
+      const popPromises = selectedLangs.map(l => RealMusicEngine.getInstance().searchRealSongs(`${l} Hits`, 10).catch(() => []));
+      const newPromises = selectedLangs.map(l => RealMusicEngine.getInstance().searchRealSongs(`Latest ${l} Songs`, 10).catch(() => []));
+      const expPromises = selectedLangs.map(l => RealMusicEngine.getInstance().searchRealSongs(`${l} Melodies`, 10).catch(() => []));
+      const artistPromise: Promise<any[]> = primaryArtist ? RealMusicEngine.getInstance().searchRealSongs(`${primaryArtist} songs`, 15).catch(() => []) : Promise.resolve([]);
+
+      const [popLists, newLists, expLists, artistList] = await Promise.all([
+        Promise.all(popPromises),
+        Promise.all(newPromises),
+        Promise.all(expPromises),
+        artistPromise
       ]);
 
-      if (popRes.status === 'fulfilled' && popRes.value.length > 0) {
-        buckets.popular = popRes.value.filter(s => !historyIds.includes(s.id)).map(s => ({ ...s, candidateSource: 'popular' }));
-      }
-      if (newRes.status === 'fulfilled' && newRes.value.length > 0) {
-        buckets.newRelease = newRes.value.filter(s => !historyIds.includes(s.id)).map(s => ({ ...s, candidateSource: 'trending' }));
-      }
-      if (artistRes.status === 'fulfilled' && artistRes.value.length > 0) {
-        buckets.personalized = artistRes.value.filter(s => !historyIds.includes(s.id)).map(s => ({ ...s, candidateSource: 'personalized' }));
-      }
-      if (expRes.status === 'fulfilled' && expRes.value.length > 0) {
-        buckets.exploration = expRes.value.filter(s => !historyIds.includes(s.id)).map(s => ({ ...s, candidateSource: 'similar' }));
+      const flattenAndFilter = (lists: any[][], source: CandidateSong['candidateSource']) => {
+        const result: CandidateSong[] = [];
+        const seen = new Set<string>();
+        for (const list of lists) {
+          for (const s of list) {
+            if (s && s.id && !historyIds.includes(s.id) && !seen.has(s.id)) {
+              seen.add(s.id);
+              result.push({ ...s, candidateSource: source });
+            }
+          }
+        }
+        return result;
+      };
+
+      buckets.popular = flattenAndFilter(popLists, 'popular');
+      buckets.newRelease = flattenAndFilter(newLists, 'trending');
+      buckets.exploration = flattenAndFilter(expLists, 'similar');
+      if (Array.isArray(artistList) && artistList.length > 0) {
+        buckets.personalized = artistList.filter(s => s && s.id && !historyIds.includes(s.id)).map(s => ({ ...s, candidateSource: 'personalized' }));
       }
     } catch (e) {
       console.warn('[CandidateGenerator] Error generating buckets:', e);

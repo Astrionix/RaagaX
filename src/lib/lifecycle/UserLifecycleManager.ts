@@ -39,7 +39,7 @@ export class UserLifecycleManager {
     totalSkips: 0,
     totalLikes: 0,
     firstPlayAt: null,
-    selectedLanguages: ['Telugu'],
+    selectedLanguages: [],
     selectedMoods: ['Melodies', 'Love'],
     selectedArtists: [],
     sessionPlayCount: 0,
@@ -100,11 +100,25 @@ export class UserLifecycleManager {
   }
 
   public bootstrapFromOnboarding(languages: string[], moods: string[], artists: string[]) {
-    this.data.selectedLanguages = languages.length > 0 ? languages : ['Telugu'];
+    this.data.selectedLanguages = languages ?? [];
     this.data.selectedMoods = moods.length > 0 ? moods : ['Melodies', 'Love'];
     this.data.selectedArtists = artists;
     this.evaluatePhase();
     this.saveToStorage();
+  }
+
+  public setSelectedLanguages(languages: string[]) {
+    this.data.selectedLanguages = languages ?? [];
+    this.saveToStorage();
+  }
+
+  public getRecommendationContext(): { selectedLanguages: string[]; hasBehavior: boolean; phase: LifecyclePhase } {
+    const hasBehavior = this.data.totalMeaningfulPlays > 0 || this.data.totalLikes > 0;
+    return {
+      selectedLanguages: this.data.selectedLanguages,
+      hasBehavior,
+      phase: this.data.phase,
+    };
   }
 
   public evaluatePhase() {

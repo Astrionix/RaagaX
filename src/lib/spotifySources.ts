@@ -20,8 +20,8 @@ export const WEEKLY_RELEASE_SOURCES: Record<string, { id: string; title: string 
     title: "2026 New Releases - Malayalam",
   },
   English: {
-    id: "37i9dQZF1DX4JAvHpjipBk",
-    title: "New Music Friday",
+    id: "37i9dQZF1DX0kbJZpiYdZl",
+    title: "Hot Hits USA",
   },
 };
 
@@ -39,16 +39,16 @@ export const TRENDING_SOURCES: Record<string, { id: string; title: string }> = {
     title: "Trending Now Malayalam",
   },
   Kannada: {
-    id: "37i9dQZF1DWZqTcNLmb3sH",
-    title: "Latest Kannada",
+    id: "4TvxxFHYjBvRtaOrGl25N8",
+    title: "Trending Now Kannada",
   },
   Hindi: {
     id: "37i9dQZF1DX0XUfTFmNBRM",
     title: "Top Hits Hindi",
   },
   English: {
-    id: "37i9dQZF1DX4JAvHpjipBk",
-    title: "New Music Friday",
+    id: "37i9dQZF1DXcBWIGoYBM5M",
+    title: "Today's Top Hits",
   },
 };
 
@@ -61,7 +61,7 @@ export const CLASSICS_SOURCES: Record<string, { id: string; title: string }> = {
     title: "Telugu Old Melody Songs",
   },
   Kannada: {
-    id: "0iEJUBhOq5bSeu0Bsyu7vs",
+    id: "7pQiU6Zl6PgDUHUHUMZxEM",
     title: "Kannada All Time Hit / Melody",
   },
   Tamil: {
@@ -85,31 +85,31 @@ export const CLASSICS_SOURCES: Record<string, { id: string; title: string }> = {
 export const BROWSE_5_PLAYLISTS: Record<string, Array<{ id: string; title: string }>> = {
   Telugu: [
     { id: '37i9dQZF1DX5VOFoIqmrOV', title: 'Tollywood Pearls' },
-    { id: '37i9dQZF1DWWwrjLPC16W7', title: 'Latest Telugu' },
+    { id: '37i9dQZF1DX44F1QWqYoaV', title: 'Telugu Romance Hits' },
     { id: '37i9dQZF1DXcrFZ8UTtxv9', title: "All Out 00's Telugu" },
     { id: '37i9dQZF1DX3I9bqAkK5Dr', title: 'Telugu Indie' },
     { id: '37i9dQZF1DWTw6jXuVBprS', title: 'Telangana Folk Beats!' },
   ],
   Tamil: [
     { id: '37i9dQZF1DWTnDuST8OorZ', title: 'All out 00s Tamil' },
-    { id: '37i9dQZF1DWVo4cdnikh7Z', title: 'Latest Tamil' },
+    { id: '1tvO8pnSjTe1Rxwm78FGnW', title: 'Tamil Melody Hits' },
     { id: '04wyLWYsskgWjn9827AQj3', title: 'Trending Tamil Songs 2026' },
     { id: '37i9dQZF1DWVeJ1iLJWg8y', title: 'All Out 60s Tamil' },
     { id: '3wVf2PduEomefWHxyzAQy9', title: 'A.R. Rahman Top 100 Tamil' },
   ],
   Malayalam: [
-    { id: '4d7KoENUtm2oyb651XftMg', title: '2026 New Releases - Malayalam' },
+    { id: '37i9dQZF1DXaDDXaHNhJDD', title: 'Malayalam Classics' },
     { id: '37i9dQZF1DX0pL2mGKNaCP', title: 'All Out 80s Malayalam' },
     { id: '4vgxhCITOiyJf6c4CscEcv', title: 'Retro Malayalam Hits - Carvaan Select' },
     { id: '0WnQPikvoy2Bmxm9aYz57r', title: '2010s Malayalam - Best 100' },
     { id: '3ZbWYBiVeapp2FNOP3xCQT', title: 'Athimanoharam Trending Malayalam Songs' },
   ],
   Hindi: [
-    { id: '37i9dQZF1DX4ghkRUdIogy', title: 'New Music Friday India' },
     { id: '37i9dQZF1DX5rOEFf3Iycd', title: 'All Out 80s Hindi' },
     { id: '37i9dQZF1DX9kVlnA5Si6s', title: 'All Out 70s Hindi' },
     { id: '37i9dQZF1DWZNJXX2UeBij', title: "All Out 00's Hindi" },
     { id: '5gSVvj8ukLSQlSnClSp1sR', title: 'Best Bollywood Songs of All Time' },
+    { id: '37i9dQZF1EIe9njJIhd9wt', title: 'Bollywood Party Hits' },
   ],
   English: [
     { id: '37i9dQZF1DX4JAvHpjipBk', title: 'New Music Friday' },
@@ -119,7 +119,7 @@ export const BROWSE_5_PLAYLISTS: Record<string, Array<{ id: string; title: strin
     { id: '1NxJn9tmppNrsJBrudFQ7d', title: 'English Top Hits of all Time' },
   ],
   Kannada: [
-    { id: '37i9dQZF1DWZqTcNLmb3sH', title: 'Latest Kannada' },
+    { id: '37i9dQZF1DX2MvScOHAAiE', title: 'Kannada Romantic Hits' },
     { id: '37i9dQZF1DX1ahAlaaz0ZE', title: 'Hot Hits Kannada' },
     { id: '6ppm1rd8zW1FfkWkLOJd80', title: 'Top Hits Kannada 2026' },
     { id: '37i9dQZF1DX9i6vCEoH6jH', title: 'Kannada Party Time' },

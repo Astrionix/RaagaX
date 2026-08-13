@@ -27,65 +27,52 @@ export class RecommendationEngine {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
   }
 
-  public async getRecommendations(userId: string, language: string = 'Telugu'): Promise<Song[]> {
+  public async getRecommendations(userId: string, languages: string[] | string = ['Telugu', 'Tamil', 'Hindi', 'Kannada', 'Malayalam', 'English']): Promise<Song[]> {
     const localDb = LocalDatabase.getInstance();
     const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
     const now = Date.now();
+    const langList = typeof languages === 'string' ? [languages] : (languages.length > 0 ? languages : ['Telugu', 'Tamil', 'Hindi', 'Kannada', 'Malayalam', 'English']);
+    const targetCategory = `personalized_${langList.sort().join('_').toLowerCase()}`;
 
-    // 1. Check local 3-day snapshot
+    // 1. Check local 3-day snapshot matching current language profile
     const cached = await localDb.getUserStore<RecommendationSnapshot>(userId, 'recommendation_snapshot');
-    if (cached && cached.expiresAt > now && cached.items.length > 0) {
+    if (cached && cached.expiresAt > now && cached.items.length > 0 && cached.category === targetCategory) {
       return cached.items;
     }
 
-    // 2. Fetch fresh candidates using preferred language & user affinity
+    // 2. Fetch fresh candidates across user selected languages & affinity
     try {
       const musicEngine = RealMusicEngine.getInstance();
-      const queries = [
-        `${language} Hits`,
-        `Latest ${language} Songs`,
-        `${language} Melodies`,
-        `Trending ${language} Songs`,
-      ];
-      
-      // Select random query for freshness
-      const query = queries[Math.floor(Math.random() * queries.length)];
-      const rawCandidates = await musicEngine.searchRealSongs(query, 40);
+      const candidatePromises = langList.map(l => {
+        const queries = [`${l} Hits`, `Latest ${l} Songs`, `${l} Melodies`, `Trending ${l} Songs`];
+        const query = queries[Math.floor(Math.random() * queries.length)];
+        return musicEngine.searchRealSongs(query, 20).catch(() => []);
+      });
 
-      // Filter candidate pool through LanguageEligibilityEngine
+      const candidateLists = await Promise.all(candidatePromises);
+      const rawCandidates = candidateLists.flat();
+
+      // Filter candidate pool through LanguageEligibilityEngine with multilingual preference signals
       const eligibleCandidates = await LanguageEligibilityEngine.getInstance().filterCandidates(
         userId,
         rawCandidates,
         'PERSONALIZED_RECOMMENDATION',
-        language,
-        [language]
+        undefined,
+        langList
       );
 
       // Shuffle & pick top 15
       const shuffled = eligibleCandidates.sort(() => 0.5 - Math.random()).slice(0, 15);
 
       const snapshot: RecommendationSnapshot = {
-        category: `recommended_${language.toLowerCase()}`,
+        category: targetCategory,
         items: shuffled,
         generatedAt: now,
         expiresAt: now + THREE_DAYS_MS,
       };
 
       await localDb.setUserStore(userId, 'recommendation_snapshot', snapshot);
-
-      if (userId && this.isUUID(userId) && navigator.onLine) {
-        try {
-          await supabase.from('recommendation_snapshots').insert({
-            user_id: userId,
-            category: snapshot.category,
-            items: snapshot.items,
-            generated_at: new Date(now).toISOString(),
-            expires_at: new Date(now + THREE_DAYS_MS).toISOString(),
-          });
-        } catch (e) {
-          console.warn('[RecommendationEngine] Failed to save snapshot remote:', e);
-        }
-      }
+      return shuffled;
 
       return shuffled;
     } catch (e) {

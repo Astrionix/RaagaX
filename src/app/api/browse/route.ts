@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     // 1. Single batch query to Supabase for all requested playlists
     const { data: cachedPlaylists, error } = await supabaseAdmin
       .from('spotify_playlist_cache')
-      .select('*')
+      .select('playlist_id, playlist_name, data, expires_at')
       .in('playlist_id', playlistIds);
 
     if (error) {
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
 
       if (cached && cached.data && Array.isArray(cached.data) && cached.data.length > 0) {
         const isStale = new Date(cached.expires_at).getTime() < Date.now();
-        const isUndersized = cached.data.length < 50;
+        const isUndersized = cached.data.length < 15;
         total = cached.data.length;
 
         if (isStale || isUndersized) {

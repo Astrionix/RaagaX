@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,12 +8,22 @@ export async function GET(request: Request) {
   const lang = searchParams.get('lang') || 'Telugu';
   const limit = parseInt(searchParams.get('limit') || '100');
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  const supabase = createClient(supabaseUrl, supabaseKey);
-
   try {
-    const { data, error } = await supabase
+    // 1. Fetch from spotify_playlist_cache for aggregated_new_releases (100 songs)
+    const { data: cacheData } = await supabaseAdmin
+      .from('spotify_playlist_cache')
+      .select('data')
+      .eq('playlist_id', 'aggregated_new_releases')
+      .eq('language', lang)
+      .maybeSingle();
+
+    let cachedSongs: any[] = [];
+    if (cacheData && cacheData.data && Array.isArray(cacheData.data)) {
+      cachedSongs = (cacheData.data as any[]).filter(s => s && s.title && !s.title.includes('New Release') && s.artist !== 'Unknown');
+    }
+
+    // 2. Fetch from verified_releases
+    const { data: verifiedData } = await supabaseAdmin
       .from('verified_releases')
       .select('song_metadata')
       .eq('language', lang)
@@ -21,34 +31,31 @@ export async function GET(request: Request) {
       .order('discovered_at', { ascending: false })
       .limit(limit);
 
-    if (!error && data && data.length >= 5) {
-      const songs = data
+    let verifiedSongs: any[] = [];
+    if (verifiedData) {
+      verifiedSongs = verifiedData
         .map(row => row.song_metadata)
         .filter(s => s && s.title && !s.title.includes('New Release') && s.artist !== 'Unknown' && s.artist !== 'Various Artists');
-      if (songs.length >= 5) {
-        return NextResponse.json({
-          success: true,
-          data: songs
-        });
+    }
+
+    // Merge verified & cached songs, deduplicating by ID/Title, prioritizing verified
+    const merged = [...verifiedSongs, ...cachedSongs];
+    const seen = new Set<string>();
+    const finalSongs: any[] = [];
+
+    for (const song of merged) {
+      const key = (song.id || `${song.title}_${song.artist}`).toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        finalSongs.push(song);
       }
     }
 
-    // Check spotify_playlist_cache for aggregated_new_releases (100 songs)
-    const { data: cacheData } = await supabase
-      .from('spotify_playlist_cache')
-      .select('data')
-      .eq('playlist_id', 'aggregated_new_releases')
-      .eq('language', lang)
-      .maybeSingle();
-
-    if (cacheData && cacheData.data && Array.isArray(cacheData.data) && cacheData.data.length > 0) {
-      const validCached = (cacheData.data as any[]).filter(s => s && s.title && !s.title.includes('New Release') && s.artist !== 'Unknown');
-      if (validCached.length > 0) {
-        return NextResponse.json({
-          success: true,
-          data: validCached.slice(0, limit)
-        });
-      }
+    if (finalSongs.length > 0) {
+      return NextResponse.json({
+        success: true,
+        data: finalSongs.slice(0, limit)
+      });
     }
 
     // Fallback to local JSON cache

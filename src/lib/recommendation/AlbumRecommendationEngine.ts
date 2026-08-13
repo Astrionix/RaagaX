@@ -36,31 +36,31 @@ export class AlbumRecommendationEngine {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
   }
 
-  public async getRecommendedAlbums(userId: string, language: string = 'Telugu'): Promise<RecommendedAlbum[]> {
+  public async getRecommendedAlbums(userId: string, languages: string[] | string = ['Telugu', 'Tamil', 'Hindi', 'Kannada', 'Malayalam', 'English']): Promise<RecommendedAlbum[]> {
     const localDb = LocalDatabase.getInstance();
     const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000; // 48 Hours
     const now = Date.now();
-    const cleanLang = LanguageEligibilityEngine.getInstance().normalizeLanguage(language);
+    const langList = typeof languages === 'string' ? [languages] : (languages.length > 0 ? languages : ['Telugu', 'Tamil', 'Hindi', 'Kannada', 'Malayalam', 'English']);
+    const targetCategory = `recommended_albums_${langList.sort().join('_').toLowerCase()}`;
 
-    // 1. Check local 2-day snapshot
+    // 1. Check local 2-day snapshot matching current language profile
     const cached = await localDb.getUserStore<AlbumRecommendationSnapshot>(userId, 'album_recommendation_snapshot');
-    if (cached && cached.expiresAt > now && cached.items && cached.items.length >= 10) {
+    if (cached && cached.expiresAt > now && cached.items && cached.items.length >= 10 && cached.category === targetCategory) {
       return cached.items.slice(0, 10);
     }
 
-    // 2. Fetch fresh candidates using preferred language & user affinity
+    // 2. Fetch fresh candidates across user selected languages & affinity
     try {
       const musicEngine = RealMusicEngine.getInstance();
-      const queries = [
-        `${cleanLang} Movie Albums`,
-        `Top ${cleanLang} Albums`,
-        `Latest ${cleanLang} Albums`,
-        `Hit ${cleanLang} Albums`,
-      ];
+      const queries = langList.flatMap(l => [
+        `Top ${l} Albums`,
+        `Latest ${l} Albums`,
+        `Hit ${l} Albums`,
+      ]);
 
-      // Fetch album search results in parallel
+      // Fetch album search results in parallel across languages
       const searchResults = await Promise.all(
-        queries.map(q => musicEngine.searchRealAlbums(q, 10).catch(() => []))
+        queries.map(q => musicEngine.searchRealAlbums(q, 8).catch(() => []))
       );
 
       const seen = new Set<string>();
@@ -77,7 +77,7 @@ export class AlbumRecommendationEngine {
               coverUrl: item.coverUrl || item.image || '/app-icon.png',
               year: item.year || new Date().getFullYear(),
               trackCount: item.trackCount || 10,
-              language: cleanLang,
+              language: item.language || langList[candidateAlbums.length % langList.length],
             });
           }
         }
@@ -87,7 +87,7 @@ export class AlbumRecommendationEngine {
       const top10 = candidateAlbums.slice(0, 10);
 
       const snapshot: AlbumRecommendationSnapshot = {
-        category: `recommended_albums_${cleanLang.toLowerCase()}`,
+        category: targetCategory,
         items: top10,
         generatedAt: now,
         expiresAt: now + TWO_DAYS_MS,
@@ -95,22 +95,6 @@ export class AlbumRecommendationEngine {
 
       // Save locally
       await localDb.setUserStore(userId, 'album_recommendation_snapshot', snapshot);
-
-      // Persist remote if authenticated
-      if (userId && this.isUUID(userId) && navigator.onLine) {
-        try {
-          await supabase.from('recommendation_snapshots').insert({
-            user_id: userId,
-            category: snapshot.category,
-            items: snapshot.items,
-            generated_at: new Date(now).toISOString(),
-            expires_at: new Date(now + TWO_DAYS_MS).toISOString(),
-          });
-        } catch (e) {
-          console.warn('[AlbumRecommendationEngine] Failed to save remote snapshot:', e);
-        }
-      }
-
       return top10;
     } catch (e) {
       console.warn('[AlbumRecommendationEngine] Error generating album recommendations:', e);
