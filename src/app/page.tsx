@@ -39,6 +39,7 @@ import { ArtistsView } from '@/components/views/ArtistsView';
 import { ProfileView } from '@/components/views/ProfileView';
 import { DownloadsView } from '@/components/views/DownloadsView';
 import { FavoritesView } from '@/components/views/FavoritesView';
+import { SettingsView } from '@/components/views/SettingsView';
 import { SplashScreen } from '@/components/modals/SplashScreen';
 
 import { useDownloadStore } from '@/context/useDownloadStore';
@@ -112,6 +113,7 @@ export default function Page() {
             {activeTab === 'profile' && <ProfileView />}
             {activeTab === 'downloads' && <DownloadsView />}
             {activeTab === 'favorites' && <FavoritesView />}
+            {activeTab === 'settings' && <SettingsView />}
           </main>
 
           {/* Mobile Navigation & Mini Player */}

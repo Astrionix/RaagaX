@@ -226,10 +226,14 @@ export function Sidebar() {
       {/* Bottom Pins: Settings & Profile */}
       <div className="pt-3 border-t border-white/5 space-y-2">
         <button
-          onClick={toggleSettingsModal}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold text-slate-400 hover:bg-white/5 hover:text-white transition-all text-xs"
+          onClick={() => setActiveTab('settings')}
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all text-xs ${
+            activeTab === 'settings'
+              ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30'
+              : 'text-slate-400 hover:bg-white/5 hover:text-white'
+          }`}
         >
-          <Settings className="w-4 h-4 text-slate-400" />
+          <Settings className={`w-4 h-4 ${activeTab === 'settings' ? 'text-white' : 'text-slate-400'}`} />
           <span>Settings</span>
         </button>
 

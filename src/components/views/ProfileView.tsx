@@ -67,7 +67,7 @@ export function ProfileView() {
         </button>
 
         <button
-          onClick={toggleSettingsModal}
+          onClick={() => setActiveTab('settings')}
           className="w-full py-4 px-4 flex items-center justify-between hover:bg-white/5 transition-colors text-left"
         >
           <div className="flex items-center gap-3.5">

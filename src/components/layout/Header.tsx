@@ -53,7 +53,7 @@ export function Header() {
               <LogIn className="w-4 h-4" />
             )}
           </button>
-          <button onClick={toggleSettingsModal} className="p-1.5 text-slate-300 hover:text-white" title="Settings">
+          <button onClick={() => setActiveTab('settings')} className="p-1.5 text-slate-300 hover:text-white" title="Settings">
             <Settings className="w-4 h-4" />
           </button>
         </div>
