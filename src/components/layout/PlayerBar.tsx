@@ -68,16 +68,16 @@ export function PlayerBar() {
   };
 
   return (
-    <div className="hidden md:flex fixed bottom-0 left-0 right-0 z-40 h-20 bg-[#0c0d12]/95 backdrop-blur-2xl border-t border-white/10 px-6 items-center justify-between text-white select-none shadow-2xl">
+    <div className="hidden md:flex fixed bottom-0 left-0 right-0 z-40 h-20 bg-[#090a0f]/90 backdrop-blur-3xl border-t border-white/10 px-6 items-center justify-between text-white select-none shadow-[0_-10px_35px_rgba(0,0,0,0.6)]">
       {/* Left: Active Song Info */}
       <div className="flex items-center gap-3.5 w-72 flex-shrink-0">
         {currentSong ? (
           <>
             <div
               onClick={togglePlayerExpanded}
-              className="relative w-12 h-12 rounded-xl overflow-hidden shadow-lg border border-white/10 cursor-pointer group flex-shrink-0"
+              className="relative w-12 h-12 rounded-xl overflow-hidden shadow-[0_4px_16px_rgba(0,0,0,0.5)] border border-white/10 cursor-pointer group flex-shrink-0"
             >
-              <img src={currentSong.coverUrl || '/app-icon.png'} alt={currentSong.title} onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+              <img src={currentSong.coverUrl || '/app-icon.png'} alt={currentSong.title} onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <Maximize2 className="w-4 h-4 text-white" />
               </div>
@@ -86,19 +86,19 @@ export function PlayerBar() {
             <div className="overflow-hidden text-left min-w-0 flex-1">
               <h4
                 onClick={togglePlayerExpanded}
-                className="text-xs font-black text-white truncate hover:text-[#fa233b] cursor-pointer transition-colors leading-tight"
+                className="text-xs font-black text-white truncate hover:text-[#fa233b] cursor-pointer transition-colors leading-tight tracking-tight"
               >
                 {currentSong.title}
               </h4>
               <p className="text-[11px] text-slate-400 truncate leading-tight mt-0.5 font-medium">{currentSong.artist}</p>
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-[8px] font-mono bg-[#fa233b]/20 text-[#fa233b] px-1.5 py-0.5 rounded font-bold border border-[#fa233b]/30">
+                <span className="text-[8px] font-mono bg-[#fa233b]/20 text-[#fa233b] px-1.5 py-0.5 rounded-full font-bold border border-[#fa233b]/30">
                   {currentSong.audioQuality || '320kbps MP3'}
                 </span>
-                <button onClick={() => toggleLikeSong(currentSong.id)} title="Like Song" className="p-0.5 text-slate-400 hover:text-[#fa233b]">
+                <button onClick={() => toggleLikeSong(currentSong.id)} title="Like Song" className="p-0.5 text-slate-400 hover:text-[#fa233b] transition-transform hover:scale-110">
                   <Heart className={`w-3.5 h-3.5 ${isLiked ? 'text-[#fa233b] fill-[#fa233b]' : ''}`} />
                 </button>
-                <button onClick={() => toggleDownloadSong(currentSong.id)} title="Download Offline" className="p-0.5 text-slate-400 hover:text-emerald-400">
+                <button onClick={() => toggleDownloadSong(currentSong.id)} title="Download Offline" className="p-0.5 text-slate-400 hover:text-emerald-400 transition-transform hover:scale-110">
                   <Download className={`w-3.5 h-3.5 ${isDownloaded ? 'text-emerald-400' : ''}`} />
                 </button>
               </div>
@@ -106,7 +106,7 @@ export function PlayerBar() {
           </>
         ) : (
           <div className="flex items-center gap-2.5 text-slate-400 text-xs font-bold">
-            <Disc3 className="w-4 h-4 text-[#fa233b]" /> Select a track to play
+            <Disc3 className="w-4 h-4 text-[#fa233b] animate-spin" style={{ animationDuration: '8s' }} /> Select a track to play
           </div>
         )}
       </div>
@@ -116,8 +116,8 @@ export function PlayerBar() {
         <div className="flex items-center gap-4">
           <button
             onClick={toggleShuffle}
-            className={`p-1 rounded-lg transition-colors relative ${
-              shuffleMode !== 'OFF' ? 'text-[#fa233b]' : 'text-slate-400 hover:text-white'
+            className={`p-1.5 rounded-lg transition-all ${
+              shuffleMode !== 'OFF' ? 'text-[#fa233b] bg-[#fa233b]/10' : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
             title={`Shuffle: ${shuffleMode}`}
           >
@@ -130,24 +130,24 @@ export function PlayerBar() {
               <Shuffle className="w-4 h-4" />
             )}
           </button>
-          <button onClick={playPrev} className="p-1 text-slate-300 hover:text-white transition-colors">
+          <button onClick={playPrev} className="p-1.5 text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition-all active:scale-90">
             <SkipBack className="w-4 h-4 fill-current" />
           </button>
 
           <button
             onClick={togglePlayPause}
-            className="w-9 h-9 rounded-full bg-[#fa233b] text-white flex items-center justify-center shadow-lg shadow-red-500/30 hover:scale-105 transition-transform"
+            className="w-10 h-10 rounded-full red-glow-btn text-white flex items-center justify-center cursor-pointer active:scale-95"
           >
             {isPlaying ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white ml-0.5" />}
           </button>
 
-          <button onClick={playNext} className="p-1 text-slate-300 hover:text-white transition-colors">
+          <button onClick={playNext} className="p-1.5 text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition-all active:scale-90">
             <SkipForward className="w-4 h-4 fill-current" />
           </button>
           <button
             onClick={cycleRepeatMode}
-            className={`p-1 rounded-lg transition-colors ${
-              repeatMode !== 'off' ? 'text-[#fa233b]' : 'text-slate-400 hover:text-white'
+            className={`p-1.5 rounded-lg transition-all ${
+              repeatMode !== 'off' ? 'text-[#fa233b] bg-[#fa233b]/10' : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
             title={`Repeat: ${repeatMode}`}
           >
@@ -158,7 +158,7 @@ export function PlayerBar() {
         {/* Timeline Bar */}
         {currentSong && (
           <div className="w-full flex items-center gap-3 max-w-md">
-            <span className="text-[10px] font-mono text-slate-400 font-semibold min-w-[32px] text-right">{formatTime(currentTime)}</span>
+            <span className="text-[10px] font-mono text-slate-400 font-bold min-w-[32px] text-right">{formatTime(currentTime)}</span>
             <input
               type="range"
               min={0}
@@ -166,9 +166,9 @@ export function PlayerBar() {
               step={0.1}
               value={currentTime}
               onChange={handleSeek}
-              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-[#fa233b] hover:h-1.5 transition-all"
+              className="w-full h-1 bg-white/15 rounded-full appearance-none cursor-pointer accent-[#fa233b] hover:h-1.5 transition-all"
             />
-            <span className="text-[10px] font-mono text-slate-400 font-semibold min-w-[32px]">{formatTime(duration)}</span>
+            <span className="text-[10px] font-mono text-slate-400 font-bold min-w-[32px]">{formatTime(duration)}</span>
           </div>
         )}
       </div>

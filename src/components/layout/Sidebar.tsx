@@ -52,16 +52,16 @@ export function Sidebar() {
   ];
 
   return (
-    <aside className="hidden md:flex fixed left-0 top-0 bottom-20 z-30 w-64 p-4 pb-6 flex-col justify-between select-none bg-[#0a0c12] border-r border-white/5 text-white text-xs">
+    <aside className="hidden md:flex fixed left-0 top-0 bottom-20 z-30 w-64 p-4 pb-6 flex-col justify-between select-none bg-[#07080d]/90 backdrop-blur-3xl border-r border-white/5 text-white text-xs">
       <div className="space-y-5 overflow-y-auto no-scrollbar pr-1">
         {/* Brand Header */}
         <div className="flex items-center gap-2.5 px-2 pt-1 pb-2">
-          <div className="w-8 h-8 rounded-xl bg-[#fa233b] flex items-center justify-center shadow-lg shadow-red-500/20">
-            <Disc3 className="w-4 h-4 text-white animate-spin" style={{ animationDuration: '10s' }} />
+          <div className="w-8 h-8 rounded-xl red-glow-btn flex items-center justify-center shadow-[0_4px_16px_rgba(250,35,59,0.4)]">
+            <Disc3 className="w-4 h-4 text-white animate-spin" style={{ animationDuration: '8s' }} />
           </div>
           <div>
             <h1 className="text-base font-black tracking-wider text-white">RAAGAX</h1>
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">Studio Edition</p>
+            <p className="text-[9px] font-bold text-[#fa233b] uppercase tracking-widest leading-none">Studio Edition</p>
           </div>
         </div>
 
@@ -78,7 +78,7 @@ export function Sidebar() {
               }
             }}
             placeholder="Search music..."
-            className="w-full pl-9 pr-3 py-2 rounded-xl bg-white/5 text-xs text-white placeholder:text-slate-500 border border-white/5 focus:border-[#fa233b] focus:bg-black/40 focus:outline-none transition-all font-medium"
+            className="w-full pl-9 pr-3 py-2 rounded-xl bg-white/5 text-xs text-white placeholder:text-slate-500 border border-white/10 focus:border-[#fa233b] focus:bg-black/50 focus:outline-none transition-all font-medium"
           />
         </div>
 
@@ -86,8 +86,8 @@ export function Sidebar() {
         <div className="space-y-1">
           <button
             onClick={() => setActiveTab('home')}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold transition-all ${
-              activeTab === 'home' ? 'bg-[#fa233b] text-white shadow-lg shadow-red-500/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold transition-all ${
+              activeTab === 'home' ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30' : 'text-slate-400 hover:bg-white/5 hover:text-white'
             }`}
           >
             <Home className="w-4 h-4" />
@@ -96,8 +96,8 @@ export function Sidebar() {
 
           <button
             onClick={() => setActiveTab('browse')}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold transition-all ${
-              activeTab === 'browse' ? 'bg-[#fa233b] text-white shadow-lg shadow-red-500/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold transition-all ${
+              activeTab === 'browse' ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30' : 'text-slate-400 hover:bg-white/5 hover:text-white'
             }`}
           >
             <Compass className="w-4 h-4" />
@@ -106,8 +106,8 @@ export function Sidebar() {
 
           <button
             onClick={() => setActiveTab('search')}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold transition-all ${
-              activeTab === 'search' ? 'bg-[#fa233b] text-white shadow-lg shadow-red-500/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold transition-all ${
+              activeTab === 'search' ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30' : 'text-slate-400 hover:bg-white/5 hover:text-white'
             }`}
           >
             <Search className="w-4 h-4" />

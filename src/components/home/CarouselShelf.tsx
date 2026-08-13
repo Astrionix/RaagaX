@@ -322,28 +322,28 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
               key={`${item.id}-${index}`}
               ref={isSentinel ? sentinelRef : null}
               onClick={() => handleItemClick(item)}
-              className={`group glass-card p-4 rounded-xl hover:bg-white/5 transition-colors cursor-pointer w-full`}
+              className="group premium-card p-3.5 rounded-2xl cursor-pointer w-full"
             >
-              <div className="relative w-full aspect-square mb-3 shadow-lg rounded-md overflow-hidden bg-slate-800">
+              <div className="relative w-full aspect-square mb-3 shadow-[0_8px_24px_rgba(0,0,0,0.4)] rounded-xl overflow-hidden bg-slate-800/80">
                 <img
                   src={item.imageUrl ? item.imageUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500') : '/app-icon.png'}
                   alt={item.title}
                   onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                  className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 ${
-                    item.type === 'artist' ? 'rounded-full' : 'rounded-md'
+                  className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-108 ${
+                    item.type === 'artist' ? 'rounded-full' : 'rounded-xl'
                   }`}
                 />
-                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 <button 
                   onClick={(e) => handleQuickPlay(e, item)}
-                  className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-[#fa233b] flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-transform opacity-0 group-hover:opacity-100"
+                  className="absolute bottom-2.5 right-2.5 w-10 h-10 rounded-full red-glow-btn text-white flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 group-hover:translate-y-0 translate-y-2 transition-all duration-300 active:scale-90"
                 >
                   <Play className="w-4 h-4 fill-white text-white ml-0.5" />
                 </button>
               </div>
-              <h3 className="font-bold text-sm text-white truncate">{item.title}</h3>
+              <h3 className="font-bold text-xs text-white truncate leading-tight group-hover:text-[#fa233b] transition-colors">{item.title}</h3>
               {item.subtitle && item.subtitle !== 'Unknown' && (
-                <p className="text-xs text-slate-400 mt-1 line-clamp-2">{item.subtitle}</p>
+                <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-tight font-medium">{item.subtitle}</p>
               )}
             </div>
           );
