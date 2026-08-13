@@ -7,13 +7,17 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // Allow 5 minutes on Vercel Pro if available
 
 export async function GET(request: Request) {
-  // To prevent unauthorized triggering, in production you'd check a secret header
-  // e.g. const authHeader = request.headers.get('authorization');
+  const authHeader = request.headers.get('authorization');
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}` && process.env.NODE_ENV === 'production') {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  const workerId = `worker_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   
   try {
-    const jobs = await DiscoveryQueue.claimJobs(2); // Claim up to 2 jobs at a time to prevent timeout
+    const jobs = await DiscoveryQueue.claimJobs(10, workerId); // High-throughput batch processing
     if (jobs.length === 0) {
-      return NextResponse.json({ success: true, message: 'No pending jobs' });
+      return NextResponse.json({ success: true, message: 'No pending jobs', processed: 0 });
     }
 
     const host = request.headers.get('host') || 'localhost:3001';

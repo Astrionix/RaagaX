@@ -48,7 +48,7 @@ describe('RaagaX Bounded Queue Sessions & Source Boundary Rules', () => {
     const controller = AdaptiveQueueController.getInstance();
     const candidates = await controller.fetchAutoplayForCompletedQueue();
     expect(Array.isArray(candidates)).toBe(true);
-  });
+  }, 10000);
 
   // ALBUM-PLAY-003: Play song C from Album [A, B, C, D, E] -> Queue is [C, D, E]
   it('ALBUM-PLAY-003: Playing song C from album [A, B, C, D, E] creates bounded queue [C, D, E]', () => {

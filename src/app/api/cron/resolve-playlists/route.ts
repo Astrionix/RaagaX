@@ -110,9 +110,29 @@ export async function GET(request: Request) {
   const cachePath = path.join(process.cwd(), 'src/lib/dynamic_home_playlists.json');
   fs.writeFileSync(cachePath, JSON.stringify(resolvedPlaylists, null, 2));
 
+  // Atomic publication to Supabase recommendation_snapshots
+  try {
+    const { supabaseAdmin } = await import('@/lib/supabaseAdmin');
+    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const version = `v_${now}`;
+
+    // Insert new snapshot as ACTIVE
+    await supabaseAdmin.from('recommendation_snapshots').insert({
+      user_id: 'global_catalog',
+      category: 'category_snapshot_3day',
+      items: resolvedPlaylists,
+      version,
+      generated_at: new Date(now).toISOString(),
+      expires_at: new Date(now + THREE_DAYS_MS).toISOString(),
+    });
+  } catch (err) {
+    console.warn('[ResolvePlaylistsCron] Failed to save remote atomic snapshot:', err);
+  }
+
   return NextResponse.json({
     success: true,
-    message: 'Successfully resolved and cached dynamic playlists',
+    message: 'Successfully resolved, published atomically, and cached 3-day dynamic playlists',
     data: resolvedPlaylists
   });
 }

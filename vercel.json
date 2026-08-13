@@ -2,6 +2,22 @@
   "framework": "nextjs",
   "crons": [
     {
+      "path": "/api/cron/resolve-playlists",
+      "schedule": "0 4 */3 * *"
+    },
+    {
+      "path": "/api/cron/youtube-discovery",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/prewarm",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup",
+      "schedule": "0 3 * * *"
+    },
+    {
       "path": "/api/cron/discovery",
       "schedule": "0 4 * * 1"
     }

@@ -93,16 +93,27 @@ export async function GET(request: Request) {
             const langFiltered = engine.provider.filterByLanguage(searchResults, lang as any);
             const candidates = langFiltered.length > 0 ? langFiltered : searchResults;
             
-            // Find the best playable match
-            const validMatch = candidates.find(s => s.audioUrl && s.audioUrl.length > 0);
+            // Find the best playable match with title confidence matching
+            const validMatch = candidates.find(s => {
+              if (!s.audioUrl || s.audioUrl.length === 0) return false;
+              // Compute simple title overlap confidence score
+              const sTitle = s.title.toLowerCase();
+              const cTitle = cleanTitle.toLowerCase();
+              const overlap = cTitle.split(' ').filter(w => w.length > 2 && sTitle.includes(w)).length;
+              const totalWords = cTitle.split(' ').filter(w => w.length > 2).length;
+              const confidenceScore = totalWords > 0 ? (overlap / totalWords) * 100 : 100;
+              return confidenceScore >= 60; // Must satisfy minimum 60%+ confidence threshold
+            }) || candidates.find(s => s.audioUrl && s.audioUrl.length > 0);
             
             if (validMatch) {
+              const videoId = (item as any).id || (item as any).guid || cleanTitle;
               const canonical = {
                 ...validMatch,
                 type: 'song',
                 language: lang,
                 playable: true,
                 candidateSource: 'youtube_rss',
+                externalSourceId: `youtube_${videoId}`,
                 youtube_published_at: pubDate.toISOString(),
                 official_release_date: pubDate.toISOString()
               };
