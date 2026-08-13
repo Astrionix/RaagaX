@@ -116,36 +116,71 @@ export class DeviceRegistry {
     
     const authRes = await supabase.auth.getSession();
     const session = authRes?.data?.session;
-    if (!session?.user) return;
+    let userId = session?.user?.id;
+    if (!userId) {
+      userId = typeof window !== 'undefined' ? (localStorage.getItem('raagax_session_id') || 'guest_default') : 'guest_default';
+    }
+
+    let targetUserId = userId;
+    if (!this.isUUID(userId)) {
+      let hash = 0;
+      for (let i = 0; i < userId.length; i++) {
+        hash = ((hash << 5) - hash) + userId.charCodeAt(i);
+        hash |= 0;
+      }
+      const hex = Math.abs(hash).toString(16).padStart(12, '0').slice(0, 12);
+      targetUserId = `00000000-0000-4000-8000-${hex}`;
+    }
 
     const friendly = this.getFriendlyDeviceName();
     const name = customName || friendly.name;
 
-    try {
-      await supabase.from('devices').upsert({
-        user_id: session.user.id,
-        device_id: deviceId,
-        instance_id: instanceId,
-        device_name: name,
-        device_type: friendly.type,
-        platform: friendly.platform,
-        is_online: true,
-        capabilities: {
-          audio: true,
-          video: friendly.type === 'desktop' || friendly.type === 'tv',
-          seek: true,
-          volume: true,
-          remoteControl: true,
-          backgroundPlayback: friendly.type === 'mobile'
-        },
-        last_seen: new Date().toISOString()
-      }, { onConflict: 'device_id' });
-      
-      this.startAdaptiveHeartbeat();
-      await this.fetchAndPublishOnlineDevices(session.user.id);
-    } catch (e) {
-      console.warn('[DeviceRegistry] Failed to register device:', e);
+    const deviceRecord: DeviceRecord = {
+      id: deviceId,
+      name,
+      type: friendly.type,
+      platform: friendly.platform,
+      isOnline: true,
+      lastSeen: new Date().toISOString(),
+      capabilities: {
+        audio: true,
+        video: friendly.type === 'desktop' || friendly.type === 'tv',
+        seek: true,
+        volume: true,
+        remoteControl: true,
+        backgroundPlayback: friendly.type === 'mobile'
+      }
+    };
+
+    if (session?.user) {
+      try {
+        await supabase.from('devices').upsert({
+          user_id: session.user.id,
+          device_id: deviceId,
+          instance_id: instanceId,
+          device_name: name,
+          device_type: friendly.type,
+          platform: friendly.platform,
+          is_online: true,
+          capabilities: deviceRecord.capabilities,
+          last_seen: deviceRecord.lastSeen
+        }, { onConflict: 'device_id' });
+      } catch (e) {
+        // Suppress 401 or network errors for guest sessions
+      }
     }
+
+    // Always populate local store device list
+    const currentOnline = store.onlineDevices || [];
+    if (!currentOnline.some((d: any) => d.id === deviceId)) {
+      usePlayerStore.getState().setOnlineDevices([
+        ...currentOnline,
+        { id: deviceId, name }
+      ]);
+    }
+
+    this.startAdaptiveHeartbeat();
+    await this.fetchAndPublishOnlineDevices(userId);
   }
 
   /**
@@ -190,16 +225,55 @@ export class DeviceRegistry {
    * Updates Zustand store onlineDevices state.
    */
   public async fetchAndPublishOnlineDevices(userId: string): Promise<DeviceRecord[]> {
-    if (!userId || !this.isUUID(userId)) return [];
+    if (!userId) return [];
+    
+    // Ensure userId is valid UUID format for DB query; map non-UUID guest IDs to stable room UUID
+    let targetUserId = userId;
+    if (!this.isUUID(userId)) {
+      let hash = 0;
+      for (let i = 0; i < userId.length; i++) {
+        hash = ((hash << 5) - hash) + userId.charCodeAt(i);
+        hash |= 0;
+      }
+      const hex = Math.abs(hash).toString(16).padStart(12, '0').slice(0, 12);
+      targetUserId = `00000000-0000-4000-8000-${hex}`;
+    }
+
+    const authRes = await supabase.auth.getSession();
+    const session = authRes?.data?.session;
+    if (!session?.user) {
+      // For unauthenticated guest users, return existing in-memory store devices to avoid 401 REST errors
+      const storeDevices = usePlayerStore.getState().onlineDevices || [];
+      return storeDevices.map(d => ({
+        id: d.id,
+        name: d.name,
+        type: 'desktop',
+        platform: 'Web',
+        isOnline: true,
+        lastSeen: new Date().toISOString(),
+        capabilities: { audio: true, video: false, seek: true, volume: true, remoteControl: true, backgroundPlayback: false }
+      }));
+    }
 
     try {
       const { data, error } = await supabase
         .from('devices')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', session.user.id)
         .eq('is_online', true);
 
-      if (error || !data) return [];
+      if (error || !data) {
+        const storeDevices = usePlayerStore.getState().onlineDevices || [];
+        return storeDevices.map(d => ({
+          id: d.id,
+          name: d.name,
+          type: 'desktop',
+          platform: 'Web',
+          isOnline: true,
+          lastSeen: new Date().toISOString(),
+          capabilities: { audio: true, video: false, seek: true, volume: true, remoteControl: true, backgroundPlayback: false }
+        }));
+      }
 
       const now = Date.now();
       const STALE_THRESHOLD_MS = 30000;

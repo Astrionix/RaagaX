@@ -61,6 +61,11 @@ export const useAuthStore = create<AuthState>((set) => ({
       usePlayerStore.getState().setIsPlaying(false, true);
     } catch {}
 
+    try {
+      const { LocalDatabase } = await import('@/lib/localDatabase');
+      await LocalDatabase.getInstance().clearPlaybackSession();
+    } catch {}
+
     await supabase.auth.signOut();
     set({ user: null, session: null });
     // Clear cross-device sync local storage fallbacks if they exist

@@ -316,7 +316,7 @@ export const usePlayerStore = create<PlayerState>()(
     const command = bus.createCommand(type, payload, origin);
     const result = await bus.executeCommand(command);
 
-    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    const manager = QueueManager.getInstance();
     const newRestrictions = manager.getRestrictions();
     const newSnapshot = manager.getSnapshot();
     set({
@@ -347,7 +347,7 @@ export const usePlayerStore = create<PlayerState>()(
   },
 
   restoreLocalSession: async () => {
-    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    const manager = QueueManager.getInstance();
     const { RaagaXNativePlayer } = await import('@/lib/playback/native/RaagaXNativePlayer');
 
     // Case 1 & 2: Native playback service is already active in background
@@ -372,6 +372,14 @@ export const usePlayerStore = create<PlayerState>()(
     // Case 3: Cold boot / App killed — PASSIVE restoration (isPlaying = false, DO NOT AUTOPLAY)
     const session = await LocalDatabase.getInstance().loadPlaybackSession();
     if (session && session.currentSong) {
+      const now = Date.now();
+      const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+      if (session.timestamp && (now - session.timestamp > MAX_AGE_MS)) {
+        console.log('[usePlayerStore] Discarded stale playback session (>24h old).');
+        await LocalDatabase.getInstance().clearPlaybackSession();
+        return;
+      }
+
       const { isKidsOrNurseryTrack } = await import('@/lib/jioSaavnProvider');
       const cleanQueue = (session.queue || []).filter(s => s && !isKidsOrNurseryTrack(s));
       const isCurrentClean = !isKidsOrNurseryTrack(session.currentSong);
@@ -431,7 +439,7 @@ export const usePlayerStore = create<PlayerState>()(
       });
       
       const firstSong = collectionResult.songs[0];
-      const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+      const manager = QueueManager.getInstance();
       manager.replaceQueue(collectionResult.songs, 0);
 
       // Play first song
@@ -440,7 +448,7 @@ export const usePlayerStore = create<PlayerState>()(
   },
 
   commitPlaybackTransition: (song: Song, queueIndex?: number, updatedQueue?: Song[]) => {
-    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    const manager = QueueManager.getInstance();
     const snapshot = manager.getSnapshot();
     const currentItem = manager.getCurrentItem();
     const targetSong = song || (currentItem ? currentItem.song : null);
@@ -511,7 +519,13 @@ export const usePlayerStore = create<PlayerState>()(
       });
     } else {
       import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-        ConnectManager.getInstance().dispatchPlaybackCommand('PLAY', { trackId: song.id, positionMs: 0 });
+        ConnectManager.getInstance().dispatchPlaybackCommand('PLAY', {
+          trackId: song.id,
+          songData: song,
+          queue: syncedQueue,
+          queueIndex: syncedIndex,
+          positionMs: 0
+        });
       });
     }
   },
@@ -524,7 +538,7 @@ export const usePlayerStore = create<PlayerState>()(
     // Truly randomize full sequence so starting song is never forced to track 1
     const shuffledSongs = [...songs].sort(() => Math.random() - 0.5);
 
-    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    const manager = QueueManager.getInstance();
     manager.replaceQueue(shuffledSongs, 0, 'PLAYLIST', context);
 
     const snapshot = manager.getSnapshot();
@@ -549,6 +563,16 @@ export const usePlayerStore = create<PlayerState>()(
           } else {
             await service.playTrack(firstSong, true);
           }
+        });
+      });
+    } else {
+      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+        ConnectManager.getInstance().dispatchPlaybackCommand('PLAY', {
+          trackId: firstSong.id,
+          songData: firstSong,
+          queue: syncedQueue,
+          queueIndex: 0,
+          positionMs: 0
         });
       });
     }
@@ -638,7 +662,7 @@ export const usePlayerStore = create<PlayerState>()(
       return;
     }
 
-    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    const manager = QueueManager.getInstance();
     const nextItem = manager.getNext(false);
     
     if (nextItem && nextItem.song) {
@@ -681,7 +705,7 @@ export const usePlayerStore = create<PlayerState>()(
       return;
     }
 
-    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    const manager = QueueManager.getInstance();
     const prevItem = manager.getPrevious();
 
     if (prevItem && prevItem.song) {
@@ -702,7 +726,7 @@ export const usePlayerStore = create<PlayerState>()(
   },
 
   toggleShuffle: async () => {
-    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    const manager = QueueManager.getInstance();
     await manager.toggleShuffle();
     const snapshot = manager.getSnapshot();
     const syncedQueue = snapshot.items.map((i: any) => i.song);
@@ -720,16 +744,16 @@ export const usePlayerStore = create<PlayerState>()(
       PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
     });
   },
-  setRepeatMode: (mode) => require('@/lib/queue/QueueManager').QueueManager.getInstance().setRepeatMode(mode),
+  setRepeatMode: (mode) => QueueManager.getInstance().setRepeatMode(mode as any),
   cycleRepeatMode: () => {
     const modes: import('@/lib/queue/types').RepeatMode[] = ['OFF', 'CONTEXT', 'TRACK'];
-    const current = require('@/lib/queue/QueueManager').QueueManager.getInstance().getRepeatMode();
+    const current = QueueManager.getInstance().getRepeatMode();
     const nextIdx = (modes.indexOf(current) + 1) % modes.length;
-    require('@/lib/queue/QueueManager').QueueManager.getInstance().setRepeatMode(modes[nextIdx]);
+    QueueManager.getInstance().setRepeatMode(modes[nextIdx]);
   },
 
   addToQueue: (song) => {
-    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    const manager = QueueManager.getInstance();
     manager.addToQueue(song);
     const snapshot = manager.getSnapshot();
     const syncedQueue = snapshot.items.map((i: any) => i.song);
@@ -741,7 +765,7 @@ export const usePlayerStore = create<PlayerState>()(
     });
   },
   playNextInQueue: (song) => {
-    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    const manager = QueueManager.getInstance();
     manager.playNext(song);
     const snapshot = manager.getSnapshot();
     const syncedQueue = snapshot.items.map((i: any) => i.song);
@@ -753,7 +777,7 @@ export const usePlayerStore = create<PlayerState>()(
     });
   },
   playLastInQueue: (song) => {
-    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    const manager = QueueManager.getInstance();
     manager.addToQueue(song);
     const snapshot = manager.getSnapshot();
     const syncedQueue = snapshot.items.map((i: any) => i.song);
@@ -765,7 +789,7 @@ export const usePlayerStore = create<PlayerState>()(
     });
   },
   removeFromQueue: (songId) => {
-    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    const manager = QueueManager.getInstance();
     const items = manager.getAllItems();
     const target = items.find((i: any) => i.trackId === songId);
     if (target) {
@@ -781,7 +805,7 @@ export const usePlayerStore = create<PlayerState>()(
     }
   },
   reorderQueue: (newQueue) => {
-    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    const manager = QueueManager.getInstance();
     manager.replaceQueue(newQueue, get().queueIndex, 'USER');
     set({ queue: newQueue });
 
@@ -799,7 +823,9 @@ export const usePlayerStore = create<PlayerState>()(
       if (!session?.session?.user) return;
       const userId = session.session.user.id;
 
-      // Note: Liked songs are now synced via LibrarySyncManager.reconcile()
+      // Reconcile cloud likes with LibrarySyncManager
+      const { LibrarySyncManager } = await import('@/lib/sync/LibrarySyncManager');
+      await LibrarySyncManager.getInstance().reconcile();
       
       // 1. Fetch User Favorites (Artists/Albums)
       const { data: favData } = await supabase
@@ -845,6 +871,15 @@ export const usePlayerStore = create<PlayerState>()(
         : (targetSong ? [targetSong, ...state.likedSongs.filter((s) => s.id !== songId)] : state.likedSongs);
 
       return { likedSongIds: newLikedIds, likedSongs: newLikedSongs };
+    });
+
+    // Delegate to LibrarySyncManager for mutation queue, revision increment, and realtime broadcast
+    import('@/lib/sync/LibrarySyncManager').then(({ LibrarySyncManager }) => {
+      if (isLiked) {
+        LibrarySyncManager.getInstance().unlikeSong(songId);
+      } else {
+        LibrarySyncManager.getInstance().likeSong(songId);
+      }
     });
 
     // Delegate to AccountSyncEngine & UserBehaviorTracker with authenticated user ID

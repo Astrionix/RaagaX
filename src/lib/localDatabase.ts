@@ -12,6 +12,8 @@ export interface PlaybackSessionCache {
   likedSongIds?: string[];
   searchHistory: string[];
   preferredLanguage?: string;
+  userId?: string;
+  timestamp?: number;
 }
 
 export class LocalDatabase {
@@ -63,7 +65,7 @@ export class LocalDatabase {
           db.createObjectStore('playlist_items', { keyPath: 'id' });
         }
         if (!db.objectStoreNames.contains('sync_operations')) {
-          db.createObjectStore('sync_operations', { keyPath: 'operationId' });
+          db.createObjectStore('sync_operations', { keyPath: 'id' });
         }
       };
 
@@ -87,7 +89,10 @@ export class LocalDatabase {
       const db = await this.dbPromise;
       const tx = db.transaction('session', 'readwrite');
       const store = tx.objectStore('session');
-      store.put(session, 'latest_session');
+      store.put({
+        ...session,
+        timestamp: session.timestamp || Date.now()
+      }, 'latest_session');
     } catch (e) {
       console.warn('Could not save playback session to IndexedDB:', e);
     }
@@ -109,6 +114,21 @@ export class LocalDatabase {
       });
     } catch (e) {
       return null;
+    }
+  }
+
+  /**
+   * Clear playback session on logout to enforce strict account isolation
+   */
+  public async clearPlaybackSession(): Promise<void> {
+    if (!this.dbPromise) return;
+    try {
+      const db = await this.dbPromise;
+      const tx = db.transaction('session', 'readwrite');
+      const store = tx.objectStore('session');
+      store.delete('latest_session');
+    } catch (e) {
+      console.warn('Could not clear playback session from IndexedDB:', e);
     }
   }
 

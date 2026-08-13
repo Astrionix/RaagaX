@@ -5,6 +5,10 @@ import { CommandBus } from './CommandBus';
 import { NetworkManager } from '../offline/NetworkManager';
 import { DeviceRegistry } from './DeviceRegistry';
 import { SessionReconciler } from './SessionReconciler';
+import { CommandValidator } from './CommandValidator';
+import { CommandSequencer } from './CommandSequencer';
+import { ClockSynchronizer } from './ClockSynchronizer';
+import { usePlayerStore } from '@/context/usePlayerStore';
 
 export class ConnectManager {
   private static instance: ConnectManager;
@@ -55,6 +59,7 @@ export class ConnectManager {
     const sessionId = await DeviceRegistry.getInstance().createOrJoinSession(userId);
     if (!sessionId) {
       console.error('[ConnectManager] Could not create/join playback session.');
+      this.transitionState('READY');
       return;
     }
     this.sessionId = sessionId;
@@ -73,11 +78,12 @@ export class ConnectManager {
     this.subscribeSession(sessionId);
 
     // 5. Init downstream managers
-    const { CommandBus } = await import('./CommandBus');
     CommandBus.getInstance().init(deviceId, sessionId);
     
     const { PlaybackSessionManager } = await import('../sync/PlaybackSessionManager');
     PlaybackSessionManager.getInstance().init(sessionId);
+
+    this.transitionState('READY');
   }
 
   private transitionState(newState: ConnectState) {
@@ -98,42 +104,36 @@ export class ConnectManager {
     return this.sessionId;
   }
 
-  private handleNetworkOffline() {
-    if (this.currentState !== 'OFFLINE') {
-      this.transitionState('OFFLINE');
+  public async handleNetworkOnline() {
+    console.log('[ConnectManager] Network online — restoring subscriptions...');
+    if (this.sessionId) {
+      this.subscribeSession(this.sessionId);
+    } else if (this.userId && this.deviceId) {
+      await this.init(this.userId, this.deviceId);
     }
   }
 
-  private handleNetworkOnline() {
-    if (this.currentState === 'OFFLINE' && this.userId) {
-      this.transitionState('CONNECTING');
-      this.subscribeInbox();
-      if (this.sessionId) {
-        this.subscribeSession(this.sessionId);
-      }
-    }
+  public handleNetworkOffline() {
+    console.log('[ConnectManager] Network offline — suspending real-time connections...');
+    this.transitionState('OFFLINE');
   }
 
-  private async initiateRecovery() {
-    if (!this.sessionId || !this.userId) return;
-
+  public async initiateRecovery() {
     try {
       console.log('[ConnectManager] Initiating session recovery...');
       // 1. Fetch authoritative snapshot from DB
-      const snapshot = await SessionReconciler.getInstance().fetchAuthoritativeSnapshot(this.sessionId);
-      
-      if (snapshot) {
-        // 2. Apply snapshot to local player
-        await SessionReconciler.getInstance().applySnapshot(snapshot);
+      if (this.sessionId) {
+        const snapshot = await SessionReconciler.getInstance().fetchAuthoritativeSnapshot(this.sessionId);
+        if (snapshot) {
+          await SessionReconciler.getInstance().applySnapshot(snapshot);
+        }
       }
       
       this.transitionState('READY');
       this.processRecoveryQueue();
     } catch (e) {
       console.error('[ConnectManager] Recovery failed, retrying...', e);
-      setTimeout(() => {
-        if (this.currentState === 'RECOVERING') this.initiateRecovery();
-      }, 5000);
+      this.transitionState('READY');
     }
   }
 
@@ -142,7 +142,7 @@ export class ConnectManager {
     const toProcess = [...this.recoveryQueue];
     this.recoveryQueue = [];
     
-    const validator = require('./CommandValidator').CommandValidator.getInstance();
+    const validator = CommandValidator.getInstance();
     for (const cmd of toProcess) {
       if (validator.validate(cmd)) {
         CommandBus.getInstance().handleIncomingCommand(cmd);
@@ -277,9 +277,9 @@ export class ConnectManager {
       return;
     }
     
-    const store = require('@/context/usePlayerStore').usePlayerStore.getState();
-    const sequencer = require('./CommandSequencer').CommandSequencer.getInstance();
-    const clock = require('./ClockSynchronizer').ClockSynchronizer.getInstance();
+    const store = usePlayerStore.getState();
+    const sequencer = CommandSequencer.getInstance();
+    const clock = ClockSynchronizer.getInstance();
     
     const command: ConnectCommand = {
       commandId: crypto.randomUUID(),

@@ -47,7 +47,6 @@ export class AccountSyncEngine {
   public async getLikedSongIds(userId: string): Promise<string[]> {
     const localDb = LocalDatabase.getInstance();
     const cached = await localDb.getUserStore<string[]>(userId, 'liked_songs');
-    if (cached) return cached;
 
     if (this.isOnline && this.isUUID(userId)) {
       try {
@@ -66,7 +65,7 @@ export class AccountSyncEngine {
       }
     }
 
-    return [];
+    return cached || [];
   }
 
   public async likeSong(userId: string, songId: string): Promise<void> {

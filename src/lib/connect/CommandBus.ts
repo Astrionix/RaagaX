@@ -49,21 +49,58 @@ export class CommandBus {
     const clock = ClockSynchronizer.getInstance();
 
     switch (command.type) {
-      case 'PLAY':
-        if (command.payload && typeof command.payload === 'object' && 'positionMs' in command.payload && 'serverTimestamp' in command.payload) {
-           const p = command.payload as { positionMs: number, serverTimestamp: number };
-           const estimatedNow = clock.getEstimatedServerNow();
-           const drift = estimatedNow - p.serverTimestamp;
-           const targetMs = p.positionMs + Math.max(0, drift);
-           if (store.isActiveDevice) {
-             engine.seekCanonical(targetMs);
-           }
+      case 'PLAY': {
+        const p = (command.payload || {}) as any;
+        const songData = p.songData;
+        const queue = p.queue;
+        const queueIndex = p.queueIndex;
+
+        let targetMs = p.positionMs || 0;
+        if (p.serverTimestamp && typeof p.serverTimestamp === 'number') {
+          const estimatedNow = clock.getEstimatedServerNow();
+          const drift = estimatedNow - p.serverTimestamp;
+          targetMs = Math.max(0, targetMs + drift);
         }
-        if (store.isActiveDevice) {
-          engine.play();
+
+        if (songData) {
+          const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+          if (queue && queue.length > 0) {
+            const idx = typeof queueIndex === 'number' ? queueIndex : 0;
+            manager.replaceQueue(queue, idx, 'PLAYLIST');
+          } else {
+            manager.playNow(songData);
+          }
+          
+          const snapshot = manager.getSnapshot();
+          const syncedQueue = snapshot.items.map((i: any) => i.song);
+          const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
+
+          usePlayerStore.setState({
+            currentSong: songData,
+            currentTime: targetMs / 1000,
+            queue: syncedQueue.length > 0 ? syncedQueue : store.queue,
+            queueIndex: syncedIndex,
+            isPlaying: true
+          });
+
+          if (store.isActiveDevice) {
+            import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
+              PlaybackService.getInstance().playTrack(songData, true).then(() => {
+                if (targetMs > 0) {
+                  engine.seekCanonical(targetMs);
+                }
+              });
+            });
+          }
+        } else {
+          if (store.isActiveDevice) {
+            if (targetMs > 0) engine.seekCanonical(targetMs);
+            engine.play();
+          }
+          store.setIsPlaying(true, true);
         }
-        store.setIsPlaying(true, true);
         break;
+      }
 
       case 'PAUSE':
         if (store.isActiveDevice) {
@@ -72,10 +109,62 @@ export class CommandBus {
         store.setIsPlaying(false, true);
         break;
 
+      case 'NEXT': {
+        const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+        const nextItem = manager.getNext(false);
+        if (nextItem && nextItem.song) {
+          const snapshot = manager.getSnapshot();
+          usePlayerStore.setState({
+            currentSong: nextItem.song,
+            queue: snapshot.items.map((i: any) => i.song),
+            queueIndex: snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0,
+            isPlaying: true,
+            currentTime: 0
+          });
+          if (store.isActiveDevice) {
+            import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
+              PlaybackService.getInstance().playTrack(nextItem.song, true);
+            });
+          }
+        }
+        break;
+      }
+
+      case 'PREV': {
+        const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+        const prevItem = manager.getPrevious();
+        if (prevItem && prevItem.song) {
+          const snapshot = manager.getSnapshot();
+          usePlayerStore.setState({
+            currentSong: prevItem.song,
+            queue: snapshot.items.map((i: any) => i.song),
+            queueIndex: snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0,
+            isPlaying: true,
+            currentTime: 0
+          });
+          if (store.isActiveDevice) {
+            import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
+              PlaybackService.getInstance().playTrack(prevItem.song, true);
+            });
+          }
+        }
+        break;
+      }
+
       case 'SEEK':
         if (command.payload && typeof command.payload === 'object' && 'positionMs' in command.payload) {
           const p = command.payload as { positionMs: number };
-          engine.seekCanonical(p.positionMs);
+          store.setCurrentTime(p.positionMs / 1000, true);
+          if (store.isActiveDevice) {
+            engine.seekCanonical(p.positionMs);
+          }
+        }
+        break;
+
+      case 'SET_VOLUME':
+        if (command.payload && typeof command.payload === 'object' && 'volume' in command.payload) {
+          const p = command.payload as { volume: number };
+          store.setVolume(p.volume);
         }
         break;
         

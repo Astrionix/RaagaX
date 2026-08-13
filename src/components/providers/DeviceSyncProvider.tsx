@@ -58,6 +58,23 @@ export function DeviceSyncProvider({ children }: { children: React.ReactNode }) 
     initSync();
   }, [user?.id, isLoading]);
 
+  // 3. Smooth seeker progress ticker for remote controller device (when not active renderer but remote is playing)
+  const isPlaying = usePlayerStore((state) => state.isPlaying);
+  const isActiveDevice = usePlayerStore((state) => state.isActiveDevice);
+
+  useEffect(() => {
+    if (isActiveDevice || !isPlaying) return;
+
+    const interval = setInterval(() => {
+      const { currentTime, duration, isPlaying: currentPlaying, isActiveDevice: currentActive } = usePlayerStore.getState();
+      if (!currentActive && currentPlaying && duration > 0 && currentTime < duration) {
+        usePlayerStore.setState({ currentTime: Math.min(duration, currentTime + 1) });
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isPlaying, isActiveDevice]);
+
   return <>{children}</>;
 }
 
