@@ -145,8 +145,9 @@ export function LibraryView() {
           >
             <div className="relative flex-shrink-0">
               <img 
-                src={currentSong.coverUrl} 
+                src={currentSong.coverUrl || '/app-icon.png'} 
                 alt={currentSong.title} 
+                onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
                 className="w-14 h-14 rounded-xl object-cover shadow-lg group-hover:scale-105 transition-transform" 
               />
               <div className="absolute inset-0 bg-black/40 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">

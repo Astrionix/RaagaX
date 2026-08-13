@@ -154,8 +154,9 @@ export function LyricsPanel() {
       {/* Song Header Details */}
       <div className="flex items-center gap-3 mb-4 p-2 rounded-2xl bg-white/5 border border-white/5">
         <img
-          src={currentSong.coverUrl}
+          src={currentSong.coverUrl || '/app-icon.png'}
           alt={currentSong.title}
+          onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
           className="w-12 h-12 rounded-xl object-cover"
         />
         <div className="min-w-0">

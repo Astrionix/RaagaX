@@ -24,7 +24,8 @@ export class ClockSynchronizer {
       if (!response.ok) throw new Error('Time sync failed');
       
       const data = await response.json();
-      const serverTimeMs = data.serverTimeMs;
+      const serverTimeMs = Number(data?.serverTimeMs || data?.serverTime || Date.now());
+      if (isNaN(serverTimeMs)) throw new Error('Invalid server time payload');
       const t1 = Date.now();
       
       // Approximate latency is (t1 - t0) / 2

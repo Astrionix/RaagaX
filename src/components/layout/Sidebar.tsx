@@ -6,7 +6,6 @@ import {
   Compass,
   Search,
   User,
-  Disc,
   Music,
   ListMusic,
   Plus,
@@ -128,18 +127,6 @@ export function Sidebar() {
           >
             <Heart className="w-4 h-4 text-red-400" />
             <span>Liked Songs</span>
-          </button>
-
-
-
-          <button 
-            onClick={() => setActiveTab('album')} 
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all ${
-              activeTab === 'album' ? 'bg-white/10 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <Disc className="w-4 h-4 text-amber-400" />
-            <span>Albums</span>
           </button>
 
           <button 

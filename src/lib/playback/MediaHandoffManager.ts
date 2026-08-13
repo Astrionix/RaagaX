@@ -17,16 +17,8 @@ export class MediaHandoffManager {
     const id = ++this.transitionId;
     const store = usePlayerStore.getState();
 
-    // Prevent double playback: pause everything before transition
-    store.setIsPlaying(false, true);
-
-    if (target === 'video') {
-      // Audio to Video
-      store.setRenderer('video');
-    } else {
-      // Video to Audio
-      store.setRenderer('audio');
-    }
+    // Ensure audio renderer is active
+    store.setRenderer('audio');
     
     // In a real implementation with the YT IFrame API, we would await seek here
     // before playing, but since we use a basic iframe URL with ?start=, it seeks on load.

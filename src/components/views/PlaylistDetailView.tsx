@@ -83,7 +83,7 @@ export function PlaylistDetailView() {
           setPlaylist({
             id: plData.id,
             title: plData.title,
-            coverUrl: plData.cover_url || 'https://images.unsplash.com/photo-1614680376593-902f74a9cb0d?auto=format&fit=crop&q=80',
+            coverUrl: plData.cover_url || '/app-icon.png',
             songs: mappedSongs,
             isUserOwned: true, // We can use this to show Edit buttons later
             ownerId: plData.owner_id
@@ -107,7 +107,7 @@ export function PlaylistDetailView() {
               setPlaylist({
                 id: spotifyId,
                 title: cached.playlist_name || 'Spotify Playlist',
-                coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=300&h=300',
+                coverUrl: '/app-icon.png',
                 songs: cached.data as Song[]
               });
               setIsLoading(false);

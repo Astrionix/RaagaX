@@ -27,6 +27,18 @@ export class AdaptiveQueueController {
     try {
       const manager = QueueManager.getInstance();
       const snapshot = manager.getSnapshot();
+      const firstItemSource = snapshot.items[0]?.source;
+      const ctxType = String(snapshot.context?.type || snapshot.context?.contextType || '').toLowerCase();
+
+      // HARD QUEUE BOUNDARY RULE: Bounded queues (album, playlist, liked, artist, user) are locked to their source.
+      // Recommendations MUST NEVER modify active bounded queues while playing.
+      if (firstItemSource && firstItemSource !== 'RECOMMENDATION' && firstItemSource !== 'AUTOPLAY') {
+        return;
+      }
+      if (ctxType && ['album', 'playlist', 'liked', 'artist', 'user'].includes(ctxType)) {
+        return;
+      }
+
       const currentIndex = snapshot.currentIndex;
       const items = snapshot.items;
 
@@ -99,6 +111,44 @@ export class AdaptiveQueueController {
       console.warn('[AdaptiveQueueController] Dynamic zone update failed:', e);
     } finally {
       this.isRegenerating = false;
+    }
+  }
+
+  /**
+   * Fetches autoplay recommendations ONLY AFTER a bounded queue (album/playlist) has completed naturally.
+   */
+  public async fetchAutoplayForCompletedQueue(): Promise<import('@/types/music').Song[]> {
+    try {
+      const manager = QueueManager.getInstance();
+      const snapshot = manager.getSnapshot();
+
+      // Ensure this is a bounded queue (album, playlist, liked, artist, user) and completed naturally
+      const firstSource = snapshot.items[0]?.source?.toUpperCase();
+      const boundedSources = ['ALBUM', 'PLAYLIST', 'LIKED', 'ARTIST', 'USER'];
+      if (!firstSource || !boundedSources.includes(firstSource)) {
+        return [];
+      }
+      const ctx = (snapshot.context?.type || snapshot.context?.contextType || '').toString().toUpperCase();
+      if (ctx && !boundedSources.includes(ctx)) {
+        return [];
+      }
+
+      const lastItem = snapshot.items[snapshot.items.length - 1];
+      const lifecycle = UserLifecycleManager.getInstance();
+      const lifecycleData = lifecycle.getData();
+      const language = lifecycleData.selectedLanguages[0] || 'Telugu';
+
+      const buckets = await CandidateGenerator.generateBuckets(
+        lastItem?.song || null,
+        snapshot.items.map(i => i.trackId),
+        language
+      );
+
+      const allCandidates = [...buckets.personalized, ...buckets.popular, ...buckets.newRelease];
+      return allCandidates.slice(0, 10);
+    } catch (e) {
+      console.warn('[AdaptiveQueueController] Autoplay fetch failed:', e);
+      return [];
     }
   }
 }

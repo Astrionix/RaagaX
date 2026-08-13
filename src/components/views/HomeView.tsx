@@ -3,14 +3,13 @@
 import React, { useEffect, useState } from 'react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { HomePayload, HomeSection, ShelfItem } from '@/types/home';
-import { QuickAccessGrid } from '@/components/home/QuickAccessGrid';
 import { RealMusicEngine } from '@/lib/realMusicEngine';
 import { CarouselShelf } from '@/components/home/CarouselShelf';
 import { ChartListShelf } from '@/components/home/ChartListShelf';
 import { SkeletonGrid } from '@/components/ui/SkeletonLoader';
-import { Disc, ChevronRight, Play } from 'lucide-react';
-import { AlbumCatalogEngine } from '@/lib/albumCatalog';
+import { Play, Pause, Clock, Sparkles } from 'lucide-react';
 import { ArtistDiscoveryShelves } from '@/components/home/ArtistDiscoveryShelves';
+import { Song } from '@/types/music';
 
 import useSWR from 'swr';
 
@@ -94,15 +93,35 @@ const homeFetcher = async (url: string, preferredLanguage: string) => {
   return data;
 };
 
+// ─── Convert Song[] → ShelfItem[] for CarouselShelf ─────────────────────────
+function songsToShelfItems(songs: Song[]): ShelfItem[] {
+  return songs.map(s => ({
+    id: s.id,
+    title: s.title,
+    subtitle: s.artist,
+    type: 'song' as const,
+    imageUrl: s.coverUrl,
+    rawItem: s,
+  }));
+}
+
+import { useAuthStore } from '@/context/useAuthStore';
+
+// ─── HomeView ────────────────────────────────────────────────────────────────
 export function HomeView() {
   const { 
     preferredLanguage, 
-    setPreferredLanguage, 
-    setActiveTab, 
-    setSelectedAlbumId, 
-    playSong, 
-    setRemoteState 
+    currentSong,
+    currentTime,
+    isPlaying,
+    togglePlayPause,
+    likedSongs = []
   } = usePlayerStore();
+  const { user } = useAuthStore();
+
+  const activeUserId = user?.id || 'guest';
+  const [recentlyPlayed, setRecentlyPlayed] = useState<Song[]>([]);
+  const [recommended, setRecommended] = useState<Song[]>([]);
   
   const { data: payload, isLoading } = useSWR(
     `/api/home?lang=${preferredLanguage}`,
@@ -114,110 +133,131 @@ export function HomeView() {
     }
   );
 
-  const [top10Albums, setTop10Albums] = useState<any[]>([]);
-
+  // 1. Recently Played: combines QueueHistory + currentSong + likedSongs
   useEffect(() => {
-    let isMounted = true;
-    const initial = AlbumCatalogEngine.getTop10Albums(preferredLanguage);
-    setTop10Albums(initial);
+    const load = async () => {
+      try {
+        const { QueueHistory } = await import('@/lib/queue/QueueHistory');
+        const historyInstance = QueueHistory.getInstance();
+        await historyInstance.ensureLoaded();
+        let entries = historyInstance.getRecentlyPlayed(30);
 
-    AlbumCatalogEngine.fetchRealAlbumsForLanguage(preferredLanguage).then(fetched => {
-      if (isMounted && fetched && fetched.length > 0) {
-        setTop10Albums(fetched.slice(0, 10));
+        const seen = new Set<string>();
+        const songs: Song[] = [];
+
+        // 1. Current playing song
+        if (currentSong) {
+          seen.add(currentSong.id);
+          songs.push(currentSong);
+        }
+
+        // 2. Recent listening history (newest first)
+        for (let i = entries.length - 1; i >= 0; i--) {
+          const s = entries[i].song;
+          if (s && !seen.has(s.id)) {
+            seen.add(s.id);
+            songs.push(s);
+          }
+        }
+
+        // 3. Liked songs
+        for (const s of likedSongs) {
+          if (s && !seen.has(s.id)) {
+            seen.add(s.id);
+            songs.push(s);
+          }
+        }
+
+        // Strictly cap at 10 items: newest enters at index 0, oldest is dropped
+        setRecentlyPlayed(songs.slice(0, 10));
+      } catch (e) {
+        console.warn('[HomeView] Could not load recently played:', e);
       }
-    });
-
-    return () => {
-      isMounted = false;
     };
-  }, [preferredLanguage]);
+    load();
+  }, [currentSong?.id, likedSongs.length]);
 
-  const handlePlayAlbum = async (e: React.MouseEvent, album: any) => {
-    e.stopPropagation();
-    let tracks = album.tracks;
-    if (!tracks || tracks.length === 0) {
-      const { RealMusicEngine } = await import('@/lib/realMusicEngine');
-      const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${album.id}`);
-      tracks = details?.songs || [];
-    }
-    if (tracks && tracks.length > 0) {
-      setRemoteState({ shuffleMode: 'OFF' });
-      playSong(tracks[0], tracks);
-    }
-  };
+  // 2. Recommended For You: random selection of songs in the preferred language
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { UserLifecycleManager } = await import('@/lib/lifecycle/UserLifecycleManager');
+        const { RecommendationEngine } = await import('@/lib/recommendation/RecommendationEngine');
+
+        const language = UserLifecycleManager.getInstance().getData().selectedLanguages[0] || preferredLanguage || 'Telugu';
+
+        // Fetch 3-day stable snapshot recommendations from RecommendationEngine
+        const recSongs = await RecommendationEngine.getInstance().getRecommendations(activeUserId, language);
+        setRecommended(recSongs);
+      } catch (e) {
+        console.warn('[HomeView] Could not load recommendations:', e);
+      }
+    };
+    load();
+  }, [preferredLanguage, activeUserId, payload?.sections?.length]);
 
   return (
     <div className="space-y-8 pb-4 select-none">
-      {/* Top 10 Albums Hero Banner */}
-      <section className="relative rounded-3xl bg-gradient-to-r from-[#1c0a18] via-[#141026] to-[#090b12] p-6 sm:p-8 border border-white/10 overflow-hidden shadow-2xl">
-        <div className="relative z-10 space-y-6">
-          
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#fa233b]/20 border border-[#fa233b]/30 text-[#fa233b] text-xs font-bold uppercase tracking-wider mb-1">
-                <Disc className="w-3.5 h-3.5" /> Official Regional Albums
-              </div>
 
-              <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight leading-tight">
-                Top 10 <span className="text-[#fa233b]">{preferredLanguage}</span> Albums
-              </h1>
+      {/* Continue Listening Section (Unfinished track checkpoint) */}
+      {currentSong && currentTime > 15 && (
+        <section 
+          onClick={() => togglePlayPause()}
+          className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between gap-4 cursor-pointer hover:bg-white/10 transition-colors group"
+        >
+          <div className="flex items-center gap-3.5 min-w-0">
+            <img 
+              src={currentSong.coverUrl ? currentSong.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500') : ''} 
+              alt={currentSong.title || ''}
+              className="w-14 h-14 rounded-xl object-cover bg-slate-800 group-hover:scale-105 transition-transform"
+            />
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-[#fa233b] uppercase tracking-wider block mb-0.5">Continue Listening</span>
+              <h3 className="text-sm font-bold text-white truncate">{currentSong.title}</h3>
+              <p className="text-xs text-slate-400 truncate mt-0.5">{currentSong.artist}</p>
             </div>
-
-            <button
-              onClick={() => setActiveTab('album')}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-all hover:scale-105 border border-white/15 self-start sm:self-auto cursor-pointer"
-            >
-              <span>See All 50 Albums</span>
-              <ChevronRight className="w-4 h-4 text-[#fa233b]" />
-            </button>
           </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              togglePlayPause();
+            }}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#fa233b] hover:bg-[#fa233b]/90 text-white font-bold text-xs shadow-lg shadow-red-500/20 transition-transform hover:scale-105 shrink-0"
+          >
+            {isPlaying ? (
+              <>
+                <Pause className="w-3.5 h-3.5 fill-white" />
+                <span>Pause</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
+                <span>Resume</span>
+              </>
+            )}
+          </button>
+        </section>
+      )}
 
-          {/* Top 10 Albums Showcase Horizontal Side-scroll on Mobile, Grid on Desktop */}
-          <div className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory md:grid md:grid-cols-5 gap-3.5 sm:gap-4 pt-1 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
-            {top10Albums.map((album, idx) => (
-              <div
-                key={album.id}
-                onClick={() => {
-                  setSelectedAlbumId(album.id);
-                  setActiveTab('album');
-                }}
-                className="group relative bg-white/5 p-2.5 rounded-2xl border border-white/5 hover:border-white/20 transition-all hover:scale-[1.03] cursor-pointer shadow-lg w-[145px] sm:w-auto flex-shrink-0 snap-start"
-              >
-                <div className="relative aspect-square rounded-xl overflow-hidden mb-2">
-                  <img 
-                    src={album.coverUrl} 
-                    alt={album.title} 
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=500&h=500';
-                    }}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 bg-slate-800" 
-                  />
+      {/* Recently Played — shown whenever history or liked songs exist */}
+      {recentlyPlayed.length > 0 && (
+        <CarouselShelf
+          title="Recently Played"
+          icon={<Clock className="w-5 h-5 text-cyan-400" />}
+          items={songsToShelfItems(recentlyPlayed)}
+          showPlayAll={true}
+        />
+      )}
 
-                  <div className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-md text-white text-[10px] font-black border border-white/10">
-                    #{idx + 1}
-                  </div>
-
-                  <button
-                    onClick={(e) => handlePlayAlbum(e, album)}
-                    className="absolute bottom-2 right-2 w-9 h-9 rounded-full bg-[#fa233b] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-105 shadow-xl"
-                  >
-                    <Play className="w-4 h-4 fill-white ml-0.5" />
-                  </button>
-                </div>
-
-                <h3 className="font-bold text-xs text-white truncate">{album.title}</h3>
-                <p className="text-[10px] text-slate-400 truncate mt-0.5 font-medium">{album.artist}</p>
-                <div className="flex items-center gap-1.5 mt-1 text-[10px] text-slate-500 font-medium">
-                  <span className="text-white font-bold">{album.trackCount} tracks</span>
-                  <span>•</span>
-                  <span>{album.releaseYear}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-        </div>
-      </section>
+      {/* Recommended For You — shown whenever recommendations are available */}
+      {recommended.length > 0 && (
+        <CarouselShelf
+          title="Recommended For You"
+          icon={<Sparkles className="w-5 h-5 text-violet-400" />}
+          items={songsToShelfItems(recommended)}
+          showPlayAll={true}
+        />
+      )}
 
       {/* Artist Discovery Shelves */}
       <ArtistDiscoveryShelves />
@@ -256,4 +296,3 @@ export function HomeView() {
     </div>
   );
 }
-

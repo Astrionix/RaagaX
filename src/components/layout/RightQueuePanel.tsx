@@ -71,7 +71,7 @@ export function RightQueuePanel() {
               src={currentSong.coverUrl}
               alt={currentSong.title}
               onError={(e) => {
-                e.currentTarget.src = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=300&h=300";
+                e.currentTarget.src = "/app-icon.png";
               }}
               className="w-10 h-10 rounded-xl object-cover shadow-sm flex-shrink-0"
             />
@@ -108,7 +108,7 @@ export function RightQueuePanel() {
                   src={song.coverUrl}
                   alt={song.title}
                   onError={(e) => {
-                    e.currentTarget.src = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=300&h=300";
+                    e.currentTarget.src = "/app-icon.png";
                   }}
                   className="w-9 h-9 rounded-xl object-cover flex-shrink-0"
                 />

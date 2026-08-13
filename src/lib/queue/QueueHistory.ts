@@ -4,6 +4,7 @@ import { QueuePersistence } from './QueuePersistence';
 export class QueueHistory {
   private static instance: QueueHistory;
   private history: QueueHistoryEntry[] = [];
+  private loadPromise: Promise<void> | null = null;
   
   // Keep up to 200 items in memory
   private readonly MAX_HISTORY_ITEMS = 200;
@@ -16,12 +17,23 @@ export class QueueHistory {
   }
 
   private constructor() {
-    this.loadHistory();
+    this.loadPromise = this.loadHistory();
+  }
+
+  public async ensureLoaded(): Promise<QueueHistoryEntry[]> {
+    if (this.loadPromise) {
+      await this.loadPromise;
+    }
+    return [...this.history];
   }
 
   private async loadHistory() {
-    const saved = await QueuePersistence.getInstance().loadHistory();
-    this.history = saved.slice(-this.MAX_HISTORY_ITEMS);
+    try {
+      const saved = await QueuePersistence.getInstance().loadHistory();
+      this.history = saved.slice(-this.MAX_HISTORY_ITEMS);
+    } catch {
+      this.history = [];
+    }
   }
 
   public recordPlay(item: QueueItem) {
@@ -33,7 +45,12 @@ export class QueueHistory {
       playedPercentage: 0
     };
     
-    this.history.push(entry);
+    // Avoid immediate duplicate of the exact same track ID right next to each other
+    if (this.history.length > 0 && this.history[this.history.length - 1].trackId === item.trackId) {
+      this.history[this.history.length - 1].startedAt = Date.now();
+    } else {
+      this.history.push(entry);
+    }
     
     if (this.history.length > this.MAX_HISTORY_ITEMS) {
       this.history.shift(); // Remove oldest
@@ -54,7 +71,6 @@ export class QueueHistory {
       }
     }
     
-    // Throttle persistence for updates if needed, but doing it directly for now
     QueuePersistence.getInstance().saveHistory(this.history);
   }
 
@@ -63,9 +79,7 @@ export class QueueHistory {
   }
 
   public getRecentlyPlayed(count: number = 20): QueueHistoryEntry[] {
-    return this.history
-      .filter(entry => entry.playedPercentage > 10) // Only count if actually listened slightly
-      .slice(-count);
+    return this.history.slice(-count);
   }
 
   public wasRecentlyPlayed(trackId: string, withinMs: number = 2 * 60 * 60 * 1000): boolean {

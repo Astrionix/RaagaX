@@ -51,10 +51,6 @@ export function ExpandedPlayerModal() {
     networkMode,
   } = usePlayerStore();
 
-  const isVideoMode = activeRenderer === 'video';
-  const [candidateVideoIds, setCandidateVideoIds] = useState<string[]>([]);
-  const [videoIndex, setVideoIndex] = useState<number>(0);
-  const [videoStartSeconds, setVideoStartSeconds] = useState<number>(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const [visualTime, setVisualTime] = useState(0);
@@ -91,47 +87,9 @@ export function ExpandedPlayerModal() {
     };
   }, [isMenuOpen]);
 
-  const handleSwitchToVideoMode = async () => {
-    const audioEl = document.querySelector('audio');
-    const capturedTime = audioEl ? Math.floor(audioEl.currentTime) : Math.floor(currentTime || 0);
-    setVideoStartSeconds(capturedTime);
-    await MediaHandoffManager.getInstance().transition('video');
-  };
-
-  const handleSwitchToAudioMode = async () => {
-    await MediaHandoffManager.getInstance().transition('audio');
-  };
-
   const handleCloseModal = () => {
-    if (isVideoMode) {
-      MediaHandoffManager.getInstance().transition('audio');
-    }
     togglePlayerExpanded();
   };
-
-  useEffect(() => {
-    if (!currentSong || !isVideoMode) return;
-
-    let isSubscribed = true;
-    const fetchVideoId = async () => {
-      try {
-        const query = `${currentSong.title} ${currentSong.artist} official video`;
-        const res = await fetch(`/api/youtube-video?q=${encodeURIComponent(query)}`);
-        const data = await res.json();
-        if (isSubscribed && data.videoIds && data.videoIds.length > 0) {
-          setCandidateVideoIds(data.videoIds);
-          setVideoIndex(0);
-        }
-      } catch (err) {
-        console.warn('Could not resolve YouTube video ID:', err);
-      }
-    };
-
-    fetchVideoId();
-    return () => {
-      isSubscribed = false;
-    };
-  }, [currentSong?.id, isVideoMode]);
 
   const touchStartY = useRef<number | null>(null);
   const touchStartX = useRef<number | null>(null);
@@ -161,24 +119,6 @@ export function ExpandedPlayerModal() {
 
   const isLiked = likedSongIds.includes(currentSong.id);
   const isDownloaded = downloadedSongIds.includes(currentSong.id);
-
-  const startSeconds = videoStartSeconds;
-  const activeVideoId = candidateVideoIds[videoIndex] || null;
-  const youtubeSearchQuery = encodeURIComponent(`${currentSong.title} ${currentSong.artist} official video`);
-
-  const youtubeEmbedUrl = activeVideoId
-    ? `https://www.youtube-nocookie.com/embed/${activeVideoId}?autoplay=1&rel=0&start=${startSeconds}`
-    : `https://www.youtube-nocookie.com/embed?listType=search&list=${youtubeSearchQuery}&autoplay=1`;
-
-  const youtubeDirectUrl = activeVideoId
-    ? `https://www.youtube.com/watch?v=${activeVideoId}&t=${startSeconds}s`
-    : `https://www.youtube.com/results?search_query=${youtubeSearchQuery}`;
-
-  const handleNextCandidate = () => {
-    if (candidateVideoIds.length > 1) {
-      setVideoIndex((prev) => (prev + 1) % candidateVideoIds.length);
-    }
-  };
 
   const formatTime = (seconds: number) => {
     if (!seconds || isNaN(seconds)) return '0:00';
@@ -211,7 +151,7 @@ export function ExpandedPlayerModal() {
       <div
         className="absolute inset-0 opacity-40 pointer-events-none blur-[140px] scale-[1.3] transition-all duration-1000 saturate-[180%] mix-blend-screen"
         style={{
-          backgroundImage: `url(${currentSong.coverUrl})`,
+          backgroundImage: `url(${currentSong.coverUrl || '/app-icon.png'})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
@@ -229,7 +169,7 @@ export function ExpandedPlayerModal() {
 
         <div className="absolute left-1/2 -translate-x-1/2 text-center min-w-0 px-2 sm:px-4 w-full max-w-[45%] sm:max-w-[50%] pointer-events-none">
           <p className="text-[9px] sm:text-[10px] text-white/70 font-bold uppercase tracking-wider mb-0.5">
-            {isVideoMode ? '🎬 YouTube Music Video' : 'PLAYING FROM ALBUM'}
+            PLAYING FROM ALBUM
           </p>
           <h3 className="text-xs sm:text-sm font-extrabold text-white truncate tracking-tight">
             {currentSong.album || currentSong.genre || 'Hot Hits Telugu'}
@@ -238,30 +178,6 @@ export function ExpandedPlayerModal() {
 
         {/* Top Right Utilities */}
         <div className="flex items-center justify-end flex-shrink-0 relative z-10">
-          <div className="flex bg-black/40 border border-white/10 rounded-full sm:rounded-2xl p-0.5 sm:p-1 items-center mr-1 sm:mr-2">
-            <button
-              onClick={handleSwitchToAudioMode}
-              className={`px-2.5 sm:px-3 py-1.5 sm:py-1 rounded-full sm:rounded-xl text-[10px] sm:text-[11px] font-bold transition-all flex items-center gap-1 sm:gap-1.5 ${
-                !isVideoMode ? 'bg-[#fa233b] text-white shadow-lg' : 'text-slate-400 hover:text-white'
-              }`}
-              title="Audio Mode"
-            >
-              <Music className="w-3.5 h-3.5 sm:w-3.5 sm:h-3.5" /> <span className="hidden sm:inline">Audio</span>
-            </button>
-            <button
-              onClick={handleSwitchToVideoMode}
-              disabled={networkMode === 'offline' || networkMode === 'offline_forced'}
-              className={`px-2.5 sm:px-3 py-1.5 sm:py-1 rounded-full sm:rounded-xl text-[10px] sm:text-[11px] font-bold transition-all flex items-center gap-1 sm:gap-1.5 ${
-                isVideoMode ? 'bg-[#fa233b] text-white shadow-lg' : 'text-slate-400 hover:text-white'
-              } disabled:opacity-30 disabled:cursor-not-allowed`}
-              title={networkMode === 'offline' || networkMode === 'offline_forced' ? 'Video unavailable offline' : 'Video Mode'}
-            >
-              <Tv className="w-3.5 h-3.5 sm:w-3.5 sm:h-3.5" /> <span className="hidden sm:inline">Video {(networkMode === 'offline' || networkMode === 'offline_forced') && '🔒'}</span>
-            </button>
-          </div>
-
-
-
           {/* 3 Dots Options Button & Popover */}
           <div className="relative inline-block" ref={menuRef}>
             <button
@@ -377,91 +293,46 @@ export function ExpandedPlayerModal() {
       {/* Main Center Content Section (Flexible to fit screen without scroll) */}
       <div className="relative z-10 flex-1 min-h-0 flex flex-col justify-between w-full max-w-5xl mx-auto py-1 sm:py-4">
         
-        {/* Cover Artwork or YouTube Player */}
+        {/* Cover Artwork */}
         <div className="flex-1 min-h-0 flex flex-col items-center justify-center w-full py-2 sm:py-6 overflow-hidden">
-          {isVideoMode ? (
-            <div className="w-full flex-1 min-h-0 flex flex-col items-center justify-center gap-2 sm:gap-3 overflow-hidden">
-              {/* YouTube iframe — constrained to available height, never overflows */}
-              <div
-                className="relative rounded-xl sm:rounded-2xl overflow-hidden border border-white/20 shadow-2xl bg-black w-full"
-                style={{
-                  maxWidth: '100%',
-                  aspectRatio: '16 / 9',
-                  maxHeight: 'min(45vh, 100%)',
-                  width: 'calc(min(45vh, 100%) * (16/9))',
-                }}
-              >
-                <iframe
-                  key={youtubeEmbedUrl}
-                  src={youtubeEmbedUrl}
-                  title={`${currentSong.title} Official Music Video`}
-                  className="absolute inset-0 w-full h-full border-0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              </div>
-              {/* Toolbar row below video */}
-              <div className="flex items-center justify-between w-full gap-2 text-[10px] sm:text-xs shrink-0 px-1" style={{ maxWidth: 'calc(min(45vh, 100%) * (16/9))' }}>
-                {candidateVideoIds.length > 1 && (
-                  <button
-                    onClick={handleNextCandidate}
-                    className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 font-bold inline-flex items-center gap-1.5 transition-colors"
-                  >
-                    <RefreshCw className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#fa233b]" /> Alt Video ({videoIndex + 1}/{candidateVideoIds.length})
-                  </button>
-                )}
-                <a
-                  href={youtubeDirectUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl bg-[#fa233b]/20 hover:bg-[#fa233b]/30 text-[#fa233b] font-extrabold border border-[#fa233b]/40 inline-flex items-center gap-1.5 transition-colors ml-auto"
-                >
-                  <ExternalLink className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Open in YouTube ↗
-                </a>
-              </div>
-            </div>
-          ) : (
-            <div
-              className="relative rounded-[8%] sm:rounded-2xl overflow-hidden shadow-2xl border border-white/5"
-              style={{
-                width: 'min(42vh, 92vw, 480px)',
-                height: 'min(42vh, 92vw, 480px)',
-                flexShrink: 0,
-              }}
-            >
-              <img
-                src={currentSong.coverUrl}
-                alt={currentSong.title}
-                className={`w-full h-full object-cover transition-all duration-700 ${isPlaying ? 'scale-[1.02]' : 'scale-100'}`}
-              />
-            </div>
-          )}
+          <div
+            className="relative rounded-[8%] sm:rounded-2xl overflow-hidden shadow-2xl border border-white/5"
+            style={{
+              width: 'min(42vh, 92vw, 480px)',
+              height: 'min(42vh, 92vw, 480px)',
+              flexShrink: 0,
+            }}
+          >
+            <img
+              src={currentSong.coverUrl || '/app-icon.png'}
+              alt={currentSong.title}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+              className={`w-full h-full object-cover transition-all duration-700 ${isPlaying ? 'scale-[1.02]' : 'scale-100'}`}
+            />
+          </div>
         </div>
 
         {/* Bottom Player Controls Area (Tightly Packed) */}
         <div className="flex-shrink-0 flex flex-col gap-3 sm:gap-6 w-full">
+          {/* Track Meta & Like Button Row (Spotify Style) */}
+          <div className="flex items-center justify-between gap-4 max-w-4xl mx-auto w-full px-1 sm:px-2">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl sm:text-3xl font-black text-white tracking-tight leading-snug truncate">
+                {currentSong.title}
+              </h1>
+              <p className="text-sm sm:text-base font-semibold text-white/70 truncate mt-0.5 sm:mt-1">
+                {currentSong.artist}
+              </p>
+            </div>
 
-        {/* Track Meta & Like Button Row (Spotify Style) */}
-        <div className="flex items-center justify-between gap-4 max-w-4xl mx-auto w-full px-1 sm:px-2">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-xl sm:text-3xl font-black text-white tracking-tight leading-snug truncate">
-              {currentSong.title}
-            </h1>
-            <p className="text-sm sm:text-base font-semibold text-white/70 truncate mt-0.5 sm:mt-1">
-              {currentSong.artist}
-            </p>
+            <button
+              onClick={() => toggleLikeSong(currentSong.id)}
+              className="p-2 sm:p-3 rounded-full hover:bg-white/10 transition-colors flex-shrink-0"
+              title="Save to Liked Songs"
+            >
+              <Heart className={`w-7 h-7 sm:w-8 sm:h-8 transition-colors ${isLiked ? 'fill-[#1ed760] text-[#1ed760]' : 'text-white/70 hover:text-white'}`} />
+            </button>
           </div>
-
-          <button
-            onClick={() => toggleLikeSong(currentSong.id)}
-            className="p-2 sm:p-3 rounded-full hover:bg-white/10 transition-colors flex-shrink-0"
-            title="Save to Liked Songs"
-          >
-            <Heart className={`w-7 h-7 sm:w-8 sm:h-8 transition-colors ${isLiked ? 'fill-[#1ed760] text-[#1ed760]' : 'text-white/70 hover:text-white'}`} />
-          </button>
-        </div>
-
-        </div>
 
         {/* Timeline Seekbar - Spotify Inspired */}
         <div className="max-w-4xl mx-auto w-full space-y-1 sm:space-y-2 px-1 sm:px-2">
@@ -582,6 +453,7 @@ export function ExpandedPlayerModal() {
           </button>
         </div>
       </div>
+      </div>
 
       {/* Mobile Spotify Full-Screen 3-Dots Overlay Sheet */}
       {isMenuOpen && (
@@ -590,8 +462,9 @@ export function ExpandedPlayerModal() {
             {/* Album Thumbnail & Song Header */}
             <div className="flex flex-col items-center justify-center pt-8 text-center px-4">
               <img 
-                src={currentSong.coverUrl} 
+                src={currentSong.coverUrl || '/app-icon.png'} 
                 alt={currentSong.title}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
                 className="w-40 h-40 sm:w-48 sm:h-48 rounded-lg object-cover shadow-2xl mb-4 border border-white/5"
               />
               <h3 className="text-xl font-black text-white max-w-xs leading-tight">{currentSong.title}</h3>

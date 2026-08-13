@@ -25,7 +25,13 @@ export class SearchPlaylistsUseCase implements IUseCase<SearchPlaylistsArgs, z.i
       }
     })
 
-    if (!data) throw new HTTPException(404, { message: 'playlist not found' })
+    if (!data) {
+      return {
+        total: 0,
+        start: 0,
+        results: []
+      }
+    }
 
     return createSearchPlaylistPayload(data)
   }

@@ -28,7 +28,7 @@ function normalizeText(text: string): string {
 }
 
 function extractImage(image: any): string {
-  let coverUrl = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop&q=80';
+  let coverUrl = '/app-icon.png';
   if (Array.isArray(image)) {
     const hi = image.find((i: any) => i.quality === '500x500') || image[image.length - 1];
     if (hi?.url) coverUrl = hi.url.replace('http://', 'https://');

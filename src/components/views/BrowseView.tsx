@@ -53,31 +53,13 @@ export function BrowseView() {
 
   return (
     <div className="space-y-8 pb-10 text-white select-none max-w-7xl mx-auto w-full pt-4">
-      {/* Header and Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-4 sm:px-0">
+      {/* Header Title */}
+      <div className="flex items-center justify-between gap-4 px-4 sm:px-0">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-[#fa233b]/20 flex items-center justify-center text-[#fa233b]">
             <Compass className="w-5 h-5" />
           </div>
           <h1 className="text-3xl font-black tracking-tight">Browse</h1>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 md:w-64">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                if (e.target.value.trim() !== '') {
-                  usePlayerStore.getState().setActiveTab('search');
-                }
-              }}
-              placeholder="Search music, artists, albums..."
-              className="w-full pl-9 pr-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder:text-slate-400 focus:bg-white/10 focus:border-[#fa233b] focus:outline-none transition-all"
-            />
-          </div>
         </div>
       </div>
 

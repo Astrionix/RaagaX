@@ -55,6 +55,7 @@ export class LibrarySyncManager {
   }
 
   private getOrCreateDeviceId(): string {
+    if (typeof localStorage === 'undefined') return 'device_stub';
     let id = localStorage.getItem('raagax_library_device_id');
     if (!id) {
       id = `device_${Math.random().toString(36).substring(2, 15)}`;
@@ -108,12 +109,20 @@ export class LibrarySyncManager {
 
   private async subscribeToChannel() {
     if (this.channel) {
-      await this.channel.unsubscribe();
+      try { await supabase.removeChannel(this.channel); } catch (e) {}
+      this.channel = null;
     }
 
     if (!this.userId) return;
 
     const channelName = `library_sync_${this.userId}`;
+    const rawChannels = typeof supabase.getChannels === 'function' ? supabase.getChannels() : [];
+    const channels = Array.isArray(rawChannels) ? rawChannels : [];
+    const existing = channels.find((c: any) => c.topic === `realtime:${channelName}` || c.topic === channelName);
+    if (existing) {
+      try { await supabase.removeChannel(existing); } catch (e) {}
+    }
+
     this.channel = supabase.channel(channelName);
 
     this.channel

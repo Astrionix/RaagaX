@@ -7,6 +7,7 @@ interface FetchParams {
   endpoint: EndpointValue
   params: Record<string, string | number>
   context?: ApiContextEnum
+  timeoutMs?: number
 }
 
 interface FetchResponse<T> {
@@ -14,7 +15,9 @@ interface FetchResponse<T> {
   ok: Response['ok']
 }
 
-export const apiFetch = async <T>({ endpoint, params, context }: FetchParams): Promise<FetchResponse<T>> => {
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+export const apiFetch = async <T>({ endpoint, params, context, timeoutMs = DEFAULT_TIMEOUT_MS }: FetchParams): Promise<FetchResponse<T>> => {
   const url = new URL('https://www.jiosaavn.com/api.php')
 
   url.searchParams.append('__call', endpoint.toString())
@@ -27,11 +30,41 @@ export const apiFetch = async <T>({ endpoint, params, context }: FetchParams): P
 
   const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)]
 
-  const response = await fetch(url.toString(), {
-    headers: { 'Content-Type': 'application/json', 'User-Agent': randomUserAgent }
-  })
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-  const data = await response.json()
+  let response: Response;
+  try {
+    response = await fetch(url.toString(), {
+      headers: { 'Content-Type': 'application/json', 'User-Agent': randomUserAgent },
+      signal: controller.signal,
+    });
+  } catch (err: unknown) {
+    clearTimeout(timer);
+    // AbortError means our timeout fired — return null gracefully so callers can 404 cleanly
+    if (err instanceof Error && err.name === 'AbortError') {
+      return { data: null as unknown as T, ok: false };
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 
-  return { data: data as T, ok: response.ok }
+  // Guard: JioSaavn occasionally returns an HTML error page instead of JSON
+  // (content-type can be text/plain, text/javascript, etc. even for valid JSON).
+  // We parse defensively: if the body starts with '<' it's HTML, not JSON.
+  let data: T;
+  try {
+    const text = await response.text();
+    if (text.trimStart().startsWith('<')) {
+      // HTML error page — treat as a failed fetch
+      return { data: null as unknown as T, ok: false };
+    }
+    data = JSON.parse(text) as T;
+  } catch {
+    return { data: null as unknown as T, ok: false };
+  }
+
+  return { data, ok: response.ok }
 }
+

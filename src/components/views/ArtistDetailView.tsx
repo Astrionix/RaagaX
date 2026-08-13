@@ -136,7 +136,7 @@ export function ArtistDetailView() {
       <section className="relative rounded-2xl bg-gradient-to-r from-slate-950 via-[#121622] to-slate-900 p-6 sm:p-10 overflow-hidden shadow-2xl border border-white/10 flex flex-col md:flex-row items-center md:items-end justify-between gap-6">
         <div className="flex flex-col md:flex-row items-center gap-6 z-10 text-center md:text-left">
           <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden shadow-2xl border-4 border-white/20 flex-shrink-0">
-            <img src={artist.imageUrl || artist.image?.find?.((i: any) => i.quality === '500x500')?.url || artist.image?.[artist.image?.length - 1]?.url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819'} alt={artist.name} className="w-full h-full object-cover bg-slate-800" />
+            <img src={artist.imageUrl || artist.image?.find?.((i: any) => i.quality === '500x500')?.url || artist.image?.[artist.image?.length - 1]?.url || '/app-icon.png'} alt={artist.name} onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }} className="w-full h-full object-cover bg-slate-800" />
           </div>
 
           <div className="space-y-2">

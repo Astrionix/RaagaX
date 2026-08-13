@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
-import { Navbar } from '@/components/layout/Navbar';
+import { Header } from '@/components/layout/Header';
+import { PlayerBar } from '@/components/layout/Navbar';
 import { RightQueuePanel } from '@/components/layout/RightQueuePanel';
 import { RightDeviceConnectPanel } from '@/components/layout/RightDeviceConnectPanel';
 import { MobileNav } from '@/components/layout/MobileNav';
@@ -35,8 +36,6 @@ import { PlaylistDetailView } from '@/components/views/PlaylistDetailView';
 import { RadioView } from '@/components/views/RadioView';
 import { ArtistDetailView } from '@/components/views/ArtistDetailView';
 import { ArtistsView } from '@/components/views/ArtistsView';
-import { AlbumsView } from '@/components/views/AlbumsView';
-import { AlbumDetailView } from '@/components/views/AlbumDetailView';
 import { ProfileView } from '@/components/views/ProfileView';
 import { DownloadsView } from '@/components/views/DownloadsView';
 import { FavoritesView } from '@/components/views/FavoritesView';
@@ -46,7 +45,7 @@ import { useDownloadStore } from '@/context/useDownloadStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
 
 export default function Page() {
-  const { activeTab, selectedAlbumId, selectedArtistId, rightPanelMode } = usePlayerStore();
+  const { activeTab, selectedArtistId, rightPanelMode } = usePlayerStore();
   const { isSetupModalOpen, setSetupModalOpen } = useDownloadStore();
 
   // Sync activeTab to browser history for mobile back gesture support
@@ -98,18 +97,17 @@ export default function Page() {
         
         {/* Main Content Column */}
         <div className="main-content min-w-0 min-h-0 overflow-y-auto overflow-x-hidden relative flex flex-col h-full">
-          {/* Top Navbar */}
-          <Navbar />
+          {/* Header Bar */}
+          <Header />
 
           {/* View Switcher Container */}
-          <main className="flex-1 pt-16 md:pt-6 pb-[calc(7.5rem+env(safe-area-inset-bottom))] md:pb-8 px-4 sm:px-8">
+          <main className="flex-1 pt-16 md:pt-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))] md:pb-8 px-4 sm:px-8">
             {activeTab === 'home' && <HomeView />}
             {activeTab === 'browse' && <BrowseView />}
             {activeTab === 'search' && <SearchView />}
             {activeTab === 'library' && <LibraryView />}
             {activeTab === 'radio' && <RadioView />}
             {activeTab === 'artist' && (selectedArtistId ? <ArtistDetailView /> : <ArtistsView />)}
-            {activeTab === 'album' && (selectedAlbumId ? <AlbumDetailView /> : <AlbumsView />)}
             {activeTab === 'playlist' && <PlaylistDetailView />}
             {activeTab === 'profile' && <ProfileView />}
             {activeTab === 'downloads' && <DownloadsView />}
@@ -126,6 +124,9 @@ export default function Page() {
           {rightPanelMode === 'devices' ? <RightDeviceConnectPanel /> : <RightQueuePanel />}
         </div>
       </div>
+
+      {/* Desktop Persistent Bottom Audio Player Bar */}
+      <PlayerBar />
 
       {/* Full-Screen Overlays & Modals (Root Level Z-50) */}
       <ExpandedPlayerModal />

@@ -25,11 +25,17 @@ export class SearchArtistsUseCase implements IUseCase<SearchArtistsArgs, z.infer
       }
     })
 
-    if (!data) throw new HTTPException(404, { message: 'artist not found' })
+    if (!data) {
+      return {
+        total: 0,
+        start: 0,
+        results: []
+      }
+    }
 
     return {
-      total: data.total,
-      start: data.start,
+      total: data.total || 0,
+      start: data.start || 0,
       results: data.results?.map(createArtistMapPayload).slice(0, limit) || []
     }
   }

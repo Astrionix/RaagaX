@@ -42,8 +42,9 @@ export function QueueModal() {
         <div className="my-3 p-3 rounded-2xl crimson-gradient text-white flex items-center justify-between shadow-md">
           <div className="flex items-center gap-3">
             <img
-              src={currentSong.coverUrl}
+              src={currentSong.coverUrl || '/app-icon.png'}
               alt={currentSong.title}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
               className="w-10 h-10 rounded-xl object-cover border border-white/40"
             />
             <div>

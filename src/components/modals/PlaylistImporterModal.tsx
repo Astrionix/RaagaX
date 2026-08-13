@@ -78,9 +78,9 @@ export function PlaylistImporterModal() {
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#EF233C]/20 border border-red-800/40 text-[10px] font-bold text-[#EF233C] uppercase">
             <Sparkles className="w-3.5 h-3.5" /> BlackHole Importer Engine
           </div>
-          <h2 className="text-xl font-black tracking-tight">Import Spotify / YouTube Playlist</h2>
+          <h2 className="text-xl font-black tracking-tight">Import Spotify / JioSaavn Playlist</h2>
           <p className="text-xs text-slate-400">
-            Paste any public playlist link from Spotify, YouTube Music, or JioSaavn to import songs instantly.
+            Paste any public playlist link from Spotify or JioSaavn to import songs instantly.
           </p>
         </div>
 
@@ -97,13 +97,13 @@ export function PlaylistImporterModal() {
           </div>
 
           <div className="flex items-center gap-2">
-            {['https://open.spotify.com/playlist/telugu-hits', 'https://music.youtube.com/playlist/mass-beats'].map((sample) => (
+            {['https://open.spotify.com/playlist/telugu-hits', 'https://www.jiosaavn.com/featured/weekly-top-req/0N92j3lM3X8_'].map((sample) => (
               <button
                 key={sample}
                 onClick={() => setUrl(sample)}
                 className="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[10px] text-slate-300 border border-white/10 truncate"
               >
-                Sample: {sample.split('/')[3]}
+                Sample: {sample.includes('spotify') ? 'Spotify Hits' : 'JioSaavn Top'}
               </button>
             ))}
           </div>

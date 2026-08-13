@@ -153,10 +153,20 @@ export class ConnectManager {
   }
 
   private subscribeInbox() {
-    if (this.inboxChannel) return;
     if (!this.userId || !this.deviceId) return;
+    if (this.inboxChannel) {
+      try { supabase.removeChannel(this.inboxChannel); } catch (e) {}
+      this.inboxChannel = null;
+    }
 
     const inboxTopic = `user:${this.userId}:device:${this.deviceId}`;
+    const rawChannels = typeof supabase.getChannels === 'function' ? supabase.getChannels() : [];
+    const channels = Array.isArray(rawChannels) ? rawChannels : [];
+    const existing = channels.find((c: any) => c.topic === `realtime:${inboxTopic}` || c.topic === inboxTopic);
+    if (existing) {
+      try { supabase.removeChannel(existing); } catch (e) {}
+    }
+
     console.log(`[ConnectManager] Subscribing to inbox: ${inboxTopic}`);
 
     this.inboxChannel = supabase.channel(inboxTopic, {
@@ -178,14 +188,19 @@ export class ConnectManager {
   }
 
   public subscribeSession(sessionId: string) {
-    if (this.sessionChannel && this.sessionId === sessionId) return;
-    
     this.unsubscribeSession();
     this.sessionId = sessionId;
     
     if (!this.userId) return;
 
     const sessionTopic = `user:${this.userId}:session:${sessionId}`;
+    const rawChannels = typeof supabase.getChannels === 'function' ? supabase.getChannels() : [];
+    const channels = Array.isArray(rawChannels) ? rawChannels : [];
+    const existing = channels.find((c: any) => c.topic === `realtime:${sessionTopic}` || c.topic === sessionTopic);
+    if (existing) {
+      try { supabase.removeChannel(existing); } catch (e) {}
+    }
+
     console.log(`[ConnectManager] Subscribing to session: ${sessionTopic}`);
 
     this.sessionChannel = supabase.channel(sessionTopic, {

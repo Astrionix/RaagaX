@@ -21,8 +21,9 @@ export function RemoteDeviceBanner() {
 
         <div className="flex items-center gap-3">
           <img 
-            src={currentSong.coverUrl} 
+            src={currentSong.coverUrl || '/app-icon.png'} 
             alt={currentSong.title} 
+            onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
             className="w-10 h-10 rounded-lg object-cover"
           />
           <div className="min-w-0 flex-1">

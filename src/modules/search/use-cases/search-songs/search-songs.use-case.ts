@@ -24,9 +24,17 @@ export class SearchSongsUseCase implements IUseCase<SearchSongsArgs, z.infer<typ
       }
     })
 
+    if (!data) {
+      return {
+        total: 0,
+        start: 0,
+        results: []
+      }
+    }
+
     return {
-      total: data.total,
-      start: data.start,
+      total: data.total || 0,
+      start: data.start || 0,
       results: data.results?.map(createSongPayload).slice(0, limit) || []
     }
   }

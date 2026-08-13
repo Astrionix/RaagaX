@@ -55,7 +55,7 @@ export class RealMusicEngine {
 
     // Fresh controller per request
     const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 7000);
+    const tid = setTimeout(() => ctrl.abort(), 12000);
 
     try {
       const res = await fetch(url, { signal: ctrl.signal });
@@ -66,10 +66,7 @@ export class RealMusicEngine {
       return results.length > 0 ? this.mapResults(results) : [];
     } catch (err: any) {
       clearTimeout(tid);
-      // AbortError from timeout is expected — log quietly, don't propagate
-      if (err?.name === 'AbortError') {
-        console.warn(`[RealMusicEngine] Request timeout for query: "${q}"`);
-      } else {
+      if (err?.name !== 'AbortError') {
         console.warn(`[RealMusicEngine] Fetch error for query: "${q}"`, err?.message);
       }
       return [];
@@ -89,7 +86,7 @@ export class RealMusicEngine {
     }
     if (image?.url) return image.url.replace('http://', 'https://');
     if (image?.link) return image.link.replace('http://', 'https://');
-    return '';
+    return '/app-icon.png';
   }
 
   public async searchRealAlbums(query: string, limit = 15): Promise<any[]> {
@@ -107,7 +104,7 @@ export class RealMusicEngine {
       const data = await res.json();
       const results = data.data?.results || data.results || [];
       return results.map((album: any) => {
-        const coverUrl = this.extractCoverUrl(album.image || album.coverUrl) || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80';
+        const coverUrl = this.extractCoverUrl(album.image || album.coverUrl) || '/app-icon.png';
         return {
           id: album.id,
           title: decode(album.name || album.title || 'Unknown Album'),
@@ -153,7 +150,7 @@ export class RealMusicEngine {
       
       if (!collection) return null;
 
-      const coverUrl = this.extractCoverUrl(collection.image || collection.coverUrl) || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80';
+      const coverUrl = this.extractCoverUrl(collection.image || collection.coverUrl) || '/app-icon.png';
 
       let rawSongs = collection.songs ? this.mapResults(collection.songs) : [];
 
@@ -241,7 +238,7 @@ export class RealMusicEngine {
           : decode(track.artist || track.subtitle || 'Unknown Artist');
 
       const rawImages = track.image || track.images || [];
-      let coverUrl = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80';
+      let coverUrl = '/app-icon.png';
       
       if (typeof rawImages === 'string') {
         coverUrl = rawImages.replace('http://', 'https://');

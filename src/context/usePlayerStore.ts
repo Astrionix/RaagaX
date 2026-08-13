@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { Song, RepeatMode, AIDJState, ActiveTab, Renderer } from '@/types/music';
 import { RecommendationEngine } from '@/lib/recommendationEngine';
 import { LocalDatabase } from '@/lib/localDatabase';
+import { QueueManager } from '@/lib/queue/QueueManager';
 
 import { AudioQuality, AudioQualityState } from '@/lib/playback/types';
 
@@ -114,7 +115,7 @@ interface PlayerState {
   syncCloudLibrary: () => Promise<void>;
   autoRefillQueue: () => Promise<void>;
   setPreferredLanguage: (lang: string) => void;
-  playSong: (song: Song, newQueue?: Song[]) => void;
+  playSong: (song: Song, newQueue?: Song[], context?: import('@/lib/queue/types').PlaybackContext) => void;
   shufflePlay: (songs: Song[], context?: import('@/lib/queue/types').PlaybackContext) => Promise<void>;
   commitPlaybackTransition: (song: Song, queueIndex?: number, updatedQueue?: Song[]) => void;
   togglePlayPause: () => void;
@@ -471,14 +472,15 @@ export const usePlayerStore = create<PlayerState>()(
     }
   },
 
-  playSong: (song, newQueue) => {
+  playSong: (song, newQueue, context) => {
     get().logCurrentTelemetry('skip');
     
     // Check if newQueue was passed (e.g. from an album or playlist)
-    const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+    const manager = QueueManager.getInstance();
     if (newQueue && newQueue.length > 0) {
        const index = newQueue.findIndex((s: Song) => s.id === song.id);
-       manager.replaceQueue(newQueue, index !== -1 ? index : 0);
+       const boundedQueue = index !== -1 ? newQueue.slice(index) : newQueue;
+       manager.replaceQueue(boundedQueue, 0, (context?.type as any) || 'PLAYLIST', context);
     } else {
        // Play now immediately overrides next
        manager.playNow(song);
@@ -535,6 +537,7 @@ export const usePlayerStore = create<PlayerState>()(
       currentSong: firstSong,
       queue: syncedQueue,
       queueIndex: 0,
+      shuffleMode: snapshot.shuffleMode || 'STANDARD',
     });
 
     if (get().isActiveDevice) {
@@ -636,7 +639,7 @@ export const usePlayerStore = create<PlayerState>()(
     }
 
     const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
-    const nextItem = manager.getNext();
+    const nextItem = manager.getNext(false);
     
     if (nextItem && nextItem.song) {
       const snapshot = manager.getSnapshot();
@@ -706,7 +709,12 @@ export const usePlayerStore = create<PlayerState>()(
     const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
     const currentSong = syncedQueue[syncedIndex] || get().currentSong;
 
-    set({ queue: syncedQueue, queueIndex: syncedIndex, currentSong });
+    set({ 
+      shuffleMode: snapshot.shuffleMode || 'STANDARD',
+      queue: syncedQueue, 
+      queueIndex: syncedIndex, 
+      currentSong 
+    });
 
     import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
       PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
@@ -824,32 +832,42 @@ export const usePlayerStore = create<PlayerState>()(
 
   toggleLikeSong: (songId) => {
     const isLiked = get().likedSongIds.includes(songId);
+    const targetSong = get().currentSong?.id === songId ? get().currentSong : get().queue.find((s) => s?.id === songId);
     
-    // Optimistic UI update
+    // Optimistic UI update for both IDs and full song objects
     set((state) => {
       const newLikedIds = isLiked
         ? state.likedSongIds.filter((id) => id !== songId)
         : [...state.likedSongIds, songId];
 
-      return { likedSongIds: newLikedIds };
+      const newLikedSongs = isLiked
+        ? state.likedSongs.filter((s) => s.id !== songId)
+        : (targetSong ? [targetSong, ...state.likedSongs.filter((s) => s.id !== songId)] : state.likedSongs);
+
+      return { likedSongIds: newLikedIds, likedSongs: newLikedSongs };
     });
 
-    // Delegate cloud mutation to LibrarySyncEngine & LibrarySyncManager
-    import('@/lib/sync/LibrarySyncEngine').then(({ LibrarySyncEngine }) => {
-      const songToLike = get().currentSong?.id === songId ? get().currentSong : get().queue.find(s => s?.id === songId);
-      if (isLiked) {
-        LibrarySyncEngine.getInstance().unlikeSong(songId);
-      } else if (songToLike) {
-        LibrarySyncEngine.getInstance().likeSong(songToLike);
-      }
-    });
+    // Delegate to AccountSyncEngine & UserBehaviorTracker with authenticated user ID
+    import('@/context/useAuthStore').then(({ useAuthStore }) => {
+      const activeUserId = useAuthStore.getState().user?.id || 'guest';
 
-    import('@/lib/sync/LibrarySyncManager').then(({ LibrarySyncManager }) => {
-      if (isLiked) {
-        LibrarySyncManager.getInstance().unlikeSong(songId);
-      } else {
-        LibrarySyncManager.getInstance().likeSong(songId);
-      }
+      import('@/lib/sync/AccountSyncEngine').then(({ AccountSyncEngine }) => {
+        if (isLiked) {
+          AccountSyncEngine.getInstance().unlikeSong(activeUserId, songId);
+        } else {
+          AccountSyncEngine.getInstance().likeSong(activeUserId, songId);
+        }
+      });
+
+      import('@/lib/analytics/UserBehaviorTracker').then(({ UserBehaviorTracker }) => {
+        UserBehaviorTracker.getInstance().trackEvent(activeUserId, {
+          event_type: isLiked ? 'UNLIKE' : 'LIKE',
+          song_id: songId,
+          artist_id: targetSong?.artistId,
+          genre: targetSong?.genre,
+          language: (targetSong as any)?.language || (targetSong as any)?.languageId,
+        });
+      });
     });
   },
   setLikedSongIds: (songIds) => {

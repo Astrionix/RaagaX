@@ -162,11 +162,9 @@ export function AlbumsView() {
               >
                 <div className="relative aspect-square rounded-xl overflow-hidden mb-2.5">
                   <img 
-                    src={album.coverUrl} 
+                    src={album.coverUrl ? album.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500') : '/app-icon.png'} 
                     alt={album.title} 
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=500&h=500';
-                    }}
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 bg-slate-800" 
                   />
                   <button
@@ -207,11 +205,9 @@ export function AlbumsView() {
               >
                 <div className="relative aspect-square rounded-xl overflow-hidden mb-2.5">
                   <img 
-                    src={album.coverUrl} 
+                    src={album.coverUrl ? album.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500') : '/app-icon.png'} 
                     alt={album.title} 
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=500&h=500';
-                    }}
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 bg-slate-800" 
                   />
                   <button
@@ -253,11 +249,9 @@ export function AlbumsView() {
               >
                 <div className="relative aspect-square rounded-xl overflow-hidden mb-2.5">
                   <img 
-                    src={album.coverUrl} 
+                    src={album.coverUrl ? album.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500') : '/app-icon.png'} 
                     alt={album.title} 
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=500&h=500';
-                    }}
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 bg-slate-800" 
                   />
                   

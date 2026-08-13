@@ -165,8 +165,15 @@ export class QueueEngine {
     return null;
   }
 
-  public getNextItem(): QueueItem | null {
-    if (this.repeatMode === 'TRACK') {
+  /**
+   * Evaluates natural track completion or explicit user skip.
+   * @param isNaturalEnd If true, honors REPEAT_ONE (TRACK) mode to repeat current song.
+   * If false (explicit user Next click), ignores REPEAT_ONE and advances to next track.
+   */
+  public getNextItem(isNaturalEnd: boolean = false): QueueItem | null {
+    if (this.items.length === 0) return null;
+
+    if (isNaturalEnd && this.repeatMode === 'TRACK') {
       return this.getCurrentItem();
     }
 
@@ -195,12 +202,21 @@ export class QueueEngine {
   }
 
   public getPreviousItem(): QueueItem | null {
+    if (this.items.length === 0) return null;
+
     if (this.currentIndex - 1 >= 0) {
       this.currentIndex--;
       this.mutate();
       return this.items[this.currentIndex];
     }
-    return this.getCurrentItem(); // Fallback to current if at start
+
+    if (this.repeatMode === 'CONTEXT' && this.items.length > 0) {
+      this.currentIndex = this.items.length - 1;
+      this.mutate();
+      return this.items[this.currentIndex];
+    }
+
+    return this.getCurrentItem();
   }
 
   public playNow(item: QueueItem) {

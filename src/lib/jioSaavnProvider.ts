@@ -32,17 +32,18 @@ function mapTrackToSong(track: any, idx: number): Song {
       ? pa.map((a: any) => decode(a.name)).join(', ')
       : decode(track.artist || track.subtitle || 'Unknown Artist');
 
-  let coverUrl =
-    'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop&q=80';
+  let coverUrl = '/app-icon.png';
   if (Array.isArray(track.image) && track.image.length > 0) {
     const hi =
       track.image.find((i: any) => i?.quality === '500x500' || i?.quality === '500X500') ||
-      track.image[track.image.length - 1];
+      track.image[track.image.length - 1] ||
+      track.image[0];
     const rawUrl = hi?.url || hi?.link || (typeof hi === 'string' ? hi : '');
-    if (rawUrl) coverUrl = rawUrl.replace('http://', 'https://');
+    if (rawUrl) coverUrl = rawUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500');
   } else if (typeof track.image === 'string' && track.image) {
-    coverUrl = track.image.replace('http://', 'https://');
+    coverUrl = track.image.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500');
   }
+  if (!coverUrl) coverUrl = '/app-icon.png';
 
   let audioUrl = '';
   if (Array.isArray(track.downloadUrl) && track.downloadUrl.length > 0) {

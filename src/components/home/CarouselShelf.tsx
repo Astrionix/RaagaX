@@ -268,7 +268,7 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
   const totalDurationMins = Math.floor((totalDurationSec % 3600) / 60);
   const durationText = totalDurationHrs > 0 ? `${totalDurationHrs} hr ${totalDurationMins} min` : `${totalDurationMins} min`;
 
-  const coverImageUrl = shelfItems[0]?.imageUrl || 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300';
+  const coverImageUrl = shelfItems[0]?.imageUrl || '/app-icon.png';
 
   if (shelfItems.length === 0) return null;
 
@@ -313,7 +313,7 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
         )}
       </div>
       
-      <div className="grid grid-rows-2 auto-cols-[144px] sm:auto-cols-[176px] grid-flow-col overflow-x-auto no-scrollbar gap-4 pb-4 px-4 sm:px-0">
+      <div className="grid grid-rows-1 auto-cols-[144px] sm:auto-cols-[176px] grid-flow-col overflow-x-auto no-scrollbar gap-4 pb-4 px-4 sm:px-0">
         {visibleItems.map((item, index) => {
           const isSentinel = pagination?.enabled && index === sentinelIndex;
           
@@ -326,11 +326,9 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
             >
               <div className="relative w-full aspect-square mb-3 shadow-lg rounded-md overflow-hidden bg-slate-800">
                 <img
-                  src={item.imageUrl || 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300'}
+                  src={item.imageUrl ? item.imageUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500') : '/app-icon.png'}
                   alt={item.title}
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300';
-                  }}
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
                   className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 ${
                     item.type === 'artist' ? 'rounded-full' : 'rounded-md'
                   }`}
@@ -463,7 +461,12 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
                     </div>
                     
                     <div className="flex items-center gap-3 min-w-0">
-                      <img src={item.imageUrl || 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&q=80&w=300&h=300'} alt={item.title} className="w-10 h-10 object-cover bg-slate-800" />
+                      <img
+                        src={item.imageUrl || '/app-icon.png'}
+                        alt={item.title}
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+                        className="w-10 h-10 object-cover bg-slate-800"
+                      />
                       <div className="min-w-0 flex-1">
                         <h4 className={`text-base font-normal truncate ${isCurrentlyPlaying ? 'text-[#fa233b]' : 'text-white'}`}>
                           {item.title}

@@ -70,6 +70,7 @@ export type ContextType = 'ALBUM' | 'PLAYLIST' | 'ARTIST' | 'AUTOPLAY' | 'RADIO'
 export interface PlaybackContext {
   contextType?: ContextType;
   type?: string; // Backwards compatibility
+  id?: string;
   contextUri?: string;
   collectionId?: string;
   title?: string;

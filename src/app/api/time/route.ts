@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
-
 export async function GET() {
-  return NextResponse.json({ serverTimeMs: Date.now() });
+  const now = Date.now();
+  return NextResponse.json({
+    serverTimeMs: now,
+    serverTime: now,
+    timestamp: new Date(now).toISOString(),
+  });
 }

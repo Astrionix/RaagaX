@@ -8,7 +8,7 @@ export const viewport = {
 
 export const metadata = {
   title: 'RaagaX - Futuristic Music Streaming Platform',
-  description: 'Experience studio-grade 320kbps audio, YouTube Music Video mode, and synced lyrics.',
+  description: 'Experience studio-grade 320kbps audio and synced lyrics.',
   manifest: '/manifest.json',
   icons: {
     icon: '/favicon.ico',

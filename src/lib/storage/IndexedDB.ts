@@ -1,5 +1,5 @@
 const DB_NAME = 'raagaX';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export const STORES = {
   LIKED_SONGS: 'liked_songs',
@@ -10,6 +10,8 @@ export const STORES = {
   LIBRARY_META: 'library_meta',
   SYNC_OUTBOX: 'sync_outbox',
   BROWSE_CACHE: 'browse_cache',
+  RECOMMENDATIONS_SNAPSHOT: 'recommendations_snapshot',
+  PENDING_MUTATIONS: 'pending_mutations',
 } as const;
 
 export class RaagaDB {
@@ -27,6 +29,7 @@ export class RaagaDB {
 
   public async init(): Promise<void> {
     if (this.db) return;
+    if (typeof indexedDB === 'undefined') return;
 
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -67,12 +70,20 @@ export class RaagaDB {
         if (!db.objectStoreNames.contains(STORES.BROWSE_CACHE)) {
           db.createObjectStore(STORES.BROWSE_CACHE, { keyPath: 'id' }); // id: 'language'
         }
+        if (!db.objectStoreNames.contains(STORES.RECOMMENDATIONS_SNAPSHOT)) {
+          db.createObjectStore(STORES.RECOMMENDATIONS_SNAPSHOT, { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains(STORES.PENDING_MUTATIONS)) {
+          const store = db.createObjectStore(STORES.PENDING_MUTATIONS, { keyPath: 'id' });
+          store.createIndex('createdAt', 'createdAt', { unique: false });
+        }
       };
     });
   }
 
   public async get<T>(storeName: string, key: string): Promise<T | undefined> {
     await this.init();
+    if (!this.db) return undefined;
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(storeName, 'readonly');
       const store = transaction.objectStore(storeName);
@@ -85,6 +96,7 @@ export class RaagaDB {
 
   public async getAll<T>(storeName: string): Promise<T[]> {
     await this.init();
+    if (!this.db) return [];
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(storeName, 'readonly');
       const store = transaction.objectStore(storeName);
@@ -97,6 +109,7 @@ export class RaagaDB {
 
   public async put(storeName: string, value: any): Promise<void> {
     await this.init();
+    if (!this.db) return;
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(storeName, 'readwrite');
       const store = transaction.objectStore(storeName);
@@ -109,6 +122,7 @@ export class RaagaDB {
 
   public async delete(storeName: string, key: string): Promise<void> {
     await this.init();
+    if (!this.db) return;
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(storeName, 'readwrite');
       const store = transaction.objectStore(storeName);

@@ -24,6 +24,11 @@ export class SearchAlbumsUseCase implements IUseCase<SearchAlbumsArgs, z.infer<t
       }
     })
 
+    if (!data) {
+      // JioSaavn returned HTML, timed out, or network failed — return empty result
+      return { total: 0, start: 0, results: [] };
+    }
+
     return createSearchAlbumPayload(data)
   }
 }

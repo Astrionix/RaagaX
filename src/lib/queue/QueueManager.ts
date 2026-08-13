@@ -71,6 +71,8 @@ export class QueueManager {
     // Automatically keep native ExoPlayer background queue synchronized
     import('../playback/PlaybackService').then(({ PlaybackService }) => {
       PlaybackService.getInstance().preloadNativeNextTrack();
+    }).catch(() => {
+      // Ignore chunk load errors gracefully during hot module reloads
     });
   }
 
@@ -143,7 +145,9 @@ export class QueueManager {
     const current = this.engine.getCurrentItem();
     if (current) this.history.recordPlay(current);
     
-    this.smartQueue.evaluateRefill(this.engine);
+    if (source === 'RECOMMENDATION' || source === 'AUTOPLAY') {
+      this.smartQueue.evaluateRefill(this.engine);
+    }
     this.notify();
   }
 
@@ -158,8 +162,8 @@ export class QueueManager {
     this.notify();
   }
 
-  public getNext(): QueueItem | null {
-    const item = this.engine.getNextItem();
+  public getNext(isNaturalEnd: boolean = false): QueueItem | null {
+    const item = this.engine.getNextItem(isNaturalEnd);
     if (item) {
       this.history.recordPlay(item);
       this.smartQueue.evaluateRefill(this.engine);

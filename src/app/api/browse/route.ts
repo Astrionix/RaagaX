@@ -69,11 +69,23 @@ export async function GET(req: NextRequest) {
         } else {
           status = 'ready';
         }
-        items = cached.data.slice(0, 20); // Return initial 20 songs
+        items = cached.data;
       } else {
         // Cache MISS - enqueue immediately and return loading
         status = 'loading';
         DiscoveryQueue.enqueue(section.source.id, lang, section.source.title);
+      }
+
+      // Apply 3-day recommendation cycle window & repetition penalty
+      const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+      const cycleIndex = Math.floor(Date.now() / THREE_DAYS_MS);
+      
+      // Rotate starting offset per 3-day cycle to introduce fresh candidates without altering section titles
+      if (items.length > 10) {
+        const offset = (cycleIndex * 5) % Math.max(1, items.length - 10);
+        items = [...items.slice(offset), ...items.slice(0, offset)].slice(0, 20);
+      } else {
+        items = items.slice(0, 20);
       }
 
       sections.push({
@@ -83,6 +95,7 @@ export async function GET(req: NextRequest) {
         type: 'carousel',
         status,
         total,
+        cycleIndex,
         hasMore: total > items.length,
         items: items.map(song => ({
           id: song.id,
@@ -95,7 +108,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ success: true, sections });
+    return NextResponse.json({ success: true, cycleDays: 3, sections });
   } catch (err) {
     console.error('[BROWSE API] Error:', err);
     return NextResponse.json({ success: false, sections: [] }, { status: 500 });

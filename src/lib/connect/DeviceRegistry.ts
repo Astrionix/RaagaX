@@ -81,7 +81,18 @@ export class DeviceRegistry {
     return { name, type, platform };
   }
 
+  private isUUID(str: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+  }
+
   public async createOrJoinSession(userId: string): Promise<string | null> {
+    if (!userId || !this.isUUID(userId)) {
+      const fallback = localStorage.getItem('raagax_fallback_session') ||
+        'local_sess_' + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem('raagax_fallback_session', fallback);
+      return fallback;
+    }
+
     try {
       const { data, error } = await supabase.rpc('get_or_create_playback_session', {
         p_user_id: userId
@@ -141,11 +152,25 @@ export class DeviceRegistry {
    * Subscribes to Supabase Realtime changes on public:devices for the current user.
    */
   public async subscribeToUserDevices(userId: string): Promise<void> {
-    if (this.presenceChannel) return;
+    if (this.presenceChannel) {
+      // Channel is already subscribed and listening for this user
+      await this.fetchAndPublishOnlineDevices(userId);
+      return;
+    }
+
+    const channelName = `user-devices:${userId}`;
+    const rawChannels = typeof supabase.getChannels === 'function' ? supabase.getChannels() : [];
+    const channels = Array.isArray(rawChannels) ? rawChannels : [];
+    const existing = channels.find((c: any) => c.topic === `realtime:${channelName}` || c.topic === channelName);
+    if (existing) {
+      try {
+        await supabase.removeChannel(existing);
+      } catch (e) {}
+    }
 
     console.log(`[DeviceRegistry] Subscribing to device presence for user ${userId}`);
 
-    this.presenceChannel = supabase.channel(`user-devices:${userId}`)
+    this.presenceChannel = supabase.channel(channelName)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
@@ -165,6 +190,8 @@ export class DeviceRegistry {
    * Updates Zustand store onlineDevices state.
    */
   public async fetchAndPublishOnlineDevices(userId: string): Promise<DeviceRecord[]> {
+    if (!userId || !this.isUUID(userId)) return [];
+
     try {
       const { data, error } = await supabase
         .from('devices')

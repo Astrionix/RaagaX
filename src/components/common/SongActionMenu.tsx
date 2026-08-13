@@ -65,8 +65,9 @@ export function SongActionMenu({ song }: { song: Song }) {
           {/* Song Header Preview Banner */}
           <div className="flex items-center gap-3 p-2.5 mb-1 rounded-xl bg-white/5 border border-white/5">
             <img 
-              src={song.coverUrl || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
+              src={song.coverUrl || '/app-icon.png'} 
               alt={song.title} 
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
               className="w-10 h-10 rounded-lg object-cover flex-shrink-0 shadow-md"
             />
             <div className="min-w-0 flex-1">
