@@ -826,9 +826,9 @@ export const usePlayerStore = create<PlayerState>()(
       if (!session?.session?.user) return;
       const userId = session.session.user.id;
 
-      // Reconcile cloud likes with LibrarySyncManager
-      const { LibrarySyncManager } = await import('@/lib/sync/LibrarySyncManager');
-      await LibrarySyncManager.getInstance().reconcile();
+      // Reconcile cloud likes with single authoritative AccountSyncEngine
+      const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
+      await AccountSyncEngine.getInstance().reconcile(userId);
       
       // 1. Fetch User Favorites (Artists/Albums)
       const { data: favData } = await supabase
@@ -876,16 +876,7 @@ export const usePlayerStore = create<PlayerState>()(
       return { likedSongIds: newLikedIds, likedSongs: newLikedSongs };
     });
 
-    // Delegate to LibrarySyncManager for mutation queue, revision increment, and realtime broadcast
-    import('@/lib/sync/LibrarySyncManager').then(({ LibrarySyncManager }) => {
-      if (isLiked) {
-        LibrarySyncManager.getInstance().unlikeSong(songId);
-      } else {
-        LibrarySyncManager.getInstance().likeSong(songId);
-      }
-    });
-
-    // Delegate to AccountSyncEngine & UserBehaviorTracker with authenticated user ID
+    // Delegate solely to authoritative AccountSyncEngine & UserBehaviorTracker
     import('@/context/useAuthStore').then(({ useAuthStore }) => {
       const activeUserId = useAuthStore.getState().user?.id || 'guest';
 
@@ -1128,7 +1119,6 @@ export const usePlayerStore = create<PlayerState>()(
         return persistedState;
       },
       partialize: (state) => ({
-        likedSongIds: state.likedSongIds,
         downloadedSongIds: state.downloadedSongIds,
         historySongIds: state.historySongIds,
         favoriteArtistIds: state.favoriteArtistIds,

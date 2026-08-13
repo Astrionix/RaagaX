@@ -45,7 +45,7 @@ export class IntelligentQueueScorer {
 
     const artist = candidate.artist || '';
     const album = candidate.album || '';
-    const lang = candidate.genre?.split(' ')[0] || 'Telugu';
+    const lang = (candidate as any).language || (candidate as any).languageId || candidate.genre?.split(' ')[0] || '';
 
     // 1. User Affinity (Taste Graph Relationship Strength)
     const artistScore = tasteGraph.getRelationshipScore(artist, 'artist');

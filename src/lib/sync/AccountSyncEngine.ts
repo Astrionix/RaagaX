@@ -18,6 +18,8 @@ export class AccountSyncEngine {
   private isFlushing = false;
   private isOnline = true;
 
+  private channel: any = null;
+
   private constructor() {
     if (typeof window !== 'undefined') {
       this.isOnline = navigator.onLine;
@@ -27,6 +29,23 @@ export class AccountSyncEngine {
       });
       window.addEventListener('offline', () => {
         this.isOnline = false;
+      });
+
+      // Auto-listen to auth changes and reconcile
+      supabase.auth.onAuthStateChange((event, session) => {
+        if (session?.user?.id) {
+          this.subscribeToRealtime(session.user.id);
+          this.reconcile(session.user.id);
+        } else {
+          this.unsubscribe();
+        }
+      });
+
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session?.user?.id) {
+          this.subscribeToRealtime(data.session.user.id);
+          this.reconcile(data.session.user.id);
+        }
       });
     }
   }
@@ -40,6 +59,54 @@ export class AccountSyncEngine {
 
   private isUUID(str: string): boolean {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+  }
+
+  public subscribeToRealtime(userId: string) {
+    if (!this.isUUID(userId)) return;
+    if (this.channel) this.unsubscribe();
+
+    this.channel = supabase
+      .channel(`user-account-sync:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'liked_songs', filter: `user_id=eq.${userId}` },
+        async () => {
+          console.log('[AccountSyncEngine] Realtime liked_songs update detected, reconciling...');
+          await this.reconcile(userId);
+        }
+      )
+      .subscribe();
+  }
+
+  public unsubscribe() {
+    if (this.channel) {
+      supabase.removeChannel(this.channel);
+      this.channel = null;
+    }
+  }
+
+  public async reconcile(userId: string): Promise<string[]> {
+    if (!this.isUUID(userId)) return [];
+    try {
+      const { data, error } = await supabase
+        .from('liked_songs')
+        .select('song_id')
+        .eq('user_id', userId);
+
+      if (!error && data) {
+        const songIds = data.map((row: any) => row.song_id);
+        const localDb = LocalDatabase.getInstance();
+        await localDb.setUserStore(userId, 'liked_songs', songIds);
+        
+        // Update player store in memory
+        const { usePlayerStore } = await import('@/context/usePlayerStore');
+        usePlayerStore.setState({ likedSongIds: songIds });
+        return songIds;
+      }
+    } catch (e) {
+      console.warn('[AccountSyncEngine] Reconcile error:', e);
+    }
+    return [];
   }
 
   // --- LIKES ---

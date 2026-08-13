@@ -88,7 +88,7 @@ export function OnboardingAuthModal() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
-  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(['Telugu']);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
   const [selectedMoods, setSelectedMoods] = useState<string[]>(['Melodies', 'Love']);
   const [selectedArtists, setSelectedArtists] = useState<string[]>([]);
   
@@ -131,22 +131,31 @@ export function OnboardingAuthModal() {
     }
   };
 
-  const handleRegisterCredentials = async () => {
+  const handleRegisterCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
     setErrorMsg('');
-    if (!username) return setErrorMsg('Username is required');
-    if (!email) return setErrorMsg('Email is required');
-    if (password !== confirmPassword) return setErrorMsg('Passwords do not match');
-    if (password.length < 6) return setErrorMsg('Password must be at least 6 characters');
+
+    if (!email.includes('@')) {
+      setErrorMsg('Please enter a valid email address.');
+      return;
+    }
+    if (password.length < 6) {
+      setErrorMsg('Password must be at least 6 characters.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setErrorMsg('Passwords do not match.');
+      return;
+    }
     setMode('register-language');
   };
 
   const handleRegisterLanguage = () => {
-    if (selectedLanguages.length > 0) {
-      setPreferredLanguage(selectedLanguages[0]);
-      import('@/lib/lifecycle/UserLifecycleManager').then(({ UserLifecycleManager }) => {
-        UserLifecycleManager.getInstance().setSelectedLanguages(selectedLanguages);
-      });
+    if (selectedLanguages.length === 0) {
+      setErrorMsg('Please select at least one language to continue.');
+      return;
     }
+    setErrorMsg('');
     setMode('register-moods');
   };
 
@@ -164,7 +173,9 @@ export function OnboardingAuthModal() {
 
     // Bootstrap recommendation engine & lifecycle manager
     UserLifecycleManager.getInstance().bootstrapFromOnboarding(selectedLanguages, selectedMoods, selectedArtists);
-
+    const { ListeningDnaEngine } = await import('@/lib/lifecycle/ListeningDnaEngine');
+    ListeningDnaEngine.getInstance().setInitialLanguages(selectedLanguages);
+    
     selectedArtists.forEach(artist => {
       RecommendationEngine.getInstance().trackEngagement({
         id: `bootstrap_${artist}`,

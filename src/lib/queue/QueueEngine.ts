@@ -136,9 +136,12 @@ export class QueueEngine {
         const currentItem = this.items[this.currentIndex];
         const remaining = this.items.filter((_, i) => i !== this.currentIndex);
         
-        // Let SmartShuffleEngine do the heavy lifting
+        // Let SmartShuffleEngine do the heavy lifting with active user preferred language
+        const { usePlayerStore } = await import('@/context/usePlayerStore');
+        const activeLang = usePlayerStore.getState().preferredLanguage || (currentItem?.song as any)?.language || 'Telugu';
+        
         const smartSequence = await import('./SmartShuffleEngine').then(m => 
-          m.SmartShuffleEngine.generateSmartSequence(remaining, this.shuffleSeed, 'Telugu')
+          m.SmartShuffleEngine.generateSmartSequence(remaining, this.shuffleSeed, activeLang)
         );
         
         this.items = [currentItem, ...smartSequence];

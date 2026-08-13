@@ -24,7 +24,7 @@ export class ListeningDnaEngine {
   private static instance: ListeningDnaEngine;
 
   private dna: ListeningDna = {
-    languageDistribution: { Telugu: 100 },
+    languageDistribution: {},
     genreDistribution: { Melody: 50, Love: 50 },
     artistDistribution: {},
     eraDistribution: { '2020s': 80, '2010s': 20 },
@@ -42,6 +42,15 @@ export class ListeningDnaEngine {
       ListeningDnaEngine.instance = new ListeningDnaEngine();
     }
     return ListeningDnaEngine.instance;
+  }
+
+  public setInitialLanguages(languages: string[]) {
+    if (!languages || languages.length === 0) return;
+    const share = Math.round(100 / languages.length);
+    const dist: Record<string, number> = {};
+    languages.forEach(l => { dist[l] = share; });
+    this.dna.languageDistribution = dist;
+    this.saveToStorage();
   }
 
   private loadFromStorage() {
@@ -74,14 +83,16 @@ export class ListeningDnaEngine {
   }
 
   public recordTrackPlay(song: Song, playedPercentage: number, isReplay: boolean = false, isExplicitSearch: boolean = false) {
-    const lang = song.genre?.split(' ')[0] || 'Telugu';
+    const lang = (song as any).language || (song as any).languageId || song.genre?.split(' ')[0] || '';
     const artist = song.artist || 'Unknown';
     const era = song.releaseYear ? (song.releaseYear >= 2020 ? '2020s' : song.releaseYear >= 2010 ? '2010s' : 'Classics') : '2020s';
 
     const weight = isReplay ? 3.0 : isExplicitSearch ? 2.5 : playedPercentage >= 0.8 ? 1.5 : 0.5;
 
     // Update Distributions
-    this.incrementDistribution('languageDistribution', lang, weight);
+    if (lang) {
+      this.incrementDistribution('languageDistribution', lang, weight);
+    }
     this.incrementDistribution('artistDistribution', artist, weight);
     this.incrementDistribution('eraDistribution', era, weight);
 

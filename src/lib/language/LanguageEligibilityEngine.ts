@@ -45,7 +45,7 @@ export class LanguageEligibilityEngine {
    * Normalizes song language text string (e.g. 'telugu' -> 'Telugu')
    */
   public normalizeLanguage(lang?: string): string {
-    if (!lang) return 'Telugu';
+    if (!lang) return '';
     const clean = lang.trim().toLowerCase();
     if (clean.includes('telugu')) return 'Telugu';
     if (clean.includes('tamil')) return 'Tamil';
@@ -61,9 +61,10 @@ export class LanguageEligibilityEngine {
    */
   public async getLanguageState(userId: string, language: string, selectedLanguages: string[] = []): Promise<LanguageState> {
     const targetLang = this.normalizeLanguage(language);
-    const selected = selectedLanguages.map(l => this.normalizeLanguage(l));
+    if (!targetLang) return 'ACTIVE';
+    const selected = selectedLanguages.map(l => this.normalizeLanguage(l)).filter(Boolean);
 
-    if (selected.includes(targetLang)) {
+    if (selected.length === 0 || selected.includes(targetLang)) {
       return 'ACTIVE';
     }
 
@@ -114,9 +115,9 @@ export class LanguageEligibilityEngine {
   public inferPlaylistLanguageProfile(songs: Song[]): PlaylistLanguageProfile {
     if (!songs || songs.length === 0) {
       return {
-        primaryLanguage: 'Telugu',
-        distribution: { Telugu: 1.0 },
-        eligibleLanguages: ['Telugu'],
+        primaryLanguage: 'All',
+        distribution: {},
+        eligibleLanguages: ['Telugu', 'Tamil', 'Hindi', 'Kannada', 'Malayalam', 'English'],
       };
     }
 
@@ -125,13 +126,23 @@ export class LanguageEligibilityEngine {
 
     for (const song of songs) {
       const lang = this.normalizeLanguage((song as any).language || (song as any).languageId || song.genre);
-      counts[lang] = (counts[lang] || 0) + 1;
-      total++;
+      if (lang) {
+        counts[lang] = (counts[lang] || 0) + 1;
+        total++;
+      }
+    }
+
+    if (total === 0) {
+      return {
+        primaryLanguage: 'All',
+        distribution: {},
+        eligibleLanguages: ['Telugu', 'Tamil', 'Hindi', 'Kannada', 'Malayalam', 'English'],
+      };
     }
 
     const distribution: Record<string, number> = {};
     let maxCount = 0;
-    let primaryLanguage = 'Telugu';
+    let primaryLanguage = Object.keys(counts)[0] || 'All';
     const eligibleLanguages: string[] = [];
 
     for (const [lang, count] of Object.entries(counts)) {
