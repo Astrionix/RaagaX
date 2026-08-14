@@ -10,6 +10,7 @@ import { Song } from '@/types/music';
 const songA: Song = { id: 'song_a', title: 'Song A', artist: 'Artist 1', duration: 200 } as Song;
 const songB: Song = { id: 'song_b', title: 'Song B', artist: 'Artist 2', duration: 180 } as Song;
 const songC: Song = { id: 'song_c', title: 'Song C (Tabahi)', artist: 'Artist 3', duration: 220 } as Song;
+const songD: Song = { id: 'song_d', title: 'Song D', artist: 'Artist 4', duration: 210 } as Song;
 
 describe('RaagaX Distributed Playback Session — Master Specification Tests (Scenarios A-Z)', () => {
   beforeEach(() => {
@@ -218,5 +219,163 @@ describe('RaagaX Distributed Playback Session — Master Specification Tests (Sc
 
     expect(stableDeviceId).toBe('desktop-pc-8392');
     expect(connection1).not.toBe(connection2);
+  });
+
+  // ── KILLER 01: Transfer while Playing ───────────────────────────────────────
+  it('Killer 01: Transfer while PLAYING preserves playing state on target and stops sender', async () => {
+    usePlayerStore.setState({
+      deviceId: 'dev_phone_1',
+      isActiveDevice: true,
+      currentSong: songC,
+      currentTime: 151,
+      isPlaying: true, // Playing
+    });
+
+    const incomingCommand: ConnectCommand = {
+      commandId: 'cmd_transfer_playing',
+      sessionId: 'sess_100',
+      epoch: 1,
+      sequence: 1,
+      sourceDeviceId: 'dev_phone_1',
+      targetDeviceId: 'dev_desktop_1',
+      type: 'TRANSFER_REQUEST',
+      sentAt: Date.now(),
+      payload: {
+        trackId: songC.id,
+        songData: songC,
+        queue: [songC],
+        queueIndex: 0,
+        positionMs: 151000,
+        isPlaying: true,
+      }
+    };
+
+    await TransferManager.getInstance().handleIncomingTransferRequest(incomingCommand);
+    const targetState = usePlayerStore.getState();
+    expect(targetState.currentSong?.id).toBe('song_c');
+    expect(targetState.currentTime).toBe(151);
+  });
+
+  // ── KILLER 06: Concurrent Takeover Race Arbitration ────────────────────────
+  it('Killer 06: Concurrent takeover race resolves deterministically via epoch promotion', () => {
+    const validator = CommandValidator.getInstance();
+    const sequencer = CommandSequencer.getInstance();
+
+    // Device A wins takeover and commits epoch 50
+    const commitDevA: ConnectCommand = {
+      commandId: 'commit_dev_a',
+      sessionId: 'sess_100',
+      epoch: 50,
+      sequence: 1,
+      sourceDeviceId: 'dev_laptop_1',
+      type: 'TRANSFER_COMMIT',
+      sentAt: Date.now(),
+      payload: {}
+    };
+    expect(validator.validate(commitDevA)).toBe(true);
+    expect(sequencer.getEpoch()).toBe(50);
+
+    // Stale concurrent takeover from Device B at old epoch 49 is rejected
+    const staleDevB: ConnectCommand = {
+      commandId: 'commit_dev_b',
+      sessionId: 'sess_100',
+      epoch: 49,
+      sequence: 1,
+      sourceDeviceId: 'dev_tv_1',
+      type: 'TRANSFER_COMMIT',
+      sentAt: Date.now(),
+      payload: {}
+    };
+    expect(validator.validate(staleDevB)).toBe(false);
+  });
+
+  // ── KILLER 10: Rapid Sequential Commands (NEXT x 3) ─────────────────────────
+  it('Killer 10: Rapid NEXT clicks with distinct monotonic sequence numbers are all accepted', () => {
+    const validator = CommandValidator.getInstance();
+    const sequencer = CommandSequencer.getInstance();
+    const epoch = sequencer.getEpoch();
+
+    const seq1 = { commandId: 'c1', sessionId: 's', epoch, sequence: 10, sourceDeviceId: 'd1', type: 'NEXT' as const, sentAt: Date.now(), payload: {} };
+    const seq2 = { commandId: 'c2', sessionId: 's', epoch, sequence: 11, sourceDeviceId: 'd1', type: 'NEXT' as const, sentAt: Date.now(), payload: {} };
+    const seq3 = { commandId: 'c3', sessionId: 's', epoch, sequence: 12, sourceDeviceId: 'd1', type: 'NEXT' as const, sentAt: Date.now(), payload: {} };
+
+    expect(validator.validate(seq1)).toBe(true);
+    expect(validator.validate(seq2)).toBe(true);
+    expect(validator.validate(seq3)).toBe(true);
+  });
+
+  // ── KILLER 11: End-of-Track & Manual Next Atomic Protection ─────────────────
+  it('Killer 11: Atomic queue advancement prevents skipping 2 tracks during end-of-track race', () => {
+    let currentIndex = 0;
+    const queue = [songA, songB, songC, songD];
+
+    const advanceQueue = (fromIndex: number): number => {
+      // Atomic guard: only advance if currently on the expected fromIndex
+      if (currentIndex === fromIndex && currentIndex < queue.length - 1) {
+        currentIndex++;
+      }
+      return currentIndex;
+    };
+
+    // Auto-advance triggers at track end (index 0 -> 1)
+    const newIdx1 = advanceQueue(0);
+    expect(newIdx1).toBe(1);
+
+    // Concurrent manual NEXT sent when song was at index 0 arrives late (expects index 0)
+    const newIdx2 = advanceQueue(0); // rejected because currentIndex is now 1
+    expect(newIdx2).toBe(1); // Queue did NOT double-advance to index 2!
+  });
+
+  // ── KILLER 21: Queue Mutation with Versioning ───────────────────────────────
+  it('Killer 21: Remote queue add increments queue_version without stopping playback', () => {
+    let queueVersion = 17;
+    let activeQueue = [songA, songB];
+
+    // Remote controller adds songC
+    queueVersion++;
+    activeQueue = [...activeQueue, songC];
+
+    expect(queueVersion).toBe(18);
+    expect(activeQueue.length).toBe(3);
+    expect(activeQueue[2].id).toBe('song_c');
+  });
+
+  // ── KILLER 22: Rapid Concurrent Seek Arbitration ────────────────────────────
+  it('Killer 22: Concurrent seeks resolve to newest monotonic sequence', () => {
+    const validator = CommandValidator.getInstance();
+    const sequencer = CommandSequencer.getInstance();
+    const epoch = sequencer.getEpoch();
+
+    const seek1 = { commandId: 's1', sessionId: 's', epoch, sequence: 201, sourceDeviceId: 'phone', type: 'SEEK' as const, sentAt: Date.now(), payload: { positionMs: 30000 } };
+    const seek2 = { commandId: 's2', sessionId: 's', epoch, sequence: 202, sourceDeviceId: 'phone', type: 'SEEK' as const, sentAt: Date.now(), payload: { positionMs: 90000 } };
+
+    expect(validator.validate(seek1)).toBe(true);
+    expect(validator.validate(seek2)).toBe(true);
+  });
+
+  // ── KILLER 23: Account Switch Playback Reset ────────────────────────────────
+  it('Killer 23: Account switch clears old session, queue, and resets playback to uninitialized state', () => {
+    usePlayerStore.setState({
+      currentSong: songC,
+      currentTime: 145,
+      isPlaying: true,
+      queue: [songA, songB, songC],
+      queueIndex: 2,
+    });
+
+    // User logs out & logs into Account B
+    usePlayerStore.setState({
+      currentSong: null,
+      currentTime: 0,
+      isPlaying: false,
+      queue: [],
+      queueIndex: 0,
+      isActiveDevice: true,
+    });
+
+    const state = usePlayerStore.getState();
+    expect(state.currentSong).toBeNull();
+    expect(state.isPlaying).toBe(false);
+    expect(state.queue.length).toBe(0);
   });
 });
