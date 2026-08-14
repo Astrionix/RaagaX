@@ -223,6 +223,7 @@ export class TransferManager {
       usePlayerStore.setState({ 
         isActiveDevice: false, 
         activeDeviceId: command.sourceDeviceId,
+        isPlaying: false,
         isTransferring: false, 
         transferringDeviceId: null 
       });
