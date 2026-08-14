@@ -232,6 +232,8 @@ export function AudioPlayerController() {
   // Handle Play/Pause State Synchronization
   useEffect(() => {
     const shouldRenderAudio = activeRenderer === 'audio' && isActiveDevice;
+    const store = usePlayerStore.getState();
+    const canPlay = isPlaying && store.playbackIntent === 'PLAYING';
 
     if (RaagaXNativePlayer.isNative()) {
       // Native path: route to ExoPlayer foreground service
@@ -239,7 +241,7 @@ export function AudioPlayerController() {
         RaagaXNativePlayer.pause();
         LyricsEngine.getInstance().setPlaying(false);
       } else {
-        if (isPlaying) {
+        if (canPlay) {
           RaagaXNativePlayer.resume();
           LyricsEngine.getInstance().setPlaying(true);
         } else {
@@ -258,10 +260,10 @@ export function AudioPlayerController() {
       PlaybackService.getInstance().pause();
       LyricsEngine.getInstance().setPlaying(false);
     } else {
-      if (isPlaying && activeAudio.paused) {
+      if (canPlay && activeAudio.paused) {
         PlaybackService.getInstance().play();
         LyricsEngine.getInstance().setPlaying(true);
-      } else if (!isPlaying && !activeAudio.paused) {
+      } else if (!canPlay && !activeAudio.paused) {
         PlaybackService.getInstance().pause();
         LyricsEngine.getInstance().setPlaying(false);
       }

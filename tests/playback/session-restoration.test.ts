@@ -142,6 +142,8 @@ describe('RaagaX Playback Session State & Startup Restoration Engine', () => {
     
     // CRITICAL: isPlaying MUST BE FALSE (DO NOT AUTOPLAY)
     expect(restoredState.isPlaying).toBe(false);
+    expect(restoredState.playbackIntent).toBe('PAUSED');
+    expect(restoredState.trackSource).toBe('SESSION_RESTORE');
   });
 
   it('4. Navigation (playNext / playPrev) immediately updates the persistent session', async () => {
@@ -155,6 +157,8 @@ describe('RaagaX Playback Session State & Startup Restoration Engine', () => {
       queue,
       queueIndex: 0,
       isPlaying: true,
+      playbackIntent: 'PLAYING',
+      trackSource: 'USER_SELECTED',
       currentTime: 0,
     });
 
@@ -164,5 +168,20 @@ describe('RaagaX Playback Session State & Startup Restoration Engine', () => {
     const session = LocalDatabase.getInstance().getSyncPlaybackSession();
     expect(session).not.toBeNull();
     expect(session!.currentSong?.id).toBe('song_b_2');
+  });
+
+  it('5. PlaybackIntent strict separation: User play sets PLAYING intent, user pause sets PAUSED intent', () => {
+    usePlayerStore.getState().playSong(songA, [songA]);
+    expect(usePlayerStore.getState().isPlaying).toBe(true);
+    expect(usePlayerStore.getState().playbackIntent).toBe('PLAYING');
+    expect(usePlayerStore.getState().trackSource).toBe('USER_SELECTED');
+
+    usePlayerStore.getState().setIsPlaying(false);
+    expect(usePlayerStore.getState().isPlaying).toBe(false);
+    expect(usePlayerStore.getState().playbackIntent).toBe('PAUSED');
+
+    usePlayerStore.getState().togglePlayPause();
+    expect(usePlayerStore.getState().isPlaying).toBe(true);
+    expect(usePlayerStore.getState().playbackIntent).toBe('PLAYING');
   });
 });

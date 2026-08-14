@@ -66,7 +66,7 @@ export class PlaybackService {
       const active = this.getActiveAudio();
       if (!active) return;
       const store = usePlayerStore.getState();
-      if (store.isActiveDevice && store.isPlaying && active.paused && !active.ended && !this.isTransitioning) {
+      if (store.isActiveDevice && store.isPlaying && store.playbackIntent === 'PLAYING' && active.paused && !active.ended && !this.isTransitioning) {
         if (active.readyState >= 2) {
           console.warn('[PlaybackService Watchdog] Active audio paused unexpectedly while isPlaying=true. Recovering play()...');
           active.play().catch((err) => {
@@ -618,8 +618,15 @@ export class PlaybackService {
     }
 
     const store = require('@/context/usePlayerStore').usePlayerStore.getState();
-    if (store.isActiveDevice && store.isPlaying !== isPlaying) {
-      store.setIsPlaying(isPlaying, true);
+    if (store.isActiveDevice) {
+      if (isPlaying && (!store.isPlaying || store.playbackIntent === 'PAUSED' || store.playbackIntent === 'IDLE')) {
+        // Element began playing unexpectedly while store is in PAUSED / IDLE intent -> immediately suppress!
+        active?.pause();
+        return;
+      }
+      if (store.isPlaying !== isPlaying) {
+        store.setIsPlaying(isPlaying, true);
+      }
     }
   }
 
@@ -701,8 +708,10 @@ export class PlaybackService {
 
     console.warn(`[PlaybackService] Audio stream error on audio ${tag}:`, e);
 
+    const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+    const shouldResume = store.isPlaying && store.playbackIntent === 'PLAYING';
+
     if (active.src === FALLBACK_AUDIO_URL) {
-      const store = require('@/context/usePlayerStore').usePlayerStore.getState();
       store.setIsPlaying(false);
       return;
     }
@@ -711,22 +720,25 @@ export class PlaybackService {
     try {
       if (active.src.includes('320')) {
         active.src = active.src.replace('320', '160');
-        active.play().catch(() => {});
+        if (shouldResume) active.play().catch(() => {});
         return;
       }
       if (active.src.includes('160')) {
         active.src = active.src.replace('160', '96');
-        active.play().catch(() => {});
+        if (shouldResume) active.play().catch(() => {});
         return;
       }
     } catch {}
 
     // Fallback URL
     active.src = FALLBACK_AUDIO_URL;
-    active.play().catch(() => {
-      const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+    if (shouldResume) {
+      active.play().catch(() => {
+        store.setIsPlaying(false);
+      });
+    } else {
       store.setIsPlaying(false);
-    });
+    }
   }
 
   private triggerNextPreload() {

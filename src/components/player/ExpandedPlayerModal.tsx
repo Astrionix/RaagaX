@@ -225,6 +225,22 @@ export function ExpandedPlayerModal() {
                   </div>
                 </button>
 
+                <button 
+                  onClick={async () => {
+                    toggleDownloadSong(currentSong.id);
+                    const { exportSongToDevice } = await import('@/lib/downloadHelper');
+                    await exportSongToDevice(currentSong);
+                    setToastMessage(`Downloading "${currentSong.title}" to local storage...`);
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <Download className={`w-4 h-4 ${isDownloaded ? 'text-emerald-400' : 'text-slate-400'}`} />
+                    <span className="font-bold">{isDownloaded ? 'Re-download MP3' : 'Download to local storage'}</span>
+                  </div>
+                </button>
+
                 <div className="h-px bg-white/10 my-1" />
 
                 <button 
@@ -437,14 +453,20 @@ export function ExpandedPlayerModal() {
             </button>
 
             <button
-              onClick={() => {
+              onClick={async () => {
                 toggleDownloadSong(currentSong.id);
-                setToastMessage(isDownloaded ? 'Removed from downloads' : 'Downloading track offline...');
+                const { exportSongToDevice } = await import('@/lib/downloadHelper');
+                await exportSongToDevice(currentSong);
+                setToastMessage(`Downloading "${currentSong.title}" to local storage...`);
               }}
-              className="p-2.5 rounded-2xl surface-card border border-white/15 hover:border-[#F20D18] transition-colors"
-              title="Download Song"
+              className={`p-2.5 rounded-2xl surface-card border transition-all ${
+                isDownloaded 
+                  ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10 shadow-sm' 
+                  : 'border-white/15 text-white/70 hover:text-white hover:border-[#F20D18]'
+              }`}
+              title="Download to Local Storage"
             >
-              <Download className={`w-4 h-4 ${isDownloaded ? 'text-emerald-400' : 'text-white/70'}`} />
+              <Download className={`w-4 h-4 ${isDownloaded ? 'text-emerald-400' : 'text-white/70 hover:text-white'}`} />
             </button>
 
             <button

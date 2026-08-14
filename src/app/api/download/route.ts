@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { JioSaavnProvider } from '@/lib/jioSaavnProvider';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,12 +9,27 @@ const ALLOWED_HOSTS = [
   'googlevideo.com',
   'ytimg.com',
   'cloudfront.net',
-  'unpkg.com'
+  'unpkg.com',
+  'pixabay.com',
+  'cdn.pixabay.com',
+  'akamaized.net',
+  'saavn.com'
 ];
 
 export async function GET(req: NextRequest) {
-  const urlStr = req.nextUrl.searchParams.get('url');
+  let urlStr = req.nextUrl.searchParams.get('url');
+  const songId = req.nextUrl.searchParams.get('id');
   const filename = req.nextUrl.searchParams.get('name') || 'RaagaX_Track.mp3';
+
+  // If URL not provided or placeholder, resolve by song ID
+  if ((!urlStr || urlStr.includes('pixabay.com')) && songId) {
+    try {
+      const results = await JioSaavnProvider.getInstance().searchSongs(songId, 1);
+      if (results && results.length > 0 && results[0].audioUrl) {
+        urlStr = results[0].audioUrl;
+      }
+    } catch {}
+  }
 
   if (!urlStr) {
     return NextResponse.json({ error: 'Missing audio URL' }, { status: 400 });
@@ -23,8 +39,8 @@ export async function GET(req: NextRequest) {
     const parsedUrl = new URL(urlStr);
 
     // Enforce HTTPS protocol
-    if (parsedUrl.protocol !== 'https:') {
-      return NextResponse.json({ error: 'Only HTTPS URLs are allowed' }, { status: 400 });
+    if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
+      return NextResponse.json({ error: 'Only HTTP/HTTPS URLs are allowed' }, { status: 400 });
     }
 
     // Host allowlist check (SSRF protection)

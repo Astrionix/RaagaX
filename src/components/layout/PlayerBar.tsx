@@ -67,6 +67,38 @@ export function PlayerBar() {
   const isLiked = mounted && currentSong ? likedSongIds.includes(currentSong.id) : false;
   const isDownloaded = mounted && currentSong ? downloadedSongIds.includes(currentSong.id) : false;
 
+  if (!mounted) {
+    return (
+      <div className="hidden md:flex fixed bottom-0 left-0 right-0 z-40 h-20 bg-[#090a0f]/90 backdrop-blur-3xl border-t border-white/10 px-6 items-center justify-between text-white select-none shadow-[0_-10px_35px_rgba(0,0,0,0.6)]">
+        <div className="flex items-center gap-3.5 w-72 flex-shrink-0">
+          <div className="flex items-center gap-2.5 text-slate-400 text-xs font-bold">
+            <Disc3 className="w-4 h-4 text-[#fa233b] animate-spin" style={{ animationDuration: '8s' }} /> Select a track to play
+          </div>
+        </div>
+        <div className="flex flex-col items-center justify-center gap-1.5 max-w-xl w-full mx-4">
+          <div className="flex items-center gap-4">
+            <button className="p-1.5 text-slate-400 hover:text-white rounded-lg">
+              <Shuffle className="w-4 h-4" />
+            </button>
+            <button className="p-1.5 text-slate-300 rounded-lg">
+              <SkipBack className="w-4 h-4 fill-current" />
+            </button>
+            <button className="w-10 h-10 rounded-full red-glow-btn text-white flex items-center justify-center">
+              <Play className="w-4 h-4 fill-white ml-0.5" />
+            </button>
+            <button className="p-1.5 text-slate-300 rounded-lg">
+              <SkipForward className="w-4 h-4 fill-current" />
+            </button>
+            <button className="p-1.5 text-slate-400 rounded-lg">
+              <Repeat className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 w-72 justify-end" />
+      </div>
+    );
+  }
+
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTime = parseFloat(e.target.value);
     setCurrentTime(newTime, true);
@@ -77,7 +109,7 @@ export function PlayerBar() {
     <div className="hidden md:flex fixed bottom-0 left-0 right-0 z-40 h-20 bg-[#090a0f]/90 backdrop-blur-3xl border-t border-white/10 px-6 items-center justify-between text-white select-none shadow-[0_-10px_35px_rgba(0,0,0,0.6)]">
       {/* Left: Active Song Info */}
       <div className="flex items-center gap-3.5 w-72 flex-shrink-0">
-        {mounted && currentSong ? (
+        {currentSong ? (
           <>
             <div
               onClick={togglePlayerExpanded}
@@ -104,7 +136,16 @@ export function PlayerBar() {
                 <button onClick={() => toggleLikeSong(currentSong.id)} title="Like Song" className="p-0.5 text-slate-400 hover:text-[#fa233b] transition-transform hover:scale-110">
                   <Heart className={`w-3.5 h-3.5 ${isLiked ? 'text-[#fa233b] fill-[#fa233b]' : ''}`} />
                 </button>
-                <button onClick={() => toggleDownloadSong(currentSong.id)} title="Download Offline" className="p-0.5 text-slate-400 hover:text-emerald-400 transition-transform hover:scale-110">
+                <button 
+                  onClick={async () => {
+                    toggleDownloadSong(currentSong.id);
+                    const { exportSongToDevice } = await import('@/lib/downloadHelper');
+                    await exportSongToDevice(currentSong);
+                    usePlayerStore.getState().setToastMessage(`Downloading "${currentSong.title}" to local storage...`);
+                  }} 
+                  title="Download to Local Storage" 
+                  className="p-0.5 text-slate-400 hover:text-emerald-400 transition-transform hover:scale-110"
+                >
                   <Download className={`w-3.5 h-3.5 ${isDownloaded ? 'text-emerald-400' : ''}`} />
                 </button>
               </div>

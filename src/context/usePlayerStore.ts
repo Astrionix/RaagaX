@@ -15,6 +15,11 @@ interface PlayerState {
   volume: number;
   isMuted: boolean;
   
+  playbackIntent: 'IDLE' | 'PLAYING' | 'PAUSED';
+  trackSource: 'USER_SELECTED' | 'SESSION_RESTORE' | 'AUTO_NEXT' | 'RECENT_HISTORY' | null;
+  setPlaybackIntent: (intent: 'IDLE' | 'PLAYING' | 'PAUSED') => void;
+  setTrackSource: (source: 'USER_SELECTED' | 'SESSION_RESTORE' | 'AUTO_NEXT' | 'RECENT_HISTORY' | null) => void;
+  
   queue: Song[];
   queueIndex: number;
   shuffleMode: import('@/lib/queue/types').ShuffleMode;
@@ -229,6 +234,10 @@ export const usePlayerStore = create<PlayerState>()(
     (set, get) => ({
   currentSong: initialSession?.currentSong || null,
   isPlaying: false, // Strict rule: ALWAYS boot in paused state
+  playbackIntent: 'IDLE' as const,
+  trackSource: (initialSession?.currentSong ? 'SESSION_RESTORE' : null) as any,
+  setPlaybackIntent: (intent) => set({ playbackIntent: intent }),
+  setTrackSource: (source) => set({ trackSource: source }),
   currentTime: initialSession?.currentTime || 0,
   duration: initialSession?.currentSong?.duration || 0,
   volume: 0.8,
@@ -401,6 +410,8 @@ export const usePlayerStore = create<PlayerState>()(
         if (currentItem?.song) {
           set({
             isPlaying: nativeState.isPlaying,
+            playbackIntent: nativeState.isPlaying ? 'PLAYING' : 'PAUSED',
+            trackSource: 'SESSION_RESTORE',
             currentSong: currentItem.song,
             currentTime: nativeState.positionMs / 1000,
             queue: snapshot.items.map((i: any) => i.song),
@@ -427,6 +438,8 @@ export const usePlayerStore = create<PlayerState>()(
 
         set({
           isPlaying: false, // Strict: ALWAYS PAUSED ON COLD BOOT
+          playbackIntent: 'PAUSED',
+          trackSource: 'SESSION_RESTORE',
           currentSong: activeSong,
           currentTime: session.currentTime || 0,
           queue: cleanQueue,
@@ -503,6 +516,8 @@ export const usePlayerStore = create<PlayerState>()(
       queueIndex: finalIndex >= 0 ? finalIndex : 0,
       currentTime: 0,
       isPlaying: true,
+      playbackIntent: 'PLAYING',
+      trackSource: 'AUTO_NEXT',
     });
 
     if (targetSong) {
@@ -541,7 +556,15 @@ export const usePlayerStore = create<PlayerState>()(
     const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
 
     // Atomically commit playing state, queue & queueIndex
-    set({ isPlaying: true, currentTime: 0, currentSong: song, queue: syncedQueue, queueIndex: syncedIndex });
+    set({ 
+      isPlaying: true, 
+      playbackIntent: 'PLAYING',
+      trackSource: 'USER_SELECTED',
+      currentTime: 0, 
+      currentSong: song, 
+      queue: syncedQueue, 
+      queueIndex: syncedIndex 
+    });
     persistSessionHelper({ ...get(), currentSong: song, currentTime: 0, queue: syncedQueue, queueIndex: syncedIndex });
 
     // Delegate to PlaybackService (local) or ConnectManager (remote)
@@ -590,6 +613,8 @@ export const usePlayerStore = create<PlayerState>()(
 
     set({
       isPlaying: true,
+      playbackIntent: 'PLAYING',
+      trackSource: 'USER_SELECTED',
       currentTime: 0,
       currentSong: firstSong,
       queue: syncedQueue,
@@ -634,7 +659,7 @@ export const usePlayerStore = create<PlayerState>()(
           InterruptionCoordinator.getInstance().clearInterruption();
         });
       }
-      set({ isPlaying: isNowPlaying });
+      set({ isPlaying: isNowPlaying, playbackIntent: isNowPlaying ? 'PLAYING' : 'PAUSED' });
     }
     persistSessionHelper({ ...get() });
     import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
@@ -652,7 +677,7 @@ export const usePlayerStore = create<PlayerState>()(
         InterruptionCoordinator.getInstance().clearInterruption();
       });
     }
-    set({ isPlaying: playing });
+    set({ isPlaying: playing, playbackIntent: playing ? 'PLAYING' : 'PAUSED' });
     persistSessionHelper({ ...get() });
     if (!fromRemote) {
       import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
