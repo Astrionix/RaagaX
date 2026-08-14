@@ -76,19 +76,27 @@ export class RealMusicEngine {
   }
 
   private extractCoverUrl(image: any): string {
-    if (!image) return '';
-    if (typeof image === 'string') return image.replace('http://', 'https://');
-    if (Array.isArray(image)) {
+    if (!image) return '/app-icon.png';
+    let url = '';
+    if (typeof image === 'string') {
+      url = image.replace('http://', 'https://');
+    } else if (Array.isArray(image)) {
       const hi = image.find((i: any) => i?.quality === '500x500' || i?.quality === '500X500') || image[image.length - 1];
       if (hi) {
-        if (typeof hi === 'string') return hi.replace('http://', 'https://');
-        if (hi.url) return hi.url.replace('http://', 'https://');
-        if (hi.link) return hi.link.replace('http://', 'https://');
+        if (typeof hi === 'string') url = hi.replace('http://', 'https://');
+        else if (hi.url) url = hi.url.replace('http://', 'https://');
+        else if (hi.link) url = hi.link.replace('http://', 'https://');
       }
+    } else if (image?.url) {
+      url = image.url.replace('http://', 'https://');
+    } else if (image?.link) {
+      url = image.link.replace('http://', 'https://');
     }
-    if (image?.url) return image.url.replace('http://', 'https://');
-    if (image?.link) return image.link.replace('http://', 'https://');
-    return '/app-icon.png';
+
+    if (!url || url.includes('/null/') || url.includes('null/null') || url.endsWith('/null')) {
+      return '/app-icon.png';
+    }
+    return url;
   }
 
   public async searchRealAlbums(query: string, limit = 15): Promise<any[]> {

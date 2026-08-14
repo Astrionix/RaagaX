@@ -111,7 +111,7 @@ export function PlayerBar() {
               onClick={togglePlayerExpanded}
               className="relative w-12 h-12 rounded-xl overflow-hidden shadow-[0_4px_16px_rgba(0,0,0,0.5)] border border-white/10 cursor-pointer group flex-shrink-0"
             >
-              <img src={currentSong.coverUrl || '/app-icon.png'} alt={currentSong.title} onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+              <img src={(currentSong.coverUrl && !currentSong.coverUrl.includes('/null/') && !currentSong.coverUrl.includes('null/null')) ? currentSong.coverUrl : '/app-icon.png'} alt={currentSong.title} onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <Maximize2 className="w-4 h-4 text-white" />
               </div>

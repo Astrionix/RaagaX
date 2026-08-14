@@ -106,11 +106,14 @@ export class PlaybackStateSync {
       pos: (remoteState.positionMs / 1000).toFixed(1) + 's',
     });
 
-    // 1. HARD RULE: Controller MUST NOT output audio locally
+    // 1. HARD RULE: Controller MUST NOT output audio locally (silence local media elements without mutating store.isPlaying)
     if (RaagaXNativePlayer.isNative()) {
       RaagaXNativePlayer.pause().catch(() => {});
     } else {
-      PlaybackService.getInstance().pause();
+      const active = PlaybackService.getInstance().getActiveAudio();
+      if (active && !active.paused) {
+        active.pause();
+      }
     }
 
     // 2. Adopt remote state into local store for display in MiniPlayer / PlayerBar / SeekBar

@@ -58,7 +58,7 @@ export function MobileMiniPlayer() {
         >
           <img
             src={
-              currentSong.coverUrl
+              currentSong.coverUrl && !currentSong.coverUrl.includes('/null/') && !currentSong.coverUrl.includes('null/null')
                 ? currentSong.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500')
                 : '/app-icon.png'
             }

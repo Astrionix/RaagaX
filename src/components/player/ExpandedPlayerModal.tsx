@@ -482,7 +482,7 @@ export function ExpandedPlayerModal() {
               }}
             >
               <img
-                src={currentSong.coverUrl || '/app-icon.png'}
+                src={(currentSong.coverUrl && !currentSong.coverUrl.includes('/null/') && !currentSong.coverUrl.includes('null/null')) ? currentSong.coverUrl : '/app-icon.png'}
                 alt={currentSong.title}
                 onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
                 className={`w-full h-full object-cover transition-all duration-700 ${isPlaying ? 'scale-[1.03]' : 'scale-100'}`}

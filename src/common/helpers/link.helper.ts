@@ -33,7 +33,7 @@ export const createDownloadLinks = (encryptedMediaUrl: string) => {
 }
 
 export const createImageLinks = (link: string) => {
-  if (!link) return []
+  if (!link || typeof link !== 'string' || link.includes('/null/') || link.includes('null/null') || link.endsWith('/null')) return []
 
   const qualities = ['50x50', '150x150', '500x500']
   const qualityRegex = /150x150|50x50/

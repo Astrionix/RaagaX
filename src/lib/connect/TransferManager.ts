@@ -118,24 +118,26 @@ export class TransferManager {
         } catch {}
       }
 
-      // 2. SEEK phase: seek canonical position
-      if (payload.positionMs !== undefined) {
-         engine.seekCanonical(payload.positionMs);
-         console.log(`[TRANSFER TARGET] SEEKED: Canonical position set to ${payload.positionMs}ms (${Math.round(payload.positionMs / 1000)}s)`);
-      }
-
-      // 3. READY / COMMIT phase: Acquire lease server-side with forceTakeover
+      // 2. READY / COMMIT phase: Acquire lease server-side with forceTakeover
       const leaseSuccess = await DeviceLeaseManager.getInstance().acquireLease(command.sessionId, true);
       console.log(`[TRANSFER TARGET] READY_TO_COMMIT: Lease acquired (success=${leaseSuccess})`);
       
-      // 4. START phase: play audio locally if active on source
+      // 3. START phase: play audio locally if active on source
+      const { PlaybackService } = await import('@/lib/playback/PlaybackService');
+      const { RaagaXNativePlayer } = await import('../playback/native/RaagaXNativePlayer');
+
       if (payload.isPlaying && payload.songData) {
-        const { PlaybackService } = await import('@/lib/playback/PlaybackService');
-        await PlaybackService.getInstance().playTrack(payload.songData, true);
-        if (payload.positionMs > 0) {
-          PlaybackService.getInstance().seek(payload.positionMs / 1000);
+        if (RaagaXNativePlayer.isNative() && queueToRestore.length > 0) {
+          await PlaybackService.getInstance().loadQueueContext(queueToRestore, queueIndexToRestore, true, payload.positionMs || 0);
+        } else {
+          await PlaybackService.getInstance().playTrack(payload.songData, true);
+          if (payload.positionMs > 0) {
+            PlaybackService.getInstance().seek(payload.positionMs / 1000, true);
+          }
         }
         console.log(`[TRANSFER TARGET] PLAYING: Local playback running at ${payload.positionMs}ms`);
+      } else if (payload.positionMs > 0) {
+        PlaybackService.getInstance().seek(payload.positionMs / 1000, true);
       }
 
       // Broadcast the newly acquired authoritative state immediately
@@ -143,7 +145,7 @@ export class TransferManager {
         PlaybackStateSync.getInstance().broadcastState(true);
       });
       
-      // 5. Send COMMAND_ACK back to source device
+      // 4. Send COMMAND_ACK back to source device
       const sequencer = CommandSequencer.getInstance();
       const ackPayload: CommandAckPayload = {
         commandId: command.commandId,
@@ -206,11 +208,21 @@ export class TransferManager {
     this.isTransferring = false;
     if (payload.status === 'APPLIED') {
       console.log(`[TransferManager] Transfer ${command.transitionId} committed by target. Relinquishing local control.`);
-      PlaybackEngine.getInstance().pause();
+      if (typeof window !== 'undefined') {
+        import('../playback/native/RaagaXNativePlayer').then(({ RaagaXNativePlayer }) => {
+          if (RaagaXNativePlayer.isNative()) {
+            RaagaXNativePlayer.pause().catch(() => {});
+          } else {
+            import('../playback/PlaybackService').then(({ PlaybackService }) => {
+              const active = PlaybackService.getInstance().getActiveAudio();
+              if (active && !active.paused) active.pause();
+            });
+          }
+        });
+      }
       usePlayerStore.setState({ 
         isActiveDevice: false, 
         activeDeviceId: command.sourceDeviceId,
-        isPlaying: false, 
         isTransferring: false, 
         transferringDeviceId: null 
       });

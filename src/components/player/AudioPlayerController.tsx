@@ -270,7 +270,9 @@ export function AudioPlayerController() {
     if (!activeAudio) return;
 
     if (!shouldRenderAudio) {
-      PlaybackService.getInstance().pause();
+      if (!activeAudio.paused) {
+        activeAudio.pause();
+      }
       LyricsEngine.getInstance().setPlaying(false);
     } else {
       if (canPlay && activeAudio.paused) {

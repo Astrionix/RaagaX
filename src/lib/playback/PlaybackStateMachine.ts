@@ -10,25 +10,25 @@ export class PlaybackStateMachine {
   public canTransitionTo(newState: PlaybackState): boolean {
     switch (this.currentState) {
       case 'IDLE':
-        return ['LOADING', 'READY', 'PLAYING', 'ERROR', 'TRANSITIONING'].includes(newState);
+        return ['LOADING', 'READY', 'PLAYING', 'ERROR', 'TRANSITIONING', 'PAUSED'].includes(newState);
       case 'LOADING':
-        return ['READY', 'ERROR', 'IDLE', 'PLAYING', 'TRANSITIONING'].includes(newState);
+        return ['READY', 'ERROR', 'IDLE', 'PLAYING', 'TRANSITIONING', 'PAUSED'].includes(newState);
       case 'READY':
-        return ['PLAYING', 'PAUSED', 'ERROR', 'IDLE', 'TRANSITIONING'].includes(newState);
+        return ['PLAYING', 'PAUSED', 'ERROR', 'IDLE', 'TRANSITIONING', 'LOADING'].includes(newState);
       case 'PLAYING':
-        return ['PAUSED', 'INTERRUPTED', 'TRANSITIONING', 'HANDOFF', 'ERROR', 'IDLE'].includes(newState);
+        return ['PAUSED', 'INTERRUPTED', 'TRANSITIONING', 'HANDOFF', 'ERROR', 'IDLE', 'READY', 'LOADING'].includes(newState);
       case 'PAUSED':
-        return ['PLAYING', 'LOADING', 'TRANSITIONING', 'HANDOFF', 'ERROR', 'IDLE'].includes(newState);
+        return ['PLAYING', 'LOADING', 'READY', 'TRANSITIONING', 'HANDOFF', 'ERROR', 'IDLE'].includes(newState);
       case 'INTERRUPTED':
-        return ['PLAYING', 'PAUSED', 'ERROR', 'IDLE'].includes(newState);
+        return ['PLAYING', 'PAUSED', 'READY', 'LOADING', 'ERROR', 'IDLE'].includes(newState);
       case 'TRANSITIONING':
         return ['PLAYING', 'LOADING', 'READY', 'RETRYING', 'ERROR', 'IDLE', 'PAUSED'].includes(newState);
       case 'RETRYING':
-        return ['PLAYING', 'LOADING', 'ERROR', 'IDLE'].includes(newState);
+        return ['PLAYING', 'LOADING', 'READY', 'ERROR', 'IDLE'].includes(newState);
       case 'HANDOFF':
-        return ['PLAYING', 'PAUSED', 'ERROR', 'IDLE'].includes(newState);
+        return ['PLAYING', 'PAUSED', 'READY', 'LOADING', 'ERROR', 'IDLE'].includes(newState);
       case 'ERROR':
-        return ['IDLE', 'LOADING', 'RETRYING', 'TRANSITIONING'].includes(newState);
+        return ['IDLE', 'LOADING', 'READY', 'RETRYING', 'TRANSITIONING', 'PAUSED'].includes(newState);
       default:
         return false;
     }
