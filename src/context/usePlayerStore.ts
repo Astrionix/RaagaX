@@ -247,8 +247,16 @@ function throttlePersistSession(state: any, force = false) {
   }
 }
 
-// Initial sync session hydration for zero-flicker startup
-const initialSession = typeof window !== 'undefined' ? LocalDatabase.getInstance().getSyncPlaybackSession() : null;
+// Initial sync session hydration for zero-flicker startup (only if valid/under 4 hours old)
+const getInitialSession = () => {
+  if (typeof window === 'undefined') return null;
+  const session = LocalDatabase.getInstance().getSyncPlaybackSession();
+  if (session && session.timestamp && (Date.now() - session.timestamp < 4 * 60 * 60 * 1000)) {
+    return session;
+  }
+  return null;
+};
+const initialSession = getInitialSession();
 
 export const usePlayerStore = create<PlayerState>()(
   persist(
@@ -505,10 +513,11 @@ export const usePlayerStore = create<PlayerState>()(
     }
 
     // Case 2: Cold boot / Fresh App Session — PASSIVE restoration (isPlaying = false, DO NOT AUTOPLAY)
-    // Sourced strictly from the most recent song in listening history (or session)
-    if ((session && session.currentSong) || mostRecentHistorySong) {
-      const candidateSong = session?.currentSong || mostRecentHistorySong || null;
-      const rawQueue = (session?.queue && session.queue.length > 0) ? session.queue : (mostRecentHistorySong ? [mostRecentHistorySong] : []);
+    // Sourced strictly from the most recent session if it's still valid/active (less than 4 hours old)
+    const isSessionValid = session && session.timestamp && (Date.now() - session.timestamp < 4 * 60 * 60 * 1000);
+    if (isSessionValid && session && session.currentSong) {
+      const candidateSong = session.currentSong;
+      const rawQueue = (session.queue && session.queue.length > 0) ? session.queue : [session.currentSong];
       const cleanQueue = rawQueue.filter(s => s && !isKidsOrNurseryTrack(s));
       
       const isCandidateClean = candidateSong && !isKidsOrNurseryTrack(candidateSong);
@@ -516,10 +525,10 @@ export const usePlayerStore = create<PlayerState>()(
 
       if (cleanQueue.length > 0 && activeSong) {
         let safeIndex = cleanQueue.findIndex(s => s.id === activeSong.id);
-        if (safeIndex === -1) safeIndex = Math.min(session?.queueIndex || 0, Math.max(0, cleanQueue.length - 1));
+        if (safeIndex === -1) safeIndex = Math.min(session.queueIndex || 0, Math.max(0, cleanQueue.length - 1));
 
-        let restoredTime = session?.currentTime || 0;
-        const totalDuration = activeSong.duration || session?.duration || 0;
+        let restoredTime = session.currentTime || 0;
+        const totalDuration = activeSong.duration || session.duration || 0;
 
         // ── NEAR-END RULE: If saved position is within 5 seconds of the end, reset to 0:00 ──
         if (totalDuration > 0 && restoredTime >= (totalDuration - 5)) {
@@ -542,6 +551,16 @@ export const usePlayerStore = create<PlayerState>()(
         await PlaybackService.getInstance().prepareTrack(activeSong, restoredTime);
         await PlaybackService.getInstance().loadQueueContext(cleanQueue, safeIndex, false, Math.round(restoredTime * 1000));
       }
+    } else {
+      // Clear/Reset current store state if session is stale/invalid to prevent resurrected stale state
+      set({
+        currentSong: null,
+        currentTime: 0,
+        duration: 0,
+        queue: [],
+        queueIndex: 0,
+        trackSource: null,
+      });
     }
   },
 

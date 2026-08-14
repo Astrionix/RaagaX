@@ -126,7 +126,7 @@ describe('Android APK Lifecycle: onTaskRemoved, Swipe Dismiss & Anti-Autoplay Te
       sessionLanguage: 'Hindi',
       wasPlaying: false,
       playbackState: 'STOPPED',
-      timestamp: Date.now() - 86400000 * 2, // 2 days ago
+      timestamp: Date.now() - 1 * 60 * 60 * 1000, // 1 hour ago
     });
 
     // Simulate fresh app launch

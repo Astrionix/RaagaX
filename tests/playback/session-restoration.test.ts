@@ -106,8 +106,8 @@ describe('RaagaX Playback Session State & Startup Restoration Engine', () => {
   });
 
   it('3. Cold-boot restoration rule: restores latest track, position, and queue in PAUSED state (DO NOT AUTOPLAY)', async () => {
-    // Simulate saved state from yesterday night
-    const yesterdayTimestamp = Date.now() - (18 * 60 * 60 * 1000); // 18 hours ago
+    // Simulate saved state from 1 hour ago (within 4-hour active threshold)
+    const recentTimestamp = Date.now() - (1 * 60 * 60 * 1000); 
     await LocalDatabase.getInstance().savePlaybackSession({
       currentSong: songD,
       currentTime: 97, // 01:37
@@ -115,7 +115,7 @@ describe('RaagaX Playback Session State & Startup Restoration Engine', () => {
       queueIndex: 2,
       historySongIds: ['song_a_1', 'song_b_2', 'song_d_4'],
       searchHistory: [],
-      timestamp: yesterdayTimestamp,
+      timestamp: recentTimestamp,
     });
 
     // Reset runtime in-memory store to clean slate

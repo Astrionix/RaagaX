@@ -76,11 +76,17 @@ export class AccountSyncManager {
             .maybeSingle();
 
           if (!cpError && checkpoint) {
-            const store = usePlayerStore.getState();
-            // Restore position in strictly PAUSED state
-            if (checkpoint.canonical_position_ms) {
-              store.setCurrentTime(checkpoint.canonical_position_ms / 1000, true);
-              store.setIsPlaying(false, true);
+            const updatedAtMs = new Date(checkpoint.updated_at || checkpoint.server_timestamp || 0).getTime();
+            const ageMs = Date.now() - updatedAtMs;
+            const isStale = ageMs > 4 * 60 * 60 * 1000; // Stale if older than 4 hours
+
+            if (!isStale) {
+              const store = usePlayerStore.getState();
+              // Restore position in strictly PAUSED state
+              if (checkpoint.canonical_position_ms) {
+                store.setCurrentTime(checkpoint.canonical_position_ms / 1000, true);
+                store.setIsPlaying(false, true);
+              }
             }
           }
         } catch {}

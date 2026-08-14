@@ -12,6 +12,7 @@ const mockStorage = new Map<string, string>();
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { QueueHistory } from '@/lib/queue/QueueHistory';
 import { Song } from '@/types/music';
+import { LocalDatabase } from '@/lib/localDatabase';
 
 describe('RaagaX Chronological Listening History vs Silent Startup Anti-Autoplay Tests', () => {
   const songTabahi: Song = {
@@ -153,6 +154,17 @@ describe('RaagaX Chronological Listening History vs Silent Startup Anti-Autoplay
     history.recordPlay({ queueItemId: 'q_2', trackId: songA.id, song: songA, source: 'USER', addedAt: Date.now(), playable: true, offlineAvailable: false });
     history.recordPlay({ queueItemId: 'q_3', trackId: songD.id, song: songD, source: 'USER', addedAt: Date.now(), playable: true, offlineAvailable: false });
 
+    // Save a valid active session with Song D
+    await LocalDatabase.getInstance().savePlaybackSession({
+      currentSong: songD,
+      currentTime: 0,
+      queue: [songTabahi, songA, songD],
+      queueIndex: 2,
+      historySongIds: [songTabahi.id, songA.id, songD.id],
+      searchHistory: [],
+      timestamp: Date.now() - 1000,
+    });
+
     // Simulate Day 4: App launch
     const store = usePlayerStore.getState();
     await store.restoreLocalSession();
@@ -212,6 +224,17 @@ describe('RaagaX Chronological Listening History vs Silent Startup Anti-Autoplay
     history.recordPlay({ queueItemId: 'q_tabahi', trackId: songTabahi.id, song: songTabahi, source: 'USER', addedAt: Date.now() - 172800000, playable: true, offlineAvailable: false });
     // Today: Hellalo was played
     history.recordPlay({ queueItemId: 'q_hellalo', trackId: songHellalo.id, song: songHellalo, source: 'USER', addedAt: Date.now(), playable: true, offlineAvailable: false });
+
+    // Save a valid active session with Hellalo
+    await LocalDatabase.getInstance().savePlaybackSession({
+      currentSong: songHellalo,
+      currentTime: 0,
+      queue: [songTabahi, songHellalo],
+      queueIndex: 1,
+      historySongIds: [songTabahi.id, songHellalo.id],
+      searchHistory: [],
+      timestamp: Date.now() - 1000,
+    });
 
     // Cold boot app reopen
     const store = usePlayerStore.getState();
