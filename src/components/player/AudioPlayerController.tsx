@@ -134,6 +134,46 @@ export function AudioPlayerController() {
     restoreLocalSession();
   }, [restoreLocalSession]);
 
+  // Lifecycle listeners: Persist latest state immediately when app is backgrounded or tab closed
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const flushPersist = () => {
+      const state = usePlayerStore.getState();
+      if (state.currentSong) {
+        import('@/lib/localDatabase').then(({ LocalDatabase }) => {
+          LocalDatabase.getInstance().savePlaybackSession({
+            currentSong: state.currentSong,
+            currentTime: state.currentTime,
+            queue: state.queue,
+            queueIndex: state.queueIndex,
+            historySongIds: state.historySongIds,
+            likedSongIds: state.likedSongIds,
+            searchHistory: LocalDatabase.getInstance().getSearchHistory(),
+            preferredLanguage: state.preferredLanguage,
+            timestamp: Date.now(),
+          });
+        });
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        flushPersist();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', flushPersist);
+    window.addEventListener('beforeunload', flushPersist);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', flushPersist);
+      window.removeEventListener('beforeunload', flushPersist);
+    };
+  }, []);
+
   // Watch for explicit seek targets from UI
   useEffect(() => {
     if (seekTarget !== null) {

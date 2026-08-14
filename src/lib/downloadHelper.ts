@@ -15,18 +15,18 @@ export async function downloadSongFile(
   if (!song || !song.audioUrl) return false;
 
   const sanitizeName = (str: string) => str.replace(/[/\\?%*:|"<>]/g, '').trim();
-  const filename = `${sanitizeName(song.title)} - ${sanitizeName(song.artist)}.mp3`;
+  const filename = `${sanitizeName(song.title)} - ${sanitizeName(song.artist || 'Artist')}.mp3`;
   const downloadProxyUrl = `/api/download?url=${encodeURIComponent(song.audioUrl)}&name=${encodeURIComponent(filename)}`;
 
   // True PWA Offline Caching Strategy
-  if ('caches' in window) {
+  if (typeof window !== 'undefined' && 'caches' in window) {
     try {
       const cache = await caches.open(OFFLINE_AUDIO_CACHE_NAME);
       
       // Check if already cached completely
       const existing = await cache.match(song.audioUrl);
       if (existing) {
-        if (onProgress) onProgress(100, 0, 0); // Exact bytes unknown from cache match directly here
+        if (onProgress) onProgress(100, 0, 0);
         return true;
       }
 
@@ -36,16 +36,13 @@ export async function downloadSongFile(
         headers.append('Range', `bytes=${startOffset}-`);
       }
 
-      // We fetch through the proxy to bypass CORS and get the actual MP3 Blob
       const response = await fetch(downloadProxyUrl, { signal, headers });
       if (response.ok || response.status === 206) {
-        
         const contentLength = response.headers.get('content-length');
         let total = contentLength ? parseInt(contentLength, 10) : 0;
         
-        // If it's a partial response, total is startOffset + remaining
         if (response.status === 206 && total > 0) {
-           total += startOffset;
+          total += startOffset;
         }
 
         let loaded = startOffset;
@@ -64,14 +61,12 @@ export async function downloadSongFile(
             chunks.push(value);
             loaded += value.length;
             
-            // Throttle progress updates to ~250ms
             const now = Date.now();
             if (now - lastProgressTime > 250) {
               if (total > 0 && onProgress) {
                 onProgress(Math.floor((loaded / total) * 100), loaded, total);
               } else if (onProgress) {
-                // Mock progress if total is unknown
-                const mockTotal = 5 * 1024 * 1024; // Assume 5MB
+                const mockTotal = 5 * 1024 * 1024;
                 onProgress(Math.min(99, Math.floor((loaded / mockTotal) * 100)), loaded, mockTotal);
               }
               lastProgressTime = now;
@@ -79,54 +74,70 @@ export async function downloadSongFile(
           }
         }
         
-        // Ensure 100% on complete
         if (onProgress) onProgress(100, loaded, total || loaded);
 
-        // NOTE: A true Range implementation with CacheStorage would require us to read the existing 
-        // cached partial blob, append the new chunks, and re-put.
-        // For simplicity in this PWA architecture, if we used Range, we assume we just got the rest 
-        // and we will save this new Blob. In a real-world IDB setup, we'd append to the IDB record.
-        // Here we just save what we got. 
         const blob = new Blob(chunks, { type: 'audio/mpeg' });
         const finalResponse = new Response(blob, {
           headers: { 'Content-Type': 'audio/mpeg' }
         });
 
-        // Store in Cache API using the raw audioUrl as the key for easy lookup during playback
         await cache.put(song.audioUrl, finalResponse);
         
-        // Also enthusiastically cache the artwork for offline UI
         if (song.coverUrl) {
-           const imgResponse = await fetch(song.coverUrl);
-           if (imgResponse.ok) await cache.put(song.coverUrl, imgResponse);
+          try {
+            const imgResponse = await fetch(song.coverUrl);
+            if (imgResponse.ok) await cache.put(song.coverUrl, imgResponse);
+          } catch {}
         }
         
-        console.log(`[OfflineStorage] Successfully cached ${song.title}`);
         return true;
       }
     } catch (e: any) {
       if (e.name === 'AbortError') {
-         console.log(`[OfflineStorage] Download aborted for ${song.title}`);
-         throw e;
+        throw e;
       }
       console.error('[OfflineStorage] Failed to cache audio for offline playback:', e);
-      throw e; // Rethrow so DownloadManager can handle retries
+      throw e;
     }
   }
 
-  // Fallback to traditional browser download if Cache API is unavailable
+  return false;
+}
+
+/**
+ * Mode B — Exports an audio track as a standard standalone MP3 file directly to the user's
+ * shared Downloads / Music directory on device or laptop.
+ */
+export async function exportSongToDevice(song: Song): Promise<boolean> {
+  if (!song) return false;
+
+  const sanitizeName = (str: string) => str.replace(/[/\\?%*:|"<>]/g, '').trim();
+  const filename = `${sanitizeName(song.title)} - ${sanitizeName(song.artist || 'Artist')}.mp3`;
+  
+  let targetUrl = song.audioUrl;
+  if (!targetUrl || targetUrl.includes('pixabay.com')) {
+    targetUrl = `/api/download?id=${encodeURIComponent(song.id)}&name=${encodeURIComponent(filename)}`;
+  } else {
+    targetUrl = `/api/download?url=${encodeURIComponent(targetUrl)}&name=${encodeURIComponent(filename)}`;
+  }
+
   try {
-    const anchor = document.createElement('a');
-    anchor.style.display = 'none';
-    anchor.href = downloadProxyUrl;
-    anchor.download = filename;
-    document.body.appendChild(anchor);
-    anchor.click();
-    setTimeout(() => document.body.removeChild(anchor), 1000);
-    return true;
+    if (typeof document !== 'undefined') {
+      const anchor = document.createElement('a');
+      anchor.style.display = 'none';
+      anchor.href = targetUrl;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      setTimeout(() => {
+        document.body.removeChild(anchor);
+      }, 1500);
+      return true;
+    }
+    return false;
   } catch (err) {
-    window.open(song.audioUrl, '_blank');
-    return true;
+    console.error('[DownloadHelper] Mode B export failed:', err);
+    return false;
   }
 }
 
@@ -135,7 +146,7 @@ export async function downloadSongFile(
  */
 export async function removeCachedSong(song: Song): Promise<void> {
   if (!song || !song.audioUrl) return;
-  if ('caches' in window) {
+  if (typeof window !== 'undefined' && 'caches' in window) {
     try {
       const cache = await caches.open(OFFLINE_AUDIO_CACHE_NAME);
       await cache.delete(song.audioUrl);
@@ -147,11 +158,10 @@ export async function removeCachedSong(song: Song): Promise<void> {
 }
 
 /**
- * Checks if a song is cached and returns a local object URL for offline playback.
- * The caller is responsible for revoking the URL when done.
+ * Checks if a song is cached in CacheStorage and returns a local object URL for offline playback.
  */
 export async function getCachedAudioUrl(audioUrl: string): Promise<string | null> {
-  if (!audioUrl || !('caches' in window)) return null;
+  if (!audioUrl || typeof window === 'undefined' || !('caches' in window)) return null;
   
   try {
     const cache = await caches.open(OFFLINE_AUDIO_CACHE_NAME);

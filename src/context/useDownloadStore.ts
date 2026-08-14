@@ -1,18 +1,26 @@
 import { create } from 'zustand';
 import { Song } from '@/types/music';
-import { downloadSongFile, removeCachedSong } from '@/lib/downloadHelper';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { LocalDatabase } from '@/lib/localDatabase';
+import { DownloadManager } from '@/lib/offline/DownloadManager';
+import { DownloadStorage } from '@/lib/offline/DownloadStorage';
+import { OfflineCatalog } from '@/lib/offline/OfflineCatalog';
+import { DownloadMode, DownloadQuality } from '@/lib/offline/types';
+import { exportSongToDevice } from '@/lib/downloadHelper';
 
-export type DownloadStatus = 'queued' | 'downloading' | 'paused' | 'completed' | 'error' | 'cancelled';
+export type DownloadStatus = 'queued' | 'downloading' | 'verifying' | 'paused' | 'completed' | 'error' | 'cancelled';
 
 export interface DownloadTask {
   song: Song;
+  mode: DownloadMode;
+  quality: DownloadQuality;
   status: DownloadStatus;
   progress: number;
   downloadedBytes: number;
   totalBytes: number;
+  speedBytesPerSec?: number;
   retryCount: number;
+  checksum?: string;
   error?: string;
   abortController?: AbortController;
 }
@@ -25,7 +33,8 @@ interface DownloadStore {
   isHydrated: boolean;
 
   hydrate: () => Promise<void>;
-  queueDownload: (song: Song) => void;
+  queueDownload: (song: Song, mode?: DownloadMode) => void;
+  exportSong: (song: Song) => Promise<boolean>;
   pauseDownload: (songId: string) => void;
   resumeDownload: (songId: string) => void;
   cancelDownload: (songId: string) => void;
@@ -39,7 +48,7 @@ interface DownloadStore {
 
   setWifiOnly: (wifiOnly: boolean) => void;
 
-  updateProgress: (songId: string, progress: number, downloadedBytes: number, totalBytes: number) => void;
+  updateProgress: (songId: string, progress: number, downloadedBytes: number, totalBytes: number, speed?: number) => void;
   setStatus: (songId: string, status: DownloadStatus, error?: string) => void;
   
   isOfflineStorageEnabled: boolean;
@@ -52,7 +61,7 @@ interface DownloadStore {
   setOfflineMode: (enabled: boolean) => void;
 
   offlineSettings: {
-    audioQuality: 'High' | 'Standard';
+    audioQuality: 'High' | 'Standard' | 'Lossless';
     autoDeleteTemp: boolean;
     smartDownloads: boolean;
   };
@@ -61,15 +70,16 @@ interface DownloadStore {
 
   _processQueue: () => void;
   _persistTasks: () => void;
+  syncDownloadedIds: () => Promise<void>;
 }
 
 export const useDownloadStore = create<DownloadStore>((set, get) => ({
   tasks: {},
   activeCount: 0,
-  maxConcurrent: 3,
+  maxConcurrent: 2,
   wifiOnly: false,
   isHydrated: false,
-  isOfflineStorageEnabled: false,
+  isOfflineStorageEnabled: true,
   isSetupModalOpen: false,
   isOfflineMode: false,
   offlineSettings: {
@@ -80,9 +90,25 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
 
   setOfflineStorageEnabled: (enabled) => { set({ isOfflineStorageEnabled: enabled }); get()._persistTasks(); },
   setSetupModalOpen: (open) => set({ isSetupModalOpen: open }),
-  setOfflineMode: (enabled) => { set({ isOfflineMode: enabled }); get()._persistTasks(); },
+  setOfflineMode: (enabled) => { 
+    set({ isOfflineMode: enabled }); 
+    usePlayerStore.getState().setNetworkMode(enabled ? 'offline_forced' : 'online');
+    get()._persistTasks(); 
+  },
   setOfflineSettings: (settings) => { set((state) => ({ offlineSettings: { ...state.offlineSettings, ...settings } })); get()._persistTasks(); },
-  setMaxConcurrent: (count) => set({ maxConcurrent: count }),
+  setMaxConcurrent: (count) => {
+    set({ maxConcurrent: count });
+    DownloadManager.getInstance();
+  },
+
+  syncDownloadedIds: async () => {
+    try {
+      const catalog = OfflineCatalog.getInstance();
+      const allTracks = await catalog.getAllTracks();
+      const ids = allTracks.map(t => t.trackId);
+      usePlayerStore.setState({ downloadedSongIds: ids });
+    } catch {}
+  },
 
   hydrate: async () => {
     if (get().isHydrated) return;
@@ -93,14 +119,12 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
       const hydratedTasks: Record<string, DownloadTask> = {};
       Object.keys(savedTasks).forEach(id => {
         const task = savedTasks[id];
-        // If it was downloading, reset to paused to recover gracefully
-        if (task.status === 'downloading') {
+        if (task.status === 'downloading' || task.status === 'verifying') {
           task.status = 'paused';
         }
         hydratedTasks[id] = task;
       });
 
-      // Load offline settings
       if (typeof window !== 'undefined') {
         const storedEnabled = localStorage.getItem('isOfflineStorageEnabled');
         if (storedEnabled !== null) set({ isOfflineStorageEnabled: storedEnabled === 'true' });
@@ -117,6 +141,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
       }
 
       set({ tasks: hydratedTasks, isHydrated: true });
+      await get().syncDownloadedIds();
       get()._processQueue();
     } catch (e) {
       set({ isHydrated: true });
@@ -136,8 +161,8 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
 
   setWifiOnly: (wifiOnly) => {
     set({ wifiOnly });
+    DownloadManager.getInstance().setWifiOnly(wifiOnly);
     if (wifiOnly && typeof navigator !== 'undefined') {
-      // Very basic wifi check, navigator.connection is experimental
       const conn = (navigator as any).connection;
       if (conn && conn.type !== 'wifi' && conn.type !== 'ethernet' && conn.type !== 'unknown') {
         get().pauseAll();
@@ -145,17 +170,33 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     }
   },
 
-  queueDownload: (song) => {
+  exportSong: async (song: Song) => {
+    return exportSongToDevice(song);
+  },
+
+  queueDownload: (song, mode = 'offline_sandboxed') => {
     const { tasks, _processQueue, _persistTasks } = get();
-    if (usePlayerStore.getState().downloadedSongIds.includes(song.id)) return;
-    if (tasks[song.id] && ['downloading', 'queued', 'completed'].includes(tasks[song.id].status)) return;
+    if (!song || !song.id) return;
+
+    if (mode === 'offline_sandboxed' && usePlayerStore.getState().downloadedSongIds.includes(song.id)) {
+      return;
+    }
+    if (tasks[song.id] && ['downloading', 'queued', 'completed', 'verifying'].includes(tasks[song.id].status)) {
+      return;
+    }
 
     set((state) => ({
       tasks: {
         ...state.tasks,
         [song.id]: { 
-          song, status: 'queued', progress: 0, 
-          downloadedBytes: 0, totalBytes: 0, retryCount: 0 
+          song, 
+          mode,
+          quality: 'HIGH',
+          status: 'queued', 
+          progress: 0, 
+          downloadedBytes: 0, 
+          totalBytes: 0, 
+          retryCount: 0 
         }
       }
     }));
@@ -171,12 +212,19 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     let added = false;
 
     songs.forEach(song => {
+      if (!song || !song.id) return;
       if (downloadedIds.includes(song.id)) return;
-      if (newTasks[song.id] && ['downloading', 'queued', 'completed'].includes(newTasks[song.id].status)) return;
+      if (newTasks[song.id] && ['downloading', 'queued', 'completed', 'verifying'].includes(newTasks[song.id].status)) return;
       
       newTasks[song.id] = { 
-        song, status: 'queued', progress: 0, 
-        downloadedBytes: 0, totalBytes: 0, retryCount: 0 
+        song, 
+        mode: 'offline_sandboxed',
+        quality: 'HIGH',
+        status: 'queued', 
+        progress: 0, 
+        downloadedBytes: 0, 
+        totalBytes: 0, 
+        retryCount: 0 
       };
       added = true;
     });
@@ -190,7 +238,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
 
   pauseDownload: (songId) => {
     const task = get().tasks[songId];
-    if (task && task.status === 'downloading') {
+    if (task && (task.status === 'downloading' || task.status === 'verifying')) {
       if (task.abortController) {
         task.abortController.abort();
       }
@@ -222,7 +270,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
   cancelDownload: (songId) => {
     const task = get().tasks[songId];
     if (task) {
-      if (task.status === 'downloading' && task.abortController) {
+      if ((task.status === 'downloading' || task.status === 'verifying') && task.abortController) {
         task.abortController.abort();
         set((state) => ({ activeCount: Math.max(0, state.activeCount - 1) }));
       }
@@ -236,14 +284,14 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     }
   },
 
-  removeDownload: (songId) => {
+  removeDownload: async (songId) => {
     get().cancelDownload(songId);
     
-    // Remove from local cache
-    const songInQueue = usePlayerStore.getState().queue.find(s => s.id === songId);
-    if (songInQueue) removeCachedSong(songInQueue);
+    try {
+      await DownloadStorage.getInstance().deleteMedia(songId);
+      await OfflineCatalog.getInstance().removeTrack(songId);
+    } catch {}
 
-    // Update player store
     usePlayerStore.setState(state => ({
       downloadedSongIds: state.downloadedSongIds.filter(id => id !== songId)
     }));
@@ -251,14 +299,12 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
 
   pauseAll: () => {
     const tasks = { ...get().tasks };
-    let activeChanged = false;
     Object.keys(tasks).forEach(id => {
       const task = tasks[id];
-      if (task.status === 'downloading') {
+      if (task.status === 'downloading' || task.status === 'verifying') {
         if (task.abortController) task.abortController.abort();
         task.status = 'paused';
         task.abortController = undefined;
-        activeChanged = true;
       } else if (task.status === 'queued') {
         task.status = 'paused';
       }
@@ -291,7 +337,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
             await caches.delete(key);
           }
         }
-        console.log('[DownloadStore] Temporary streaming cache cleared.');
+        console.log('[DownloadStore] Streaming cache cleared.');
       } catch (err) {
         console.error('[DownloadStore] Failed to clear streaming cache:', err);
       }
@@ -300,10 +346,12 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
 
   purgeOfflineDownloads: async () => {
     get().cancelAll();
-    const tasks = get().tasks;
-    Object.keys(tasks).forEach(id => {
-      get().removeDownload(id);
-    });
+    try {
+      await DownloadStorage.getInstance().clearAllMedia();
+      await OfflineCatalog.getInstance().clearCatalog();
+    } catch {}
+    
+    usePlayerStore.setState({ downloadedSongIds: [] });
     set({ tasks: {}, activeCount: 0 });
     get()._persistTasks();
     console.log('[DownloadStore] All offline downloads purged.');
@@ -311,12 +359,10 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
 
   cancelAll: () => {
     const tasks = { ...get().tasks };
-    let activeChanged = false;
     Object.keys(tasks).forEach(id => {
       const task = tasks[id];
-      if (task.status === 'downloading') {
-        if (task.abortController) task.abortController.abort();
-        activeChanged = true;
+      if (task.status === 'downloading' && task.abortController) {
+        task.abortController.abort();
       }
       delete tasks[id];
     });
@@ -325,12 +371,21 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     get()._processQueue();
   },
 
-  updateProgress: (songId, progress, downloadedBytes, totalBytes) => {
+  updateProgress: (songId, progress, downloadedBytes, totalBytes, speed) => {
     set((state) => {
       const task = state.tasks[songId];
       if (!task) return state;
       return {
-        tasks: { ...state.tasks, [songId]: { ...task, progress, downloadedBytes, totalBytes } }
+        tasks: { 
+          ...state.tasks, 
+          [songId]: { 
+            ...task, 
+            progress, 
+            downloadedBytes, 
+            totalBytes,
+            speedBytesPerSec: speed !== undefined ? speed : task.speedBytesPerSec 
+          } 
+        }
       };
     });
   },
@@ -351,7 +406,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     const { tasks, activeCount, maxConcurrent, updateProgress, setStatus } = state;
 
     if (typeof window !== 'undefined' && !window.navigator.onLine) {
-      return; // Handled by network listeners
+      return;
     }
 
     if (activeCount >= maxConcurrent) return;
@@ -367,57 +422,122 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
       tasks: { ...s.tasks, [nextTaskId]: { ...task, status: 'downloading', abortController } }
     }));
 
-    downloadSongFile(
-      task.song, 
-      abortController.signal, 
-      (progress, downloadedBytes, totalBytes) => updateProgress(nextTaskId, progress, downloadedBytes, totalBytes),
-      task.downloadedBytes // Resume offset
-    ).then((success) => {
-      if (success) {
-        setStatus(nextTaskId, 'completed');
+    const { AtomicDownloader } = require('@/lib/offline/AtomicDownloader');
+    const downloader = AtomicDownloader.getInstance();
+
+    const sanitizeName = (str: string) => str.replace(/[/\\?%*:|"<>]/g, '').trim();
+    const filename = `${sanitizeName(task.song.title)} - ${sanitizeName(task.song.artist || 'Artist')}.mp3`;
+    
+    let targetUrl = task.song.audioUrl;
+    if (!targetUrl || targetUrl.includes('pixabay.com')) {
+      targetUrl = `/api/download?id=${encodeURIComponent(task.song.id)}&name=${encodeURIComponent(filename)}`;
+    } else {
+      targetUrl = `/api/download?url=${encodeURIComponent(targetUrl)}&name=${encodeURIComponent(filename)}`;
+    }
+
+    downloader.download({
+      url: targetUrl,
+      trackId: task.song.id,
+      quality: task.quality,
+      startOffset: task.downloadedBytes > 0 ? task.downloadedBytes : 0,
+      signal: abortController.signal,
+      onProgress: (progress: number, downloadedBytes: number, totalBytes: number, speed: number) => {
+        updateProgress(nextTaskId, progress, downloadedBytes, totalBytes, speed);
+      },
+      onStateChange: (downloadState: string) => {
+        if (downloadState === 'VERIFYING') {
+          setStatus(nextTaskId, 'verifying');
+        }
+      }
+    }).then(async (result: any) => {
+      if (task.mode === 'device_export') {
+        if (typeof document !== 'undefined') {
+          const exportUrl = URL.createObjectURL(result.blob);
+          const anchor = document.createElement('a');
+          anchor.href = exportUrl;
+          anchor.download = filename;
+          document.body.appendChild(anchor);
+          anchor.click();
+          setTimeout(() => {
+            document.body.removeChild(anchor);
+            URL.revokeObjectURL(exportUrl);
+          }, 1500);
+        }
+      } else {
+        await DownloadStorage.getInstance().saveMedia(
+          task.song.id, 
+          result.blob, 
+          result.mimeType, 
+          'liked_songs',
+          { checksum: result.checksum, quality: task.quality }
+        );
+
+        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+        await OfflineCatalog.getInstance().addTrack({
+          trackId: task.song.id,
+          localMediaId: task.song.id,
+          title: task.song.title,
+          artist: task.song.artist || 'Unknown Artist',
+          album: task.song.album,
+          artworkUrl: task.song.coverUrl,
+          duration: task.song.duration || 0,
+          durationMs: (task.song.duration || 0) * 1000,
+          mimeType: result.mimeType,
+          quality: task.quality,
+          fileSizeBytes: result.totalBytes,
+          checksum: result.checksum,
+          leaseExpiresAt: Date.now() + thirtyDaysMs,
+          downloadedAt: Date.now(),
+          version: '2'
+        });
+
         usePlayerStore.setState(s => ({
           downloadedSongIds: [...new Set([...s.downloadedSongIds, nextTaskId])]
         }));
-        
-        // Let it disappear from queue after completion
-        setTimeout(() => {
-          set((s) => {
-            const newTasks = { ...s.tasks };
-            delete newTasks[nextTaskId];
-            return { tasks: newTasks };
-          });
-          get()._persistTasks();
-        }, 3000);
       }
+
+      setStatus(nextTaskId, 'completed');
+      
+      setTimeout(() => {
+        set((s) => {
+          const newTasks = { ...s.tasks };
+          delete newTasks[nextTaskId];
+          return { tasks: newTasks };
+        });
+        get()._persistTasks();
+      }, 2500);
+
       set((s) => ({ activeCount: Math.max(0, s.activeCount - 1) }));
       get()._processQueue();
-    }).catch((err) => {
+    }).catch((err: any) => {
       if (err.name === 'AbortError') {
-         // It was paused/cancelled, do not error out
-         set((s) => ({ activeCount: Math.max(0, s.activeCount - 1) }));
-         get()._processQueue();
-         return;
+        set((s) => ({ activeCount: Math.max(0, s.activeCount - 1) }));
+        get()._processQueue();
+        return;
       }
-      
-      // Exponential Backoff Retry Logic
+
       const currentTask = get().tasks[nextTaskId];
       if (currentTask && currentTask.status !== 'paused' && currentTask.status !== 'cancelled') {
         if (currentTask.retryCount < 3) {
-           const nextRetry = currentTask.retryCount + 1;
-           const delay = nextRetry === 1 ? 1000 : nextRetry === 2 ? 3000 : 8000;
-           
-           console.warn(`[DownloadManager] Download failed for ${task.song.title}, retrying in ${delay}ms...`);
-           
-           set((s) => ({
-             activeCount: Math.max(0, s.activeCount - 1),
-             tasks: { ...s.tasks, [nextTaskId]: { ...currentTask, status: 'queued', retryCount: nextRetry } }
-           }));
-           
-           setTimeout(() => get()._processQueue(), delay);
+          const nextRetry = currentTask.retryCount + 1;
+          const delay = nextRetry * 1500;
+          set((s) => ({
+            activeCount: Math.max(0, s.activeCount - 1),
+            tasks: { 
+              ...s.tasks, 
+              [nextTaskId]: { 
+                ...currentTask, 
+                status: 'queued', 
+                retryCount: nextRetry,
+                error: `Retrying (${nextRetry}/3)...` 
+              } 
+            }
+          }));
+          setTimeout(() => get()._processQueue(), delay);
         } else {
-           setStatus(nextTaskId, 'error', err.message || 'Download failed after 3 attempts');
-           set((s) => ({ activeCount: Math.max(0, s.activeCount - 1) }));
-           get()._processQueue();
+          setStatus(nextTaskId, 'error', err.message || 'Download failed after 3 attempts');
+          set((s) => ({ activeCount: Math.max(0, s.activeCount - 1) }));
+          get()._processQueue();
         }
       }
     });
@@ -426,15 +546,16 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
   }
 }));
 
-// Setup Network Listeners
 if (typeof window !== 'undefined') {
   window.addEventListener('offline', () => {
-    console.log('[DownloadManager] Device went offline. Pausing downloads.');
+    console.log('[DownloadManager] Device went offline.');
     useDownloadStore.getState().pauseAll();
+    usePlayerStore.getState().setNetworkMode('offline');
   });
 
   window.addEventListener('online', () => {
-    console.log('[DownloadManager] Device came online. Resuming downloads.');
+    console.log('[DownloadManager] Device came online.');
+    usePlayerStore.getState().setNetworkMode('online');
     useDownloadStore.getState().resumeAll();
   });
 }

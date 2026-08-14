@@ -9,7 +9,9 @@ import { Song } from '@/types/music';
 import { usePlayerStore } from '@/context/usePlayerStore';
 
 const LOCAL_API_BASE =
-  typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://localhost:3001/api';
+  typeof window !== 'undefined' && window.location?.origin
+    ? `${window.location.origin}/api`
+    : 'http://localhost:3001/api';
 
 function decode(s: string): string {
   return (s || '')

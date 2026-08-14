@@ -9,7 +9,10 @@ export function RemoteDeviceBanner() {
   if (isActiveDevice || !currentSong) return null;
 
   return (
-    <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-5 w-full max-w-sm px-4">
+    <div 
+      className="fixed z-50 left-1/2 -translate-x-1/2 w-full max-w-sm px-4 md:bottom-24 animate-in fade-in slide-in-from-bottom-5 select-none"
+      style={{ bottom: 'calc(3.75rem + env(safe-area-inset-bottom) + 8px)' }}
+    >
       <div className="bg-[#18181b]/90 backdrop-blur-xl border border-[#fa233b]/30 shadow-[0_0_30px_rgba(239,35,60,0.15)] rounded-2xl p-3 flex flex-col gap-3 text-white">
         
         <div className="flex items-center justify-between">

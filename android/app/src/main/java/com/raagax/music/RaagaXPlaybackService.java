@@ -330,15 +330,59 @@ public class RaagaXPlaybackService extends Service {
     @Override
     public void onTaskRemoved(Intent rootIntent) {
         super.onTaskRemoved(rootIntent);
-        Log.d(TAG, "onTaskRemoved: Activity swiped away from Recents. Player isPlaying=" + isPlaying());
-        if (player != null && player.isPlaying()) {
-            // Keep foreground playback active — swiping app away does NOT stop active playback
-            updateNotification();
-        } else {
-            // If user swiped app away while paused, clean up foreground service
-            stopForeground(true);
-            stopSelf();
+        Log.d(TAG, "onTaskRemoved: Activity swiped away from Recents. Terminating playback and saving session.");
+
+        // 1. Save current playback snapshot to SharedPreferences before shutdown
+        if (player != null) {
+            try {
+                android.content.SharedPreferences prefs = getSharedPreferences("raagax_native_playback", android.content.Context.MODE_PRIVATE);
+                android.content.SharedPreferences.Editor editor = prefs.edit();
+                editor.putLong("last_position_ms", Math.max(0, player.getCurrentPosition()));
+                editor.putInt("last_index", player.getCurrentMediaItemIndex());
+                editor.putString("last_title", currentTitle);
+                editor.putString("last_artist", currentArtist);
+                editor.putBoolean("was_playing_when_killed", player.isPlaying());
+                editor.putLong("saved_timestamp", System.currentTimeMillis());
+                editor.apply();
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to save state onTaskRemoved: " + e.getMessage());
+            }
+
+            // 2. STOP AUDIO IMMEDIATELY — Swiping app from recents terminates playback
+            try {
+                player.pause();
+                player.stop();
+            } catch (Exception e) {
+                Log.e(TAG, "Error stopping player onTaskRemoved: " + e.getMessage());
+            }
         }
+
+        // 3. Remove notification and dismiss foreground service
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE);
+            } else {
+                stopForeground(true);
+            }
+            NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (nm != null) {
+                nm.cancel(NOTIF_ID);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error cleaning up notification: " + e.getMessage());
+        }
+
+        // 4. Release MediaSession & Player and terminate service
+        if (mediaSession != null) {
+            try { mediaSession.release(); } catch (Exception ignored) {}
+            mediaSession = null;
+        }
+        if (player != null) {
+            try { player.release(); } catch (Exception ignored) {}
+            player = null;
+        }
+
+        stopSelf();
     }
 
     // ── Legacy single-track API (kept for compatibility) ─────────────────────

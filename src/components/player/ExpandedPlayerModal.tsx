@@ -145,7 +145,7 @@ export function ExpandedPlayerModal() {
     <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="fixed inset-0 z-[100] w-full h-[100dvh] bg-[#0a0c10]/95 backdrop-blur-2xl p-4 sm:p-6 md:p-8 flex flex-col text-white select-none animate-in slide-in-from-bottom duration-300 overflow-hidden"
+      className="fixed inset-0 z-[100] w-full h-[100dvh] bg-[#0a0c10]/95 backdrop-blur-2xl p-4 sm:p-6 md:p-8 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))] flex flex-col text-white select-none animate-in slide-in-from-bottom duration-300 overflow-hidden"
     >
       {/* Dynamic Ambient Background Art Glow - Apple/Spotify Dark Style */}
       <div
@@ -553,7 +553,7 @@ export function ExpandedPlayerModal() {
       {/* Spotify Signature Green Active Device Bar (Very Bottom) */}
       <div 
         onClick={toggleDeviceModal}
-        className="relative z-10 -mx-4 sm:-mx-6 md:-mx-8 -mb-4 sm:-mb-6 md:-mb-8 bg-[#1ed760] text-black px-4 py-2.5 flex items-center justify-between font-bold text-xs cursor-pointer hover:bg-[#1fdf64] transition-colors shadow-lg mt-4"
+        className="relative z-10 -mx-4 sm:-mx-6 md:-mx-8 -mb-[calc(1rem+env(safe-area-inset-bottom))] bg-[#1ed760] text-black px-4 py-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] flex items-center justify-between font-bold text-xs cursor-pointer hover:bg-[#1fdf64] transition-colors shadow-lg mt-3"
       >
         <div className="flex items-center gap-2 max-w-xl truncate">
           <MonitorSmartphone className="w-4 h-4 animate-pulse flex-shrink-0" />

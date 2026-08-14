@@ -203,12 +203,13 @@ export class PlaybackService {
       // Resolve ALL songs in parallel (including the starting song)
       const resolvedTracks = await Promise.all(
         songs.map(async (song) => {
-          let finalSrc = song.audioUrl || '';
-          if (!finalSrc || finalSrc.includes('pixabay.com')) {
-            try {
-              const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
-              if (source?.type === 'remote' && source.url) finalSrc = source.url;
-            } catch {}
+          let finalSrc = '';
+          try {
+            const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+            if (source?.url) finalSrc = source.url;
+          } catch {}
+          if (!finalSrc && song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
+            finalSrc = song.audioUrl;
           }
           return {
             url: finalSrc || FALLBACK_AUDIO_URL,
@@ -231,25 +232,72 @@ export class PlaybackService {
     }
   }
 
+  /**
+   * prepareTrack — Prepares audio element and MediaSession for passive startup restoration.
+   * Sets audio source and seek position WITHOUT calling play().
+   */
+  public async prepareTrack(song: Song, positionSec: number = 0): Promise<boolean> {
+    if (!song) return false;
+    try {
+      let finalSrc = '';
+      try {
+        const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+        if (source?.url) finalSrc = source.url;
+      } catch {}
+      if (!finalSrc && song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
+        finalSrc = song.audioUrl;
+      }
+      if (!finalSrc) finalSrc = FALLBACK_AUDIO_URL;
+
+      const activeAudio = this.getActiveAudio();
+      if (activeAudio) {
+        if (activeAudio.src !== finalSrc) {
+          activeAudio.src = finalSrc;
+        }
+        if (positionSec > 0) {
+          try {
+            activeAudio.currentTime = positionSec;
+          } catch {}
+        }
+      }
+
+      MediaSessionManager.getInstance().updateMetadata({
+        title: song.title || 'RaagaX Track',
+        artist: song.artist || 'RaagaX',
+        album: song.album || 'RaagaX',
+        artwork: song.coverUrl ? [{ src: song.coverUrl, sizes: '512x512', type: 'image/png' }] : [],
+      });
+      MediaSessionManager.getInstance().setPlaybackState('paused');
+      MediaSessionManager.getInstance().setPositionState({
+        duration: song.duration || activeAudio?.duration || 0,
+        position: positionSec,
+      });
+
+      return true;
+    } catch (e) {
+      console.warn('[PlaybackService] prepareTrack failed:', e);
+      return false;
+    }
+  }
+
   public async playTrack(song: Song, forceResume: boolean = true): Promise<boolean> {
     if (!song) return false;
     this.isTransitioning = true;
 
     try {
       // ── Native Android Path: single-song fallback only ───────────────────────
-      // For albums/playlists, loadQueueContext() should be called first via playSong().
-      // This path is only used for single-song plays or NEXT commands.
       if (RaagaXNativePlayer.isNative()) {
-        let finalSrc = song.audioUrl || '';
-        if (!finalSrc || finalSrc.includes('pixabay.com')) {
-          try {
-            const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
-            if (source && source.type === 'remote' && source.url) {
-              finalSrc = source.url;
-            }
-          } catch (e) {
-            console.warn('[PlaybackService] Native source resolution failed:', e);
+        let finalSrc = '';
+        try {
+          const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+          if (source?.url) {
+            finalSrc = source.url;
           }
+        } catch (e) {
+          console.warn('[PlaybackService] Native source resolution failed:', e);
+        }
+        if (!finalSrc && song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
+          finalSrc = song.audioUrl;
         }
         if (!finalSrc) finalSrc = FALLBACK_AUDIO_URL;
 
@@ -303,21 +351,23 @@ export class PlaybackService {
           } catch {}
         }
 
-        // Resolve source for active audio only if audioUrl is missing or fallback
-        let finalSrc = song.audioUrl || '';
-        if (!finalSrc || finalSrc.includes('pixabay.com')) {
-          try {
-            const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
-            if (this.playbackGeneration !== currentGen) {
-              console.warn(`[PlaybackService] Discarding stale source resolution for gen ${currentGen} (current ${this.playbackGeneration})`);
-              return false;
-            }
-            if (source && source.type === 'remote' && source.url) {
-              finalSrc = source.url;
-            }
-          } catch (e) {
-            console.warn('[PlaybackService] Source resolution failed, using fallback:', e);
+        // Always resolve playable source (offline local Blob URL vs dynamic CDN stream)
+        let finalSrc = '';
+        try {
+          const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+          if (this.playbackGeneration !== currentGen) {
+            console.warn(`[PlaybackService] Discarding stale source resolution for gen ${currentGen} (current ${this.playbackGeneration})`);
+            return false;
           }
+          if (source?.url) {
+            finalSrc = source.url;
+          }
+        } catch (e) {
+          console.warn('[PlaybackService] Source resolution failed:', e);
+        }
+
+        if (!finalSrc && song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
+          finalSrc = song.audioUrl;
         }
         if (!finalSrc) {
           finalSrc = FALLBACK_AUDIO_URL;

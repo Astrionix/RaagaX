@@ -72,6 +72,11 @@ export class DeviceRegistry {
     else if (/iPhone|iPad|iPod/i.test(ua)) platform = 'iOS';
     else if (/Linux/i.test(ua)) platform = 'Linux';
 
+    const customName = localStorage.getItem('raagax_custom_device_name');
+    if (customName && customName.trim()) {
+      return { name: customName.trim(), type, platform };
+    }
+
     let name = `${platform} ${type === 'mobile' ? 'Phone' : type === 'desktop' ? 'PC' : 'Device'}`;
     if (/Chrome/i.test(ua) && !/Edg/i.test(ua)) name = `${platform} (Chrome)`;
     else if (/Edg/i.test(ua)) name = `${platform} (Edge)`;

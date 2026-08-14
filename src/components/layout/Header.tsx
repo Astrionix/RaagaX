@@ -25,7 +25,7 @@ export function Header() {
   return (
     <>
       {/* Mobile Top Header (md:hidden) */}
-      <header className="md:hidden h-14 fixed top-0 left-0 right-0 z-40 px-4 flex items-center justify-between bg-[#07090E]/90 backdrop-blur-md border-b border-white/5 text-white select-none">
+      <header className="md:hidden fixed top-0 left-0 right-0 z-40 px-4 flex items-center justify-between bg-[#07090E]/95 backdrop-blur-xl border-b border-white/5 text-white select-none pt-[env(safe-area-inset-top)] h-[calc(3.5rem+env(safe-area-inset-top))] shadow-md">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-xl bg-[#fa233b] flex items-center justify-center shadow-md">
             <Disc3 className="w-4 h-4 text-white animate-spin" style={{ animationDuration: '10s' }} />

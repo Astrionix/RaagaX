@@ -81,18 +81,54 @@ export class LocalDatabase {
   }
 
   /**
+   * Synchronous retrieval from localStorage for instant boot before IndexedDB resolves
+   */
+  public getSyncPlaybackSession(): PlaybackSessionCache | null {
+    if (typeof localStorage === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem('raagax_latest_playback_session');
+      if (raw) {
+        return JSON.parse(raw);
+      }
+    } catch (e) {
+      console.warn('[LocalDatabase] Failed to read sync playback session:', e);
+    }
+    return null;
+  }
+
+  /**
    * Save instant session snapshot (Current song, position, queue, history)
+   * Saves synchronously to localStorage AND asynchronously to IndexedDB for zero data-loss.
    */
   public async savePlaybackSession(session: PlaybackSessionCache): Promise<void> {
+    const payload = {
+      ...session,
+      timestamp: session.timestamp || Date.now(),
+    };
+
+    // Fast synchronous tier: guarantees survival even if tab is killed immediately
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('raagax_latest_playback_session', JSON.stringify(payload));
+      } catch (e) {
+        // Quota exceeded protection: trim large arrays if needed
+        try {
+          const minimal = {
+            ...payload,
+            queue: (payload.queue || []).slice(0, 50),
+          };
+          localStorage.setItem('raagax_latest_playback_session', JSON.stringify(minimal));
+        } catch {}
+      }
+    }
+
+    // Rich async tier: IndexedDB
     if (!this.dbPromise) return;
     try {
       const db = await this.dbPromise;
       const tx = db.transaction('session', 'readwrite');
       const store = tx.objectStore('session');
-      store.put({
-        ...session,
-        timestamp: session.timestamp || Date.now()
-      }, 'latest_session');
+      store.put(payload, 'latest_session');
     } catch (e) {
       console.warn('Could not save playback session to IndexedDB:', e);
     }
@@ -102,25 +138,39 @@ export class LocalDatabase {
    * Load playback session for instant startup restore
    */
   public async loadPlaybackSession(): Promise<PlaybackSessionCache | null> {
-    if (!this.dbPromise) return null;
-    try {
-      const db = await this.dbPromise;
-      return new Promise((resolve) => {
-        const tx = db.transaction('session', 'readonly');
-        const store = tx.objectStore('session');
-        const req = store.get('latest_session');
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => resolve(null);
-      });
-    } catch (e) {
-      return null;
+    // 1. Try IndexedDB rich store first
+    if (this.dbPromise) {
+      try {
+        const db = await this.dbPromise;
+        const idbResult = await new Promise<PlaybackSessionCache | null>((resolve) => {
+          const tx = db.transaction('session', 'readonly');
+          const store = tx.objectStore('session');
+          const req = store.get('latest_session');
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => resolve(null);
+        });
+
+        if (idbResult && idbResult.currentSong) {
+          return idbResult;
+        }
+      } catch (e) {
+        console.warn('[LocalDatabase] IndexedDB load failed, falling back to sync tier:', e);
+      }
     }
+
+    // 2. Fallback to localStorage fast tier
+    return this.getSyncPlaybackSession();
   }
 
   /**
-   * Clear playback session on logout to enforce strict account isolation
+   * Clear playback session on logout / reset to enforce strict account isolation
    */
   public async clearPlaybackSession(): Promise<void> {
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.removeItem('raagax_latest_playback_session');
+      } catch {}
+    }
     if (!this.dbPromise) return;
     try {
       const db = await this.dbPromise;

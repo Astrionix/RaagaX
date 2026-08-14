@@ -1,6 +1,8 @@
 import { Song } from '@/types/music';
 import { PlaybackSource } from '@/lib/offline/types';
 import { OfflineCatalog } from '@/lib/offline/OfflineCatalog';
+import { DownloadStorage } from '@/lib/offline/DownloadStorage';
+import { getCachedAudioUrl } from '@/lib/downloadHelper';
 import { NetworkManager } from '@/lib/offline/NetworkManager';
 import { QualityManager } from '@/lib/playback/QualityManager';
 import { RealMusicEngine } from '@/lib/realMusicEngine';
@@ -23,39 +25,55 @@ export class PlaybackSourceResolver {
 
     const networkMode = NetworkManager.getInstance().getMode();
     const isOfflineForced = networkMode === 'offline_forced';
-    const isOffline = networkMode === 'offline' || isOfflineForced;
+    const isOffline = networkMode === 'offline' || isOfflineForced || (typeof navigator !== 'undefined' && !navigator.onLine);
 
-    // 1. Valid local download check
+    // ── 1. Check Local Sandboxed / Offline Storage First ───────────────────────
     const catalog = OfflineCatalog.getInstance();
-    const isDownloaded = await catalog.isDownloaded(song.id);
+    const storage = DownloadStorage.getInstance();
 
+    const isDownloaded = await catalog.isDownloaded(song.id);
     if (isDownloaded) {
-      return {
-        type: 'offline',
-        mediaId: song.id,
-        localId: song.id,
-      };
+      let localUrl = await storage.getMediaUrl(song.id);
+      
+      // Fallback check in PWA cache
+      if (!localUrl && song.audioUrl) {
+        localUrl = await getCachedAudioUrl(song.audioUrl);
+      }
+
+      if (localUrl) {
+        // Record offline listening history & play count locally
+        catalog.updatePlayStats(song.id).catch(() => {});
+
+        return {
+          type: 'offline',
+          url: localUrl,
+          mediaId: song.id,
+          localId: song.id,
+          isLocalBlob: true,
+        };
+      }
     }
 
-    // 2. If forced offline and not downloaded, fail cleanly
+    // ── 2. If Offline Mode is Active and Track is Not Downloaded ─────────────
     if (isOffline) {
-      console.warn(`[PlaybackSourceResolver] Song unavailable offline: ${song.title}`);
+      console.warn(`[PlaybackSourceResolver] Song unavailable offline: "${song.title}"`);
       return null;
     }
 
-    // Quality check
-    const qualityDecision = await QualityManager.getInstance().getTargetQuality();
-    usePlayerStore.getState().setDeliveredQuality(qualityDecision.target);
+    // ── 3. Quality Negotiation for Online Streaming ──────────────────────────
+    try {
+      const qualityDecision = await QualityManager.getInstance().getTargetQuality();
+      usePlayerStore.getState().setDeliveredQuality(qualityDecision.target);
+    } catch {}
 
-    // 3. Direct valid HTTPS audioUrl check
+    // ── 4. Direct Valid HTTPS Stream Check & Dynamic JioSaavn Lookup ──────────
     let validAudioUrl = song.audioUrl ? song.audioUrl.replace('http://', 'https://') : '';
     const isPixabay = validAudioUrl.includes('pixabay.com');
 
     if (!validAudioUrl || isPixabay) {
-      // Perform live dynamic JioSaavn stream lookup for the track
       try {
-        const query = `${song.title} ${song.artist}`.trim();
-        console.log(`[PlaybackSourceResolver] Resolving real JioSaavn audio URL for: "${query}"`);
+        const query = `${song.title} ${song.artist || ''}`.trim();
+        console.log(`[PlaybackSourceResolver] Resolving real audio stream for: "${query}"`);
         const realSongs = await RealMusicEngine.getInstance().searchRealSongs(query, 1);
         
         if (realSongs.length > 0 && realSongs[0].audioUrl && !realSongs[0].audioUrl.includes('pixabay.com')) {
@@ -66,7 +84,7 @@ export class PlaybackSourceResolver {
           }
         }
       } catch (err) {
-        console.warn(`[PlaybackSourceResolver] Failed live JioSaavn stream resolution for "${song.title}":`, err);
+        console.warn(`[PlaybackSourceResolver] Stream resolution failed for "${song.title}":`, err);
       }
     }
 
@@ -81,3 +99,4 @@ export class PlaybackSourceResolver {
     return null;
   }
 }
+

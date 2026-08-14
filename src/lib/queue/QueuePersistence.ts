@@ -38,27 +38,62 @@ export class QueuePersistence {
 
   public async saveSnapshot(snapshot: QueueSnapshot) {
     if (this.saveTimeout) clearTimeout(this.saveTimeout);
+
+    // Fast synchronous cache for instant restoration
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('raagax_active_queue_snapshot', JSON.stringify(snapshot));
+      } catch {}
+    }
     
     // Throttle saves slightly so we don't spam IndexedDB on rapid reorders
     this.saveTimeout = setTimeout(async () => {
       try {
         const db = await this.getDB();
         await db.put('queue_state', snapshot);
+        // Also save canonical active_session and default records
+        if (snapshot.queueId !== 'active_session') {
+          await db.put('queue_state', { ...snapshot, queueId: 'active_session' });
+        }
+        if (snapshot.queueId !== 'default') {
+          await db.put('queue_state', { ...snapshot, queueId: 'default' });
+        }
       } catch (e) {
         console.warn('[QueuePersistence] Failed to save snapshot', e);
       }
-    }, 500);
+    }, 250);
   }
 
-  public async loadSnapshot(queueId: string): Promise<QueueSnapshot | null> {
+  public async loadSnapshot(queueId: string = 'active_session'): Promise<QueueSnapshot | null> {
     try {
-      const db = await this.getDB();
-      const snapshot = await db.get('queue_state', queueId);
-      return snapshot || null;
+      if (typeof window !== 'undefined' && 'indexedDB' in window) {
+        const db = await this.getDB();
+        let snapshot = await db.get('queue_state', queueId);
+        if (!snapshot && queueId !== 'active_session') {
+          snapshot = await db.get('queue_state', 'active_session');
+        }
+        if (!snapshot && queueId !== 'default') {
+          snapshot = await db.get('queue_state', 'default');
+        }
+        if (snapshot && snapshot.items && snapshot.items.length > 0) {
+          return snapshot;
+        }
+      }
     } catch (e) {
-      console.warn('[QueuePersistence] Failed to load snapshot', e);
-      return null;
+      console.warn('[QueuePersistence] Failed to load snapshot from IDB:', e);
     }
+
+    // Fast tier fallback
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('raagax_active_queue_snapshot');
+        if (raw) {
+          return JSON.parse(raw);
+        }
+      } catch {}
+    }
+
+    return null;
   }
 
   public async saveHistory(entries: QueueHistoryEntry[]) {

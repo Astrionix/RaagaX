@@ -185,18 +185,57 @@ interface PlayerState {
   logCurrentTelemetry: (action: 'play' | 'skip' | 'complete') => void;
 }
 
+function persistSessionHelper(state: {
+  currentSong: Song | null;
+  currentTime: number;
+  queue: Song[];
+  queueIndex: number;
+  historySongIds?: string[];
+  likedSongIds?: string[];
+  preferredLanguage?: string;
+  shuffleMode?: string;
+  repeatMode?: string;
+  volume?: number;
+}) {
+  if (!state.currentSong) return;
+  const payload = {
+    currentSong: state.currentSong,
+    currentTime: Math.max(0, state.currentTime || 0),
+    queue: state.queue || [],
+    queueIndex: Math.max(0, state.queueIndex || 0),
+    historySongIds: state.historySongIds || [],
+    likedSongIds: state.likedSongIds || [],
+    searchHistory: LocalDatabase.getInstance().getSearchHistory(),
+    preferredLanguage: state.preferredLanguage,
+    timestamp: Date.now(),
+  };
+  LocalDatabase.getInstance().savePlaybackSession(payload);
+}
+
+let lastThrottledPersistTime = 0;
+function throttlePersistSession(state: any, force = false) {
+  const now = Date.now();
+  if (force || now - lastThrottledPersistTime >= 2000) {
+    lastThrottledPersistTime = now;
+    persistSessionHelper(state);
+  }
+}
+
+// Initial sync session hydration for zero-flicker startup
+const initialSession = typeof window !== 'undefined' ? LocalDatabase.getInstance().getSyncPlaybackSession() : null;
+
 export const usePlayerStore = create<PlayerState>()(
   persist(
     (set, get) => ({
-  currentSong: null,
-  isPlaying: false,
-  currentTime: 0,
-  duration: 0,
+  currentSong: initialSession?.currentSong || null,
+  isPlaying: false, // Strict rule: ALWAYS boot in paused state
+  currentTime: initialSession?.currentTime || 0,
+  duration: initialSession?.currentSong?.duration || 0,
   volume: 0.8,
   isMuted: false,
 
-  queue: [],
-  queueIndex: 0,
+  queue: initialSession?.queue || [],
+  queueIndex: initialSession?.queueIndex || 0,
   shuffleMode: 'OFF',
   repeatMode: 'off',
   isRefillingQueue: false,
@@ -375,14 +414,6 @@ export const usePlayerStore = create<PlayerState>()(
     // Case 3: Cold boot / App killed — PASSIVE restoration (isPlaying = false, DO NOT AUTOPLAY)
     const session = await LocalDatabase.getInstance().loadPlaybackSession();
     if (session && session.currentSong) {
-      const now = Date.now();
-      const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
-      if (session.timestamp && (now - session.timestamp > MAX_AGE_MS)) {
-        console.log('[usePlayerStore] Discarded stale playback session (>24h old).');
-        await LocalDatabase.getInstance().clearPlaybackSession();
-        return;
-      }
-
       const { isKidsOrNurseryTrack } = await import('@/lib/jioSaavnProvider');
       const cleanQueue = (session.queue || []).filter(s => s && !isKidsOrNurseryTrack(s));
       const isCurrentClean = !isKidsOrNurseryTrack(session.currentSong);
@@ -395,7 +426,7 @@ export const usePlayerStore = create<PlayerState>()(
         manager.replaceQueue(cleanQueue, safeIndex);
 
         set({
-          isPlaying: false,
+          isPlaying: false, // Strict: ALWAYS PAUSED ON COLD BOOT
           currentSong: activeSong,
           currentTime: session.currentTime || 0,
           queue: cleanQueue,
@@ -403,7 +434,15 @@ export const usePlayerStore = create<PlayerState>()(
         });
 
         const { PlaybackService } = await import('@/lib/playback/PlaybackService');
+        await PlaybackService.getInstance().prepareTrack(activeSong, session.currentTime || 0);
         await PlaybackService.getInstance().loadQueueContext(cleanQueue, safeIndex);
+
+        persistSessionHelper({
+          currentSong: activeSong,
+          currentTime: session.currentTime || 0,
+          queue: cleanQueue,
+          queueIndex: safeIndex,
+        });
       }
     }
   },
@@ -503,6 +542,7 @@ export const usePlayerStore = create<PlayerState>()(
 
     // Atomically commit playing state, queue & queueIndex
     set({ isPlaying: true, currentTime: 0, currentSong: song, queue: syncedQueue, queueIndex: syncedIndex });
+    persistSessionHelper({ ...get(), currentSong: song, currentTime: 0, queue: syncedQueue, queueIndex: syncedIndex });
 
     // Delegate to PlaybackService (local) or ConnectManager (remote)
     if (get().isActiveDevice) {
@@ -556,6 +596,7 @@ export const usePlayerStore = create<PlayerState>()(
       queueIndex: 0,
       shuffleMode: snapshot.shuffleMode || 'STANDARD',
     });
+    persistSessionHelper({ ...get(), currentSong: firstSong, currentTime: 0, queue: syncedQueue, queueIndex: 0 });
 
     if (get().isActiveDevice) {
       import('@/lib/playback/PlaybackService').then(async ({ PlaybackService }) => {
@@ -595,6 +636,7 @@ export const usePlayerStore = create<PlayerState>()(
       }
       set({ isPlaying: isNowPlaying });
     }
+    persistSessionHelper({ ...get() });
     import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
       ConnectManager.getInstance().dispatchPlaybackCommand(isNowPlaying ? 'PLAY' : 'PAUSE', { positionMs: get().currentTime * 1000 });
     });
@@ -611,6 +653,7 @@ export const usePlayerStore = create<PlayerState>()(
       });
     }
     set({ isPlaying: playing });
+    persistSessionHelper({ ...get() });
     if (!fromRemote) {
       import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
         ConnectManager.getInstance().dispatchPlaybackCommand(playing ? 'PLAY' : 'PAUSE', { positionMs: get().currentTime * 1000 });
@@ -627,21 +670,16 @@ export const usePlayerStore = create<PlayerState>()(
       });
     }
 
-    const { currentSong, queue, queueIndex, historySongIds, likedSongIds, isActiveDevice } = get();
-    if (isActiveDevice && currentSong && Math.floor(time) % 5 === 0) {
-      LocalDatabase.getInstance().savePlaybackSession({
-        currentSong,
-        currentTime: time,
-        queue,
-        queueIndex,
-        historySongIds,
-        likedSongIds,
-        searchHistory: LocalDatabase.getInstance().getSearchHistory(),
-      });
+    const state = get();
+    if (state.isActiveDevice && state.currentSong) {
+      throttlePersistSession(state, fromRemote);
     }
   },
   setDuration: (dur) => set({ duration: dur }),
-  setVolume: (vol) => set({ volume: vol }),
+  setVolume: (vol) => {
+    set({ volume: vol });
+    persistSessionHelper(get());
+  },
   toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 
   playNext: async () => {
@@ -670,18 +708,22 @@ export const usePlayerStore = create<PlayerState>()(
     
     if (nextItem && nextItem.song) {
       const snapshot = manager.getSnapshot();
+      const syncedQueue = snapshot.items.map((i: any) => i.song);
+      const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
       set({ 
         currentSong: nextItem.song,
-        queue: snapshot.items.map((i: any) => i.song),
-        queueIndex: snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0,
+        queue: syncedQueue,
+        queueIndex: syncedIndex,
         isPlaying: true, 
         currentTime: 0 
       });
+      persistSessionHelper({ ...get(), currentSong: nextItem.song, currentTime: 0, queue: syncedQueue, queueIndex: syncedIndex });
       import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
         PlaybackService.getInstance().playTrack(nextItem.song, true);
       });
     } else {
       set({ isPlaying: false });
+      persistSessionHelper(get());
     }
   },
 
@@ -713,18 +755,22 @@ export const usePlayerStore = create<PlayerState>()(
 
     if (prevItem && prevItem.song) {
       const snapshot = manager.getSnapshot();
+      const syncedQueue = snapshot.items.map((i: any) => i.song);
+      const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
       set({
         currentSong: prevItem.song,
-        queue: snapshot.items.map((i: any) => i.song),
-        queueIndex: snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0,
+        queue: syncedQueue,
+        queueIndex: syncedIndex,
         isPlaying: true,
         currentTime: 0
       });
+      persistSessionHelper({ ...get(), currentSong: prevItem.song, currentTime: 0, queue: syncedQueue, queueIndex: syncedIndex });
       import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
         PlaybackService.getInstance().playTrack(prevItem.song, true);
       });
     } else {
       set({ isPlaying: false });
+      persistSessionHelper(get());
     }
   },
 
@@ -742,12 +788,16 @@ export const usePlayerStore = create<PlayerState>()(
       queueIndex: syncedIndex, 
       currentSong 
     });
+    persistSessionHelper(get());
 
     import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
       PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
     });
   },
-  setRepeatMode: (mode) => QueueManager.getInstance().setRepeatMode(mode as any),
+  setRepeatMode: (mode) => {
+    QueueManager.getInstance().setRepeatMode(mode as any);
+    persistSessionHelper(get());
+  },
   cycleRepeatMode: () => {
     const modes: import('@/lib/queue/types').RepeatMode[] = ['OFF', 'CONTEXT', 'TRACK'];
     const current = QueueManager.getInstance().getRepeatMode();

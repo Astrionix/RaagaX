@@ -26,11 +26,11 @@ export function MobileMiniPlayer() {
 
   return (
     <div
-      className="md:hidden fixed z-40 bg-[#12141C]/95 backdrop-blur-xl border border-white/10 px-3 flex flex-col justify-center select-none active:scale-[0.99] transition-all duration-200 w-[calc(100%-16px)] left-2 rounded-xl h-[56px] shadow-2xl shadow-black/80"
-      style={{ bottom: 'calc(4.25rem + env(safe-area-inset-bottom))' }}
+      className="md:hidden fixed z-40 bg-[#12141C]/95 backdrop-blur-2xl border border-white/10 px-3 flex flex-col justify-center select-none active:scale-[0.99] transition-all duration-200 w-[calc(100%-16px)] left-2 right-2 max-w-lg mx-auto rounded-2xl h-[58px] shadow-[0_8px_32px_rgba(0,0,0,0.7)]"
+      style={{ bottom: 'calc(3.75rem + env(safe-area-inset-bottom) + 8px)' }}
     >
       {/* Live Mini Scrubber Line */}
-      <div className="absolute top-0 left-0 w-full h-[2.5px] z-10 flex items-start rounded-t-xl overflow-hidden pointer-events-none">
+      <div className="absolute top-0 left-0 w-full h-[2.5px] z-10 flex items-start rounded-t-2xl overflow-hidden pointer-events-none">
         <SeekBar
           className="w-full h-full"
           height="h-[2.5px]"

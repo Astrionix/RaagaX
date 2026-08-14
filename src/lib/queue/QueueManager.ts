@@ -36,19 +36,10 @@ export class QueueManager {
   public async init() {
     if (this.initialized) return;
     
-    // Attempt to load previous session from IndexedDB
-    // We'll use a fixed 'default' queueId for the main app session for now
-    const snapshot = await this.persistence.loadSnapshot('default');
-    if (snapshot) {
+    // Attempt to load previous session from persistence
+    const snapshot = await this.persistence.loadSnapshot('active_session');
+    if (snapshot && snapshot.items && snapshot.items.length > 0) {
       await this.engine.loadFromSnapshot(snapshot);
-    } else {
-      // Force initial persist so we have a queueId
-      this.engine = new QueueEngine();
-      // Set to 'default' ID
-      const newSnap = this.engine.getSnapshot();
-      newSnap.queueId = 'default';
-      this.engine.loadFromSnapshot(newSnap);
-      this.persistence.saveSnapshot(newSnap);
     }
     
     this.initialized = true;

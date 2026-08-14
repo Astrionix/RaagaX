@@ -102,7 +102,7 @@ export default function Page() {
           <Header />
 
           {/* View Switcher Container */}
-          <main className="flex-1 pt-16 md:pt-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))] md:pb-8 px-4 sm:px-8">
+          <main className="flex-1 pt-[calc(3.5rem+env(safe-area-inset-top)+8px)] md:pt-4 pb-[calc(8.5rem+env(safe-area-inset-bottom))] md:pb-8 px-4 sm:px-8">
             {activeTab === 'home' && <HomeView />}
             {activeTab === 'browse' && <BrowseView />}
             {activeTab === 'search' && <SearchView />}

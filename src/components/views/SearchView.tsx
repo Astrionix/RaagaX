@@ -24,6 +24,7 @@ export function SearchView() {
   const [realSearchResults, setRealSearchResults] = useState<Song[]>([]);
   const [realAlbumResults, setRealAlbumResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [isOfflineSearch, setIsOfflineSearch] = useState(false);
 
   useEffect(() => {
     let isCancelled = false;
@@ -35,6 +36,43 @@ export function SearchView() {
         return;
       }
       setIsSearching(true);
+
+      const store = usePlayerStore.getState();
+      const isOffline = store.networkMode === 'offline' || store.networkMode === 'offline_forced' || (typeof navigator !== 'undefined' && !navigator.onLine);
+      setIsOfflineSearch(isOffline);
+
+      if (isOffline) {
+        try {
+          const { OfflineCatalog } = await import('@/lib/offline/OfflineCatalog');
+          const offlineTracks = await OfflineCatalog.getInstance().searchOfflineTracks(searchQuery);
+          if (!isCancelled) {
+            const mappedSongs: Song[] = offlineTracks.map((t) => ({
+              id: t.trackId,
+              title: t.title,
+              artist: t.artist,
+              artistId: `art-${t.trackId}`,
+              album: t.album || 'Offline',
+              albumId: `alb-${t.trackId}`,
+              coverUrl: t.artworkUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&h=300&fit=crop',
+              duration: t.duration || Math.round(t.durationMs / 1000) || 180,
+              audioUrl: '',
+              genre: 'OFFLINE',
+              category: 'melody',
+              releaseYear: new Date().getFullYear(),
+              plays: t.playCount || 1,
+              likes: 1,
+            }));
+            setRealSearchResults(mappedSongs);
+            setRealAlbumResults([]);
+          }
+        } catch (err) {
+          console.warn('Offline search error:', err);
+        } finally {
+          if (!isCancelled) setIsSearching(false);
+        }
+        return;
+      }
+
       try {
         const [songResults, albumResults] = await Promise.all([
           RealMusicEngine.getInstance().searchRealSongs(searchQuery, 16),
@@ -156,9 +194,17 @@ export function SearchView() {
       {/* Active Search Results */}
       {searchQuery && (
         <div className="space-y-6">
+          {/* Offline Notice Banner */}
+          {isOfflineSearch && (
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between text-xs text-amber-300">
+              <span className="font-bold">You're offline — Showing downloaded music</span>
+              <span className="text-[10px] bg-amber-500/20 px-2 py-0.5 rounded-full font-mono">Local Index</span>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-              <Search className="w-4 h-4 text-[#EF233C]" /> Search Results
+              <Search className="w-4 h-4 text-[#EF233C]" /> Search Results {isOfflineSearch && `(${realSearchResults.length} offline tracks)`}
             </h3>
             {isSearching && (
               <span className="text-xs font-bold text-[#EF233C] flex items-center gap-1.5 animate-pulse">

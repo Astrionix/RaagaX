@@ -2,7 +2,8 @@ import { DownloadQueue } from './DownloadQueue';
 import { DownloadStorage } from './DownloadStorage';
 import { StorageManager } from './StorageManager';
 import { OfflineCatalog } from './OfflineCatalog';
-import { DownloadTask, OfflineTrack } from './types';
+import { AtomicDownloader } from './AtomicDownloader';
+import { DownloadTask, OfflineTrack, DownloadQuality, DownloadMode } from './types';
 import { NetworkManager } from './NetworkManager';
 import { Song } from '@/types/music';
 
@@ -13,11 +14,13 @@ export class DownloadManager {
   private catalog = OfflineCatalog.getInstance();
   private storageManager = StorageManager.getInstance();
   private networkManager = NetworkManager.getInstance();
+  private atomicDownloader = AtomicDownloader.getInstance();
   
   // Track metadata for active tasks
   private songMetadataMap: Map<string, Song> = new Map();
   // Track aborted fetch controllers
   private abortControllers: Map<string, AbortController> = new Map();
+  private wifiOnly: boolean = false;
 
   public static getInstance(): DownloadManager {
     if (!DownloadManager.instance) {
@@ -40,10 +43,25 @@ export class DownloadManager {
     });
   }
 
-  public async downloadSong(song: Song, contextRef: string = 'liked_songs') {
+  public setWifiOnly(enabled: boolean) {
+    this.wifiOnly = enabled;
+  }
+
+  public isWifiOnly(): boolean {
+    return this.wifiOnly;
+  }
+
+  public async downloadSong(
+    song: Song, 
+    mode: DownloadMode = 'offline_sandboxed',
+    quality: DownloadQuality = 'HIGH',
+    contextRef: string = 'liked_songs'
+  ) {
+    if (!song || !song.id) return;
+
     if (this.queue.getTaskByTrackId(song.id)) return;
 
-    if (await this.catalog.isDownloaded(song.id)) {
+    if (mode === 'offline_sandboxed' && (await this.catalog.isDownloaded(song.id))) {
       await this.storage.addReference(song.id, contextRef);
       return;
     }
@@ -51,8 +69,10 @@ export class DownloadManager {
     this.songMetadataMap.set(song.id, song);
 
     const task: DownloadTask = {
-      id: crypto.randomUUID(),
+      id: crypto.randomUUID ? crypto.randomUUID() : `task_${Date.now()}_${song.id}`,
       trackId: song.id,
+      mode,
+      quality,
       status: 'queued',
       bytesDownloaded: 0,
       progress: 0,
@@ -72,16 +92,23 @@ export class DownloadManager {
     return isFullyPurged;
   }
 
-  private pauseAllActiveDownloads() {
+  public pauseAllActiveDownloads() {
     const tasks = this.queue.getTasks().filter(t => t.status === 'downloading');
     for (const task of tasks) {
       this.pauseDownload(task.id);
     }
   }
 
+  public resumeAllDownloads() {
+    const tasks = this.queue.getTasks().filter(t => t.status === 'paused' || t.status === 'failed');
+    for (const task of tasks) {
+      this.resumeDownload(task.id);
+    }
+  }
+
   public pauseDownload(taskId: string) {
     const task = this.queue.getTask(taskId);
-    if (!task || task.status !== 'downloading') return;
+    if (!task) return;
 
     const controller = this.abortControllers.get(taskId);
     if (controller) {
@@ -94,11 +121,26 @@ export class DownloadManager {
     this.processNextInQueue();
   }
 
+  public resumeDownload(taskId: string) {
+    const task = this.queue.getTask(taskId);
+    if (!task) return;
+
+    this.queue.updateTask(taskId, { status: 'queued', error: undefined });
+    this.processNextInQueue();
+  }
+
   public cancelDownload(taskId: string) {
     this.pauseDownload(taskId);
     const task = this.queue.getTask(taskId);
     if (task) {
       this.queue.removeTask(taskId);
+    }
+  }
+
+  public async cancelAll() {
+    const tasks = this.queue.getTasks();
+    for (const task of tasks) {
+      this.cancelDownload(task.id);
     }
   }
 
@@ -112,11 +154,28 @@ export class DownloadManager {
       this.queue.updateTask(nextTask.id, { status: 'downloading' });
       this.queue.markAsActive(nextTask.id);
       
-      this.executeDownload(nextTask).catch(err => {
+      this.executeDownload(nextTask).catch((err) => {
+        if (err.name === 'AbortError') return;
+
         console.error('[DownloadManager] Download failed', err);
         this.queue.markAsInactive(nextTask.id);
-        this.queue.updateTask(nextTask.id, { status: 'failed' });
-        this.processNextInQueue();
+
+        if (nextTask.retryCount < 3) {
+          const nextRetry = nextTask.retryCount + 1;
+          const delay = nextRetry * 1500;
+          this.queue.updateTask(nextTask.id, { 
+            status: 'queued', 
+            retryCount: nextRetry,
+            error: `Retrying (${nextRetry}/3): ${err.message || 'Error'}` 
+          });
+          setTimeout(() => this.processNextInQueue(), delay);
+        } else {
+          this.queue.updateTask(nextTask.id, { 
+            status: 'failed', 
+            error: err.message || 'Download failed after 3 attempts' 
+          });
+          this.processNextInQueue();
+        }
       });
     }
   }
@@ -127,55 +186,99 @@ export class DownloadManager {
 
     try {
       const song = this.songMetadataMap.get(task.trackId);
-      const targetUrl = song?.audioUrl || `/api/download?id=${task.trackId}`;
+      const sanitizeName = (str: string) => str.replace(/[/\\?%*:|"<>]/g, '').trim();
+      const filename = song ? `${sanitizeName(song.title)} - ${sanitizeName(song.artist || 'Artist')}.mp3` : 'RaagaX_Track.mp3';
 
-      const res = await fetch(targetUrl, { 
-        signal: controller.signal 
-      });
-
-      if (!res.ok) throw new Error('Failed to fetch audio stream for download');
-      if (!res.body) throw new Error('No body returned from audio endpoint');
-
-      const contentLength = Number(res.headers.get('Content-Length')) || 0;
-      this.queue.updateTask(task.id, { totalBytes: contentLength });
-
-      const mimeType = res.headers.get('Content-Type') || 'audio/mpeg';
-      const blob = await res.blob();
-
-      // Check quota
-      if (!(await this.storageManager.canAccommodate(blob.size))) {
-        throw new Error('Storage quota exceeded');
+      let targetUrl = song?.audioUrl;
+      if (!targetUrl || targetUrl.includes('pixabay.com')) {
+        targetUrl = `/api/download?id=${encodeURIComponent(task.trackId)}&name=${encodeURIComponent(filename)}`;
+      } else {
+        targetUrl = `/api/download?url=${encodeURIComponent(targetUrl)}&name=${encodeURIComponent(filename)}`;
       }
 
-      await this.storage.saveMedia(task.trackId, blob, mimeType, 'liked_songs');
-
-      const trackMeta: OfflineTrack = {
+      // Step 1: Execute atomic chunked download with validation
+      const downloadResult = await this.atomicDownloader.download({
+        url: targetUrl,
         trackId: task.trackId,
-        localMediaId: task.trackId,
-        title: song?.title || `Track ${task.trackId}`,
-        artist: song?.artist || 'Unknown',
-        album: song?.album,
-        artworkUrl: song?.coverUrl,
-        duration: song?.duration || 0,
-        durationMs: (song?.duration || 0) * 1000,
-        downloadedAt: Date.now(),
-        version: '1'
-      };
+        quality: task.quality,
+        startOffset: task.bytesDownloaded > 0 ? task.bytesDownloaded : 0,
+        signal: controller.signal,
+        onProgress: (progress, downloadedBytes, totalBytes, speed) => {
+          this.queue.updateTask(task.id, {
+            progress,
+            bytesDownloaded: downloadedBytes,
+            totalBytes,
+            speedBytesPerSec: speed,
+          });
+        },
+        onStateChange: (state) => {
+          if (state === 'VERIFYING') {
+            this.queue.updateTask(task.id, { status: 'verifying' });
+          }
+        },
+      });
 
-      await this.catalog.addTrack(trackMeta);
+      // Step 2: Mode A (Sandboxed Offline Storage) vs Mode B (Device Export)
+      if (task.mode === 'device_export') {
+        // Mode B: Export as standard MP3 file to device storage
+        if (typeof document !== 'undefined') {
+          const exportUrl = URL.createObjectURL(downloadResult.blob);
+          const anchor = document.createElement('a');
+          anchor.href = exportUrl;
+          anchor.download = filename;
+          document.body.appendChild(anchor);
+          anchor.click();
+          setTimeout(() => {
+            document.body.removeChild(anchor);
+            URL.revokeObjectURL(exportUrl);
+          }, 1000);
+        }
+      } else {
+        // Mode A: App-specific offline protected storage
+        // Check storage accommodation
+        if (!(await this.storageManager.canAccommodate(downloadResult.totalBytes))) {
+          throw new Error('Device storage quota exceeded');
+        }
+
+        // Commit to sandboxed local storage
+        await this.storage.saveMedia(
+          task.trackId, 
+          downloadResult.blob, 
+          downloadResult.mimeType, 
+          'liked_songs',
+          { checksum: downloadResult.checksum, quality: task.quality }
+        );
+
+        // Commit rich metadata to Offline Catalog
+        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+        const trackMeta: OfflineTrack = {
+          trackId: task.trackId,
+          localMediaId: task.trackId,
+          title: song?.title || `Track ${task.trackId}`,
+          artist: song?.artist || 'Unknown Artist',
+          album: song?.album,
+          artworkUrl: song?.coverUrl,
+          duration: song?.duration || 0,
+          durationMs: (song?.duration || 0) * 1000,
+          mimeType: downloadResult.mimeType,
+          quality: task.quality,
+          fileSizeBytes: downloadResult.totalBytes,
+          checksum: downloadResult.checksum,
+          leaseExpiresAt: Date.now() + thirtyDaysMs,
+          downloadedAt: Date.now(),
+          version: '2'
+        };
+
+        await this.catalog.addTrack(trackMeta);
+      }
 
       this.queue.updateTask(task.id, { 
         status: 'completed', 
         progress: 100, 
-        bytesDownloaded: blob.size 
+        bytesDownloaded: downloadResult.totalBytes,
+        checksum: downloadResult.checksum 
       });
       
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
-        console.log(`Download ${task.id} paused`);
-        return;
-      }
-      throw err;
     } finally {
       this.abortControllers.delete(task.id);
       this.queue.markAsInactive(task.id);
@@ -183,3 +286,4 @@ export class DownloadManager {
     }
   }
 }
+

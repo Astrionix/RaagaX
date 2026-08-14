@@ -48,8 +48,12 @@ export class TransferManager {
       sentAt: Date.now(),
       payload: {
         trackId: store.currentSong?.id,
+        songData: store.currentSong,
+        queue: store.queue,
+        queueIndex: store.queueIndex,
         positionMs,
-        isPlaying: store.isPlaying
+        isPlaying: store.isPlaying,
+        context: store.playbackContext
       }
     };
 
@@ -77,24 +81,49 @@ export class TransferManager {
     const transitionId = command.transitionId || 'tr_fallback';
 
     try {
-      // 1. PREPARE phase: seek canonical position
+      // 1. Restore transferred queue and current song
+      if (payload.songData) {
+        const queueToRestore = payload.queue && payload.queue.length > 0 ? payload.queue : [payload.songData];
+        const queueIndexToRestore = payload.queueIndex !== undefined ? payload.queueIndex : 0;
+        
+        usePlayerStore.setState({
+          currentSong: payload.songData,
+          queue: queueToRestore,
+          queueIndex: queueIndexToRestore,
+          currentTime: (payload.positionMs || 0) / 1000,
+          isActiveDevice: true,
+          activeDeviceId: store.deviceId,
+        });
+
+        // Initialize QueueManager with received queue
+        try {
+          const { QueueManager } = await import('@/lib/queue/QueueManager');
+          QueueManager.getInstance().replaceQueue(queueToRestore, queueIndexToRestore);
+        } catch {}
+      }
+
+      // 2. PREPARE phase: seek canonical position
       if (payload.positionMs !== undefined) {
          engine.seekCanonical(payload.positionMs);
       }
 
-      // 2. COMMIT phase: Acquire lease server-side with forceTakeover
+      // 3. COMMIT phase: Acquire lease server-side with forceTakeover
       const leaseSuccess = await DeviceLeaseManager.getInstance().acquireLease(command.sessionId, true);
       
       if (!leaseSuccess) {
         throw new Error('Failed to acquire lease during transfer.');
       }
       
-      // 3. START phase: play audio locally
-      if (payload.isPlaying) {
-         await engine.play();
+      // 4. START phase: play audio locally (Offline-aware: local blob first, then stream)
+      if (payload.isPlaying && payload.songData) {
+        const { PlaybackService } = await import('@/lib/playback/PlaybackService');
+        await PlaybackService.getInstance().playTrack(payload.songData, true);
+        if (payload.positionMs > 0) {
+          PlaybackService.getInstance().seek(payload.positionMs / 1000);
+        }
       }
       
-      // 4. Send COMMAND_ACK back to source device
+      // 5. Send COMMAND_ACK back to source device
       const sequencer = CommandSequencer.getInstance();
       const ackPayload: CommandAckPayload = {
         commandId: command.commandId,

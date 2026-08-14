@@ -44,4 +44,10 @@ export class CommandSequencer {
   public nextSequence(): number {
     return ++this.outboundSequence;
   }
+
+  public reset() {
+    this.currentEpoch = 0;
+    this.outboundSequence = 0;
+    this.lastAppliedSequence = 0;
+  }
 }

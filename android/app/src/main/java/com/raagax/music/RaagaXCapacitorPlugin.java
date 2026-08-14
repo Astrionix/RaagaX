@@ -254,7 +254,24 @@ public class RaagaXCapacitorPlugin extends Plugin {
                 }
             });
         } else {
-            call.reject("Service not available");
+            // Service was stopped (e.g. user swiped app away from Recents)
+            // Return persisted position and ensure isPlaying is strictly false (DO NOT AUTOPLAY)
+            try {
+                android.content.SharedPreferences prefs = getContext().getSharedPreferences("raagax_native_playback", Context.MODE_PRIVATE);
+                long pos = prefs.getLong("last_position_ms", 0L);
+                String title = prefs.getString("last_title", "");
+                String artist = prefs.getString("last_artist", "");
+                JSObject result = new JSObject();
+                result.put("isPlaying", false);
+                result.put("positionMs", pos);
+                result.put("durationMs", 0L);
+                result.put("bufferedPositionMs", 0L);
+                result.put("title", title);
+                result.put("artist", artist);
+                call.resolve(result);
+            } catch (Exception e) {
+                call.reject("Service not available: " + e.getMessage());
+            }
         }
     }
 

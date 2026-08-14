@@ -127,7 +127,7 @@ export function SongActionMenu({ song }: { song: Song }) {
                 </span>
               </button>
 
-              {/* Download */}
+              {/* Download for Offline (Mode A) */}
               {isDownloaded ? (
                 <button 
                   onClick={() => handleAction(() => usePlayerStore.getState().toggleDownloadSong(song.id))}
@@ -136,10 +136,13 @@ export function SongActionMenu({ song }: { song: Song }) {
                   <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center flex-shrink-0">
                     <CheckCircle2 className="w-4 h-4" />
                   </div>
-                  <span className="font-medium text-emerald-400 group-hover:text-emerald-300 flex-1 ml-3.5 text-sm">Downloaded</span>
+                  <div className="flex-1 min-w-0 ml-3.5">
+                    <span className="font-medium text-emerald-400 group-hover:text-emerald-300 block text-sm">Offline Saved</span>
+                    <span className="text-[10px] text-slate-400 block">Tap to remove offline media</span>
+                  </div>
                 </button>
               ) : task ? (
-                task.status === 'downloading' || task.status === 'queued' ? (
+                task.status === 'downloading' || task.status === 'queued' || task.status === 'verifying' ? (
                   <button 
                     onClick={() => handleAction(() => pauseDownload(song.id))}
                     className="w-full text-left px-2.5 py-2.5 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
@@ -147,7 +150,9 @@ export function SongActionMenu({ song }: { song: Song }) {
                     <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center flex-shrink-0">
                       <PauseCircle className="w-4 h-4" />
                     </div>
-                    <span className="font-medium text-amber-400 flex-1 ml-3.5 text-sm">Pause ({task.progress}%)</span>
+                    <span className="font-medium text-amber-400 flex-1 ml-3.5 text-sm">
+                      {task.status === 'verifying' ? 'Verifying...' : `Pause (${task.progress}%)`}
+                    </span>
                   </button>
                 ) : (
                   <div className="flex items-center w-full gap-1 p-1">
@@ -176,9 +181,29 @@ export function SongActionMenu({ song }: { song: Song }) {
                   <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/5 text-[#EF233C] group-hover:bg-[#EF233C] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
                     <Download className="w-4 h-4" />
                   </div>
-                  <span className="font-medium text-slate-200 group-hover:text-white flex-1 ml-3.5 text-sm">Download</span>
+                  <div className="flex-1 min-w-0 ml-3.5">
+                    <span className="font-medium text-slate-200 group-hover:text-white block text-sm">Save for Offline</span>
+                    <span className="text-[10px] text-slate-400 block">App-sandboxed listening</span>
+                  </div>
                 </button>
               )}
+
+              {/* Export MP3 to Device (Mode B) */}
+              <button 
+                onClick={() => handleAction(() => {
+                  const { useDownloadStore } = require('@/context/useDownloadStore');
+                  useDownloadStore.getState().exportSong(song);
+                })}
+                className="w-full text-left px-2.5 py-2.5 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/5 text-sky-400 group-hover:bg-sky-500 group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
+                  <Download className="w-4 h-4 rotate-[-45deg]" />
+                </div>
+                <div className="flex-1 min-w-0 ml-3.5">
+                  <span className="font-medium text-slate-200 group-hover:text-white block text-sm">Export MP3</span>
+                  <span className="text-[10px] text-slate-400 block">Save to Device Music / Downloads</span>
+                </div>
+              </button>
 
               {/* Share Track */}
               <button 
