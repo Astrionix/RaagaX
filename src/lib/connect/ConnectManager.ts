@@ -212,6 +212,13 @@ export class ConnectManager {
       config: { broadcast: { self: false } }
     })
     .on('broadcast', { event: 'COMMAND' }, (payload) => this.handleBroadcastCommand(payload))
+    .on('broadcast', { event: 'STATE_UPDATE' }, (payload) => {
+      if (payload && payload.payload) {
+        import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+          PlaybackStateSync.getInstance().handleRemoteStateUpdate(payload.payload);
+        });
+      }
+    })
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
          this.transitionState('CONNECTED');
@@ -268,6 +275,16 @@ export class ConnectManager {
       type: 'broadcast',
       event: 'COMMAND',
       payload: command
+    });
+  }
+
+  public async broadcastSessionState(statePayload: any) {
+    if (!this.sessionChannel) return;
+
+    await this.sessionChannel.send({
+      type: 'broadcast',
+      event: 'STATE_UPDATE',
+      payload: statePayload
     });
   }
 

@@ -125,6 +125,11 @@ export function AudioPlayerController() {
         if (state.durationMs > 0) {
           usePlayerStore.getState().setDuration(state.durationMs / 1000);
         }
+        if (usePlayerStore.getState().isActiveDevice) {
+          import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+            PlaybackStateSync.getInstance().broadcastState(false);
+          });
+        }
       }
     }, 1000);
     return () => clearInterval(interval);

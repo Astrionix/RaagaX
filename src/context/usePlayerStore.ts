@@ -725,6 +725,9 @@ export const usePlayerStore = create<PlayerState>()(
         InterruptionCoordinator.getInstance().clearInterruption();
       }
       set({ isPlaying: isNowPlaying, playbackIntent: isNowPlaying ? 'PLAYING' : 'PAUSED' });
+      import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+        PlaybackStateSync.getInstance().broadcastState(true);
+      });
     }
     persistSessionHelper({ ...get() });
     ConnectManager.getInstance().dispatchPlaybackCommand(isNowPlaying ? 'PLAY' : 'PAUSE', { positionMs: get().currentTime * 1000 });
@@ -737,6 +740,11 @@ export const usePlayerStore = create<PlayerState>()(
       InterruptionCoordinator.getInstance().clearInterruption();
     }
     set({ isPlaying: playing, playbackIntent: playing ? 'PLAYING' : 'PAUSED' });
+    if (get().isActiveDevice && !fromRemote) {
+      import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+        PlaybackStateSync.getInstance().broadcastState(true);
+      });
+    }
     persistSessionHelper({ ...get() });
     if (!fromRemote) {
       ConnectManager.getInstance().dispatchPlaybackCommand(playing ? 'PLAY' : 'PAUSE', { positionMs: get().currentTime * 1000 });
@@ -748,6 +756,11 @@ export const usePlayerStore = create<PlayerState>()(
     
     if (!fromRemote) {
       ConnectManager.getInstance().dispatchPlaybackCommand('SEEK', { positionMs: time * 1000 });
+      if (get().isActiveDevice) {
+        import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+          PlaybackStateSync.getInstance().broadcastState(false);
+        });
+      }
     }
 
     const state = get();
@@ -758,6 +771,11 @@ export const usePlayerStore = create<PlayerState>()(
   setDuration: (dur) => set({ duration: dur }),
   setVolume: (vol) => {
     set({ volume: vol });
+    if (get().isActiveDevice) {
+      import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+        PlaybackStateSync.getInstance().broadcastState(true);
+      });
+    }
     persistSessionHelper(get());
   },
   toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
