@@ -86,7 +86,7 @@ export class UserBehaviorTracker {
     // 2. Persist event log & update language score in Supabase if authenticated
     if (userId && this.isUUID(userId) && navigator.onLine) {
       try {
-        await supabase.from('user_events').insert({
+        const { error: eventError } = await supabase.from('user_events').insert({
           user_id: userId,
           event_type: event.event_type,
           song_id: event.song_id,
@@ -96,6 +96,10 @@ export class UserBehaviorTracker {
           query: event.query,
           metadata: event.metadata,
         });
+        // 409 = RLS policy conflict or duplicate insert from rapid re-render — safe to ignore
+        if (eventError && eventError.code !== '23505' && (eventError as any).status !== 409) {
+          console.warn('[UserBehaviorTracker] user_events insert error:', eventError.message);
+        }
 
         // Upsert artist affinity if present
         if (event.artist_id) {

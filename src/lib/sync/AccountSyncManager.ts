@@ -147,7 +147,7 @@ export class AccountSyncManager {
               user_id: userId,
               song_id: item.payload.songId,
               created_at: new Date(item.createdAt).toISOString(),
-            });
+            }, { onConflict: 'user_id,song_id' });
           } else if (item.type === 'UNLIKE' && userId) {
             await supabase
               .from('liked_songs')
