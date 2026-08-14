@@ -660,6 +660,9 @@ export const usePlayerStore = create<PlayerState>()(
         // ── Web / PWA path: use HTMLAudioElement + queue management
         service.playTrack(song, true);
       }
+      import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+        PlaybackStateSync.getInstance().broadcastState(true);
+      });
     } else {
       ConnectManager.getInstance().dispatchPlaybackCommand('PLAY', {
         trackId: song.id,
@@ -705,6 +708,9 @@ export const usePlayerStore = create<PlayerState>()(
       } else {
         service.playTrack(firstSong, true);
       }
+      import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+        PlaybackStateSync.getInstance().broadcastState(true);
+      });
     } else {
       ConnectManager.getInstance().dispatchPlaybackCommand('PLAY', {
         trackId: firstSong.id,
