@@ -411,8 +411,18 @@ export class PlaybackService {
         } catch {}
       }
 
-      // Reset store position to 0
-      store.setCurrentTime(0, true);
+      // Reset store position to 0 — but respect any pending seek target
+      // (user may have dragged seekbar before this playTrack completed)
+      const pendingSeek = usePlayerStore.getState().seekTarget;
+      if (pendingSeek === null) {
+        store.setCurrentTime(0, true);
+      }
+      // If there's a pending seek, apply it now to the audio element
+      if (pendingSeek !== null) {
+        try { targetAudio.currentTime = pendingSeek; } catch {}
+        store.setCurrentTime(pendingSeek, true);
+        usePlayerStore.setState({ seekTarget: null });
+      }
 
       targetAudio.dataset.playbackGeneration = String(currentGen);
       targetAudio.dataset.trackId = song.id;
