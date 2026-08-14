@@ -9,6 +9,7 @@ export class TransferManager {
   private static instance: TransferManager;
   private pendingTransferTimeout: NodeJS.Timeout | null = null;
   private activeTransitionId: string | null = null;
+  private isTransferring: boolean = false;
 
   private constructor() {}
 
@@ -23,10 +24,20 @@ export class TransferManager {
     return this.activeTransitionId;
   }
 
+  public isTransferInProgress(): boolean {
+    return this.isTransferring;
+  }
+
   /**
    * (Sender side) Initiates a transactional transfer to target device.
    */
   public async initiateTransfer(targetDeviceId: string): Promise<string> {
+    if (this.isTransferring && this.activeTransitionId) {
+      console.warn(`[TransferManager] Transfer ${this.activeTransitionId} already in progress. Ignoring duplicate click.`);
+      return this.activeTransitionId;
+    }
+
+    this.isTransferring = true;
     const store = usePlayerStore.getState();
     const sequencer = CommandSequencer.getInstance();
     const engine = PlaybackEngine.getInstance();
@@ -94,6 +105,8 @@ export class TransferManager {
           currentTime: (payload.positionMs || 0) / 1000,
           isActiveDevice: true,
           activeDeviceId: store.deviceId,
+          isTransferring: false,
+          transferringDeviceId: null,
         });
 
         console.log(`[TRANSFER TARGET] MEDIA_LOADED: Song "${payload.songData.title}" (${payload.songData.id}) loaded`);
@@ -124,6 +137,11 @@ export class TransferManager {
         }
         console.log(`[TRANSFER TARGET] PLAYING: Local playback running at ${payload.positionMs}ms`);
       }
+
+      // Broadcast the newly acquired authoritative state immediately
+      import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+        PlaybackStateSync.getInstance().broadcastState(true);
+      });
       
       // 5. Send COMMAND_ACK back to source device
       const sequencer = CommandSequencer.getInstance();
@@ -185,10 +203,17 @@ export class TransferManager {
       this.pendingTransferTimeout = null;
     }
 
+    this.isTransferring = false;
     if (payload.status === 'APPLIED') {
       console.log(`[TransferManager] Transfer ${command.transitionId} committed by target. Relinquishing local control.`);
       PlaybackEngine.getInstance().pause();
-      usePlayerStore.setState({ isActiveDevice: false, isPlaying: false });
+      usePlayerStore.setState({ 
+        isActiveDevice: false, 
+        activeDeviceId: command.sourceDeviceId,
+        isPlaying: false, 
+        isTransferring: false, 
+        transferringDeviceId: null 
+      });
     } else {
       console.warn(`[TransferManager] Target rejected transition ${command.transitionId}. Retaining local control.`);
       this.handleTransferRollback(command.transitionId);
@@ -199,8 +224,12 @@ export class TransferManager {
 
   private handleTransferRollback(transitionId?: string) {
     console.warn(`[TransferManager] Rollback transition ${transitionId || 'unknown'}: Source device retains active renderer ownership.`);
-    const store = usePlayerStore.getState();
-    usePlayerStore.setState({ isActiveDevice: true });
+    usePlayerStore.setState({ 
+      isActiveDevice: true, 
+      isTransferring: false, 
+      transferringDeviceId: null 
+    });
+    this.isTransferring = false;
     this.activeTransitionId = null;
   }
 }

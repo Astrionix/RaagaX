@@ -5,9 +5,10 @@ import { X, Monitor, Smartphone, Tv, Laptop, Check, Radio } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 
 export function RightDeviceConnectPanel() {
-  const { deviceId, activeDeviceId, onlineDevices, transferPlayback, setRightPanelMode } = usePlayerStore();
+  const { deviceId, activeDeviceId, onlineDevices, transferPlayback, setRightPanelMode, isTransferring, transferringDeviceId } = usePlayerStore();
 
   const handleDeviceClick = (targetId: string) => {
+    if (isTransferring) return;
     transferPlayback(targetId);
   };
 
@@ -46,16 +47,18 @@ export function RightDeviceConnectPanel() {
         {onlineDevices.map((device) => {
           const isActive = device.id === activeDeviceId || (!activeDeviceId && device.id === deviceId);
           const isThisDevice = device.id === deviceId;
+          const isTargetTransfer = isTransferring && transferringDeviceId === device.id;
 
           return (
             <button
               key={device.id}
+              disabled={isTransferring}
               onClick={() => handleDeviceClick(device.id)}
               className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all duration-200 group
                 ${isActive 
                   ? 'bg-[#1ed760]/10 border border-[#1ed760]/30 shadow-[0_0_15px_rgba(30,215,96,0.1)]' 
                   : 'hover:bg-white/5 border border-white/5'
-                }
+                } ${isTransferring ? 'opacity-50 cursor-not-allowed' : ''}
               `}
             >
               <div className="flex items-center gap-3.5">
@@ -68,12 +71,20 @@ export function RightDeviceConnectPanel() {
                     {device.name} {isThisDevice && '(This Device)'}
                   </h4>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    {isActive ? '● Playing here' : 'Available'}
+                    {isTargetTransfer 
+                      ? 'Switching audio...' 
+                      : isActive 
+                      ? '● Playing here' 
+                      : 'Available'}
                   </p>
                 </div>
               </div>
 
-              {isActive && <Check className="w-4 h-4 text-[#1ed760]" />}
+              {isActive ? (
+                <Check className="w-4 h-4 text-[#1ed760]" />
+              ) : isTargetTransfer ? (
+                <span className="text-[10px] font-bold text-amber-400 animate-pulse">Switching...</span>
+              ) : null}
             </button>
           );
         })}

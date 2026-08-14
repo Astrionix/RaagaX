@@ -61,8 +61,7 @@ export function MobileDeviceConnectModal() {
     setConfirmDevice(null);
 
     try {
-      await TransferCoordinator.getInstance().initiateTransfer(targetId);
-      transferPlayback(targetId);
+      await transferPlayback(targetId);
       setTimeout(() => {
         setTransferringId(null);
         toggleDeviceModal();

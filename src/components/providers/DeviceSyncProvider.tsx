@@ -92,6 +92,8 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
     transferPlayback, 
     onlineDevices, 
     remoteDeviceName,
+    isTransferring,
+    transferringDeviceId,
     toggleDeviceModal,
     setRightPanelMode
   } = usePlayerStore();
@@ -231,6 +233,7 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
 
             {/* This Device */}
             <button 
+              disabled={isTransferring}
               onClick={() => {
                 if (!isActiveDevice) transferPlayback(deviceId);
                 setIsOpen(false);
@@ -239,7 +242,7 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
                 isActiveDevice 
                   ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-sm' 
                   : 'bg-white/5 border-transparent hover:bg-white/10 text-white'
-              }`}
+              } ${isTransferring ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <div className="flex items-center gap-3 min-w-0">
                 <div className={`p-2 rounded-lg ${isActiveDevice ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-slate-400'}`}>
@@ -251,11 +254,15 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
                     <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-white/10 text-slate-300 font-mono">Web</span>
                   </div>
                   <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                    {isActiveDevice ? 'Listening on this device' : 'Click to transfer playback here'}
+                    {isTransferring && transferringDeviceId === deviceId 
+                      ? 'Switching audio here...' 
+                      : isActiveDevice 
+                      ? 'Listening on this device' 
+                      : 'Click to transfer playback here'}
                   </p>
                 </div>
               </div>
-              {isActiveDevice && (
+              {isActiveDevice ? (
                 <div className="flex items-center gap-1 text-emerald-400">
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -263,16 +270,20 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
                   </span>
                   <Check className="w-4 h-4 ml-1" />
                 </div>
-              )}
+              ) : isTransferring && transferringDeviceId === deviceId ? (
+                <span className="text-[10px] font-bold text-amber-400 animate-pulse">Switching...</span>
+              ) : null}
             </button>
 
             {/* Other Online Devices */}
             {onlineDevices.filter(d => d.id !== deviceId).map((device) => {
               const isActive = activeDeviceId === device.id;
+              const isTargetTransfer = isTransferring && transferringDeviceId === device.id;
               const isMobile = device.name.toLowerCase().includes('mobile') || device.name.toLowerCase().includes('phone');
               return (
                 <button
                   key={device.id}
+                  disabled={isTransferring}
                   onClick={() => {
                     transferPlayback(device.id);
                     setIsOpen(false);
@@ -281,7 +292,7 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
                     isActive 
                       ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400' 
                       : 'bg-white/5 border-transparent hover:bg-white/10 text-white'
-                  }`}
+                  } ${isTransferring ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={`p-2 rounded-lg ${isActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-slate-400'}`}>
@@ -290,12 +301,18 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
                     <div className="min-w-0">
                       <span className="text-xs font-extrabold truncate block">{device.name}</span>
                       <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                        {isActive ? 'Listening on this device' : 'Click to switch audio'}
+                        {isTargetTransfer 
+                          ? 'Switching audio to device...' 
+                          : isActive 
+                          ? 'Listening on this device' 
+                          : 'Click to switch audio'}
                       </p>
                     </div>
                   </div>
                   {isActive ? (
                     <Check className="w-4 h-4 text-emerald-400" />
+                  ) : isTargetTransfer ? (
+                    <span className="text-[10px] font-bold text-amber-400 animate-pulse">Switching...</span>
                   ) : (
                     <span className="text-[10px] font-bold text-slate-400 hover:text-white">Switch</span>
                   )}

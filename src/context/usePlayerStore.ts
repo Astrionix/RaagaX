@@ -98,6 +98,8 @@ interface PlayerState {
   activeRenderer: Renderer;
   playbackStatus: 'playing' | 'paused' | 'buffering' | 'transitioning';
   isActiveDevice: boolean;
+  isTransferring: boolean;
+  transferringDeviceId: string | null;
   remoteDeviceName: string | null;
   lastSyncDbTime: string | null;
   lastSyncPositionMs: number | null;
@@ -366,6 +368,8 @@ export const usePlayerStore = create<PlayerState>()(
   activeRenderer: 'audio',
   playbackStatus: 'paused',
   isActiveDevice: true, // Default to true until sync starts
+  isTransferring: false,
+  transferringDeviceId: null,
   remoteDeviceName: null,
   lastSyncDbTime: null,
   lastSyncPositionMs: null,
@@ -428,10 +432,19 @@ export const usePlayerStore = create<PlayerState>()(
   setOnlineDevices: (devices) => set({ onlineDevices: devices }),
   setRemoteState: (newState) => set((state) => ({ ...state, ...newState })),
   
-  transferPlayback: (targetDeviceId) => {
-    import('@/lib/connect/TransferManager').then(({ TransferManager }) => {
-      TransferManager.getInstance().initiateTransfer(targetDeviceId);
-    });
+  transferPlayback: async (targetDeviceId) => {
+    if (get().isTransferring) {
+      console.warn('[usePlayerStore] Transfer already in progress, ignoring duplicate request.');
+      return;
+    }
+    set({ isTransferring: true, transferringDeviceId: targetDeviceId });
+    try {
+      const { TransferManager } = await import('@/lib/connect/TransferManager');
+      await TransferManager.getInstance().initiateTransfer(targetDeviceId);
+    } catch (e) {
+      console.error('[usePlayerStore] transferPlayback error:', e);
+      set({ isTransferring: false, transferringDeviceId: null });
+    }
   },
 
   restoreLocalSession: async () => {
