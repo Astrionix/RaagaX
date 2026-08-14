@@ -39,6 +39,14 @@ export class CommandBus {
   }
 
   public handleIncomingCommand(command: ConnectCommand) {
+    const store = usePlayerStore.getState();
+    const localId = this.localDeviceId || store.deviceId;
+    
+    // Ignore loopback broadcasts sent by this device itself
+    if (command.sourceDeviceId && command.sourceDeviceId === localId) {
+      return;
+    }
+
     if (!this.validator.validate(command)) return;
 
     this.applyCommand(command);
