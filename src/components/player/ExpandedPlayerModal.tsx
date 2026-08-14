@@ -5,15 +5,18 @@ import {
   X, ChevronDown, Heart, Download, Play, Pause, SkipBack, SkipForward, 
   Disc3, Mic2, Music, Tv, RefreshCw, ExternalLink, Shuffle, Repeat, Repeat1, 
   ListMusic, Settings2, MonitorSmartphone, Check, MoreHorizontal, Share2, 
-  User, Disc, ListPlus, Radio, Sparkles, FolderPlus, Ban
+  User, Disc, ListPlus, Radio, Sparkles, FolderPlus, Ban, Plus
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { DeviceSelector } from '@/components/providers/DeviceSyncProvider';
 import { AudioSettingsDrawer } from './AudioSettingsDrawer';
 import { MediaHandoffManager } from '@/lib/playback/MediaHandoffManager';
 import { SeekBar } from './SeekBar';
 
 export function ExpandedPlayerModal() {
+  const { playlists, addSongToPlaylist } = usePlaylistStore();
+  const [showPlaylists, setShowPlaylists] = useState(false);
   const {
     isPlayerExpanded,
     togglePlayerExpanded,
@@ -240,19 +243,55 @@ export function ExpandedPlayerModal() {
                   </div>
                 </button>
 
-                <button 
-                  onClick={() => {
-                    setCreatePlaylistModalOpen(true);
-                    setIsMenuOpen(false);
-                  }}
-                  className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <FolderPlus className="w-4 h-4 text-slate-400" />
-                    <span className="font-bold">Add to playlist</span>
-                  </div>
-                  <span className="text-slate-400 text-xs">＋</span>
-                </button>
+                <div>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowPlaylists(!showPlaylists);
+                    }}
+                    className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <FolderPlus className="w-4 h-4 text-slate-400" />
+                      <span className="font-bold">Add to playlist</span>
+                    </div>
+                    <span className={`text-slate-400 text-xs transition-transform ${showPlaylists ? 'rotate-90' : ''}`}>▸</span>
+                  </button>
+
+                  {showPlaylists && (
+                    <div className="my-1 ml-4 pl-3 border-l border-white/10 space-y-1 animate-in fade-in slide-in-from-top-1 duration-150 max-h-40 overflow-y-auto">
+                      <button
+                        onClick={() => {
+                          setCreatePlaylistModalOpen(true);
+                          setIsMenuOpen(false);
+                          setShowPlaylists(false);
+                        }}
+                        className="w-full text-left py-1.5 px-2 rounded-lg text-[11px] text-[#F20D18] hover:bg-white/5 font-bold flex items-center gap-2"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> New playlist
+                      </button>
+
+                      {playlists && playlists.length > 0 ? (
+                        playlists.map((pl) => (
+                          <button
+                            key={pl.id}
+                            onClick={async () => {
+                              await addSongToPlaylist(pl.id, currentSong);
+                              setToastMessage(`Added "${currentSong.title}" to ${pl.title}`);
+                              setIsMenuOpen(false);
+                              setShowPlaylists(false);
+                            }}
+                            className="w-full text-left py-1.5 px-2 rounded-lg text-[11px] text-slate-300 hover:text-white hover:bg-white/5 truncate font-medium block"
+                          >
+                            {pl.title}
+                          </button>
+                        ))
+                      ) : (
+                        <p className="text-[10px] text-slate-500 py-1 px-2 italic">No playlists yet</p>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 <div className="h-px bg-white/10 my-1" />
 
