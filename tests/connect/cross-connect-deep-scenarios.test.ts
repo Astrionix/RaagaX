@@ -1,9 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { CommandValidator } from '@/lib/connect/CommandValidator';
 import { CommandSequencer } from '@/lib/connect/CommandSequencer';
-import { TransferManager } from '@/lib/connect/TransferManager';
-import { SessionReconciler } from '@/lib/connect/SessionReconciler';
-import { CommandBus } from '@/lib/connect/CommandBus';
 import { ConnectCommand, CommandAckPayload, PlaybackSnapshot } from '@/lib/connect/types';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { Song } from '@/types/music';
@@ -38,8 +35,7 @@ describe('RaagaX Cross Connect — Deep Real-World Scenarios QA Matrix', () => {
       duration: 240,
       queue: [songHellalo, songArereyManasa],
       queueIndex: 0,
-      shuffle: false,
-      repeatMode: 'off',
+      isAutoplayEnabled: false,
     });
 
     CommandValidator.getInstance().reset();
@@ -74,15 +70,17 @@ describe('RaagaX Cross Connect — Deep Real-World Scenarios QA Matrix', () => {
       },
     };
 
+    const p = transferCommand.payload as any;
+
     // Simulate Target Desktop processing
     usePlayerStore.setState({
       deviceId: 'dev_desktop_1',
       isActiveDevice: true,
       activeDeviceId: 'dev_desktop_1',
-      currentSong: transferCommand.payload.songData,
-      queue: transferCommand.payload.queue,
+      currentSong: p.songData,
+      queue: p.queue,
       queueIndex: 0,
-      currentTime: transferCommand.payload.positionMs / 1000,
+      currentTime: p.positionMs / 1000,
       isPlaying: true,
     });
 
@@ -132,7 +130,7 @@ describe('RaagaX Cross Connect — Deep Real-World Scenarios QA Matrix', () => {
     };
 
     expect(ackPayload.status).toBe('APPLIED');
-    expect(targetPhoneState.payload.positionMs).toBe(252000);
+    expect((targetPhoneState.payload as any).positionMs).toBe(252000);
   });
 
   // ── TEST 3: Transfer Paused Song (Strict Zero-Autoplay Preservation) ─────────
@@ -165,11 +163,13 @@ describe('RaagaX Cross Connect — Deep Real-World Scenarios QA Matrix', () => {
       },
     };
 
+    const p = transferPausedCmd.payload as any;
+
     // Target adopts paused state
     usePlayerStore.setState({
       deviceId: 'dev_desktop_1',
-      currentSong: transferPausedCmd.payload.songData,
-      currentTime: transferPausedCmd.payload.positionMs / 1000,
+      currentSong: p.songData,
+      currentTime: p.positionMs / 1000,
       isPlaying: false,
       playbackIntent: 'PAUSED',
     });
@@ -204,7 +204,7 @@ describe('RaagaX Cross Connect — Deep Real-World Scenarios QA Matrix', () => {
       },
     };
 
-    expect(transferSeekCmd.payload.positionMs).toBe(180000);
+    expect((transferSeekCmd.payload as any).positionMs).toBe(180000);
   });
 
   // ── TEST 5: Target Disappears During Transfer (Rollback Protection) ────────
@@ -232,9 +232,6 @@ describe('RaagaX Cross Connect — Deep Real-World Scenarios QA Matrix', () => {
       currentTime: 100,
     });
 
-    // Network drops (offline event)
-    const isOnline = false;
-
     // Renderer continues playback locally
     const state = usePlayerStore.getState();
     expect(state.isPlaying).toBe(true);
@@ -243,22 +240,18 @@ describe('RaagaX Cross Connect — Deep Real-World Scenarios QA Matrix', () => {
 
   // ── TEST 7: Old Device Reconnects after Days (Stale State Discarded) ───────
   it('Scenario 7 (Old Device Reconnects): Discards 2-day-old cloud snapshot and preserves local active session', async () => {
+    const twoDaysAgo = Date.now() - 172800000;
     const staleSnapshot: PlaybackSnapshot = {
       sessionId: 'sess_1',
-      sessionEpoch: 1,
-      currentRevision: 10,
-      activeDeviceId: 'dev_desktop_old',
-      isLive: true,
-      status: 'playing',
+      deviceId: 'dev_desktop_old',
+      currentTrackId: 'old_tabahi_song',
+      positionMs: 50000,
+      timestampMs: twoDaysAgo,
       isPlaying: true,
-      canonicalPositionMs: 50000,
-      activeTrack: { id: 'old_tabahi_song', title: 'Tabahi', artist: 'Old Artist', duration: 200 } as any,
-      playbackContext: {} as any,
-      serverTimestamp: Date.now() - 172800000, // 2 days ago
-      updatedAt: new Date(Date.now() - 172800000).toISOString(),
+      sequence: 10,
     };
 
-    const isStale = (Date.now() - new Date(staleSnapshot.updatedAt).getTime()) > 120000;
+    const isStale = (Date.now() - staleSnapshot.timestampMs) > 120000;
     expect(isStale).toBe(true);
   });
 
@@ -298,21 +291,18 @@ describe('RaagaX Cross Connect — Deep Real-World Scenarios QA Matrix', () => {
     expect(rendererDevice.role).toBe('RENDERER');
   });
 
-  // ── TEST 10: Shuffle & Repeat Synchronization ──────────────────────────────
-  it('Scenario 10 (Shuffle & Repeat Sync): Controller updates shared session shuffle and repeat mode across devices', () => {
+  // ── TEST 10: Autoplay and Queue Synchronization ─────────────────────────────
+  it('Scenario 10 (Autoplay and Queue Sync): Controller updates shared session settings across devices', () => {
     usePlayerStore.setState({
-      shuffle: false,
-      repeatMode: 'off',
+      isAutoplayEnabled: false,
     });
 
-    // Controller toggles shuffle and repeat
+    // Controller toggles autoplay
     usePlayerStore.setState({
-      shuffle: true,
-      repeatMode: 'all',
+      isAutoplayEnabled: true,
     });
 
     const syncedState = usePlayerStore.getState();
-    expect(syncedState.shuffle).toBe(true);
-    expect(syncedState.repeatMode).toBe('all');
+    expect(syncedState.isAutoplayEnabled).toBe(true);
   });
 });
