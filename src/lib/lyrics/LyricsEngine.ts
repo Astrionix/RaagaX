@@ -9,12 +9,14 @@ export class LyricsEngine {
   private isPlaying = false;
   
   // Local cache of the currently active lines for fast binary search
-  // without needing to read from Zustand store every frame.
   private activeLines: import('./LyricsTypes').LyricsLine[] = [];
   private lastFoundIndex: number = -1;
   private currentTrackId: string | null = null;
+  private isSubscribedToStore = false;
 
-  private constructor() {}
+  private constructor() {
+    this.initStoreSubscription();
+  }
 
   public static getInstance(): LyricsEngine {
     if (!LyricsEngine.instance) {
@@ -23,8 +25,60 @@ export class LyricsEngine {
     return LyricsEngine.instance;
   }
 
+  private initStoreSubscription() {
+    if (typeof window === 'undefined' || this.isSubscribedToStore) return;
+    this.isSubscribedToStore = true;
+
+    usePlayerStore.subscribe((state, prevState) => {
+      // 1. Sync Play/Pause state
+      if (state.isPlaying !== prevState.isPlaying) {
+        this.setPlaying(state.isPlaying);
+      }
+      
+      // 2. Continuous time sync fallback (crucial for Native Android & Remote Connect)
+      if (state.currentTime !== prevState.currentTime && this.activeLines.length > 0) {
+        this.evaluatePosition(state.currentTime * 1000);
+      }
+    });
+  }
+
+  public getEffectivePositionMs(): number {
+    // Tier 1: Web audio element with sub-millisecond precision via PlaybackEngine
+    try {
+      const engine = PlaybackEngine.getInstance();
+      const mediaMs = engine.getMediaPositionMs();
+      if (mediaMs > 0) return mediaMs;
+    } catch {}
+
+    // Tier 2: Direct active audio element from PlaybackService
+    try {
+      const { PlaybackService } = require('@/lib/playback/PlaybackService');
+      const active = PlaybackService.getInstance().getActiveAudio();
+      if (active && !isNaN(active.currentTime) && active.currentTime > 0) {
+        return active.currentTime * 1000;
+      }
+    } catch {}
+
+    // Tier 3: Universal centralized usePlayerStore (ExoPlayer Native, Spotify Connect, Offline)
+    try {
+      const storeTime = usePlayerStore.getState().currentTime;
+      if (storeTime !== undefined && !isNaN(storeTime) && storeTime > 0) {
+        return storeTime * 1000;
+      }
+    } catch {}
+
+    return 0;
+  }
+
   public async loadTrack(trackId: string) {
-    if (this.currentTrackId === trackId) return;
+    if (this.currentTrackId === trackId && this.activeLines.length > 0) {
+      const store = usePlayerStore.getState();
+      if (store.isPlaying) {
+        this.setPlaying(true);
+      }
+      this.evaluatePosition(this.getEffectivePositionMs());
+      return;
+    }
     
     this.currentTrackId = trackId;
     this.activeLines = [];
@@ -34,7 +88,7 @@ export class LyricsEngine {
     useLyricsStore.getState().setLyricsData(trackId, null, 'loading');
 
     // Get metadata from player store
-    const { currentSong } = usePlayerStore.getState();
+    const { currentSong, isPlaying } = usePlayerStore.getState();
     const metadata = currentSong && currentSong.id === trackId ? {
       title: currentSong.title,
       artist: currentSong.artist,
@@ -50,9 +104,14 @@ export class LyricsEngine {
     if (data && data.lines.length > 0) {
       this.activeLines = data.lines;
       useLyricsStore.getState().setLyricsData(trackId, data, 'ready');
-      if (this.isPlaying) {
+      
+      const latestStore = usePlayerStore.getState();
+      if (this.isPlaying || latestStore.isPlaying) {
+        this.isPlaying = true;
         this.startLoop();
       }
+      // Instant position evaluation
+      this.evaluatePosition(this.getEffectivePositionMs());
     } else {
       useLyricsStore.getState().setLyricsData(trackId, null, 'unavailable');
     }
@@ -69,6 +128,11 @@ export class LyricsEngine {
 
   public seek(positionMs: number) {
     this.evaluatePosition(positionMs);
+    const store = usePlayerStore.getState();
+    if (store.isPlaying && this.activeLines.length > 0) {
+      this.isPlaying = true;
+      this.startLoop();
+    }
   }
 
   public clear() {
@@ -83,11 +147,13 @@ export class LyricsEngine {
     if (this.animationFrameId !== null) return;
     
     const loop = () => {
-      if (!this.isPlaying) return;
+      const store = usePlayerStore.getState();
+      if (!this.isPlaying && !store.isPlaying) {
+        this.stopLoop();
+        return;
+      }
       
-      const engine = PlaybackEngine.getInstance();
-      const positionMs = engine.getMediaPositionMs();
-      
+      const positionMs = this.getEffectivePositionMs();
       this.evaluatePosition(positionMs);
       
       this.animationFrameId = requestAnimationFrame(loop);
@@ -103,11 +169,11 @@ export class LyricsEngine {
     }
   }
 
-  private evaluatePosition(positionMs: number) {
+  public evaluatePosition(positionMs: number) {
     if (this.activeLines.length === 0) return;
 
     const offsetMs = useLyricsStore.getState().userOffsetMs;
-    const adjustedMs = positionMs + offsetMs;
+    const adjustedMs = Math.max(0, positionMs + offsetMs);
 
     const index = this.findLineIndex(adjustedMs);
     
@@ -130,7 +196,6 @@ export class LyricsEngine {
       const line = this.activeLines[mid];
 
       if (timeMs >= line.startMs) {
-        // This line is a candidate. But is it the LAST valid candidate?
         bestMatch = mid;
         low = mid + 1; // Keep searching right
       } else {

@@ -145,7 +145,7 @@ export function HomeView() {
     }
   );
 
-  // 1. Recently Played: combines QueueHistory + currentSong + likedSongs
+  // 1. Recently Played: strictly sourced from chronological QueueHistory (newest first)
   useEffect(() => {
     const load = async () => {
       try {
@@ -157,13 +157,7 @@ export function HomeView() {
         const seen = new Set<string>();
         const songs: Song[] = [];
 
-        // 1. Current playing song
-        if (currentSong) {
-          seen.add(currentSong.id);
-          songs.push(currentSong);
-        }
-
-        // 2. Recent listening history (newest first)
+        // 1. Actual listening history (newest listened song first)
         for (let i = entries.length - 1; i >= 0; i--) {
           const s = entries[i].song;
           if (s && !seen.has(s.id)) {
@@ -172,11 +166,20 @@ export function HomeView() {
           }
         }
 
-        // 3. Liked songs
-        for (const s of likedSongs) {
-          if (s && !seen.has(s.id)) {
-            seen.add(s.id);
-            songs.push(s);
+        // 2. Active playing song (only if actively playing right now)
+        const store = usePlayerStore.getState();
+        if (store.isPlaying && currentSong && !seen.has(currentSong.id)) {
+          songs.unshift(currentSong);
+          seen.add(currentSong.id);
+        }
+
+        // 3. Fallback to liked songs only if user has no listening history yet
+        if (songs.length < 4) {
+          for (const s of likedSongs) {
+            if (s && !seen.has(s.id)) {
+              seen.add(s.id);
+              songs.push(s);
+            }
           }
         }
 
@@ -187,7 +190,7 @@ export function HomeView() {
       }
     };
     load();
-  }, [currentSong, likedSongs]);
+  }, [currentSong?.id, likedSongs]);
 
   const [recommendedAlbums, setRecommendedAlbums] = useState<any[]>([]);
 

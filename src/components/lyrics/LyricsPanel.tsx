@@ -18,15 +18,30 @@ export function LyricsPanel() {
   const [isManualScroll, setIsManualScroll] = useState(false);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Auto-scroll logic
+  // Ensure LyricsEngine is tracking when panel opens or song changes
+  useEffect(() => {
+    if (isLyricsOpen && currentSong?.id) {
+      import('@/lib/lyrics/LyricsEngine').then(({ LyricsEngine }) => {
+        LyricsEngine.getInstance().loadTrack(currentSong.id);
+      });
+    }
+  }, [isLyricsOpen, currentSong?.id]);
+
+  // Auto-scroll logic: centers active line smoothly within container
   useEffect(() => {
     if (isManualScroll || currentLineIndex < 0 || lines.length === 0) return;
     
     const activeElement = document.getElementById(`lyric-line-${currentLineIndex}`);
     if (activeElement && scrollRef.current) {
-      activeElement.scrollIntoView({
+      const container = scrollRef.current;
+      const elementTop = activeElement.offsetTop;
+      const elementHeight = activeElement.clientHeight;
+      const containerHeight = container.clientHeight;
+      const targetScrollTop = elementTop - (containerHeight / 2) + (elementHeight / 2);
+      
+      container.scrollTo({
+        top: Math.max(0, targetScrollTop),
         behavior: 'smooth',
-        block: 'center',
       });
     }
   }, [currentLineIndex, isManualScroll, lines]);
@@ -56,10 +71,16 @@ export function LyricsPanel() {
     // Trigger immediate scroll
     if (currentLineIndex >= 0) {
       const activeElement = document.getElementById(`lyric-line-${currentLineIndex}`);
-      if (activeElement) {
-        activeElement.scrollIntoView({
+      if (activeElement && scrollRef.current) {
+        const container = scrollRef.current;
+        const elementTop = activeElement.offsetTop;
+        const elementHeight = activeElement.clientHeight;
+        const containerHeight = container.clientHeight;
+        const targetScrollTop = elementTop - (containerHeight / 2) + (elementHeight / 2);
+        
+        container.scrollTo({
+          top: Math.max(0, targetScrollTop),
           behavior: 'smooth',
-          block: 'center',
         });
       }
     }
@@ -117,9 +138,10 @@ export function LyricsPanel() {
                 onClick={() => {
                   if (line.startMs !== undefined && line.startMs >= 0) {
                     const targetSeconds = line.startMs / 1000;
-                    usePlayerStore.getState().setCurrentTime(targetSeconds);
-                    import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
-                      PlaybackService.getInstance().seek(targetSeconds);
+                    usePlayerStore.getState().setCurrentTime(targetSeconds, true);
+                    usePlayerStore.getState().setSeekTarget(targetSeconds);
+                    import('@/lib/lyrics/LyricsEngine').then(({ LyricsEngine }) => {
+                      LyricsEngine.getInstance().seek(line.startMs);
                     }).catch(() => {});
                   }
                 }}
@@ -150,44 +172,45 @@ export function LyricsPanel() {
   };
 
   return (
-    <div className={`fixed right-6 top-20 bottom-28 z-[150] w-[400px] glass-panel backdrop-blur-3xl rounded-3xl p-6 border shadow-2xl flex flex-col justify-between animate-in fade-in slide-in-from-right duration-300 ${
+    <div className={`fixed inset-x-0 bottom-0 top-0 sm:top-20 sm:bottom-28 sm:right-6 sm:left-auto sm:w-[420px] z-[150] glass-panel backdrop-blur-3xl rounded-none sm:rounded-3xl p-5 sm:p-6 border-t sm:border shadow-2xl flex flex-col justify-between animate-in fade-in slide-in-from-bottom sm:slide-in-from-right duration-300 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))] ${
       isLight 
-        ? 'bg-gradient-to-b from-[#fff5f5]/95 via-white/95 to-slate-50/98 border-black/10 text-slate-900 shadow-red-500/5' 
-        : 'bg-gradient-to-b from-[#18080a]/95 via-[#121212]/95 to-[#101012]/98 border-white/10 text-white shadow-[0_20px_50px_rgba(250,35,59,0.12)]'
+        ? 'bg-gradient-to-b from-[#fff5f5]/98 via-white/98 to-slate-50/98 border-black/10 text-slate-900 shadow-red-500/10' 
+        : 'bg-gradient-to-b from-[#18080a]/98 via-[#121212]/98 to-[#101012]/98 border-white/10 text-white shadow-[0_20px_50px_rgba(250,35,59,0.2)]'
     }`}>
       {/* Header */}
-      <div className={`flex items-center justify-between border-b pb-4 mb-4 ${isLight ? 'border-black/10' : 'border-white/10'}`}>
+      <div className={`flex items-center justify-between border-b pb-3 mb-3 ${isLight ? 'border-black/10' : 'border-white/10'}`}>
         <div className="flex items-center gap-2">
           <Mic2 className="w-5 h-5 text-[#FA233B]" />
-          <h3 className={`text-sm font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>Synced Lyrics</h3>
+          <h3 className={`text-base font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>Live Synced Lyrics</h3>
         </div>
         <button
           onClick={toggleLyrics}
-          className={`p-1.5 rounded-full transition-colors ${
+          className={`p-2 rounded-full transition-colors ${
             isLight 
               ? 'text-slate-500 hover:text-slate-900 hover:bg-black/5' 
               : 'text-white/60 hover:text-white hover:bg-white/10'
           }`}
+          title="Close Lyrics"
         >
-          <X className="w-4 h-4" />
+          <X className="w-5 h-5" />
         </button>
       </div>
 
       {/* Song Header Details */}
-      <div className={`flex items-center gap-3 mb-4 p-2.5 rounded-2xl border ${
+      <div className={`flex items-center gap-3 mb-3 p-3 rounded-2xl border ${
         isLight 
-          ? 'bg-red-50/60 border-red-100' 
+          ? 'bg-red-50/70 border-red-100' 
           : 'bg-white/5 border-white/5'
       }`}>
         <img
           src={currentSong.coverUrl ? currentSong.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500') : '/app-icon.png'}
           alt={currentSong.title}
           onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-          className="w-12 h-12 rounded-xl object-cover shadow-md"
+          className="w-12 h-12 rounded-xl object-cover shadow-md flex-shrink-0"
         />
-        <div className="min-w-0">
-          <h4 className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>{currentSong.title}</h4>
-          <p className={`text-[10px] truncate ${isLight ? 'text-slate-500' : 'text-white/60'}`}>{currentSong.artist}</p>
+        <div className="min-w-0 flex-1">
+          <h4 className={`text-sm font-black truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>{currentSong.title}</h4>
+          <p className={`text-xs truncate font-medium ${isLight ? 'text-slate-500' : 'text-white/60'}`}>{currentSong.artist}</p>
         </div>
       </div>
 
@@ -197,12 +220,12 @@ export function LyricsPanel() {
       </div>
 
       {/* Footer Info */}
-      <div className={`pt-4 mt-2 border-t text-[10px] font-semibold text-center flex items-center justify-center gap-1.5 ${
+      <div className={`pt-3 mt-2 border-t text-[11px] font-semibold text-center flex items-center justify-center gap-1.5 ${
         isLight 
           ? 'border-black/10 text-slate-400' 
           : 'border-white/10 text-white/40'
       }`}>
-        <Music className="w-3 h-3 text-[#FA233B]" /> Powered by local LyricsEngine
+        <Music className="w-3.5 h-3.5 text-[#FA233B]" /> Powered by local LyricsEngine
       </div>
     </div>
   );

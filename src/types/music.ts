@@ -28,6 +28,7 @@ export interface Song {
     matchScore: number;
   };
   genre: string;
+  language?: string;
   category: 'latest_telugu' | '90s_telugu' | 'love' | 'mass' | 'melody' | 'folk' | 'devotional' | 'global_trending' | 'radio';
   releaseYear: number;
   releaseDate?: string;

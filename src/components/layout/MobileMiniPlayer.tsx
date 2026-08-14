@@ -26,14 +26,20 @@ export function MobileMiniPlayer() {
     remoteDeviceName,
   } = usePlayerStore();
 
+  React.useEffect(() => {
+    if (currentSong) {
+      console.log(`[UI MINI PLAYER] songId=${currentSong.id} title="${currentSong.title}" cover="${currentSong.coverUrl}" isPlaying=${isPlaying}`);
+    }
+  }, [currentSong?.id, isPlaying]);
+
   if (!mounted || !currentSong) return null;
 
   const isLiked = likedSongIds.includes(currentSong.id);
 
   return (
     <div
-      className="md:hidden fixed z-40 bg-[#12141C]/95 backdrop-blur-2xl border border-white/10 px-3 flex flex-col justify-center select-none active:scale-[0.99] transition-all duration-200 w-[calc(100%-16px)] left-2 right-2 max-w-lg mx-auto rounded-2xl h-[58px] shadow-[0_8px_32px_rgba(0,0,0,0.7)]"
-      style={{ bottom: 'calc(3.75rem + env(safe-area-inset-bottom) + 8px)' }}
+      className="md:hidden fixed z-40 bg-[#12141C]/95 backdrop-blur-2xl border border-white/10 px-3.5 flex flex-col justify-center select-none active:scale-[0.99] transition-all duration-200 w-[calc(100%-20px)] left-2.5 right-2.5 max-w-lg mx-auto rounded-2xl h-[64px] shadow-[0_10px_35px_rgba(0,0,0,0.75)]"
+      style={{ bottom: 'calc(3.85rem + env(safe-area-inset-bottom) + 8px)' }}
     >
       {/* Live Mini Scrubber Line */}
       <div className="absolute top-0 left-0 w-full h-[2.5px] z-10 flex items-start rounded-t-2xl overflow-hidden pointer-events-none">
@@ -60,7 +66,7 @@ export function MobileMiniPlayer() {
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).src = '/app-icon.png';
             }}
-            className="w-10 h-10 rounded-lg object-cover flex-shrink-0 bg-slate-800 shadow-md"
+            className="w-11 h-11 rounded-xl object-cover flex-shrink-0 bg-slate-800 shadow-md"
           />
           <div className="min-w-0 flex-1 pr-2 flex flex-col justify-center">
             <h4
@@ -86,14 +92,14 @@ export function MobileMiniPlayer() {
         </div>
 
         {/* Right: Touch Controls (Like, Play/Pause, Next) */}
-        <div className="flex items-center gap-2 flex-shrink-0 relative">
+        <div className="flex items-center gap-1.5 flex-shrink-0 relative">
           <button
             onClick={(e) => {
               e.stopPropagation();
               toggleLikeSong(currentSong.id);
             }}
             aria-label="Like track"
-            className="p-2 text-slate-400 hover:text-white active:scale-90 transition-transform"
+            className="p-2 text-slate-400 hover:text-white active:scale-90 transition-transform cursor-pointer"
           >
             <Heart
               className={`w-5 h-5 ${
@@ -109,7 +115,7 @@ export function MobileMiniPlayer() {
               togglePlayPause();
             }}
             aria-label={isPlaying ? 'Pause' : 'Play'}
-            className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center active:scale-90 transition-transform shadow-md"
+            className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center active:scale-90 transition-transform shadow-md cursor-pointer"
           >
             {isPlaying ? (
               <Pause className="w-4 h-4 fill-black text-black" />
@@ -124,7 +130,7 @@ export function MobileMiniPlayer() {
               playNext();
             }}
             aria-label="Next track"
-            className="p-2 text-slate-400 hover:text-white active:scale-90 transition-transform"
+            className="p-2 text-slate-400 hover:text-white active:scale-90 transition-transform cursor-pointer"
           >
             <SkipForward className="w-5 h-5 text-[#8E92A4]" />
           </button>

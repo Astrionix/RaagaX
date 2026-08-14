@@ -28,31 +28,58 @@ export class LyricsResolver {
       return null;
     }
 
-    // 2. Fetch from API
+    // 2. Fetch from API or direct fallback
     try {
-      const url = new URL('/api/lyrics', window.location.origin);
+      let baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://raaga-x-chi.vercel.app';
+      if (baseUrl.includes('localhost') && typeof window !== 'undefined' && (window as any).Capacitor) {
+        baseUrl = 'https://raaga-x-chi.vercel.app';
+      }
+
+      const url = new URL('/api/lyrics', baseUrl);
       url.searchParams.append('trackId', trackId);
       url.searchParams.append('title', metadata.title);
       url.searchParams.append('artist', metadata.artist);
       if (metadata.album) url.searchParams.append('album', metadata.album);
       if (metadata.durationMs) url.searchParams.append('durationMs', metadata.durationMs.toString());
 
-      const res = await fetch(url.toString());
-      if (!res.ok) return null;
+      let rawText = '';
+      let source = 'RaagaX';
 
-      const apiData = await res.json();
-      
-      if (apiData.status !== 'ready' || !apiData.rawText) {
-        return null; // or cache the negative result
+      try {
+        const res = await fetch(url.toString(), { signal: AbortSignal.timeout(4000) });
+        if (res.ok) {
+          const apiData = await res.json();
+          if (apiData.status === 'ready' && apiData.rawText) {
+            rawText = apiData.rawText;
+            source = apiData.source || 'LRCLIB';
+          }
+        }
+      } catch {}
+
+      // Direct client fallback to LRCLIB if API proxy fails
+      if (!rawText) {
+        try {
+          const cleanTitle = metadata.title.replace(/\s*\([^)]*\)|\s*\[[^\]]*\]/g, '').trim();
+          const cleanArtist = metadata.artist.split(/[,&/]/)[0].trim();
+          const directUrl = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTitle || metadata.title)}&artist_name=${encodeURIComponent(cleanArtist)}`;
+          const directRes = await fetch(directUrl, { signal: AbortSignal.timeout(3500) });
+          if (directRes.ok) {
+            const data = await directRes.json();
+            rawText = data.syncedLyrics || data.plainLyrics || '';
+            source = 'LRCLIB';
+          }
+        } catch {}
       }
 
-      const parsed = LyricsParser.parse(apiData.rawText);
+      if (!rawText) return null;
+
+      const parsed = LyricsParser.parse(rawText);
       
       const lyricsData: LyricsData = {
         trackId,
         type: parsed.type,
         lines: parsed.lines,
-        source: apiData.source
+        source
       };
 
       // 3. Save to Cache

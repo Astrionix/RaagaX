@@ -55,10 +55,10 @@ export const RaagaXNativePlayer = {
    * @param tracks  Full ordered list of tracks for this playback session
    * @param startIndex  Index of the track to start playing immediately
    */
-  async setQueue(tracks: NativeTrackItem[], startIndex: number = 0): Promise<void> {
+  async setQueue(tracks: NativeTrackItem[], startIndex: number = 0, autoPlay: boolean = true): Promise<void> {
     const plugin = getPlugin();
     if (!plugin || !tracks || tracks.length === 0) return;
-    await plugin.setQueue({ tracks, startIndex });
+    await plugin.setQueue({ tracks, startIndex, autoPlay });
   },
 
   // ── Legacy single-track API (kept for compatibility) ──────────────────────

@@ -113,11 +113,14 @@ public class RaagaXCapacitorPlugin extends Plugin {
                 artists[i] = obj.optString("artist", "");
             }
 
+            boolean autoPlay = call.getBoolean("autoPlay", true);
+
             Intent intent = new Intent("SET_QUEUE");
             intent.putExtra("urls",       urls);
             intent.putExtra("titles",     titles);
             intent.putExtra("artists",    artists);
             intent.putExtra("startIndex", startIndex);
+            intent.putExtra("autoPlay",   autoPlay);
             sendCommandToService(intent);
 
             call.resolve(new JSObject().put("success", true));

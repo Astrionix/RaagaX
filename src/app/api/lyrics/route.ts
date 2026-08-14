@@ -11,19 +11,49 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Try fetching synced LRC lyrics from LRCLIB free open lyrics API
-    const lrclibUrl = `https://lrclib.net/api/get?track_name=${encodeURIComponent(title)}&artist_name=${encodeURIComponent(artist.split(',')[0])}`;
-    const res = await fetch(lrclibUrl, { signal: AbortSignal.timeout(3000) }).catch(() => null);
-    if (res && res.ok) {
-      const data = await res.json();
-      const rawText = data.syncedLyrics || data.plainLyrics || '';
-      if (rawText) {
-        return NextResponse.json({
-          status: 'ready',
-          rawText,
-          source: 'LRCLIB'
-        });
-      }
+    // 1. Clean track name (strip soundtrack/regional tags like '(From ...)', '(Telugu)', etc.)
+    const cleanTitle = title
+      .replace(/\s*\([^)]*(?:from|soundtrack|version|original|lyric|video|telugu|hindi|tamil|audio)[^)]*\)/gi, '')
+      .replace(/\s*\[[^\]]*(?:from|soundtrack|version|original|lyric|video|telugu|hindi|tamil|audio)[^\]]*\]/gi, '')
+      .replace(/\s*-\s*(?:from|telugu|hindi|tamil|audio|video|soundtrack|remix).*$/gi, '')
+      .trim();
+
+    const cleanArtist = artist.split(/[,&/]/)[0].trim();
+
+    // Strategy A: Exact lookup with cleaned title & primary artist
+    const queries = [
+      `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTitle || title)}&artist_name=${encodeURIComponent(cleanArtist)}`,
+      `https://lrclib.net/api/get?track_name=${encodeURIComponent(title)}&artist_name=${encodeURIComponent(cleanArtist)}`,
+      `https://lrclib.net/api/search?q=${encodeURIComponent(`${cleanTitle || title} ${cleanArtist}`)}`
+    ];
+
+    for (const queryUrl of queries) {
+      try {
+        const res = await fetch(queryUrl, { signal: AbortSignal.timeout(3500) }).catch(() => null);
+        if (res && res.ok) {
+          const data = await res.json();
+          let rawText = '';
+          let source = 'LRCLIB';
+
+          if (Array.isArray(data)) {
+            // Search endpoint returned array
+            const best = data.find((item: any) => item.syncedLyrics || item.plainLyrics);
+            if (best) {
+              rawText = best.syncedLyrics || best.plainLyrics || '';
+            }
+          } else if (data && (data.syncedLyrics || data.plainLyrics)) {
+            rawText = data.syncedLyrics || data.plainLyrics || '';
+          }
+
+          if (rawText) {
+            return NextResponse.json({
+              status: 'ready',
+              rawText,
+              source
+            });
+          }
+        }
+      } catch {}
     }
   } catch (e) {
     console.warn('[Lyrics API] Fetch error:', e);

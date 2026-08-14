@@ -35,14 +35,19 @@ export class AutoPlayEngine {
       const currentSong = store.currentSong;
       const historyIds = QueueHistory.getInstance().getRecentlyPlayed(50).map(e => e.trackId);
       
+      const { LanguageEligibilityEngine } = await import('@/lib/language/LanguageEligibilityEngine');
+      const langEngine = LanguageEligibilityEngine.getInstance();
+      const songLang = currentSong ? langEngine.detectSongLanguage(currentSong) : null;
+      const targetLanguage = songLang || store.sessionLanguage || store.preferredLanguage || 'Telugu';
+
       const candidates = await CandidateGenerator.generateCandidates(
         currentSong,
         historyIds,
-        store.preferredLanguage || 'Telugu',
+        targetLanguage,
         count * 2
       );
       
-      const newItems = this.rankAndDeduplicate(candidates, seedItems);
+      const newItems = this.rankAndDeduplicate(candidates, seedItems, targetLanguage);
       this.candidateBuffer.push(...newItems);
       
     } catch (e) {
@@ -74,7 +79,7 @@ export class AutoPlayEngine {
     return this.candidateBuffer.splice(0, count);
   }
 
-  private rankAndDeduplicate(candidates: Song[], seedItems: QueueItem[]): QueueItem[] {
+  private rankAndDeduplicate(candidates: Song[], seedItems: QueueItem[], targetLanguage?: string): QueueItem[] {
     const history = QueueHistory.getInstance();
     const ranked: Array<{ item: QueueItem, score: number }> = [];
     
@@ -92,14 +97,23 @@ export class AutoPlayEngine {
         continue;
       }
 
-      // 2. Strict Deduplication by trackId and dedupKey
+      // 2. Strict Queue Language Purity (HARD RULE: Telugu Queue -> Telugu Songs Only)
+      if (targetLanguage) {
+        const { LanguageEligibilityEngine } = require('@/lib/language/LanguageEligibilityEngine');
+        const songLang = LanguageEligibilityEngine.getInstance().detectSongLanguage(song);
+        if (songLang !== targetLanguage) {
+          continue;
+        }
+      }
+
+      // 3. Strict Deduplication by trackId and dedupKey
       const dedupKey = QueueValidator.getDeduplicationKey(song);
       if (seenKeys.has(dedupKey) || history.wasRecentlyPlayed(song.id)) {
         continue;
       }
       seenKeys.add(dedupKey);
 
-      // 3. Soft Artist and Album Spacing Penalty
+      // 4. Soft Artist and Album Spacing Penalty
       let score = 1.0;
       let reasonType: import('./types').SmartQueueReasonType = 'DISCOVERY';
 

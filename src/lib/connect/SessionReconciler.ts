@@ -49,6 +49,24 @@ export class SessionReconciler {
         throw error;
       }
 
+      const store = usePlayerStore.getState();
+      const updatedAtMs = new Date(data.updated_at || data.server_timestamp || 0).getTime();
+      const ageMs = Date.now() - updatedAtMs;
+      const isStale = ageMs > 120_000; // Stale if older than 2 minutes
+      const isOwner = data.active_device_id === store.deviceId;
+      const isPlaying = data.is_playing || data.status === 'playing';
+
+      // ── HARD RULE: Account Data vs Device-Level Playback State ──────────────
+      // Account login synchronizes likes, playlists, library, and user preferences.
+      // Cloud playback_sessions is ONLY authoritative for LIVE, active cross-device handoffs
+      // (where another device is actively outputting audio right now within <2m).
+      // If the cloud session row is stale (>2m) or the local device is launching fresh,
+      // we MUST DISCARD the cloud row so old tracks (e.g. Tabahi from Account A) are NEVER resurrected.
+      if (isStale || (!isPlaying && isOwner)) {
+        console.log(`[SessionReconciler] Discarding stale account playback snapshot (${Math.round(ageMs / 1000)}s old). Local device player authority preserved.`);
+        return null;
+      }
+
       return {
         sessionId: data.session_id,
         sessionEpoch: Number(data.epoch || data.session_epoch || 1),
@@ -57,9 +75,9 @@ export class SessionReconciler {
         stateVersion: Number(data.state_version || 1),
         trackId: data.song_id || data.track_id,
         songData: data.song_data,
-        status: data.is_playing ? 'playing' : (data.status || 'paused'),
+        status: isPlaying ? 'playing' : (data.status || 'paused'),
         positionMs: Number(data.position_ms || data.canonical_position_ms || 0),
-        serverTimestamp: new Date(data.updated_at || Date.now()).getTime(),
+        serverTimestamp: updatedAtMs,
         ownerDeviceId: data.active_device_id,
         ownerInstanceId: data.owner_instance_id,
         queue: data.queue || [],
@@ -83,6 +101,13 @@ export class SessionReconciler {
     
     const isOwner = snapshot.ownerDeviceId === store.deviceId;
     
+    // If the local device is the owner and already has a track configured from local history,
+    // do not overwrite local state with non-playing remote data
+    if (isOwner && snapshot.status !== 'playing' && store.currentSong) {
+      console.log('[SessionReconciler] Local device is owner and player is configured. Retaining local track.');
+      return;
+    }
+
     // Calculate server time signed drift: expected = positionMs + (serverNow - serverTimestamp)
     let expectedPositionMs = snapshot.positionMs;
     if (snapshot.status === 'playing') {

@@ -4,6 +4,7 @@ import { Song, RepeatMode, AIDJState, ActiveTab, Renderer } from '@/types/music'
 import { RecommendationEngine } from '@/lib/recommendationEngine';
 import { LocalDatabase } from '@/lib/localDatabase';
 import { QueueManager } from '@/lib/queue/QueueManager';
+import { LanguageEligibilityEngine } from '@/lib/language/LanguageEligibilityEngine';
 
 import { AudioQuality, AudioQualityState } from '@/lib/playback/types';
 
@@ -71,7 +72,13 @@ interface PlayerState {
   sleepTimerEndsAt: number | null;
 
   contextMenuSong: Song | null;
-  preferredLanguage: string;
+  // 3-Tier Language Preference System
+  preferredLanguage: string; // GLOBAL_LANGUAGE (Explicit User Selection)
+  sessionLanguage: string; // SESSION_LANGUAGE (Current Playback Queue Language)
+  interestLanguages: Record<string, number>; // INTEREST_LANGUAGES (Inferred Soft Signals)
+  setPreferredLanguage: (lang: string) => void;
+  setSessionLanguage: (lang: string) => void;
+  recordLanguageInterest: (lang: string, delta?: number) => void;
 
   // Offline Mode State
   networkMode: 'online' | 'offline' | 'offline_forced';
@@ -121,7 +128,6 @@ interface PlayerState {
   restoreLocalSession: () => Promise<void>;
   syncCloudLibrary: () => Promise<void>;
   autoRefillQueue: () => Promise<void>;
-  setPreferredLanguage: (lang: string) => void;
   playSong: (song: Song, newQueue?: Song[], context?: import('@/lib/queue/types').PlaybackContext) => void;
   shufflePlay: (songs: Song[], context?: import('@/lib/queue/types').PlaybackContext) => Promise<void>;
   commitPlaybackTransition: (song: Song, queueIndex?: number, updatedQueue?: Song[]) => void;
@@ -316,6 +322,32 @@ export const usePlayerStore = create<PlayerState>()(
   setNetworkMode: (mode) => set({ networkMode: mode }),
   
   preferredLanguage: (typeof window !== 'undefined' && localStorage.getItem('raagax_preferred_language')) || 'Telugu',
+  sessionLanguage: (typeof window !== 'undefined' && localStorage.getItem('raagax_preferred_language')) || 'Telugu',
+  interestLanguages: {
+    Telugu: 0.90,
+  },
+  setPreferredLanguage: (lang: string) => {
+    if (typeof window !== 'undefined') localStorage.setItem('raagax_preferred_language', lang);
+    const prevInterests = get().interestLanguages || {};
+    set({
+      preferredLanguage: lang,
+      sessionLanguage: lang,
+      interestLanguages: {
+        ...prevInterests,
+        [lang]: 0.90,
+      }
+    });
+    import('@/lib/lifecycle/UserLifecycleManager').then(({ UserLifecycleManager }) => {
+      UserLifecycleManager.getInstance().setSelectedLanguages([lang]);
+    });
+  },
+  setSessionLanguage: (lang: string) => set({ sessionLanguage: lang }),
+  recordLanguageInterest: (lang: string, delta: number = 0.15) => {
+    const current = { ...(get().interestLanguages || {}) };
+    const prev = current[lang] || 0;
+    current[lang] = Math.min(1.0, Math.max(0.01, Math.round((prev + delta) * 100) / 100));
+    set({ interestLanguages: current });
+  },
 
   deviceId: typeof window !== 'undefined' ? (require('@/lib/connect/DeviceRegistry').DeviceRegistry.getInstance().getOrCreateDeviceId()) : '',
   deviceInstanceId: typeof window !== 'undefined' ? (require('@/lib/connect/DeviceRegistry').DeviceRegistry.getInstance().getOrCreateDeviceInstanceId()) : '',
@@ -391,72 +423,100 @@ export const usePlayerStore = create<PlayerState>()(
     });
   },
 
-  setPreferredLanguage: (lang) => {
-    set({ preferredLanguage: lang });
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('raagax_preferred_language', lang);
-    }
-    import('@/lib/lifecycle/UserLifecycleManager').then(({ UserLifecycleManager }) => {
-      UserLifecycleManager.getInstance().setSelectedLanguages([lang]);
-    });
-  },
-
   restoreLocalSession: async () => {
     const manager = QueueManager.getInstance();
     const { RaagaXNativePlayer } = await import('@/lib/playback/native/RaagaXNativePlayer');
+    const { QueueHistory } = await import('@/lib/queue/QueueHistory');
+    const historyInstance = QueueHistory.getInstance();
+    await historyInstance.ensureLoaded();
+    const historyEntries = historyInstance.getHistory();
+    const mostRecentHistorySong = historyEntries.length > 0 ? historyEntries[historyEntries.length - 1].song : null;
 
-    // Case 1 & 2: Native playback service is already active in background
+    // Load local playback session
+    const session = await LocalDatabase.getInstance().loadPlaybackSession();
+
+    // Check if Native Android foreground playback is actively playing
     if (RaagaXNativePlayer.isNative()) {
       const nativeState = await RaagaXNativePlayer.getPlaybackState();
-      if (nativeState && (nativeState.isPlaying || nativeState.positionMs > 0)) {
-        const snapshot = manager.getSnapshot();
-        const currentItem = manager.getCurrentItem();
-        if (currentItem?.song) {
+      // Case 1: Native service is actively playing audio (e.g. app was in background and brought back to foreground)
+      if (nativeState && nativeState.isPlaying) {
+        console.log(`[PLAYER EVENT] Source=NativeBackgroundService Title="${nativeState.title}" Artist="${nativeState.artist}" isPlaying=true PositionMs=${nativeState.positionMs}`);
+        
+        // Find matching song in session queue or history to match active audio EXACTLY
+        const candidateQueue = (session?.queue && session.queue.length > 0) ? session.queue : (mostRecentHistorySong ? [mostRecentHistorySong] : []);
+        let matchedSong: Song | null = null;
+        let matchedIndex = 0;
+
+        if (nativeState.title) {
+          const idx = candidateQueue.findIndex(s => s.title?.toLowerCase() === nativeState.title?.toLowerCase());
+          if (idx !== -1) {
+            matchedSong = candidateQueue[idx];
+            matchedIndex = idx;
+          }
+        }
+
+        if (!matchedSong && mostRecentHistorySong && nativeState.title && mostRecentHistorySong.title?.toLowerCase() === nativeState.title?.toLowerCase()) {
+          matchedSong = mostRecentHistorySong;
+        }
+
+        if (!matchedSong && candidateQueue.length > 0) {
+          matchedSong = candidateQueue[0];
+        }
+
+        if (matchedSong) {
+          manager.replaceQueue(candidateQueue, matchedIndex);
           set({
-            isPlaying: nativeState.isPlaying,
-            playbackIntent: nativeState.isPlaying ? 'PLAYING' : 'PAUSED',
+            isPlaying: true,
+            playbackIntent: 'PLAYING',
             trackSource: 'SESSION_RESTORE',
-            currentSong: currentItem.song,
+            currentSong: matchedSong,
             currentTime: nativeState.positionMs / 1000,
-            queue: snapshot.items.map((i: any) => i.song),
-            queueIndex: snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0,
+            queue: candidateQueue,
+            queueIndex: matchedIndex,
           });
+          console.log(`[UI MINI PLAYER] songId=${matchedSong.id} title="${matchedSong.title}" cover="${matchedSong.coverUrl}" isPlaying=true source=NativeActiveHandoff`);
           return;
         }
       }
     }
 
-    // Case 3: Cold boot / App killed — PASSIVE restoration (isPlaying = false, DO NOT AUTOPLAY)
-    const session = await LocalDatabase.getInstance().loadPlaybackSession();
-    if (session && session.currentSong) {
+    // Case 2: Cold boot / Fresh App Session — PASSIVE restoration (isPlaying = false, DO NOT AUTOPLAY)
+    // Sourced strictly from the most recent song in listening history (or session)
+    if ((session && session.currentSong) || mostRecentHistorySong) {
       const { isKidsOrNurseryTrack } = await import('@/lib/jioSaavnProvider');
-      const cleanQueue = (session.queue || []).filter(s => s && !isKidsOrNurseryTrack(s));
-      const isCurrentClean = !isKidsOrNurseryTrack(session.currentSong);
-      const activeSong = isCurrentClean ? session.currentSong : (cleanQueue[0] || null);
+      const candidateSong = session?.currentSong || mostRecentHistorySong || null;
+      const rawQueue = (session?.queue && session.queue.length > 0) ? session.queue : (mostRecentHistorySong ? [mostRecentHistorySong] : []);
+      const cleanQueue = rawQueue.filter(s => s && !isKidsOrNurseryTrack(s));
+      
+      const isCandidateClean = candidateSong && !isKidsOrNurseryTrack(candidateSong);
+      const activeSong = isCandidateClean ? candidateSong : (cleanQueue[0] || null);
 
       if (cleanQueue.length > 0 && activeSong) {
         let safeIndex = cleanQueue.findIndex(s => s.id === activeSong.id);
-        if (safeIndex === -1) safeIndex = Math.min(session.queueIndex || 0, Math.max(0, cleanQueue.length - 1));
+        if (safeIndex === -1) safeIndex = Math.min(session?.queueIndex || 0, Math.max(0, cleanQueue.length - 1));
 
         manager.replaceQueue(cleanQueue, safeIndex);
 
         set({
-          isPlaying: false, // Strict: ALWAYS PAUSED ON COLD BOOT
+          isPlaying: false, // Strict Rule: ALWAYS PAUSED ON COLD BOOT (Show Play button)
           playbackIntent: 'PAUSED',
           trackSource: 'SESSION_RESTORE',
           currentSong: activeSong,
-          currentTime: session.currentTime || 0,
+          currentTime: session?.currentTime || 0,
           queue: cleanQueue,
           queueIndex: safeIndex,
         });
 
+        console.log(`[UI MINI PLAYER] songId=${activeSong.id} title="${activeSong.title}" cover="${activeSong.coverUrl}" isPlaying=false source=ColdBootRestore`);
+
         const { PlaybackService } = await import('@/lib/playback/PlaybackService');
-        await PlaybackService.getInstance().prepareTrack(activeSong, session.currentTime || 0);
-        await PlaybackService.getInstance().loadQueueContext(cleanQueue, safeIndex);
+        await PlaybackService.getInstance().prepareTrack(activeSong, session?.currentTime || 0);
+        // Load native queue context strictly with autoPlay = false (NEVER start playback automatically)
+        await PlaybackService.getInstance().loadQueueContext(cleanQueue, safeIndex, false);
 
         persistSessionHelper({
           currentSong: activeSong,
-          currentTime: session.currentTime || 0,
+          currentTime: session?.currentTime || 0,
           queue: cleanQueue,
           queueIndex: safeIndex,
         });
@@ -542,8 +602,16 @@ export const usePlayerStore = create<PlayerState>()(
   },
 
   playSong: (song, newQueue, context) => {
+    console.log(`[PLAY CALLED] songId=${song.id} title="${song.title}" artist="${song.artist}" source=${context?.type || 'USER_CLICK'}`);
     get().logCurrentTelemetry('skip');
     
+    // 3-Tier Language System: Session Language Resolution
+    // If the user explicitly plays a song (e.g. from search, an album, or playlist),
+    // establish SESSION_LANGUAGE to that song's language for the current playback session.
+    // GLOBAL_LANGUAGE (preferredLanguage) remains untouched.
+    const songLang = LanguageEligibilityEngine.getInstance().detectSongLanguage(song);
+    get().recordLanguageInterest(songLang, 0.20);
+
     // Check if newQueue was passed (e.g. from an album or playlist)
     const manager = QueueManager.getInstance();
     if (newQueue && newQueue.length > 0) {
@@ -564,6 +632,7 @@ export const usePlayerStore = create<PlayerState>()(
       isPlaying: true, 
       playbackIntent: 'PLAYING',
       trackSource: 'USER_SELECTED',
+      sessionLanguage: songLang,
       currentTime: 0, 
       currentSong: song, 
       queue: syncedQueue, 
@@ -954,6 +1023,11 @@ export const usePlayerStore = create<PlayerState>()(
 
       return { likedSongIds: newLikedIds, likedSongs: newLikedSongs };
     });
+
+    if (!isLiked && targetSong) {
+      const songLang = LanguageEligibilityEngine.getInstance().detectSongLanguage(targetSong);
+      get().recordLanguageInterest(songLang, 0.35);
+    }
 
     // Delegate solely to authoritative AccountSyncEngine & UserBehaviorTracker
     import('@/context/useAuthStore').then(({ useAuthStore }) => {

@@ -81,4 +81,35 @@ describe('Connect Device Reconciliation & Zero-Stutter Tests', () => {
 
     pauseSpy.mockRestore();
   });
+
+  it('Test 3 (Stale Account Session Discard): Discards 2-day-old Tabahi cloud snapshot and retains local device song', async () => {
+    const reconciler = SessionReconciler.getInstance();
+    usePlayerStore.setState({
+      deviceId: 'dev_renderer_1',
+      isActiveDevice: true,
+      isPlaying: false,
+      currentSong: { id: 'song_hellalo', title: 'Hellalo' } as any,
+    });
+
+    // Stale snapshot from 2 days ago (Account A: Tabahi)
+    const staleSnapshot: PlaybackSnapshot = {
+      sessionId: 'sess_user_a',
+      sessionEpoch: 1,
+      revision: 1,
+      sequenceNumber: 1,
+      stateVersion: 1,
+      trackId: 'song_tabahi',
+      songData: { id: 'song_tabahi', title: 'Tabahi' },
+      status: 'paused',
+      positionMs: 10000,
+      serverTimestamp: Date.now() - (48 * 60 * 60 * 1000), // 48 hours ago
+      ownerDeviceId: 'dev_renderer_1',
+    };
+
+    await reconciler.applySnapshot(staleSnapshot);
+
+    // Current song on local player MUST remain Hellalo (NOT overwritten by Tabahi)
+    expect(usePlayerStore.getState().currentSong?.id).toBe('song_hellalo');
+    expect(usePlayerStore.getState().currentSong?.title).toBe('Hellalo');
+  });
 });

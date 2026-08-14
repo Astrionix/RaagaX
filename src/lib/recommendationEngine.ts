@@ -109,6 +109,15 @@ export class RecommendationEngine {
     this.preferences.lastGenre = genre;
     this.saveToStorage();
 
+    // Update 3-Tier Language Interest Scores
+    try {
+      const { LanguageEligibilityEngine } = await import('@/lib/language/LanguageEligibilityEngine');
+      const songLang = LanguageEligibilityEngine.getInstance().detectSongLanguage(song);
+      const delta = action === 'skip' ? -0.10 : (completionPercentage >= 0.8 ? 0.25 : 0.10);
+      const userId = (await supabase.auth.getSession()).data.session?.user?.id || 'guest';
+      await LanguageEligibilityEngine.getInstance().recordLanguageInterest(userId, songLang, delta);
+    } catch {}
+
     // Log to Supabase High-Res Telemetry
     try {
       const { data: { session } } = await supabase.auth.getSession();

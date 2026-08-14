@@ -12,6 +12,10 @@ export interface PlaybackSessionCache {
   likedSongIds?: string[];
   searchHistory: string[];
   preferredLanguage?: string;
+  sessionLanguage?: string;
+  wasPlaying?: boolean;
+  playbackState?: 'PLAYING' | 'PAUSED' | 'STOPPED';
+  deviceState?: 'ACTIVE' | 'BACKGROUND' | 'TASK_REMOVED' | 'PROCESS_DEAD' | 'OFFLINE';
   userId?: string;
   timestamp?: number;
 }

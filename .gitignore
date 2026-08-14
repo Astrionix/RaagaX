@@ -108,4 +108,5 @@ dist
 .env.local
 
 out
+*.apk
 

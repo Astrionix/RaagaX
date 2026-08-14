@@ -12,11 +12,16 @@ import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { DeviceSelector } from '@/components/providers/DeviceSyncProvider';
 import { AudioSettingsDrawer } from './AudioSettingsDrawer';
 import { MediaHandoffManager } from '@/lib/playback/MediaHandoffManager';
+import { useLyricsStore } from '@/context/useLyricsStore';
 import { SeekBar } from './SeekBar';
 
 export function ExpandedPlayerModal() {
   const { playlists, addSongToPlaylist } = usePlaylistStore();
   const [showPlaylists, setShowPlaylists] = useState(false);
+  const [viewMode, setViewMode] = useState<'art' | 'lyrics'>('art');
+  const { status: lyricsStatus, type: lyricsType, lines: lyricsLines, currentLineIndex: lyricsIndex } = useLyricsStore();
+  const modalLyricsScrollRef = useRef<HTMLDivElement>(null);
+
   const {
     isPlayerExpanded,
     togglePlayerExpanded,
@@ -61,6 +66,26 @@ export function ExpandedPlayerModal() {
   const menuRef = useRef<HTMLDivElement>(null);
   const [visualTime, setVisualTime] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
+
+  // Pre-load lyrics for current track
+  useEffect(() => {
+    if (currentSong?.id) {
+      import('@/lib/lyrics/LyricsEngine').then(({ LyricsEngine }) => {
+        LyricsEngine.getInstance().loadTrack(currentSong.id);
+      });
+    }
+  }, [currentSong?.id]);
+
+  // Auto-scroll lyrics smoothly when active line changes in lyrics view
+  useEffect(() => {
+    if (viewMode !== 'lyrics' || lyricsIndex < 0 || lyricsLines.length === 0) return;
+    const activeEl = document.getElementById(`modal-lyric-line-${lyricsIndex}`);
+    if (activeEl && modalLyricsScrollRef.current) {
+      const container = modalLyricsScrollRef.current;
+      const targetScrollTop = activeEl.offsetTop - (container.clientHeight / 2) + (activeEl.clientHeight / 2);
+      container.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' });
+    }
+  }, [lyricsIndex, viewMode, lyricsLines]);
 
   useEffect(() => {
     if (!isPlayerExpanded || isSeeking) return;
@@ -441,24 +466,92 @@ export function ExpandedPlayerModal() {
       {/* Main Center Content Section (Flexible to fit screen without scroll) */}
       <div className="relative z-0 flex-1 min-h-0 flex flex-col justify-between w-full max-w-5xl mx-auto py-1 sm:py-4">
         
-        {/* Cover Artwork */}
-        <div className="flex-1 min-h-0 flex flex-col items-center justify-center w-full py-2 sm:py-6 overflow-hidden">
-          <div
-            className="relative rounded-[8%] sm:rounded-2xl overflow-hidden shadow-2xl border border-white/5"
-            style={{
-              width: 'min(42vh, 92vw, 480px)',
-              height: 'min(42vh, 92vw, 480px)',
-              flexShrink: 0,
-            }}
+        {viewMode === 'art' ? (
+          /* Cover Artwork */
+          <div 
+            onClick={() => setViewMode('lyrics')}
+            className="flex-1 min-h-0 flex flex-col items-center justify-center w-full py-2 sm:py-6 overflow-hidden cursor-pointer group"
+            title="Tap to view live synced lyrics"
           >
-            <img
-              src={currentSong.coverUrl || '/app-icon.png'}
-              alt={currentSong.title}
-              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-              className={`w-full h-full object-cover transition-all duration-700 ${isPlaying ? 'scale-[1.02]' : 'scale-100'}`}
-            />
+            <div
+              className="relative rounded-[8%] sm:rounded-2xl overflow-hidden shadow-2xl border border-white/5 group-hover:scale-[1.01] transition-all"
+              style={{
+                width: 'min(42vh, 92vw, 480px)',
+                height: 'min(42vh, 92vw, 480px)',
+                flexShrink: 0,
+              }}
+            >
+              <img
+                src={currentSong.coverUrl || '/app-icon.png'}
+                alt={currentSong.title}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+                className={`w-full h-full object-cover transition-all duration-700 ${isPlaying ? 'scale-[1.02]' : 'scale-100'}`}
+              />
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Fullscreen Synced Lyrics Live Mode */
+          <div className="flex-1 min-h-0 w-full max-w-2xl mx-auto flex flex-col relative overflow-hidden py-1 sm:py-3 animate-in fade-in duration-300">
+            <div className="flex items-center justify-between px-3 pb-2 mb-1 border-b border-white/10">
+              <div className="flex items-center gap-2 text-xs font-bold text-white/80">
+                <Mic2 className="w-4 h-4 text-[#FA233B]" /> Live Synced Lyrics
+              </div>
+              <button 
+                onClick={() => setViewMode('art')}
+                className="text-xs font-bold text-white/70 hover:text-white px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-all cursor-pointer"
+              >
+                Show Album Art
+              </button>
+            </div>
+            <div 
+              ref={modalLyricsScrollRef}
+              className="flex-1 overflow-y-auto scrollbar-hide py-16 px-4 space-y-4 sm:space-y-6 flex flex-col items-start"
+            >
+              {lyricsStatus === 'loading' && (
+                <div className="w-full flex flex-col items-center justify-center py-16 text-white/60 gap-3">
+                  <div className="w-6 h-6 border-2 border-red-500/30 border-t-[#FA233B] rounded-full animate-spin" />
+                  <p className="text-sm font-semibold">Syncing lyrics...</p>
+                </div>
+              )}
+              {lyricsStatus === 'unavailable' || lyricsLines.length === 0 ? (
+                <div className="w-full text-center py-16 text-white/60">
+                  <p className="text-lg font-bold text-white mb-1">Lyrics unavailable</p>
+                  <p className="text-xs">No synced lyrics found for this song.</p>
+                </div>
+              ) : (
+                lyricsLines.map((line, idx) => {
+                  const isActive = idx === lyricsIndex;
+                  const isPassed = idx < lyricsIndex;
+                  return (
+                    <div
+                      key={line.id}
+                      id={`modal-lyric-line-${idx}`}
+                      onClick={() => {
+                        if (line.startMs !== undefined && line.startMs >= 0) {
+                          const sec = line.startMs / 1000;
+                          usePlayerStore.getState().setCurrentTime(sec, true);
+                          usePlayerStore.getState().setSeekTarget(sec);
+                          import('@/lib/lyrics/LyricsEngine').then(({ LyricsEngine }) => {
+                            LyricsEngine.getInstance().seek(line.startMs);
+                          }).catch(() => {});
+                        }
+                      }}
+                      className={`w-full text-left transition-all duration-300 transform origin-left cursor-pointer select-none leading-snug py-1
+                        ${isActive 
+                          ? 'text-2xl sm:text-4xl font-black text-[#FA233B] drop-shadow-[0_0_24px_rgba(250,35,59,0.85)] scale-[1.03]' 
+                          : isPassed 
+                            ? 'text-lg sm:text-2xl font-bold text-white/30 opacity-40 hover:opacity-75' 
+                            : 'text-lg sm:text-2xl font-bold text-white/60 hover:text-white/95 opacity-70'}
+                      `}
+                    >
+                      {line.text}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Bottom Player Controls Area (Tightly Packed) */}
         <div className="flex-shrink-0 flex flex-col gap-3 sm:gap-6 w-full">
@@ -582,13 +675,15 @@ export function ExpandedPlayerModal() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={() => {
-                togglePlayerExpanded();
-                toggleLyrics();
-              }}
-              className="px-4 py-2.5 rounded-2xl bg-white text-slate-900 font-extrabold text-xs flex items-center gap-2 hover:bg-slate-200 transition-colors shadow-lg"
+              onClick={() => setViewMode(v => v === 'lyrics' ? 'art' : 'lyrics')}
+              className={`px-4 py-2.5 rounded-2xl font-extrabold text-xs flex items-center gap-2 transition-all shadow-lg cursor-pointer ${
+                viewMode === 'lyrics'
+                  ? 'bg-[#FA233B] text-white shadow-red-500/30'
+                  : 'bg-white text-slate-900 hover:bg-slate-200'
+              }`}
             >
-              <Mic2 className="w-4 h-4 text-[#F20D18]" /> Synced Lyrics
+              <Mic2 className={`w-4 h-4 ${viewMode === 'lyrics' ? 'text-white' : 'text-[#F20D18]'}`} /> 
+              {viewMode === 'lyrics' ? 'Album Art' : 'Synced Lyrics'}
             </button>
 
             <button

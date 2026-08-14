@@ -70,6 +70,9 @@ public class RaagaXPlaybackService extends Service {
                 .setWakeMode(C.WAKE_MODE_NETWORK)
                 .build();
 
+        // Strict Anti-Autoplay Rule: Player boots strictly paused with no media loaded
+        player.setPlayWhenReady(false);
+
         try {
             mediaSession = new androidx.media3.session.MediaSession.Builder(this, player).build();
         } catch (Exception e) {
@@ -130,77 +133,90 @@ public class RaagaXPlaybackService extends Service {
             startForeground(NOTIF_ID, buildNotification());
         }
 
-        if (intent != null) {
-            String action = intent.getAction();
-
-            if ("SET_QUEUE".equals(action)) {
-                // ── PRIMARY command: full ordered playlist ────────────────────
-                String[] urls    = intent.getStringArrayExtra("urls");
-                String[] titles  = intent.getStringArrayExtra("titles");
-                String[] artists = intent.getStringArrayExtra("artists");
-                int startIndex   = intent.getIntExtra("startIndex", 0);
-                if (urls != null && urls.length > 0) {
-                    setQueue(urls, titles, artists, startIndex);
+        if (intent == null) {
+            runOnMainThread(() -> {
+                if (player != null) {
+                    player.setPlayWhenReady(false);
+                    player.pause();
+                    player.stop();
+                    player.clearMediaItems();
                 }
-
-            } else if ("PLAY".equals(action)) {
-                // Legacy single-track play
-                String url    = intent.getStringExtra("url");
-                String title  = intent.getStringExtra("title");
-                String artist = intent.getStringExtra("artist");
-                if (url != null) playUrl(url, title, artist);
-
-            } else if ("SET_NEXT".equals(action)) {
-                String url    = intent.getStringExtra("url");
-                String title  = intent.getStringExtra("title");
-                String artist = intent.getStringExtra("artist");
-                if (url != null) setNextTrack(url, title, artist);
-
-            } else if ("SET_NEXT_BATCH".equals(action)) {
-                String[] urls    = intent.getStringArrayExtra("urls");
-                String[] titles  = intent.getStringArrayExtra("titles");
-                String[] artists = intent.getStringArrayExtra("artists");
-                if (urls != null && urls.length > 0) setNextTracksBatch(urls, titles, artists);
-
-            } else if ("TOGGLE_PLAY".equals(action)) {
-                runOnMainThread(() -> {
-                    if (player != null) {
-                        if (player.isPlaying()) player.pause();
-                        else player.play();
-                    }
-                });
-
-            } else if ("PREV".equals(action)) {
-                runOnMainThread(() -> {
-                    if (player != null && player.hasPreviousMediaItem()) {
-                        player.seekToPreviousMediaItem();
-                    }
-                });
-
-            } else if ("NEXT".equals(action)) {
-                runOnMainThread(() -> {
-                    if (player != null && player.hasNextMediaItem()) {
-                        player.seekToNextMediaItem();
-                    }
-                });
-
-            } else if ("PAUSE".equals(action))  { pause(); }
-            else if ("RESUME".equals(action))    { resume(); }
-            else if ("SEEK".equals(action))      { seekTo(intent.getLongExtra("positionMs", 0)); }
-            else if ("SET_VOLUME".equals(action)){ setVolume(intent.getFloatExtra("volume", 1.0f)); }
-            else if ("STOP".equals(action)) {
-                runOnMainThread(() -> {
-                    if (player != null) {
-                        player.stop();
-                        player.clearMediaItems();
-                    }
-                    stopForeground(true);
-                    stopSelf();
-                });
-            }
+            });
+            return START_NOT_STICKY;
         }
 
-        return START_STICKY;
+        String action = intent.getAction();
+
+        if ("SET_QUEUE".equals(action)) {
+            // ── PRIMARY command: full ordered playlist ────────────────────
+            String[] urls    = intent.getStringArrayExtra("urls");
+            String[] titles  = intent.getStringArrayExtra("titles");
+            String[] artists = intent.getStringArrayExtra("artists");
+            int startIndex   = intent.getIntExtra("startIndex", 0);
+            boolean autoPlay = intent.getBooleanExtra("autoPlay", true);
+            if (urls != null && urls.length > 0) {
+                setQueue(urls, titles, artists, startIndex, autoPlay);
+            }
+
+        } else if ("PLAY".equals(action)) {
+            // Legacy single-track play
+            String url    = intent.getStringExtra("url");
+            String title  = intent.getStringExtra("title");
+            String artist = intent.getStringExtra("artist");
+            if (url != null) playUrl(url, title, artist);
+
+        } else if ("SET_NEXT".equals(action)) {
+            String url    = intent.getStringExtra("url");
+            String title  = intent.getStringExtra("title");
+            String artist = intent.getStringExtra("artist");
+            if (url != null) setNextTrack(url, title, artist);
+
+        } else if ("SET_NEXT_BATCH".equals(action)) {
+            String[] urls    = intent.getStringArrayExtra("urls");
+            String[] titles  = intent.getStringArrayExtra("titles");
+            String[] artists = intent.getStringArrayExtra("artists");
+            if (urls != null && urls.length > 0) setNextTracksBatch(urls, titles, artists);
+
+        } else if ("TOGGLE_PLAY".equals(action)) {
+            runOnMainThread(() -> {
+                if (player != null) {
+                    if (player.isPlaying()) player.pause();
+                    else player.play();
+                }
+            });
+
+        } else if ("PREV".equals(action)) {
+            runOnMainThread(() -> {
+                if (player != null && player.hasPreviousMediaItem()) {
+                    player.seekToPreviousMediaItem();
+                }
+            });
+
+        } else if ("NEXT".equals(action)) {
+            runOnMainThread(() -> {
+                if (player != null && player.hasNextMediaItem()) {
+                    player.seekToNextMediaItem();
+                }
+            });
+
+        } else if ("PAUSE".equals(action))  { pause(); }
+        else if ("RESUME".equals(action))    { resume(); }
+        else if ("SEEK".equals(action))      { seekTo(intent.getLongExtra("positionMs", 0)); }
+        else if ("SET_VOLUME".equals(action)){ setVolume(intent.getFloatExtra("volume", 1.0f)); }
+        else if ("STOP".equals(action)) {
+            runOnMainThread(() -> {
+                if (player != null) {
+                    player.setPlayWhenReady(false);
+                    player.pause();
+                    player.stop();
+                    player.clearMediaItems();
+                }
+                stopForeground(true);
+                stopSelf();
+            });
+        }
+
+        return START_NOT_STICKY;
     }
 
     @Override
@@ -273,7 +289,7 @@ public class RaagaXPlaybackService extends Service {
      * tracks and starts playing from startIndex. ExoPlayer then auto-advances
      * through all items natively without WebView involvement.
      */
-    public void setQueue(String[] urls, String[] titles, String[] artists, int startIndex) {
+    public void setQueue(String[] urls, String[] titles, String[] artists, int startIndex, boolean autoPlay) {
         runOnMainThread(() -> {
             if (player == null || urls == null || urls.length == 0) return;
 
@@ -300,11 +316,21 @@ public class RaagaXPlaybackService extends Service {
             // Set the complete playlist — ExoPlayer handles all subsequent transitions
             player.setMediaItems(items, safeIndex, /* startPositionMs= */ 0L);
             player.prepare();
-            player.play();
+            if (autoPlay) {
+                player.setPlayWhenReady(true);
+                player.play();
+            } else {
+                player.setPlayWhenReady(false);
+                player.pause();
+            }
             saveNativeQueueToPrefs(urls, titles, artists, safeIndex);
             updateNotification();
-            Log.d(TAG, "setQueue: " + items.size() + " items, starting at index " + safeIndex);
+            Log.d(TAG, "setQueue: " + items.size() + " items, starting at index " + safeIndex + ", autoPlay=" + autoPlay);
         });
+    }
+
+    public void setQueue(String[] urls, String[] titles, String[] artists, int startIndex) {
+        setQueue(urls, titles, artists, startIndex, true);
     }
 
     private void saveNativeQueueToPrefs(String[] urls, String[] titles, String[] artists, int startIndex) {
@@ -341,7 +367,10 @@ public class RaagaXPlaybackService extends Service {
                 editor.putInt("last_index", player.getCurrentMediaItemIndex());
                 editor.putString("last_title", currentTitle);
                 editor.putString("last_artist", currentArtist);
-                editor.putBoolean("was_playing_when_killed", player.isPlaying());
+                editor.putBoolean("was_playing_when_killed", false); // HARD RULE: Never auto-play on next app launch
+                editor.putBoolean("was_task_removed", true);
+                editor.putString("playback_state", "STOPPED");
+                editor.putString("device_state", "TASK_REMOVED");
                 editor.putLong("saved_timestamp", System.currentTimeMillis());
                 editor.apply();
             } catch (Exception e) {
@@ -350,8 +379,10 @@ public class RaagaXPlaybackService extends Service {
 
             // 2. STOP AUDIO IMMEDIATELY — Swiping app from recents terminates playback
             try {
+                player.setPlayWhenReady(false);
                 player.pause();
                 player.stop();
+                player.clearMediaItems();
             } catch (Exception e) {
                 Log.e(TAG, "Error stopping player onTaskRemoved: " + e.getMessage());
             }

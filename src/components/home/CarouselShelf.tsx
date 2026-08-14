@@ -278,7 +278,7 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
 
   return (
     <section className="mb-4 sm:mb-6">
-      <div className="flex items-center justify-between mb-2.5 px-3 sm:px-0">
+      <div className="flex items-center justify-between mb-2.5 px-0">
         <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
           {icon}
           <h2 className="text-[20px] sm:text-xl font-semibold leading-[26px] text-white tracking-tight cursor-pointer truncate whitespace-nowrap">
@@ -314,7 +314,7 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
         )}
       </div>
       
-      <div className="grid grid-rows-1 auto-cols-[144px] sm:auto-cols-[176px] grid-flow-col overflow-x-auto no-scrollbar gap-4 pb-4 px-4 sm:px-0">
+      <div className="flex gap-3 sm:gap-4 overflow-x-auto no-scrollbar pb-3 sm:pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
         {visibleItems.map((item, index) => {
           const isSentinel = pagination?.enabled && index === sentinelIndex;
           
@@ -323,9 +323,9 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
               key={`${item.id}-${index}`}
               ref={isSentinel ? sentinelRef : null}
               onClick={() => handleItemClick(item)}
-              className="group premium-card p-3.5 rounded-2xl cursor-pointer w-full"
+              className="group premium-card p-3 sm:p-3.5 rounded-2xl cursor-pointer w-[140px] sm:w-[172px] flex-shrink-0"
             >
-              <div className="relative w-full aspect-square mb-3 shadow-[0_8px_24px_rgba(0,0,0,0.4)] rounded-xl overflow-hidden bg-slate-800/80">
+              <div className="relative w-full aspect-square mb-2.5 sm:mb-3 shadow-[0_8px_24px_rgba(0,0,0,0.4)] rounded-xl overflow-hidden bg-slate-800/80">
                 <img
                   src={item.imageUrl ? item.imageUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500') : '/app-icon.png'}
                   alt={item.title}
@@ -337,7 +337,7 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 <button 
                   onClick={(e) => handleQuickPlay(e, item)}
-                  className="absolute bottom-2.5 right-2.5 w-10 h-10 rounded-full red-glow-btn text-white flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 group-hover:translate-y-0 translate-y-2 transition-all duration-300 active:scale-90"
+                  className="absolute bottom-2 right-2 sm:bottom-2.5 sm:right-2.5 w-9 h-9 sm:w-10 sm:h-10 rounded-full red-glow-btn text-white flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 group-hover:translate-y-0 translate-y-2 transition-all duration-300 active:scale-90"
                 >
                   <Play className="w-4 h-4 fill-white text-white ml-0.5" />
                 </button>
@@ -350,13 +350,13 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
           );
         })}
         
-        {/* Placeholder skeleton elements when hasMore is true, so UI indicates more is coming seamlessly */}
+        {/* Placeholder skeleton elements when hasMore is true */}
         {hasMore && (
           <>
-            <div className="glass-card p-4 rounded-xl w-full flex items-center justify-center animate-pulse">
+            <div className="glass-card p-4 rounded-xl w-[140px] sm:w-[172px] flex-shrink-0 flex items-center justify-center animate-pulse">
                <div className="w-8 h-8 rounded-full border-2 border-[#fa233b] border-t-transparent animate-spin"></div>
             </div>
-            <div className="glass-card p-4 rounded-xl w-full animate-pulse bg-white/5"></div>
+            <div className="glass-card p-4 rounded-xl w-[140px] sm:w-[172px] flex-shrink-0 animate-pulse bg-white/5"></div>
           </>
         )}
       </div>

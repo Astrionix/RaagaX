@@ -68,9 +68,12 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     await supabase.auth.signOut();
     set({ user: null, session: null });
-    // Clear cross-device sync local storage fallbacks if they exist
+    // Clear cross-device sync local storage fallbacks and queue caches on account switch
     if (typeof window !== 'undefined') {
       localStorage.removeItem('raagax_session_id');
+      localStorage.removeItem('raagax_active_queue_snapshot');
+      localStorage.removeItem('raagax_fallback_session');
+      localStorage.removeItem('raagax_latest_playback_session');
       window.location.reload(); // Refresh to reset all states globally
     }
   }

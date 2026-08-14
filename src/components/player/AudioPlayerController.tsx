@@ -151,6 +151,10 @@ export function AudioPlayerController() {
             likedSongIds: state.likedSongIds,
             searchHistory: LocalDatabase.getInstance().getSearchHistory(),
             preferredLanguage: state.preferredLanguage,
+            sessionLanguage: state.sessionLanguage || state.preferredLanguage,
+            wasPlaying: false, // HARD RULE: Always false on unload/dismiss so next launch NEVER auto-plays
+            playbackState: 'STOPPED',
+            deviceState: 'TASK_REMOVED',
             timestamp: Date.now(),
           });
         });

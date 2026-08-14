@@ -1,28 +1,22 @@
 import { Song } from '@/types/music';
 import { LocalDatabase } from '@/lib/offline/LocalDatabase';
-import { supabase } from '@/lib/supabase';
 
 export type LanguageState = 'BLOCKED' | 'DISCOVERED' | 'EXPLICIT' | 'SELECTED' | 'ACTIVE';
 
 export type ContextType =
   | 'STRICT_CATEGORY'           /* e.g. Top Telugu Albums, Telugu Mix (MUST strictly match language) */
+  | 'AUTOPLAY'                  /* Queue next / autoplay / refill (MUST strictly match session language) */
+  | 'QUEUE_REFILL'              /* Adaptive refill / continuous radio (MUST strictly match session language) */
   | 'PERSONALIZED_RECOMMENDATION' /* e.g. For You, Because You Listen, Your Mix */
   | 'DISCOVERY'                  /* e.g. Discover, Recently Explored */
   | 'USER_LIBRARY'               /* e.g. Liked Songs, Recently Played, Saved Albums (UNRESTRICTED) */
   | 'USER_PLAYLIST'              /* e.g. User-created playlist (UNRESTRICTED) */
   | 'SEARCH';                    /* Explicit user query (UNRESTRICTED override) */
 
-export interface UserLanguageAffinityRecord {
-  language: string;
-  score: number;
-  state: LanguageState;
-  explicit: boolean;
-}
-
-export interface PlaylistLanguageProfile {
-  primaryLanguage: string;
-  distribution: Record<string, number>; // e.g. { Telugu: 0.8, Tamil: 0.2 }
-  eligibleLanguages: string[];
+export interface UserLanguageProfile {
+  globalLanguage: string; // Explicit user selection (e.g. 'Telugu' / 'te')
+  sessionLanguage: string; // Contextual playback language of current queue
+  interestLanguages: Record<string, number>; // Normalized inferred soft signals (e.g. { Telugu: 0.9, Hindi: 0.25 })
 }
 
 export class LanguageEligibilityEngine {
@@ -37,48 +31,112 @@ export class LanguageEligibilityEngine {
     return LanguageEligibilityEngine.instance;
   }
 
-  private isUUID(str: string): boolean {
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-  }
-
   /**
-   * Normalizes song language text string (e.g. 'telugu' -> 'Telugu')
+   * Normalizes language names and ISO codes into canonical language names
    */
   public normalizeLanguage(lang?: string): string {
     if (!lang) return '';
     const clean = lang.trim().toLowerCase();
-    if (clean.includes('telugu')) return 'Telugu';
-    if (clean.includes('tamil')) return 'Tamil';
-    if (clean.includes('hindi')) return 'Hindi';
-    if (clean.includes('kannada')) return 'Kannada';
-    if (clean.includes('malayalam')) return 'Malayalam';
-    if (clean.includes('english')) return 'English';
+    
+    if (clean === 'te' || clean.includes('telugu')) return 'Telugu';
+    if (clean === 'ta' || clean.includes('tamil')) return 'Tamil';
+    if (clean === 'hi' || clean.includes('hindi')) return 'Hindi';
+    if (clean === 'kn' || clean.includes('kannada')) return 'Kannada';
+    if (clean === 'ml' || clean.includes('malayalam')) return 'Malayalam';
+    if (clean === 'en' || clean.includes('english')) return 'English';
+    if (clean === 'pa' || clean.includes('punjabi')) return 'Punjabi';
+    if (clean === 'bn' || clean.includes('bengali')) return 'Bengali';
+    
     return clean.charAt(0).toUpperCase() + clean.slice(1);
   }
 
   /**
-   * Calculates language state for a specific user and language
+   * Detects the song's language from explicit metadata, genre, title keywords, or artist
    */
-  public async getLanguageState(userId: string, language: string, selectedLanguages: string[] = []): Promise<LanguageState> {
-    const targetLang = this.normalizeLanguage(language);
-    if (!targetLang) return 'ACTIVE';
-    const selected = selectedLanguages.map(l => this.normalizeLanguage(l)).filter(Boolean);
+  public detectSongLanguage(song: Partial<Song>): string {
+    if (!song) return 'Telugu';
 
-    if (selected.length === 0 || selected.includes(targetLang)) {
-      return 'ACTIVE';
+    // 1. Direct language property
+    const rawLang = (song as any).language || (song as any).languageId || (song as any).lang;
+    if (rawLang) {
+      const normalized = this.normalizeLanguage(rawLang);
+      if (normalized) return normalized;
     }
 
-    const localDb = LocalDatabase.getInstance();
-    const affinities = (await localDb.getUserStore<Record<string, number>>(userId, 'language_affinity')) || {};
-    const score = affinities[targetLang] || 0;
+    // 2. Genre text
+    const genre = (song.genre || '').toLowerCase();
+    if (genre.includes('telugu') || genre.includes('tollywood')) return 'Telugu';
+    if (genre.includes('tamil') || genre.includes('kollywood')) return 'Tamil';
+    if (genre.includes('hindi') || genre.includes('bollywood')) return 'Hindi';
+    if (genre.includes('kannada') || genre.includes('sandalwood')) return 'Kannada';
+    if (genre.includes('malayalam') || genre.includes('mollywood')) return 'Malayalam';
+    if (genre.includes('english') || genre.includes('pop') || genre.includes('western') || genre.includes('hollywood')) return 'English';
+    if (genre.includes('punjabi')) return 'Punjabi';
 
-    if (score >= 30) return 'ACTIVE';
-    if (score >= 15) return 'EXPLICIT';
-    return 'DISCOVERED';
+    // 3. Artist/Title context heuristics for popular Indian music
+    const artist = (song.artist || '').toLowerCase();
+    const title = (song.title || '').toLowerCase();
+
+    if (artist.includes('arijit singh') || artist.includes('shreya ghoshal') || artist.includes('jubin nautiyal') || title.includes('kesariya')) {
+      return 'Hindi';
+    }
+    if (artist.includes('anirudh') || artist.includes('sid sriram') || artist.includes('devi sri prasad') || artist.includes('thaman')) {
+      if (title.includes('samajavaragamana') || title.includes('butta bomma') || title.includes('naatu')) return 'Telugu';
+      if (title.includes('arabic kuthu') || title.includes('hukum') || title.includes('vaathi')) return 'Tamil';
+    }
+
+    return 'Telugu'; // Fallback baseline
   }
 
   /**
-   * Evaluates song eligibility for a specified category context
+   * Infers intended search language from user query string
+   */
+  public inferLanguageFromQuery(query: string): string | null {
+    if (!query) return null;
+    const clean = query.trim().toLowerCase();
+
+    if (clean.includes('telugu') || clean.includes('tollywood')) return 'Telugu';
+    if (clean.includes('hindi') || clean.includes('bollywood') || clean.includes('arijit') || clean.includes('kesariya')) return 'Hindi';
+    if (clean.includes('tamil') || clean.includes('kollywood') || clean.includes('anirudh')) return 'Tamil';
+    if (clean.includes('kannada') || clean.includes('sandalwood')) return 'Kannada';
+    if (clean.includes('malayalam') || clean.includes('mollywood')) return 'Malayalam';
+    if (clean.includes('english') || clean.includes('pop') || clean.includes('billboard')) return 'English';
+    if (clean.includes('punjabi') || clean.includes('diljit')) return 'Punjabi';
+
+    return null;
+  }
+
+  /**
+   * Records a soft inferred language interest signal (from search, play, or like)
+   * Note: Explicit global language always retains dominant weight (>= 0.80)
+   */
+  public async recordLanguageInterest(userId: string, language: string, delta: number = 0.15): Promise<void> {
+    const normLang = this.normalizeLanguage(language);
+    if (!normLang) return;
+
+    try {
+      const localDb = LocalDatabase.getInstance();
+      const current = (await localDb.getUserStore<Record<string, number>>(userId || 'guest', 'language_interest_scores')) || {
+        Telugu: 0.90,
+      };
+
+      const prevScore = current[normLang] || 0;
+      current[normLang] = Math.min(1.0, Math.max(0.01, Math.round((prevScore + delta) * 100) / 100));
+
+      await localDb.setUserStore(userId || 'guest', 'language_interest_scores', current);
+
+      // Sync to zustand store if available in client
+      if (typeof window !== 'undefined') {
+        const { usePlayerStore } = await import('@/context/usePlayerStore');
+        usePlayerStore.setState({ interestLanguages: current });
+      }
+    } catch (e) {
+      console.warn('[LanguageEligibilityEngine] Failed to record interest:', e);
+    }
+  }
+
+  /**
+   * Evaluates song eligibility under strict 3-tier rules
    */
   public async isSongEligible(
     userId: string,
@@ -87,7 +145,7 @@ export class LanguageEligibilityEngine {
     targetCategoryLanguage?: string,
     userSelectedLanguages: string[] = []
   ): Promise<boolean> {
-    // 1. User Explicit Action / Library / Search / User-Created Playlist -> UNRESTRICTED
+    // 1. Direct explicit user actions / Library / Search -> UNRESTRICTED
     if (
       contextType === 'USER_LIBRARY' ||
       contextType === 'USER_PLAYLIST' ||
@@ -96,77 +154,38 @@ export class LanguageEligibilityEngine {
       return true;
     }
 
-    const songLang = this.normalizeLanguage((song as any).language || (song as any).languageId || song.genre);
+    const songLang = this.detectSongLanguage(song);
     const targetLang = targetCategoryLanguage ? this.normalizeLanguage(targetCategoryLanguage) : '';
 
-    // 2. Strict Category Rule: e.g., Top Telugu Albums, Tamil Mix MUST match song language exactly
-    if (contextType === 'STRICT_CATEGORY' && targetLang) {
-      return songLang === targetLang;
+    // 2. HARD RULE: Queue Purity (Autoplay, Queue Refill, Strict Shelves, Radio)
+    // If a session / target language is established, DO NOT inject cross-language songs!
+    if (
+      contextType === 'STRICT_CATEGORY' ||
+      contextType === 'AUTOPLAY' ||
+      contextType === 'QUEUE_REFILL'
+    ) {
+      if (targetLang) {
+        return songLang === targetLang;
+      }
+      if (userSelectedLanguages.length > 0) {
+        const normalizedSelected = userSelectedLanguages.map(l => this.normalizeLanguage(l));
+        return normalizedSelected.includes(songLang);
+      }
+      return true;
     }
 
-    // 3. Personalized Recommendation / Discovery Context: Language is a preference signal, allow all non-blocked languages
-    const state = await this.getLanguageState(userId, songLang, userSelectedLanguages);
-    return state !== 'BLOCKED';
+    // 3. Personalized Home Recommendations & Discovery:
+    // Respect selected language as primary constraint
+    if (userSelectedLanguages.length > 0) {
+      const normalizedSelected = userSelectedLanguages.map(l => this.normalizeLanguage(l));
+      return normalizedSelected.includes(songLang);
+    }
+
+    return true;
   }
 
   /**
-   * Infers the language profile of a playlist to guide playlist recommendation additions
-   */
-  public inferPlaylistLanguageProfile(songs: Song[]): PlaylistLanguageProfile {
-    if (!songs || songs.length === 0) {
-      return {
-        primaryLanguage: 'All',
-        distribution: {},
-        eligibleLanguages: ['Telugu', 'Tamil', 'Hindi', 'Kannada', 'Malayalam', 'English'],
-      };
-    }
-
-    const counts: Record<string, number> = {};
-    let total = 0;
-
-    for (const song of songs) {
-      const lang = this.normalizeLanguage((song as any).language || (song as any).languageId || song.genre);
-      if (lang) {
-        counts[lang] = (counts[lang] || 0) + 1;
-        total++;
-      }
-    }
-
-    if (total === 0) {
-      return {
-        primaryLanguage: 'All',
-        distribution: {},
-        eligibleLanguages: ['Telugu', 'Tamil', 'Hindi', 'Kannada', 'Malayalam', 'English'],
-      };
-    }
-
-    const distribution: Record<string, number> = {};
-    let maxCount = 0;
-    let primaryLanguage = Object.keys(counts)[0] || 'All';
-    const eligibleLanguages: string[] = [];
-
-    for (const [lang, count] of Object.entries(counts)) {
-      const ratio = count / total;
-      distribution[lang] = ratio;
-      if (count > maxCount) {
-        maxCount = count;
-        primaryLanguage = lang;
-      }
-      // Include language if it represents at least 15% of playlist tracks
-      if (ratio >= 0.15) {
-        eligibleLanguages.push(lang);
-      }
-    }
-
-    return {
-      primaryLanguage,
-      distribution,
-      eligibleLanguages: eligibleLanguages.length > 0 ? eligibleLanguages : [primaryLanguage],
-    };
-  }
-
-  /**
-   * Filters an array of candidate songs based on category context and language eligibility
+   * Filters candidate tracks strictly according to context and target language
    */
   public async filterCandidates(
     userId: string,
@@ -185,3 +204,4 @@ export class LanguageEligibilityEngine {
     return eligible;
   }
 }
+

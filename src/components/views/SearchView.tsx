@@ -81,6 +81,14 @@ export function SearchView() {
         if (!isCancelled) {
           setRealSearchResults(songResults);
           setRealAlbumResults(albumResults);
+
+          // 3-Tier Language System: Inferred search intent signal
+          // Searching another language records soft interest without modifying global preferredLanguage
+          const { LanguageEligibilityEngine } = await import('@/lib/language/LanguageEligibilityEngine');
+          const inferredLang = LanguageEligibilityEngine.getInstance().inferLanguageFromQuery(searchQuery);
+          if (inferredLang) {
+            usePlayerStore.getState().recordLanguageInterest(inferredLang, 0.15);
+          }
         }
       } catch (err) {
         console.error('Search failed:', err);

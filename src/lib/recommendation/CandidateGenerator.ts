@@ -25,15 +25,16 @@ export class CandidateGenerator {
   ): Promise<CandidateSong[]> {
     const candidates = new Map<string, CandidateSong>();
     const userId = (await supabase.auth.getSession()).data.session?.user?.id || 'guest';
-    const langs = typeof context === 'string' ? [context] : (context?.selectedLanguages && context.selectedLanguages.length > 0 ? context.selectedLanguages : ['Telugu', 'Tamil', 'Hindi', 'Kannada', 'Malayalam', 'English']);
+    const targetLanguage = typeof context === 'string' ? context : (context?.selectedLanguages?.[0] || 'Telugu');
+    const langs = typeof context === 'string' ? [context] : (context?.selectedLanguages && context.selectedLanguages.length > 0 ? context.selectedLanguages : [targetLanguage]);
     
     const addCandidates = async (songs: any[], source: CandidateSong['candidateSource']): Promise<boolean> => {
-      // Pass multilingual preferences as ranking signals across all selected languages
+      // Pass strict targetLanguage for queue purity during autoplay / refill
       const eligibleSongs = await LanguageEligibilityEngine.getInstance().filterCandidates(
         userId,
         songs,
-        'PERSONALIZED_RECOMMENDATION',
-        undefined,
+        'AUTOPLAY',
+        targetLanguage,
         langs
       );
 
