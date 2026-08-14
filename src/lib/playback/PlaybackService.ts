@@ -302,7 +302,7 @@ export class PlaybackService {
         if (!finalSrc) finalSrc = FALLBACK_AUDIO_URL;
 
         const store = require('@/context/usePlayerStore').usePlayerStore.getState();
-        store.setIsPlaying(true);
+        store.setIsPlaying(true, true);
 
         await RaagaXNativePlayer.play({
           url: finalSrc,
@@ -383,7 +383,7 @@ export class PlaybackService {
           if (nextDownloaded && nextDownloaded.song) {
             return this.playTrack(nextDownloaded.song, forceResume);
           } else {
-            store.setIsPlaying(false);
+            store.setIsPlaying(false, true);
             return false;
           }
         }
@@ -442,7 +442,7 @@ export class PlaybackService {
             console.warn(`[PlaybackService] Discarding stale play completion for gen ${currentGen}`);
             return false;
           }
-          store.setIsPlaying(true);
+          store.setIsPlaying(true, true);
           AudioFocusManager.getInstance().requestFocus();
           
           // Proactively preload the NEXT track in standby element
@@ -460,7 +460,7 @@ export class PlaybackService {
             if (this.playbackGeneration !== currentGen) return false;
             await targetAudio.play();
             if (this.playbackGeneration !== currentGen) return false;
-            store.setIsPlaying(true);
+            store.setIsPlaying(true, true);
             this.triggerNextPreload();
             return true;
           } catch (retryErr: any) {
@@ -514,7 +514,7 @@ export class PlaybackService {
         }
 
         import('../../context/usePlayerStore').then(({ usePlayerStore }) => {
-          usePlayerStore.getState().setIsPlaying(false);
+          usePlayerStore.getState().setIsPlaying(false, true);
         }).catch(() => {});
         MediaSessionManager.getInstance().setPlaybackState('paused');
         return false;
@@ -562,17 +562,21 @@ export class PlaybackService {
 
     const active = this.getActiveAudio();
     if (active) {
-      const p = active.play();
-      if (p && typeof p.then === 'function') {
-        p.then(() => {
+      if (typeof active.play === 'function') {
+        const p = active.play();
+        if (p && typeof p.then === 'function') {
+          p.then(() => {
+            this.notifyStorePlaying(true);
+            MediaSessionManager.getInstance().setPlaybackState('playing');
+            AudioFocusManager.getInstance().requestFocus();
+          }).catch((err) => {
+            if (err?.name !== 'AbortError' && err?.name !== 'NotAllowedError') {
+              console.warn('[PlaybackService] play() error:', err);
+            }
+          });
+        } else {
           this.notifyStorePlaying(true);
-          MediaSessionManager.getInstance().setPlaybackState('playing');
-          AudioFocusManager.getInstance().requestFocus();
-        }).catch((err) => {
-          if (err?.name !== 'AbortError' && err?.name !== 'NotAllowedError') {
-            console.warn('[PlaybackService] play() error:', err);
-          }
-        });
+        }
       } else {
         this.notifyStorePlaying(true);
       }
@@ -581,7 +585,7 @@ export class PlaybackService {
 
   private notifyStorePlaying(isPlaying: boolean) {
     try {
-      usePlayerStore.getState().setIsPlaying(isPlaying);
+      usePlayerStore.getState().setIsPlaying(isPlaying, true);
     } catch {}
   }
 
@@ -595,7 +599,9 @@ export class PlaybackService {
 
     const active = this.getActiveAudio();
     if (active) {
-      active.pause();
+      if (typeof active.pause === 'function') {
+        active.pause();
+      }
       const store = usePlayerStore.getState();
       store.setIsPlaying(false, true);
       MediaSessionManager.getInstance().setPlaybackState('paused');
@@ -750,7 +756,7 @@ export class PlaybackService {
     const shouldResume = store.isPlaying && store.playbackIntent === 'PLAYING';
 
     if (active.src === FALLBACK_AUDIO_URL) {
-      store.setIsPlaying(false);
+      store.setIsPlaying(false, true);
       return;
     }
 
@@ -772,10 +778,10 @@ export class PlaybackService {
     active.src = FALLBACK_AUDIO_URL;
     if (shouldResume) {
       active.play().catch(() => {
-        store.setIsPlaying(false);
+        store.setIsPlaying(false, true);
       });
     } else {
-      store.setIsPlaying(false);
+      store.setIsPlaying(false, true);
     }
   }
 

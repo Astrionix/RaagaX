@@ -775,9 +775,15 @@ export const usePlayerStore = create<PlayerState>()(
     persistSessionHelper({ ...get() });
 
     if (get().isActiveDevice) {
+      if (!isNowPlaying) {
+        PlaybackService.getInstance().pause();
+      } else {
+        PlaybackService.getInstance().play();
+      }
       import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
         PlaybackStateSync.getInstance().broadcastState(true);
       });
+      return;
     }
 
     const res = await ConnectManager.getInstance().dispatchPlaybackCommand(isNowPlaying ? 'PLAY' : 'PAUSE', { positionMs: get().currentTime * 1000 });
@@ -801,9 +807,15 @@ export const usePlayerStore = create<PlayerState>()(
     persistSessionHelper({ ...get() });
 
     if (get().isActiveDevice && !fromRemote) {
+      if (!playing) {
+        PlaybackService.getInstance().pause();
+      } else {
+        PlaybackService.getInstance().play();
+      }
       import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
         PlaybackStateSync.getInstance().broadcastState(true);
       });
+      return;
     }
 
     if (!fromRemote) {
