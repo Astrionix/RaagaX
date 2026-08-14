@@ -6,44 +6,54 @@
   :root,
   .dark,
   [data-theme="dark"] {
-    --bg-primary: #07090E;
-    --bg-secondary: #0E1118;
-    --bg-surface: #141722;
-    --bg-elevated: #1C1F2E;
-    --bg-card: rgba(18, 20, 29, 0.7);
-    --accent-crimson: #fa233b;
-    --accent-crimson-dark: #d91c2e;
-    --text-primary: #ffffff;
-    --text-secondary: #94a3b8;
-    --text-muted: #64748b;
-    --glass-bg: rgba(18, 20, 29, 0.6);
+    --bg-primary: #050505;
+    --bg-secondary: #0A0A0C;
+    --bg-surface: #121216;
+    --bg-elevated: #171717;
+    --bg-card: rgba(18, 18, 22, 0.85);
+    --accent-crimson: #F20D18;
+    --accent-crimson-deep: #8F0008;
+    --accent-crimson-bright: #FF252D;
+    --accent-crimson-dark: #700008;
+    --text-primary: #F5F5F5;
+    --text-secondary: #8A8A8A;
+    --text-muted: #52525B;
+    --metallic-silver: #8A8A8A;
+    --metallic-soft: #262626;
+    --glass-bg: rgba(18, 18, 22, 0.75);
     --glass-border: rgba(255, 255, 255, 0.08);
     --border-subtle: rgba(255, 255, 255, 0.08);
-    --header-bg: rgba(7, 9, 14, 0.85);
-    --sidebar-bg: #07090E;
-    --playerbar-bg: rgba(12, 13, 18, 0.95);
-    --nav-bg: rgba(12, 13, 18, 0.95);
+    --header-bg: rgba(5, 5, 5, 0.88);
+    --sidebar-bg: #050505;
+    --playerbar-bg: rgba(10, 10, 12, 0.95);
+    --nav-bg: rgba(10, 10, 12, 0.95);
+    --shadow-brand: 0 8px 30px rgba(242, 13, 24, 0.3);
   }
 
   .light,
   [data-theme="light"] {
-    --bg-primary: #F8FAFC;
-    --bg-secondary: #FFFFFF;
-    --bg-surface: #F1F5F9;
+    --bg-primary: #FFFFFF;
+    --bg-secondary: #F5F5F5;
+    --bg-surface: #F8FAFC;
     --bg-elevated: #FFFFFF;
-    --bg-card: rgba(255, 255, 255, 0.9);
-    --accent-crimson: #fa233b;
-    --accent-crimson-dark: #d91c2e;
-    --text-primary: #0f172a;
-    --text-secondary: #475569;
-    --text-muted: #94a3b8;
-    --glass-bg: rgba(255, 255, 255, 0.85);
-    --glass-border: rgba(0, 0, 0, 0.08);
-    --border-subtle: rgba(0, 0, 0, 0.08);
-    --header-bg: rgba(248, 250, 252, 0.85);
+    --bg-card: rgba(255, 255, 255, 0.95);
+    --accent-crimson: #F20D18;
+    --accent-crimson-deep: #B4000A;
+    --accent-crimson-bright: #FF2028;
+    --accent-crimson-dark: #700008;
+    --text-primary: #171717;
+    --text-secondary: #52525B;
+    --text-muted: #8E8E93;
+    --metallic-silver: #CFCFCF;
+    --metallic-soft: #E8E8E8;
+    --glass-bg: rgba(255, 255, 255, 0.88);
+    --glass-border: rgba(207, 207, 207, 0.6);
+    --border-subtle: #E8E8E8;
+    --header-bg: rgba(255, 255, 255, 0.88);
     --sidebar-bg: #FFFFFF;
     --playerbar-bg: rgba(255, 255, 255, 0.95);
     --nav-bg: rgba(255, 255, 255, 0.95);
+    --shadow-brand: 0 8px 30px rgba(242, 13, 24, 0.12);
   }
 
   html, body {
@@ -103,61 +113,68 @@
 }
 
 .red-glow-btn {
-  background: linear-gradient(135deg, #fa233b 0%, #d91c2e 100%);
-  box-shadow: 0 6px 20px rgba(250, 35, 59, 0.45);
+  background: linear-gradient(135deg, #FF252D 0%, #F20D18 45%, #C9000D 80%, #8F0008 100%);
+  box-shadow: 0 6px 20px rgba(242, 13, 24, 0.4);
   transition: all 0.25s ease;
 }
 
 .red-glow-btn:hover {
-  box-shadow: 0 8px 28px rgba(250, 35, 59, 0.65);
+  box-shadow: 0 8px 28px rgba(242, 13, 24, 0.6);
   transform: scale(1.06);
 }
 
 .glass-panel {
-  background: rgba(12, 13, 18, 0.75);
+  background: var(--header-bg);
   backdrop-filter: blur(60px) saturate(200%);
   -webkit-backdrop-filter: blur(60px) saturate(200%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .glass-button {
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-subtle);
   transition: all 0.3s ease;
 }
 
+.light .glass-button,
+[data-theme="light"] .glass-button {
+  background: #F5F5F5;
+  border-color: #E8E8E8;
+  color: #171717;
+}
+
 .glass-button:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(242, 13, 24, 0.1);
   transform: scale(1.05);
-  border-color: rgba(239, 35, 60, 0.4);
+  border-color: rgba(242, 13, 24, 0.4);
 }
 
 .glass-input {
-  background: rgba(24, 24, 27, 0.5);
+  background: var(--bg-secondary);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: white;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
 }
 
 .glass-input:focus {
   outline: none;
-  border-color: rgba(239, 35, 60, 0.6);
-  box-shadow: 0 0 15px rgba(239, 35, 60, 0.15);
+  border-color: #F20D18;
+  box-shadow: 0 0 15px rgba(242, 13, 24, 0.2);
 }
 
 .crimson-gradient {
-  background: linear-gradient(135deg, #EF233C 0%, #D90429 100%);
+  background: linear-gradient(135deg, #FF252D 0%, #F20D18 45%, #C9000D 80%, #8F0008 100%);
 }
 
 .crimson-gradient-text {
-  background: linear-gradient(135deg, #0F172A 30%, #EF233C 100%);
+  background: linear-gradient(135deg, #F20D18 0%, #FF252D 50%, #B4000A 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .crimson-glow {
-  box-shadow: 0 8px 25px rgba(239, 35, 60, 0.35);
+  box-shadow: 0 8px 25px rgba(242, 13, 24, 0.35);
 }
 
 .spinning-vinyl {
