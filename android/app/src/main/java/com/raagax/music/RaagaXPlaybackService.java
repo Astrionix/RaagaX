@@ -515,9 +515,13 @@ public class RaagaXPlaybackService extends Service {
             if (player != null) {
                 long targetPos = Math.max(0L, posMs);
                 Log.d(TAG, "[SEEK] Native ExoPlayer seekTo: " + targetPos + "ms (previous=" + player.getCurrentPosition() + "ms)");
-                if (player.getPlaybackState() == Player.STATE_IDLE && player.getMediaItemCount() > 0) {
+                
+                int state = player.getPlaybackState();
+                if ((state == Player.STATE_IDLE || state == Player.STATE_ENDED) && player.getMediaItemCount() > 0) {
                     player.prepare();
+                    player.setPlayWhenReady(true);
                 }
+                
                 player.seekTo(targetPos);
                 Log.d(TAG, "[SEEK] Native ExoPlayer actual post-seek position: " + player.getCurrentPosition() + "ms");
             } 

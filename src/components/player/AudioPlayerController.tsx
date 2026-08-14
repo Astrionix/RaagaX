@@ -71,6 +71,10 @@ export function AudioPlayerController() {
     // queueEnded fires only when ExoPlayer has exhausted the entire playlist.
     // This is where we trigger autoplay continuation, NOT on every song end.
     const unsubQueueEnded = RaagaXNativePlayer.addQueueEndedListener(() => {
+      if (Date.now() - lastSeekTimeRef.current < 1500) {
+        console.log('[AudioPlayerController] Ignoring native queueEnded during seek settle lock');
+        return;
+      }
       console.log('[AudioPlayerController] Native queue exhausted — triggering autoplay continuation');
       const store = usePlayerStore.getState();
       if (store.isActiveDevice) {
@@ -85,6 +89,10 @@ export function AudioPlayerController() {
     // trackChanged fires on every auto-advance. We sync the JS queue index to
     // match what ExoPlayer is already playing — no JS-side queue advancement needed.
     const unsubChanged = RaagaXNativePlayer.addTrackChangedListener((data) => {
+      if (Date.now() - lastSeekTimeRef.current < 1500) {
+        console.log('[AudioPlayerController] Ignoring native trackChanged during seek settle lock');
+        return;
+      }
       console.log('[AudioPlayerController] Native track changed — index:', data.index, 'title:', data.title);
       const store = usePlayerStore.getState();
       const manager = QueueManager.getInstance();
