@@ -94,6 +94,19 @@ export class SessionReconciler {
     const sequencer = CommandSequencer.getInstance();
     const validator = CommandValidator.getInstance();
     
+    // Epoch and Revision validation for snapshots
+    const currentEpoch = sequencer.getEpoch();
+    if (snapshot.sessionEpoch < currentEpoch) {
+      console.log(`[SessionReconciler] Rejected snapshot with stale epoch. Snapshot epoch ${snapshot.sessionEpoch} < current ${currentEpoch}`);
+      return;
+    }
+    
+    const lastSessionRevision = store.lastReceivedPlaybackSessionRevision || 0;
+    if (snapshot.revision <= lastSessionRevision && snapshot.sessionEpoch === currentEpoch && lastSessionRevision > 0) {
+      console.log(`[SessionReconciler] Rejected snapshot with stale/matching revision. Snapshot revision ${snapshot.revision} <= current ${lastSessionRevision}`);
+      return;
+    }
+    
     console.log(`[SessionReconciler] Applying snapshot: Epoch ${snapshot.sessionEpoch}, Revision ${snapshot.revision}`);
     
     sequencer.setEpoch(snapshot.sessionEpoch);
@@ -142,7 +155,8 @@ export class SessionReconciler {
       remoteDeviceName: isOwner ? null : remoteName,
       currentSong: targetSong || store.currentSong,
       currentTime: derivedTimeSec,
-      queue: snapshot.queue && snapshot.queue.length > 0 ? snapshot.queue : store.queue
+      queue: snapshot.queue && snapshot.queue.length > 0 ? snapshot.queue : store.queue,
+      lastReceivedPlaybackSessionRevision: snapshot.revision
     });
 
     // 2. ACTIVE RENDERER DEVICE: Synchronize local HTMLAudioElement position as PAUSED

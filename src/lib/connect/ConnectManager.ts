@@ -24,6 +24,7 @@ export class ConnectManager {
   private currentState: ConnectState = 'OFFLINE';
   private recoveryQueue: ConnectCommand[] = [];
   private isRecovering: boolean = false;
+  private pendingCommandResolvers = new Map<string, { resolve: (val: any) => void; reject: (err: any) => void; timeout: NodeJS.Timeout }>();
 
   private constructor() {
     NetworkManager.getInstance().subscribe((mode) => {
@@ -253,8 +254,17 @@ export class ConnectManager {
 
   public async sendTargetedCommand(targetDeviceId: string, command: ConnectCommand) {
     if (!this.userId) return;
+
+    if (command.type !== 'WEBRTC_SIGNAL') {
+      const { LocalPeerConnection } = await import('./LocalPeerConnection');
+      const sentDirect = LocalPeerConnection.getInstance().sendDirectCommand(targetDeviceId, command);
+      if (sentDirect) {
+        console.log(`[ConnectManager] Targeted command ${command.type} sent directly to ${targetDeviceId}`);
+        return;
+      }
+    }
+
     const targetTopic = `user:${this.userId}:device:${targetDeviceId}`;
-    
     const tempChannel = supabase.channel(targetTopic, { config: { broadcast: { self: false } } });
     tempChannel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
@@ -269,8 +279,14 @@ export class ConnectManager {
   }
 
   public async sendSessionCommand(command: ConnectCommand) {
+    const { LocalPeerConnection } = await import('./LocalPeerConnection');
+    const sentDirect = LocalPeerConnection.getInstance().sendDirectBroadcast(command);
+    if (sentDirect) {
+      console.log(`[ConnectManager] Session command ${command.type} sent directly over LAN`);
+      return;
+    }
+
     if (!this.sessionChannel) return;
-    
     await this.sessionChannel.send({
       type: 'broadcast',
       event: 'COMMAND',
@@ -279,8 +295,14 @@ export class ConnectManager {
   }
 
   public async broadcastSessionState(statePayload: any) {
-    if (!this.sessionChannel) return;
+    const { LocalPeerConnection } = await import('./LocalPeerConnection');
+    LocalPeerConnection.getInstance().sendDirectBroadcast({
+      type: 'STATE_UPDATE',
+      event: 'STATE_UPDATE',
+      payload: statePayload
+    } as any);
 
+    if (!this.sessionChannel) return;
     await this.sessionChannel.send({
       type: 'broadcast',
       event: 'STATE_UPDATE',
@@ -288,23 +310,37 @@ export class ConnectManager {
     });
   }
 
-  public async dispatchPlaybackCommand(type: ConnectCommand['type'], payload: any = {}) {
+  public handleCommandAck(payload: any) {
+    const resolver = this.pendingCommandResolvers.get(payload.commandId);
+    if (resolver) {
+      clearTimeout(resolver.timeout);
+      this.pendingCommandResolvers.delete(payload.commandId);
+      if (payload.status === 'APPLIED') {
+        resolver.resolve({ success: true });
+      } else {
+        resolver.reject(new Error(payload.reason || payload.status));
+      }
+    }
+  }
+
+  public async dispatchPlaybackCommand(type: ConnectCommand['type'], payload: any = {}): Promise<{ success: boolean; reason?: string }> {
     if (!NetworkManager.getInstance().isOnline()) {
       console.warn(`[ConnectManager] Cannot dispatch ${type} command while offline.`);
-      return;
+      return { success: false, reason: 'offline' };
     }
     
     if (this.currentState === 'OFFLINE') {
       console.warn(`[ConnectManager] Cannot dispatch ${type} command while in state: ${this.currentState}`);
-      return;
+      return { success: false, reason: 'offline_state' };
     }
     
     const store = usePlayerStore.getState();
     const sequencer = CommandSequencer.getInstance();
     const clock = ClockSynchronizer.getInstance();
     
+    const commandId = crypto.randomUUID();
     const command: ConnectCommand = {
-      commandId: crypto.randomUUID(),
+      commandId,
       sessionId: this.sessionId || 'global',
       epoch: sequencer.getEpoch(),
       sequence: sequencer.nextSequence(),
@@ -317,6 +353,25 @@ export class ConnectManager {
       }
     };
     
-    await CommandBus.getInstance().dispatch(command);
+    return new Promise(async (resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.pendingCommandResolvers.delete(commandId);
+        resolve({ success: false, reason: 'timeout' });
+      }, 5000);
+
+      this.pendingCommandResolvers.set(commandId, {
+        resolve,
+        reject: (err) => resolve({ success: false, reason: String(err) }),
+        timeout
+      });
+
+      try {
+        await CommandBus.getInstance().dispatch(command);
+      } catch (e) {
+        clearTimeout(timeout);
+        this.pendingCommandResolvers.delete(commandId);
+        resolve({ success: false, reason: String(e) });
+      }
+    });
   }
 }

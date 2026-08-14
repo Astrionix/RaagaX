@@ -38,6 +38,11 @@ export class TransferManager {
     }
 
     this.isTransferring = true;
+    usePlayerStore.setState({
+      isTransferring: true,
+      transferringDeviceId: targetDeviceId
+    });
+    
     const store = usePlayerStore.getState();
     const sequencer = CommandSequencer.getInstance();
     const engine = PlaybackEngine.getInstance();

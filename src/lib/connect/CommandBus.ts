@@ -1,6 +1,6 @@
 import { ConnectCommand } from './types';
 import { CommandValidator } from './CommandValidator';
-import { ConnectManager } from './ConnectManager';
+import { CommandSequencer } from './CommandSequencer';
 import { PlaybackEngine } from '../playback/PlaybackEngine';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
 import { QueueManager } from '@/lib/queue/QueueManager';
@@ -13,6 +13,12 @@ export class CommandBus {
   private validator = CommandValidator.getInstance();
   private localDeviceId: string | null = null;
   private sessionId: string | null = null;
+  private signalListeners: Set<(command: ConnectCommand) => void> = new Set();
+
+  public subscribeToSignals(listener: (command: ConnectCommand) => void): () => void {
+    this.signalListeners.add(listener);
+    return () => this.signalListeners.delete(listener);
+  }
 
   private constructor() {}
 
@@ -29,6 +35,7 @@ export class CommandBus {
   }
 
   public async dispatch(command: ConnectCommand) {
+    const { ConnectManager } = await import('./ConnectManager');
     const connectManager = ConnectManager.getInstance();
     
     if (command.targetDeviceId) {
@@ -41,15 +48,50 @@ export class CommandBus {
   public handleIncomingCommand(command: ConnectCommand) {
     const store = usePlayerStore.getState();
     const localId = this.localDeviceId || store.deviceId;
+    const sequencer = CommandSequencer.getInstance();
     
     // Ignore loopback broadcasts sent by this device itself
     if (command.sourceDeviceId && command.sourceDeviceId === localId) {
       return;
     }
 
+    if (command.type === 'WEBRTC_SIGNAL') {
+      this.signalListeners.forEach((listener) => {
+        try {
+          listener(command);
+        } catch (e) {
+          console.error('[CommandBus] Signal listener error:', e);
+        }
+      });
+      return;
+    }
+
     if (!this.validator.validate(command)) return;
 
     this.applyCommand(command);
+
+    // Automatically send COMMAND_ACK back to the sender if we are the active renderer device
+    if (store.isActiveDevice && command.type !== 'COMMAND_ACK') {
+      const ackPayload = {
+        commandId: command.commandId,
+        status: 'APPLIED',
+        epoch: sequencer.getEpoch()
+      };
+      const ackCommand: ConnectCommand = {
+        commandId: crypto.randomUUID(),
+        sessionId: command.sessionId,
+        epoch: sequencer.getEpoch(),
+        sequence: sequencer.nextSequence(),
+        sourceDeviceId: store.deviceId,
+        targetDeviceId: command.sourceDeviceId,
+        type: 'COMMAND_ACK',
+        sentAt: Date.now(),
+        payload: ackPayload
+      };
+      import('./ConnectManager').then(({ ConnectManager }) => {
+        ConnectManager.getInstance().sendTargetedCommand(command.sourceDeviceId, ackCommand);
+      });
+    }
   }
 
   private applyCommand(command: ConnectCommand) {
@@ -185,7 +227,12 @@ export class CommandBus {
         
       case 'COMMAND_ACK':
         console.log('[CommandBus] Received ACK:', command.payload);
-        TransferManager.getInstance().handleTransferAck(command);
+        if (command.payload && typeof command.payload === 'object' && 'transitionId' in command.payload && (command.payload as any).transitionId) {
+          TransferManager.getInstance().handleTransferAck(command);
+        }
+        import('./ConnectManager').then(({ ConnectManager }) => {
+          ConnectManager.getInstance().handleCommandAck(command.payload);
+        });
         break;
 
       default:

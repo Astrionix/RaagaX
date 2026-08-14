@@ -39,6 +39,7 @@ export type ConnectCommandType =
   | "TRANSFER_ROLLBACK"
   | "HANDOFF"
   | "QUEUE_SHUFFLE_COMMIT"
+  | "WEBRTC_SIGNAL"
   | "COMMAND_ACK";
 
 export interface ConnectCommand<T = unknown> {

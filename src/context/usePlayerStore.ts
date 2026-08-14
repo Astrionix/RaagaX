@@ -95,6 +95,9 @@ interface PlayerState {
   deviceId: string;
   deviceInstanceId: string;
   activeDeviceId: string | null;
+  localPlaybackRevision: number;
+  lastReceivedPlaybackRevision: number;
+  lastReceivedPlaybackSessionRevision: number;
   activeRenderer: Renderer;
   playbackStatus: 'playing' | 'paused' | 'buffering' | 'transitioning';
   isActiveDevice: boolean;
@@ -373,6 +376,9 @@ export const usePlayerStore = create<PlayerState>()(
   deviceId: typeof window !== 'undefined' ? (require('@/lib/connect/DeviceRegistry').DeviceRegistry.getInstance().getOrCreateDeviceId()) : '',
   deviceInstanceId: typeof window !== 'undefined' ? (require('@/lib/connect/DeviceRegistry').DeviceRegistry.getInstance().getOrCreateDeviceInstanceId()) : '',
   activeDeviceId: null,
+  localPlaybackRevision: 0,
+  lastReceivedPlaybackRevision: 0,
+  lastReceivedPlaybackSessionRevision: 0,
   activeRenderer: 'audio',
   playbackStatus: 'paused',
   isActiveDevice: true, // Default to true until sync starts
@@ -754,41 +760,63 @@ export const usePlayerStore = create<PlayerState>()(
     }
   },
 
-  togglePlayPause: () => {
+  togglePlayPause: async () => {
+    if (get().isTransferring) return;
     const isNowPlaying = !get().isPlaying;
+    const oldIsPlaying = get().isPlaying;
+    const oldPlaybackIntent = get().playbackIntent;
+
+    if (!isNowPlaying) {
+      InterruptionCoordinator.getInstance().reportUserPause();
+    } else {
+      InterruptionCoordinator.getInstance().clearInterruption();
+    }
+    set({ isPlaying: isNowPlaying, playbackIntent: isNowPlaying ? 'PLAYING' : 'PAUSED' });
+    persistSessionHelper({ ...get() });
+
     if (get().isActiveDevice) {
-      if (!isNowPlaying) {
-        InterruptionCoordinator.getInstance().reportUserPause();
-      } else {
-        InterruptionCoordinator.getInstance().clearInterruption();
-      }
-      set({ isPlaying: isNowPlaying, playbackIntent: isNowPlaying ? 'PLAYING' : 'PAUSED' });
       import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
         PlaybackStateSync.getInstance().broadcastState(true);
       });
     }
-    persistSessionHelper({ ...get() });
-    ConnectManager.getInstance().dispatchPlaybackCommand(isNowPlaying ? 'PLAY' : 'PAUSE', { positionMs: get().currentTime * 1000 });
+
+    const res = await ConnectManager.getInstance().dispatchPlaybackCommand(isNowPlaying ? 'PLAY' : 'PAUSE', { positionMs: get().currentTime * 1000 });
+    if (res && !res.success) {
+      console.warn('[ZUSTAND] Play/Pause command rejected or timed out. Rolling back UI...');
+      set({ isPlaying: oldIsPlaying, playbackIntent: oldPlaybackIntent });
+      persistSessionHelper({ ...get() });
+    }
   },
-  setIsPlaying: (playing, fromRemote = false) => {
-    // Optimistic UI: Always update local state immediately
+  setIsPlaying: async (playing, fromRemote = false) => {
+    if (get().isTransferring && !fromRemote) return;
+    const oldIsPlaying = get().isPlaying;
+    const oldPlaybackIntent = get().playbackIntent;
+
     if (!playing && !fromRemote) {
       InterruptionCoordinator.getInstance().reportUserPause();
     } else if (playing) {
       InterruptionCoordinator.getInstance().clearInterruption();
     }
     set({ isPlaying: playing, playbackIntent: playing ? 'PLAYING' : 'PAUSED' });
+    persistSessionHelper({ ...get() });
+
     if (get().isActiveDevice && !fromRemote) {
       import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
         PlaybackStateSync.getInstance().broadcastState(true);
       });
     }
-    persistSessionHelper({ ...get() });
+
     if (!fromRemote) {
-      ConnectManager.getInstance().dispatchPlaybackCommand(playing ? 'PLAY' : 'PAUSE', { positionMs: get().currentTime * 1000 });
+      const res = await ConnectManager.getInstance().dispatchPlaybackCommand(playing ? 'PLAY' : 'PAUSE', { positionMs: get().currentTime * 1000 });
+      if (res && !res.success) {
+        console.warn('[ZUSTAND] setIsPlaying command failed. Rolling back UI...');
+        set({ isPlaying: oldIsPlaying, playbackIntent: oldPlaybackIntent });
+        persistSessionHelper({ ...get() });
+      }
     }
   },
   setCurrentTime: (time, fromRemote = false) => {
+    if (get().isTransferring && !fromRemote) return;
     // Optimistic UI: Always update local state immediately
     set({ currentTime: time });
     
@@ -819,12 +847,13 @@ export const usePlayerStore = create<PlayerState>()(
   toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 
   playNext: async () => {
+    if (get().isTransferring) return;
     if (!PlaybackWatchdog.getInstance().acquireTransitionLock()) return;
 
-    if (!get().isActiveDevice) {
-      ConnectManager.getInstance().dispatchPlaybackCommand('NEXT');
-      return;
-    }
+    const oldSong = get().currentSong;
+    const oldQueueIndex = get().queueIndex;
+    const oldIsPlaying = get().isPlaying;
+    const oldTime = get().currentTime;
 
     const { duration, currentTime } = get();
     const isComplete = duration > 0 && currentTime >= duration - 5;
@@ -834,11 +863,6 @@ export const usePlayerStore = create<PlayerState>()(
       get().setIsPlaying(false);
       get().setSleepTimer(null);
       get().setToastMessage('Sleep Timer Ended — Playback paused at end of song');
-      return;
-    }
-
-    if (RaagaXNativePlayer.isNative()) {
-      await RaagaXNativePlayer.next();
       return;
     }
 
@@ -857,6 +881,27 @@ export const usePlayerStore = create<PlayerState>()(
         currentTime: 0 
       });
       persistSessionHelper({ ...get(), currentSong: nextItem.song, currentTime: 0, queue: syncedQueue, queueIndex: syncedIndex });
+
+      if (!get().isActiveDevice) {
+        const res = await ConnectManager.getInstance().dispatchPlaybackCommand('NEXT');
+        if (res && !res.success) {
+          console.warn('[ZUSTAND] NEXT command rejected or timed out. Rolling back UI...');
+          set({
+            currentSong: oldSong,
+            queueIndex: oldQueueIndex,
+            isPlaying: oldIsPlaying,
+            currentTime: oldTime
+          });
+          persistSessionHelper({ ...get() });
+        }
+        return;
+      }
+
+      if (RaagaXNativePlayer.isNative()) {
+        await RaagaXNativePlayer.next();
+        return;
+      }
+
       PlaybackService.getInstance().playTrack(nextItem.song, true);
     } else {
       if (get().sleepTimerMode === 'end_of_queue') {
@@ -869,24 +914,26 @@ export const usePlayerStore = create<PlayerState>()(
   },
 
   playPrev: async () => {
-    if (!get().isActiveDevice) {
-      ConnectManager.getInstance().dispatchPlaybackCommand('PREV');
-      return;
-    }
+    if (get().isTransferring) return;
+    const oldSong = get().currentSong;
+    const oldQueueIndex = get().queueIndex;
+    const oldIsPlaying = get().isPlaying;
+    const oldTime = get().currentTime;
 
     const { currentTime, setCurrentTime, setSeekTarget } = get();
     if (currentTime > 2) {
       setCurrentTime(0);
       setSeekTarget(0);
+      if (!get().isActiveDevice) {
+        const res = await ConnectManager.getInstance().dispatchPlaybackCommand('SEEK', { positionMs: 0 });
+        if (res && !res.success) {
+          set({ currentTime: oldTime });
+        }
+      }
       return;
     }
     
     get().logCurrentTelemetry('skip');
-
-    if (RaagaXNativePlayer.isNative()) {
-      await RaagaXNativePlayer.previous();
-      return;
-    }
 
     const manager = QueueManager.getInstance();
     const prevItem = manager.getPrevious();
@@ -903,6 +950,27 @@ export const usePlayerStore = create<PlayerState>()(
         currentTime: 0
       });
       persistSessionHelper({ ...get(), currentSong: prevItem.song, currentTime: 0, queue: syncedQueue, queueIndex: syncedIndex });
+
+      if (!get().isActiveDevice) {
+        const res = await ConnectManager.getInstance().dispatchPlaybackCommand('PREV');
+        if (res && !res.success) {
+          console.warn('[ZUSTAND] PREV command rejected or timed out. Rolling back UI...');
+          set({
+            currentSong: oldSong,
+            queueIndex: oldQueueIndex,
+            isPlaying: oldIsPlaying,
+            currentTime: oldTime
+          });
+          persistSessionHelper({ ...get() });
+        }
+        return;
+      }
+
+      if (RaagaXNativePlayer.isNative()) {
+        await RaagaXNativePlayer.previous();
+        return;
+      }
+
       PlaybackService.getInstance().playTrack(prevItem.song, true);
     } else {
       set({ isPlaying: false });

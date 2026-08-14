@@ -21,6 +21,9 @@ describe('Connect Device Reconciliation & Zero-Stutter Tests', () => {
       isActiveDevice: true,
       isPlaying: true,
       currentSong: { id: 'song_old', title: 'Old Song' } as any,
+      lastReceivedPlaybackSessionRevision: 0,
+      lastReceivedPlaybackRevision: 0,
+      localPlaybackRevision: 0,
     });
   });
 

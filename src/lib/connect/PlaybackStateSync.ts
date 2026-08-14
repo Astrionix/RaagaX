@@ -21,6 +21,7 @@ export interface RemotePlaybackState {
   queueIndex: number;
   serverTimestamp: number;
   epoch: number;
+  revision?: number;
 }
 
 export class PlaybackStateSync {
@@ -66,6 +67,9 @@ export class PlaybackStateSync {
     const sequencer = CommandSequencer.getInstance();
     const deviceName = typeof window !== 'undefined' ? (localStorage.getItem('raagax_device_name') || 'RaagaX Player') : 'RaagaX Player';
 
+    const nextRevision = (store.localPlaybackRevision || 0) + 1;
+    usePlayerStore.setState({ localPlaybackRevision: nextRevision });
+
     const payload: RemotePlaybackState = {
       activeDeviceId: store.deviceId,
       activeDeviceName: deviceName,
@@ -80,6 +84,7 @@ export class PlaybackStateSync {
       queueIndex: store.queueIndex || 0,
       serverTimestamp: now,
       epoch: sequencer.getEpoch(),
+      revision: nextRevision,
     };
 
     import('./ConnectManager').then(({ ConnectManager }) => {
@@ -100,10 +105,25 @@ export class PlaybackStateSync {
     // Ignore if sent by our own device
     if (remoteState.activeDeviceId === localDeviceId) return;
 
+    // Epoch & Revision validation to filter out stale/out-of-order state snapshots
+    const currentEpoch = CommandSequencer.getInstance().getEpoch();
+    if (remoteState.epoch < currentEpoch) {
+      console.log(`[PlaybackStateSync] Ignoring remote state with stale epoch ${remoteState.epoch} < current ${currentEpoch}`);
+      return;
+    }
+
+    const lastRemoteRevision = store.lastReceivedPlaybackRevision || 0;
+    const incomingRevision = remoteState.revision || 0;
+    if (incomingRevision <= lastRemoteRevision && remoteState.epoch === currentEpoch && lastRemoteRevision > 0) {
+      console.log(`[PlaybackStateSync] Ignoring stale remote state revision ${incomingRevision} <= last ${lastRemoteRevision}`);
+      return;
+    }
+
     console.log(`[PlaybackStateSync] Received remote state from ${remoteState.activeDeviceName} (${remoteState.activeDeviceId}):`, {
       song: remoteState.songData?.title,
       isPlaying: remoteState.isPlaying,
       pos: (remoteState.positionMs / 1000).toFixed(1) + 's',
+      revision: incomingRevision
     });
 
     // 1. HARD RULE: Controller MUST NOT output audio locally (silence local media elements without mutating store.isPlaying)
@@ -129,6 +149,7 @@ export class PlaybackStateSync {
       queueIndex: remoteState.queueIndex || 0,
       volume: remoteState.volume ?? 0.8,
       isMuted: remoteState.isMuted ?? false,
+      lastReceivedPlaybackRevision: incomingRevision,
     });
   }
 }
