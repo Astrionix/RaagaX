@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Disc3 } from 'lucide-react';
+import { useThemeStore } from '@/context/useThemeStore';
 
 export function SplashScreen() {
   const [isVisible, setIsVisible] = useState(true);
+  const { resolvedTheme } = useThemeStore();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -16,17 +17,21 @@ export function SplashScreen() {
   if (!isVisible) return null;
 
   return (
-    <div className="fixed inset-0 z-[150] bg-[#07090E] flex flex-col items-center justify-center p-6 text-white select-none animate-out fade-out duration-500">
+    <div className="fixed inset-0 z-[150] bg-[var(--bg-primary)] flex flex-col items-center justify-center p-6 text-[var(--text-primary)] select-none animate-out fade-out duration-500 transition-colors">
       <div className="space-y-6 text-center">
-        {/* Animated Brand Disc */}
-        <div className="relative w-24 h-24 rounded-3xl bg-[#EF233C] flex items-center justify-center mx-auto shadow-2xl shadow-red-500/40 animate-pulse">
-          <Disc3 className="w-14 h-14 text-white animate-spin" style={{ animationDuration: '6s' }} />
+        {/* Animated Official Brand Logo */}
+        <div className="relative w-28 h-28 mx-auto flex items-center justify-center animate-pulse">
+          <img 
+            src={resolvedTheme === 'light' ? '/logo-light.png' : '/logo-dark.png'} 
+            alt="RaagaX" 
+            className="w-full h-full object-contain drop-shadow-[0_10px_30px_rgba(239,35,60,0.35)]" 
+          />
         </div>
 
         {/* Title */}
         <div className="space-y-1">
-          <h1 className="text-3xl font-black tracking-tight text-white">RaagaX</h1>
-          <p className="text-xs font-bold text-[#EF233C] uppercase tracking-widest">Ultra Luxury Telugu Music</p>
+          <h1 className="text-3xl font-black tracking-tight text-[var(--text-primary)]">RaagaX</h1>
+          <p className="text-xs font-bold text-[#EF233C] uppercase tracking-widest">Ultra Luxury Music</p>
         </div>
 
         {/* Soundwave equalizer bars animation */}

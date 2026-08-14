@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
+import { useThemeStore } from '@/context/useThemeStore';
 
 export function Header() {
   const {
@@ -21,16 +22,19 @@ export function Header() {
   } = usePlayerStore();
 
   const { user, setAuthModalOpen } = useAuthStore();
+  const { resolvedTheme } = useThemeStore();
 
   return (
     <>
       {/* Mobile Top Header (md:hidden) */}
-      <header className="md:hidden fixed top-0 left-0 right-0 z-40 px-4 flex items-center justify-between bg-[#07090E]/95 backdrop-blur-xl border-b border-white/5 text-white select-none pt-[env(safe-area-inset-top)] h-[calc(3.5rem+env(safe-area-inset-top))] shadow-md">
+      <header className="md:hidden fixed top-0 left-0 right-0 z-40 px-4 flex items-center justify-between bg-[var(--header-bg)] backdrop-blur-xl border-b border-[var(--border-subtle)] text-[var(--text-primary)] select-none pt-[env(safe-area-inset-top)] h-[calc(3.5rem+env(safe-area-inset-top))] shadow-md">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-xl bg-[#fa233b] flex items-center justify-center shadow-md">
-            <Disc3 className="w-4 h-4 text-white animate-spin" style={{ animationDuration: '10s' }} />
-          </div>
-          <span className="font-black text-sm tracking-tight text-white">RAAGAX</span>
+          <img 
+            src={resolvedTheme === 'light' ? '/logo-light.png' : '/logo-dark.png'} 
+            alt="RaagaX" 
+            className="w-8 h-8 rounded-xl object-contain drop-shadow-md" 
+          />
+          <span className="font-black text-sm tracking-tight text-[var(--text-primary)]">RAAGAX</span>
         </div>
 
         <div className="flex items-center gap-2">

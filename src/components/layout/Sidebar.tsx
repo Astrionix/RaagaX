@@ -20,6 +20,7 @@ import {
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
+import { useThemeStore } from '@/context/useThemeStore';
 
 export function Sidebar() {
   const {
@@ -35,6 +36,7 @@ export function Sidebar() {
   
   const { user, signOut, setAuthModalOpen } = useAuthStore();
   const { playlists: userPlaylists, fetchPlaylists } = usePlaylistStore();
+  const { resolvedTheme } = useThemeStore();
 
   React.useEffect(() => {
     if (user) {
@@ -52,15 +54,17 @@ export function Sidebar() {
   ];
 
   return (
-    <aside className="hidden md:flex fixed left-0 top-0 bottom-20 z-30 w-64 p-4 pb-6 flex-col justify-between select-none bg-[#07080d]/90 backdrop-blur-3xl border-r border-white/5 text-white text-xs">
+    <aside className="hidden md:flex fixed left-0 top-0 bottom-20 z-30 w-64 p-4 pb-6 flex-col justify-between select-none bg-[var(--sidebar-bg)] backdrop-blur-3xl border-r border-[var(--border-subtle)] text-[var(--text-primary)] text-xs transition-colors duration-200">
       <div className="space-y-5 overflow-y-auto no-scrollbar pr-1">
         {/* Brand Header */}
-        <div className="flex items-center gap-2.5 px-2 pt-1 pb-2">
-          <div className="w-8 h-8 rounded-xl red-glow-btn flex items-center justify-center shadow-[0_4px_16px_rgba(250,35,59,0.4)]">
-            <Disc3 className="w-4 h-4 text-white animate-spin" style={{ animationDuration: '8s' }} />
-          </div>
+        <div className="flex items-center gap-3 px-2 pt-1 pb-2">
+          <img 
+            src={resolvedTheme === 'light' ? '/logo-light.png' : '/logo-dark.png'} 
+            alt="RaagaX" 
+            className="w-9 h-9 rounded-2xl object-contain drop-shadow-md" 
+          />
           <div>
-            <h1 className="text-base font-black tracking-wider text-white">RAAGAX</h1>
+            <h1 className="text-base font-black tracking-wider text-[var(--text-primary)]">RAAGAX</h1>
             <p className="text-[9px] font-bold text-[#fa233b] uppercase tracking-widest leading-none">Studio Edition</p>
           </div>
         </div>
