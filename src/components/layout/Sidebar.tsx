@@ -21,10 +21,12 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { useThemeStore } from '@/context/useThemeStore';
+import { useDownloadStore } from '@/context/useDownloadStore';
 import { RaagaXLogo } from '@/components/brand/RaagaXLogo';
 import { RaagaXWordmark } from '@/components/brand/RaagaXWordmark';
 
 export function Sidebar() {
+  const { isOfflineMode, setOfflineMode } = useDownloadStore();
   const {
     activeTab,
     setActiveTab,
@@ -149,18 +151,15 @@ export function Sidebar() {
           </button>
           
           <button 
-            onClick={() => {
-              const store = require('@/context/useDownloadStore').useDownloadStore.getState();
-              store.setOfflineMode(!store.isOfflineMode);
-            }} 
+            onClick={() => setOfflineMode(!isOfflineMode)} 
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all ${
-              require('@/context/useDownloadStore').useDownloadStore().isOfflineMode ? 'bg-[#fa233b]/10 text-[#fa233b] font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+              isOfflineMode ? 'bg-[#fa233b]/10 text-[#fa233b] font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
             }`}
           >
             <WifiOff className="w-4 h-4" />
             <span>Offline Mode</span>
-            <div className={`ml-auto w-8 h-4 rounded-full relative transition-colors ${require('@/context/useDownloadStore').useDownloadStore().isOfflineMode ? 'bg-[#fa233b]' : 'bg-slate-700'}`}>
-               <div className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full transition-transform ${require('@/context/useDownloadStore').useDownloadStore().isOfflineMode ? 'left-[18px]' : 'left-0.5'}`} />
+            <div className={`ml-auto w-8 h-4 rounded-full relative transition-colors ${isOfflineMode ? 'bg-[#fa233b]' : 'bg-slate-700'}`}>
+               <div className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full transition-transform ${isOfflineMode ? 'left-[18px]' : 'left-0.5'}`} />
             </div>
           </button>
         </div>

@@ -41,7 +41,15 @@ export function Header() {
           <RaagaXWordmark size="sm" />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <button 
+            onClick={usePlayerStore.getState().toggleDeviceModal}
+            className="p-2 text-slate-300 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+            title="Connect to Device"
+          >
+            <Disc3 className="w-5 h-5 text-indigo-400" />
+          </button>
+
           <button 
             onClick={() => {
               if (user) {
@@ -61,7 +69,7 @@ export function Header() {
               <LogIn className="w-4 h-4" />
             )}
           </button>
-          <button onClick={() => setActiveTab('settings')} className="p-1.5 text-slate-300 hover:text-white" title="Settings">
+          <button onClick={() => setActiveTab('settings')} className="p-2 text-slate-300 hover:text-white rounded-full hover:bg-white/10 transition-colors" title="Settings">
             <Settings className="w-4 h-4" />
           </button>
         </div>

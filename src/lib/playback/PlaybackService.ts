@@ -195,7 +195,7 @@ export class PlaybackService {
    * ExoPlayer receives the complete ordered playlist and auto-advances natively
    * without requiring WebView/JS to wake up between tracks.
    */
-  public async loadQueueContext(songs: Song[], startIndex: number, autoPlay: boolean = true): Promise<void> {
+  public async loadQueueContext(songs: Song[], startIndex: number, autoPlay: boolean = true, startPositionMs: number = 0): Promise<void> {
     if (!RaagaXNativePlayer.isNative()) return;
     if (!songs || songs.length === 0) return;
 
@@ -223,10 +223,10 @@ export class PlaybackService {
       const validTracks = resolvedTracks.filter(t => !!t.url);
       if (validTracks.length === 0) return;
 
-      // setQueue() hands ExoPlayer the entire playlist with the correct start index.
+      // setQueue() hands ExoPlayer the entire playlist with the correct start index and position.
       // ExoPlayer then owns all transitions — no WebView involvement needed.
-      await RaagaXNativePlayer.setQueue(validTracks, startIndex, autoPlay);
-      console.log(`[PlaybackService] loadQueueContext: setQueue(${validTracks.length} tracks, startIndex=${startIndex}, autoPlay=${autoPlay}) — ExoPlayer owns all transitions`);
+      await RaagaXNativePlayer.setQueue(validTracks, startIndex, autoPlay, startPositionMs);
+      console.log(`[PlaybackService] loadQueueContext: setQueue(${validTracks.length} tracks, startIndex=${startIndex}, startPos=${startPositionMs}ms, autoPlay=${autoPlay}) — ExoPlayer owns all transitions`);
     } catch (e) {
       console.warn('[PlaybackService] loadQueueContext failed:', e);
     }

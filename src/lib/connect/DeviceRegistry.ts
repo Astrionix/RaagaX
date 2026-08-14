@@ -157,9 +157,9 @@ export class DeviceRegistry {
       }
     };
 
-    if (session?.user) {
+    if (session?.user?.id) {
       try {
-        await supabase.from('devices').upsert({
+        const { error } = await supabase.from('devices').upsert({
           user_id: session.user.id,
           device_id: deviceId,
           instance_id: instanceId,
@@ -170,8 +170,11 @@ export class DeviceRegistry {
           capabilities: deviceRecord.capabilities,
           last_seen: deviceRecord.lastSeen
         }, { onConflict: 'device_id' });
+        if (error) {
+          console.debug('[DeviceRegistry] Devices table upsert skipped:', error.message);
+        }
       } catch (e) {
-        // Suppress 401 or network errors for guest sessions
+        // Suppress 401/403 network errors
       }
     }
 

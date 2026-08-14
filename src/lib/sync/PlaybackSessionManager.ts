@@ -51,12 +51,19 @@ export class PlaybackSessionManager {
     const sequencer = (await import('../connect/CommandSequencer')).CommandSequencer.getInstance();
     
     try {
+      const authRes = await supabase.auth.getSession();
+      const userId = authRes.data.session?.user?.id;
+      if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+        // Skip Supabase database writes for unauthenticated guest sessions
+        return;
+      }
+
       console.log(`[PlaybackSessionManager] Checkpointing durable state... (force=${force})`);
-      await supabase
+      const { error } = await supabase
         .from('playback_sessions')
         .upsert({
           session_id: this.sessionId,
-          user_id: (await supabase.auth.getSession()).data.session?.user.id,
+          user_id: userId,
           status,
           canonical_position_ms: currentPosition,
           session_epoch: sequencer.getEpoch(),
@@ -65,10 +72,13 @@ export class PlaybackSessionManager {
           updated_at: new Date().toISOString()
         }, { onConflict: 'session_id' });
         
-      this.lastCheckpointTime = Date.now();
-      this.lastCheckpointPosition = currentPosition;
-      this.isDirty = false;
-      
+      if (error) {
+        console.error('[PlaybackSessionManager] Upsert error:', error.message, error.details, error.hint);
+      } else {
+        this.lastCheckpointTime = Date.now();
+        this.lastCheckpointPosition = currentPosition;
+        this.isDirty = false;
+      }
     } catch (error) {
       console.error('[PlaybackSessionManager] Checkpoint failed:', error);
     }

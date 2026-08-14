@@ -13,6 +13,7 @@ import { WebAudioGraph } from '@/lib/playback/WebAudioGraph';
 import { BufferMonitor } from '@/lib/playback/BufferMonitor';
 import { LyricsEngine } from '@/lib/lyrics/LyricsEngine';
 import { RaagaXNativePlayer } from '@/lib/playback/native/RaagaXNativePlayer';
+import { QueueManager } from '@/lib/queue/QueueManager';
 const FALLBACK_AUDIO_URL = 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
 const QUEUE_REFILL_THRESHOLD = 3;
 
@@ -85,7 +86,7 @@ export function AudioPlayerController() {
     const unsubChanged = RaagaXNativePlayer.addTrackChangedListener((data) => {
       console.log('[AudioPlayerController] Native track changed — index:', data.index, 'title:', data.title);
       const store = usePlayerStore.getState();
-      const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+      const manager = QueueManager.getInstance();
       const snapshot = manager.getSnapshot();
       const queue = snapshot.items.map((i: any) => i.song);
 
@@ -320,15 +321,18 @@ export function AudioPlayerController() {
 
   // Handle Sleep Timer
   useEffect(() => {
-    if (!sleepTimerEndsAt) return;
     const interval = setInterval(() => {
-      if (Date.now() >= sleepTimerEndsAt) {
+      const { sleepTimerEndsAt, sleepTimerMode, isPlaying, setIsPlaying, setSleepTimer, setToastMessage } = usePlayerStore.getState();
+      if (!isPlaying) return;
+
+      if (sleepTimerMode === 'duration' && sleepTimerEndsAt && Date.now() >= sleepTimerEndsAt) {
         setIsPlaying(false);
         setSleepTimer(null);
+        setToastMessage('Sleep Timer Ended — Playback has been paused');
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [sleepTimerEndsAt, setIsPlaying, setSleepTimer]);
+  }, []);
 
   // Remote Device Clock Interpolation
   useEffect(() => {

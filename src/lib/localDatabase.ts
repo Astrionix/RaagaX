@@ -6,6 +6,7 @@ const DB_VERSION = 3;
 export interface PlaybackSessionCache {
   currentSong: Song | null;
   currentTime: number;
+  duration?: number;
   queue: Song[];
   queueIndex: number;
   historySongIds: string[];

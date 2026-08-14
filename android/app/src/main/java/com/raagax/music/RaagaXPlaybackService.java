@@ -149,13 +149,14 @@ public class RaagaXPlaybackService extends Service {
 
         if ("SET_QUEUE".equals(action)) {
             // ── PRIMARY command: full ordered playlist ────────────────────
-            String[] urls    = intent.getStringArrayExtra("urls");
-            String[] titles  = intent.getStringArrayExtra("titles");
-            String[] artists = intent.getStringArrayExtra("artists");
-            int startIndex   = intent.getIntExtra("startIndex", 0);
-            boolean autoPlay = intent.getBooleanExtra("autoPlay", true);
+            String[] urls        = intent.getStringArrayExtra("urls");
+            String[] titles      = intent.getStringArrayExtra("titles");
+            String[] artists     = intent.getStringArrayExtra("artists");
+            int startIndex       = intent.getIntExtra("startIndex", 0);
+            long startPositionMs = intent.getLongExtra("startPositionMs", 0L);
+            boolean autoPlay     = intent.getBooleanExtra("autoPlay", true);
             if (urls != null && urls.length > 0) {
-                setQueue(urls, titles, artists, startIndex, autoPlay);
+                setQueue(urls, titles, artists, startIndex, startPositionMs, autoPlay);
             }
 
         } else if ("PLAY".equals(action)) {
@@ -289,7 +290,7 @@ public class RaagaXPlaybackService extends Service {
      * tracks and starts playing from startIndex. ExoPlayer then auto-advances
      * through all items natively without WebView involvement.
      */
-    public void setQueue(String[] urls, String[] titles, String[] artists, int startIndex, boolean autoPlay) {
+    public void setQueue(String[] urls, String[] titles, String[] artists, int startIndex, long startPositionMs, boolean autoPlay) {
         runOnMainThread(() -> {
             if (player == null || urls == null || urls.length == 0) return;
 
@@ -312,9 +313,10 @@ public class RaagaXPlaybackService extends Service {
             if (items.isEmpty()) return;
 
             int safeIndex = Math.max(0, Math.min(startIndex, items.size() - 1));
+            long safePositionMs = Math.max(0L, startPositionMs);
 
-            // Set the complete playlist — ExoPlayer handles all subsequent transitions
-            player.setMediaItems(items, safeIndex, /* startPositionMs= */ 0L);
+            // Set the complete playlist — ExoPlayer starts from designated track & position
+            player.setMediaItems(items, safeIndex, safePositionMs);
             player.prepare();
             if (autoPlay) {
                 player.setPlayWhenReady(true);
@@ -325,12 +327,16 @@ public class RaagaXPlaybackService extends Service {
             }
             saveNativeQueueToPrefs(urls, titles, artists, safeIndex);
             updateNotification();
-            Log.d(TAG, "setQueue: " + items.size() + " items, starting at index " + safeIndex + ", autoPlay=" + autoPlay);
+            Log.d(TAG, "setQueue: " + items.size() + " items, startIndex=" + safeIndex + ", startPos=" + safePositionMs + "ms, autoPlay=" + autoPlay);
         });
     }
 
+    public void setQueue(String[] urls, String[] titles, String[] artists, int startIndex, boolean autoPlay) {
+        setQueue(urls, titles, artists, startIndex, 0L, autoPlay);
+    }
+
     public void setQueue(String[] urls, String[] titles, String[] artists, int startIndex) {
-        setQueue(urls, titles, artists, startIndex, true);
+        setQueue(urls, titles, artists, startIndex, 0L, true);
     }
 
     private void saveNativeQueueToPrefs(String[] urls, String[] titles, String[] artists, int startIndex) {

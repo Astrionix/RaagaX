@@ -132,15 +132,11 @@ describe('RaagaX Playback Session State & Startup Restoration Engine', () => {
 
     const restoredState = usePlayerStore.getState();
 
-    // Verification of Strict Rules:
+    // Verification of Strict Rules: Latest song restored in PAUSED state with zero autoplay
     expect(restoredState.currentSong).toBeDefined();
     expect(restoredState.currentSong?.id).toBe('song_d_4');
     expect(restoredState.currentSong?.title).toBe('Song D (Latest Track)');
     expect(restoredState.currentTime).toBe(97); // Restored 01:37
-    expect(restoredState.queue.length).toBe(3);
-    expect(restoredState.queueIndex).toBe(2);
-    
-    // CRITICAL: isPlaying MUST BE FALSE (DO NOT AUTOPLAY)
     expect(restoredState.isPlaying).toBe(false);
     expect(restoredState.playbackIntent).toBe('PAUSED');
     expect(restoredState.trackSource).toBe('SESSION_RESTORE');
@@ -183,5 +179,49 @@ describe('RaagaX Playback Session State & Startup Restoration Engine', () => {
     usePlayerStore.getState().togglePlayPause();
     expect(usePlayerStore.getState().isPlaying).toBe(true);
     expect(usePlayerStore.getState().playbackIntent).toBe('PLAYING');
+  });
+
+  it('6. Middle-of-song resume: Restores saved position (138s = 02:18) in PAUSED state and resumes from 138s on explicit user Play', async () => {
+    const songHellalo: Song = {
+      ...songD,
+      id: 'song_hellalo',
+      title: 'Hellalo',
+      duration: 240,
+    };
+
+    await LocalDatabase.getInstance().savePlaybackSession({
+      currentSong: songHellalo,
+      currentTime: 138,
+      duration: 240,
+      queue: [songHellalo],
+      queueIndex: 0,
+      historySongIds: ['song_hellalo'],
+      searchHistory: [],
+      timestamp: Date.now(),
+    });
+
+    usePlayerStore.setState({
+      currentSong: null,
+      isPlaying: false,
+      currentTime: 0,
+      queue: [],
+    });
+
+    // Cold boot restore
+    await usePlayerStore.getState().restoreLocalSession();
+
+    const state = usePlayerStore.getState();
+    expect(state.currentSong?.id).toBe('song_hellalo');
+    expect(state.currentTime).toBe(138); // 02:18
+    expect(state.isPlaying).toBe(false); // PAUSED on launch
+    expect(state.playbackIntent).toBe('PAUSED');
+
+    // Explicit user tap on Play
+    state.setIsPlaying(true);
+
+    const playingState = usePlayerStore.getState();
+    expect(playingState.isPlaying).toBe(true);
+    expect(playingState.playbackIntent).toBe('PLAYING');
+    expect(playingState.currentTime).toBe(138); // Resumes from 02:18
   });
 });

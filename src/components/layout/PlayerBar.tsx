@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { DeviceSelector } from '@/components/providers/DeviceSyncProvider';
+import { SeekBar } from '@/components/player/SeekBar';
 
 function formatTime(seconds: number): string {
   if (isNaN(seconds)) return '0:00';
@@ -99,11 +100,6 @@ export function PlayerBar() {
     );
   }
 
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTime = parseFloat(e.target.value);
-    setCurrentTime(newTime, true);
-    usePlayerStore.setState({ seekTarget: newTime });
-  };
 
   return (
     <div className="hidden md:flex fixed bottom-0 left-0 right-0 z-40 h-20 bg-[#090a0f]/90 backdrop-blur-3xl border-t border-white/10 px-6 items-center justify-between text-white select-none shadow-[0_-10px_35px_rgba(0,0,0,0.6)]">
@@ -206,15 +202,7 @@ export function PlayerBar() {
         {currentSong && (
           <div className="w-full flex items-center gap-3 max-w-md">
             <span className="text-[10px] font-mono text-slate-400 font-bold min-w-[32px] text-right">{formatTime(currentTime)}</span>
-            <input
-              type="range"
-              min={0}
-              max={duration || 100}
-              step={0.1}
-              value={currentTime}
-              onChange={handleSeek}
-              className="w-full h-1 bg-white/15 rounded-full appearance-none cursor-pointer accent-[#fa233b] hover:h-1.5 transition-all"
-            />
+            <SeekBar className="w-full flex-1" height="h-1" thumbSize="w-3 h-3" />
             <span className="text-[10px] font-mono text-slate-400 font-bold min-w-[32px]">{formatTime(duration)}</span>
           </div>
         )}

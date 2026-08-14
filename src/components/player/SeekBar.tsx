@@ -2,6 +2,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { PlaybackEngine } from '@/lib/playback/PlaybackEngine';
 
 export function SeekBar({
   className = '',
@@ -20,6 +21,7 @@ export function SeekBar({
   const trackRef = useRef<HTMLDivElement>(null);
   
   const [isSeeking, setIsSeeking] = useState(false);
+  const [isSeekSettling, setIsSeekSettling] = useState(false);
   const [localProgress, setLocalProgress] = useState(0); // 0 to 1
   const [hoverProgress, setHoverProgress] = useState<number | null>(null);
 
@@ -28,8 +30,8 @@ export function SeekBar({
     let animFrame: number;
 
     const tick = () => {
-      if (!isSeeking && duration > 0) {
-        const engine = require('@/lib/playback/PlaybackEngine').PlaybackEngine.getInstance();
+      if (!isSeeking && !isSeekSettling && duration > 0) {
+        const engine = PlaybackEngine.getInstance();
         if (engine.isPlayingLocally()) {
           const liveSec = engine.getCanonicalPositionMs() / 1000;
           setLocalProgress(Math.min(1, Math.max(0, liveSec / duration)));
@@ -43,7 +45,7 @@ export function SeekBar({
     animFrame = requestAnimationFrame(tick);
 
     return () => cancelAnimationFrame(animFrame);
-  }, [currentTime, duration, isSeeking]);
+  }, [currentTime, duration, isSeeking, isSeekSettling]);
 
   const calculateProgressFromEvent = (e: React.PointerEvent) => {
     if (!trackRef.current) return 0;
@@ -63,6 +65,7 @@ export function SeekBar({
     }
     
     setIsSeeking(true);
+    setIsSeekSettling(false);
     const p = calculateProgressFromEvent(e);
     setLocalProgress(p);
   };
@@ -88,12 +91,31 @@ export function SeekBar({
     }
     
     if (isSeeking) {
-      setIsSeeking(false);
       const p = calculateProgressFromEvent(e);
       const newTime = p * duration;
+      
+      setIsSeeking(false);
+      setIsSeekSettling(true);
+      setLocalProgress(p);
+      
       setCurrentTime(newTime);
       setSeekTarget(newTime);
+
+      setTimeout(() => {
+        setIsSeekSettling(false);
+      }, 150);
     }
+  };
+
+  const handlePointerCancel = (e: React.PointerEvent) => {
+    if (trackRef.current) {
+      try {
+        trackRef.current.releasePointerCapture(e.pointerId);
+      } catch {}
+    }
+    setIsSeeking(false);
+    setIsSeekSettling(false);
+    setLocalProgress(duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0);
   };
 
   const handlePointerLeave = (e: React.PointerEvent) => {
@@ -116,7 +138,7 @@ export function SeekBar({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
       onPointerLeave={handlePointerLeave}
     >
       {/* 1. Track Background */}

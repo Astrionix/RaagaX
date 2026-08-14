@@ -5,15 +5,17 @@ import {
   X, ChevronDown, Heart, Download, Play, Pause, SkipBack, SkipForward, 
   Disc3, Mic2, Music, Tv, RefreshCw, ExternalLink, Shuffle, Repeat, Repeat1, 
   ListMusic, Settings2, MonitorSmartphone, Check, MoreHorizontal, Share2, 
-  User, Disc, ListPlus, Radio, Sparkles, FolderPlus, Ban, Plus
+  User, Disc, ListPlus, Radio, Sparkles, FolderPlus, Ban, Plus, Moon,
+  Clock, Volume2, ShieldCheck, Loader2
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
+import { useDownloadStore } from '@/context/useDownloadStore';
 import { DeviceSelector } from '@/components/providers/DeviceSyncProvider';
 import { AudioSettingsDrawer } from './AudioSettingsDrawer';
-import { MediaHandoffManager } from '@/lib/playback/MediaHandoffManager';
 import { useLyricsStore } from '@/context/useLyricsStore';
 import { SeekBar } from './SeekBar';
+import { PlaybackEngine } from '@/lib/playback/PlaybackEngine';
 
 export function ExpandedPlayerModal() {
   const { playlists, addSongToPlaylist } = usePlaylistStore();
@@ -37,7 +39,6 @@ export function ExpandedPlayerModal() {
     likedSongIds,
     toggleLikeSong,
     downloadedSongIds,
-    toggleDownloadSong,
     toggleSettingsModal,
     toggleLyrics,
     toggleQueue,
@@ -55,10 +56,13 @@ export function ExpandedPlayerModal() {
     remoteDeviceName,
     onlineDevices,
     toggleDeviceModal,
+    toggleSleepTimerModal,
+    sleepTimerMinutes,
+    sleepTimerEndsAt,
+    setSleepTimer,
     setSelectedArtistId,
     setSelectedAlbumId,
     setCreatePlaylistModalOpen,
-    networkMode,
     cloudDownloadedSongIds = [],
   } = usePlayerStore();
 
@@ -87,11 +91,12 @@ export function ExpandedPlayerModal() {
     }
   }, [lyricsIndex, viewMode, lyricsLines]);
 
+  // Live Position Tracking for UI Display
   useEffect(() => {
     if (!isPlayerExpanded || isSeeking) return;
     let frame: number;
     const tick = () => {
-      const engine = require('@/lib/playback/PlaybackEngine').PlaybackEngine.getInstance();
+      const engine = PlaybackEngine.getInstance();
       if (engine.isPlayingLocally()) {
         setVisualTime(engine.getCanonicalPositionMs() / 1000);
       } else {
@@ -103,6 +108,40 @@ export function ExpandedPlayerModal() {
     return () => cancelAnimationFrame(frame);
   }, [isPlayerExpanded, isSeeking, currentTime]);
 
+  const [liveTimerStr, setLiveTimerStr] = useState<string | null>(null);
+
+  // Sleep Timer Countdown Display
+  useEffect(() => {
+    const { sleepTimerMode } = usePlayerStore.getState();
+    if (!sleepTimerEndsAt && sleepTimerMode !== 'end_of_song' && sleepTimerMode !== 'end_of_queue') {
+      setLiveTimerStr(null);
+      return;
+    }
+    if (sleepTimerMode === 'end_of_song') {
+      setLiveTimerStr('Song End');
+      return;
+    }
+    if (sleepTimerMode === 'end_of_queue') {
+      setLiveTimerStr('Queue End');
+      return;
+    }
+    const updateCountdown = () => {
+      const endsAt = usePlayerStore.getState().sleepTimerEndsAt;
+      if (!endsAt) {
+        setLiveTimerStr(null);
+        return;
+      }
+      const diffSec = Math.max(0, Math.floor((endsAt - Date.now()) / 1000));
+      const mins = Math.floor(diffSec / 60);
+      const secs = diffSec % 60;
+      setLiveTimerStr(`${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`);
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [sleepTimerEndsAt]);
+
+  // Close context menu on outside click
   useEffect(() => {
     if (!isMenuOpen) return;
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
@@ -159,29 +198,20 @@ export function ExpandedPlayerModal() {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const targetTime = parseFloat(e.target.value);
-    usePlayerStore.getState().setCurrentTime(targetTime);
-    usePlayerStore.getState().setSeekTarget(targetTime);
-    const audioEl = document.querySelector('audio');
-    if (audioEl) audioEl.currentTime = targetTime;
-  };
-
-  const nextSongInQueue = queue[queueIndex + 1] || null;
   const activeDeviceObj = onlineDevices.find((d) => d.id === activeDeviceId);
   const activeName = !isActiveDevice 
     ? (remoteDeviceName || activeDeviceObj?.name || 'Remote Device') 
-    : 'This Web Browser';
+    : 'This Phone';
 
   return (
     <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="fixed inset-0 z-[100] w-full h-[100dvh] bg-[#0a0c10]/95 backdrop-blur-2xl p-4 sm:p-6 md:p-8 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))] flex flex-col text-white select-none animate-in slide-in-from-bottom duration-300 overflow-hidden"
+      className="fixed inset-0 z-[100] w-full h-[100dvh] bg-[#07080c]/98 backdrop-blur-3xl p-4 sm:p-6 md:p-8 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex flex-col text-white select-none animate-in slide-in-from-bottom duration-250 overflow-hidden"
     >
-      {/* Dynamic Ambient Background Art Glow - Apple/Spotify Dark Style */}
+      {/* Deep Ambient Artwork Glow Background */}
       <div
-        className="absolute inset-0 opacity-40 pointer-events-none blur-[140px] scale-[1.3] transition-all duration-1000 saturate-[180%] mix-blend-screen"
+        className="absolute inset-0 opacity-35 pointer-events-none blur-[150px] scale-[1.4] transition-all duration-1000 saturate-[180%] mix-blend-screen"
         style={{
           backgroundImage: `url(${currentSong.coverUrl || '/app-icon.png'})`,
           backgroundSize: 'cover',
@@ -189,16 +219,18 @@ export function ExpandedPlayerModal() {
         }}
       />
 
-      {/* Top Header Bar - Spotify Inspired (High Z-Index so popover menu floats cleanly above album artwork) */}
-      <div className="relative z-50 flex items-center justify-between w-full pt-1 pb-2 sm:pb-4 max-w-6xl mx-auto flex-shrink-0">
+      {/* TOP NAVIGATION BAR */}
+      <div className="relative z-50 flex items-center justify-between w-full pt-1 pb-2 sm:pb-3 max-w-5xl mx-auto flex-shrink-0">
+        {/* Left: Minimize Player */}
         <button 
           onClick={handleCloseModal}
-          className="p-2 -ml-2 text-white hover:bg-white/10 rounded-full transition-colors relative z-10"
-          title="Minimize modal"
+          className="p-2.5 -ml-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-all active:scale-95"
+          title="Minimize player"
         >
           <ChevronDown className="w-7 h-7 sm:w-8 sm:h-8" />
         </button>
 
+        {/* Center: Playing From */}
         <div 
           onClick={() => {
             const albumTarget = currentSong.albumId || currentSong.album;
@@ -208,38 +240,51 @@ export function ExpandedPlayerModal() {
               handleCloseModal();
             }
           }}
-          className={`absolute left-1/2 -translate-x-1/2 text-center min-w-0 px-2 sm:px-4 w-full max-w-[45%] sm:max-w-[50%] ${
+          className={`text-center min-w-0 px-3 max-w-[55%] ${
             (currentSong.albumId || currentSong.album) ? 'cursor-pointer hover:opacity-80 transition-opacity' : 'pointer-events-none'
           }`}
           title={currentSong.album ? `Go to album: ${currentSong.album}` : undefined}
         >
-          <p className="text-[9px] sm:text-[10px] text-white/70 font-bold uppercase tracking-wider mb-0.5">
-            PLAYING FROM ALBUM
+          <p className="text-[10px] text-white/50 font-black uppercase tracking-widest mb-0.5">
+            PLAYING FROM
           </p>
-          <h3 className="text-xs sm:text-sm font-extrabold text-white truncate tracking-tight underline-offset-2 hover:underline">
-            {currentSong.album || currentSong.genre || 'Hot Hits Telugu'}
+          <h3 className="text-xs sm:text-sm font-extrabold text-white truncate tracking-tight">
+            {currentSong.album || currentSong.genre || 'Trending Hits'}
           </h3>
         </div>
 
-        {/* Top Right Utilities */}
-        <div className="flex items-center justify-end gap-1 flex-shrink-0 relative z-50">
-          {/* 3 Dots Options Button & Popover */}
+        {/* Right: Connect Device + More Options */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* Prominent Connect Device Button */}
+          <button
+            onClick={toggleDeviceModal}
+            className={`p-2.5 rounded-full transition-all flex items-center gap-1.5 active:scale-95 ${
+              !isActiveDevice 
+                ? 'bg-[#fa233b] text-white shadow-lg shadow-[#fa233b]/40 animate-pulse' 
+                : 'text-white/80 hover:text-white hover:bg-white/10'
+            }`}
+            title="Connect to Device"
+          >
+            <MonitorSmartphone className="w-5 h-5 sm:w-6 sm:h-6" />
+          </button>
+
+          {/* Context Dropdown Menu Trigger */}
           <div className="relative inline-block" ref={menuRef}>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 setIsMenuOpen(!isMenuOpen);
               }}
-              className="p-2 text-white hover:bg-white/10 rounded-full transition-colors"
+              className="p-2.5 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors active:scale-95"
               title="More options"
             >
               <MoreHorizontal className="w-6 h-6 sm:w-7 sm:h-7" />
             </button>
 
-            {/* Context Dropdown Menu (Universal Popover - Elevated Z-Index) */}
+            {/* Context Dropdown Popover */}
             {isMenuOpen && (
               <div 
-                className="absolute right-0 top-full mt-2 w-64 bg-[#141416]/98 backdrop-blur-3xl border border-white/20 rounded-2xl p-2 shadow-[0_25px_60px_rgba(0,0,0,0.95)] z-[999] text-xs text-white select-none animate-in fade-in zoom-in-95 duration-150"
+                className="absolute right-0 top-full mt-2 w-64 bg-[#12131a]/98 backdrop-blur-3xl border border-white/15 rounded-2xl p-2 shadow-[0_25px_70px_rgba(0,0,0,0.95)] z-[999] text-xs text-white select-none animate-in fade-in zoom-in-95 duration-150"
                 onClick={(e) => e.stopPropagation()}
               >
                 <button 
@@ -251,7 +296,7 @@ export function ExpandedPlayerModal() {
                   className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <Heart className={`w-4 h-4 ${isLiked ? 'fill-[#F20D18] text-[#F20D18]' : 'text-slate-400'}`} />
+                    <Heart className={`w-4 h-4 ${isLiked ? 'fill-[#fa233b] text-[#fa233b]' : 'text-white/60'}`} />
                     <span className="font-bold">{isLiked ? 'Remove from Liked Songs' : 'Save to your Liked Songs'}</span>
                   </div>
                 </button>
@@ -265,7 +310,7 @@ export function ExpandedPlayerModal() {
                   className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <ListPlus className="w-4 h-4 text-slate-400" />
+                    <ListPlus className="w-4 h-4 text-white/60" />
                     <span className="font-bold">Add to queue</span>
                   </div>
                 </button>
@@ -279,10 +324,10 @@ export function ExpandedPlayerModal() {
                     className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <FolderPlus className="w-4 h-4 text-slate-400" />
+                      <FolderPlus className="w-4 h-4 text-white/60" />
                       <span className="font-bold">Add to playlist</span>
                     </div>
-                    <span className={`text-slate-400 text-xs transition-transform ${showPlaylists ? 'rotate-90' : ''}`}>▸</span>
+                    <span className={`text-white/40 text-xs transition-transform ${showPlaylists ? 'rotate-90' : ''}`}>▸</span>
                   </button>
 
                   {showPlaylists && (
@@ -293,7 +338,7 @@ export function ExpandedPlayerModal() {
                           setIsMenuOpen(false);
                           setShowPlaylists(false);
                         }}
-                        className="w-full text-left py-1.5 px-2 rounded-lg text-[11px] text-[#F20D18] hover:bg-white/5 font-bold flex items-center gap-2"
+                        className="w-full text-left py-1.5 px-2 rounded-lg text-[11px] text-[#fa233b] hover:bg-white/5 font-bold flex items-center gap-2"
                       >
                         <Plus className="w-3.5 h-3.5" /> New playlist
                       </button>
@@ -308,13 +353,13 @@ export function ExpandedPlayerModal() {
                               setIsMenuOpen(false);
                               setShowPlaylists(false);
                             }}
-                            className="w-full text-left py-1.5 px-2 rounded-lg text-[11px] text-slate-300 hover:text-white hover:bg-white/5 truncate font-medium block"
+                            className="w-full text-left py-1.5 px-2 rounded-lg text-[11px] text-white/80 hover:text-white hover:bg-white/5 truncate font-medium block"
                           >
                             {pl.title}
                           </button>
                         ))
                       ) : (
-                        <p className="text-[10px] text-slate-500 py-1 px-2 italic">No playlists yet</p>
+                        <p className="text-[10px] text-white/40 py-1 px-2 italic">No playlists yet</p>
                       )}
                     </div>
                   )}
@@ -333,10 +378,10 @@ export function ExpandedPlayerModal() {
                   className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <User className="w-4 h-4 text-slate-400" />
+                    <User className="w-4 h-4 text-white/60" />
                     <span className="font-bold">Go to artist</span>
                   </div>
-                  <span className="text-slate-400 text-xs">▸</span>
+                  <span className="text-white/40 text-xs">▸</span>
                 </button>
 
                 <button 
@@ -350,67 +395,30 @@ export function ExpandedPlayerModal() {
                   className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <Disc className="w-4 h-4 text-slate-400" />
+                    <Disc className="w-4 h-4 text-white/60" />
                     <span className="font-bold">Go to album</span>
                   </div>
-                  <span className="text-slate-400 text-xs">▸</span>
+                  <span className="text-white/40 text-xs">▸</span>
                 </button>
 
                 <div className="h-px bg-white/10 my-1" />
 
-                {/* 3-State Download: 
-                    1. Cloud ❌, Local ❌ -> Save for Offline Listening
-                    2. Cloud ✅, Local ✅ -> Downloaded ✓ (Remove from device)
-                    3. Cloud ✅, Local ❌ -> Download Again ↓ (Restore to device)
-                */}
+                {/* Sleep Timer Option */}
                 <button 
-                  onClick={async () => {
-                    const { useDownloadStore } = await import('@/context/useDownloadStore');
-                    if (isDownloaded) {
-                      await useDownloadStore.getState().removeDownload(currentSong.id);
-                      setToastMessage(`Removed "${currentSong.title}" from offline storage`);
-                    } else {
-                      await useDownloadStore.getState().saveForOffline(currentSong);
-                      setToastMessage(isCloudRecorded ? `Restoring "${currentSong.title}" to device...` : `Saving "${currentSong.title}" for offline playback...`);
-                    }
+                  onClick={() => {
+                    toggleSleepTimerModal();
                     setIsMenuOpen(false);
                   }}
                   className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <Download className={`w-4 h-4 ${
-                      isDownloaded 
-                        ? 'text-emerald-400' 
-                        : isCloudRecorded 
-                          ? 'text-sky-400' 
-                          : 'text-slate-400'
-                    }`} />
-                    <span className={`font-bold ${isCloudRecorded && !isDownloaded ? 'text-sky-400' : ''}`}>
-                      {isDownloaded 
-                        ? 'Downloaded ✓ (Remove)' 
-                        : isCloudRecorded 
-                          ? 'Download Again ↓ (Restore)' 
-                          : 'Save for Offline Listening'}
-                    </span>
+                    <Moon className="w-4 h-4 text-indigo-400" />
+                    <span className="font-bold">Sleep Timer</span>
                   </div>
+                  {liveTimerStr && <span className="text-[10px] text-indigo-400 font-mono font-bold">{liveTimerStr}</span>}
                 </button>
 
-                {/* Mode B: Export Standalone MP3 */}
-                <button 
-                  onClick={async () => {
-                    const { useDownloadStore } = await import('@/context/useDownloadStore');
-                    await useDownloadStore.getState().exportSong(currentSong);
-                    setToastMessage(`Exporting "${currentSong.title}" MP3 to device...`);
-                    setIsMenuOpen(false);
-                  }}
-                  className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <Download className="w-4 h-4 text-sky-400 rotate-[-45deg]" />
-                    <span className="font-bold">Export MP3 to Device</span>
-                  </div>
-                </button>
-
+                {/* Share Option */}
                 <button 
                   onClick={() => {
                     const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/#song=${currentSong.id}` : '';
@@ -429,10 +437,10 @@ export function ExpandedPlayerModal() {
                   className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <Share2 className="w-4 h-4 text-slate-400" />
+                    <Share2 className="w-4 h-4 text-white/60" />
                     <span className="font-bold">Share</span>
                   </div>
-                  <span className="text-slate-400 text-xs">↗</span>
+                  <span className="text-white/40 text-xs">↗</span>
                 </button>
 
                 <button 
@@ -451,33 +459,25 @@ export function ExpandedPlayerModal() {
               </div>
             )}
           </div>
-
-          {/* Audio Settings / Equalizer Button */}
-          <button
-            onClick={toggleSettingsModal}
-            className="p-2 text-white hover:bg-white/10 rounded-full transition-colors"
-            title="Audio Settings & Equalizer"
-          >
-            <Settings2 className="w-6 h-6" />
-          </button>
         </div>
       </div>
 
-      {/* Main Center Content Section (Flexible to fit screen without scroll) */}
-      <div className="relative z-0 flex-1 min-h-0 flex flex-col justify-between w-full max-w-5xl mx-auto py-1 sm:py-4">
+
+      {/* CENTER VIEW: ALBUM ART OR LIVE SYNCED LYRICS */}
+      <div className="relative z-0 flex-1 min-h-0 flex flex-col justify-between w-full max-w-4xl mx-auto py-1 sm:py-3">
         
         {viewMode === 'art' ? (
-          /* Cover Artwork */
+          /* Album Artwork Screen */
           <div 
             onClick={() => setViewMode('lyrics')}
-            className="flex-1 min-h-0 flex flex-col items-center justify-center w-full py-2 sm:py-6 overflow-hidden cursor-pointer group"
-            title="Tap to view live synced lyrics"
+            className="flex-1 min-h-0 flex flex-col items-center justify-center w-full py-2 overflow-hidden cursor-pointer group"
+            title="Tap to switch to live synced lyrics"
           >
             <div
-              className="relative rounded-[8%] sm:rounded-2xl overflow-hidden shadow-2xl border border-white/5 group-hover:scale-[1.01] transition-all"
+              className="relative rounded-[24px] sm:rounded-[28px] overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.85)] border border-white/10 group-hover:scale-[1.02] transition-all duration-300"
               style={{
-                width: 'min(42vh, 92vw, 480px)',
-                height: 'min(42vh, 92vw, 480px)',
+                width: 'min(38vh, 84vw, 360px)',
+                height: 'min(38vh, 84vw, 360px)',
                 flexShrink: 0,
               }}
             >
@@ -485,38 +485,39 @@ export function ExpandedPlayerModal() {
                 src={currentSong.coverUrl || '/app-icon.png'}
                 alt={currentSong.title}
                 onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                className={`w-full h-full object-cover transition-all duration-700 ${isPlaying ? 'scale-[1.02]' : 'scale-100'}`}
+                className={`w-full h-full object-cover transition-all duration-700 ${isPlaying ? 'scale-[1.03]' : 'scale-100'}`}
               />
             </div>
           </div>
         ) : (
           /* Fullscreen Synced Lyrics Live Mode */
-          <div className="flex-1 min-h-0 w-full max-w-2xl mx-auto flex flex-col relative overflow-hidden py-1 sm:py-3 animate-in fade-in duration-300">
+          <div className="flex-1 min-h-0 w-full max-w-2xl mx-auto flex flex-col relative overflow-hidden py-1 sm:py-3 animate-in fade-in duration-200">
             <div className="flex items-center justify-between px-3 pb-2 mb-1 border-b border-white/10">
-              <div className="flex items-center gap-2 text-xs font-bold text-white/80">
-                <Mic2 className="w-4 h-4 text-[#FA233B]" /> Live Synced Lyrics
+              <div className="flex items-center gap-2 text-xs font-black text-white/90">
+                <Mic2 className="w-4 h-4 text-[#fa233b]" /> Live Synced Lyrics
               </div>
               <button 
                 onClick={() => setViewMode('art')}
-                className="text-xs font-bold text-white/70 hover:text-white px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-all cursor-pointer"
+                className="text-xs font-bold text-white/80 hover:text-white px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-all cursor-pointer"
               >
                 Show Album Art
               </button>
             </div>
+            
             <div 
               ref={modalLyricsScrollRef}
               className="flex-1 overflow-y-auto scrollbar-hide py-16 px-4 space-y-4 sm:space-y-6 flex flex-col items-start"
             >
               {lyricsStatus === 'loading' && (
                 <div className="w-full flex flex-col items-center justify-center py-16 text-white/60 gap-3">
-                  <div className="w-6 h-6 border-2 border-red-500/30 border-t-[#FA233B] rounded-full animate-spin" />
+                  <Loader2 className="w-6 h-6 text-[#fa233b] animate-spin" />
                   <p className="text-sm font-semibold">Syncing lyrics...</p>
                 </div>
               )}
               {lyricsStatus === 'unavailable' || lyricsLines.length === 0 ? (
                 <div className="w-full text-center py-16 text-white/60">
                   <p className="text-lg font-bold text-white mb-1">Lyrics unavailable</p>
-                  <p className="text-xs">No synced lyrics found for this song.</p>
+                  <p className="text-xs">No synchronized lyrics found for this song.</p>
                 </div>
               ) : (
                 lyricsLines.map((line, idx) => {
@@ -538,7 +539,7 @@ export function ExpandedPlayerModal() {
                       }}
                       className={`w-full text-left transition-all duration-300 transform origin-left cursor-pointer select-none leading-snug py-1
                         ${isActive 
-                          ? 'text-2xl sm:text-4xl font-black text-[#FA233B] drop-shadow-[0_0_24px_rgba(250,35,59,0.85)] scale-[1.03]' 
+                          ? 'text-2xl sm:text-4xl font-black text-[#fa233b] drop-shadow-[0_0_25px_rgba(250,35,59,0.85)] scale-[1.03]' 
                           : isPassed 
                             ? 'text-lg sm:text-2xl font-bold text-white/30 opacity-40 hover:opacity-75' 
                             : 'text-lg sm:text-2xl font-bold text-white/60 hover:text-white/95 opacity-70'}
@@ -553,12 +554,13 @@ export function ExpandedPlayerModal() {
           </div>
         )}
 
-        {/* Bottom Player Controls Area (Tightly Packed) */}
-        <div className="flex-shrink-0 flex flex-col gap-3 sm:gap-6 w-full">
-          {/* Track Meta & Like Button Row (Spotify Style) */}
-          <div className="flex items-center justify-between gap-4 max-w-4xl mx-auto w-full px-1 sm:px-2">
+        {/* BOTTOM PLAYER CONTROLS SECTION */}
+        <div className="flex-shrink-0 flex flex-col gap-3 sm:gap-5 w-full">
+          
+          {/* SONG TITLE & ARTIST ROW + ANIMATED HEART */}
+          <div className="flex items-center justify-between gap-4 max-w-4xl mx-auto w-full px-1">
             <div className="min-w-0 flex-1">
-              <h1 className="text-xl sm:text-3xl font-black text-white tracking-tight leading-snug truncate">
+              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-snug truncate">
                 {currentSong.title}
               </h1>
               <p 
@@ -570,175 +572,207 @@ export function ExpandedPlayerModal() {
                     handleCloseModal();
                   }
                 }}
-                className="text-sm sm:text-base font-semibold text-white/70 truncate mt-0.5 sm:mt-1 cursor-pointer hover:text-white hover:underline transition-colors inline-block"
+                className="text-sm font-semibold text-white/60 truncate mt-0.5 cursor-pointer hover:text-white hover:underline transition-colors inline-block"
                 title={`Go to artist: ${currentSong.artist}`}
               >
                 {currentSong.artist}
               </p>
             </div>
+            
             <button
               onClick={() => {
                 toggleLikeSong(currentSong.id);
                 setToastMessage(isLiked ? 'Removed from Liked Songs' : 'Saved to your Liked Songs');
               }}
-              className="p-2 sm:p-3 rounded-full hover:bg-white/10 transition-colors flex-shrink-0"
+              className="p-2.5 rounded-full hover:bg-white/10 transition-transform active:scale-125 flex-shrink-0"
               title={isLiked ? "Remove from Liked Songs" : "Save to your Liked Songs"}
             >
-              <Heart className={`w-7 h-7 sm:w-8 sm:h-8 transition-colors ${isLiked ? 'fill-[#F20D18] text-[#F20D18]' : 'text-white/70 hover:text-white'}`} />
+              <Heart className={`w-7 h-7 sm:w-8 sm:h-8 transition-colors duration-200 ${isLiked ? 'fill-[#fa233b] text-[#fa233b]' : 'text-white/70 hover:text-white'}`} />
             </button>
           </div>
 
-        {/* Timeline Seekbar */}
-        <div className="max-w-4xl mx-auto w-full space-y-1 sm:space-y-2 px-1 sm:px-2">
-          <SeekBar 
-            height="h-1 sm:h-1.5"
-            thumbSize="w-3 h-3"
-            activeColor="bg-white group-hover:bg-[#F20D18]"
-          />
-          <div className="flex items-center justify-between text-[10px] sm:text-xs font-mono text-white/60 font-semibold px-0.5">
-            <span>{formatTime(visualTime)}</span>
-            <span>{formatTime(duration)}</span>
+          {/* PROGRESS / SEEK BAR (INTERACTIVE SCRUBBER) */}
+          <div className="max-w-4xl mx-auto w-full space-y-1 px-1">
+            <SeekBar 
+              height="h-1.5"
+              thumbSize="w-3.5 h-3.5"
+              activeColor="bg-[#fa233b]"
+            />
+            <div className="flex items-center justify-between text-[11px] font-mono text-white/50 font-bold px-0.5">
+              <span>{formatTime(visualTime)}</span>
+              <span>{formatTime(duration || currentSong.duration || 0)}</span>
+            </div>
           </div>
-        </div>
 
-        {/* Main Player Controls Row */}
-        <div className="flex items-center justify-between sm:justify-center gap-2 sm:gap-8 max-w-4xl mx-auto w-full px-1">
-          <button
-            onClick={toggleShuffle}
-            className={`p-2 transition-colors relative hover:scale-110 active:scale-95 ${
-              shuffleMode !== 'OFF' ? 'text-[#F20D18]' : 'text-white/70 hover:text-white'
-            }`}
-            title={`Shuffle: ${shuffleMode}`}
-          >
-            {shuffleMode === 'SMART' ? (
-              <div className="relative">
+          {/* MAIN 5-BUTTON PLAYBACK CONTROLS ROW */}
+          <div className="flex items-center justify-between sm:justify-center gap-2 sm:gap-8 max-w-4xl mx-auto w-full px-1">
+            
+            {/* 1. Shuffle Button */}
+            <button
+              onClick={toggleShuffle}
+              className={`p-2.5 transition-all relative hover:scale-110 active:scale-95 ${
+                shuffleMode !== 'OFF' ? 'text-[#fa233b]' : 'text-white/60 hover:text-white'
+              }`}
+              title={`Shuffle: ${shuffleMode}`}
+            >
+              {shuffleMode === 'SMART' ? (
+                <div className="relative">
+                  <Shuffle className="w-5 h-5 sm:w-6 sm:h-6" />
+                  <Sparkles className="w-3 h-3 absolute -top-1 -right-1 text-yellow-400" />
+                </div>
+              ) : (
                 <Shuffle className="w-5 h-5 sm:w-6 sm:h-6" />
-                <Sparkles className="w-3 h-3 absolute -top-1 -right-1 text-yellow-400" />
-              </div>
-            ) : (
-              <Shuffle className="w-5 h-5 sm:w-6 sm:h-6" />
-            )}
-            {shuffleMode !== 'OFF' && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#F20D18]" />}
-          </button>
+              )}
+              {shuffleMode !== 'OFF' && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-[#fa233b]" />}
+            </button>
 
-          <button
-            onClick={() => {
-              if (visualTime > 3) {
-                setCurrentTime(0, true);
-                usePlayerStore.setState({ seekTarget: 0 });
-              } else {
-                playPrev();
-              }
-            }}
-            className="p-2 text-white/80 hover:text-white hover:scale-110 active:scale-95 transition-all"
-            title="Previous Track"
-          >
-            <SkipBack className="w-7 h-7 sm:w-9 sm:h-9 fill-current" />
-          </button>
+            {/* 2. Previous Button */}
+            <button
+              onClick={() => {
+                if (visualTime > 5) {
+                  setCurrentTime(0, true);
+                  usePlayerStore.setState({ seekTarget: 0 });
+                } else {
+                  playPrev();
+                }
+              }}
+              className="p-2 text-white/80 hover:text-white hover:scale-110 active:scale-95 transition-all"
+              title="Previous Track"
+            >
+              <SkipBack className="w-7 h-7 sm:w-8 sm:h-8 fill-current" />
+            </button>
 
-          {/* Circular Play/Pause Button */}
-          <button
-            onClick={togglePlayPause}
-            className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white text-black hover:scale-105 active:scale-95 flex items-center justify-center shadow-lg transition-all cursor-pointer ${isPlaying ? 'shadow-[0_0_20px_rgba(242,13,24,0.4)]' : ''}`}
-            title={isPlaying ? "Pause" : "Play"}
-          >
-            {isPlaying ? (
-              <Pause className="w-7 h-7 fill-black text-black" />
-            ) : (
-              <Play className="w-7 h-7 fill-black text-black ml-1" />
-            )}
-          </button>
+            {/* 3. Large Circular Glowing PLAY / PAUSE Button */}
+            <button
+              onClick={togglePlayPause}
+              className={`w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-gradient-to-tr from-[#fa233b] to-[#ff4d6d] text-white hover:scale-105 active:scale-95 flex items-center justify-center shadow-[0_0_30px_rgba(250,35,59,0.5)] transition-all cursor-pointer`}
+              title={isPlaying ? "Pause" : "Play"}
+            >
+              {isPlaying ? (
+                <Pause className="w-8 h-8 fill-white text-white" />
+              ) : (
+                <Play className="w-8 h-8 fill-white text-white ml-1" />
+              )}
+            </button>
 
-          <button
-            onClick={playNext}
-            className="p-2 text-white/80 hover:text-white hover:scale-110 active:scale-95 transition-all"
-            title="Next Track"
-          >
-            <SkipForward className="w-7 h-7 sm:w-9 sm:h-9 fill-current" />
-          </button>
+            {/* 4. Next Button */}
+            <button
+              onClick={playNext}
+              className="p-2 text-white/80 hover:text-white hover:scale-110 active:scale-95 transition-all"
+              title="Next Track"
+            >
+              <SkipForward className="w-7 h-7 sm:w-8 sm:h-8 fill-current" />
+            </button>
 
-          <button
-            onClick={cycleRepeatMode}
-            className={`p-2 transition-colors relative ${
-              repeatMode !== 'off' ? 'text-[#F20D18]' : 'text-white/70 hover:text-white'
-            }`}
-            title={`Repeat: ${repeatMode}`}
-          >
-            {repeatMode === 'one' ? <Repeat1 className="w-5 h-5 sm:w-6 sm:h-6" /> : <Repeat className="w-5 h-5 sm:w-6 sm:h-6" />}
-            {repeatMode !== 'off' && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#F20D18]" />}
-          </button>
-        </div>
+            {/* 5. Repeat Button */}
+            <button
+              onClick={cycleRepeatMode}
+              className={`p-2.5 transition-all relative hover:scale-110 active:scale-95 ${
+                repeatMode !== 'off' ? 'text-[#fa233b]' : 'text-white/60 hover:text-white'
+              }`}
+              title={`Repeat: ${repeatMode}`}
+            >
+              {repeatMode === 'one' ? <Repeat1 className="w-5 h-5 sm:w-6 sm:h-6" /> : <Repeat className="w-5 h-5 sm:w-6 sm:h-6" />}
+              {repeatMode !== 'off' && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-[#fa233b]" />}
+            </button>
+          </div>
 
-        {/* Bottom Utility Actions Row */}
-        <div className="flex items-center justify-between w-full max-w-4xl mx-auto px-1 sm:px-2 pb-2">
-          <DeviceSelector variant="icon" align="left" />
-
-          <div className="flex items-center gap-3">
+          {/* PLAYER ACTION TOOLBAR ROW */}
+          <div className="flex items-center justify-between w-full max-w-4xl mx-auto px-1 pb-1">
+            
+            {/* Synced Lyrics Toggle Button */}
             <button
               onClick={() => setViewMode(v => v === 'lyrics' ? 'art' : 'lyrics')}
-              className={`px-4 py-2.5 rounded-2xl font-extrabold text-xs flex items-center gap-2 transition-all shadow-lg cursor-pointer ${
+              className={`px-4 py-2 rounded-2xl font-black text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer ${
                 viewMode === 'lyrics'
-                  ? 'bg-[#FA233B] text-white shadow-red-500/30'
-                  : 'bg-white text-slate-900 hover:bg-slate-200'
+                  ? 'bg-[#fa233b] text-white shadow-[#fa233b]/30'
+                  : 'bg-white/10 hover:bg-white/20 text-white/90'
               }`}
             >
-              <Mic2 className={`w-4 h-4 ${viewMode === 'lyrics' ? 'text-white' : 'text-[#F20D18]'}`} /> 
+              <Mic2 className={`w-4 h-4 ${viewMode === 'lyrics' ? 'text-white' : 'text-[#fa233b]'}`} /> 
               {viewMode === 'lyrics' ? 'Album Art' : 'Synced Lyrics'}
             </button>
 
-            <button
-              onClick={async () => {
-                const { useDownloadStore } = await import('@/context/useDownloadStore');
-                if (isDownloaded) {
-                  await useDownloadStore.getState().removeDownload(currentSong.id);
-                  setToastMessage(`Removed "${currentSong.title}" from offline storage`);
-                } else {
-                  await useDownloadStore.getState().saveForOffline(currentSong);
-                  setToastMessage(isCloudRecorded ? `Restoring "${currentSong.title}" to device...` : `Saving "${currentSong.title}" for offline playback...`);
+            {/* Right Action Utilities: Download, Sleep Timer, Equalizer, Queue */}
+            <div className="flex items-center gap-2">
+              
+              {/* Offline Download Button (4-State) */}
+              <button
+                onClick={async () => {
+                  if (isDownloaded) {
+                    await useDownloadStore.getState().removeDownload(currentSong.id);
+                    setToastMessage(`Removed "${currentSong.title}" from offline storage`);
+                  } else {
+                    await useDownloadStore.getState().saveForOffline(currentSong);
+                    setToastMessage(isCloudRecorded ? `Restoring "${currentSong.title}" to device...` : `Saving "${currentSong.title}" for offline playback...`);
+                  }
+                }}
+                className={`p-2.5 rounded-2xl border transition-all active:scale-95 ${
+                  isDownloaded 
+                    ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10 shadow-sm' 
+                    : isCloudRecorded
+                      ? 'border-sky-500/50 text-sky-400 bg-sky-500/10 shadow-sm hover:scale-105'
+                      : 'border-white/10 bg-white/5 text-white/70 hover:text-white hover:border-[#fa233b]'
+                }`}
+                title={
+                  isDownloaded 
+                    ? "Downloaded ✓ (Tap to remove)" 
+                    : isCloudRecorded 
+                      ? "Download Again ↓ (Restore to device)" 
+                      : "Save for Offline Listening"
                 }
-              }}
-              className={`p-2.5 rounded-2xl surface-card border transition-all ${
-                isDownloaded 
-                  ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10 shadow-sm' 
-                  : isCloudRecorded
-                    ? 'border-sky-500/50 text-sky-400 bg-sky-500/10 shadow-sm hover:scale-105'
-                    : 'border-white/15 text-white/70 hover:text-white hover:border-[#F20D18]'
-              }`}
-              title={
-                isDownloaded 
-                  ? "Downloaded ✓ (Tap to remove from device)" 
-                  : isCloudRecorded 
-                    ? "Download Again ↓ (Restore to device)" 
-                    : "Save for Offline Listening"
-              }
-            >
-              <Download className={`w-4 h-4 ${
-                isDownloaded 
-                  ? 'text-emerald-400' 
-                  : isCloudRecorded 
-                    ? 'text-sky-400 animate-pulse' 
-                    : 'text-white/70 hover:text-white'
-              }`} />
-            </button>
+              >
+                <Download className={`w-4 h-4 ${
+                  isDownloaded 
+                    ? 'text-emerald-400' 
+                    : isCloudRecorded 
+                      ? 'text-sky-400 animate-pulse' 
+                      : 'text-white/70 hover:text-white'
+                }`} />
+              </button>
 
-            <button
-              onClick={toggleQueue}
-              className="p-2.5 rounded-2xl surface-card border border-white/15 hover:border-white/40 transition-colors"
-              title="Open Queue"
-            >
-              <ListMusic className="w-4 h-4 text-white/70 hover:text-white" />
-            </button>
+              {/* 2. Sleep Timer Button (Inactive: icon / Active: glowing live countdown 🌙 27:45) */}
+              <button
+                onClick={toggleSleepTimerModal}
+                className={`px-3 py-2.5 rounded-2xl border transition-all flex items-center gap-1.5 active:scale-95 ${
+                  liveTimerStr 
+                    ? 'border-[#fa233b]/60 text-[#fa233b] bg-[#fa233b]/15 shadow-[0_0_15px_rgba(250,35,59,0.3)]' 
+                    : 'border-white/10 bg-white/5 text-white/70 hover:text-white hover:border-white/30'
+                }`}
+                title={liveTimerStr ? `Sleep Timer: ${liveTimerStr} remaining` : "Set Sleep Timer"}
+              >
+                <Moon className={`w-4 h-4 ${liveTimerStr ? 'text-[#fa233b] animate-pulse' : ''}`} />
+                {liveTimerStr && <span className="font-mono text-xs font-black text-white">{liveTimerStr}</span>}
+              </button>
+
+              {/* Equalizer & Audio Settings Button */}
+              <button
+                onClick={toggleSettingsModal}
+                className="p-2.5 rounded-2xl border border-white/10 bg-white/5 text-white/70 hover:text-white hover:border-white/30 transition-all active:scale-95"
+                title="Equalizer & Audio Quality"
+              >
+                <Settings2 className="w-4 h-4" />
+              </button>
+
+              {/* Queue Button */}
+              <button
+                onClick={toggleQueue}
+                className="p-2.5 rounded-2xl border border-white/10 bg-white/5 text-white/70 hover:text-white hover:border-white/30 transition-all active:scale-95"
+                title="Current Queue"
+              >
+                <ListMusic className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
-      </div>
 
-      {/* RaagaX Brand Crimson Active Device Bar (Very Bottom) */}
+      {/* RAAGAX CONNECT ACTIVE DEVICE BOTTOM BAR */}
       <div 
         onClick={toggleDeviceModal}
-        className="relative z-10 -mx-4 sm:-mx-6 md:-mx-8 -mb-[calc(1rem+env(safe-area-inset-bottom))] bg-[#F20D18] text-white px-4 py-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] flex items-center justify-between font-bold text-xs cursor-pointer hover:bg-[#d90b15] transition-colors shadow-lg mt-3"
+        className="relative z-10 -mx-4 sm:-mx-6 md:-mx-8 -mb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-[#fa233b] text-white px-5 py-2.5 pb-[calc(0.6rem+env(safe-area-inset-bottom))] flex items-center justify-between font-black text-xs cursor-pointer hover:bg-[#d91533] transition-colors shadow-[0_-5px_20px_rgba(250,35,59,0.3)] mt-2"
       >
-        <div className="flex items-center gap-2 max-w-xl truncate">
+        <div className="flex items-center gap-2.5 max-w-xl truncate">
           <MonitorSmartphone className="w-4 h-4 animate-pulse flex-shrink-0" />
           <span className="truncate">
             Playing on {activeName}
@@ -753,5 +787,3 @@ export function ExpandedPlayerModal() {
     </div>
   );
 }
-
-

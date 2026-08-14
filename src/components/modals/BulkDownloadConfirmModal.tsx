@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useDownloadStore } from '@/context/useDownloadStore';
+import { usePlayerStore } from '@/context/usePlayerStore';
 import { Download, HardDrive } from 'lucide-react';
 import { Song } from '@/types/music';
 
@@ -18,8 +19,8 @@ export function BulkDownloadConfirmModal({
   coverUrl: string;
   songs: Song[];
 }) {
-  const { downloadPlaylist, isOfflineStorageEnabled, setSetupModalOpen } = useDownloadStore();
-  const { downloadedSongIds } = require('@/context/usePlayerStore').usePlayerStore();
+  const { downloadPlaylist, isOfflineStorageEnabled, setSetupModalOpen, wifiOnly, setWifiOnly } = useDownloadStore();
+  const { downloadedSongIds } = usePlayerStore();
   
   const [storageAvailable, setStorageAvailable] = useState('...');
   const [quotaBytes, setQuotaBytes] = useState(0);
@@ -92,7 +93,7 @@ export function BulkDownloadConfirmModal({
 
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-3 bg-white/5 px-4 py-3 rounded-xl border border-white/5">
-                <input type="checkbox" checked={require('@/context/useDownloadStore').useDownloadStore.getState().wifiOnly} onChange={(e) => require('@/context/useDownloadStore').useDownloadStore.getState().setWifiOnly(e.target.checked)} className="w-4 h-4 rounded border-white/20 text-[#fa233b] focus:ring-[#fa233b] focus:ring-offset-0 bg-transparent" />
+                <input type="checkbox" checked={wifiOnly} onChange={(e) => setWifiOnly(e.target.checked)} className="w-4 h-4 rounded border-white/20 text-[#fa233b] focus:ring-[#fa233b] focus:ring-offset-0 bg-transparent" />
                 <label className="text-sm font-medium text-slate-300">Wi-Fi only</label>
               </div>
               <div className="flex items-center gap-3 bg-white/5 px-4 py-3 rounded-xl border border-white/5 opacity-50 cursor-not-allowed">

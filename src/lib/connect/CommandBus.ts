@@ -2,6 +2,8 @@ import { ConnectCommand } from './types';
 import { CommandValidator } from './CommandValidator';
 import { ConnectManager } from './ConnectManager';
 import { PlaybackEngine } from '../playback/PlaybackEngine';
+import { PlaybackService } from '@/lib/playback/PlaybackService';
+import { QueueManager } from '@/lib/queue/QueueManager';
 import { ClockSynchronizer } from './ClockSynchronizer';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { TransferManager } from './TransferManager';
@@ -63,7 +65,7 @@ export class CommandBus {
         }
 
         if (songData) {
-          const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+          const manager = QueueManager.getInstance();
           if (queue && queue.length > 0) {
             const idx = typeof queueIndex === 'number' ? queueIndex : 0;
             manager.replaceQueue(queue, idx, 'PLAYLIST');
@@ -84,12 +86,10 @@ export class CommandBus {
           });
 
           if (store.isActiveDevice) {
-            import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
-              PlaybackService.getInstance().playTrack(songData, true).then(() => {
-                if (targetMs > 0) {
-                  engine.seekCanonical(targetMs);
-                }
-              });
+            PlaybackService.getInstance().playTrack(songData, true).then(() => {
+              if (targetMs > 0) {
+                engine.seekCanonical(targetMs);
+              }
             });
           }
         } else {
@@ -110,7 +110,7 @@ export class CommandBus {
         break;
 
       case 'NEXT': {
-        const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+        const manager = QueueManager.getInstance();
         const nextItem = manager.getNext(false);
         if (nextItem && nextItem.song) {
           const snapshot = manager.getSnapshot();
@@ -122,16 +122,14 @@ export class CommandBus {
             currentTime: 0
           });
           if (store.isActiveDevice) {
-            import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
-              PlaybackService.getInstance().playTrack(nextItem.song, true);
-            });
+            PlaybackService.getInstance().playTrack(nextItem.song, true);
           }
         }
         break;
       }
 
       case 'PREV': {
-        const manager = require('@/lib/queue/QueueManager').QueueManager.getInstance();
+        const manager = QueueManager.getInstance();
         const prevItem = manager.getPrevious();
         if (prevItem && prevItem.song) {
           const snapshot = manager.getSnapshot();
@@ -143,9 +141,7 @@ export class CommandBus {
             currentTime: 0
           });
           if (store.isActiveDevice) {
-            import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
-              PlaybackService.getInstance().playTrack(prevItem.song, true);
-            });
+            PlaybackService.getInstance().playTrack(prevItem.song, true);
           }
         }
         break;

@@ -6,13 +6,12 @@ export class QueueValidator {
    * Validates if a song meets the production queue invariant.
    */
   public static isValidSong(song: Song): boolean {
-    if (!song.id || song.id.startsWith('auto-') || song.id.includes('generated')) return false;
-    if (!song.title || song.title.toLowerCase().includes('generated track')) return false;
+    if (!song.id || song.id.startsWith('auto-') || song.id.includes('generated') || song.id.startsWith('mock_')) return false;
+    if (!song.title || song.title.toLowerCase().includes('generated track') || /^new release_\d+/i.test(song.title) || /^trending_\d+/i.test(song.title)) return false;
     if (!song.artist || song.artist.toLowerCase().includes('auto artist')) return false;
     if (!song.duration || song.duration <= 0) return false;
     
     // Artwork must not be the exact generic fallback string used for auto-generated items previously.
-    // Assuming UI will handle generic fallback display if missing, but we shouldn't have 'placeholder' as url.
     if (song.coverUrl && song.coverUrl.includes('placeholder')) return false;
 
     return true;

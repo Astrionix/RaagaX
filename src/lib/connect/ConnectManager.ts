@@ -23,6 +23,7 @@ export class ConnectManager {
 
   private currentState: ConnectState = 'OFFLINE';
   private recoveryQueue: ConnectCommand[] = [];
+  private isRecovering: boolean = false;
 
   private constructor() {
     NetworkManager.getInstance().subscribe((mode) => {
@@ -119,6 +120,8 @@ export class ConnectManager {
   }
 
   public async initiateRecovery() {
+    if (this.isRecovering) return;
+    this.isRecovering = true;
     try {
       console.log('[ConnectManager] Initiating session recovery...');
       // 1. Fetch authoritative snapshot from DB
@@ -134,6 +137,8 @@ export class ConnectManager {
     } catch (e) {
       console.error('[ConnectManager] Recovery failed, retrying...', e);
       this.transitionState('READY');
+    } finally {
+      this.isRecovering = false;
     }
   }
 

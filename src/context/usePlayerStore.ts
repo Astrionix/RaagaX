@@ -5,6 +5,12 @@ import { RecommendationEngine } from '@/lib/recommendationEngine';
 import { LocalDatabase } from '@/lib/localDatabase';
 import { QueueManager } from '@/lib/queue/QueueManager';
 import { LanguageEligibilityEngine } from '@/lib/language/LanguageEligibilityEngine';
+import { InterruptionCoordinator } from '@/lib/playback/InterruptionCoordinator';
+import { PlaybackService } from '@/lib/playback/PlaybackService';
+import { RaagaXNativePlayer } from '@/lib/playback/native/RaagaXNativePlayer';
+import { ConnectManager } from '@/lib/connect/ConnectManager';
+import { PlaybackWatchdog } from '@/lib/playback/PlaybackWatchdog';
+import { isKidsOrNurseryTrack } from '@/lib/jioSaavnProvider';
 
 import { AudioQuality, AudioQualityState } from '@/lib/playback/types';
 
@@ -70,6 +76,7 @@ interface PlayerState {
 
   sleepTimerMinutes: number | null;
   sleepTimerEndsAt: number | null;
+  sleepTimerMode: 'duration' | 'end_of_song' | 'end_of_queue' | null;
 
   contextMenuSong: Song | null;
   // 3-Tier Language Preference System
@@ -193,7 +200,9 @@ interface PlayerState {
   setAiDjMood: (mood: AIDJState['currentMood']) => void;
   setSearchQuery: (query: string) => void;
   setActiveGenreFilter: (genre: string) => void;
-  setSleepTimer: (minutes: number | null) => void;
+  setSleepTimer: (minutes: number | null, mode?: 'duration' | 'end_of_song' | 'end_of_queue') => void;
+  extendSleepTimer: (minutes: number) => void;
+  cancelSleepTimer: () => void;
 
   logCurrentTelemetry: (action: 'play' | 'skip' | 'complete') => void;
 }
@@ -201,6 +210,7 @@ interface PlayerState {
 function persistSessionHelper(state: {
   currentSong: Song | null;
   currentTime: number;
+  duration?: number;
   queue: Song[];
   queueIndex: number;
   historySongIds?: string[];
@@ -214,6 +224,7 @@ function persistSessionHelper(state: {
   const payload = {
     currentSong: state.currentSong,
     currentTime: Math.max(0, state.currentTime || 0),
+    duration: state.duration || state.currentSong?.duration || 0,
     queue: state.queue || [],
     queueIndex: Math.max(0, state.queueIndex || 0),
     historySongIds: state.historySongIds || [],
@@ -483,7 +494,6 @@ export const usePlayerStore = create<PlayerState>()(
     // Case 2: Cold boot / Fresh App Session — PASSIVE restoration (isPlaying = false, DO NOT AUTOPLAY)
     // Sourced strictly from the most recent song in listening history (or session)
     if ((session && session.currentSong) || mostRecentHistorySong) {
-      const { isKidsOrNurseryTrack } = await import('@/lib/jioSaavnProvider');
       const candidateSong = session?.currentSong || mostRecentHistorySong || null;
       const rawQueue = (session?.queue && session.queue.length > 0) ? session.queue : (mostRecentHistorySong ? [mostRecentHistorySong] : []);
       const cleanQueue = rawQueue.filter(s => s && !isKidsOrNurseryTrack(s));
@@ -495,31 +505,29 @@ export const usePlayerStore = create<PlayerState>()(
         let safeIndex = cleanQueue.findIndex(s => s.id === activeSong.id);
         if (safeIndex === -1) safeIndex = Math.min(session?.queueIndex || 0, Math.max(0, cleanQueue.length - 1));
 
+        let restoredTime = session?.currentTime || 0;
+        const totalDuration = activeSong.duration || session?.duration || 0;
+
+        // ── NEAR-END RULE: If saved position is within 5 seconds of the end, reset to 0:00 ──
+        if (totalDuration > 0 && restoredTime >= (totalDuration - 5)) {
+          restoredTime = 0;
+        }
+
         manager.replaceQueue(cleanQueue, safeIndex);
 
         set({
-          isPlaying: false, // Strict Rule: ALWAYS PAUSED ON COLD BOOT (Show Play button)
+          isPlaying: false, // Strict Rule: ALWAYS PAUSED ON COLD BOOT (Zero Autoplay)
           playbackIntent: 'PAUSED',
           trackSource: 'SESSION_RESTORE',
           currentSong: activeSong,
-          currentTime: session?.currentTime || 0,
+          currentTime: restoredTime,
+          duration: totalDuration,
           queue: cleanQueue,
           queueIndex: safeIndex,
         });
 
-        console.log(`[UI MINI PLAYER] songId=${activeSong.id} title="${activeSong.title}" cover="${activeSong.coverUrl}" isPlaying=false source=ColdBootRestore`);
-
-        const { PlaybackService } = await import('@/lib/playback/PlaybackService');
-        await PlaybackService.getInstance().prepareTrack(activeSong, session?.currentTime || 0);
-        // Load native queue context strictly with autoPlay = false (NEVER start playback automatically)
-        await PlaybackService.getInstance().loadQueueContext(cleanQueue, safeIndex, false);
-
-        persistSessionHelper({
-          currentSong: activeSong,
-          currentTime: session?.currentTime || 0,
-          queue: cleanQueue,
-          queueIndex: safeIndex,
-        });
+        await PlaybackService.getInstance().prepareTrack(activeSong, restoredTime);
+        await PlaybackService.getInstance().loadQueueContext(cleanQueue, safeIndex, false, Math.round(restoredTime * 1000));
       }
     }
   },
@@ -642,29 +650,23 @@ export const usePlayerStore = create<PlayerState>()(
 
     // Delegate to PlaybackService (local) or ConnectManager (remote)
     if (get().isActiveDevice) {
-      import('@/lib/playback/PlaybackService').then(async ({ PlaybackService }) => {
-        import('@/lib/playback/native/RaagaXNativePlayer').then(async ({ RaagaXNativePlayer }) => {
-          const service = PlaybackService.getInstance();
-          if (RaagaXNativePlayer.isNative() && syncedQueue.length > 0) {
-            // ── Native path: loadQueueContext resolves ALL URLs in parallel and calls
-            // setQueue() which hands ExoPlayer the complete playlist.
-            // ExoPlayer auto-advances natively — WebView does NOT need to wake up.
-            await service.loadQueueContext(syncedQueue, syncedIndex);
-          } else {
-            // ── Web / PWA path: use HTMLAudioElement + queue management
-            service.playTrack(song, true);
-          }
-        });
-      });
+      const service = PlaybackService.getInstance();
+      if (RaagaXNativePlayer.isNative() && syncedQueue.length > 0) {
+        // ── Native path: loadQueueContext resolves ALL URLs in parallel and calls
+        // setQueue() which hands ExoPlayer the complete playlist.
+        // ExoPlayer auto-advances natively — WebView does NOT need to wake up.
+        service.loadQueueContext(syncedQueue, syncedIndex);
+      } else {
+        // ── Web / PWA path: use HTMLAudioElement + queue management
+        service.playTrack(song, true);
+      }
     } else {
-      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-        ConnectManager.getInstance().dispatchPlaybackCommand('PLAY', {
-          trackId: song.id,
-          songData: song,
-          queue: syncedQueue,
-          queueIndex: syncedIndex,
-          positionMs: 0
-        });
+      ConnectManager.getInstance().dispatchPlaybackCommand('PLAY', {
+        trackId: song.id,
+        songData: song,
+        queue: syncedQueue,
+        queueIndex: syncedIndex,
+        positionMs: 0
       });
     }
   },
@@ -697,25 +699,19 @@ export const usePlayerStore = create<PlayerState>()(
     persistSessionHelper({ ...get(), currentSong: firstSong, currentTime: 0, queue: syncedQueue, queueIndex: 0 });
 
     if (get().isActiveDevice) {
-      import('@/lib/playback/PlaybackService').then(async ({ PlaybackService }) => {
-        import('@/lib/playback/native/RaagaXNativePlayer').then(async ({ RaagaXNativePlayer }) => {
-          const service = PlaybackService.getInstance();
-          if (RaagaXNativePlayer.isNative()) {
-            await service.loadQueueContext(syncedQueue, 0);
-          } else {
-            await service.playTrack(firstSong, true);
-          }
-        });
-      });
+      const service = PlaybackService.getInstance();
+      if (RaagaXNativePlayer.isNative()) {
+        service.loadQueueContext(syncedQueue, 0);
+      } else {
+        service.playTrack(firstSong, true);
+      }
     } else {
-      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-        ConnectManager.getInstance().dispatchPlaybackCommand('PLAY', {
-          trackId: firstSong.id,
-          songData: firstSong,
-          queue: syncedQueue,
-          queueIndex: 0,
-          positionMs: 0
-        });
+      ConnectManager.getInstance().dispatchPlaybackCommand('PLAY', {
+        trackId: firstSong.id,
+        songData: firstSong,
+        queue: syncedQueue,
+        queueIndex: 0,
+        positionMs: 0
       });
     }
   },
@@ -724,38 +720,26 @@ export const usePlayerStore = create<PlayerState>()(
     const isNowPlaying = !get().isPlaying;
     if (get().isActiveDevice) {
       if (!isNowPlaying) {
-        import('@/lib/playback/InterruptionCoordinator').then(({ InterruptionCoordinator }) => {
-          InterruptionCoordinator.getInstance().reportUserPause();
-        });
+        InterruptionCoordinator.getInstance().reportUserPause();
       } else {
-        import('@/lib/playback/InterruptionCoordinator').then(({ InterruptionCoordinator }) => {
-          InterruptionCoordinator.getInstance().clearInterruption();
-        });
+        InterruptionCoordinator.getInstance().clearInterruption();
       }
       set({ isPlaying: isNowPlaying, playbackIntent: isNowPlaying ? 'PLAYING' : 'PAUSED' });
     }
     persistSessionHelper({ ...get() });
-    import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-      ConnectManager.getInstance().dispatchPlaybackCommand(isNowPlaying ? 'PLAY' : 'PAUSE', { positionMs: get().currentTime * 1000 });
-    });
+    ConnectManager.getInstance().dispatchPlaybackCommand(isNowPlaying ? 'PLAY' : 'PAUSE', { positionMs: get().currentTime * 1000 });
   },
   setIsPlaying: (playing, fromRemote = false) => {
     // Optimistic UI: Always update local state immediately
     if (!playing && !fromRemote) {
-      import('@/lib/playback/InterruptionCoordinator').then(({ InterruptionCoordinator }) => {
-        InterruptionCoordinator.getInstance().reportUserPause();
-      });
+      InterruptionCoordinator.getInstance().reportUserPause();
     } else if (playing) {
-      import('@/lib/playback/InterruptionCoordinator').then(({ InterruptionCoordinator }) => {
-        InterruptionCoordinator.getInstance().clearInterruption();
-      });
+      InterruptionCoordinator.getInstance().clearInterruption();
     }
     set({ isPlaying: playing, playbackIntent: playing ? 'PLAYING' : 'PAUSED' });
     persistSessionHelper({ ...get() });
     if (!fromRemote) {
-      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-        ConnectManager.getInstance().dispatchPlaybackCommand(playing ? 'PLAY' : 'PAUSE', { positionMs: get().currentTime * 1000 });
-      });
+      ConnectManager.getInstance().dispatchPlaybackCommand(playing ? 'PLAY' : 'PAUSE', { positionMs: get().currentTime * 1000 });
     }
   },
   setCurrentTime: (time, fromRemote = false) => {
@@ -763,9 +747,7 @@ export const usePlayerStore = create<PlayerState>()(
     set({ currentTime: time });
     
     if (!fromRemote) {
-      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-        ConnectManager.getInstance().dispatchPlaybackCommand('SEEK', { positionMs: time * 1000 });
-      });
+      ConnectManager.getInstance().dispatchPlaybackCommand('SEEK', { positionMs: time * 1000 });
     }
 
     const state = get();
@@ -781,13 +763,10 @@ export const usePlayerStore = create<PlayerState>()(
   toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 
   playNext: async () => {
-    const { PlaybackWatchdog } = await import('@/lib/playback/PlaybackWatchdog');
     if (!PlaybackWatchdog.getInstance().acquireTransitionLock()) return;
 
     if (!get().isActiveDevice) {
-      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-        ConnectManager.getInstance().dispatchPlaybackCommand('NEXT');
-      });
+      ConnectManager.getInstance().dispatchPlaybackCommand('NEXT');
       return;
     }
 
@@ -795,7 +774,13 @@ export const usePlayerStore = create<PlayerState>()(
     const isComplete = duration > 0 && currentTime >= duration - 5;
     get().logCurrentTelemetry(isComplete ? 'complete' : 'skip');
 
-    const { RaagaXNativePlayer } = await import('@/lib/playback/native/RaagaXNativePlayer');
+    if (get().sleepTimerMode === 'end_of_song') {
+      get().setIsPlaying(false);
+      get().setSleepTimer(null);
+      get().setToastMessage('Sleep Timer Ended — Playback paused at end of song');
+      return;
+    }
+
     if (RaagaXNativePlayer.isNative()) {
       await RaagaXNativePlayer.next();
       return;
@@ -816,10 +801,12 @@ export const usePlayerStore = create<PlayerState>()(
         currentTime: 0 
       });
       persistSessionHelper({ ...get(), currentSong: nextItem.song, currentTime: 0, queue: syncedQueue, queueIndex: syncedIndex });
-      import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
-        PlaybackService.getInstance().playTrack(nextItem.song, true);
-      });
+      PlaybackService.getInstance().playTrack(nextItem.song, true);
     } else {
+      if (get().sleepTimerMode === 'end_of_queue') {
+        get().setSleepTimer(null);
+        get().setToastMessage('Sleep Timer Ended — Playback paused at end of queue');
+      }
       set({ isPlaying: false });
       persistSessionHelper(get());
     }
@@ -827,9 +814,7 @@ export const usePlayerStore = create<PlayerState>()(
 
   playPrev: async () => {
     if (!get().isActiveDevice) {
-      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-        ConnectManager.getInstance().dispatchPlaybackCommand('PREV');
-      });
+      ConnectManager.getInstance().dispatchPlaybackCommand('PREV');
       return;
     }
 
@@ -842,7 +827,6 @@ export const usePlayerStore = create<PlayerState>()(
     
     get().logCurrentTelemetry('skip');
 
-    const { RaagaXNativePlayer } = await import('@/lib/playback/native/RaagaXNativePlayer');
     if (RaagaXNativePlayer.isNative()) {
       await RaagaXNativePlayer.previous();
       return;
@@ -863,9 +847,7 @@ export const usePlayerStore = create<PlayerState>()(
         currentTime: 0
       });
       persistSessionHelper({ ...get(), currentSong: prevItem.song, currentTime: 0, queue: syncedQueue, queueIndex: syncedIndex });
-      import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
-        PlaybackService.getInstance().playTrack(prevItem.song, true);
-      });
+      PlaybackService.getInstance().playTrack(prevItem.song, true);
     } else {
       set({ isPlaying: false });
       persistSessionHelper(get());
@@ -888,9 +870,7 @@ export const usePlayerStore = create<PlayerState>()(
     });
     persistSessionHelper(get());
 
-    import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
-      PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
-    });
+    PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
   },
   setRepeatMode: (mode) => {
     QueueManager.getInstance().setRepeatMode(mode as any);
@@ -911,9 +891,7 @@ export const usePlayerStore = create<PlayerState>()(
     const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
     set({ queue: syncedQueue, queueIndex: syncedIndex });
 
-    import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
-      PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
-    });
+    PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
   },
   playNextInQueue: (song) => {
     const manager = QueueManager.getInstance();
@@ -923,9 +901,7 @@ export const usePlayerStore = create<PlayerState>()(
     const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
     set({ queue: syncedQueue, queueIndex: syncedIndex });
 
-    import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
-      PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
-    });
+    PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
   },
   playLastInQueue: (song) => {
     const manager = QueueManager.getInstance();
@@ -935,9 +911,7 @@ export const usePlayerStore = create<PlayerState>()(
     const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
     set({ queue: syncedQueue, queueIndex: syncedIndex });
 
-    import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
-      PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
-    });
+    PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
   },
   removeFromQueue: (songId) => {
     const manager = QueueManager.getInstance();
@@ -950,9 +924,7 @@ export const usePlayerStore = create<PlayerState>()(
       const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
       set({ queue: syncedQueue, queueIndex: syncedIndex });
 
-      import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
-        PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
-      });
+      PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
     }
   },
   reorderQueue: (newQueue) => {
@@ -960,9 +932,7 @@ export const usePlayerStore = create<PlayerState>()(
     manager.replaceQueue(newQueue, get().queueIndex, 'USER');
     set({ queue: newQueue });
 
-    import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
-      PlaybackService.getInstance().loadQueueContext(newQueue, get().queueIndex);
-    });
+    PlaybackService.getInstance().loadQueueContext(newQueue, get().queueIndex);
   },
 
   autoRefillQueue: async () => {},
@@ -1244,13 +1214,26 @@ export const usePlayerStore = create<PlayerState>()(
   setSearchQuery: (query) => set({ searchQuery: query }),
   setActiveGenreFilter: (genre) => set({ activeGenreFilter: genre }),
 
-  setSleepTimer: (minutes) => {
+  sleepTimerMode: null,
+  setSleepTimer: (minutes, mode = 'duration') => {
     if (minutes === null) {
-      set({ sleepTimerMinutes: null, sleepTimerEndsAt: null });
+      set({ sleepTimerMinutes: null, sleepTimerEndsAt: null, sleepTimerMode: null });
+    } else if (mode === 'end_of_song' || mode === 'end_of_queue') {
+      set({ sleepTimerMinutes: -1, sleepTimerEndsAt: null, sleepTimerMode: mode });
     } else {
       const endsAt = Date.now() + minutes * 60 * 1000;
-      set({ sleepTimerMinutes: minutes, sleepTimerEndsAt: endsAt });
+      set({ sleepTimerMinutes: minutes, sleepTimerEndsAt: endsAt, sleepTimerMode: 'duration' });
     }
+  },
+  extendSleepTimer: (minutes) => {
+    const { sleepTimerEndsAt, sleepTimerMinutes } = get();
+    const currentEnd = sleepTimerEndsAt && sleepTimerEndsAt > Date.now() ? sleepTimerEndsAt : Date.now();
+    const newEnd = currentEnd + minutes * 60 * 1000;
+    const addedMinutes = (sleepTimerMinutes && sleepTimerMinutes > 0 ? sleepTimerMinutes : 0) + minutes;
+    set({ sleepTimerEndsAt: newEnd, sleepTimerMinutes: addedMinutes, sleepTimerMode: 'duration' });
+  },
+  cancelSleepTimer: () => {
+    set({ sleepTimerMinutes: null, sleepTimerEndsAt: null, sleepTimerMode: null });
   },
     }),
     {

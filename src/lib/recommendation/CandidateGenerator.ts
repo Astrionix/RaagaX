@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { Song } from '@/types/music';
 import { LanguageEligibilityEngine } from '@/lib/language/LanguageEligibilityEngine';
+import { QueueValidator } from '../queue/QueueValidator';
 
 export interface CandidateSong extends Song {
   candidateSource: 'personalized' | 'similar' | 'context' | 'trending' | 'popular';
@@ -19,19 +20,18 @@ export class CandidateGenerator {
    */
   public static async generateCandidates(
     currentSong: Song | null,
-    historyIds: string[],
-    context?: CandidateContext | string,
-    limit: number = 20
+    historyIds: string[] = [],
+    targetLanguage: string = 'Telugu',
+    limit: number = 20,
+    userId?: string
   ): Promise<CandidateSong[]> {
     const candidates = new Map<string, CandidateSong>();
-    const userId = (await supabase.auth.getSession()).data.session?.user?.id || 'guest';
-    const targetLanguage = typeof context === 'string' ? context : (context?.selectedLanguages?.[0] || 'Telugu');
-    const langs = typeof context === 'string' ? [context] : (context?.selectedLanguages && context.selectedLanguages.length > 0 ? context.selectedLanguages : [targetLanguage]);
+    const langs = targetLanguage ? [targetLanguage] : ['Telugu'];
     
     const addCandidates = async (songs: any[], source: CandidateSong['candidateSource']): Promise<boolean> => {
       // Pass strict targetLanguage for queue purity during autoplay / refill
       const eligibleSongs = await LanguageEligibilityEngine.getInstance().filterCandidates(
-        userId,
+        userId || 'guest',
         songs,
         'AUTOPLAY',
         targetLanguage,
@@ -57,6 +57,7 @@ export class CandidateGenerator {
              plays: (song as any).play_count || song.plays || 0,
              likes: 0,
           };
+          if (!QueueValidator.isValidSong(mappedSong)) continue;
           candidates.set(song.id, { ...mappedSong, candidateSource: source });
         }
         if (candidates.size >= limit) return true;

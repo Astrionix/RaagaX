@@ -31,6 +31,7 @@ export class AccountSyncEngine {
 
   private channel: any = null;
   private subscribedUserId: string | null = null;
+  private hasUserDownloadsTable: boolean = true;
 
   private constructor() {
     if (typeof window !== 'undefined') {
@@ -148,32 +149,40 @@ export class AccountSyncEngine {
       }
 
       // 2. Reconcile Cloud Download Records (User's Cloud Download List)
-      try {
-        const { data: downloadData, error: downloadError } = await supabase
-          .from('user_downloads')
-          .select('*')
-          .eq('user_id', userId);
+      if (this.hasUserDownloadsTable) {
+        try {
+          const { data: downloadData, error: downloadError } = await supabase
+            .from('user_downloads')
+            .select('*')
+            .eq('user_id', userId);
 
-        if (!downloadError && downloadData) {
-          const records: CloudDownloadRecord[] = downloadData.map((row: any) => ({
-            song_id: row.song_id,
-            user_id: row.user_id,
-            downloaded_at: row.downloaded_at || row.created_at,
-            song_title: row.song_title,
-            song_artist: row.song_artist,
-            song_cover: row.song_cover,
-            song_duration: row.song_duration,
-            song_version: row.song_version,
-          }));
+          if (downloadError) {
+            if (downloadError.code === '42P01' || downloadError.message?.includes('does not exist')) {
+              this.hasUserDownloadsTable = false;
+            }
+          } else if (downloadData) {
+            const records: CloudDownloadRecord[] = downloadData.map((row: any) => ({
+              song_id: row.song_id,
+              user_id: row.user_id,
+              downloaded_at: row.downloaded_at || row.created_at,
+              song_title: row.song_title,
+              song_artist: row.song_artist,
+              song_cover: row.song_cover,
+              song_duration: row.song_duration,
+              song_version: row.song_version,
+            }));
 
-          await localDb.setUserStore(userId, 'user_downloads', records);
-          const cloudIds = records.map((r) => r.song_id);
-          usePlayerStore.setState({
-            cloudDownloadedSongIds: cloudIds,
-            cloudDownloadRecords: records,
-          });
+            await localDb.setUserStore(userId, 'user_downloads', records);
+            const cloudIds = records.map((r) => r.song_id);
+            usePlayerStore.setState({
+              cloudDownloadedSongIds: cloudIds,
+              cloudDownloadRecords: records,
+            });
+          }
+        } catch (e) {
+          this.hasUserDownloadsTable = false;
         }
-      } catch {}
+      }
 
       // 3. Authoritative Local Device Storage Check
       // IMPORTANT RULE: Only mark as locally downloaded if the actual audio file is present in IndexedDB on THIS device!
@@ -388,7 +397,7 @@ export class AccountSyncEngine {
     const cached = await localDb.getUserStore<CloudDownloadRecord[]>(userId, 'user_downloads');
     if (cached) return cached;
 
-    if (this.isOnline && this.isUUID(userId)) {
+    if (this.hasUserDownloadsTable && this.isOnline && this.isUUID(userId)) {
       try {
         const { data, error } = await supabase
           .from('user_downloads')
@@ -396,13 +405,17 @@ export class AccountSyncEngine {
           .eq('user_id', userId)
           .order('downloaded_at', { ascending: false });
 
-        if (!error && data) {
+        if (error) {
+          if (error.code === '42P01' || error.message?.includes('does not exist')) {
+            this.hasUserDownloadsTable = false;
+          }
+        } else if (data) {
           const records = data as CloudDownloadRecord[];
           await localDb.setUserStore(userId, 'user_downloads', records);
           return records;
         }
       } catch (e) {
-        console.warn('[AccountSyncEngine] Failed to fetch cloud downloads from Supabase:', e);
+        this.hasUserDownloadsTable = false;
       }
     }
 
@@ -437,9 +450,9 @@ export class AccountSyncEngine {
       });
     } catch {}
 
-    if (this.isOnline && this.isUUID(userId)) {
+    if (this.hasUserDownloadsTable && this.isOnline && this.isUUID(userId)) {
       try {
-        await supabase
+        const { error } = await supabase
           .from('user_downloads')
           .upsert({
             user_id: userId,
@@ -448,11 +461,21 @@ export class AccountSyncEngine {
             song_artist: song.artist,
             song_cover: song.coverUrl,
             song_duration: song.duration,
+            song_version: '1.0',
             downloaded_at: newRecord.downloaded_at,
           }, { onConflict: 'user_id,song_id' });
-        return;
+          
+        if (error) {
+          if (error.code === '42P01' || error.message?.includes('does not exist')) {
+            this.hasUserDownloadsTable = false;
+          } else {
+            console.warn('[AccountSyncEngine] Remote cloud download record failed, queueing offline mutation:', error);
+          }
+        } else {
+          return;
+        }
       } catch (e) {
-        console.warn('[AccountSyncEngine] Remote cloud download record failed, queueing offline mutation:', e);
+        this.hasUserDownloadsTable = false;
       }
     }
 
@@ -482,16 +505,20 @@ export class AccountSyncEngine {
       });
     } catch {}
 
-    if (this.isOnline && this.isUUID(userId)) {
+    if (this.hasUserDownloadsTable && this.isOnline && this.isUUID(userId)) {
       try {
-        await supabase
+        const { error } = await supabase
           .from('user_downloads')
           .delete()
           .eq('user_id', userId)
           .eq('song_id', songId);
-        return;
+        if (error && (error.code === '42P01' || error.message?.includes('does not exist'))) {
+          this.hasUserDownloadsTable = false;
+        } else {
+          return;
+        }
       } catch (e) {
-        console.warn('[AccountSyncEngine] Remote delete download record failed, queueing offline mutation:', e);
+        this.hasUserDownloadsTable = false;
       }
     }
 
@@ -528,8 +555,8 @@ export class AccountSyncEngine {
             await supabase.from('playlists').insert({ id: mut.entity_id, user_id: mut.user_id, name: mut.payload?.name, description: mut.payload?.description });
           } else if (mut.type === 'DELETE_PLAYLIST') {
             await supabase.from('playlists').delete().eq('id', mut.entity_id).eq('user_id', mut.user_id);
-          } else if (mut.type === 'RECORD_DOWNLOAD') {
-            await supabase.from('user_downloads').upsert({
+          } else if (mut.type === 'RECORD_DOWNLOAD' && this.hasUserDownloadsTable) {
+            const { error } = await supabase.from('user_downloads').upsert({
               user_id: mut.user_id,
               song_id: mut.entity_id,
               song_title: mut.payload?.song_title,
@@ -538,8 +565,14 @@ export class AccountSyncEngine {
               song_duration: mut.payload?.song_duration,
               downloaded_at: mut.payload?.downloaded_at || mut.created_at,
             }, { onConflict: 'user_id,song_id' });
-          } else if (mut.type === 'REMOVE_DOWNLOAD_RECORD') {
-            await supabase.from('user_downloads').delete().eq('user_id', mut.user_id).eq('song_id', mut.entity_id);
+            if (error && (error.code === '42P01' || error.message?.includes('does not exist'))) {
+              this.hasUserDownloadsTable = false;
+            }
+          } else if (mut.type === 'REMOVE_DOWNLOAD_RECORD' && this.hasUserDownloadsTable) {
+            const { error } = await supabase.from('user_downloads').delete().eq('user_id', mut.user_id).eq('song_id', mut.entity_id);
+            if (error && (error.code === '42P01' || error.message?.includes('does not exist'))) {
+              this.hasUserDownloadsTable = false;
+            }
           }
 
           await localDb.removePendingMutation(mut.mutation_id);
