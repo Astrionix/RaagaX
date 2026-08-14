@@ -54,17 +54,11 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
     if (loadedOffsets.current.has(nextOffset)) return;
 
     loadingRef.current = true;
-    
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    abortControllerRef.current = new AbortController();
 
     try {
       const prefLang = usePlayerStore.getState().preferredLanguage || 'Telugu';
       const res = await fetch(
-        `/api/browse/section?playlistId=${pagination.source.id}&lang=${encodeURIComponent(prefLang)}&offset=${nextOffset}&limit=20`,
-        { signal: abortControllerRef.current.signal }
+        `/api/browse/section?playlistId=${pagination.source.id}&lang=${encodeURIComponent(prefLang)}&offset=${nextOffset}&limit=20`
       );
       
       if (!res.ok) throw new Error('Network response was not ok');
@@ -73,11 +67,7 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
       if (data.success) {
         setStatus(data.status || 'ready');
         
-        if (data.status === 'warming') {
-          // If the worker is still warming this chunk, we can retry once later, 
-          // but for now we just stop and keep hasMore=true so the observer can re-trigger if they scroll back and forth.
-          setHasMore(data.hasMore ?? true);
-        } else if (data.items && data.items.length > 0) {
+        if (data.items && data.items.length > 0) {
           loadedOffsets.current.add(nextOffset);
           
           setShelfItems(prev => {
@@ -90,28 +80,38 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
         } else {
           setHasMore(false);
         }
+      } else {
+        setHasMore(false);
       }
     } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        console.error('Failed to load more shelf items:', err);
-      }
+      console.error('Failed to load more shelf items:', err);
+      setHasMore(false);
     } finally {
       loadingRef.current = false;
     }
   }, [pagination, hasMore, shelfItems.length]);
 
+  // Auto-fetch remaining tracks when showAll modal is opened
+  useEffect(() => {
+    if (showAll && hasMore && !loadingRef.current) {
+      const t = setTimeout(() => {
+        loadMore();
+      }, 100);
+      return () => clearTimeout(t);
+    }
+  }, [showAll, hasMore, shelfItems.length, loadMore]);
+
   const sentinelRef = useCallback((node: HTMLDivElement | null) => {
-    if (loadingRef.current) return;
     if (observer.current) observer.current.disconnect();
 
     observer.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore) {
+      if (entries[0].isIntersecting && hasMore && !loadingRef.current) {
         loadMore();
       }
     }, {
       root: null,
-      rootMargin: '300px 300px 300px 300px', // Triggers for both horizontal carousels and vertical modal lists
-      threshold: 0
+      rootMargin: '400px',
+      threshold: 0.1
     });
 
     if (node) observer.current.observe(node);
@@ -362,82 +362,79 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
       </div>
 
       {showAll && (
-        <div className="fixed inset-0 z-50 bg-[#121212] flex flex-col animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
+        <div className="fixed inset-0 z-50 bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
           {/* Header Gradient Background */}
-          <div className="absolute top-0 left-0 right-0 h-[400px] bg-gradient-to-b from-[#fa233b]/40 to-[#121212] pointer-events-none opacity-50" />
+          <div className="absolute top-0 left-0 right-0 h-[400px] bg-gradient-to-b from-[#fa233b]/30 to-transparent pointer-events-none opacity-40" />
           
           {/* Close Button */}
           <button 
             onClick={() => setShowAll(false)} 
-            className="absolute top-4 right-4 sm:top-6 sm:right-8 p-2 bg-black/40 backdrop-blur-md rounded-full hover:bg-black/60 transition-colors z-10 cursor-pointer"
+            className="absolute top-4 right-4 sm:top-6 sm:right-8 p-2.5 bg-black/40 hover:bg-black/60 backdrop-blur-md rounded-full text-white transition-colors z-20 cursor-pointer shadow-lg"
           >
-            <X className="w-6 h-6 text-white" />
+            <X className="w-6 h-6" />
           </button>
 
           <div className="flex-1 overflow-y-auto pb-safe scroll-smooth">
-            {/* Spotify-style Hero Section */}
-            <div className="relative pt-20 pb-6 px-4 sm:px-8 max-w-[1920px] mx-auto flex flex-col sm:flex-row items-start sm:items-end gap-6 mt-safe">
+            {/* Hero Section */}
+            <div className="relative pt-16 pb-6 px-4 sm:px-8 max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-end gap-6">
               <img 
                 src={coverImageUrl} 
                 alt={title}
-                className="w-48 h-48 sm:w-60 sm:h-60 shadow-2xl object-cover rounded-md flex-shrink-0 bg-slate-800 self-center sm:self-auto"
+                className="w-48 h-48 sm:w-56 sm:h-56 shadow-2xl object-cover rounded-2xl flex-shrink-0 bg-slate-800 self-center sm:self-auto border border-white/10"
               />
               <div className="flex flex-col gap-2 pb-2 w-full">
-                <span className="text-xs font-bold text-white uppercase tracking-wider">Playlist</span>
-                <h1 className="text-3xl sm:text-6xl md:text-8xl font-black text-white tracking-tight leading-tight sm:leading-none mb-2 sm:mb-4 flex flex-wrap items-center gap-3">
+                <span className="text-xs font-bold text-[#fa233b] uppercase tracking-wider">Playlist</span>
+                <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight leading-tight mb-1 flex flex-wrap items-center gap-3">
                   {title}
                 </h1>
-                <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-slate-300 mt-1 sm:mt-2">
-                  <span className="font-bold text-white">RaagaX</span>
-                  <span className="hidden sm:inline">•</span>
-                  <span>{totalSongs} songs,</span>
+                <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-400 mt-1">
+                  <span className="font-bold text-[var(--text-primary)]">RaagaX</span>
+                  <span>•</span>
+                  <span>{shelfItems.length > 0 ? shelfItems.length : totalSongs} songs</span>
+                  <span>•</span>
                   <span className="text-slate-400">{durationText}</span>
                 </div>
               </div>
             </div>
 
-            {/* Action Bar Background Overlay */}
-            <div className="bg-black/20 backdrop-blur-3xl border-b border-white/5 sticky top-0 z-10">
-              <div className="max-w-[1920px] mx-auto px-4 sm:px-8 py-4 flex items-center gap-6">
+            {/* Action Bar */}
+            <div className="bg-[var(--header-bg)] backdrop-blur-2xl border-b border-[var(--border-subtle)] sticky top-0 z-10">
+              <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3.5 flex items-center gap-5">
                 <button 
                   onClick={handlePlayAll}
-                  className="w-14 h-14 rounded-full bg-[#fa233b] hover:bg-[#fa233b]/90 text-white flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all group"
+                  className="w-13 h-13 p-3 rounded-full bg-[#fa233b] hover:bg-[#d91c2e] text-white flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all group"
                 >
-                  <Play className="w-7 h-7 fill-white ml-1 group-hover:scale-105 transition-transform" />
+                  <Play className="w-6 h-6 fill-white ml-0.5" />
                 </button>
                 <button 
                   onClick={handleShufflePlayAll}
-                  className="p-2 text-slate-400 hover:text-white transition-colors"
+                  className="p-2 text-slate-400 hover:text-[var(--text-primary)] transition-colors"
                   title="Shuffle Play"
                 >
-                  <Shuffle className="w-8 h-8" />
+                  <Shuffle className="w-6 h-6" />
                 </button>
               </div>
 
               {/* Table Header */}
-              <div className="hidden md:grid max-w-[1920px] mx-auto px-4 sm:px-8 py-2 md:grid-cols-[40px_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1fr)_100px] gap-4 text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-white/10 sticky top-[88px] bg-[#121212]/95 backdrop-blur-xl z-10">
+              <div className="hidden md:grid max-w-7xl mx-auto px-4 sm:px-8 py-2 md:grid-cols-[40px_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1fr)_100px] gap-4 text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-[var(--border-subtle)]">
                 <div className="text-center">#</div>
                 <div>Title</div>
                 <div>Album</div>
-                <div>Date added</div>
-                <div className="text-right pr-4">
-                  <svg role="img" height="16" width="16" aria-hidden="true" viewBox="0 0 16 16" fill="currentColor" className="inline-block"><path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8z"></path><path d="M8 3.25a.75.75 0 0 1 .75.75v3.25H11a.75.75 0 0 1 0 1.5H7.25V4A.75.75 0 0 1 8 3.25z"></path></svg>
-                </div>
+                <div>Release</div>
+                <div className="text-right pr-4">Duration</div>
               </div>
             </div>
 
             {/* Modal Track List */}
-            <div className="max-w-[1920px] mx-auto px-4 sm:px-8 py-4 pb-8">
+            <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 pb-20">
               {shelfItems.map((item, idx) => {
                 const isCurrentlyPlaying = currentSong?.id === item.id;
-                const isSentinel = pagination?.enabled && idx === Math.max(0, shelfItems.length - 15);
                 
                 return (
                   <div
                     key={`${item.id}-${idx}`}
-                    ref={isSentinel ? sentinelRef : null}
                     onClick={() => handleItemClick(item)}
-                    className={`group grid grid-cols-[32px_minmax(0,1fr)_40px] md:grid-cols-[40px_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1fr)_100px] gap-3 sm:gap-4 items-center p-2 rounded-md hover:bg-white/10 transition-colors cursor-pointer ${isCurrentlyPlaying ? 'bg-white/5' : ''}`}
+                    className={`group grid grid-cols-[32px_minmax(0,1fr)_40px] md:grid-cols-[40px_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1fr)_100px] gap-3 sm:gap-4 items-center p-2.5 rounded-xl hover:bg-white/5 transition-colors cursor-pointer ${isCurrentlyPlaying ? 'bg-[#fa233b]/10' : ''}`}
                   >
                     <div className="flex justify-center relative">
                       {isCurrentlyPlaying && isPlaying ? (
@@ -466,26 +463,26 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
                         src={item.imageUrl || '/app-icon.png'}
                         alt={item.title}
                         onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                        className="w-10 h-10 object-cover bg-slate-800"
+                        className="w-10 h-10 rounded-lg object-cover bg-slate-800"
                       />
                       <div className="min-w-0 flex-1">
-                        <h4 className={`text-base font-normal truncate ${isCurrentlyPlaying ? 'text-[#fa233b]' : 'text-white'}`}>
+                        <h4 className={`text-sm font-semibold truncate ${isCurrentlyPlaying ? 'text-[#fa233b]' : 'text-[var(--text-primary)]'}`}>
                           {item.title}
                         </h4>
                         {item.subtitle && (
-                          <p className="text-sm font-normal text-slate-400 truncate hover:underline">{item.subtitle}</p>
+                          <p className="text-xs text-slate-400 truncate mt-0.5">{item.subtitle}</p>
                         )}
                       </div>
                     </div>
 
                     <div className="hidden md:block min-w-0">
-                      <span className="text-sm text-slate-400 truncate hover:underline block">
+                      <span className="text-xs text-slate-400 truncate block">
                         {item.type === 'song' ? (item.rawItem?.album || item.title) : item.title}
                       </span>
                     </div>
 
                     <div className="hidden md:block min-w-0">
-                      <span className="text-sm text-slate-400 truncate block">
+                      <span className="text-xs text-slate-400 truncate block">
                         {item.type === 'song' && item.rawItem?.releaseDate ? new Date(item.rawItem.releaseDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : (item.rawItem?.releaseYear || '')}
                       </span>
                     </div>
@@ -500,7 +497,7 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
                           </button>
                         )}
                       </div>
-                      <span className="text-sm font-normal text-slate-400 tabular-nums hidden sm:block w-10 text-right">
+                      <span className="text-xs text-slate-400 tabular-nums hidden sm:block w-10 text-right font-mono">
                         {item.type === 'song' ? formatTime(item.rawItem?.duration) : ''}
                       </span>
                     </div>
@@ -508,10 +505,16 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
                 );
               })}
               
-              {hasMore && (
-                 <div className="py-8 flex justify-center">
-                   <div className="w-6 h-6 rounded-full border-2 border-[#fa233b] border-t-transparent animate-spin"></div>
-                 </div>
+              {/* Bottom Infinite Scroll Sentinel & Loading Indicator */}
+              {hasMore ? (
+                <div ref={sentinelRef} className="py-8 flex flex-col items-center justify-center gap-2">
+                  <div className="w-6 h-6 rounded-full border-2 border-[#fa233b] border-t-transparent animate-spin"></div>
+                  <span className="text-[11px] text-slate-400">Loading more tracks...</span>
+                </div>
+              ) : (
+                <div className="py-8 text-center text-xs text-slate-500 font-medium">
+                  All {shelfItems.length} songs loaded
+                </div>
               )}
             </div>
           </div>

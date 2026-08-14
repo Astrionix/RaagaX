@@ -41,30 +41,56 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Strictly read from the cache for pagination
     let query = supabaseAdmin
       .from('spotify_playlist_cache')
-      .select('data')
+      .select('data, playlist_name')
       .eq('playlist_id', playlistId);
 
     if (playlistId === 'aggregated_new_releases') {
       query = query.eq('language', lang);
     }
 
-    const { data: cachedRow, error } = await query.maybeSingle();
+    let { data: cachedRow, error } = await query.maybeSingle();
 
     if (error) {
       console.error('[BROWSE SECTION API] DB Error:', error);
-      return NextResponse.json({ success: false, error: 'Database error' }, { status: 500 });
     }
 
-    if (!cachedRow || !cachedRow.data || !Array.isArray(cachedRow.data)) {
-      // Cache MISS or empty. Return warming state so frontend can retry
+    // If cache is completely missing or empty, resolve on-demand
+    if (!cachedRow || !cachedRow.data || !Array.isArray(cachedRow.data) || cachedRow.data.length === 0) {
+      try {
+        const host = req.headers.get('host') || 'localhost:3000';
+        const proto = req.headers.get('x-forwarded-proto') || 'http';
+        const baseUrl = `${proto}://${host}`;
+        const { PlaylistResolver } = await import('@/lib/discovery/PlaylistResolver');
+        const resolver = new PlaylistResolver(baseUrl);
+        const resolved = await resolver.resolveSpotifyPlaylist(playlistId, 100);
+
+        if (resolved && resolved.length > 0) {
+          const expiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+          await supabaseAdmin.from('spotify_playlist_cache').upsert({
+            playlist_id: playlistId,
+            playlist_name: `${lang} Playlist`,
+            language: lang,
+            data: resolved,
+            expires_at: expiresAt,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'playlist_id' });
+
+          cachedRow = { data: resolved, playlist_name: `${lang} Playlist` };
+        }
+      } catch (resErr) {
+        console.warn('[BROWSE SECTION API] On-demand resolution failed:', resErr);
+      }
+    }
+
+    if (!cachedRow || !cachedRow.data || !Array.isArray(cachedRow.data) || cachedRow.data.length === 0) {
       return NextResponse.json({ 
         success: true, 
         items: [],
-        hasMore: true,
-        status: 'warming'
+        hasMore: false,
+        status: 'empty',
+        total: 0
       });
     }
 
@@ -88,6 +114,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error('[BROWSE SECTION API] Error:', err);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Internal server error', items: [], hasMore: false }, { status: 500 });
   }
 }
