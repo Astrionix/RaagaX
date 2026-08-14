@@ -65,6 +65,9 @@ export function SeekBar({
       trackRef.current.setPointerCapture(e.pointerId);
     }
     
+    // Lock out remote position updates while the user is dragging
+    SeekLock.startSeeking();
+
     setIsSeeking(true);
     setIsSeekSettling(false);
     const p = calculateProgressFromEvent(e);
@@ -99,12 +102,21 @@ export function SeekBar({
       setIsSeekSettling(true);
       setLocalProgress(p);
       
+      // End SeekLock with a settling window — blocks stale remote position
+      // updates for 500ms after release so ExoPlayer can confirm the seek
+      SeekLock.endSeeking(500);
+
       setCurrentTime(newTime);
       setSeekTarget(newTime);
 
+      // Cross-device: broadcast SEEK so the remote device (Laptop/Phone) also seeks
+      import('@/lib/connect/CommandBus').then(({ CommandBus }) => {
+        CommandBus.getInstance().send('SEEK', { positionMs: Math.round(newTime * 1000) });
+      });
+
       setTimeout(() => {
         setIsSeekSettling(false);
-      }, 150);
+      }, 500);
     }
   };
 
@@ -114,6 +126,7 @@ export function SeekBar({
         trackRef.current.releasePointerCapture(e.pointerId);
       } catch {}
     }
+    SeekLock.endSeeking(0); // cancel drag — no settle window needed
     setIsSeeking(false);
     setIsSeekSettling(false);
     setLocalProgress(duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0);

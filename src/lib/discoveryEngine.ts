@@ -210,7 +210,7 @@ export class DiscoveryEngine {
     this.provider = JioSaavnProvider.getInstance(localBase);
   }
 
-  public static getInstance(localBase = 'http://localhost:3001'): DiscoveryEngine {
+  public static getInstance(localBase = 'http://localhost:3000'): DiscoveryEngine {
     if (!DiscoveryEngine.instance) {
       DiscoveryEngine.instance = new DiscoveryEngine(localBase);
     }

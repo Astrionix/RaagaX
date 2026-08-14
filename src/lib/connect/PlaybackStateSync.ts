@@ -5,6 +5,7 @@ import { CommandSequencer } from './CommandSequencer';
 import { DeviceRegistry } from './DeviceRegistry';
 import { RaagaXNativePlayer } from '../playback/native/RaagaXNativePlayer';
 import { PlaybackService } from '../playback/PlaybackService';
+import { SeekLock } from '../playback/SeekLock';
 
 export interface RemotePlaybackState {
   activeDeviceId: string;
@@ -19,6 +20,8 @@ export interface RemotePlaybackState {
   isMuted: boolean;
   queue: Song[];
   queueIndex: number;
+  shuffleMode?: string;
+  repeatMode?: string;
   serverTimestamp: number;
   epoch: number;
   revision?: number;
@@ -29,6 +32,12 @@ export class PlaybackStateSync {
   private lastPublishTime: number = 0;
   private publishTimer: NodeJS.Timeout | null = null;
 
+  // Optimistic command shielding to eliminate remote state feedback loops
+  private lastSentCommand: string | null = null;
+  private lastSentCommandTime: number = 0;
+  private lastSentSongId: string | null = null;
+  private lastSentQueueIndex: number | null = null;
+
   private constructor() {}
 
   public static getInstance(): PlaybackStateSync {
@@ -36,6 +45,17 @@ export class PlaybackStateSync {
       PlaybackStateSync.instance = new PlaybackStateSync();
     }
     return PlaybackStateSync.instance;
+  }
+
+  /**
+   * Tracks a sent command to shield optimistic UI state from conflicting incoming updates.
+   */
+  public recordSentCommand(type: string, songId: string | null = null, queueIndex: number | null = null) {
+    this.lastSentCommand = type;
+    this.lastSentCommandTime = Date.now();
+    this.lastSentSongId = songId;
+    this.lastSentQueueIndex = queueIndex;
+    console.log(`[PlaybackStateSync] Shielding enabled for command ${type} (songId=${songId}, queueIndex=${queueIndex})`);
   }
 
   /**
@@ -82,6 +102,8 @@ export class PlaybackStateSync {
       isMuted: store.isMuted,
       queue: store.queue || [],
       queueIndex: store.queueIndex || 0,
+      shuffleMode: store.shuffleMode,
+      repeatMode: store.repeatMode,
       serverTimestamp: now,
       epoch: sequencer.getEpoch(),
       revision: nextRevision,
@@ -119,6 +141,56 @@ export class PlaybackStateSync {
       return;
     }
 
+    // While the user is dragging the seekbar or seek is settling, suppress
+    // incoming remote position updates so the thumb doesn't snap back mid-drag.
+    if (SeekLock.shouldBlockRemoteUpdate) {
+      console.log('[PlaybackStateSync] Suppressing remote position update — SeekLock active (user is seeking)');
+      return;
+    }
+
+    // Apply command shielding to filter out delayed contradicting updates before target device updates
+    const now = Date.now();
+    if (this.lastSentCommand && now - this.lastSentCommandTime < 2500) {
+      if (this.lastSentCommand === 'PLAY' || this.lastSentCommand === 'NEXT' || this.lastSentCommand === 'PREV') {
+        const isSongMatched = !this.lastSentSongId || remoteState.songId === this.lastSentSongId;
+        const isPlayingMatched = remoteState.isPlaying === true;
+        if (isSongMatched && isPlayingMatched) {
+          // Renderer has caught up to our optimistic state, clear shielding
+          this.lastSentCommand = null;
+          this.lastSentSongId = null;
+          this.lastSentQueueIndex = null;
+        } else {
+          console.log(`[PlaybackStateSync] Shielding optimistic play/song state. Incoming: isPlaying=${remoteState.isPlaying}, songId=${remoteState.songId}. Kept local isPlaying=true, songId=${this.lastSentSongId}`);
+          remoteState.isPlaying = true;
+          if (this.lastSentSongId && store.currentSong && store.currentSong.id === this.lastSentSongId) {
+            remoteState.songId = this.lastSentSongId;
+            remoteState.songData = store.currentSong;
+            if (this.lastSentQueueIndex !== null) {
+              remoteState.queueIndex = this.lastSentQueueIndex;
+            }
+          }
+        }
+      } else if (this.lastSentCommand === 'PAUSE') {
+        if (remoteState.isPlaying === false) {
+          // Renderer has caught up to our optimistic state, clear shielding
+          this.lastSentCommand = null;
+        } else {
+          console.log(`[PlaybackStateSync] Shielding optimistic pause state. Incoming: isPlaying=true. Kept local isPlaying=false`);
+          remoteState.isPlaying = false;
+        }
+      } else if (this.lastSentCommand === 'SEEK') {
+        const localTime = store.currentTime;
+        const remoteTime = remoteState.positionMs / 1000;
+        if (Math.abs(remoteTime - localTime) < 2) {
+          // Renderer has caught up to our optimistic state, clear shielding
+          this.lastSentCommand = null;
+        } else {
+          console.log(`[PlaybackStateSync] Shielding optimistic seek position. Incoming: pos=${remoteTime}s. Kept local pos=${localTime}s`);
+          remoteState.positionMs = Math.round(localTime * 1000);
+        }
+      }
+    }
+
     console.log(`[PlaybackStateSync] Received remote state from ${remoteState.activeDeviceName} (${remoteState.activeDeviceId}):`, {
       song: remoteState.songData?.title,
       isPlaying: remoteState.isPlaying,
@@ -147,9 +219,22 @@ export class PlaybackStateSync {
       isPlaying: remoteState.isPlaying,
       queue: remoteState.queue || [],
       queueIndex: remoteState.queueIndex || 0,
+      shuffleMode: (remoteState.shuffleMode || 'OFF') as any,
+      repeatMode: (remoteState.repeatMode || 'OFF') as any,
       volume: remoteState.volume ?? 0.8,
       isMuted: remoteState.isMuted ?? false,
       lastReceivedPlaybackRevision: incomingRevision,
     });
+
+    // 3. Keep local QueueManager aligned with remote repeat and shuffle modes
+    import('@/lib/queue/QueueManager').then(({ QueueManager }) => {
+      const manager = QueueManager.getInstance();
+      if (remoteState.repeatMode && manager.getRepeatMode() !== remoteState.repeatMode) {
+        manager.setRepeatMode(remoteState.repeatMode as any);
+      }
+      if (remoteState.shuffleMode && manager.getShuffleMode() !== remoteState.shuffleMode) {
+        manager.setShuffleMode(remoteState.shuffleMode as any);
+      }
+    }).catch(() => {});
   }
 }

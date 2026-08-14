@@ -158,4 +158,16 @@ export const RaagaXNativePlayer = {
     plugin.addListener('playbackStateChanged', callback);
     return () => plugin.removeAllListeners('playbackStateChanged');
   },
+
+  /**
+   * Fires when ExoPlayer has confirmed a seek — provides the authoritative
+   * settled positionMs. Use this to immediately update the UI after a seek
+   * instead of waiting for the next 1-second poll tick.
+   */
+  addSeekCompleteListener(callback: (data: { positionMs: number; wasPlaying: boolean }) => void): () => void {
+    const plugin = getPlugin();
+    if (!plugin) return () => {};
+    plugin.addListener('seekComplete', callback);
+    return () => plugin.removeAllListeners('seekComplete');
+  },
 };

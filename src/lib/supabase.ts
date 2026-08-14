@@ -55,7 +55,12 @@ export function getSupabase(): SupabaseClient {
     return _client;
   }
 
-  _client = createClient(url, key);
+  _client = createClient(url, key, {
+    global: {
+      // Bypasses Next.js patched fetch caching on server-side environments
+      fetch: (url, options) => fetch(url, { ...options, cache: 'no-store' }),
+    },
+  });
   return _client;
 }
 

@@ -159,6 +159,58 @@ export class QueueEngine {
     
     this.mutate();
   }
+    
+  public async setShuffleMode(mode: ShuffleMode) {
+    if (this.shuffleMode === mode) return;
+    this.shuffleMode = mode;
+    if (this.shuffleMode === 'STANDARD') {
+      this.shuffleSeed = crypto.randomUUID();
+      this.originalItems = [...this.items];
+      
+      if (this.currentIndex >= 0 && this.currentIndex < this.items.length) {
+        const currentItem = this.items[this.currentIndex];
+        const remaining = this.items.filter((_, i) => i !== this.currentIndex);
+        
+        let seed = this.shuffleSeed.charCodeAt(0);
+        remaining.sort(() => {
+          seed = (seed * 9301 + 49297) % 233280;
+          return (seed / 233280) - 0.5;
+        });
+        
+        this.items = [currentItem, ...remaining];
+        this.currentIndex = 0;
+      }
+    } else if (this.shuffleMode === 'SMART') {
+      this.shuffleSeed = crypto.randomUUID();
+      if (this.originalItems.length === 0) {
+        this.originalItems = [...this.items];
+      }
+      
+      if (this.currentIndex >= 0 && this.currentIndex < this.items.length) {
+        const currentItem = this.items[this.currentIndex];
+        const remaining = this.items.filter((_, i) => i !== this.currentIndex);
+        
+        const { usePlayerStore } = await import('@/context/usePlayerStore');
+        const activeLang = usePlayerStore.getState().preferredLanguage || (currentItem?.song as any)?.language || 'Telugu';
+        
+        const smartSequence = await import('./SmartShuffleEngine').then(m => 
+          m.SmartShuffleEngine.generateSmartSequence(remaining, this.shuffleSeed, activeLang)
+        );
+        
+        this.items = [currentItem, ...smartSequence];
+        this.currentIndex = 0;
+      }
+    } else {
+      if (this.originalItems.length > 0) {
+        const currentItem = this.items[this.currentIndex];
+        this.items = [...this.originalItems];
+        this.currentIndex = this.items.findIndex(i => i.queueItemId === currentItem?.queueItemId);
+        if (this.currentIndex === -1) this.currentIndex = 0;
+      }
+    }
+    
+    this.mutate();
+  }
   public getShuffleMode() { return this.shuffleMode; }
 
   public getCurrentItem(): QueueItem | null {

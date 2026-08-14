@@ -99,7 +99,7 @@ function mapTrackToSong(track: any, idx: number): Song {
 }
 
 const KIDS_KEYWORDS = [
-  'wowkidz', 'nursery', 'rhymes', 'chitti chilakamma', 'bujji meka', 
+  'wowkidz', 'nursery', 'rhymes', 'chitti chilakamma', 'bujji meka',
   'akesi pappesi', 'burru pitta', 'bava bava', 'chuku chuku railu',
   'infobells', 'chuchu tv', 'cocomelon', 'lullaby', 'kindergarten',
   'baby shark', 'kids rhymes', 'rhyme', 'kids song'

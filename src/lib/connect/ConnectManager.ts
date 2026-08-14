@@ -352,6 +352,16 @@ export class ConnectManager {
         serverTimestamp: clock.getEstimatedServerNow()
       }
     };
+
+    if (type === 'PLAY' || type === 'PAUSE' || type === 'SEEK' || type === 'NEXT' || type === 'PREV') {
+      import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+        PlaybackStateSync.getInstance().recordSentCommand(
+          type,
+          store.currentSong?.id || null,
+          store.queueIndex
+        );
+      }).catch(() => {});
+    }
     
     return new Promise(async (resolve, reject) => {
       const timeout = setTimeout(() => {

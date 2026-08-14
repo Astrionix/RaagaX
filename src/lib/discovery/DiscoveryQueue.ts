@@ -55,7 +55,7 @@ export class DiscoveryQueue {
 
       // Trigger background worker asynchronously
       const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001';
-      fetch(`${baseUrl}/api/cron/worker`).catch(() => {});
+      fetch(`${baseUrl}/api/cron/worker`).catch(() => { });
 
       return true;
     } catch (err) {

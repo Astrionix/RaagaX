@@ -25,37 +25,25 @@ export async function GET(req: NextRequest) {
   try {
     const baseUrl = getBaseUrl(req);
     const resolver = new PlaylistResolver(baseUrl);
-    
+
     let resolvedSongs: Song[] = [];
 
     if (playlistId === 'aggregated_new_releases') {
       console.log(`[Cron] Running massive aggregation for ${lang} ${category}`);
       const langSources = SOURCES[lang] || SOURCES['Hindi'];
       const candidatePlaylists = [...(langSources.primary || []), ...(langSources.secondary || [])];
-      
+
       resolvedSongs = await resolver.resolveAggregatedCandidates(candidatePlaylists, 100);
     } else {
       console.log(`[Cron] Syncing Spotify Playlist ${playlistId} for ${lang} ${category}`);
-      resolvedSongs = await resolver.resolveSpotifyPlaylist(playlistId, 100);
+      resolvedSongs = await resolver.resolveSpotifyPlaylist(playlistId);
     }
 
-    // Save to Playlist Cache
-    if (resolvedSongs.length > 0) {
-      await supabaseAdmin.from('spotify_playlist_cache').upsert({
-        playlist_id: playlistId,
-        playlist_name: `${lang} ${category}`,
-        language: lang,
-        category: category,
-        track_count: resolvedSongs.length, // Just what we processed
-        resolved_count: resolvedSongs.length,
-        data: resolvedSongs,
-        fetched_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 1000 * 60 * 60 * 12).toISOString(), // 12 hours expiry by default
-      });
-      console.log(`[Cron] Successfully synced ${playlistId} with ${resolvedSongs.length} tracks.`);
-    } else {
-      console.warn(`[Cron] Sync resulted in 0 tracks for ${playlistId}`);
-    }
+    const sourceTrackCount = (resolvedSongs as any).sourceTrackCount ?? resolvedSongs.length;
+    const resolvedCount = (resolvedSongs as any).uniqueMatchedTrackCount ?? resolvedSongs.length;
+
+    // Save to Playlist Cache is handled internally by PlaylistResolver.resolveSpotifyPlaylist
+    console.log(`[Cron] Successfully resolved ${playlistId} with ${resolvedSongs.length} tracks.`);
 
     return NextResponse.json({ success: true, count: resolvedSongs.length });
   } catch (error) {

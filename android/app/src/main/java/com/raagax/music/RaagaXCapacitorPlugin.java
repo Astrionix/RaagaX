@@ -45,6 +45,14 @@ public class RaagaXCapacitorPlugin extends Plugin {
                 data.put("isPlaying", intent.getBooleanExtra("isPlaying", false));
                 notifyListeners("playbackStateChanged", data);
 
+            } else if ("com.raagax.music.SEEK_COMPLETE".equals(action)) {
+                // Seek has been applied by ExoPlayer — notify JS so it can confirm
+                // the settled position and cancel the stale-position blocking window.
+                JSObject data = new JSObject();
+                data.put("positionMs", intent.getLongExtra("positionMs", 0L));
+                data.put("wasPlaying", intent.getBooleanExtra("wasPlaying", false));
+                notifyListeners("seekComplete", data);
+
             } else if ("com.raagax.music.TRACK_ENDED".equals(action)) {
                 // Legacy — kept for compatibility
                 notifyListeners("trackEnded", new JSObject());
@@ -58,6 +66,7 @@ public class RaagaXCapacitorPlugin extends Plugin {
         filter.addAction("com.raagax.music.TRACK_CHANGED");
         filter.addAction("com.raagax.music.QUEUE_ENDED");
         filter.addAction("com.raagax.music.PLAYBACK_STATE");
+        filter.addAction("com.raagax.music.SEEK_COMPLETE");
         filter.addAction("com.raagax.music.TRACK_ENDED");
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

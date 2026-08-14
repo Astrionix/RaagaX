@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   }
 
   const workerId = `worker_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-  
+
   try {
     const jobs = await DiscoveryQueue.claimJobs(10, workerId); // High-throughput batch processing
     if (jobs.length === 0) {
@@ -28,19 +28,11 @@ export async function GET(request: Request) {
     for (const job of jobs) {
       try {
         console.log(`[DiscoveryWorker] Processing job for ${job.playlist_id} (${job.language} - ${job.category})`);
-        const liveResolved = await resolver.resolveSpotifyPlaylist(job.playlist_id, 100);
-        
+        const liveResolved = await resolver.resolveSpotifyPlaylist(job.playlist_id);
+        const sourceTrackCount = (liveResolved as any).sourceTrackCount ?? liveResolved.length;
+        const resolvedCount = (liveResolved as any).uniqueMatchedTrackCount ?? liveResolved.length;
+
         if (liveResolved && liveResolved.length > 0) {
-          const expiresAt = new Date(Date.now() + 12 * 3600 * 1000).toISOString();
-          await supabaseAdmin.from('spotify_playlist_cache').upsert({
-            playlist_id: job.playlist_id,
-            playlist_name: job.category,
-            language: job.language,
-            data: liveResolved,
-            expires_at: expiresAt,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'playlist_id' });
-          
           await DiscoveryQueue.completeJob(job.playlist_id, true);
           console.log(`[DiscoveryWorker] Success: ${job.playlist_id}`);
         } else {

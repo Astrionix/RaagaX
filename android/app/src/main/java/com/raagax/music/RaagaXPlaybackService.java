@@ -510,22 +510,54 @@ public class RaagaXPlaybackService extends Service {
 
     public void resume()           { runOnMainThread(() -> { if (player != null) player.play(); }); }
     public void pause()            { runOnMainThread(() -> { if (player != null) player.pause(); }); }
-    public void seekTo(long posMs) { 
-        runOnMainThread(() -> { 
-            if (player != null) {
-                long targetPos = Math.max(0L, posMs);
-                Log.d(TAG, "[SEEK] Native ExoPlayer seekTo: " + targetPos + "ms (previous=" + player.getCurrentPosition() + "ms)");
-                
-                int state = player.getPlaybackState();
-                if ((state == Player.STATE_IDLE || state == Player.STATE_ENDED) && player.getMediaItemCount() > 0) {
-                    player.prepare();
-                    player.setPlayWhenReady(true);
-                }
-                
-                player.seekTo(targetPos);
-                Log.d(TAG, "[SEEK] Native ExoPlayer actual post-seek position: " + player.getCurrentPosition() + "ms");
-            } 
-        }); 
+    public void seekTo(long posMs) {
+        runOnMainThread(() -> {
+            if (player == null) return;
+
+            long targetPos = Math.max(0L, posMs);
+            boolean wasPlaying = player.isPlaying();
+            int state = player.getPlaybackState();
+
+            Log.d(TAG, "[SEEK] seekTo " + targetPos + "ms | wasPlaying=" + wasPlaying
+                    + " | state=" + state + " | currentPos=" + player.getCurrentPosition() + "ms");
+
+            // If player is IDLE with no media, there is nothing to seek into — ignore.
+            if (state == Player.STATE_IDLE && player.getMediaItemCount() == 0) {
+                Log.w(TAG, "[SEEK] No media loaded — seek ignored.");
+                return;
+            }
+
+            // If player hit STATE_ENDED but has media, re-prepare WITHOUT auto-play.
+            // We will restore the correct play/pause state after the seek completes.
+            if (state == Player.STATE_ENDED && player.getMediaItemCount() > 0) {
+                player.setPlayWhenReady(false); // ← DO NOT auto-play; restore below
+                player.prepare();
+            }
+
+            // ── The actual seek — ExoPlayer moves the read-head, does NOT reload the URL ──
+            player.seekTo(targetPos);
+
+            // ── Restore play/pause state as it was before the seek ──────────────────
+            // This is the critical rule: a SEEK within the same song must NEVER
+            // change whether the user was playing or paused.
+            if (wasPlaying) {
+                player.setPlayWhenReady(true);
+                player.play();
+            } else {
+                player.setPlayWhenReady(false);
+                // Do NOT call player.pause() here — ExoPlayer is already paused
+                // after seekTo when setPlayWhenReady is false.
+            }
+
+            Log.d(TAG, "[SEEK] Post-seek position: " + player.getCurrentPosition() + "ms"
+                    + " | isPlaying=" + player.isPlaying());
+
+            // ── Broadcast SEEK_COMPLETE so the JS poll can confirm the settled position ──
+            Intent seekDone = new Intent("com.raagax.music.SEEK_COMPLETE");
+            seekDone.putExtra("positionMs", targetPos);
+            seekDone.putExtra("wasPlaying", wasPlaying);
+            sendBroadcast(seekDone);
+        });
     }
     public void setVolume(float v) { runOnMainThread(() -> { if (player != null) player.setVolume(v); }); }
 

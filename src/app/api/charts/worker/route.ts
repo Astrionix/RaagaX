@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     const language = (body.language || 'Telugu') as DiscoveryLanguage;
 
     const engine = DiscoveryEngine.getInstance(getBaseUrl(req));
-    
+
     // Fire and forget - Next.js App Router doesn't always support true fire-and-forget 
     // unless running on Edge/Vercel with waitUntil, but we'll try to await it here since 
     // this is a dedicated worker endpoint called by the main API route.

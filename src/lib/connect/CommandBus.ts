@@ -94,7 +94,7 @@ export class CommandBus {
     }
   }
 
-  private applyCommand(command: ConnectCommand) {
+  private async applyCommand(command: ConnectCommand) {
     console.log(`[CommandBus] Applying command: ${command.type}`);
     const engine = PlaybackEngine.getInstance();
     const store = usePlayerStore.getState();
@@ -211,6 +211,23 @@ export class CommandBus {
         if (command.payload && typeof command.payload === 'object' && 'volume' in command.payload) {
           const p = command.payload as { volume: number };
           store.setVolume(p.volume);
+        }
+        break;
+
+      case 'SET_SHUFFLE':
+        if (command.payload && typeof command.payload === 'object' && 'shuffleMode' in command.payload) {
+          const p = command.payload as { shuffleMode: string };
+          const manager = QueueManager.getInstance();
+          if (manager.getShuffleMode() !== p.shuffleMode) {
+            await manager.setShuffleMode(p.shuffleMode as any);
+          }
+        }
+        break;
+
+      case 'SET_REPEAT':
+        if (command.payload && typeof command.payload === 'object' && 'repeatMode' in command.payload) {
+          const p = command.payload as { repeatMode: string };
+          QueueManager.getInstance().setRepeatMode(p.repeatMode as any);
         }
         break;
         

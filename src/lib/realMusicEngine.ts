@@ -25,7 +25,7 @@ function decode(s: string): string {
 export class RealMusicEngine {
   private static instance: RealMusicEngine;
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): RealMusicEngine {
     if (!RealMusicEngine.instance) {
@@ -132,14 +132,14 @@ export class RealMusicEngine {
   public async getPlaylistDetails(id: string): Promise<{ id: string; title: string; coverUrl: string; songs: Song[] } | null> {
     let isAlbum = false;
     let fetchId = id;
-    
+
     if (id.startsWith('album:')) {
       isAlbum = true;
       fetchId = id.replace('album:', '');
     }
 
     let url = isAlbum ? `${LOCAL_API_BASE}/albums?id=${fetchId}` : `${LOCAL_API_BASE}/playlists?id=${fetchId}`;
-    
+
     try {
       let res = await fetch(url);
       let data = res.ok ? await res.json() : null;
@@ -157,7 +157,7 @@ export class RealMusicEngine {
           }
         }
       }
-      
+
       if (!collection) return null;
 
       const coverUrl = this.extractCoverUrl(collection.image || collection.coverUrl) || '/app-icon.png';
@@ -215,16 +215,16 @@ export class RealMusicEngine {
         try {
           const padSongs = await this.searchRealSongs(collection.name, albumRules.targetSongs - uniqueSongs.length);
           for (const song of padSongs) {
-             if (uniqueSongs.length >= albumRules.targetSongs) break;
-             const normalizedTitle = song.title.toLowerCase().replace(/[^a-z0-9]/g, '');
-             const firstArtist = (song.artist || '').split(',')[0].trim().toLowerCase() || 'unknown';
-             const compositeKey = `${normalizedTitle}_${firstArtist}`;
-             if (!seenTitles.has(compositeKey)) {
-                seenTitles.add(compositeKey);
-                uniqueSongs.push(song);
-             }
+            if (uniqueSongs.length >= albumRules.targetSongs) break;
+            const normalizedTitle = song.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const firstArtist = (song.artist || '').split(',')[0].trim().toLowerCase() || 'unknown';
+            const compositeKey = `${normalizedTitle}_${firstArtist}`;
+            if (!seenTitles.has(compositeKey)) {
+              seenTitles.add(compositeKey);
+              uniqueSongs.push(song);
+            }
           }
-        } catch(e) {}
+        } catch (e) { }
       }
 
       return {
@@ -249,7 +249,7 @@ export class RealMusicEngine {
 
       const rawImages = track.image || track.images || [];
       let coverUrl = '/app-icon.png';
-      
+
       if (typeof rawImages === 'string') {
         coverUrl = rawImages.replace('http://', 'https://');
       } else if (Array.isArray(rawImages) && rawImages.length > 0) {
@@ -266,7 +266,7 @@ export class RealMusicEngine {
       if (Array.isArray(track.downloadUrl) && track.downloadUrl.length > 0) {
         const qualityPreset = usePlayerStore.getState().streamingQuality;
         const wantsDataSaver = (qualityPreset as string) === '320kbps MP3' || qualityPreset === 'LOW';
-        
+
         const preferredQuality = wantsDataSaver ? '160kbps' : '320kbps';
         const fallbackQuality = wantsDataSaver ? '96kbps' : '160kbps';
 
@@ -276,7 +276,7 @@ export class RealMusicEngine {
           track.downloadUrl.find((a: any) => a?.quality === '320kbps') ||
           track.downloadUrl.find((a: any) => a?.quality === '160kbps') ||
           track.downloadUrl[track.downloadUrl.length - 1];
-          
+
         const rawAudio = best?.url || best?.link || (typeof best === 'string' ? best : '');
         if (rawAudio) audioUrl = rawAudio.replace('http://', 'https://');
       } else if (typeof track.downloadUrl === 'string' && track.downloadUrl) {

@@ -36,7 +36,11 @@ export function getSupabaseAdmin(): SupabaseClient {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
-    }
+    },
+    global: {
+      // Bypasses Next.js patched fetch caching on server-side environments
+      fetch: (url, options) => fetch(url, { ...options, cache: 'no-store' }),
+    },
   });
 
   return instance;

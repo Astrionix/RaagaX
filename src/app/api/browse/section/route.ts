@@ -56,35 +56,35 @@ export async function GET(req: NextRequest) {
       console.error('[BROWSE SECTION API] DB Error:', error);
     }
 
+    // Extract songs from cache
+    let cachedSongs: Song[] = [];
+    if (cachedRow && cachedRow.data) {
+      if (Array.isArray(cachedRow.data)) {
+        cachedSongs = cachedRow.data;
+      } else if (typeof cachedRow.data === 'object' && Array.isArray((cachedRow.data as any).songs)) {
+        cachedSongs = (cachedRow.data as any).songs;
+      }
+    }
+
     // If cache is completely missing or empty, resolve on-demand
-    if (!cachedRow || !cachedRow.data || !Array.isArray(cachedRow.data) || cachedRow.data.length === 0) {
+    if (cachedSongs.length === 0) {
       try {
         const host = req.headers.get('host') || 'localhost:3000';
         const proto = req.headers.get('x-forwarded-proto') || 'http';
         const baseUrl = `${proto}://${host}`;
         const { PlaylistResolver } = await import('@/lib/discovery/PlaylistResolver');
         const resolver = new PlaylistResolver(baseUrl);
-        const resolved = await resolver.resolveSpotifyPlaylist(playlistId, 100);
+        const resolved = await resolver.resolveSpotifyPlaylist(playlistId);
 
         if (resolved && resolved.length > 0) {
-          const expiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
-          await supabaseAdmin.from('spotify_playlist_cache').upsert({
-            playlist_id: playlistId,
-            playlist_name: `${lang} Playlist`,
-            language: lang,
-            data: resolved,
-            expires_at: expiresAt,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'playlist_id' });
-
-          cachedRow = { data: resolved, playlist_name: `${lang} Playlist` };
+          cachedSongs = resolved;
         }
       } catch (resErr) {
         console.warn('[BROWSE SECTION API] On-demand resolution failed:', resErr);
       }
     }
 
-    if (!cachedRow || !cachedRow.data || !Array.isArray(cachedRow.data) || cachedRow.data.length === 0) {
+    if (cachedSongs.length === 0) {
       return NextResponse.json({ 
         success: true, 
         items: [],
@@ -94,8 +94,8 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const total = cachedRow.data.length;
-    const items = cachedRow.data.slice(offset, offset + limit);
+    const total = cachedSongs.length;
+    const items = cachedSongs.slice(offset, offset + limit);
     const hasMore = offset + items.length < total;
 
     return NextResponse.json({ 

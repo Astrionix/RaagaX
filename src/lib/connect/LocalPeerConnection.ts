@@ -8,6 +8,7 @@ export class LocalPeerConnection {
   private peerConnections = new Map<string, RTCPeerConnection>();
   private dataChannels = new Map<string, RTCDataChannel>();
   private checkInterval: NodeJS.Timeout | null = null;
+  private lastDevicesKey: string = '';
 
   private constructor() {
     if (typeof window !== 'undefined') {
@@ -17,6 +18,13 @@ export class LocalPeerConnection {
           this.handleIncomingSignal(command);
         });
       });
+
+      // Instant WebRTC connection pre-establishment on online devices change
+      usePlayerStore.subscribe((state) => {
+        if (state.onlineDevices) {
+          this.reconcilePeerConnections(state.onlineDevices);
+        }
+      });
     }
   }
 
@@ -25,6 +33,31 @@ export class LocalPeerConnection {
       LocalPeerConnection.instance = new LocalPeerConnection();
     }
     return LocalPeerConnection.instance;
+  }
+
+  private reconcilePeerConnections(onlineDevices: any[]) {
+    const store = usePlayerStore.getState();
+    const localId = store.deviceId;
+    if (!localId || !store.playbackSession) return;
+
+    // Filter out our own device
+    const peerDevices = onlineDevices.filter(d => d.id !== localId);
+    
+    // Create a unique key of current online device IDs to detect changes
+    const devicesKey = peerDevices.map(d => d.id).sort().join(',');
+    if (devicesKey === this.lastDevicesKey) return;
+    this.lastDevicesKey = devicesKey;
+
+    console.log(`[LocalPeer] Reconciling peer connections instantly for devices: [${devicesKey}]`);
+
+    peerDevices.forEach((device) => {
+      // Lexicographical tie-breaker: smaller device ID initiates WebRTC offer
+      if (localId < device.id) {
+        if (!this.peerConnections.has(device.id)) {
+          this.initiateConnection(device.id).catch(() => {});
+        }
+      }
+    });
   }
 
   private startDiscoveryLoop() {

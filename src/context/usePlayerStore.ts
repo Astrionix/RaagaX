@@ -1006,17 +1006,41 @@ export const usePlayerStore = create<PlayerState>()(
     });
     persistSessionHelper(get());
 
-    PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
+    if (get().isActiveDevice) {
+      PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
+      import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+        PlaybackStateSync.getInstance().broadcastState(true);
+      });
+    } else {
+      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+        ConnectManager.getInstance().dispatchPlaybackCommand('SET_SHUFFLE', {
+          shuffleMode: snapshot.shuffleMode || 'STANDARD',
+        });
+      });
+    }
   },
   setRepeatMode: (mode) => {
     QueueManager.getInstance().setRepeatMode(mode as any);
+    set({ repeatMode: mode as any });
     persistSessionHelper(get());
+
+    if (get().isActiveDevice) {
+      import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+        PlaybackStateSync.getInstance().broadcastState(true);
+      });
+    } else {
+      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+        ConnectManager.getInstance().dispatchPlaybackCommand('SET_REPEAT', {
+          repeatMode: mode,
+        });
+      });
+    }
   },
   cycleRepeatMode: () => {
     const modes: import('@/lib/queue/types').RepeatMode[] = ['OFF', 'CONTEXT', 'TRACK'];
     const current = QueueManager.getInstance().getRepeatMode();
     const nextIdx = (modes.indexOf(current) + 1) % modes.length;
-    QueueManager.getInstance().setRepeatMode(modes[nextIdx]);
+    get().setRepeatMode(modes[nextIdx] as any);
   },
 
   addToQueue: (song) => {

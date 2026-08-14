@@ -213,6 +213,10 @@ export class QueueManager {
     await this.engine.toggleShuffle();
     this.notify();
   }
+  public async setShuffleMode(mode: import('./types').ShuffleMode) {
+    await this.engine.setShuffleMode(mode);
+    this.notify();
+  }
   public getShuffleMode() { return this.engine.getShuffleMode(); }
 
   public setRepeatMode(mode: RepeatMode) {

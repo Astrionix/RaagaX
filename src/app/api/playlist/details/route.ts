@@ -30,24 +30,34 @@ export async function GET(req: NextRequest) {
       .eq('playlist_id', playlistId)
       .maybeSingle();
 
-    if (cached && cached.data && Array.isArray(cached.data) && cached.data.length > 0) {
-      const songs = cached.data as Song[];
-      const coverUrl = songs[0]?.coverUrl || '/app-icon.png';
-      return NextResponse.json({
-        success: true,
-        playlist: {
-          id: playlistId,
-          title: cached.playlist_name || `${lang} Playlist`,
-          coverUrl,
-          songs
-        }
-      });
+    if (cached && cached.data) {
+      let songs: Song[] = [];
+      if (Array.isArray(cached.data)) {
+        songs = cached.data;
+      } else if (typeof cached.data === 'object' && Array.isArray((cached.data as any).songs)) {
+        songs = (cached.data as any).songs;
+      }
+
+      if (songs.length > 0) {
+        const coverUrl = songs[0]?.coverUrl || '/app-icon.png';
+        return NextResponse.json({
+          success: true,
+          playlist: {
+            id: playlistId,
+            title: cached.playlist_name || `${lang} Playlist`,
+            coverUrl,
+            songs
+          }
+        });
+      }
     }
 
     // 2. Resolve on Cache Miss
     const baseUrl = getBaseUrl(req);
     const resolver = new PlaylistResolver(baseUrl);
-    const resolvedSongs = await resolver.resolveSpotifyPlaylist(playlistId, 100);
+    const resolvedSongs = await resolver.resolveSpotifyPlaylist(playlistId);
+    const sourceTrackCount = (resolvedSongs as any).sourceTrackCount ?? resolvedSongs.length;
+    const resolvedCount = (resolvedSongs as any).uniqueMatchedTrackCount ?? resolvedSongs.length;
 
     if (resolvedSongs.length > 0) {
       await supabaseAdmin.from('spotify_playlist_cache').upsert({
@@ -55,8 +65,8 @@ export async function GET(req: NextRequest) {
         playlist_name: `${lang} Playlist`,
         language: lang,
         category: 'Playlist',
-        track_count: resolvedSongs.length,
-        resolved_count: resolvedSongs.length,
+        track_count: sourceTrackCount,
+        resolved_count: resolvedCount,
         data: resolvedSongs,
         fetched_at: new Date().toISOString(),
         expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7).toISOString(), // 7 days

@@ -13,6 +13,7 @@ import { WebAudioGraph } from '@/lib/playback/WebAudioGraph';
 import { BufferMonitor } from '@/lib/playback/BufferMonitor';
 import { LyricsEngine } from '@/lib/lyrics/LyricsEngine';
 import { RaagaXNativePlayer } from '@/lib/playback/native/RaagaXNativePlayer';
+import { SeekLock } from '@/lib/playback/SeekLock';
 import { QueueManager } from '@/lib/queue/QueueManager';
 const FALLBACK_AUDIO_URL = 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
 const QUEUE_REFILL_THRESHOLD = 3;
@@ -118,9 +119,23 @@ export function AudioPlayerController() {
       }
     });
 
+    // seekComplete fires when ExoPlayer confirms the seek has been applied.
+    // Immediately update the UI with the authoritative position so the seekbar
+    // doesn't snap back during the 1-second poll gap.
+    const unsubSeekComplete = RaagaXNativePlayer.addSeekCompleteListener((data) => {
+      console.log('[AudioPlayerController] Native seekComplete confirmed at:', data.positionMs, 'ms | wasPlaying:', data.wasPlaying);
+      // Apply authoritative position immediately — this replaces the stale pre-seek value
+      usePlayerStore.getState().setCurrentTime(data.positionMs / 1000, true);
+      // Sync lyrics engine to the new position
+      import('@/lib/lyrics/LyricsEngine').then(({ LyricsEngine }) => {
+        LyricsEngine.getInstance().seek(data.positionMs);
+      });
+    });
+
     return () => {
       unsubQueueEnded();
       unsubChanged();
+      unsubSeekComplete();
     };
   }, []);
 
@@ -128,8 +143,12 @@ export function AudioPlayerController() {
   useEffect(() => {
     if (!RaagaXNativePlayer.isNative() || !isPlaying) return;
     const interval = setInterval(async () => {
-      if (Date.now() - lastSeekTimeRef.current < 1500) {
-        return; // Skip updating while native seek is settling
+      // Block stale position updates while a seek is settling.
+      // SeekLock.shouldBlockRemoteUpdate covers both the drag window and the
+      // post-release settling period. lastSeekTimeRef provides an additional
+      // 2-second hard guard in case SeekLock.endSeeking hasn't been called yet.
+      if (SeekLock.shouldBlockRemoteUpdate || Date.now() - lastSeekTimeRef.current < 2000) {
+        return;
       }
       const state = await RaagaXNativePlayer.getPlaybackState();
       if (state && state.positionMs >= 0) {
