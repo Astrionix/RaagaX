@@ -12,6 +12,31 @@ export type DownloadStatus =
 
 export type DownloadQuality = 'LOW' | 'HIGH' | 'VERY_HIGH';
 
+export interface StorageEstimateInfo {
+  quota: number;
+  usage: number;
+  available: number;
+  raagaXUsed: number;
+  percentUsed: number;
+}
+
+export interface TrackDownloadState {
+  songId: string;
+  deviceExport: {
+    status: 'NOT_STARTED' | 'REQUESTING' | 'DOWNLOADING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+    progress: number;
+    error?: string;
+  };
+  offlineCache: {
+    status: 'NOT_STARTED' | 'QUEUED' | 'DOWNLOADING' | 'VERIFYING' | 'PAUSED' | 'COMPLETED' | 'FAILED' | 'CORRUPTED';
+    progress: number;
+    bytesDownloaded: number;
+    totalBytes?: number;
+    speedBytesPerSec?: number;
+    error?: string;
+  };
+}
+
 export interface DownloadTask {
   id: string;
   trackId: string;
@@ -45,6 +70,7 @@ export interface OfflineTrack {
   quality: DownloadQuality;
   fileSizeBytes: number;
   checksum?: string;
+  language?: string;
   leaseExpiresAt?: number;
   downloadedAt: number;
   lastPlayedAt?: number;
@@ -67,4 +93,5 @@ export type PlaybackSource =
       quality?: DownloadQuality;
       isLocalBlob?: boolean;
     };
+
 

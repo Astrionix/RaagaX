@@ -3,18 +3,20 @@ import { MoreVertical, ListPlus, Heart, Play, Share2, Plus, Music, Download, Pau
 import { Song } from '@/types/music';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
+import { useDownloadStore } from '@/context/useDownloadStore';
 
 export function SongActionMenu({ song }: { song: Song }) {
   const [isOpen, setIsOpen] = useState(false);
   const [showPlaylists, setShowPlaylists] = useState(false);
   const [copied, setCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { playSong, addToQueue, toggleLikeSong, likedSongIds, downloadedSongIds } = usePlayerStore();
+  const { playSong, addToQueue, toggleLikeSong, likedSongIds, downloadedSongIds, cloudDownloadedSongIds = [] } = usePlayerStore();
   const { playlists, addSongToPlaylist } = usePlaylistStore();
+  const { tasks, pauseDownload, resumeDownload, cancelDownload, saveForOffline, removeDownload, exportSong } = useDownloadStore();
 
-  const { tasks, pauseDownload, resumeDownload, cancelDownload } = require('@/context/useDownloadStore').useDownloadStore();
   const task = song ? tasks[song.id] : null;
   const isDownloaded = song ? downloadedSongIds.includes(song.id) : false;
+  const isCloudRecorded = song ? cloudDownloadedSongIds.includes(song.id) : false;
   const isLiked = song ? likedSongIds.includes(song.id) : false;
 
   useEffect(() => {
@@ -77,19 +79,8 @@ export function SongActionMenu({ song }: { song: Song }) {
           </div>
 
           {!showPlaylists ? (
-            <div className="divide-y divide-white/5">
-              {/* Play Option */}
-              <button 
-                onClick={() => handleAction(() => playSong(song, [song]))}
-                className="w-full text-left px-2.5 py-2.5 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
-              >
-                <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/5 text-[#EF233C] group-hover:bg-[#EF233C] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
-                  <Play className="w-4 h-4 fill-current ml-0.5" />
-                </div>
-                <span className="font-medium text-slate-200 group-hover:text-white flex-1 ml-3.5 text-sm">Play</span>
-              </button>
-
-              {/* Add to Queue */}
+            <>
+              {/* Play Next */}
               <button 
                 onClick={() => handleAction(() => addToQueue(song))}
                 className="w-full text-left px-2.5 py-2.5 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
@@ -97,19 +88,21 @@ export function SongActionMenu({ song }: { song: Song }) {
                 <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/5 text-[#EF233C] group-hover:bg-[#EF233C] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
                   <ListPlus className="w-4 h-4" />
                 </div>
-                <span className="font-medium text-slate-200 group-hover:text-white flex-1 ml-3.5 text-sm">Add to Queue</span>
+                <span className="font-medium text-slate-200 group-hover:text-white flex-1 ml-3.5 text-sm">Play Next</span>
               </button>
 
               {/* Add to Playlist */}
               <button 
                 onClick={() => setShowPlaylists(true)}
-                className="w-full text-left px-2.5 py-2.5 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
+                className="w-full text-left px-2.5 py-2.5 hover:bg-white/10 rounded-xl flex items-center justify-between transition-all group cursor-pointer"
               >
-                <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/5 text-[#EF233C] group-hover:bg-[#EF233C] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
-                  <Music className="w-4 h-4" />
+                <div className="flex items-center">
+                  <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/5 text-[#EF233C] group-hover:bg-[#EF233C] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
+                    <Plus className="w-4 h-4" />
+                  </div>
+                  <span className="font-medium text-slate-200 group-hover:text-white ml-3.5 text-sm">Add to Playlist</span>
                 </div>
-                <span className="font-medium text-slate-200 group-hover:text-white flex-1 ml-3.5 text-sm">Add to Playlist</span>
-                <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white" />
+                <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
               </button>
 
               {/* Like / Unlike */}
@@ -127,18 +120,25 @@ export function SongActionMenu({ song }: { song: Song }) {
                 </span>
               </button>
 
-              {/* Download for Offline (Mode A) */}
+              {/* 3-State Download for Offline:
+                  1. Download (Cloud ❌, Local ❌)
+                  2. Downloaded ✓ (Cloud ✅, Local ✅)
+                  3. Download Again ↓ (Cloud ✅, Local ❌)
+              */}
               {isDownloaded ? (
+                /* State 2: Cloud ✅, Local ✅ */
                 <button 
-                  onClick={() => handleAction(() => usePlayerStore.getState().toggleDownloadSong(song.id))}
+                  onClick={() => handleAction(async () => {
+                    await removeDownload(song.id);
+                  })}
                   className="w-full text-left px-2.5 py-2.5 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
                 >
                   <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center flex-shrink-0">
                     <CheckCircle2 className="w-4 h-4" />
                   </div>
                   <div className="flex-1 min-w-0 ml-3.5">
-                    <span className="font-medium text-emerald-400 group-hover:text-emerald-300 block text-sm">Offline Saved</span>
-                    <span className="text-[10px] text-slate-400 block">Tap to remove offline media</span>
+                    <span className="font-medium text-emerald-400 group-hover:text-emerald-300 block text-sm">Downloaded ✓</span>
+                    <span className="text-[10px] text-slate-400 block">Tap to remove from device</span>
                   </div>
                 </button>
               ) : task ? (
@@ -173,9 +173,28 @@ export function SongActionMenu({ song }: { song: Song }) {
                     </button>
                   </div>
                 )
-              ) : (
+              ) : isCloudRecorded ? (
+                /* State 3: Cloud ✅, Local ❌ (After reinstall / new device) */
                 <button 
-                  onClick={() => handleAction(() => usePlayerStore.getState().toggleDownloadSong(song.id))}
+                  onClick={() => handleAction(async () => {
+                    await saveForOffline(song);
+                  })}
+                  className="w-full text-left px-2.5 py-2.5 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-sky-500/15 border border-sky-500/30 text-sky-400 group-hover:bg-sky-500 group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
+                    <Download className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0 ml-3.5">
+                    <span className="font-medium text-sky-400 group-hover:text-sky-300 block text-sm">Download Again ↓</span>
+                    <span className="text-[10px] text-slate-400 block">Saved in cloud • Download locally</span>
+                  </div>
+                </button>
+              ) : (
+                /* State 1: Cloud ❌, Local ❌ */
+                <button 
+                  onClick={() => handleAction(async () => {
+                    await saveForOffline(song);
+                  })}
                   className="w-full text-left px-2.5 py-2.5 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
                 >
                   <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/5 text-[#EF233C] group-hover:bg-[#EF233C] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
@@ -191,8 +210,7 @@ export function SongActionMenu({ song }: { song: Song }) {
               {/* Export MP3 to Device (Mode B) */}
               <button 
                 onClick={() => handleAction(() => {
-                  const { useDownloadStore } = require('@/context/useDownloadStore');
-                  useDownloadStore.getState().exportSong(song);
+                  exportSong(song);
                 })}
                 className="w-full text-left px-2.5 py-2.5 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
               >
@@ -217,7 +235,7 @@ export function SongActionMenu({ song }: { song: Song }) {
                   {copied ? 'Copied Link!' : 'Share'}
                 </span>
               </button>
-            </div>
+            </>
           ) : (
             // Playlists Submenu
             <div className="max-h-64 overflow-y-auto no-scrollbar space-y-1 p-1">

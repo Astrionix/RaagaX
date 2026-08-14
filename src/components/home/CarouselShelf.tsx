@@ -277,28 +277,28 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
   const sentinelIndex = Math.max(0, shelfItems.length - 5);
 
   return (
-    <section className="mb-8">
-      <div className="flex items-center justify-between mb-4 px-4 sm:px-0">
-        <div className="flex items-center gap-2.5">
+    <section className="mb-4 sm:mb-6">
+      <div className="flex items-center justify-between mb-2.5 px-3 sm:px-0">
+        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
           {icon}
-          <h2 className="text-xl font-bold text-white cursor-pointer inline-block">
+          <h2 className="text-[20px] sm:text-xl font-semibold leading-[26px] text-white tracking-tight cursor-pointer truncate whitespace-nowrap">
             {title}
           </h2>
           {showPlayAll && shelfItems.length > 0 && (
-            <div className="flex items-center gap-1.5 ml-1">
+            <div className="flex items-center gap-1.5 ml-1 flex-shrink-0">
               <button 
                 onClick={handlePlayAll}
-                className="p-2 rounded-full bg-[#fa233b] hover:bg-[#fa233b]/90 text-white transition-all hover:scale-105 active:scale-95 shadow-md flex items-center justify-center cursor-pointer"
+                className="p-1.5 sm:p-2 rounded-full bg-[#fa233b] hover:bg-[#fa233b]/90 text-white transition-all hover:scale-105 active:scale-95 shadow-md flex items-center justify-center cursor-pointer"
                 title="Play All Songs"
               >
-                <Play className="w-3.5 h-3.5 fill-white text-white ml-0.5" />
+                <Play className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-white text-white ml-0.5" />
               </button>
               <button 
                 onClick={handleShufflePlayAll}
-                className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-all hover:scale-105 active:scale-95 flex items-center justify-center cursor-pointer border border-white/10"
+                className="p-1.5 sm:p-2 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-all hover:scale-105 active:scale-95 flex items-center justify-center cursor-pointer border border-white/10"
                 title="Shuffle Play"
               >
-                <Shuffle className="w-3.5 h-3.5" />
+                <Shuffle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               </button>
             </div>
           )}
@@ -307,7 +307,7 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
         {shelfItems.length > 0 && (
           <button 
             onClick={() => setShowAll(true)}
-            className="text-xs font-bold text-slate-400 hover:text-white transition-colors uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+            className="text-[11px] sm:text-xs font-semibold text-slate-400 hover:text-white transition-colors uppercase tracking-wider flex items-center gap-1 cursor-pointer flex-shrink-0 ml-2"
           >
             {shelfItems[0]?.type === 'song' ? 'See All Songs' : 'See All'} <ChevronRight className="w-3.5 h-3.5" />
           </button>

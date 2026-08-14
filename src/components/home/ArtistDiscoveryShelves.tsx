@@ -58,12 +58,12 @@ function ArtistLanguageShelf({ language }: { language: string }) {
   const artists = data.data;
 
   return (
-    <section className="space-y-4">
-      <div className="flex items-center justify-between px-1">
-        <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
+    <section className="mb-4 sm:mb-6">
+      <div className="flex items-center justify-between mb-2.5 px-3 sm:px-0">
+        <h2 className="text-[20px] sm:text-xl font-semibold leading-[26px] text-white tracking-tight truncate whitespace-nowrap">
           {language} Artists You May Like
         </h2>
-        <button className="text-xs font-bold text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
+        <button className="text-[11px] sm:text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1 transition-colors uppercase tracking-wider flex-shrink-0 ml-2">
           See All <ChevronRight className="w-3.5 h-3.5" />
         </button>
       </div>

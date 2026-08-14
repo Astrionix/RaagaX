@@ -4,8 +4,8 @@ import { Play, MoreHorizontal } from 'lucide-react';
 
 export function ChartListShelf({ title, items }: { title: string; items: ShelfItem[] }) {
   return (
-    <section className="mb-8 w-full max-w-4xl">
-      <h2 className="text-xl font-bold text-white mb-4 hover:underline cursor-pointer inline-block">
+    <section className="mb-4 sm:mb-6 w-full max-w-4xl px-3 sm:px-0">
+      <h2 className="text-[20px] sm:text-xl font-semibold leading-[26px] text-white tracking-tight cursor-pointer truncate whitespace-nowrap mb-2.5">
         {title}
       </h2>
       <div className="flex flex-col gap-1">

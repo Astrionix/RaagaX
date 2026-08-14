@@ -1,4 +1,5 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import { StorageEstimateInfo } from './types';
 
 interface DownloadDBSchema extends DBSchema {
   media: {
@@ -42,6 +43,51 @@ export class DownloadStorage {
       });
     }
     return this.dbPromise;
+  }
+
+  /**
+   * Queries real device storage quota via navigator.storage.estimate()
+   * and calculates available free space vs RaagaX offline media usage.
+   */
+  public async getStorageEstimate(): Promise<StorageEstimateInfo> {
+    const raagaXUsed = await this.getTotalStorageUsed();
+    let quota = 64 * 1024 * 1024 * 1024; // 64 GB fallback
+    let usage = raagaXUsed;
+
+    if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.estimate) {
+      try {
+        const estimate = await navigator.storage.estimate();
+        if (estimate.quota) quota = estimate.quota;
+        if (estimate.usage) usage = estimate.usage;
+      } catch (err) {
+        console.warn('[DownloadStorage] Failed to query navigator.storage.estimate:', err);
+      }
+    }
+
+    const available = Math.max(0, quota - usage);
+    const percentUsed = quota > 0 ? (usage / quota) * 100 : 0;
+
+    return {
+      quota,
+      usage,
+      available,
+      raagaXUsed,
+      percentUsed: Math.min(100, Math.max(0, percentUsed)),
+    };
+  }
+
+  /**
+   * Pre-checks if the device has adequate free storage before starting a download.
+   */
+  public async checkStorageAvailable(requiredBytes: number = 10 * 1024 * 1024): Promise<{ hasSpace: boolean; availableBytes: number }> {
+    const estimate = await this.getStorageEstimate();
+    // Keep a safe buffer of 20MB
+    const safeBuffer = 20 * 1024 * 1024;
+    const hasSpace = estimate.available >= (requiredBytes + safeBuffer);
+    return {
+      hasSpace,
+      availableBytes: estimate.available,
+    };
   }
 
   public async saveMedia(
@@ -198,4 +244,5 @@ export class DownloadStorage {
     }
   }
 }
+
 

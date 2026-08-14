@@ -3,12 +3,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useLyricsStore } from '@/context/useLyricsStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useThemeStore } from '@/context/useThemeStore';
 import { LyricsLine } from '@/lib/lyrics/LyricsTypes';
 import { X, Mic2, Music } from 'lucide-react';
 
 export function LyricsPanel() {
   const { status, type, lines, currentLineIndex } = useLyricsStore();
   const { isLyricsOpen, toggleLyrics, currentSong } = usePlayerStore();
+  const { resolvedTheme } = useThemeStore();
+  const isLight = resolvedTheme === 'light';
   const scrollRef = useRef<HTMLDivElement>(null);
   
   // Track manual scrolling to pause auto-scroll
@@ -67,8 +70,8 @@ export function LyricsPanel() {
   const content = () => {
     if (status === 'loading') {
       return (
-        <div className="flex-1 flex flex-col items-center justify-center h-full text-slate-400">
-          <div className="w-6 h-6 border-2 border-slate-500 border-t-white rounded-full animate-spin mb-4" />
+        <div className={`flex-1 flex flex-col items-center justify-center h-full ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+          <div className="w-6 h-6 border-2 border-red-500/30 border-t-[#FA233B] rounded-full animate-spin mb-4" />
           <p className="font-bold text-sm">Loading lyrics...</p>
         </div>
       );
@@ -76,8 +79,8 @@ export function LyricsPanel() {
 
     if (status === 'unavailable' || status === 'error' || lines.length === 0) {
       return (
-        <div className="flex-1 flex flex-col items-center justify-center h-full text-slate-400">
-          <p className="font-bold text-lg mb-2">Lyrics unavailable</p>
+        <div className={`flex-1 flex flex-col items-center justify-center h-full text-center px-4 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+          <p className={`font-bold text-lg mb-2 ${isLight ? 'text-slate-800' : 'text-white'}`}>Lyrics unavailable</p>
           <p className="text-sm">We couldn&apos;t find lyrics for this song.</p>
         </div>
       );
@@ -99,19 +102,26 @@ export function LyricsPanel() {
               <div
                 key={line.id}
                 id={`lyric-line-${index}`}
-                className={`transition-all duration-300 transform origin-left w-full text-left cursor-pointer
-                  ${type === 'plain' ? 'text-sm text-white font-medium' : ''}
+                className={`transition-all duration-300 transform origin-left w-full text-left cursor-pointer select-none
+                  ${type === 'plain' ? (isLight ? 'text-sm text-slate-800 font-medium' : 'text-sm text-white font-medium') : ''}
                   ${type === 'line-synced' ? (
                     isActive 
-                      ? 'text-xl sm:text-2xl font-black text-[#1ed760] scale-[1.02]' 
+                      ? (isLight 
+                          ? 'text-xl sm:text-2xl font-black text-[#D90429] drop-shadow-[0_0_14px_rgba(217,4,41,0.3)] scale-[1.03]' 
+                          : 'text-xl sm:text-2xl font-black text-[#FA233B] drop-shadow-[0_0_20px_rgba(250,35,59,0.55)] scale-[1.03]')
                       : isPassed 
-                        ? 'text-base sm:text-lg font-bold text-white/40' 
-                        : 'text-base sm:text-lg font-bold text-white/60 hover:text-white/90'
+                        ? (isLight ? 'text-base sm:text-lg font-bold text-slate-400/80' : 'text-base sm:text-lg font-bold text-white/35')
+                        : (isLight ? 'text-base sm:text-lg font-bold text-slate-600 hover:text-slate-900' : 'text-base sm:text-lg font-bold text-white/60 hover:text-white/90')
                   ) : ''}
                 `}
                 onClick={() => {
-                  // Future Phase: clicking a line seeks the audio
-                  // PlaybackEngine.getInstance().seek(line.startMs);
+                  if (line.startMs !== undefined && line.startMs >= 0) {
+                    const targetSeconds = line.startMs / 1000;
+                    usePlayerStore.getState().setCurrentTime(targetSeconds);
+                    import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
+                      PlaybackService.getInstance().seek(targetSeconds);
+                    }).catch(() => {});
+                  }
                 }}
               >
                 {line.text}
@@ -125,7 +135,11 @@ export function LyricsPanel() {
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 animate-in fade-in slide-in-from-bottom-4">
             <button 
               onClick={handleSyncToCurrent}
-              className="bg-black/80 hover:bg-black backdrop-blur-md border border-white/20 text-white font-bold text-xs px-4 py-2 rounded-full shadow-xl transition-colors"
+              className={`backdrop-blur-md border font-bold text-xs px-4 py-2 rounded-full shadow-xl transition-all hover:scale-105 active:scale-95 ${
+                isLight 
+                  ? 'bg-white/90 hover:bg-white text-slate-900 border-red-200 shadow-red-500/10' 
+                  : 'bg-black/80 hover:bg-black text-white border-white/20 shadow-black/50'
+              }`}
             >
               Sync to Current Line
             </button>
@@ -136,32 +150,44 @@ export function LyricsPanel() {
   };
 
   return (
-    <div className="fixed right-6 top-20 bottom-28 z-[150] w-[400px] glass-panel bg-[#121212]/95 backdrop-blur-3xl rounded-3xl p-6 border border-white/10 shadow-2xl flex flex-col justify-between animate-in fade-in slide-in-from-right duration-300">
+    <div className={`fixed right-6 top-20 bottom-28 z-[150] w-[400px] glass-panel backdrop-blur-3xl rounded-3xl p-6 border shadow-2xl flex flex-col justify-between animate-in fade-in slide-in-from-right duration-300 ${
+      isLight 
+        ? 'bg-gradient-to-b from-[#fff5f5]/95 via-white/95 to-slate-50/98 border-black/10 text-slate-900 shadow-red-500/5' 
+        : 'bg-gradient-to-b from-[#18080a]/95 via-[#121212]/95 to-[#101012]/98 border-white/10 text-white shadow-[0_20px_50px_rgba(250,35,59,0.12)]'
+    }`}>
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-4">
+      <div className={`flex items-center justify-between border-b pb-4 mb-4 ${isLight ? 'border-black/10' : 'border-white/10'}`}>
         <div className="flex items-center gap-2">
-          <Mic2 className="w-5 h-5 text-[#1ed760]" />
-          <h3 className="text-sm font-black text-white">Synced Lyrics</h3>
+          <Mic2 className="w-5 h-5 text-[#FA233B]" />
+          <h3 className={`text-sm font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>Synced Lyrics</h3>
         </div>
         <button
           onClick={toggleLyrics}
-          className="p-1.5 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+          className={`p-1.5 rounded-full transition-colors ${
+            isLight 
+              ? 'text-slate-500 hover:text-slate-900 hover:bg-black/5' 
+              : 'text-white/60 hover:text-white hover:bg-white/10'
+          }`}
         >
           <X className="w-4 h-4" />
         </button>
       </div>
 
       {/* Song Header Details */}
-      <div className="flex items-center gap-3 mb-4 p-2 rounded-2xl bg-white/5 border border-white/5">
+      <div className={`flex items-center gap-3 mb-4 p-2.5 rounded-2xl border ${
+        isLight 
+          ? 'bg-red-50/60 border-red-100' 
+          : 'bg-white/5 border-white/5'
+      }`}>
         <img
-          src={currentSong.coverUrl || '/app-icon.png'}
+          src={currentSong.coverUrl ? currentSong.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500') : '/app-icon.png'}
           alt={currentSong.title}
           onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-          className="w-12 h-12 rounded-xl object-cover"
+          className="w-12 h-12 rounded-xl object-cover shadow-md"
         />
         <div className="min-w-0">
-          <h4 className="text-xs font-bold text-white truncate">{currentSong.title}</h4>
-          <p className="text-[10px] text-white/60 truncate">{currentSong.artist}</p>
+          <h4 className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>{currentSong.title}</h4>
+          <p className={`text-[10px] truncate ${isLight ? 'text-slate-500' : 'text-white/60'}`}>{currentSong.artist}</p>
         </div>
       </div>
 
@@ -171,9 +197,14 @@ export function LyricsPanel() {
       </div>
 
       {/* Footer Info */}
-      <div className="pt-4 mt-2 border-t border-white/10 text-[10px] text-white/40 font-semibold text-center flex items-center justify-center gap-1.5">
-        <Music className="w-3 h-3 text-[#1ed760]" /> Powered by local LyricsEngine
+      <div className={`pt-4 mt-2 border-t text-[10px] font-semibold text-center flex items-center justify-center gap-1.5 ${
+        isLight 
+          ? 'border-black/10 text-slate-400' 
+          : 'border-white/10 text-white/40'
+      }`}>
+        <Music className="w-3 h-3 text-[#FA233B]" /> Powered by local LyricsEngine
       </div>
     </div>
   );
 }
+

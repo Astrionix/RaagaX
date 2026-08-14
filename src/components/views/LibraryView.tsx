@@ -110,19 +110,19 @@ export function LibraryView() {
     return (
       <div className="space-y-4">
         {/* Play & Shuffle Header Actions */}
-        <div className="flex items-center gap-3 pt-2 pb-1">
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2.5 w-full sm:w-auto pt-2 pb-1">
           <button
             onClick={() => handlePlayAll(songs, false)}
-            className="px-5 py-2.5 rounded-full bg-[#F51B3D] hover:bg-[#D91533] text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-[#F51B3D]/25 transition-all"
+            className="h-11 sm:h-10 px-5 rounded-full bg-[#FA233B] hover:bg-[#D90429] active:scale-95 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-[#FA233B]/25 transition-all cursor-pointer"
           >
-            <Play className="w-4 h-4 fill-white text-white" />
-            Play
+            <Play className="w-4 h-4 fill-white" />
+            Play All
           </button>
           <button
             onClick={() => handlePlayAll(songs, true)}
-            className="px-4 py-2.5 rounded-full bg-white/5 hover:bg-white/10 text-white text-xs font-bold flex items-center gap-2 border border-white/10 transition-all"
+            className="h-11 sm:h-10 px-4 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 border border-white/15 shadow-md transition-all cursor-pointer"
           >
-            <Shuffle className="w-4 h-4 text-slate-300" />
+            <Shuffle className="w-4 h-4 text-slate-200" />
             Shuffle
           </button>
         </div>

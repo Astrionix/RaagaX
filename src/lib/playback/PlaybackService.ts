@@ -353,17 +353,39 @@ export class PlaybackService {
 
         // Always resolve playable source (offline local Blob URL vs dynamic CDN stream)
         let finalSrc = '';
+        let resolvedSource: any = null;
         try {
-          const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+          resolvedSource = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
           if (this.playbackGeneration !== currentGen) {
             console.warn(`[PlaybackService] Discarding stale source resolution for gen ${currentGen} (current ${this.playbackGeneration})`);
             return false;
           }
-          if (source?.url) {
-            finalSrc = source.url;
+          if (resolvedSource?.url) {
+            finalSrc = resolvedSource.url;
           }
         } catch (e) {
           console.warn('[PlaybackService] Source resolution failed:', e);
+        }
+
+        const isDeviceOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+        const isStoreOffline = store.networkMode === 'offline' || store.networkMode === 'offline_forced';
+        const isOffline = isDeviceOffline || isStoreOffline;
+
+        if (isOffline && (!resolvedSource || resolvedSource.type !== 'offline')) {
+          console.warn(`[PlaybackService] Track "${song.title}" is unavailable offline. Skipping to next downloaded track.`);
+          if (typeof store.setToastMessage === 'function') {
+            store.setToastMessage(`"${song.title}" is not available offline — skipped`);
+          }
+          const downloadedIds = store.downloadedSongIds || [];
+          const manager = QueueManager.getInstance();
+          const snapshot = manager.getSnapshot();
+          const nextDownloaded = snapshot.items.slice(snapshot.currentIndex + 1).find((item: any) => item.song && downloadedIds.includes(item.song.id));
+          if (nextDownloaded && nextDownloaded.song) {
+            return this.playTrack(nextDownloaded.song, forceResume);
+          } else {
+            store.setIsPlaying(false);
+            return false;
+          }
         }
 
         if (!finalSrc && song.audioUrl && !song.audioUrl.includes('pixabay.com')) {

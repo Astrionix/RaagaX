@@ -12,9 +12,14 @@ export function FavoritesView() {
   const [activeSubTab, setActiveSubTab] = useState<'songs' | 'artists'>('songs');
   const {
     queue,
-    likedSongIds,
-    favoriteArtistIds,
+    likedSongIds = [],
+    likedSongs = [],
+    cloudDownloadRecords = [],
+    favoriteArtistIds = [],
     playSong,
+    togglePlayPause,
+    isPlaying,
+    currentSong,
     toggleLikeSong,
     setSelectedArtistId,
   } = usePlayerStore();
@@ -48,10 +53,31 @@ export function FavoritesView() {
     });
   }, [likedSongIds.length]);
 
-  // Combine queue and offline tracks to resolve full liked songs list
+  // Combine store likedSongs, queue, cloud download records, and offline tracks to resolve full liked songs list
   const songMap = new Map<string, Song>();
+  likedSongs.forEach((s) => { if (s?.id) songMap.set(s.id, s); });
   queue.forEach((s) => { if (s?.id) songMap.set(s.id, s); });
   offlineTracks.forEach((s) => { if (s?.id) songMap.set(s.id, s); });
+  cloudDownloadRecords.forEach((r) => {
+    if (r?.song_id && !songMap.has(r.song_id)) {
+      songMap.set(r.song_id, {
+        id: r.song_id,
+        title: r.song_title || 'Unknown Title',
+        artist: r.song_artist || 'Unknown Artist',
+        artistId: `art-${r.song_id}`,
+        album: 'Liked Songs',
+        albumId: `alb-${r.song_id}`,
+        coverUrl: r.song_cover || '/app-icon.png',
+        duration: r.song_duration || 180,
+        audioUrl: '',
+        genre: 'Various',
+        category: 'global_trending',
+        releaseYear: new Date().getFullYear(),
+        plays: 0,
+        likes: 1,
+      });
+    }
+  });
 
   const resolvedLikedSongs = likedSongIds
     .map((id) => songMap.get(id))
@@ -59,17 +85,23 @@ export function FavoritesView() {
 
   const favoriteArtists = POPULAR_ARTISTS.filter((a) => favoriteArtistIds.includes(a.id));
 
+  const isLikedListPlaying = isPlaying && currentSong && resolvedLikedSongs.some((s) => s.id === currentSong.id);
+
   const handlePlayAll = (shuffle = false) => {
     if (resolvedLikedSongs.length === 0) return;
+    if (isLikedListPlaying && !shuffle) {
+      togglePlayPause();
+      return;
+    }
     const tracklist = shuffle ? [...resolvedLikedSongs].sort(() => Math.random() - 0.5) : resolvedLikedSongs;
     playSong(tracklist[0], tracklist);
   };
 
   return (
-    <div className="space-y-6 pb-8 text-white select-none animate-in fade-in duration-200">
+    <div className="space-y-6 pb-12 text-white select-none animate-in fade-in duration-200">
       {/* Header */}
       <div className="flex items-center gap-3.5 pt-1">
-        <div className="w-12 h-12 rounded-2xl bg-[#F51B3D]/15 border border-[#F51B3D]/30 flex items-center justify-center text-[#F51B3D] shadow-lg shadow-[#F51B3D]/10">
+        <div className="w-12 h-12 rounded-2xl bg-[#FA233B]/15 border border-[#FA233B]/30 flex items-center justify-center text-[#FA233B] shadow-lg shadow-[#FA233B]/15 flex-shrink-0">
           <Heart className="w-6 h-6 fill-current" />
         </div>
         <div>
@@ -78,7 +110,7 @@ export function FavoritesView() {
         </div>
       </div>
 
-      {/* Sub Tabs and Play Actions */}
+      {/* Sub Tabs and Mobile-First Play Action Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
         <div className="flex items-center gap-2">
           {[
@@ -91,9 +123,9 @@ export function FavoritesView() {
               <button
                 key={t.id}
                 onClick={() => setActiveSubTab(t.id as any)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-[#F51B3D] text-white shadow-md shadow-[#F51B3D]/25'
+                    ? 'bg-[#FA233B] text-white shadow-md shadow-[#FA233B]/25'
                     : 'bg-white/5 hover:bg-white/10 text-slate-300'
                 }`}
               >
@@ -104,20 +136,23 @@ export function FavoritesView() {
           })}
         </div>
 
+        {/* Mobile & Desktop Play All & Shuffle Buttons */}
         {activeSubTab === 'songs' && resolvedLikedSongs.length > 0 && (
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2.5 w-full sm:w-auto pt-1 sm:pt-0">
             <button
               onClick={() => handlePlayAll(false)}
-              className="px-4 py-2 rounded-xl bg-[#F51B3D] hover:bg-[#D91533] text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-[#F51B3D]/25 transition-all cursor-pointer"
+              className="h-11 sm:h-10 px-5 rounded-full bg-[#FA233B] hover:bg-[#D90429] active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#FA233B]/30 transition-all cursor-pointer"
+              aria-label="Play all liked songs"
             >
-              <Play className="w-3.5 h-3.5 fill-white" />
-              <span>Play All</span>
+              <Play className={`w-4 h-4 fill-white ${isLikedListPlaying ? 'animate-pulse' : ''}`} />
+              <span>{isLikedListPlaying ? 'Pause' : 'Play All'}</span>
             </button>
             <button
               onClick={() => handlePlayAll(true)}
-              className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-white/10"
+              className="h-11 sm:h-10 px-4 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-white/15 shadow-md transition-all cursor-pointer"
+              aria-label="Shuffle liked songs"
             >
-              <Shuffle className="w-3.5 h-3.5 text-slate-300" />
+              <Shuffle className="w-4 h-4 text-slate-200" />
               <span>Shuffle</span>
             </button>
           </div>
@@ -147,7 +182,7 @@ export function FavoritesView() {
                       className="w-11 h-11 rounded-xl object-cover shadow-sm flex-shrink-0 bg-slate-800"
                     />
                     <div className="min-w-0 flex-1 pr-2">
-                      <h4 className="text-xs font-bold text-white group-hover:text-[#F51B3D] transition-colors truncate">
+                      <h4 className="text-xs font-bold text-white group-hover:text-[#FA233B] transition-colors truncate">
                         {song.title}
                       </h4>
                       <p className="text-[11px] text-[#8E92A4] truncate mt-0.5">{song.artist}</p>
@@ -158,7 +193,7 @@ export function FavoritesView() {
                     <button
                       onClick={() => toggleLikeSong(song.id)}
                       aria-label="Unlike song"
-                      className="p-2 text-[#F51B3D] hover:scale-110 active:scale-95 transition-transform cursor-pointer"
+                      className="p-2 text-[#FA233B] hover:scale-110 active:scale-95 transition-transform cursor-pointer"
                     >
                       <Heart className="w-4 h-4 fill-current" />
                     </button>
@@ -191,7 +226,7 @@ export function FavoritesView() {
                 className="w-18 h-18 rounded-full mx-auto object-cover shadow-md group-hover:scale-105 transition-transform bg-slate-800"
               />
               <div>
-                <h4 className="text-xs font-bold text-white group-hover:text-[#F51B3D] transition-colors truncate">
+                <h4 className="text-xs font-bold text-white group-hover:text-[#FA233B] transition-colors truncate">
                   {artist.name}
                 </h4>
                 <p className="text-[10px] text-[#8E92A4] mt-0.5 truncate">{artist.genres.join(' • ')}</p>

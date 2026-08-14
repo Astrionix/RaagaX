@@ -51,6 +51,13 @@ export class PlaybackSourceResolver {
           localId: song.id,
           isLocalBlob: true,
         };
+      } else {
+        // Stale catalog entry: media was deleted or evicted by OS
+        console.warn(`[PlaybackSourceResolver] Local media evicted or missing for track ${song.id}`);
+        await catalog.removeTrack(song.id);
+        usePlayerStore.setState(s => ({
+          downloadedSongIds: s.downloadedSongIds.filter(id => id !== song.id)
+        }));
       }
     }
 

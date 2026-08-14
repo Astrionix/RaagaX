@@ -3,7 +3,7 @@ import { openDB, IDBPDatabase } from 'idb';
 export interface PendingMutation {
   mutation_id: string;
   user_id: string;
-  type: 'LIKE_SONG' | 'UNLIKE_SONG' | 'CREATE_PLAYLIST' | 'DELETE_PLAYLIST' | 'ADD_TO_PLAYLIST' | 'REMOVE_FROM_PLAYLIST' | 'UPDATE_PLAYLIST_POSITIONS' | 'SAVE_ALBUM' | 'UNSAVE_ALBUM';
+  type: 'LIKE_SONG' | 'UNLIKE_SONG' | 'CREATE_PLAYLIST' | 'DELETE_PLAYLIST' | 'ADD_TO_PLAYLIST' | 'REMOVE_FROM_PLAYLIST' | 'UPDATE_PLAYLIST_POSITIONS' | 'SAVE_ALBUM' | 'UNSAVE_ALBUM' | 'RECORD_DOWNLOAD' | 'REMOVE_DOWNLOAD_RECORD';
   entity_id: string;
   payload?: any;
   created_at: string;

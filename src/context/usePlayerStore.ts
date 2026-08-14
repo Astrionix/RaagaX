@@ -29,6 +29,8 @@ interface PlayerState {
   likedSongIds: string[];
   likedSongs: Song[];
   downloadedSongIds: string[];
+  cloudDownloadedSongIds: string[];
+  cloudDownloadRecords: import('@/lib/sync/AccountSyncEngine').CloudDownloadRecord[];
   historySongIds: string[];
   favoriteArtistIds: string[];
   favoriteAlbumIds: string[];
@@ -255,6 +257,8 @@ export const usePlayerStore = create<PlayerState>()(
   likedSongIds: [],
   likedSongs: [],
   downloadedSongIds: [],
+  cloudDownloadedSongIds: [],
+  cloudDownloadRecords: [],
   historySongIds: [],
   favoriteArtistIds: [],
   favoriteAlbumIds: [],

@@ -5,7 +5,8 @@ import { LocalDatabase } from '@/lib/localDatabase';
 import { DownloadManager } from '@/lib/offline/DownloadManager';
 import { DownloadStorage } from '@/lib/offline/DownloadStorage';
 import { OfflineCatalog } from '@/lib/offline/OfflineCatalog';
-import { DownloadMode, DownloadQuality } from '@/lib/offline/types';
+import { AtomicDownloader } from '@/lib/offline/AtomicDownloader';
+import { DownloadMode, DownloadQuality, StorageEstimateInfo, TrackDownloadState } from '@/lib/offline/types';
 import { exportSongToDevice } from '@/lib/downloadHelper';
 
 export type DownloadStatus = 'queued' | 'downloading' | 'verifying' | 'paused' | 'completed' | 'error' | 'cancelled';
@@ -25,20 +26,30 @@ export interface DownloadTask {
   abortController?: AbortController;
 }
 
+export interface ExportState {
+  status: 'REQUESTING' | 'DOWNLOADING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+  progress: number;
+  error?: string;
+}
+
 interface DownloadStore {
   tasks: Record<string, DownloadTask>;
+  exportStates: Record<string, ExportState>;
+  storageInfo: StorageEstimateInfo | null;
   activeCount: number;
   maxConcurrent: number;
   wifiOnly: boolean;
   isHydrated: boolean;
 
   hydrate: () => Promise<void>;
+  fetchStorageInfo: () => Promise<StorageEstimateInfo>;
+  saveForOffline: (song: Song) => Promise<boolean>;
   queueDownload: (song: Song, mode?: DownloadMode) => void;
   exportSong: (song: Song) => Promise<boolean>;
   pauseDownload: (songId: string) => void;
   resumeDownload: (songId: string) => void;
   cancelDownload: (songId: string) => void;
-  removeDownload: (songId: string) => void;
+  removeDownload: (songId: string) => Promise<void>;
   downloadPlaylist: (songs: Song[]) => void;
   pauseAll: () => void;
   resumeAll: () => void;
@@ -75,6 +86,8 @@ interface DownloadStore {
 
 export const useDownloadStore = create<DownloadStore>((set, get) => ({
   tasks: {},
+  exportStates: {},
+  storageInfo: null,
   activeCount: 0,
   maxConcurrent: 2,
   wifiOnly: false,
@@ -101,12 +114,31 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     DownloadManager.getInstance();
   },
 
+  fetchStorageInfo: async () => {
+    try {
+      const info = await DownloadStorage.getInstance().getStorageEstimate();
+      set({ storageInfo: info });
+      return info;
+    } catch (e) {
+      const fallback: StorageEstimateInfo = {
+        quota: 64 * 1024 * 1024 * 1024,
+        usage: 0,
+        available: 64 * 1024 * 1024 * 1024,
+        raagaXUsed: 0,
+        percentUsed: 0
+      };
+      set({ storageInfo: fallback });
+      return fallback;
+    }
+  },
+
   syncDownloadedIds: async () => {
     try {
       const catalog = OfflineCatalog.getInstance();
       const allTracks = await catalog.getAllTracks();
       const ids = allTracks.map(t => t.trackId);
       usePlayerStore.setState({ downloadedSongIds: ids });
+      await get().fetchStorageInfo();
     } catch {}
   },
 
@@ -170,8 +202,64 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     }
   },
 
+  /**
+   * Mode A: In-App Offline Playback Storage with Pre-Check & Atomic Verification
+   */
+  saveForOffline: async (song: Song): Promise<boolean> => {
+    if (!song || !song.id) return false;
+    
+    // Check if already downloaded
+    const alreadyDownloaded = usePlayerStore.getState().downloadedSongIds.includes(song.id);
+    if (alreadyDownloaded) return true;
+
+    // Check device storage availability
+    const quotaCheck = await DownloadStorage.getInstance().checkStorageAvailable(10 * 1024 * 1024);
+    if (!quotaCheck.hasSpace) {
+      get().setStatus(song.id, 'error', 'Not enough device storage available');
+      return false;
+    }
+
+    get().queueDownload(song, 'offline_sandboxed');
+    return true;
+  },
+
+  /**
+   * Mode B: Standalone File Export to Device OS
+   */
   exportSong: async (song: Song) => {
-    return exportSongToDevice(song);
+    if (!song || !song.id) return false;
+    set((s) => ({
+      exportStates: {
+        ...s.exportStates,
+        [song.id]: { status: 'DOWNLOADING', progress: 50 }
+      }
+    }));
+
+    try {
+      const success = await exportSongToDevice(song);
+      set((s) => ({
+        exportStates: {
+          ...s.exportStates,
+          [song.id]: { status: success ? 'COMPLETED' : 'FAILED', progress: success ? 100 : 0 }
+        }
+      }));
+      setTimeout(() => {
+        set((s) => {
+          const next = { ...s.exportStates };
+          delete next[song.id];
+          return { exportStates: next };
+        });
+      }, 4000);
+      return success;
+    } catch (e: any) {
+      set((s) => ({
+        exportStates: {
+          ...s.exportStates,
+          [song.id]: { status: 'FAILED', progress: 0, error: e.message }
+        }
+      }));
+      return false;
+    }
   },
 
   queueDownload: (song, mode = 'offline_sandboxed') => {
@@ -295,6 +383,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     usePlayerStore.setState(state => ({
       downloadedSongIds: state.downloadedSongIds.filter(id => id !== songId)
     }));
+    await get().fetchStorageInfo();
   },
 
   pauseAll: () => {
@@ -338,6 +427,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
           }
         }
         console.log('[DownloadStore] Streaming cache cleared.');
+        await get().fetchStorageInfo();
       } catch (err) {
         console.error('[DownloadStore] Failed to clear streaming cache:', err);
       }
@@ -354,6 +444,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     usePlayerStore.setState({ downloadedSongIds: [] });
     set({ tasks: {}, activeCount: 0 });
     get()._persistTasks();
+    await get().fetchStorageInfo();
     console.log('[DownloadStore] All offline downloads purged.');
   },
 
@@ -422,7 +513,6 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
       tasks: { ...s.tasks, [nextTaskId]: { ...task, status: 'downloading', abortController } }
     }));
 
-    const { AtomicDownloader } = require('@/lib/offline/AtomicDownloader');
     const downloader = AtomicDownloader.getInstance();
 
     const sanitizeName = (str: string) => str.replace(/[/\\?%*:|"<>]/g, '').trim();
@@ -492,8 +582,20 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
         });
 
         usePlayerStore.setState(s => ({
-          downloadedSongIds: [...new Set([...s.downloadedSongIds, nextTaskId])]
+          downloadedSongIds: [...new Set([...s.downloadedSongIds, nextTaskId])],
+          cloudDownloadedSongIds: [...new Set([...s.cloudDownloadedSongIds, nextTaskId])]
         }));
+        await get().fetchStorageInfo();
+
+        // Cloud sync: record download metadata in user's cloud account
+        try {
+          const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
+          const { useAuthStore } = await import('@/context/useAuthStore');
+          const activeUserId = useAuthStore.getState().user?.id || 'guest';
+          await AccountSyncEngine.getInstance().recordCloudDownload(activeUserId, task.song);
+        } catch (e) {
+          console.warn('[useDownloadStore] Cloud download record sync deferred:', e);
+        }
       }
 
       setStatus(nextTaskId, 'completed');

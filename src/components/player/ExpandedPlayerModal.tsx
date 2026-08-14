@@ -54,6 +54,7 @@ export function ExpandedPlayerModal() {
     setSelectedAlbumId,
     setCreatePlaylistModalOpen,
     networkMode,
+    cloudDownloadedSongIds = [],
   } = usePlayerStore();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -124,6 +125,7 @@ export function ExpandedPlayerModal() {
 
   const isLiked = likedSongIds.includes(currentSong.id);
   const isDownloaded = downloadedSongIds.includes(currentSong.id);
+  const isCloudRecorded = (cloudDownloadedSongIds || []).includes(currentSong.id);
 
   const formatTime = (seconds: number) => {
     if (!seconds || isNaN(seconds)) return '0:00';
@@ -162,8 +164,8 @@ export function ExpandedPlayerModal() {
         }}
       />
 
-      {/* Top Header Bar - Spotify Inspired */}
-      <div className="relative z-10 flex items-center justify-between w-full pt-1 pb-2 sm:pb-4 max-w-6xl mx-auto flex-shrink-0">
+      {/* Top Header Bar - Spotify Inspired (High Z-Index so popover menu floats cleanly above album artwork) */}
+      <div className="relative z-50 flex items-center justify-between w-full pt-1 pb-2 sm:pb-4 max-w-6xl mx-auto flex-shrink-0">
         <button 
           onClick={handleCloseModal}
           className="p-2 -ml-2 text-white hover:bg-white/10 rounded-full transition-colors relative z-10"
@@ -195,7 +197,7 @@ export function ExpandedPlayerModal() {
         </div>
 
         {/* Top Right Utilities */}
-        <div className="flex items-center justify-end gap-1 flex-shrink-0 relative z-10">
+        <div className="flex items-center justify-end gap-1 flex-shrink-0 relative z-50">
           {/* 3 Dots Options Button & Popover */}
           <div className="relative inline-block" ref={menuRef}>
             <button
@@ -209,10 +211,10 @@ export function ExpandedPlayerModal() {
               <MoreHorizontal className="w-6 h-6 sm:w-7 sm:h-7" />
             </button>
 
-            {/* Context Dropdown Menu (Universal Popover) */}
+            {/* Context Dropdown Menu (Universal Popover - Elevated Z-Index) */}
             {isMenuOpen && (
               <div 
-                className="absolute right-0 top-full mt-2 w-64 bg-[#141416]/98 backdrop-blur-3xl border border-white/15 rounded-2xl p-2 shadow-2xl z-[250] text-xs text-white select-none animate-in fade-in zoom-in-95 duration-150"
+                className="absolute right-0 top-full mt-2 w-64 bg-[#141416]/98 backdrop-blur-3xl border border-white/20 rounded-2xl p-2 shadow-[0_25px_60px_rgba(0,0,0,0.95)] z-[999] text-xs text-white select-none animate-in fade-in zoom-in-95 duration-150"
                 onClick={(e) => e.stopPropagation()}
               >
                 <button 
@@ -331,19 +333,56 @@ export function ExpandedPlayerModal() {
 
                 <div className="h-px bg-white/10 my-1" />
 
+                {/* 3-State Download: 
+                    1. Cloud ❌, Local ❌ -> Save for Offline Listening
+                    2. Cloud ✅, Local ✅ -> Downloaded ✓ (Remove from device)
+                    3. Cloud ✅, Local ❌ -> Download Again ↓ (Restore to device)
+                */}
                 <button 
                   onClick={async () => {
-                    toggleDownloadSong(currentSong.id);
-                    const { exportSongToDevice } = await import('@/lib/downloadHelper');
-                    await exportSongToDevice(currentSong);
-                    setToastMessage(`Downloading "${currentSong.title}" to local storage...`);
+                    const { useDownloadStore } = await import('@/context/useDownloadStore');
+                    if (isDownloaded) {
+                      await useDownloadStore.getState().removeDownload(currentSong.id);
+                      setToastMessage(`Removed "${currentSong.title}" from offline storage`);
+                    } else {
+                      await useDownloadStore.getState().saveForOffline(currentSong);
+                      setToastMessage(isCloudRecorded ? `Restoring "${currentSong.title}" to device...` : `Saving "${currentSong.title}" for offline playback...`);
+                    }
                     setIsMenuOpen(false);
                   }}
                   className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <Download className={`w-4 h-4 ${isDownloaded ? 'text-emerald-400' : 'text-slate-400'}`} />
-                    <span className="font-bold">{isDownloaded ? 'Re-download MP3' : 'Download to local storage'}</span>
+                    <Download className={`w-4 h-4 ${
+                      isDownloaded 
+                        ? 'text-emerald-400' 
+                        : isCloudRecorded 
+                          ? 'text-sky-400' 
+                          : 'text-slate-400'
+                    }`} />
+                    <span className={`font-bold ${isCloudRecorded && !isDownloaded ? 'text-sky-400' : ''}`}>
+                      {isDownloaded 
+                        ? 'Downloaded ✓ (Remove)' 
+                        : isCloudRecorded 
+                          ? 'Download Again ↓ (Restore)' 
+                          : 'Save for Offline Listening'}
+                    </span>
+                  </div>
+                </button>
+
+                {/* Mode B: Export Standalone MP3 */}
+                <button 
+                  onClick={async () => {
+                    const { useDownloadStore } = await import('@/context/useDownloadStore');
+                    await useDownloadStore.getState().exportSong(currentSong);
+                    setToastMessage(`Exporting "${currentSong.title}" MP3 to device...`);
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <Download className="w-4 h-4 text-sky-400 rotate-[-45deg]" />
+                    <span className="font-bold">Export MP3 to Device</span>
                   </div>
                 </button>
 
@@ -400,7 +439,7 @@ export function ExpandedPlayerModal() {
       </div>
 
       {/* Main Center Content Section (Flexible to fit screen without scroll) */}
-      <div className="relative z-10 flex-1 min-h-0 flex flex-col justify-between w-full max-w-5xl mx-auto py-1 sm:py-4">
+      <div className="relative z-0 flex-1 min-h-0 flex flex-col justify-between w-full max-w-5xl mx-auto py-1 sm:py-4">
         
         {/* Cover Artwork */}
         <div className="flex-1 min-h-0 flex flex-col items-center justify-center w-full py-2 sm:py-6 overflow-hidden">
@@ -554,19 +593,37 @@ export function ExpandedPlayerModal() {
 
             <button
               onClick={async () => {
-                toggleDownloadSong(currentSong.id);
-                const { exportSongToDevice } = await import('@/lib/downloadHelper');
-                await exportSongToDevice(currentSong);
-                setToastMessage(`Downloading "${currentSong.title}" to local storage...`);
+                const { useDownloadStore } = await import('@/context/useDownloadStore');
+                if (isDownloaded) {
+                  await useDownloadStore.getState().removeDownload(currentSong.id);
+                  setToastMessage(`Removed "${currentSong.title}" from offline storage`);
+                } else {
+                  await useDownloadStore.getState().saveForOffline(currentSong);
+                  setToastMessage(isCloudRecorded ? `Restoring "${currentSong.title}" to device...` : `Saving "${currentSong.title}" for offline playback...`);
+                }
               }}
               className={`p-2.5 rounded-2xl surface-card border transition-all ${
                 isDownloaded 
                   ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10 shadow-sm' 
-                  : 'border-white/15 text-white/70 hover:text-white hover:border-[#F20D18]'
+                  : isCloudRecorded
+                    ? 'border-sky-500/50 text-sky-400 bg-sky-500/10 shadow-sm hover:scale-105'
+                    : 'border-white/15 text-white/70 hover:text-white hover:border-[#F20D18]'
               }`}
-              title="Download to Local Storage"
+              title={
+                isDownloaded 
+                  ? "Downloaded ✓ (Tap to remove from device)" 
+                  : isCloudRecorded 
+                    ? "Download Again ↓ (Restore to device)" 
+                    : "Save for Offline Listening"
+              }
             >
-              <Download className={`w-4 h-4 ${isDownloaded ? 'text-emerald-400' : 'text-white/70 hover:text-white'}`} />
+              <Download className={`w-4 h-4 ${
+                isDownloaded 
+                  ? 'text-emerald-400' 
+                  : isCloudRecorded 
+                    ? 'text-sky-400 animate-pulse' 
+                    : 'text-white/70 hover:text-white'
+              }`} />
             </button>
 
             <button

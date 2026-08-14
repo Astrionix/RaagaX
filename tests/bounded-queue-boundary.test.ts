@@ -1,7 +1,18 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { QueueManager } from '@/lib/queue/QueueManager';
 import { AdaptiveQueueController } from '@/lib/queue/AdaptiveQueueController';
+
+vi.mock('@/lib/recommendation/CandidateGenerator', () => ({
+  CandidateGenerator: {
+    generateBuckets: vi.fn().mockResolvedValue({
+      personalized: [{ id: 'rec_1', title: 'Rec 1', artist: 'Artist Rec' }],
+      popular: [],
+      newRelease: [],
+      exploration: [],
+    }),
+  },
+}));
 
 const mockAlbum: any[] = [
   { id: 'song_a', title: 'Song A', artist: 'Artist 1' },
