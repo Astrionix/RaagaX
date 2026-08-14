@@ -9,6 +9,8 @@ export interface DeviceCapabilities {
   connect: boolean;
 }
 
+export type TransportMode = 'LOCAL_DIRECT' | 'HOTSPOT_DIRECT' | 'CLOUD_RELAY';
+
 export type ConnectState =
   | "OFFLINE"
   | "CONNECTING"

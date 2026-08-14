@@ -378,4 +378,27 @@ describe('RaagaX Distributed Playback Session — Master Specification Tests (Sc
     expect(state.isPlaying).toBe(false);
     expect(state.queue.length).toBe(0);
   });
+
+  // ── CONNECTIVITY ROUTER: Network-Agnostic Multi-Path & Hotspot Sync ─────────
+  it('Connectivity Router: Prioritizes direct LAN/Hotspot and falls back to Cloud Relay without session loss', async () => {
+    const { ConnectivityRouter } = await import('@/lib/connect/ConnectivityRouter');
+    const router = ConnectivityRouter.getInstance();
+    router.reset();
+
+    // Default route without local peer is Cloud Relay
+    expect(router.getActiveTransport()).toBe('CLOUD_RELAY');
+
+    // Phone connects to Laptop via Hotspot LAN (< 15ms)
+    router.setLocalPeerAvailable(true, true);
+    expect(router.getActiveTransport()).toBe('HOTSPOT_DIRECT');
+
+    // Wi-Fi LAN available (< 10ms)
+    router.setLocalPeerAvailable(true, false);
+    expect(router.getActiveTransport()).toBe('LOCAL_DIRECT');
+
+    // Hotspot isolates client (client isolation) -> LAN lost -> fallback to Cloud Relay
+    router.setLocalPeerAvailable(false, false);
+    router.setLocalPeerAvailable(false, true);
+    expect(router.getActiveTransport()).toBe('CLOUD_RELAY');
+  });
 });
