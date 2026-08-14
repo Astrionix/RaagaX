@@ -31,6 +31,12 @@ function formatTime(seconds: number): string {
 }
 
 export function PlayerBar() {
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const {
     currentSong,
     isPlaying,
@@ -58,8 +64,8 @@ export function PlayerBar() {
     toggleSleepTimerModal,
   } = usePlayerStore();
 
-  const isLiked = currentSong ? likedSongIds.includes(currentSong.id) : false;
-  const isDownloaded = currentSong ? downloadedSongIds.includes(currentSong.id) : false;
+  const isLiked = mounted && currentSong ? likedSongIds.includes(currentSong.id) : false;
+  const isDownloaded = mounted && currentSong ? downloadedSongIds.includes(currentSong.id) : false;
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTime = parseFloat(e.target.value);
@@ -71,7 +77,7 @@ export function PlayerBar() {
     <div className="hidden md:flex fixed bottom-0 left-0 right-0 z-40 h-20 bg-[#090a0f]/90 backdrop-blur-3xl border-t border-white/10 px-6 items-center justify-between text-white select-none shadow-[0_-10px_35px_rgba(0,0,0,0.6)]">
       {/* Left: Active Song Info */}
       <div className="flex items-center gap-3.5 w-72 flex-shrink-0">
-        {currentSong ? (
+        {mounted && currentSong ? (
           <>
             <div
               onClick={togglePlayerExpanded}

@@ -15,6 +15,12 @@ import { RaagaXLogo } from '@/components/brand/RaagaXLogo';
 import { RaagaXWordmark } from '@/components/brand/RaagaXWordmark';
 
 export function Header() {
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const {
     activeTab,
     setActiveTab,
@@ -47,7 +53,7 @@ export function Header() {
             className="p-1.5 text-slate-300 hover:text-white" 
             title="Profile"
           >
-            {user ? (
+            {mounted && user ? (
               <div className="w-6 h-6 rounded-full bg-[#fa233b] text-white text-[10px] font-bold flex items-center justify-center">
                 {user.email ? user.email.charAt(0).toUpperCase() : 'U'}
               </div>

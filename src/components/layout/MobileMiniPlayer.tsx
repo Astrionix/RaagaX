@@ -6,6 +6,12 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { SeekBar } from '@/components/player/SeekBar';
 
 export function MobileMiniPlayer() {
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const {
     currentSong,
     isPlaying,
@@ -20,7 +26,7 @@ export function MobileMiniPlayer() {
     remoteDeviceName,
   } = usePlayerStore();
 
-  if (!currentSong) return null;
+  if (!mounted || !currentSong) return null;
 
   const isLiked = likedSongIds.includes(currentSong.id);
 

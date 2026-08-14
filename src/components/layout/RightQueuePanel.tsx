@@ -5,6 +5,12 @@ import { Trash2, Heart } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 
 export function RightQueuePanel() {
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const {
     currentSong,
     queue,
@@ -18,7 +24,7 @@ export function RightQueuePanel() {
     reorderQueue
   } = usePlayerStore();
 
-  const upNextQueue = queue.slice(queueIndex + 1);
+  const upNextQueue = mounted ? queue.slice(queueIndex + 1) : [];
 
   const handleClearQueue = () => {
     if (currentSong) {
@@ -64,7 +70,7 @@ export function RightQueuePanel() {
       </div>
 
       {/* Currently Playing Card */}
-      {currentSong && (
+      {mounted && currentSong && (
         <div className="p-3 rounded-2xl bg-[#fa233b]/10 border border-[#fa233b]/30 flex items-center justify-between flex-shrink-0 min-w-0 w-full mb-3 shadow-md">
           <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
             <img
