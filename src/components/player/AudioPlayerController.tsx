@@ -26,6 +26,7 @@ export function AudioPlayerController() {
   const prevSongIdRef = useRef<string | null>(null);
   const isRefilling = useRef(false);
   const seekTarget = usePlayerStore(state => state.seekTarget);
+  const lastSeekTimeRef = useRef<number>(0);
 
   const {
     currentSong,
@@ -119,6 +120,9 @@ export function AudioPlayerController() {
   useEffect(() => {
     if (!RaagaXNativePlayer.isNative() || !isPlaying) return;
     const interval = setInterval(async () => {
+      if (Date.now() - lastSeekTimeRef.current < 1500) {
+        return; // Skip updating while native seek is settling
+      }
       const state = await RaagaXNativePlayer.getPlaybackState();
       if (state && state.positionMs >= 0) {
         usePlayerStore.getState().setCurrentTime(state.positionMs / 1000, true);
@@ -188,13 +192,9 @@ export function AudioPlayerController() {
   useEffect(() => {
     if (seekTarget !== null) {
       console.log('[SEEK] Store target:', seekTarget, 'ms:', seekTarget * 1000);
-      if (RaagaXNativePlayer.isNative()) {
-        console.log('[SEEK] Native seekTo:', seekTarget * 1000);
-        RaagaXNativePlayer.seekTo(seekTarget * 1000);
-      } else {
-        console.log('[SEEK] Engine request:', seekTarget, 'ms:', seekTarget * 1000);
-        PlaybackService.getInstance().seek(seekTarget);
-      }
+      lastSeekTimeRef.current = Date.now();
+      
+      PlaybackService.getInstance().seek(seekTarget);
       LyricsEngine.getInstance().seek(seekTarget * 1000);
       usePlayerStore.setState({ seekTarget: null });
     }
