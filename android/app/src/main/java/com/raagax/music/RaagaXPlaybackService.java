@@ -505,7 +505,16 @@ public class RaagaXPlaybackService extends Service {
 
     public void resume()           { runOnMainThread(() -> { if (player != null) player.play(); }); }
     public void pause()            { runOnMainThread(() -> { if (player != null) player.pause(); }); }
-    public void seekTo(long posMs) { runOnMainThread(() -> { if (player != null) player.seekTo(posMs); }); }
+    public void seekTo(long posMs) { 
+        runOnMainThread(() -> { 
+            if (player != null) {
+                long targetPos = Math.max(0L, posMs);
+                Log.d(TAG, "[SEEK] Native ExoPlayer seekTo: " + targetPos + "ms (previous=" + player.getCurrentPosition() + "ms)");
+                player.seekTo(targetPos);
+                Log.d(TAG, "[SEEK] Native ExoPlayer actual post-seek position: " + player.getCurrentPosition() + "ms");
+            } 
+        }); 
+    }
     public void setVolume(float v) { runOnMainThread(() -> { if (player != null) player.setVolume(v); }); }
 
     public long getCurrentPosition() {

@@ -224,9 +224,15 @@ public class RaagaXCapacitorPlugin extends Plugin {
     @PluginMethod
     public void seekTo(PluginCall call) {
         long positionMs = call.getLong("positionMs", 0L);
-        Intent intent = new Intent("SEEK");
-        intent.putExtra("positionMs", positionMs);
-        sendCommandToService(intent);
+        Log.d(TAG, "seekTo received: " + positionMs + "ms");
+        RaagaXPlaybackService service = getService();
+        if (service != null) {
+            service.seekTo(positionMs);
+        } else {
+            Intent intent = new Intent("SEEK");
+            intent.putExtra("positionMs", positionMs);
+            sendCommandToService(intent);
+        }
         call.resolve(new JSObject().put("success", true));
     }
 

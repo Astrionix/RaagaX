@@ -182,9 +182,12 @@ export function AudioPlayerController() {
   // Watch for explicit seek targets from UI
   useEffect(() => {
     if (seekTarget !== null) {
+      console.log('[SEEK] Store target:', seekTarget, 'ms:', seekTarget * 1000);
       if (RaagaXNativePlayer.isNative()) {
+        console.log('[SEEK] Native seekTo:', seekTarget * 1000);
         RaagaXNativePlayer.seekTo(seekTarget * 1000);
       } else {
+        console.log('[SEEK] Engine request:', seekTarget, 'ms:', seekTarget * 1000);
         PlaybackService.getInstance().seek(seekTarget);
       }
       LyricsEngine.getInstance().seek(seekTarget * 1000);

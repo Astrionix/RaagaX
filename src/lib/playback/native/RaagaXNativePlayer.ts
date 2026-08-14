@@ -110,6 +110,7 @@ export const RaagaXNativePlayer = {
   async seekTo(positionMs: number): Promise<void> {
     const plugin = getPlugin();
     if (!plugin) return;
+    console.log('[SEEK] RaagaXNativePlayer plugin.seekTo:', positionMs);
     await plugin.seekTo({ positionMs });
   },
 
