@@ -47,6 +47,7 @@ import { useThemeStore } from '@/context/useThemeStore';
 import { LocalDatabase } from '@/lib/offline/LocalDatabase';
 import { AccountSyncEngine } from '@/lib/sync/AccountSyncEngine';
 import { AudioQuality } from '@/lib/playback/types';
+import { BrandShowcaseView } from '@/components/brand/BrandShowcaseView';
 
 export type SettingsSectionId =
   | 'account'
@@ -60,6 +61,7 @@ export type SettingsSectionId =
   | 'privacy'
   | 'content'
   | 'appearance'
+  | 'brand'
   | 'security'
   | 'data-privacy'
   | 'diagnostics'
@@ -84,6 +86,7 @@ const SECTIONS: SectionDef[] = [
   { id: 'privacy', label: 'Privacy', icon: Shield, description: 'Social activity and listening visibility' },
   { id: 'content', label: 'Content', icon: Sliders, description: 'Explicit tags, remixes, live versions, and covers' },
   { id: 'appearance', label: 'Appearance', icon: Palette, description: 'Theme, accent tones, and visual effects' },
+  { id: 'brand', label: 'Brand Identity', icon: Sparkles, description: 'Abstract logo variants, color tokens, and motion language' },
   { id: 'security', label: 'Security', icon: Lock, description: 'Two-factor auth and active device sessions' },
   { id: 'data-privacy', label: 'Data & Privacy', icon: Database, description: 'Export archive, clear history, and account deletion' },
   { id: 'diagnostics', label: 'Diagnostics', icon: Activity, description: 'Engine health, network latency, and cache metrics' },
@@ -951,7 +954,14 @@ export function SettingsView() {
             </div>
           )}
 
-          {/* 12. SECURITY */}
+          {/* 12. BRAND IDENTITY */}
+          {activeSection === 'brand' && (
+            <div className="space-y-6">
+              <BrandShowcaseView />
+            </div>
+          )}
+
+          {/* 13. SECURITY */}
           {activeSection === 'security' && (
             <div className="space-y-6">
               <SettingRow

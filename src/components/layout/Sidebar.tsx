@@ -21,6 +21,8 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { useThemeStore } from '@/context/useThemeStore';
+import { RaagaXLogo } from '@/components/brand/RaagaXLogo';
+import { RaagaXWordmark } from '@/components/brand/RaagaXWordmark';
 
 export function Sidebar() {
   const {
@@ -58,15 +60,8 @@ export function Sidebar() {
       <div className="space-y-5 overflow-y-auto no-scrollbar pr-1">
         {/* Brand Header */}
         <div className="flex items-center gap-3 px-2 pt-1 pb-2">
-          <img 
-            src={resolvedTheme === 'light' ? '/logo-light.png' : '/logo-dark.png'} 
-            alt="RaagaX" 
-            className="w-9 h-9 rounded-2xl object-contain drop-shadow-md" 
-          />
-          <div>
-            <h1 className="text-base font-black tracking-wider text-[var(--text-primary)]">RAAGAX</h1>
-            <p className="text-[9px] font-bold text-[#fa233b] uppercase tracking-widest leading-none">Studio Edition</p>
-          </div>
+          <RaagaXLogo variant="full" size={36} />
+          <RaagaXWordmark size="md" subEdition="Studio Edition" />
         </div>
 
         {/* Quick Search */}

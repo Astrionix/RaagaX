@@ -11,6 +11,8 @@ import {
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
 import { useThemeStore } from '@/context/useThemeStore';
+import { RaagaXLogo } from '@/components/brand/RaagaXLogo';
+import { RaagaXWordmark } from '@/components/brand/RaagaXWordmark';
 
 export function Header() {
   const {
@@ -28,13 +30,9 @@ export function Header() {
     <>
       {/* Mobile Top Header (md:hidden) */}
       <header className="md:hidden fixed top-0 left-0 right-0 z-40 px-4 flex items-center justify-between bg-[var(--header-bg)] backdrop-blur-xl border-b border-[var(--border-subtle)] text-[var(--text-primary)] select-none pt-[env(safe-area-inset-top)] h-[calc(3.5rem+env(safe-area-inset-top))] shadow-md">
-        <div className="flex items-center gap-2.5">
-          <img 
-            src={resolvedTheme === 'light' ? '/logo-light.png' : '/logo-dark.png'} 
-            alt="RaagaX" 
-            className="w-8 h-8 rounded-xl object-contain drop-shadow-md" 
-          />
-          <span className="font-black text-sm tracking-tight text-[var(--text-primary)]">RAAGAX</span>
+        <div className="flex items-center gap-2">
+          <RaagaXLogo variant="full" size={28} />
+          <RaagaXWordmark size="sm" />
         </div>
 
         <div className="flex items-center gap-2">
