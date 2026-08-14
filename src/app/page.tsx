@@ -33,6 +33,7 @@ import { BrowseView } from '@/components/views/BrowseView';
 import { SearchView } from '@/components/views/SearchView';
 import { LibraryView } from '@/components/views/LibraryView';
 import { PlaylistDetailView } from '@/components/views/PlaylistDetailView';
+import { AlbumDetailView } from '@/components/views/AlbumDetailView';
 import { RadioView } from '@/components/views/RadioView';
 import { ArtistDetailView } from '@/components/views/ArtistDetailView';
 import { ArtistsView } from '@/components/views/ArtistsView';
@@ -109,6 +110,7 @@ export default function Page() {
             {activeTab === 'library' && <LibraryView />}
             {activeTab === 'radio' && <RadioView />}
             {activeTab === 'artist' && (selectedArtistId ? <ArtistDetailView /> : <ArtistsView />)}
+            {activeTab === 'album' && <AlbumDetailView />}
             {activeTab === 'playlist' && <PlaylistDetailView />}
             {activeTab === 'profile' && <ProfileView />}
             {activeTab === 'downloads' && <DownloadsView />}
