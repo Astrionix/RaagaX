@@ -164,12 +164,16 @@ export class CommandBus {
         }
         break;
         
-      case 'TRANSFER_REQUEST':
-        if (command.targetDeviceId === this.localDeviceId) {
-           console.log('[CommandBus] Received TRANSFER_REQUEST');
+      case 'TRANSFER_REQUEST': {
+        const storeDeviceId = usePlayerStore.getState().deviceId;
+        if (!command.targetDeviceId || command.targetDeviceId === this.localDeviceId || command.targetDeviceId === storeDeviceId) {
+           console.log(`[CommandBus] Received TRANSFER_REQUEST for this device (${storeDeviceId || this.localDeviceId})`);
            TransferManager.getInstance().handleIncomingTransferRequest(command);
+        } else {
+           console.log(`[CommandBus] Ignoring TRANSFER_REQUEST targeted to ${command.targetDeviceId} (this device: ${storeDeviceId})`);
         }
         break;
+      }
         
       case 'COMMAND_ACK':
         console.log('[CommandBus] Received ACK:', command.payload);

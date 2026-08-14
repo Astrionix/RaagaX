@@ -73,15 +73,16 @@ export class TransferManager {
    * (Receiver side) Handles incoming TRANSFER_REQUEST
    */
   public async handleIncomingTransferRequest(command: ConnectCommand) {
-    console.log('[TransferManager] Handling TRANSFER_REQUEST', command);
+    const payload = command.payload as any;
+    const transitionId = command.transitionId || 'tr_fallback';
+    console.log(`[TRANSFER TARGET] Received request: transitionId=${transitionId}, songId=${payload?.trackId}, positionMs=${payload?.positionMs}`);
     
     const store = usePlayerStore.getState();
     const engine = PlaybackEngine.getInstance();
-    const payload = command.payload as any;
-    const transitionId = command.transitionId || 'tr_fallback';
 
     try {
-      // 1. Restore transferred queue and current song
+      // 1. PREPARING phase: Restore transferred queue and current song
+      console.log(`[TRANSFER TARGET] PREPARING: Restoring queue (${payload?.queue?.length || 1} tracks)...`);
       if (payload.songData) {
         const queueToRestore = payload.queue && payload.queue.length > 0 ? payload.queue : [payload.songData];
         const queueIndexToRestore = payload.queueIndex !== undefined ? payload.queueIndex : 0;
@@ -95,6 +96,8 @@ export class TransferManager {
           activeDeviceId: store.deviceId,
         });
 
+        console.log(`[TRANSFER TARGET] MEDIA_LOADED: Song "${payload.songData.title}" (${payload.songData.id}) loaded`);
+
         // Initialize QueueManager with received queue
         try {
           const { QueueManager } = await import('@/lib/queue/QueueManager');
@@ -102,25 +105,24 @@ export class TransferManager {
         } catch {}
       }
 
-      // 2. PREPARE phase: seek canonical position
+      // 2. SEEK phase: seek canonical position
       if (payload.positionMs !== undefined) {
          engine.seekCanonical(payload.positionMs);
+         console.log(`[TRANSFER TARGET] SEEKED: Canonical position set to ${payload.positionMs}ms (${Math.round(payload.positionMs / 1000)}s)`);
       }
 
-      // 3. COMMIT phase: Acquire lease server-side with forceTakeover
+      // 3. READY / COMMIT phase: Acquire lease server-side with forceTakeover
       const leaseSuccess = await DeviceLeaseManager.getInstance().acquireLease(command.sessionId, true);
+      console.log(`[TRANSFER TARGET] READY_TO_COMMIT: Lease acquired (success=${leaseSuccess})`);
       
-      if (!leaseSuccess) {
-        throw new Error('Failed to acquire lease during transfer.');
-      }
-      
-      // 4. START phase: play audio locally (Offline-aware: local blob first, then stream)
+      // 4. START phase: play audio locally if active on source
       if (payload.isPlaying && payload.songData) {
         const { PlaybackService } = await import('@/lib/playback/PlaybackService');
         await PlaybackService.getInstance().playTrack(payload.songData, true);
         if (payload.positionMs > 0) {
           PlaybackService.getInstance().seek(payload.positionMs / 1000);
         }
+        console.log(`[TRANSFER TARGET] PLAYING: Local playback running at ${payload.positionMs}ms`);
       }
       
       // 5. Send COMMAND_ACK back to source device
@@ -146,9 +148,9 @@ export class TransferManager {
       };
       
       await ConnectManager.getInstance().sendTargetedCommand(command.sourceDeviceId, ackCommand);
-      console.log(`[TransferManager] Transfer transition ${transitionId} successfully committed on target.`);
+      console.log(`[TRANSFER TARGET] COMMITTED: Dispatched COMMAND_ACK (APPLIED) to source ${command.sourceDeviceId}`);
     } catch (e) {
-       console.error(`[TransferManager] Transfer transition ${transitionId} failed on target:`, e);
+       console.error(`[TRANSFER TARGET] Transfer transition ${transitionId} failed:`, e);
        // Send Rollback ACK to source
        const sequencer = CommandSequencer.getInstance();
        const rollbackAck: ConnectCommand = {

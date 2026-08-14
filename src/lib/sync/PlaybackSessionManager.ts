@@ -9,6 +9,7 @@ export class PlaybackSessionManager {
   private lastCheckpointTime = 0;
   private lastCheckpointPosition = 0;
   private isDirty = false;
+  private isSchemaSupported = true;
   
   // Clean up any intervals
   private checkpointTimer: ReturnType<typeof setInterval> | null = null;
@@ -35,7 +36,7 @@ export class PlaybackSessionManager {
 
   // Adaptive checkpointing - explicit triggers
   public async checkpoint(force = false) {
-    if (!this.sessionId) return;
+    if (!this.sessionId || !this.isSchemaSupported) return;
     
     const engine = PlaybackEngine.getInstance();
     const currentPosition = engine.getCanonicalPositionMs();
@@ -73,7 +74,12 @@ export class PlaybackSessionManager {
         }, { onConflict: 'session_id' });
         
       if (error) {
-        console.error('[PlaybackSessionManager] Upsert error:', error.message, error.details, error.hint);
+        if (error.message?.includes('canonical_position_ms') || error.message?.includes('schema cache') || error.code === '42703' || error.code === 'PGRST204') {
+          console.warn('[PlaybackSessionManager] Supabase schema missing canonical_position_ms column. Disabling remote checkpointing until migration is applied. Run migration to enable durable cross-device checkpoints.');
+          this.isSchemaSupported = false;
+        } else {
+          console.error('[PlaybackSessionManager] Upsert error:', error.message, error.details, error.hint);
+        }
       } else {
         this.lastCheckpointTime = Date.now();
         this.lastCheckpointPosition = currentPosition;
