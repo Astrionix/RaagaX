@@ -3,15 +3,47 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --bg-primary: #000000;
-    --bg-secondary: #121212;
+  :root,
+  .dark,
+  [data-theme="dark"] {
+    --bg-primary: #07090E;
+    --bg-secondary: #0E1118;
+    --bg-surface: #141722;
+    --bg-elevated: #1C1F2E;
+    --bg-card: rgba(18, 20, 29, 0.7);
     --accent-crimson: #fa233b;
     --accent-crimson-dark: #d91c2e;
     --text-primary: #ffffff;
-    --text-secondary: #a1a1aa;
-    --glass-bg: rgba(30, 30, 30, 0.5);
-    --glass-border: rgba(255, 255, 255, 0.1);
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --glass-bg: rgba(18, 20, 29, 0.6);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --header-bg: rgba(7, 9, 14, 0.85);
+    --sidebar-bg: #07090E;
+    --playerbar-bg: rgba(12, 13, 18, 0.95);
+    --nav-bg: rgba(12, 13, 18, 0.95);
+  }
+
+  .light,
+  [data-theme="light"] {
+    --bg-primary: #F8FAFC;
+    --bg-secondary: #FFFFFF;
+    --bg-surface: #F1F5F9;
+    --bg-elevated: #FFFFFF;
+    --bg-card: rgba(255, 255, 255, 0.9);
+    --accent-crimson: #fa233b;
+    --accent-crimson-dark: #d91c2e;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --glass-bg: rgba(255, 255, 255, 0.85);
+    --glass-border: rgba(0, 0, 0, 0.08);
+    --border-subtle: rgba(0, 0, 0, 0.08);
+    --header-bg: rgba(248, 250, 252, 0.85);
+    --sidebar-bg: #FFFFFF;
+    --playerbar-bg: rgba(255, 255, 255, 0.95);
+    --nav-bg: rgba(255, 255, 255, 0.95);
   }
 
   html, body {
@@ -25,17 +57,23 @@
     color: var(--text-primary);
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
     -webkit-font-smoothing: antialiased;
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
 }
 
-/* Custom Utilities for VisionOS / Luxury Glass Aesthetic (Dark Mode) */
+/* Custom Utilities for VisionOS / Luxury Glass Aesthetic */
 .glass-card {
-  background: rgba(18, 20, 29, 0.6);
+  background: var(--glass-bg);
   backdrop-filter: blur(30px) saturate(180%);
   -webkit-backdrop-filter: blur(30px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.08);
   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dark .glass-card,
+[data-theme="dark"] .glass-card {
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
 }
 
 .glass-card-hover {

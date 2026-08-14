@@ -1,6 +1,7 @@
 import React from 'react';
 import './globals.css';
 import { DeviceSyncProvider } from '@/components/providers/DeviceSyncProvider';
+import { ThemeProvider } from '@/components/providers/ThemeProvider';
 
 export const viewport = {
   themeColor: '#EF233C',
@@ -30,11 +31,29 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var stored = localStorage.getItem('raagax_theme_preference');
+                  var isDark = stored === 'dark' || (!stored || stored === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                  var theme = isDark ? 'dark' : 'light';
+                  document.documentElement.classList.add(theme);
+                  document.documentElement.setAttribute('data-theme', theme);
+                  document.documentElement.style.colorScheme = theme;
+                } catch(e) {}
+              })();
+            `,
+          }}
+        />
       </head>
-      <body className="antialiased bg-white text-slate-900 selection:bg-red-500 selection:text-white">
-        <DeviceSyncProvider>
-          {children}
-        </DeviceSyncProvider>
+      <body className="antialiased selection:bg-red-500 selection:text-white transition-colors duration-200">
+        <ThemeProvider>
+          <DeviceSyncProvider>
+            {children}
+          </DeviceSyncProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

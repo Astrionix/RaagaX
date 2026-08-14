@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
+import { useThemeStore } from '@/context/useThemeStore';
 import { LocalDatabase } from '@/lib/offline/LocalDatabase';
 import { AccountSyncEngine } from '@/lib/sync/AccountSyncEngine';
 import { AudioQuality } from '@/lib/playback/types';
@@ -165,7 +166,7 @@ export function SettingsView() {
   const [contentAlternate, setContentAlternate] = useState(true);
 
   // Appearance state
-  const [appTheme, setAppTheme] = useState<'dark' | 'light' | 'system'>('dark');
+  const { theme: appTheme, resolvedTheme, setTheme: setAppTheme } = useThemeStore();
   const [appAnimations, setAppAnimations] = useState(true);
   const [appAnimatedArtwork, setAppAnimatedArtwork] = useState(true);
   const [appBlurredBackground, setAppBlurredBackground] = useState(true);
@@ -896,9 +897,9 @@ export function SettingsView() {
                 <h4 className="text-xs font-semibold uppercase tracking-wider text-[#8E92A4] mb-3">Theme Selection</h4>
                 <div className="grid grid-cols-3 gap-3">
                   {[
-                    { id: 'dark', label: 'Dark Mode', icon: Moon },
-                    { id: 'light', label: 'Light Mode', icon: Sun },
-                    { id: 'system', label: 'System Default', icon: Monitor },
+                    { id: 'dark', label: 'Dark Mode', icon: Moon, desc: 'OLED Deep Space' },
+                    { id: 'light', label: 'Light Mode', icon: Sun, desc: 'Daylight Slate' },
+                    { id: 'system', label: 'Adaptive', icon: Monitor, desc: `Auto (${resolvedTheme === 'dark' ? 'Dark' : 'Light'})` },
                   ].map((t) => {
                     const Icon = t.icon;
                     const isSel = appTheme === t.id;
@@ -907,20 +908,27 @@ export function SettingsView() {
                         key={t.id}
                         onClick={() => {
                           setAppTheme(t.id as any);
-                          showToast(`Theme: ${t.label}`);
+                          showToast(`Theme updated to ${t.label}`);
                         }}
                         className={`p-3.5 rounded-xl border flex flex-col items-center gap-2 text-xs font-semibold transition-all ${
                           isSel
-                            ? 'bg-[#F51B3D]/10 border-[#F51B3D] text-white'
-                            : 'bg-white/[0.02] border-white/5 text-[#8E92A4] hover:text-white'
+                            ? 'bg-[#F51B3D]/10 border-[#F51B3D] text-[var(--text-primary)] shadow-md'
+                            : 'bg-white/[0.02] border-[var(--border-subtle)] text-[#8E92A4] hover:text-[var(--text-primary)]'
                         }`}
                       >
-                        <Icon className="w-5 h-5" />
+                        <Icon className={`w-5 h-5 ${isSel ? 'text-[#F51B3D]' : ''}`} />
                         <span>{t.label}</span>
+                        <span className="text-[10px] text-[#8E92A4] font-normal">{t.desc}</span>
                       </button>
                     );
                   })}
                 </div>
+                {appTheme === 'system' && (
+                  <p className="text-[11px] text-[#8E92A4] mt-2.5 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Adaptive: Syncing live with your mobile/desktop system theme ({resolvedTheme} active).
+                  </p>
+                )}
               </div>
 
               <div className="space-y-4 pt-4 border-t border-white/5">

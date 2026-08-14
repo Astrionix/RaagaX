@@ -1,8 +1,9 @@
 'use client';
 
 import React from 'react';
-import { X, Settings, Sliders, Disc, Shield, Download, Trash2, LogOut, User } from 'lucide-react';
+import { X, Settings, Sliders, Disc, Shield, Download, Trash2, LogOut, User, Moon, Sun, Monitor, Palette } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useThemeStore } from '@/context/useThemeStore';
 
 export function SettingsModal() {
   const {
@@ -16,6 +17,8 @@ export function SettingsModal() {
     preferredLanguage,
     setPreferredLanguage,
   } = usePlayerStore();
+
+  const { theme, resolvedTheme, setTheme } = useThemeStore();
 
   if (!isSettingsModalOpen) return null;
 
@@ -75,6 +78,43 @@ export function SettingsModal() {
 
         {/* Scrollable body */}
         <div className="overflow-y-auto flex-1 px-5 pb-2 space-y-5">
+
+          {/* Theme Selection */}
+          <div className="space-y-3">
+            <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+              <Palette className="w-3.5 h-3.5 text-[#EF233C]" /> Appearance Theme
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: 'dark' as const, label: 'Dark', icon: Moon },
+                { id: 'light' as const, label: 'Light', icon: Sun },
+                { id: 'system' as const, label: 'Adaptive', icon: Monitor },
+              ].map((t) => {
+                const Icon = t.icon;
+                const isSel = theme === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setTheme(t.id)}
+                    className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1.5 ${
+                      isSel
+                        ? 'bg-[#EF233C] text-white border-[#EF233C] shadow-md shadow-[#EF233C]/20'
+                        : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/5'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{t.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {theme === 'system' && (
+              <p className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Adaptive: Following device system settings ({resolvedTheme} active).
+              </p>
+            )}
+          </div>
 
           {/* Audio Quality */}
           <div className="space-y-3">
