@@ -59,16 +59,17 @@ export class PlaybackSessionManager {
         return;
       }
 
-      console.log(`[PlaybackSessionManager] Checkpointing durable state... (force=${force})`);
+      const roundedPos = Math.round(currentPosition);
+      console.log(`[PlaybackSessionManager] Checkpointing durable state... pos=${roundedPos}ms (force=${force})`);
       const { error } = await supabase
         .from('playback_sessions')
         .upsert({
           session_id: this.sessionId,
           user_id: userId,
           status,
-          canonical_position_ms: currentPosition,
-          session_epoch: sequencer.getEpoch(),
-          sequence_number: sequencer.getLastAppliedSequence(),
+          canonical_position_ms: roundedPos,
+          session_epoch: Math.round(sequencer.getEpoch() || 1),
+          sequence_number: Math.round(sequencer.getLastAppliedSequence() || 0),
           server_timestamp: Date.now(),
           updated_at: new Date().toISOString()
         }, { onConflict: 'session_id' });

@@ -1,5 +1,6 @@
 import { ConnectCommand } from './types';
 import { CommandSequencer } from './CommandSequencer';
+import { usePlayerStore } from '@/context/usePlayerStore';
 
 export class CommandValidator {
   private static instance: CommandValidator;
@@ -48,9 +49,12 @@ export class CommandValidator {
       return false;
     }
     
-    // Only adopt a newer epoch if it comes from an explicit TRANSFER_COMMIT or HANDOFF command
+    // Only adopt a newer epoch if it comes from an explicit transfer/handoff or from the active controller device
     if (command.epoch > currentEpoch) {
-      if (command.type === 'TRANSFER_COMMIT' || command.type === 'HANDOFF') {
+      const store = usePlayerStore.getState();
+      const isFromActiveController = store.activeDeviceId && command.sourceDeviceId === store.activeDeviceId;
+
+      if (command.type === 'TRANSFER_COMMIT' || command.type === 'HANDOFF' || command.type === 'TRANSFER_REQUEST' || isFromActiveController) {
         console.log(`[CommandValidator] Adopting authoritative epoch ${command.epoch} from ${command.type}`);
         sequencer.setEpoch(command.epoch);
         this.highestSequenceByDevice.clear();
