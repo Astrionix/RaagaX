@@ -84,6 +84,11 @@ public class RaagaXPlaybackService extends Service {
             // ── Track changed (auto-advance or manual next/prev) ──────────────
             @Override
             public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
+                // If the reason is a seek within the track, ignore to prevent restarting or resetting state
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) {
+                    return;
+                }
+
                 if (mediaItem != null && mediaItem.mediaMetadata != null) {
                     currentTitle  = mediaItem.mediaMetadata.title  != null ? mediaItem.mediaMetadata.title.toString()  : "RaagaX";
                     currentArtist = mediaItem.mediaMetadata.artist != null ? mediaItem.mediaMetadata.artist.toString() : "";
@@ -510,6 +515,9 @@ public class RaagaXPlaybackService extends Service {
             if (player != null) {
                 long targetPos = Math.max(0L, posMs);
                 Log.d(TAG, "[SEEK] Native ExoPlayer seekTo: " + targetPos + "ms (previous=" + player.getCurrentPosition() + "ms)");
+                if (player.getPlaybackState() == Player.STATE_IDLE && player.getMediaItemCount() > 0) {
+                    player.prepare();
+                }
                 player.seekTo(targetPos);
                 Log.d(TAG, "[SEEK] Native ExoPlayer actual post-seek position: " + player.getCurrentPosition() + "ms");
             } 

@@ -96,14 +96,14 @@ export class CommandBus {
           if (store.isActiveDevice) {
             PlaybackService.getInstance().playTrack(songData, true).then(() => {
               if (targetMs > 0) {
-                engine.seekCanonical(targetMs);
+                PlaybackService.getInstance().seek(targetMs / 1000, true);
               }
             });
           }
         } else {
           if (store.isActiveDevice) {
-            if (targetMs > 0) engine.seekCanonical(targetMs);
-            engine.play();
+            if (targetMs > 0) PlaybackService.getInstance().seek(targetMs / 1000, true);
+            PlaybackService.getInstance().play();
           }
           store.setIsPlaying(true, true);
         }
@@ -112,7 +112,7 @@ export class CommandBus {
 
       case 'PAUSE':
         if (store.isActiveDevice) {
-          engine.pause();
+          PlaybackService.getInstance().pause();
         }
         store.setIsPlaying(false, true);
         break;
@@ -160,7 +160,7 @@ export class CommandBus {
           const p = command.payload as { positionMs: number };
           store.setCurrentTime(p.positionMs / 1000, true);
           if (store.isActiveDevice) {
-            engine.seekCanonical(p.positionMs);
+            PlaybackService.getInstance().seek(p.positionMs / 1000, true);
           }
         }
         break;

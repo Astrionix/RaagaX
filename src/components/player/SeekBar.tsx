@@ -3,6 +3,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { PlaybackEngine } from '@/lib/playback/PlaybackEngine';
+import { SeekLock } from '@/lib/playback/SeekLock';
 
 export function SeekBar({
   className = '',

@@ -603,11 +603,11 @@ export class PlaybackService {
     }
   }
 
-  public seek(timeSeconds: number) {
+  public seek(timeSeconds: number, fromRemote: boolean = false) {
     if (RaagaXNativePlayer.isNative()) {
       RaagaXNativePlayer.seekTo(timeSeconds * 1000);
       const store = usePlayerStore.getState();
-      store.setCurrentTime(timeSeconds);
+      store.setCurrentTime(timeSeconds, fromRemote);
       return;
     }
 
@@ -616,7 +616,7 @@ export class PlaybackService {
       active.currentTime = timeSeconds;
       PlaybackEngine.getInstance().anchor();
       const store = usePlayerStore.getState();
-      store.setCurrentTime(timeSeconds);
+      store.setCurrentTime(timeSeconds, fromRemote);
       MediaSessionManager.getInstance().setPositionState({
         duration: active.duration || store.duration || 0,
         position: timeSeconds
