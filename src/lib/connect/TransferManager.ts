@@ -92,12 +92,12 @@ export class TransferManager {
     const engine = PlaybackEngine.getInstance();
 
     try {
+      const queueToRestore = payload.queue && payload.queue.length > 0 ? payload.queue : (payload.songData ? [payload.songData] : []);
+      const queueIndexToRestore = payload.queueIndex !== undefined ? payload.queueIndex : 0;
+
       // 1. PREPARING phase: Restore transferred queue and current song
-      console.log(`[TRANSFER TARGET] PREPARING: Restoring queue (${payload?.queue?.length || 1} tracks)...`);
+      console.log(`[TRANSFER TARGET] PREPARING: Restoring queue (${queueToRestore.length} tracks)...`);
       if (payload.songData) {
-        const queueToRestore = payload.queue && payload.queue.length > 0 ? payload.queue : [payload.songData];
-        const queueIndexToRestore = payload.queueIndex !== undefined ? payload.queueIndex : 0;
-        
         usePlayerStore.setState({
           currentSong: payload.songData,
           queue: queueToRestore,
