@@ -131,13 +131,13 @@ export class LibrarySyncEngine {
         try {
           if (op.entityType === 'liked_song') {
             if (op.operation === 'CREATE') {
-              await supabase.from('user_likes').upsert({
+              await supabase.from('liked_songs').upsert({
                 user_id: session.user.id,
                 song_id: op.payload.song_id,
                 created_at: op.payload.created_at,
               }, { onConflict: 'user_id,song_id' });
             } else if (op.operation === 'DELETE') {
-              await supabase.from('user_likes')
+              await supabase.from('liked_songs')
                 .delete()
                 .eq('user_id', session.user.id)
                 .eq('song_id', op.payload.song_id);
