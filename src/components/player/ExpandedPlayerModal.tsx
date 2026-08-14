@@ -5,7 +5,7 @@ import {
   X, ChevronDown, Heart, Download, Play, Pause, SkipBack, SkipForward, 
   Disc3, Mic2, Music, Tv, RefreshCw, ExternalLink, Shuffle, Repeat, Repeat1, 
   ListMusic, Settings2, MonitorSmartphone, Check, MoreHorizontal, Share2, 
-  User, Disc, ListPlus, Radio, Sparkles
+  User, Disc, ListPlus, Radio, Sparkles, FolderPlus, Ban
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { DeviceSelector } from '@/components/providers/DeviceSyncProvider';
@@ -22,6 +22,7 @@ export function ExpandedPlayerModal() {
     isPlaying,
     currentTime,
     duration,
+    setCurrentTime,
     togglePlayPause,
     playNext,
     playPrev,
@@ -48,6 +49,7 @@ export function ExpandedPlayerModal() {
     toggleDeviceModal,
     setSelectedArtistId,
     setSelectedAlbumId,
+    setCreatePlaylistModalOpen,
     networkMode,
   } = usePlayerStore();
 
@@ -167,11 +169,24 @@ export function ExpandedPlayerModal() {
           <ChevronDown className="w-7 h-7 sm:w-8 sm:h-8" />
         </button>
 
-        <div className="absolute left-1/2 -translate-x-1/2 text-center min-w-0 px-2 sm:px-4 w-full max-w-[45%] sm:max-w-[50%] pointer-events-none">
+        <div 
+          onClick={() => {
+            const albumTarget = currentSong.albumId || currentSong.album;
+            if (albumTarget) {
+              setSelectedAlbumId(albumTarget);
+              setActiveTab('album');
+              handleCloseModal();
+            }
+          }}
+          className={`absolute left-1/2 -translate-x-1/2 text-center min-w-0 px-2 sm:px-4 w-full max-w-[45%] sm:max-w-[50%] ${
+            (currentSong.albumId || currentSong.album) ? 'cursor-pointer hover:opacity-80 transition-opacity' : 'pointer-events-none'
+          }`}
+          title={currentSong.album ? `Go to album: ${currentSong.album}` : undefined}
+        >
           <p className="text-[9px] sm:text-[10px] text-white/70 font-bold uppercase tracking-wider mb-0.5">
             PLAYING FROM ALBUM
           </p>
-          <h3 className="text-xs sm:text-sm font-extrabold text-white truncate tracking-tight">
+          <h3 className="text-xs sm:text-sm font-extrabold text-white truncate tracking-tight underline-offset-2 hover:underline">
             {currentSong.album || currentSong.genre || 'Hot Hits Telugu'}
           </h3>
         </div>
@@ -226,19 +241,17 @@ export function ExpandedPlayerModal() {
                 </button>
 
                 <button 
-                  onClick={async () => {
-                    toggleDownloadSong(currentSong.id);
-                    const { exportSongToDevice } = await import('@/lib/downloadHelper');
-                    await exportSongToDevice(currentSong);
-                    setToastMessage(`Downloading "${currentSong.title}" to local storage...`);
+                  onClick={() => {
+                    setCreatePlaylistModalOpen(true);
                     setIsMenuOpen(false);
                   }}
                   className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <Download className={`w-4 h-4 ${isDownloaded ? 'text-emerald-400' : 'text-slate-400'}`} />
-                    <span className="font-bold">{isDownloaded ? 'Re-download MP3' : 'Download to local storage'}</span>
+                    <FolderPlus className="w-4 h-4 text-slate-400" />
+                    <span className="font-bold">Add to playlist</span>
                   </div>
+                  <span className="text-slate-400 text-xs">＋</span>
                 </button>
 
                 <div className="h-px bg-white/10 my-1" />
@@ -248,7 +261,7 @@ export function ExpandedPlayerModal() {
                     const artistTarget = currentSong.artistId || currentSong.artist;
                     if (artistTarget) setSelectedArtistId(artistTarget);
                     setActiveTab('artist');
-                    togglePlayerExpanded();
+                    handleCloseModal();
                     setIsMenuOpen(false);
                   }}
                   className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
@@ -265,7 +278,7 @@ export function ExpandedPlayerModal() {
                     const albumTarget = currentSong.albumId || currentSong.album;
                     if (albumTarget) setSelectedAlbumId(albumTarget);
                     setActiveTab('album');
-                    togglePlayerExpanded();
+                    handleCloseModal();
                     setIsMenuOpen(false);
                   }}
                   className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
@@ -278,6 +291,22 @@ export function ExpandedPlayerModal() {
                 </button>
 
                 <div className="h-px bg-white/10 my-1" />
+
+                <button 
+                  onClick={async () => {
+                    toggleDownloadSong(currentSong.id);
+                    const { exportSongToDevice } = await import('@/lib/downloadHelper');
+                    await exportSongToDevice(currentSong);
+                    setToastMessage(`Downloading "${currentSong.title}" to local storage...`);
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <Download className={`w-4 h-4 ${isDownloaded ? 'text-emerald-400' : 'text-slate-400'}`} />
+                    <span className="font-bold">{isDownloaded ? 'Re-download MP3' : 'Download to local storage'}</span>
+                  </div>
+                </button>
 
                 <button 
                   onClick={() => {
@@ -300,7 +329,21 @@ export function ExpandedPlayerModal() {
                     <Share2 className="w-4 h-4 text-slate-400" />
                     <span className="font-bold">Share</span>
                   </div>
-                  <span className="text-slate-400 text-xs">▸</span>
+                  <span className="text-slate-400 text-xs">↗</span>
+                </button>
+
+                <button 
+                  onClick={() => {
+                    playNext();
+                    setToastMessage(`Won't recommend "${currentSong.title}" again`);
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors text-red-400"
+                >
+                  <div className="flex items-center gap-3">
+                    <Ban className="w-4 h-4 text-red-400" />
+                    <span className="font-bold">Don't play this song</span>
+                  </div>
                 </button>
               </div>
             )}
@@ -347,7 +390,18 @@ export function ExpandedPlayerModal() {
               <h1 className="text-xl sm:text-3xl font-black text-white tracking-tight leading-snug truncate">
                 {currentSong.title}
               </h1>
-              <p className="text-sm sm:text-base font-semibold text-white/70 truncate mt-0.5 sm:mt-1">
+              <p 
+                onClick={() => {
+                  const artistTarget = currentSong.artistId || currentSong.artist;
+                  if (artistTarget) {
+                    setSelectedArtistId(artistTarget);
+                    setActiveTab('artist');
+                    handleCloseModal();
+                  }
+                }}
+                className="text-sm sm:text-base font-semibold text-white/70 truncate mt-0.5 sm:mt-1 cursor-pointer hover:text-white hover:underline transition-colors inline-block"
+                title={`Go to artist: ${currentSong.artist}`}
+              >
                 {currentSong.artist}
               </p>
             </div>
@@ -397,7 +451,14 @@ export function ExpandedPlayerModal() {
           </button>
 
           <button
-            onClick={playPrev}
+            onClick={() => {
+              if (visualTime > 3) {
+                setCurrentTime(0, true);
+                usePlayerStore.setState({ seekTarget: 0 });
+              } else {
+                playPrev();
+              }
+            }}
             className="p-2 text-white/80 hover:text-white hover:scale-110 active:scale-95 transition-all"
             title="Previous Track"
           >

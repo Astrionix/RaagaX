@@ -6,24 +6,63 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 
 export function KeyboardShortcutsModal() {
   const [isOpen, setIsOpen] = useState(false);
-  const { togglePlayPause, playNext, playPrev, toggleMute, toggleLyrics, toggleQueue } = usePlayerStore();
+  const { 
+    togglePlayPause, 
+    playNext, 
+    playPrev, 
+    toggleMute, 
+    toggleLyrics, 
+    toggleQueue,
+    toggleShuffle,
+    cycleRepeatMode,
+    volume,
+    setVolume,
+    currentTime,
+    duration,
+    setCurrentTime,
+  } = usePlayerStore();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore keybindings inside input fields
-      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
+      // Ignore keybindings inside input fields or editable content
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement).tagName) || (e.target as HTMLElement).isContentEditable) return;
 
       if (e.key === '?') {
         setIsOpen((prev) => !prev);
       } else if (e.key === ' ' || e.code === 'Space') {
         e.preventDefault();
         togglePlayPause();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const cur = usePlayerStore.getState().currentTime;
+        const newTime = Math.max(0, cur - 5);
+        setCurrentTime(newTime, true);
+        usePlayerStore.setState({ seekTarget: newTime });
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        const cur = usePlayerStore.getState().currentTime;
+        const dur = usePlayerStore.getState().duration || 100;
+        const newTime = Math.min(dur, cur + 5);
+        setCurrentTime(newTime, true);
+        usePlayerStore.setState({ seekTarget: newTime });
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const curVol = usePlayerStore.getState().volume;
+        setVolume(Math.min(1, parseFloat((curVol + 0.05).toFixed(2))));
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const curVol = usePlayerStore.getState().volume;
+        setVolume(Math.max(0, parseFloat((curVol - 0.05).toFixed(2))));
       } else if (e.key === 'N' || e.key === 'n') {
         playNext();
       } else if (e.key === 'P' || e.key === 'p') {
         playPrev();
       } else if (e.key === 'M' || e.key === 'm') {
         toggleMute();
+      } else if (e.key === 'S' || e.key === 's') {
+        toggleShuffle();
+      } else if (e.key === 'R' || e.key === 'r') {
+        cycleRepeatMode();
       } else if (e.key === 'L' || e.key === 'l') {
         toggleLyrics();
       } else if (e.key === 'Q' || e.key === 'q') {
@@ -33,18 +72,21 @@ export function KeyboardShortcutsModal() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlayPause, playNext, playPrev, toggleMute, toggleLyrics, toggleQueue]);
+  }, [togglePlayPause, playNext, playPrev, toggleMute, toggleShuffle, cycleRepeatMode, toggleLyrics, toggleQueue, setVolume, setCurrentTime]);
 
   if (!isOpen) return null;
 
   const shortcuts = [
     { key: 'Space', desc: 'Play / Pause Audio' },
-    { key: 'N', desc: 'Next Song' },
-    { key: 'P', desc: 'Previous Song' },
+    { key: '← / →', desc: 'Seek Backward / Forward 5s' },
+    { key: '↑ / ↓', desc: 'Volume Up / Down' },
+    { key: 'N / P', desc: 'Next / Previous Track' },
     { key: 'M', desc: 'Mute / Unmute' },
+    { key: 'S', desc: 'Toggle Shuffle' },
+    { key: 'R', desc: 'Cycle Repeat Mode' },
     { key: 'L', desc: 'Toggle Synced Lyrics' },
     { key: 'Q', desc: 'Toggle Play Queue' },
-    { key: '?', desc: 'Show / Hide Keyboard Shortcuts' },
+    { key: '?', desc: 'Show / Hide Shortcuts Modal' },
   ];
 
   return (
