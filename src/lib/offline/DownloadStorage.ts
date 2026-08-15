@@ -67,17 +67,27 @@ export class DownloadStorage {
       }
     }
 
-    if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.estimate) {
+    if (typeof navigator !== 'undefined' && navigator.storage) {
       try {
-        const estimate: any = await navigator.storage.estimate();
-        if (estimate.quota) quota = estimate.quota;
-        if (estimate.usage) usage = estimate.usage;
-        
-        // Check Chromium usageDetails
-        if (estimate.usageDetails?.caches) {
-          raagaXCache = estimate.usageDetails.caches;
-        } else if (estimate.usage && estimate.usage > raagaXDownloads) {
-          raagaXCache = Math.max(0, estimate.usage - raagaXDownloads);
+        // Automatically request persistent storage permission to unlock full disk allocation (up to 60% of total drive)
+        if (navigator.storage.persist && navigator.storage.persisted) {
+          const isPersisted = await navigator.storage.persisted();
+          if (!isPersisted) {
+            await navigator.storage.persist();
+          }
+        }
+
+        if (navigator.storage.estimate) {
+          const estimate: any = await navigator.storage.estimate();
+          if (estimate.quota) quota = estimate.quota;
+          if (estimate.usage) usage = estimate.usage;
+          
+          // Check Chromium usageDetails
+          if (estimate.usageDetails?.caches) {
+            raagaXCache = estimate.usageDetails.caches;
+          } else if (estimate.usage && estimate.usage > raagaXDownloads) {
+            raagaXCache = Math.max(0, estimate.usage - raagaXDownloads);
+          }
         }
       } catch (err) {
         console.warn('[DownloadStorage] Failed to query navigator.storage.estimate:', err);
