@@ -15,6 +15,7 @@ export class SearchSongsUseCase implements IUseCase<SearchSongsArgs, z.infer<typ
   constructor() {}
 
   async execute({ query, limit, page }: SearchSongsArgs): Promise<z.infer<typeof SearchSongModel>> {
+    // Strategy 1: Exact search
     const { data } = await apiFetch<z.infer<typeof SearchSongAPIResponseModel>>({
       endpoint: Endpoints.search.songs,
       params: {
@@ -24,18 +25,65 @@ export class SearchSongsUseCase implements IUseCase<SearchSongsArgs, z.infer<typ
       }
     })
 
-    if (!data) {
+    if (data && data.results && data.results.length > 0) {
       return {
-        total: 0,
-        start: 0,
-        results: []
+        total: data.total || 0,
+        start: data.start || 0,
+        results: data.results.map(createSongPayload).slice(0, limit)
+      }
+    }
+
+    // Strategy 2: Phonetic normalization (collapse repeated vowels like 'aa' -> 'a', 'ee' -> 'e', 'oo' -> 'o')
+    const normalized = query
+      .replace(/([aeiou])\1+/gi, '$1')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (normalized !== query && normalized.length >= 3) {
+      const fallbackRes = await apiFetch<z.infer<typeof SearchSongAPIResponseModel>>({
+        endpoint: Endpoints.search.songs,
+        params: {
+          q: normalized,
+          p: page,
+          n: limit
+        }
+      });
+
+      if (fallbackRes.data && fallbackRes.data.results && fallbackRes.data.results.length > 0) {
+        return {
+          total: fallbackRes.data.total || 0,
+          start: fallbackRes.data.start || 0,
+          results: fallbackRes.data.results.map(createSongPayload).slice(0, limit)
+        };
+      }
+    }
+
+    // Strategy 3: Prefix/Core token search (e.g. "sapta sagaradaache ello" -> "sapta sagaradaache")
+    const words = query.trim().split(/\s+/);
+    if (words.length >= 3) {
+      const coreQuery = words.slice(0, 2).join(' ');
+      const coreRes = await apiFetch<z.infer<typeof SearchSongAPIResponseModel>>({
+        endpoint: Endpoints.search.songs,
+        params: {
+          q: coreQuery,
+          p: page,
+          n: limit
+        }
+      });
+
+      if (coreRes.data && coreRes.data.results && coreRes.data.results.length > 0) {
+        return {
+          total: coreRes.data.total || 0,
+          start: coreRes.data.start || 0,
+          results: coreRes.data.results.map(createSongPayload).slice(0, limit)
+        };
       }
     }
 
     return {
-      total: data.total || 0,
-      start: data.start || 0,
-      results: data.results?.map(createSongPayload).slice(0, limit) || []
+      total: 0,
+      start: 0,
+      results: []
     }
   }
 }
