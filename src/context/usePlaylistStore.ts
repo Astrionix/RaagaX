@@ -83,6 +83,26 @@ export const usePlaylistStore = create<PlaylistStore>()(
         songs: []
       }));
 
+      // Collect all song IDs across playlists and resolve their full Song objects
+      const allPlaylistSongIds = Array.from(new Set(Object.values(songsByPlaylist).flat()));
+      if (allPlaylistSongIds.length > 0) {
+        try {
+          const { SongResolver } = await import('@/lib/discovery/SongResolver');
+          const resolvedSongs = await SongResolver.resolveSongs(allPlaylistSongIds);
+          const resolvedMap = new Map<string, Song>();
+          resolvedSongs.forEach(s => resolvedMap.set(s.id, s));
+
+          parsedPlaylists.forEach(pl => {
+            pl.songs = pl.songIds.map(id => resolvedMap.get(id)).filter((s): s is Song => Boolean(s));
+            if (!pl.coverUrl && pl.songs.length > 0 && pl.songs[0].coverUrl) {
+              pl.coverUrl = pl.songs[0].coverUrl;
+            }
+          });
+        } catch (resolveErr) {
+          console.warn('[usePlaylistStore] SongResolver background hydration failed:', resolveErr);
+        }
+      }
+
       set({ playlists: parsedPlaylists });
     } catch (e) {
       console.error('Failed to fetch playlists:', e);
