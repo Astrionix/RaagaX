@@ -550,7 +550,8 @@ public class RaagaXPlaybackService extends Service {
             }
 
             // ── The actual seek — ExoPlayer moves the read-head, does NOT reload the URL ──
-            player.seekTo(targetPos);
+            int curIndex = player.getCurrentMediaItemIndex();
+            player.seekTo(curIndex, targetPos);
 
             // ── Restore play/pause state as it was before the seek ──────────────────
             // This is the critical rule: a SEEK within the same song must NEVER

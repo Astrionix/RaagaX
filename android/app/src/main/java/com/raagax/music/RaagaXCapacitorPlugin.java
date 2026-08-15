@@ -232,7 +232,13 @@ public class RaagaXCapacitorPlugin extends Plugin {
 
     @PluginMethod
     public void seekTo(PluginCall call) {
-        long positionMs = call.getLong("positionMs", 0L);
+        long positionMs = 0L;
+        if (call.getData() != null && call.getData().has("positionMs")) {
+            positionMs = call.getData().optLong("positionMs", 0L);
+        } else {
+            Long l = call.getLong("positionMs");
+            positionMs = l != null ? l : 0L;
+        }
         Log.d(TAG, "seekTo received: " + positionMs + "ms");
         RaagaXPlaybackService service = getService();
         if (service != null) {

@@ -161,7 +161,7 @@ export function AudioPlayerController() {
       if (state && state.positionMs >= 0) {
         const store = usePlayerStore.getState();
         // Guard against transient 0ms report while native player is buffering after seek
-        if (state.positionMs === 0 && store.currentTime > 5 && Date.now() - lastSeekTimeRef.current < 5000) {
+        if (state.positionMs === 0 && Date.now() - lastSeekTimeRef.current < 4000) {
           console.log('[AudioPlayerController] Suppressing transient 0ms report during post-seek settle');
           return;
         }
