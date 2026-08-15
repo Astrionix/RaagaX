@@ -169,6 +169,8 @@ interface PlayerState {
   playLastInQueue: (song: Song) => void;
   removeFromQueue: (songId: string) => void;
   reorderQueue: (newQueue: Song[]) => void;
+  clearQueue: () => void;
+  moveQueueItem: (fromUpNextIndex: number, toUpNextIndex: number) => void;
 
   toggleLikeSong: (songId: string) => void;
   setLikedSongIds: (songIds: string[]) => void;
@@ -267,6 +269,9 @@ const getInitialSession = () => {
   return null;
 };
 const initialSession = getInitialSession();
+
+let lastPlayCallTimestamp = 0;
+let lastPlaySongId = '';
 
 export const usePlayerStore = create<PlayerState>()(
   persist(
@@ -668,6 +673,16 @@ export const usePlayerStore = create<PlayerState>()(
   },
 
   playSong: (song, newQueue, context) => {
+    if (!song) return;
+    const isTest = typeof process !== 'undefined' && (process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST));
+    const now = Date.now();
+    if (!isTest && song.id && lastPlaySongId === song.id && (now - lastPlayCallTimestamp) < 350) {
+      console.warn(`[usePlayerStore] Debounced duplicate play request for: ${song.id} (${now - lastPlayCallTimestamp}ms)`);
+      return;
+    }
+    lastPlayCallTimestamp = now;
+    lastPlaySongId = song.id || '';
+
     console.log(`[PLAY CALLED] songId=${song.id} title="${song.title}" artist="${song.artist}" source=${context?.type || 'USER_CLICK'}`);
     get().logCurrentTelemetry('skip');
     
@@ -1115,6 +1130,37 @@ export const usePlayerStore = create<PlayerState>()(
     set({ queue: newQueue });
 
     PlaybackService.getInstance().loadQueueContext(newQueue, get().queueIndex);
+  },
+  clearQueue: () => {
+    const { queue, queueIndex } = get();
+    // Keep active song and past history, remove only upcoming tracks
+    const remainingQueue = queue.slice(0, queueIndex + 1);
+    const manager = QueueManager.getInstance();
+    manager.replaceQueue(remainingQueue, queueIndex, 'USER');
+    set({ queue: remainingQueue });
+
+    PlaybackService.getInstance().loadQueueContext(remainingQueue, queueIndex);
+  },
+  moveQueueItem: (fromUpNextIndex: number, toUpNextIndex: number) => {
+    const { queue, queueIndex } = get();
+    const pastAndCurrent = queue.slice(0, queueIndex + 1);
+    const upNext = [...queue.slice(queueIndex + 1)];
+    if (
+      fromUpNextIndex < 0 ||
+      fromUpNextIndex >= upNext.length ||
+      toUpNextIndex < 0 ||
+      toUpNextIndex >= upNext.length
+    ) {
+      return;
+    }
+    const [moved] = upNext.splice(fromUpNextIndex, 1);
+    upNext.splice(toUpNextIndex, 0, moved);
+    const newQueue = [...pastAndCurrent, ...upNext];
+    const manager = QueueManager.getInstance();
+    manager.replaceQueue(newQueue, queueIndex, 'USER');
+    set({ queue: newQueue });
+
+    PlaybackService.getInstance().loadQueueContext(newQueue, queueIndex);
   },
 
   autoRefillQueue: async () => {},

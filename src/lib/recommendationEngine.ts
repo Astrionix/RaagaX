@@ -123,7 +123,7 @@ export class RecommendationEngine {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         // Upsert song to canonical_songs to satisfy foreign key constraints
-        await supabase.from('canonical_songs').upsert({
+        const { error: upsertError } = await supabase.from('canonical_songs').upsert({
           id: song.id,
           title: song.title,
           artist: artist,
@@ -132,15 +132,22 @@ export class RecommendationEngine {
           cover_url: song.coverUrl || null
         }, { onConflict: 'id' });
 
-        supabase.from('listening_events').insert({
+        if (upsertError) {
+          console.warn('[RecommendationEngine] Could not upsert canonical_song:', upsertError.message);
+          return;
+        }
+
+        const { error: insertError } = await supabase.from('listening_events').insert({
           user_id: session.user.id,
           song_id: song.id,
           event_type: action === 'complete' ? 'complete' : action,
           position_ms: Math.floor(durationSec * 1000),
           device_id: typeof window !== 'undefined' ? localStorage.getItem('raagax_device_id') : null
-        }).then(({ error }) => {
-          if (error) console.error('Failed to log telemetry:', error);
         });
+
+        if (insertError) {
+          console.warn('[RecommendationEngine] Failed to log telemetry:', insertError.message);
+        }
       }
     } catch (e) {
       console.warn('Could not verify session for logging telemetry:', e);

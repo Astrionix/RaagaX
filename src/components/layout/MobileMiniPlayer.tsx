@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Play, Pause, SkipForward, Heart, MonitorSpeaker } from 'lucide-react';
+import { Play, Pause, SkipForward, Heart, MonitorSpeaker, ListMusic } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SeekBar } from '@/components/player/SeekBar';
 
@@ -20,6 +20,7 @@ export function MobileMiniPlayer() {
     togglePlayPause,
     playNext,
     togglePlayerExpanded,
+    toggleQueue,
     likedSongIds,
     toggleLikeSong,
     isActiveDevice,
@@ -91,18 +92,18 @@ export function MobileMiniPlayer() {
           </div>
         </div>
 
-        {/* Right: Touch Controls (Like, Play/Pause, Next) */}
-        <div className="flex items-center gap-1.5 flex-shrink-0 relative">
+        {/* Right: Touch Controls (Like, Play/Pause, Next, Queue) */}
+        <div className="flex items-center gap-1 flex-shrink-0 relative">
           <button
             onClick={(e) => {
               e.stopPropagation();
               toggleLikeSong(currentSong.id);
             }}
             aria-label="Like track"
-            className="p-2 text-slate-400 hover:text-white active:scale-90 transition-transform cursor-pointer"
+            className="p-1.5 text-slate-400 hover:text-white active:scale-90 transition-transform cursor-pointer"
           >
             <Heart
-              className={`w-5 h-5 ${
+              className={`w-4 h-4 ${
                 isLiked ? 'fill-[#F51B3D] text-[#F51B3D]' : 'text-[#8E92A4]'
               }`}
               strokeWidth={2}
@@ -115,7 +116,7 @@ export function MobileMiniPlayer() {
               togglePlayPause();
             }}
             aria-label={isPlaying ? 'Pause' : 'Play'}
-            className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center active:scale-90 transition-transform shadow-md cursor-pointer"
+            className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center active:scale-90 transition-transform shadow-md cursor-pointer"
           >
             {isPlaying ? (
               <Pause className="w-4 h-4 fill-black text-black" />
@@ -130,9 +131,21 @@ export function MobileMiniPlayer() {
               playNext();
             }}
             aria-label="Next track"
-            className="p-2 text-slate-400 hover:text-white active:scale-90 transition-transform cursor-pointer"
+            className="p-1.5 text-slate-400 hover:text-white active:scale-90 transition-transform cursor-pointer"
           >
-            <SkipForward className="w-5 h-5 text-[#8E92A4]" />
+            <SkipForward className="w-4 h-4 text-[#8E92A4]" />
+          </button>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleQueue();
+            }}
+            aria-label="Open queue"
+            className="p-1.5 text-slate-400 hover:text-white active:scale-90 transition-transform cursor-pointer"
+            title="Open Queue"
+          >
+            <ListMusic className="w-4 h-4 text-[#8E92A4] hover:text-[#F51B3D]" />
           </button>
         </div>
       </div>

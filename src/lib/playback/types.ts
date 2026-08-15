@@ -12,7 +12,8 @@ export type PlaybackInterruption =
   | "CALL"
   | "ALARM"
   | "OTHER_MEDIA"
-  | "BLUETOOTH";
+  | "BLUETOOTH"
+  | "HEADPHONES_REMOVED";
 
 export type ResumePolicy = "AUTO" | "MANUAL" | "NEVER";
 

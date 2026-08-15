@@ -557,12 +557,16 @@ ALTER TABLE public.discovery_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.song_resolution_cache ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.spotify_playlist_cache ENABLE ROW LEVEL SECURITY;
 
+-- Grants to PostgREST roles
+GRANT ALL ON TABLE public.canonical_songs TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.listening_events TO anon, authenticated, service_role;
+
 -- Read policies
 CREATE POLICY "Allow public read access on artists" ON public.artists FOR SELECT USING (true);
 CREATE POLICY "Allow public read access on movies" ON public.movies FOR SELECT USING (true);
 CREATE POLICY "Allow public read access on canonical_songs" ON public.canonical_songs FOR SELECT USING (true);
 CREATE POLICY "Allow insert on canonical_songs" ON public.canonical_songs FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow update on canonical_songs" ON public.canonical_songs FOR UPDATE USING (true);
+CREATE POLICY "Allow update on canonical_songs" ON public.canonical_songs FOR UPDATE USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public read access on song_artists" ON public.song_artists FOR SELECT USING (true);
 CREATE POLICY "Allow public read access on movie_songs" ON public.movie_songs FOR SELECT USING (true);
 CREATE POLICY "Allow public read access on charts" ON public.charts FOR SELECT USING (true);

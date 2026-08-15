@@ -14,6 +14,8 @@ export class LibrarySyncManager {
   private static instance: LibrarySyncManager;
   private channel: RealtimeChannel | null = null;
   private userId: string | null = null;
+  private isInitializedForUserId: string | null = null;
+  private inFlightReconcile: Promise<void> | null = null;
   private mutationQueue: LibraryMutation[] = [];
   private isProcessingQueue = false;
   private deviceId: string;
@@ -38,8 +40,10 @@ export class LibrarySyncManager {
     // Check initial session
     supabase.auth.getSession().then(({ data }) => {
       if (data.session?.user) {
-        this.userId = data.session.user.id;
-        this.initialize();
+        if (this.userId !== data.session.user.id || !this.isInitializedForUserId) {
+          this.userId = data.session.user.id;
+          this.initialize();
+        }
       }
     });
     
@@ -85,6 +89,10 @@ export class LibrarySyncManager {
 
   private async initialize() {
     if (!this.userId) return;
+    if (this.isInitializedForUserId === this.userId && this.channel) {
+      return;
+    }
+    this.isInitializedForUserId = this.userId;
     
     // 1. Reconcile local state with cloud (fetches library + current revision)
     await this.reconcile();
@@ -102,6 +110,8 @@ export class LibrarySyncManager {
       this.channel = null;
     }
     this.userId = null;
+    this.isInitializedForUserId = null;
+    this.inFlightReconcile = null;
     this.mutationQueue = [];
     this.localRevision = 0;
     this.saveQueueToStorage();
@@ -136,39 +146,46 @@ export class LibrarySyncManager {
       });
   }
 
-  public async reconcile() {
+  public async reconcile(): Promise<void> {
     if (!this.userId) return;
+    if (this.inFlightReconcile) return this.inFlightReconcile;
 
-    try {
-      // Fetch both the liked songs and the user's library revision
-      const [songsResult, stateResult] = await Promise.all([
-        supabase.from('liked_songs').select('song_id').eq('user_id', this.userId),
-        supabase.from('user_library_state').select('revision').eq('user_id', this.userId).maybeSingle()
-      ]);
+    this.inFlightReconcile = (async () => {
+      try {
+        // Fetch both the liked songs and the user's library revision
+        const [songsResult, stateResult] = await Promise.all([
+          supabase.from('liked_songs').select('song_id').eq('user_id', this.userId),
+          supabase.from('user_library_state').select('revision').eq('user_id', this.userId).maybeSingle()
+        ]);
 
-      if (songsResult.error) {
-        console.error('[LibrarySync] Failed to reconcile library:', songsResult.error);
-        return;
-      }
-
-      if (songsResult.data) {
-        const cloudLikedSongs = songsResult.data.map(row => row.song_id);
-        usePlayerStore.getState().setLikedSongIds(cloudLikedSongs);
-        
-        try {
-          const { SongResolver } = await import('@/lib/discovery/SongResolver');
-          const resolvedSongs = await SongResolver.resolveSongs(cloudLikedSongs);
-          usePlayerStore.getState().setLikedSongs(resolvedSongs);
-        } catch (resolveError) {
-          console.error('[LibrarySync] Failed to resolve song metadata:', resolveError);
+        if (songsResult.error) {
+          console.error('[LibrarySync] Failed to reconcile library:', songsResult.error);
+          return;
         }
-        
-        this.localRevision = stateResult.data?.revision || 0;
-        console.log(`[LibrarySync] Reconciled library with cloud: ${cloudLikedSongs.length} songs. Revision: ${this.localRevision}`);
+
+        if (songsResult.data) {
+          const cloudLikedSongs = songsResult.data.map(row => row.song_id);
+          usePlayerStore.getState().setLikedSongIds(cloudLikedSongs);
+          
+          try {
+            const { SongResolver } = await import('@/lib/discovery/SongResolver');
+            const resolvedSongs = await SongResolver.resolveSongs(cloudLikedSongs);
+            usePlayerStore.getState().setLikedSongs(resolvedSongs);
+          } catch (resolveError) {
+            console.error('[LibrarySync] Failed to resolve song metadata:', resolveError);
+          }
+          
+          this.localRevision = stateResult.data?.revision || 0;
+          console.log(`[LibrarySync] Reconciled library with cloud: ${cloudLikedSongs.length} songs. Revision: ${this.localRevision}`);
+        }
+      } catch (error) {
+        console.error('[LibrarySync] Error during reconcile:', error);
+      } finally {
+        this.inFlightReconcile = null;
       }
-    } catch (error) {
-      console.error('[LibrarySync] Error during reconcile:', error);
-    }
+    })();
+
+    return this.inFlightReconcile;
   }
 
   private handleRemoteMutation(payload: any) {

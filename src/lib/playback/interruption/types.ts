@@ -7,6 +7,7 @@ export type FocusReason =
   | 'SYSTEM'
   | 'USER'
   | 'BLUETOOTH'
+  | 'HEADPHONES_REMOVED'
   | 'HANDOFF';
 
 export type RawAudioFocusType =

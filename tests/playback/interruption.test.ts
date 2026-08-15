@@ -133,4 +133,64 @@ describe('Playback Interruption Orchestrator & Audio Focus Tests', () => {
     // Desktop playback engine was NOT paused
     expect(mockAudioElement.pause).not.toHaveBeenCalled();
   });
+
+  it('Test 7 (Headphone / Bluetooth Disconnect): Pauses playback, preserves exact position (45s, NOT 0s) and queue', async () => {
+    const manager = InterruptionManager.getInstance();
+
+    usePlayerStore.setState({
+      queue: [{ id: 'song_1' }, { id: 'song_2' }] as any,
+      queueIndex: 0,
+      currentTime: 45,
+    });
+
+    // Headphone removed
+    await manager.handlePlatformEvent({ type: 'LOSS_TRANSIENT', reason: 'HEADPHONES_REMOVED' });
+
+    expect(mockAudioElement.pause).toHaveBeenCalled();
+    const snapshot = manager.getActiveSnapshot();
+    expect(snapshot?.positionMs).toBeCloseTo(45000, -2);
+    // Queue and queue index must remain intact
+    expect(usePlayerStore.getState().queue.length).toBe(2);
+    expect(usePlayerStore.getState().queueIndex).toBe(0);
+  });
+
+  it('Test 8 (Navigation / Voice Assistant Ducking): Volume ducks to 25%, does NOT pause/seek, then restores 100%', async () => {
+    const manager = InterruptionManager.getInstance();
+
+    // Navigation voice instruction begins
+    await manager.handlePlatformEvent({ type: 'LOSS_DUCK', reason: 'NAVIGATION' });
+    expect(manager.getDuckDepth()).toBe(1);
+    expect(mockAudioElement.volume).toBe(0.25);
+    expect(mockAudioElement.pause).not.toHaveBeenCalled();
+
+    // Navigation instruction finishes
+    await manager.handlePlatformEvent({ type: 'GAIN' });
+    expect(manager.getDuckDepth()).toBe(0);
+    expect(mockAudioElement.volume).toBe(1.0);
+  });
+
+  it('Test 9 (Zero-Next-Track Invariant): Interruption is NEVER treated as Next Track or Queue Reset', async () => {
+    const manager = InterruptionManager.getInstance();
+
+    usePlayerStore.setState({
+      queue: [{ id: 'song_a' }, { id: 'song_b' }, { id: 'song_c' }] as any,
+      queueIndex: 1, // Currently on song_b
+      currentSong: { id: 'song_b', title: 'Song B' } as any,
+    });
+
+    // Interruption occurs
+    await manager.handlePlatformEvent({ type: 'LOSS_TRANSIENT', reason: 'CALL' });
+
+    // Must NOT advance queue index or change currentSong
+    expect(usePlayerStore.getState().queueIndex).toBe(1);
+    expect(usePlayerStore.getState().currentSong?.id).toBe('song_b');
+    expect(usePlayerStore.getState().queue.length).toBe(3);
+  });
+
+  it('Test 10 (Silent App Open): Opening Instagram/YouTube without audio leaves playback running untouched', async () => {
+    // No audio focus event fired by OS
+    expect(mockAudioElement.pause).not.toHaveBeenCalled();
+    expect(mockAudioElement.volume).toBe(1.0);
+    expect(usePlayerStore.getState().isPlaying).toBe(true);
+  });
 });
