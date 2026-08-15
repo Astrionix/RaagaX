@@ -28,7 +28,7 @@ export function ExpandedPlayerModal() {
     currentLineIndex: lyricsIndex,
     scriptMode,
     setScriptMode,
-    hasRomanized
+    hasTransliteration
   } = useLyricsStore();
   const modalLyricsScrollRef = useRef<HTMLDivElement>(null);
 
@@ -509,48 +509,34 @@ export function ExpandedPlayerModal() {
         ) : (
           /* Fullscreen Synced Lyrics Live Mode */
           <div className="flex-1 min-h-0 w-full max-w-2xl mx-auto flex flex-col relative overflow-hidden py-1 sm:py-3 animate-in fade-in duration-200">
-            <div className="flex items-center justify-between px-3 pb-2 mb-1 border-b border-white/10">
+            <div className="flex items-center justify-between px-3 pb-2 mb-1 border-b border-white/10 relative">
               <div className="flex items-center gap-2 text-xs font-black text-white/90">
                 <Mic2 className="w-4 h-4 text-[#fa233b]" /> Live Synced Lyrics
               </div>
 
-              {/* Script Mode Switcher (Native / Romanized / Both / All) */}
-              {hasRomanized && (
+              {/* Script Mode Switcher: Option A (Native) ↔ Option B (Transliteration) */}
+              {hasTransliteration && (
                 <div className="flex items-center p-0.5 rounded-lg border border-white/10 bg-white/5 text-[11px] font-bold">
                   <button
                     onClick={() => setScriptMode('native')}
-                    className={`px-2 py-0.5 rounded-md transition-all ${
-                      scriptMode === 'native' ? 'bg-white/20 text-white shadow-sm font-black' : 'text-white/50 hover:text-white'
+                    className={`px-2.5 py-1 rounded-md transition-all ${
+                      scriptMode === 'native' 
+                        ? 'bg-white/20 text-white shadow-sm font-black' 
+                        : 'text-white/50 hover:text-white'
                     }`}
                   >
-                    Native
+                    ● Native
                   </button>
                   <button
-                    onClick={() => setScriptMode('romanized')}
-                    className={`px-2 py-0.5 rounded-md transition-all ${
-                      scriptMode === 'romanized' ? 'bg-white/20 text-white shadow-sm font-black' : 'text-white/50 hover:text-white'
+                    onClick={() => setScriptMode('transliteration')}
+                    className={`px-2.5 py-1 rounded-md transition-all ${
+                      scriptMode === 'transliteration' 
+                        ? 'bg-white/20 text-white shadow-sm font-black' 
+                        : 'text-white/50 hover:text-white'
                     }`}
                   >
-                    Roman
+                    ● Transliteration
                   </button>
-                  <button
-                    onClick={() => setScriptMode('both')}
-                    className={`px-2 py-0.5 rounded-md transition-all ${
-                      scriptMode === 'both' ? 'bg-white/20 text-white shadow-sm font-black' : 'text-white/50 hover:text-white'
-                    }`}
-                  >
-                    Both
-                  </button>
-                  {useLyricsStore.getState().hasTranslation && (
-                    <button
-                      onClick={() => setScriptMode('all')}
-                      className={`px-2 py-0.5 rounded-md transition-all ${
-                        scriptMode === 'all' ? 'bg-white/20 text-white shadow-sm font-black' : 'text-white/50 hover:text-white'
-                      }`}
-                    >
-                      All
-                    </button>
-                  )}
                 </div>
               )}
 
@@ -581,9 +567,9 @@ export function ExpandedPlayerModal() {
                 lyricsLines.map((line, idx) => {
                   const isActive = idx === lyricsIndex;
                   const isPassed = idx < lyricsIndex;
-                  const showNative = scriptMode === 'native' || scriptMode === 'both' || scriptMode === 'all' || !line.romanizedText;
-                  const showRomanized = (scriptMode === 'romanized' || scriptMode === 'both' || scriptMode === 'all') && !!line.romanizedText;
-                  const showTranslation = scriptMode === 'all' && !!line.translationText;
+                  const displayContent = (scriptMode === 'transliteration' && line.romanizedText) 
+                    ? line.romanizedText 
+                    : (line.nativeText || line.text);
 
                   return (
                     <div
@@ -610,23 +596,7 @@ export function ExpandedPlayerModal() {
                             : 'text-lg sm:text-2xl font-bold text-white/65 hover:text-white/95 opacity-70'}
                       `}
                     >
-                      {showNative && (
-                        <div className="tracking-tight break-words">{line.nativeText || line.text}</div>
-                      )}
-                      {showRomanized && (
-                        <div className={`break-words ${
-                          scriptMode === 'both' || scriptMode === 'all'
-                            ? (isActive ? 'text-lg sm:text-2xl font-semibold text-white/90 mt-1.5' : 'text-sm sm:text-lg font-medium text-white/55 mt-1')
-                            : ''
-                        }`}>
-                          {line.romanizedText}
-                        </div>
-                      )}
-                      {showTranslation && (
-                        <div className="text-sm sm:text-base font-normal italic text-white/65 mt-1 break-words">
-                          {line.translationText}
-                        </div>
-                      )}
+                      <div className="tracking-tight break-words">{displayContent}</div>
                     </div>
                   );
                 })

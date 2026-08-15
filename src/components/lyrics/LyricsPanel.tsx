@@ -8,12 +8,12 @@ import { LyricsLine } from '@/lib/lyrics/LyricsTypes';
 import { X, Mic2, Music } from 'lucide-react';
 
 export function LyricsPanel() {
-  const { status, type, lines, currentLineIndex, scriptMode, setScriptMode, hasRomanized } = useLyricsStore();
+  const { status, type, lines, currentLineIndex, scriptMode, setScriptMode, hasTransliteration } = useLyricsStore();
   const { isLyricsOpen, toggleLyrics, currentSong } = usePlayerStore();
   const { resolvedTheme } = useThemeStore();
   const isLight = resolvedTheme === 'light';
   const scrollRef = useRef<HTMLDivElement>(null);
-  
+
   // Track manual scrolling to pause auto-scroll
   const [isManualScroll, setIsManualScroll] = useState(false);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -118,10 +118,9 @@ export function LyricsPanel() {
           {lines.map((line, index) => {
             const isActive = index === currentLineIndex;
             const isPassed = index < currentLineIndex;
-            
-            const showNative = scriptMode === 'native' || scriptMode === 'both' || scriptMode === 'all' || !line.romanizedText;
-            const showRomanized = (scriptMode === 'romanized' || scriptMode === 'both' || scriptMode === 'all') && !!line.romanizedText;
-            const showTranslation = scriptMode === 'all' && !!line.translationText;
+            const displayContent = (scriptMode === 'transliteration' && line.romanizedText) 
+              ? line.romanizedText 
+              : (line.nativeText || line.text);
 
             return (
               <div
@@ -153,27 +152,9 @@ export function LyricsPanel() {
                   }
                 }}
               >
-                {showNative && (
-                  <div className="leading-snug break-words tracking-tight">
-                    {line.nativeText || line.text}
-                  </div>
-                )}
-                {showRomanized && (
-                  <div className={`break-words tracking-normal ${
-                    scriptMode === 'both' || scriptMode === 'all'
-                      ? (isActive 
-                          ? 'text-base sm:text-lg font-semibold text-white/90 dark:text-white/90 mt-1.5' 
-                          : 'text-sm sm:text-base font-medium text-white/60 dark:text-white/50 mt-1')
-                      : 'leading-snug'
-                  }`}>
-                    {line.romanizedText}
-                  </div>
-                )}
-                {showTranslation && (
-                  <div className="text-xs sm:text-sm font-normal italic text-white/70 dark:text-white/60 mt-1 break-words">
-                    {line.translationText}
-                  </div>
-                )}
+                <div className="leading-snug break-words tracking-tight">
+                  {displayContent}
+                </div>
               </div>
             );
           })}
@@ -211,53 +192,31 @@ export function LyricsPanel() {
           <h3 className={`text-base font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>Live Synced Lyrics</h3>
         </div>
         
-        {/* Script Mode Switcher (Native / Romanized / Both / All) */}
-        {hasRomanized && (
+        {/* Script Mode Switcher: Option A (Native) ↔ Option B (Transliteration) */}
+        {hasTransliteration && (
           <div className={`flex items-center p-0.5 rounded-lg border text-[11px] font-bold ${
             isLight ? 'bg-slate-100 border-slate-200' : 'bg-white/5 border-white/10'
           }`}>
             <button
               onClick={() => setScriptMode('native')}
-              className={`px-2 py-0.5 rounded-md transition-all ${
+              className={`px-2.5 py-0.5 rounded-md transition-all ${
                 scriptMode === 'native' 
                   ? (isLight ? 'bg-white text-slate-900 shadow-sm font-black' : 'bg-white/20 text-white shadow-sm font-black')
                   : (isLight ? 'text-slate-500 hover:text-slate-900' : 'text-white/50 hover:text-white')
               }`}
             >
-              Native
+              ● Native
             </button>
             <button
-              onClick={() => setScriptMode('romanized')}
-              className={`px-2 py-0.5 rounded-md transition-all ${
-                scriptMode === 'romanized' 
+              onClick={() => setScriptMode('transliteration')}
+              className={`px-2.5 py-0.5 rounded-md transition-all ${
+                scriptMode === 'transliteration' 
                   ? (isLight ? 'bg-white text-slate-900 shadow-sm font-black' : 'bg-white/20 text-white shadow-sm font-black')
                   : (isLight ? 'text-slate-500 hover:text-slate-900' : 'text-white/50 hover:text-white')
               }`}
             >
-              Roman
+              ● Transliteration
             </button>
-            <button
-              onClick={() => setScriptMode('both')}
-              className={`px-2 py-0.5 rounded-md transition-all ${
-                scriptMode === 'both' 
-                  ? (isLight ? 'bg-white text-slate-900 shadow-sm font-black' : 'bg-white/20 text-white shadow-sm font-black')
-                  : (isLight ? 'text-slate-500 hover:text-slate-900' : 'text-white/50 hover:text-white')
-              }`}
-            >
-              Both
-            </button>
-            {useLyricsStore.getState().hasTranslation && (
-              <button
-                onClick={() => setScriptMode('all')}
-                className={`px-2 py-0.5 rounded-md transition-all ${
-                  scriptMode === 'all' 
-                    ? (isLight ? 'bg-white text-slate-900 shadow-sm font-black' : 'bg-white/20 text-white shadow-sm font-black')
-                    : (isLight ? 'text-slate-500 hover:text-slate-900' : 'text-white/50 hover:text-white')
-                }`}
-              >
-                All
-              </button>
-            )}
           </div>
         )}
 

@@ -7,12 +7,12 @@ const getStoredScriptMode = (): LyricsScriptMode => {
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
       const saved = localStorage.getItem(SCRIPT_MODE_STORAGE_KEY) as LyricsScriptMode;
-      if (saved === 'native' || saved === 'romanized' || saved === 'both' || saved === 'all') {
+      if (saved === 'native' || saved === 'transliteration') {
         return saved;
       }
     } catch {}
   }
-  return 'both';
+  return 'native';
 };
 
 interface LyricsState {
@@ -20,10 +20,9 @@ interface LyricsState {
   status: LyricsStatus;
   type: LyricsType;
   lines: LyricsLine[];
-  hasRomanized: boolean;
-  hasTranslation: boolean;
+  hasTransliteration: boolean;
   
-  // Active script presentation mode ('native' | 'romanized' | 'both' | 'all')
+  // Option A ('native') or Option B ('transliteration')
   scriptMode: LyricsScriptMode;
   
   // The actively highlighted line
@@ -36,34 +35,31 @@ interface LyricsState {
   setCurrentLineIndex: (index: number) => void;
   setUserOffsetMs: (offset: number) => void;
   setScriptMode: (mode: LyricsScriptMode) => void;
+  toggleScriptMode: () => void;
   reset: () => void;
 }
 
-export const useLyricsStore = create<LyricsState>((set) => ({
+export const useLyricsStore = create<LyricsState>((set, get) => ({
   trackId: null,
   status: 'idle',
   type: 'plain',
   lines: [],
-  hasRomanized: false,
-  hasTranslation: false,
+  hasTransliteration: false,
   scriptMode: getStoredScriptMode(),
   currentLineIndex: -1,
   userOffsetMs: 0,
 
   setLyricsData: (trackId, data, status) => {
     const lines = data?.lines || [];
-    const hasRomanized = lines.some(l => !!l.romanizedText && l.romanizedText !== l.nativeText);
-    const hasTranslation = lines.some(l => !!l.translationText);
+    const hasTransliteration = lines.some(l => !!l.romanizedText && l.romanizedText !== l.nativeText);
 
     return set({
       trackId,
       status,
       type: data?.type || 'plain',
       lines,
-      hasRomanized,
-      hasTranslation,
+      hasTransliteration,
       currentLineIndex: -1,
-      // Reset offset on new track
       userOffsetMs: 0
     });
   },
@@ -81,13 +77,18 @@ export const useLyricsStore = create<LyricsState>((set) => ({
     set({ scriptMode: mode });
   },
 
+  toggleScriptMode: () => {
+    const current = get().scriptMode;
+    const next: LyricsScriptMode = current === 'native' ? 'transliteration' : 'native';
+    get().setScriptMode(next);
+  },
+
   reset: () => set({
     trackId: null,
     status: 'idle',
     type: 'plain',
     lines: [],
-    hasRomanized: false,
-    hasTranslation: false,
+    hasTransliteration: false,
     currentLineIndex: -1,
     userOffsetMs: 0
   })

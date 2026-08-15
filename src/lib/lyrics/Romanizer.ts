@@ -173,6 +173,17 @@ const punjabiMap: ScriptMap = {
   }
 };
 
+// 8. Marathi (Devanagari variant)
+const marathiMap: ScriptMap = {
+  ...hindiMap,
+  consonants: {
+    ...hindiMap.consonants,
+    'ळ': 'l',
+    'क्ष': 'ksha',
+    'ज्ञ': 'dnya'
+  }
+};
+
 const LANGUAGE_REGISTRY: Record<string, ScriptMap> = {
   te: teluguMap,
   telugu: teluguMap,
@@ -182,6 +193,8 @@ const LANGUAGE_REGISTRY: Record<string, ScriptMap> = {
   kannada: kannadaMap,
   hi: hindiMap,
   hindi: hindiMap,
+  mr: marathiMap,
+  marathi: marathiMap,
   ml: malayalamMap,
   malayalam: malayalamMap,
   bn: bengaliMap,
@@ -204,6 +217,9 @@ export class Romanizer {
       if (code >= 0x0D00 && code <= 0x0D7F) return 'malayalam';
       if (code >= 0x0980 && code <= 0x09FF) return 'bengali';
       if (code >= 0x0A00 && code <= 0x0A7F) return 'punjabi';
+      if (code >= 0x3040 && code <= 0x30FF) return 'japanese';
+      if (code >= 0xAC00 && code <= 0xD7AF) return 'korean';
+      if (code >= 0x0600 && code <= 0x06FF) return 'arabic';
     }
     return null;
   }

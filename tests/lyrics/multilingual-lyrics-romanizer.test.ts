@@ -101,8 +101,8 @@ describe('Multilingual Synchronized Lyrics & Romanization Engine Tests', () => {
     expect(parsed.lines[2].romanizedText).toBeDefined();
   });
 
-  // Test 6: Script Display Mode Switching (native, romanized, both)
-  it('Test 6: Allows switching between native, romanized, and both script display modes', () => {
+  // Test 6: Script Display Mode Switching (Option A: Native ↔ Option B: Transliteration)
+  it('Test 6: Allows instant switching between Option A (Native) and Option B (Transliteration) while retaining exact position', () => {
     const parsed = LyricsParser.parse(teluguLRC, 'telugu');
     const store = useLyricsStore.getState();
 
@@ -113,17 +113,16 @@ describe('Multilingual Synchronized Lyrics & Romanization Engine Tests', () => {
       source: 'LRCLIB'
     }, 'ready');
 
-    expect(useLyricsStore.getState().hasRomanized).toBe(true);
-    expect(useLyricsStore.getState().scriptMode).toBe('both');
-
-    useLyricsStore.getState().setScriptMode('native');
+    expect(useLyricsStore.getState().hasTransliteration).toBe(true);
     expect(useLyricsStore.getState().scriptMode).toBe('native');
 
-    useLyricsStore.getState().setScriptMode('romanized');
-    expect(useLyricsStore.getState().scriptMode).toBe('romanized');
+    // Switch to Option B: Transliteration
+    useLyricsStore.getState().setScriptMode('transliteration');
+    expect(useLyricsStore.getState().scriptMode).toBe('transliteration');
 
-    useLyricsStore.getState().setScriptMode('both');
-    expect(useLyricsStore.getState().scriptMode).toBe('both');
+    // Toggle back to Option A: Native
+    useLyricsStore.getState().toggleScriptMode();
+    expect(useLyricsStore.getState().scriptMode).toBe('native');
   });
 
   // Test 7: Backward Seek (3:00 -> 1:45 / 180s -> 105s) smoothly snaps active lyric line

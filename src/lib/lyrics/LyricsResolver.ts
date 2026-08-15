@@ -82,7 +82,7 @@ export class LyricsResolver {
         lines: parsed.lines,
         source,
         language: langHint,
-        hasRomanized: parsed.lines.some(l => !!l.romanizedText)
+        hasTransliteration: parsed.lines.some(l => !!l.romanizedText)
       };
 
       // 3. Save to Cache
