@@ -30,40 +30,45 @@ export const apiFetch = async <T>({ endpoint, params, context, timeoutMs = DEFAU
 
   const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)]
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
   let response: Response;
-  try {
-    response = await fetch(url.toString(), {
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': randomUserAgent,
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Referer': 'https://www.jiosaavn.com/'
-      },
-      signal: controller.signal,
-    });
-  } catch (err: unknown) {
-    clearTimeout(timer);
-    // AbortError means our timeout fired — return null gracefully so callers can 404 cleanly
-    if (err instanceof Error && err.name === 'AbortError') {
-      return { data: null as unknown as T, ok: false };
+  let text = '';
+  
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const ua = attempt === 0 ? randomUserAgent : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      response = await fetch(url.toString(), {
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': ua,
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Referer': 'https://www.jiosaavn.com/'
+        },
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      text = await response.text();
+      if (!text.trimStart().startsWith('<')) {
+        break; // Successfully got JSON
+      }
+    } catch (err: unknown) {
+      clearTimeout(timer);
+      if (attempt === 1) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          return { data: null as unknown as T, ok: false };
+        }
+        throw err;
+      }
     }
-    throw err;
-  } finally {
-    clearTimeout(timer);
   }
 
-  // Guard: JioSaavn occasionally returns an HTML error page instead of JSON
-  // (content-type can be text/plain, text/javascript, etc. even for valid JSON).
-  // We parse defensively: if the body starts with '<' it's HTML, not JSON.
+  // Parse defensively: if the body starts with '<' it's HTML, not JSON.
   let data: T;
   try {
-    const text = await response.text();
-    if (text.trimStart().startsWith('<')) {
-      // HTML error page — treat as a failed fetch
+    if (!text || text.trimStart().startsWith('<')) {
       return { data: null as unknown as T, ok: false };
     }
     data = JSON.parse(text) as T;
@@ -71,6 +76,6 @@ export const apiFetch = async <T>({ endpoint, params, context, timeoutMs = DEFAU
     return { data: null as unknown as T, ok: false };
   }
 
-  return { data, ok: response.ok }
+  return { data, ok: (response!?.ok ?? false) }
 }
 
