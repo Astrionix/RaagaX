@@ -184,34 +184,34 @@ export function MobileDeviceConnectModal() {
 
         {/* SCROLLABLE DEVICE LIST */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
-          
-          {/* SECTION 1: PLAYING ON */}
+          {/* SECTION 1: NOW PLAYING (HERO CARD) */}
           <div>
-            <div className="flex items-center justify-between mb-2.5">
-              <span className="text-[11px] font-black text-white/60 uppercase tracking-wider">
-                {isRemoteConnected ? 'CONTROLLING REMOTE DEVICE' : 'PLAYING ON'}
+            <div className="flex items-center justify-between mb-2 px-1">
+              <span className="text-[11px] font-black text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                NOW PLAYING
               </span>
-              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider border ${
-                isRemoteConnected 
-                  ? 'text-red-400 bg-red-500/10 border-red-500/30' 
-                  : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
-              }`}>
-                {isRemoteConnected ? 'CONNECTED CONTROLLER' : 'ACTIVE RENDERER'}
+              <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider">
+                {isRemoteConnected ? 'Remote Controlled' : 'Active Audio Sink'}
               </span>
             </div>
 
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-[#fa233b]/20 via-[#2a0b12] to-[#14151f] border border-[#fa233b]/40 space-y-3 shadow-lg shadow-[#fa233b]/10">
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-[#1a1b24] via-[#12131a] to-[#0d0e14] border border-emerald-500/30 space-y-3 shadow-xl shadow-emerald-500/5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#fa233b] to-[#99001f] flex items-center justify-center text-white shadow-md flex-shrink-0">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20 flex-shrink-0">
                     <CurrentIcon className="w-6 h-6" />
                   </div>
                   <div className="min-w-0">
-                    <h4 className="text-sm font-extrabold text-white leading-tight truncate">
-                      {isRemoteConnected ? (remoteDeviceName || activeDeviceObj?.name || 'Remote Device') : localDeviceName}
-                    </h4>
-                    <p className="text-xs text-[#ff4d6d] font-bold mt-0.5 truncate">
-                      {isRemoteConnected ? `Controlling ${remoteDeviceName || activeDeviceObj?.name || 'Remote Device'}` : 'Playing here (Local Audio)'}
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-extrabold text-white leading-tight truncate">
+                        {isRemoteConnected ? (remoteDeviceName || activeDeviceObj?.name || 'Remote Device') : localDeviceName}
+                      </h4>
+                      <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                    </div>
+                    <p className="text-xs text-emerald-400 font-bold mt-0.5 truncate flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      <span>{isRemoteConnected ? `Playing on ${remoteDeviceName || activeDeviceObj?.name || 'Remote Device'}` : 'Playing now'}</span>
                     </p>
                   </div>
                 </div>
@@ -224,58 +224,73 @@ export function MobileDeviceConnectModal() {
                     Disconnect
                   </button>
                 ) : (
-                  /* Animated Equalizer Wave */
+                  /* Equalizer Wave */
                   <div className="flex items-end gap-1 h-5 px-3 py-1 bg-white/10 rounded-full flex-shrink-0">
-                    <span className={`w-1 bg-[#fa233b] rounded-full transition-all duration-300 ${isPlaying ? 'h-5 animate-pulse' : 'h-1.5'}`} />
-                    <span className={`w-1 bg-[#fa233b] rounded-full transition-all duration-300 ${isPlaying ? 'h-3.5 animate-pulse delay-75' : 'h-2'}`} />
-                    <span className={`w-1 bg-[#fa233b] rounded-full transition-all duration-300 ${isPlaying ? 'h-4.5 animate-pulse delay-150' : 'h-1.5'}`} />
+                    <span className={`w-1 bg-emerald-400 rounded-full transition-all duration-300 ${isPlaying ? 'h-5 animate-pulse' : 'h-1.5'}`} />
+                    <span className={`w-1 bg-emerald-400 rounded-full transition-all duration-300 ${isPlaying ? 'h-3.5 animate-pulse delay-75' : 'h-2'}`} />
+                    <span className={`w-1 bg-emerald-400 rounded-full transition-all duration-300 ${isPlaying ? 'h-4.5 animate-pulse delay-150' : 'h-1.5'}`} />
                   </div>
                 )}
               </div>
 
               {currentSong && (
-                <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs text-white/80">
-                  <span className="truncate max-w-[240px] font-bold text-white">{currentSong.title}</span>
-                  <span className="text-[11px] text-white/60 font-mono font-bold">
-                    {formatTime(currentTime)} / {formatTime(Number.isFinite(duration) && duration > 0 ? duration : (Number.isFinite(currentSong?.duration) && currentSong.duration > 0 ? currentSong.duration : -1))}
-                  </span>
+                <div className="pt-3 border-t border-white/10 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="truncate max-w-[240px] font-bold text-white flex items-center gap-1.5">
+                      <span className="text-emerald-400">♪</span> {currentSong.title}
+                    </span>
+                    <span className="text-[11px] text-white/60 font-mono font-bold">
+                      {formatTime(currentTime)} / {formatTime(Number.isFinite(duration) && duration > 0 ? duration : (Number.isFinite(currentSong?.duration) && currentSong.duration > 0 ? currentSong.duration : -1))}
+                    </span>
+                  </div>
+                  {/* Subtle Progress Bar in Now Playing Card */}
+                  <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-emerald-400 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.min(100, Math.max(0, (currentTime / (duration || currentSong.duration || 1)) * 100))}%` }}
+                    />
+                  </div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* SECTION 2: OTHER DEVICES */}
+          {/* SECTION 2: YOUR DEVICES */}
           <div>
-            <span className="text-[11px] font-black text-white/60 uppercase tracking-wider block mb-2.5">
-              OTHER DEVICES
+            <span className="text-[11px] font-black text-white/60 uppercase tracking-wider block mb-2 px-1">
+              YOUR DEVICES
             </span>
 
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               {/* Option to pull playback to this device if currently in remote controller mode */}
               {isRemoteConnected && (
-                <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 flex items-center justify-between transition-all hover:bg-white/[0.06]">
+                <div 
+                  onClick={() => handleTransfer(deviceId, localDeviceName)}
+                  className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-emerald-500/40 flex items-center justify-between transition-all hover:bg-white/[0.06] cursor-pointer group"
+                >
                   <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white/80 flex-shrink-0">
-                      <Smartphone className="w-5 h-5" />
+                    <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 group-hover:border-emerald-500/30 flex items-center justify-center text-white/80 flex-shrink-0">
+                      <Smartphone className="w-5 h-5 text-slate-300 group-hover:text-emerald-400" />
                     </div>
                     <div className="min-w-0">
-                      <h4 className="text-xs font-bold text-white truncate">{localDeviceName}</h4>
-                      <p className="text-[11px] text-white/50 truncate">Switch audio to play on this device</p>
+                      <h4 className="text-xs font-bold text-white truncate group-hover:text-emerald-300">{localDeviceName}</h4>
+                      <p className="text-[11px] text-emerald-400 font-medium truncate">
+                        {transferringId === deviceId ? 'Switching playback…' : 'Available'}
+                      </p>
                     </div>
                   </div>
 
                   <button
-                    onClick={() => setConfirmDevice({ id: deviceId, name: localDeviceName, platform: localDeviceObj?.platform || 'Device' })}
                     disabled={transferringId === deviceId}
-                    className="px-4 py-2 rounded-xl text-xs font-black bg-[#fa233b] hover:bg-[#d91533] text-white flex items-center gap-1.5 shadow-md shadow-[#fa233b]/25 transition-all active:scale-95 disabled:opacity-50 flex-shrink-0"
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-600 text-white flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition-all active:scale-95 disabled:opacity-50 flex-shrink-0"
                   >
                     {transferringId === deviceId ? (
                       <>
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Switching playback…</span>
+                        <span>Switching…</span>
                       </>
                     ) : (
-                      <span>Play on this device</span>
+                      <span>Play here</span>
                     )}
                   </button>
                 </div>
@@ -286,71 +301,56 @@ export function MobileDeviceConnectModal() {
                 const Icon = getDeviceIcon(dev.platform);
                 const isConnected = connectedDeviceId === dev.id;
                 const isTransferring = transferringId === dev.id;
-                const preview = availableDevicePlaybackStates?.[dev.id];
-                const previewText = preview?.isPlaying && preview.songTitle 
-                  ? `Playing · ${preview.songTitle}` 
-                  : 'Ready';
 
                 return (
-                  <div key={dev.id} className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 flex items-center justify-between transition-all hover:bg-white/[0.06]">
+                  <div 
+                    key={dev.id} 
+                    onClick={() => !isTransferring && handleTransfer(dev.id, dev.name)}
+                    className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-emerald-500/40 flex items-center justify-between transition-all hover:bg-white/[0.06] cursor-pointer group"
+                  >
                     <div className="flex items-center gap-3.5 min-w-0 flex-1 pr-2">
-                      <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white/80 flex-shrink-0">
-                        <Icon className="w-5 h-5" />
+                      <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 group-hover:border-emerald-500/30 flex items-center justify-center text-white/80 flex-shrink-0">
+                        <Icon className="w-5 h-5 text-slate-300 group-hover:text-emerald-400" />
                       </div>
                       <div className="min-w-0">
-                        <h4 className="text-xs font-bold text-white truncate">{dev.name}</h4>
-                        <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium truncate">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
-                          <span className="truncate">{isConnected ? 'Connected' : previewText}</span>
+                        <h4 className="text-xs font-bold text-white truncate group-hover:text-emerald-300">{dev.name}</h4>
+                        <div className="flex items-center gap-1.5 text-[11px] font-medium truncate">
+                          {isTransferring ? (
+                            <span className="text-amber-400 flex items-center gap-1">
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              <span>Preparing…</span>
+                            </span>
+                          ) : (
+                            <span className="text-emerald-400 flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
+                              <span>Ready</span>
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {isConnected ? (
-                        <button
-                          onClick={() => disconnectDevice()}
-                          className="px-3.5 py-2 rounded-xl text-xs font-black bg-white/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 transition-all active:scale-95"
-                        >
-                          Disconnect
-                        </button>
+                      {isTransferring ? (
+                        <span className="text-xs text-amber-400 font-bold px-3 py-1.5 bg-amber-500/10 rounded-xl border border-amber-500/30">
+                          Switching…
+                        </span>
                       ) : (
-                        <>
-                          <button
-                            onClick={() => handleConnectRemote(dev.id)}
-                            className="px-3.5 py-2 rounded-xl text-xs font-black bg-white/10 hover:bg-white/20 text-white border border-white/10 transition-all active:scale-95"
-                          >
-                            Connect
-                          </button>
-                          <button
-                            onClick={() => setConfirmDevice({ id: dev.id, name: dev.name, platform: dev.platform || 'Device' })}
-                            disabled={isTransferring}
-                            className="px-3.5 py-2 rounded-xl text-xs font-black bg-[#fa233b] hover:bg-[#d91533] text-white flex items-center gap-1.5 shadow-md shadow-[#fa233b]/20 transition-all active:scale-95 disabled:opacity-50"
-                          >
-                            {isTransferring ? (
-                              <>
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                <span>Switching playback…</span>
-                              </>
-                            ) : (
-                              <span>Play on this device</span>
-                            )}
-                          </button>
-                        </>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleTransfer(dev.id, dev.name);
+                          }}
+                          className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-white/10 hover:bg-emerald-500 hover:text-white text-slate-200 border border-white/10 hover:border-emerald-500/30 transition-all active:scale-95"
+                        >
+                          Transfer
+                        </button>
                       )}
                     </div>
                   </div>
                 );
               })}
 
-              {availableDevices.length === 0 && isActiveDevice && (
-                <div className="py-6 px-4 rounded-2xl bg-white/[0.02] border border-dashed border-white/10 text-center space-y-1">
-                  <p className="text-xs font-bold text-white/70">No other devices detected</p>
-                  <p className="text-[11px] text-white/40">
-                    Open RaagaX on your laptop, desktop, or TV to seamlessly switch playback.
-                  </p>
-                </div>
-              )}
             </div>
           </div>
 

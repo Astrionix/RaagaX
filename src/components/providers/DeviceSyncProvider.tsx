@@ -7,7 +7,7 @@ import { ClockSynchronizer } from '@/lib/connect/ClockSynchronizer';
 import { LibrarySyncManager } from '@/lib/sync/LibrarySyncManager';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
-import { MonitorSmartphone, Laptop, Smartphone, Wifi, Check, ChevronUp, X, Sparkles } from 'lucide-react';
+import { MonitorSmartphone, Laptop, Smartphone, Wifi, Check, ChevronUp, X, Sparkles, Headphones } from 'lucide-react';
 import { TransferManager } from '@/lib/connect/TransferManager';
 import { initQueueSystem } from '@/lib/queue/initQueue';
 
@@ -235,154 +235,123 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
           </div>
 
           {/* Current & Available Devices */}
-          <div className="space-y-2.5 max-h-64 overflow-y-auto no-scrollbar pr-0.5">
-            <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 px-1">
-              {isRemoteConnected ? `Controlling ${activeName}` : `${localDeviceName} (This Device)`}
-            </div>
-
-            {/* This Device Row */}
-            <div 
-              className={`w-full p-3 rounded-xl flex items-center justify-between transition-all border ${
-                isActiveDevice 
-                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-sm' 
-                  : 'bg-white/5 border-transparent text-white'
-              }`}
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className={`p-2 rounded-lg ${isActiveDevice ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-slate-400'}`}>
-                  <Laptop className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-extrabold truncate">{localDeviceName}</span>
-                    <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-white/10 text-slate-300 font-mono">This Device</span>
+          <div className="space-y-3 max-h-80 overflow-y-auto no-scrollbar pr-0.5">
+            {/* SECTION 1: NOW PLAYING */}
+            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-[#1a1b24] via-[#12131a] to-[#0d0e14] border border-emerald-500/30 space-y-2.5 shadow-lg shadow-emerald-500/5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-white shadow-md flex-shrink-0">
+                    <MonitorSmartphone className="w-5 h-5" />
                   </div>
-                  <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                    {isActiveDevice ? 'Active audio renderer' : 'Controller mode'}
-                  </p>
-                </div>
-              </div>
-              {isActiveDevice ? (
-                <div className="flex items-center gap-1 text-emerald-400 font-bold text-[10px]">
-                  <Check className="w-4 h-4 mr-0.5" /> Active
-                </div>
-              ) : (
-                <button
-                  disabled={isTransferring}
-                  onClick={() => {
-                    transferPlayback(deviceId);
-                    setIsOpen(false);
-                  }}
-                  className="px-2.5 py-1 rounded-lg bg-[#fa233b] hover:bg-[#d91533] text-white text-[10px] font-bold transition-all active:scale-95"
-                >
-                  Play on this device
-                </button>
-              )}
-            </div>
-
-            {/* Other Online / Available Devices */}
-            <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 px-1 pt-1">
-              OTHER DEVICES
-            </div>
-
-            {onlineDevices.filter(d => d.id !== deviceId).map((device) => {
-              const isConnected = connectedDeviceId === device.id;
-              const isTargetTransfer = isTransferring && transferringDeviceId === device.id;
-              const isMobile = device.name.toLowerCase().includes('mobile') || device.name.toLowerCase().includes('phone');
-              const preview = availableDevicePlaybackStates?.[device.id];
-              const previewText = preview?.isPlaying && preview.songTitle 
-                ? `Playing · ${preview.songTitle}` 
-                : 'Ready';
-
-              return (
-                <div
-                  key={device.id}
-                  className={`w-full p-3 rounded-xl flex items-center justify-between transition-all border ${
-                    isConnected 
-                      ? 'bg-red-500/15 border-red-500/30 text-white' 
-                      : 'bg-white/5 border-transparent text-white'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
-                    <div className={`p-2 rounded-lg ${isConnected ? 'bg-red-500/20 text-red-400' : 'bg-white/5 text-slate-400'}`}>
-                      {isMobile ? <Smartphone className="w-4 h-4" /> : <MonitorSmartphone className="w-4 h-4" />}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-black text-white truncate">{activeName}</span>
+                      <Check className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
                     </div>
-                    <div className="min-w-0">
-                      <span className="text-xs font-extrabold truncate block">{device.name}</span>
-                      <p className={`text-[10px] truncate mt-0.5 ${isConnected ? 'text-red-300 font-semibold' : 'text-slate-400'}`}>
-                        {isConnected ? 'Connected (Remote Control)' : previewText}
-                      </p>
+                    <div className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>{isRemoteConnected ? `Playing on ${activeName}` : 'Playing now'}</span>
                     </div>
                   </div>
+                </div>
 
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {isConnected ? (
-                      <button
-                        onClick={() => {
-                          disconnectDevice();
-                          setIsOpen(false);
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-red-500/20 text-red-400 text-[10px] font-bold border border-red-500/30 transition-all active:scale-95"
-                      >
-                        Disconnect
-                      </button>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => {
-                            connectToDevice(device.id);
-                            setIsOpen(false);
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold border border-white/10 transition-all active:scale-95"
-                        >
-                          Connect
-                        </button>
-                        <button
-                          disabled={isTransferring}
-                          onClick={() => {
-                            transferPlayback(device.id);
-                            setIsOpen(false);
-                          }}
-                          className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-[10px] font-bold border border-emerald-500/30 transition-all active:scale-95"
-                        >
-                          {isTargetTransfer ? 'Switching playback…' : 'Play on this device'}
-                        </button>
-                      </>
-                    )}
+                {isRemoteConnected ? (
+                  <button
+                    onClick={() => disconnectDevice()}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 transition-all active:scale-95"
+                  >
+                    Disconnect
+                  </button>
+                ) : (
+                  <div className="flex items-end gap-0.5 h-4 px-2 py-0.5 bg-white/10 rounded-full flex-shrink-0">
+                    <span className="w-0.5 h-4 bg-emerald-400 rounded-full animate-pulse" />
+                    <span className="w-0.5 h-2.5 bg-emerald-400 rounded-full animate-pulse delay-75" />
+                    <span className="w-0.5 h-3 bg-emerald-400 rounded-full animate-pulse delay-150" />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* SECTION 2: YOUR DEVICES */}
+            <div>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5 px-1">
+                YOUR DEVICES
+              </span>
+              <div className="space-y-1.5">
+                {/* Local device if connected remotely */}
+                {isRemoteConnected && (
+                  <div 
+                    onClick={() => {
+                      transferPlayback(deviceId);
+                      setIsOpen(false);
+                    }}
+                    className="p-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 hover:border-emerald-500/30 flex items-center justify-between cursor-pointer transition-all group"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <MonitorSmartphone className="w-4 h-4 text-slate-400 group-hover:text-emerald-400" />
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-white block truncate group-hover:text-emerald-300">{localDeviceName}</span>
+                        <span className="text-[10px] text-emerald-400">Available</span>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-bold text-slate-300 group-hover:text-emerald-400 px-2 py-1 bg-white/5 rounded-lg border border-white/10">
+                      Play here
+                    </span>
+                  </div>
+                )}
+
+                {/* Other Discovered Online Devices */}
+                {onlineDevices
+                  .filter(d => d.id !== (isRemoteConnected ? connectedDeviceId : deviceId))
+                  .map(d => (
+                    <div 
+                      key={d.id}
+                      onClick={() => {
+                        transferPlayback(d.id);
+                        setIsOpen(false);
+                      }}
+                      className="p-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 hover:border-emerald-500/30 flex items-center justify-between cursor-pointer transition-all group"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <MonitorSmartphone className="w-4 h-4 text-slate-400 group-hover:text-emerald-400" />
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold text-white block truncate group-hover:text-emerald-300">{d.name}</span>
+                          <span className="text-[10px] text-emerald-400">Ready</span>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-bold text-slate-300 group-hover:text-emerald-400 px-2 py-1 bg-white/5 rounded-lg border border-white/10">
+                        Transfer
+                      </span>
+                    </div>
+                  ))}
+
+                {onlineDevices.filter(d => d.id !== deviceId).length === 0 && !isRemoteConnected && (
+                  <div className="py-4 px-3 rounded-xl bg-white/[0.02] border border-dashed border-white/10 text-center space-y-0.5">
+                    <p className="text-[11px] font-bold text-white/60">No other devices detected</p>
+                    <p className="text-[9px] text-white/40">Open RaagaX on another device with your account to connect.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* SECTION 3: AUDIO DEVICES */}
+            <div>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5 px-1">
+                AUDIO DEVICES
+              </span>
+              <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/10 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Headphones className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-white block truncate">Bluetooth / Audio Route</span>
+                    <span className="text-[10px] text-slate-400">Connected</span>
                   </div>
                 </div>
-              );
-            })}
-
-            {onlineDevices.filter(d => d.id !== deviceId).length === 0 && (
-              <div className="py-4 px-3 rounded-xl bg-white/[0.02] border border-dashed border-white/10 text-center space-y-0.5">
-                <p className="text-[11px] font-bold text-white/60">No other devices detected</p>
-                <p className="text-[9px] text-white/40">Open RaagaX on another device with your account to connect.</p>
+                <span className="text-[9px] font-extrabold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
+                  Audio Output
+                </span>
               </div>
-            )}
-          </div>
-
-          {/* Quick Actions Footer */}
-          <div className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between gap-2">
-            <button
-              onClick={() => {
-                setIsOpen(false);
-                toggleDeviceModal();
-              }}
-              className="flex-1 py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-extrabold text-[11px] flex items-center justify-center gap-1.5 transition-colors"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-[#fa233b]" /> Device Manager
-            </button>
-            <button
-              onClick={() => {
-                setIsOpen(false);
-                setRightPanelMode('devices');
-              }}
-              className="py-2 px-3 rounded-xl surface-card border border-white/10 hover:border-white/30 text-slate-300 hover:text-white font-extrabold text-[11px] transition-colors"
-              title="Open right device panel"
-            >
-              Panel ↗
-            </button>
+            </div>
           </div>
         </div>
       )}
