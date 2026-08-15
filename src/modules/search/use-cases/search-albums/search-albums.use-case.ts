@@ -68,6 +68,39 @@ export class SearchAlbumsUseCase implements IUseCase<SearchAlbumsArgs, z.infer<t
       }
     }
 
+    // Strategy 4: Autocomplete Global Search Fallback with direct album payload
+    try {
+      const autocompleteRes = await apiFetch<any>({
+        endpoint: Endpoints.search.all,
+        params: { query }
+      });
+
+      if (autocompleteRes.data && autocompleteRes.data.albums?.data?.length > 0) {
+        const albums = autocompleteRes.data.albums.data;
+        return {
+          total: albums.length,
+          start: 0,
+          results: albums.map((album: any) => ({
+            id: album.id,
+            name: album.title,
+            year: album.more_info?.year ? Number(album.more_info.year) : null,
+            type: album.type || 'album',
+            playCount: null,
+            language: album.more_info?.language || null,
+            explicitContent: album.explicit_content === '1',
+            songCount: album.more_info?.song_pids ? album.more_info.song_pids.split(',').length : null,
+            url: album.perma_url,
+            artists: {
+              primary: [],
+              featured: [],
+              all: []
+            },
+            image: Array.isArray(album.image) ? album.image : [{ quality: '500x500', url: album.image }]
+          })).slice(0, limit)
+        };
+      }
+    } catch {}
+
     return { total: 0, start: 0, results: [] };
   }
 }

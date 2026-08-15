@@ -36,7 +36,13 @@ export const apiFetch = async <T>({ endpoint, params, context, timeoutMs = DEFAU
   let response: Response;
   try {
     response = await fetch(url.toString(), {
-      headers: { 'Content-Type': 'application/json', 'User-Agent': randomUserAgent },
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': randomUserAgent,
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://www.jiosaavn.com/'
+      },
       signal: controller.signal,
     });
   } catch (err: unknown) {

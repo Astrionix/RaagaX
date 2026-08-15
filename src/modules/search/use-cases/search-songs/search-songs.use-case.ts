@@ -80,6 +80,38 @@ export class SearchSongsUseCase implements IUseCase<SearchSongsArgs, z.infer<typ
       }
     }
 
+    // Strategy 4: Autocomplete Global Search Fallback with direct song hydration
+    try {
+      const autocompleteRes = await apiFetch<any>({
+        endpoint: Endpoints.search.all,
+        params: { query }
+      });
+
+      if (autocompleteRes.data && autocompleteRes.data.songs?.data?.length > 0) {
+        const songIds = autocompleteRes.data.songs.data.map((s: any) => s.id).filter(Boolean);
+        if (songIds.length > 0) {
+          const songsDetailRes = await apiFetch<any>({
+            endpoint: Endpoints.songs.id,
+            params: { pids: songIds.join(',') }
+          });
+
+          const rawList = Array.isArray(songsDetailRes.data?.songs) 
+            ? songsDetailRes.data.songs 
+            : Array.isArray(songsDetailRes.data) 
+              ? songsDetailRes.data 
+              : Object.values(songsDetailRes.data?.songs || {});
+
+          if (rawList.length > 0) {
+            return {
+              total: rawList.length,
+              start: 0,
+              results: rawList.map(createSongPayload).slice(0, limit)
+            };
+          }
+        }
+      }
+    } catch {}
+
     return {
       total: 0,
       start: 0,
