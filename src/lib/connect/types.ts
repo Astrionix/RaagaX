@@ -11,6 +11,20 @@ export interface DeviceCapabilities {
 
 export type TransportMode = 'LOCAL_DIRECT' | 'HOTSPOT_DIRECT' | 'CLOUD_RELAY';
 
+export type DeviceConnectionState =
+  | "AVAILABLE"
+  | "CONNECTING"
+  | "CONNECTED"
+  | "DISCONNECTING"
+  | "OFFLINE";
+
+export type SeekTransactionState =
+  | "SEEK_IDLE"
+  | "SEEK_REQUESTED"
+  | "SEEK_EXECUTING"
+  | "PLAYER_POSITION_CONFIRMED"
+  | "SEEK_COMPLETE";
+
 export type ConnectState =
   | "OFFLINE"
   | "CONNECTING"

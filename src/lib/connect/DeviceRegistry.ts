@@ -306,7 +306,12 @@ export class DeviceRegistry {
         }));
 
       // Update Zustand store so modal automatically rerenders online devices
-      usePlayerStore.getState().setOnlineDevices(activeDevices.map(d => ({ id: d.id, name: d.name })));
+      usePlayerStore.getState().setOnlineDevices(activeDevices.map(d => ({ 
+        id: d.id, 
+        name: d.name,
+        platform: d.platform,
+        isOnline: d.isOnline 
+      })));
 
       return activeDevices;
     } catch (e) {

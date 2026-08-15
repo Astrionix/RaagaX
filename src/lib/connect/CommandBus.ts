@@ -35,6 +35,12 @@ export class CommandBus {
     this.sessionId = sessionId;
   }
 
+  public reset() {
+    this.localDeviceId = null;
+    this.sessionId = null;
+    this.processedCommandIds.clear();
+  }
+
   public async dispatch(command: ConnectCommand) {
     const { ConnectManager } = await import('./ConnectManager');
     const connectManager = ConnectManager.getInstance();
@@ -153,6 +159,12 @@ export class CommandBus {
         }
 
         if (songData) {
+          // If already playing this exact song and no force seek requested, ignore duplicate PLAY
+          if (store.isPlaying && store.currentSong?.id === songData.id && Math.abs(store.currentTime * 1000 - targetMs) < 1500) {
+            console.log(`[CommandBus] Already playing song ${songData.id}, duplicate PLAY ignored`);
+            break;
+          }
+
           const manager = QueueManager.getInstance();
           if (queue && queue.length > 0) {
             const idx = typeof queueIndex === 'number' ? queueIndex : 0;
@@ -170,7 +182,8 @@ export class CommandBus {
             currentTime: targetMs / 1000,
             queue: syncedQueue.length > 0 ? syncedQueue : store.queue,
             queueIndex: syncedIndex,
-            isPlaying: true
+            isPlaying: true,
+            playbackIntent: 'PLAYING'
           });
 
           if (store.isActiveDevice) {
@@ -178,12 +191,24 @@ export class CommandBus {
               if (targetMs > 0) {
                 PlaybackService.getInstance().seek(targetMs / 1000, true);
               }
+              import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+                PlaybackStateSync.getInstance().broadcastState(true);
+              });
             });
           }
         } else {
+          // Resuming existing playback
+          if (store.isPlaying) {
+            console.log(`[CommandBus] Already playing, redundant PLAY ignored`);
+            break;
+          }
+
           if (store.isActiveDevice) {
             if (targetMs > 0) PlaybackService.getInstance().seek(targetMs / 1000, true);
             PlaybackService.getInstance().play();
+            import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+              PlaybackStateSync.getInstance().broadcastState(true);
+            });
           }
           store.setIsPlaying(true, true);
         }
@@ -191,8 +216,16 @@ export class CommandBus {
       }
 
       case 'PAUSE':
+        if (!store.isPlaying) {
+          console.log(`[CommandBus] Already paused, redundant PAUSE ignored`);
+          break;
+        }
+
         if (store.isActiveDevice) {
           PlaybackService.getInstance().pause();
+          import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+            PlaybackStateSync.getInstance().broadcastState(true);
+          });
         }
         store.setIsPlaying(false, true);
         break;
@@ -207,10 +240,15 @@ export class CommandBus {
             queue: snapshot.items.map((i: any) => i.song),
             queueIndex: snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0,
             isPlaying: true,
+            playbackIntent: 'PLAYING',
             currentTime: 0
           });
           if (store.isActiveDevice) {
-            PlaybackService.getInstance().playTrack(nextItem.song, true);
+            PlaybackService.getInstance().playTrack(nextItem.song, true).then(() => {
+              import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+                PlaybackStateSync.getInstance().broadcastState(true);
+              });
+            });
           }
         }
         break;
@@ -226,10 +264,15 @@ export class CommandBus {
             queue: snapshot.items.map((i: any) => i.song),
             queueIndex: snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0,
             isPlaying: true,
+            playbackIntent: 'PLAYING',
             currentTime: 0
           });
           if (store.isActiveDevice) {
-            PlaybackService.getInstance().playTrack(prevItem.song, true);
+            PlaybackService.getInstance().playTrack(prevItem.song, true).then(() => {
+              import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+                PlaybackStateSync.getInstance().broadcastState(true);
+              });
+            });
           }
         }
         break;
@@ -237,10 +280,20 @@ export class CommandBus {
 
       case 'SEEK':
         if (command.payload && typeof command.payload === 'object' && 'positionMs' in command.payload) {
-          const p = command.payload as { positionMs: number };
+          const p = command.payload as { positionMs: number; songId?: string };
+          
+          // Cross-Song Seek Validation: if songId is specified and doesn't match current active song, reject seek
+          if (p.songId && store.currentSong?.id && p.songId !== store.currentSong.id) {
+            console.warn(`[CommandBus] Rejected cross-song SEEK: command songId ${p.songId} !== current songId ${store.currentSong.id}`);
+            break;
+          }
+
           store.setCurrentTime(p.positionMs / 1000, true);
           if (store.isActiveDevice) {
             PlaybackService.getInstance().seek(p.positionMs / 1000, true);
+            import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+              PlaybackStateSync.getInstance().broadcastState(true);
+            });
           }
         }
         break;
@@ -248,7 +301,15 @@ export class CommandBus {
       case 'SET_VOLUME':
         if (command.payload && typeof command.payload === 'object' && 'volume' in command.payload) {
           const p = command.payload as { volume: number };
-          store.setVolume(p.volume);
+          const safeVol = Math.max(0, Math.min(1, p.volume));
+          store.setVolume(safeVol);
+          if (store.isActiveDevice) {
+            const activeAudio = PlaybackService.getInstance().getActiveAudio();
+            if (activeAudio) activeAudio.volume = safeVol;
+            import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+              PlaybackStateSync.getInstance().broadcastState(true);
+            });
+          }
         }
         break;
 
@@ -259,6 +320,11 @@ export class CommandBus {
           if (manager.getShuffleMode() !== p.shuffleMode) {
             await manager.setShuffleMode(p.shuffleMode as any);
           }
+          if (store.isActiveDevice) {
+            import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+              PlaybackStateSync.getInstance().broadcastState(true);
+            });
+          }
         }
         break;
 
@@ -266,6 +332,11 @@ export class CommandBus {
         if (command.payload && typeof command.payload === 'object' && 'repeatMode' in command.payload) {
           const p = command.payload as { repeatMode: string };
           QueueManager.getInstance().setRepeatMode(p.repeatMode as any);
+          if (store.isActiveDevice) {
+            import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+              PlaybackStateSync.getInstance().broadcastState(true);
+            });
+          }
         }
         break;
         

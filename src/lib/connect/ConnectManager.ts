@@ -333,6 +333,66 @@ export class ConnectManager {
     }
   }
 
+  public async connectToDevice(targetDeviceId: string): Promise<boolean> {
+    console.log(`[ConnectManager] Connecting to remote device: ${targetDeviceId}`);
+    const store = usePlayerStore.getState();
+    if (targetDeviceId === store.deviceId) {
+      console.log('[ConnectManager] Target is local device — skipping remote connect');
+      return true;
+    }
+
+    usePlayerStore.setState({
+      deviceConnectionState: 'CONNECTING',
+      connectedDeviceId: targetDeviceId,
+    });
+
+    try {
+      const { PlaybackStateSync } = await import('./PlaybackStateSync');
+      const cached = PlaybackStateSync.getInstance().getCachedRemoteState(targetDeviceId);
+      if (cached) {
+        console.log(`[ConnectManager] Instant optimistic remote connection from cache for ${targetDeviceId}`);
+        PlaybackStateSync.getInstance().adoptRemoteState(cached);
+      }
+
+      // If we don't have a session channel active, subscribe now
+      if (this.sessionId) {
+        this.subscribeSession(this.sessionId);
+      }
+
+      usePlayerStore.setState({
+        deviceConnectionState: 'CONNECTED',
+        connectedDeviceId: targetDeviceId,
+        activeDeviceId: targetDeviceId,
+        isActiveDevice: false,
+      });
+
+      return true;
+    } catch (e) {
+      console.error('[ConnectManager] Failed to connect to device:', e);
+      usePlayerStore.setState({
+        deviceConnectionState: 'AVAILABLE',
+        connectedDeviceId: null,
+      });
+      return false;
+    }
+  }
+
+  public disconnectFromDevice() {
+    console.log('[ConnectManager] Disconnecting from remote device');
+    usePlayerStore.setState({
+      deviceConnectionState: 'DISCONNECTING',
+    });
+
+    // Reset local store to independent mode without sending pause/stop commands to remote renderer
+    usePlayerStore.setState({
+      connectedDeviceId: null,
+      activeDeviceId: null,
+      remoteDeviceName: null,
+      isActiveDevice: true,
+      deviceConnectionState: 'AVAILABLE',
+    });
+  }
+
   public async dispatchPlaybackCommand(type: ConnectCommand['type'], payload: any = {}): Promise<{ success: boolean; reason?: string }> {
     if (!NetworkManager.getInstance().isOnline()) {
       console.warn(`[ConnectManager] Cannot dispatch ${type} command while offline.`);
@@ -348,6 +408,7 @@ export class ConnectManager {
     const sequencer = CommandSequencer.getInstance();
     const clock = ClockSynchronizer.getInstance();
     
+    const targetDeviceId = store.connectedDeviceId || store.activeDeviceId || undefined;
     const commandId = crypto.randomUUID();
     const command: ConnectCommand = {
       commandId,
@@ -355,15 +416,17 @@ export class ConnectManager {
       epoch: sequencer.getEpoch(),
       sequence: sequencer.nextSequence(),
       sourceDeviceId: this.deviceId || store.deviceId,
+      targetDeviceId,
       type,
       sentAt: Date.now(),
       payload: {
         ...payload,
+        songId: payload?.songId || store.currentSong?.id || undefined,
         serverTimestamp: clock.getEstimatedServerNow()
       }
     };
 
-    if (type === 'PLAY' || type === 'PAUSE' || type === 'SEEK' || type === 'NEXT' || type === 'PREV') {
+    if (type === 'PLAY' || type === 'PAUSE' || type === 'SEEK' || type === 'NEXT' || type === 'PREV' || type === 'SET_VOLUME') {
       import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
         PlaybackStateSync.getInstance().recordSentCommand(
           type,

@@ -204,7 +204,7 @@ CREATE TABLE public.user_preferences (
 
 CREATE TABLE public.user_languages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     language_id TEXT NOT NULL,
     priority INT DEFAULT 1,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -213,7 +213,7 @@ CREATE TABLE public.user_languages (
 
 CREATE TABLE public.user_artists (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     artist_id TEXT NOT NULL,
     preference_score INT DEFAULT 10,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -223,7 +223,7 @@ CREATE TABLE public.user_artists (
 
 CREATE TABLE public.liked_songs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     song_id TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -232,7 +232,7 @@ CREATE TABLE public.liked_songs (
 
 CREATE TABLE public.playlists (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    owner_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    owner_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     description TEXT,
     cover_url TEXT,
@@ -253,7 +253,7 @@ CREATE TABLE public.playlist_songs (
 
 CREATE TABLE public.saved_albums (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     album_id TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(user_id, album_id)
@@ -261,7 +261,7 @@ CREATE TABLE public.saved_albums (
 
 CREATE TABLE public.recently_played (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     song_id TEXT NOT NULL,
     played_at TIMESTAMPTZ DEFAULT NOW(),
     position_ms INT DEFAULT 0,
@@ -635,6 +635,21 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'user_favorites') THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.user_favorites;
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'liked_songs') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.liked_songs;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'playlists') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.playlists;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'playlist_songs') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.playlist_songs;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'saved_albums') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.saved_albums;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'user_library_state') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.user_library_state;
+  END IF;
 END $$;
 
 -- ============================================================================
@@ -647,6 +662,82 @@ BEGIN
     RETURN NEW;
 END;
 $$ language 'plpgsql';
+
+CREATE OR REPLACE FUNCTION public.handle_user_library_change()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_user_id UUID;
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        v_user_id := OLD.user_id;
+    ELSE
+        v_user_id := NEW.user_id;
+    END IF;
+
+    IF v_user_id IS NOT NULL THEN
+        PERFORM increment_library_revision(v_user_id);
+    END IF;
+
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    ELSE
+        RETURN NEW;
+    END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.handle_playlist_change()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_owner_id UUID;
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        v_owner_id := COALESCE(OLD.owner_id, (OLD.user_id)::uuid);
+    ELSE
+        v_owner_id := COALESCE(NEW.owner_id, (NEW.user_id)::uuid);
+    END IF;
+
+    IF v_owner_id IS NOT NULL THEN
+        PERFORM increment_library_revision(v_owner_id);
+    END IF;
+
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    ELSE
+        RETURN NEW;
+    END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.handle_playlist_songs_change()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_playlist_id UUID;
+    v_owner_id UUID;
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        v_playlist_id := OLD.playlist_id;
+    ELSE
+        v_playlist_id := NEW.playlist_id;
+    END IF;
+
+    IF v_playlist_id IS NOT NULL THEN
+        SELECT COALESCE(owner_id, (user_id)::uuid) INTO v_owner_id
+        FROM public.playlists
+        WHERE id = v_playlist_id;
+
+        IF v_owner_id IS NOT NULL THEN
+            PERFORM increment_library_revision(v_owner_id);
+        END IF;
+    END IF;
+
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    ELSE
+        RETURN NEW;
+    END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE TRIGGER update_playlists_timestamp
     BEFORE UPDATE ON public.playlists

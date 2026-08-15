@@ -47,6 +47,8 @@ export class PlaybackStateSync {
     songId: null as string | null,
   };
 
+  private cachedRemoteStates: Map<string, RemotePlaybackState> = new Map();
+
   private constructor() {}
 
   public static getInstance(): PlaybackStateSync {
@@ -54,6 +56,10 @@ export class PlaybackStateSync {
       PlaybackStateSync.instance = new PlaybackStateSync();
     }
     return PlaybackStateSync.instance;
+  }
+
+  public getCachedRemoteState(deviceId: string): RemotePlaybackState | null {
+    return this.cachedRemoteStates.get(deviceId) || null;
   }
 
   /**
@@ -156,6 +162,29 @@ export class PlaybackStateSync {
     // Ignore if sent by our own device
     if (remoteState.activeDeviceId === localDeviceId) return;
 
+    // Always cache device playback metadata so the device picker can display live status (e.g. "Playing · Inthandham")
+    this.cachedRemoteStates.set(remoteState.activeDeviceId, remoteState);
+    
+    // Update lightweight device preview in store without modifying active playback
+    const currentPreviews = { ...(store.availableDevicePlaybackStates || {}) };
+    currentPreviews[remoteState.activeDeviceId] = {
+      isPlaying: remoteState.isPlaying,
+      songTitle: remoteState.songData?.title,
+      artist: remoteState.songData?.artist,
+    };
+    usePlayerStore.setState({ availableDevicePlaybackStates: currentPreviews });
+
+    // CRITICAL: Connection Gating
+    // Only adopt remote state into the active player store if the user has explicitly connected to this device,
+    // or this device is in follower/remote-controller mode targeting this device.
+    const isConnectedToThisDevice = store.connectedDeviceId === remoteState.activeDeviceId;
+    const isRemoteFollowerOfThis = !store.isActiveDevice && (store.activeDeviceId === remoteState.activeDeviceId || store.connectedDeviceId === remoteState.activeDeviceId);
+
+    if (!isConnectedToThisDevice && !isRemoteFollowerOfThis) {
+      // Not connected to this device — discovery only. Do not touch local player!
+      return;
+    }
+
     // Epoch & Revision validation to filter out stale/out-of-order state snapshots
     const currentEpoch = CommandSequencer.getInstance().getEpoch();
     if (remoteState.epoch < currentEpoch) {
@@ -187,8 +216,11 @@ export class PlaybackStateSync {
       if (isSameSong) {
         const delta = Math.abs(remoteState.positionMs - this.seekShieldState.targetMs);
 
-        if (delta < 2500) {
-          // The remote player has reached the requested seek position!
+        // Guard against transient 0ms reporting during player buffering/seeking
+        const isTransientZero = remoteState.positionMs === 0 && this.seekShieldState.targetMs > 3000;
+
+        if (delta < 2500 && !isTransientZero) {
+          // The remote player has reached the requested seek position (PLAYER_POSITION_CONFIRMED -> SEEK_COMPLETE)
           console.log(`[PlaybackStateSync] Remote player reached seek target ${remoteState.positionMs}ms (target: ${this.seekShieldState.targetMs}ms, delta: ${delta}ms). Cleared seek shield.`);
           this.seekShieldState.active = false;
         } else if (timeSinceSeek < 5000) {
@@ -244,6 +276,13 @@ export class PlaybackStateSync {
       revision: incomingRevision
     });
 
+    this.adoptRemoteState(remoteState, incomingRevision);
+  }
+
+  /**
+   * Adopts remote playback state into local store without producing local audio.
+   */
+  public adoptRemoteState(remoteState: RemotePlaybackState, revision?: number) {
     // 1. HARD RULE: Controller MUST NOT output audio locally (silence local media elements without mutating store.isPlaying)
     if (RaagaXNativePlayer.isNative()) {
       RaagaXNativePlayer.pause().catch(() => {});
@@ -258,11 +297,14 @@ export class PlaybackStateSync {
     usePlayerStore.setState({
       isActiveDevice: false,
       activeDeviceId: remoteState.activeDeviceId,
+      connectedDeviceId: remoteState.activeDeviceId,
       remoteDeviceName: remoteState.activeDeviceName,
+      deviceConnectionState: 'CONNECTED',
       currentSong: remoteState.songData,
       currentTime: remoteState.positionMs / 1000,
       duration: remoteState.durationMs / 1000,
       isPlaying: remoteState.isPlaying,
+      playbackIntent: remoteState.isPlaying ? 'PLAYING' : 'PAUSED',
       remoteAnchorPositionMs: remoteState.positionMs,
       remoteAnchorTimeMs: Date.now(),
       queue: remoteState.queue || [],
@@ -271,7 +313,7 @@ export class PlaybackStateSync {
       repeatMode: (remoteState.repeatMode || 'OFF') as any,
       volume: remoteState.volume ?? 0.8,
       isMuted: remoteState.isMuted ?? false,
-      lastReceivedPlaybackRevision: incomingRevision,
+      lastReceivedPlaybackRevision: revision ?? (remoteState.revision || 0),
     });
 
     // 3. Keep local QueueManager aligned with remote repeat and shuffle modes

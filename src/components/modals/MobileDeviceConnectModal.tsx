@@ -15,6 +15,10 @@ export function MobileDeviceConnectModal() {
     toggleDeviceModal, 
     deviceId, 
     activeDeviceId, 
+    connectedDeviceId,
+    connectToDevice,
+    disconnectDevice,
+    availableDevicePlaybackStates,
     onlineDevices, 
     transferPlayback,
     isActiveDevice,
@@ -41,10 +45,12 @@ export function MobileDeviceConnectModal() {
 
   if (!isDeviceModalOpen) return null;
 
-  const activeDeviceObj = onlineDevices.find(d => d.id === activeDeviceId) || 
-    (isActiveDevice ? { id: deviceId, name: 'This Phone (Local Device)', platform: 'Phone', isOnline: true } : null);
+  const isRemoteConnected = !isActiveDevice && !!connectedDeviceId;
+  const activeDeviceObj = onlineDevices.find(d => d.id === activeDeviceId || d.id === connectedDeviceId);
+  const localDeviceObj = onlineDevices.find(d => d.id === deviceId);
+  const localDeviceName = localDeviceObj?.name || 'This Device';
 
-  const availableDevices = onlineDevices.filter(d => d.id !== (activeDeviceObj?.id || deviceId) && d.isOnline !== false);
+  const availableDevices = onlineDevices.filter(d => d.id !== (isRemoteConnected ? (connectedDeviceId || activeDeviceId) : deviceId) && d.isOnline !== false);
   const offlineDevices = onlineDevices.filter(d => d.isOnline === false);
 
   const handleScan = () => {
@@ -52,6 +58,14 @@ export function MobileDeviceConnectModal() {
     setTimeout(() => {
       setIsScanning(false);
     }, 1200);
+  };
+
+  const handleConnectRemote = async (targetId: string) => {
+    try {
+      await connectToDevice(targetId);
+    } catch (err: any) {
+      setErrorMessage(`Couldn't connect to device.`);
+    }
   };
 
   const handleTransfer = async (targetId: string, targetName: string) => {
@@ -90,7 +104,7 @@ export function MobileDeviceConnectModal() {
     return Laptop;
   };
 
-  const CurrentIcon = getDeviceIcon(activeDeviceObj?.platform || 'phone');
+  const CurrentIcon = getDeviceIcon(activeDeviceObj?.platform || (isRemoteConnected ? activeDeviceObj?.platform : localDeviceObj?.platform));
 
   return (
     <div className="fixed inset-0 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
@@ -120,7 +134,7 @@ export function MobileDeviceConnectModal() {
               <h3 className="text-base font-black text-white tracking-tight flex items-center gap-2">
                 Connect to Device
               </h3>
-              <p className="text-xs text-white/60 font-medium">Play your music anywhere</p>
+              <p className="text-xs text-white/60 font-medium">Automatic Discovery · Explicit Connect</p>
             </div>
           </div>
           
@@ -175,35 +189,48 @@ export function MobileDeviceConnectModal() {
           <div>
             <div className="flex items-center justify-between mb-2.5">
               <span className="text-[11px] font-black text-white/60 uppercase tracking-wider">
-                CURRENT DEVICE
+                {isRemoteConnected ? 'CONTROLLING REMOTE DEVICE' : 'CURRENT DEVICE'}
               </span>
-              <span className="text-[10px] font-extrabold text-[#fa233b] bg-[#fa233b]/10 border border-[#fa233b]/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                ACTIVE
+              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider border ${
+                isRemoteConnected 
+                  ? 'text-red-400 bg-red-500/10 border-red-500/30' 
+                  : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
+              }`}>
+                {isRemoteConnected ? 'CONNECTED CONTROLLER' : 'ACTIVE RENDERER'}
               </span>
             </div>
 
             <div className="p-4 rounded-2xl bg-gradient-to-r from-[#fa233b]/20 via-[#2a0b12] to-[#14151f] border border-[#fa233b]/40 space-y-3 shadow-lg shadow-[#fa233b]/10">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#fa233b] to-[#99001f] flex items-center justify-center text-white shadow-md">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#fa233b] to-[#99001f] flex items-center justify-center text-white shadow-md flex-shrink-0">
                     <CurrentIcon className="w-6 h-6" />
                   </div>
-                  <div>
-                    <h4 className="text-sm font-extrabold text-white leading-tight">
-                      {activeDeviceObj ? activeDeviceObj.name : 'This Phone'}
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-extrabold text-white leading-tight truncate">
+                      {isRemoteConnected ? (remoteDeviceName || activeDeviceObj?.name || 'Remote Device') : localDeviceName}
                     </h4>
-                    <p className="text-xs text-[#ff4d6d] font-bold mt-0.5">
-                      {isActiveDevice ? 'Playing here (Local Device)' : `Playing on ${remoteDeviceName || 'Remote Device'}`}
+                    <p className="text-xs text-[#ff4d6d] font-bold mt-0.5 truncate">
+                      {isRemoteConnected ? `Controlling ${remoteDeviceName || activeDeviceObj?.name || 'Remote Device'}` : 'Playing here (Local Audio)'}
                     </p>
                   </div>
                 </div>
 
-                {/* Animated Equalizer Wave */}
-                <div className="flex items-end gap-1 h-5 px-3 py-1 bg-white/10 rounded-full">
-                  <span className={`w-1 bg-[#fa233b] rounded-full transition-all duration-300 ${isPlaying ? 'h-5 animate-pulse' : 'h-1.5'}`} />
-                  <span className={`w-1 bg-[#fa233b] rounded-full transition-all duration-300 ${isPlaying ? 'h-3.5 animate-pulse delay-75' : 'h-2'}`} />
-                  <span className={`w-1 bg-[#fa233b] rounded-full transition-all duration-300 ${isPlaying ? 'h-4.5 animate-pulse delay-150' : 'h-1.5'}`} />
-                </div>
+                {isRemoteConnected ? (
+                  <button
+                    onClick={() => disconnectDevice()}
+                    className="px-3 py-1.5 rounded-xl text-xs font-black bg-white/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 transition-all active:scale-95 flex-shrink-0"
+                  >
+                    Disconnect
+                  </button>
+                ) : (
+                  /* Animated Equalizer Wave */
+                  <div className="flex items-end gap-1 h-5 px-3 py-1 bg-white/10 rounded-full flex-shrink-0">
+                    <span className={`w-1 bg-[#fa233b] rounded-full transition-all duration-300 ${isPlaying ? 'h-5 animate-pulse' : 'h-1.5'}`} />
+                    <span className={`w-1 bg-[#fa233b] rounded-full transition-all duration-300 ${isPlaying ? 'h-3.5 animate-pulse delay-75' : 'h-2'}`} />
+                    <span className={`w-1 bg-[#fa233b] rounded-full transition-all duration-300 ${isPlaying ? 'h-4.5 animate-pulse delay-150' : 'h-1.5'}`} />
+                  </div>
+                )}
               </div>
 
               {currentSong && (
@@ -224,28 +251,28 @@ export function MobileDeviceConnectModal() {
             </span>
 
             <div className="space-y-2.5">
-              {/* Option to pull playback to this device if currently on remote */}
-              {!isActiveDevice && (
+              {/* Option to pull playback to this device if currently in remote controller mode */}
+              {isRemoteConnected && (
                 <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 flex items-center justify-between transition-all hover:bg-white/[0.06]">
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white/80">
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white/80 flex-shrink-0">
                       <Smartphone className="w-5 h-5" />
                     </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-white">This Phone</h4>
-                      <p className="text-[11px] text-white/50">Ready to play</p>
+                    <div className="min-w-0">
+                      <h4 className="text-xs font-bold text-white truncate">{localDeviceName}</h4>
+                      <p className="text-[11px] text-white/50 truncate">Switch audio to play on this device</p>
                     </div>
                   </div>
 
                   <button
-                    onClick={() => setConfirmDevice({ id: deviceId, name: 'This Phone', platform: 'Phone' })}
+                    onClick={() => setConfirmDevice({ id: deviceId, name: localDeviceName, platform: localDeviceObj?.platform || 'Device' })}
                     disabled={transferringId === deviceId}
-                    className="px-4 py-2 rounded-xl text-xs font-black bg-[#fa233b] hover:bg-[#d91533] text-white flex items-center gap-1.5 shadow-md shadow-[#fa233b]/25 transition-all active:scale-95 disabled:opacity-50"
+                    className="px-4 py-2 rounded-xl text-xs font-black bg-[#fa233b] hover:bg-[#d91533] text-white flex items-center gap-1.5 shadow-md shadow-[#fa233b]/25 transition-all active:scale-95 disabled:opacity-50 flex-shrink-0"
                   >
                     {transferringId === deviceId ? (
                       <>
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Connecting...</span>
+                        <span>Switching...</span>
                       </>
                     ) : (
                       <span>Play Here</span>
@@ -257,37 +284,61 @@ export function MobileDeviceConnectModal() {
               {/* Other Detected Online Devices */}
               {availableDevices.map((dev) => {
                 const Icon = getDeviceIcon(dev.platform);
+                const isConnected = connectedDeviceId === dev.id;
                 const isTransferring = transferringId === dev.id;
+                const preview = availableDevicePlaybackStates?.[dev.id];
+                const previewText = preview?.isPlaying && preview.songTitle 
+                  ? `Playing · ${preview.songTitle}` 
+                  : 'Available';
 
                 return (
                   <div key={dev.id} className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 flex items-center justify-between transition-all hover:bg-white/[0.06]">
-                    <div className="flex items-center gap-3.5">
-                      <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white/80">
+                    <div className="flex items-center gap-3.5 min-w-0 flex-1 pr-2">
+                      <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white/80 flex-shrink-0">
                         <Icon className="w-5 h-5" />
                       </div>
-                      <div>
-                        <h4 className="text-xs font-bold text-white">{dev.name}</h4>
-                        <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                          <span>Available</span>
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-bold text-white truncate">{dev.name}</h4>
+                        <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium truncate">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
+                          <span className="truncate">{isConnected ? 'Connected' : previewText}</span>
                         </div>
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => setConfirmDevice({ id: dev.id, name: dev.name, platform: dev.platform || 'Device' })}
-                      disabled={isTransferring}
-                      className="px-4 py-2 rounded-xl text-xs font-black bg-white/10 hover:bg-white/20 text-white flex items-center gap-1.5 border border-white/10 transition-all active:scale-95 disabled:opacity-50"
-                    >
-                      {isTransferring ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Connecting...</span>
-                        </>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {isConnected ? (
+                        <button
+                          onClick={() => disconnectDevice()}
+                          className="px-3.5 py-2 rounded-xl text-xs font-black bg-white/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 transition-all active:scale-95"
+                        >
+                          Disconnect
+                        </button>
                       ) : (
-                        <span>Play Here</span>
+                        <>
+                          <button
+                            onClick={() => handleConnectRemote(dev.id)}
+                            className="px-3.5 py-2 rounded-xl text-xs font-black bg-white/10 hover:bg-white/20 text-white border border-white/10 transition-all active:scale-95"
+                          >
+                            Connect
+                          </button>
+                          <button
+                            onClick={() => setConfirmDevice({ id: dev.id, name: dev.name, platform: dev.platform || 'Device' })}
+                            disabled={isTransferring}
+                            className="px-3.5 py-2 rounded-xl text-xs font-black bg-[#fa233b] hover:bg-[#d91533] text-white flex items-center gap-1.5 shadow-md shadow-[#fa233b]/20 transition-all active:scale-95 disabled:opacity-50"
+                          >
+                            {isTransferring ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>Switching...</span>
+                              </>
+                            ) : (
+                              <span>Play Here</span>
+                            )}
+                          </button>
+                        </>
                       )}
-                    </button>
+                    </div>
                   </div>
                 );
               })}

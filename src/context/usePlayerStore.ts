@@ -95,6 +95,9 @@ interface PlayerState {
   deviceId: string;
   deviceInstanceId: string;
   activeDeviceId: string | null;
+  connectedDeviceId: string | null;
+  deviceConnectionState: import('@/lib/connect/types').DeviceConnectionState;
+  availableDevicePlaybackStates: Record<string, { isPlaying: boolean; songTitle?: string; artist?: string }>;
   localPlaybackRevision: number;
   lastReceivedPlaybackRevision: number;
   lastReceivedPlaybackSessionRevision: number;
@@ -120,6 +123,8 @@ interface PlayerState {
   setOnlineDevices: (devices: { id: string; name: string; platform?: string; isOnline?: boolean }[]) => void;
   setRemoteState: (state: Partial<PlayerState>) => void;
   setRenderer: (renderer: Renderer) => void;
+  connectToDevice: (targetDeviceId: string) => Promise<boolean>;
+  disconnectDevice: () => void;
   transferPlayback: (targetDeviceId: string) => void;
 
   rightPanelMode: 'queue' | 'devices';
@@ -378,6 +383,9 @@ export const usePlayerStore = create<PlayerState>()(
   deviceId: typeof window !== 'undefined' ? (require('@/lib/connect/DeviceRegistry').DeviceRegistry.getInstance().getOrCreateDeviceId()) : '',
   deviceInstanceId: typeof window !== 'undefined' ? (require('@/lib/connect/DeviceRegistry').DeviceRegistry.getInstance().getOrCreateDeviceInstanceId()) : '',
   activeDeviceId: null,
+  connectedDeviceId: null,
+  deviceConnectionState: 'AVAILABLE',
+  availableDevicePlaybackStates: {},
   localPlaybackRevision: 0,
   lastReceivedPlaybackRevision: 0,
   lastReceivedPlaybackSessionRevision: 0,
@@ -396,6 +404,14 @@ export const usePlayerStore = create<PlayerState>()(
   serverTimestamp: null,
   onlineDevices: [],
   rightPanelMode: 'queue',
+
+  connectToDevice: async (targetDeviceId: string) => {
+    return ConnectManager.getInstance().connectToDevice(targetDeviceId);
+  },
+
+  disconnectDevice: () => {
+    ConnectManager.getInstance().disconnectFromDevice();
+  },
 
   getPlaybackSnapshot: () => {
     const state = get();
@@ -849,10 +865,15 @@ export const usePlayerStore = create<PlayerState>()(
     }
   },
   setVolume: (vol) => {
-    set({ volume: vol });
+    const safeVol = Math.max(0, Math.min(1, vol));
+    set({ volume: safeVol });
     if (get().isActiveDevice) {
       import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
         PlaybackStateSync.getInstance().broadcastState(true);
+      });
+    } else {
+      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+        ConnectManager.getInstance().dispatchPlaybackCommand('SET_VOLUME', { volume: safeVol });
       });
     }
     persistSessionHelper(get());

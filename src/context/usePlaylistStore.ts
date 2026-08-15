@@ -47,7 +47,31 @@ export const usePlaylistStore = create<PlaylistStore>()(
 
       if (error) throw error;
       
-      const parsedPlaylists: UserPlaylist[] = (playlistsData || []).map(p => ({
+      const playlistList = playlistsData || [];
+      const playlistIds = playlistList.map(p => p.id);
+
+      // Fetch all song mappings for these playlists
+      let songsByPlaylist: Record<string, string[]> = {};
+      if (playlistIds.length > 0) {
+        try {
+          const { data: songMappings } = await supabase
+            .from('playlist_songs')
+            .select('playlist_id, song_id, position')
+            .in('playlist_id', playlistIds)
+            .order('position', { ascending: true });
+
+          if (songMappings) {
+            songMappings.forEach((m: any) => {
+              if (!songsByPlaylist[m.playlist_id]) songsByPlaylist[m.playlist_id] = [];
+              songsByPlaylist[m.playlist_id].push(m.song_id);
+            });
+          }
+        } catch (songErr) {
+          console.warn('[usePlaylistStore] Failed to fetch playlist songs mapping:', songErr);
+        }
+      }
+
+      const parsedPlaylists: UserPlaylist[] = playlistList.map(p => ({
         id: p.id,
         title: p.name || p.title || 'Untitled Playlist',
         description: p.description || '',
@@ -55,7 +79,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
         visibility: (p.visibility || 'private') as any,
         ownerId: p.owner_id,
         creator: 'You',
-        songIds: [],
+        songIds: songsByPlaylist[p.id] || [],
         songs: []
       }));
 
@@ -68,11 +92,32 @@ export const usePlaylistStore = create<PlaylistStore>()(
   },
 
   createPlaylist: async (title, description, visibility) => {
+    const id = crypto.randomUUID();
+    let authUserId = '';
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
+      authUserId = session?.user?.id || '';
+    } catch {}
 
-      const id = crypto.randomUUID();
+    const newPl: UserPlaylist = {
+      id,
+      title,
+      description: description || '',
+      coverUrl: '',
+      visibility: (visibility || 'private') as any,
+      ownerId: authUserId,
+      creator: 'You',
+      songIds: [],
+      songs: []
+    };
+
+    // 1. Optimistic UI update immediately
+    set(state => ({ playlists: [newPl, ...state.playlists] }));
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated with Supabase');
+
       const { data, error } = await supabase.from('playlists').insert({
         id,
         name: title,
@@ -82,57 +127,49 @@ export const usePlaylistStore = create<PlaylistStore>()(
       }).select().single();
 
       if (error) throw error;
-
-      const newPl: UserPlaylist = {
-        id: data.id,
-        title: data.name || data.title || title,
-        description: data.description || '',
-        coverUrl: data.cover_url || '',
-        visibility: (data.visibility || visibility || 'private') as any,
-        ownerId: data.owner_id,
-        creator: 'You',
-        songIds: [],
-        songs: []
-      };
-
-      set(state => ({ playlists: [newPl, ...state.playlists] }));
       return newPl;
     } catch (e) {
-      console.error('Failed to create playlist:', e);
+      console.error('Failed to create playlist in cloud, rolling back:', e);
+      set(state => ({ playlists: state.playlists.filter(p => p.id !== id) }));
       return null;
     }
   },
 
   deletePlaylist: async (playlistId) => {
+    const previousPlaylists = get().playlists;
+    // 1. Optimistic UI removal
+    set(state => ({ playlists: state.playlists.filter(p => p.id !== playlistId) }));
+
     try {
       const { error } = await supabase.from('playlists').delete().eq('id', playlistId);
       if (error) throw error;
-      set(state => ({ playlists: state.playlists.filter(p => p.id !== playlistId) }));
       return true;
     } catch (e) {
-      console.error('Failed to delete playlist:', e);
+      console.error('Failed to delete playlist from cloud, rolling back:', e);
+      set({ playlists: previousPlaylists });
       return false;
     }
   },
 
   addSongToPlaylist: async (playlistId, song) => {
-    try {
-      // 1. Optimistic UI update: immediately show song in local playlist
-      set(state => ({
-        playlists: state.playlists.map(pl => {
-          if (pl.id === playlistId) {
-            const hasSong = pl.songIds.includes(song.id);
-            if (hasSong) return pl;
-            return {
-              ...pl,
-              songIds: [...pl.songIds, song.id],
-              songs: [...pl.songs, song]
-            };
-          }
-          return pl;
-        })
-      }));
+    const previousPlaylists = get().playlists;
+    // 1. Optimistic UI update: immediately show song in local playlist
+    set(state => ({
+      playlists: state.playlists.map(pl => {
+        if (pl.id === playlistId) {
+          const hasSong = pl.songIds.includes(song.id);
+          if (hasSong) return pl;
+          return {
+            ...pl,
+            songIds: [...pl.songIds, song.id],
+            songs: [...pl.songs, song]
+          };
+        }
+        return pl;
+      })
+    }));
 
+    try {
       // 2. Upsert song into canonical_songs if possible
       try {
         await supabase.from('canonical_songs').upsert({
@@ -167,32 +204,35 @@ export const usePlaylistStore = create<PlaylistStore>()(
       }
       return true;
     } catch (e) {
-      console.error('Failed to add song to playlist:', e);
+      console.error('Failed to add song to playlist in cloud, rolling back:', e);
+      set({ playlists: previousPlaylists });
       return false;
     }
   },
 
   removeSongFromPlaylist: async (playlistId, songId) => {
-    try {
-      // 1. Optimistic UI update: immediately remove song from local playlist
-      set(state => ({
-        playlists: state.playlists.map(pl => {
-          if (pl.id === playlistId) {
-            return {
-              ...pl,
-              songIds: pl.songIds.filter(id => id !== songId),
-              songs: pl.songs.filter(s => s.id !== songId)
-            };
-          }
-          return pl;
-        })
-      }));
+    const previousPlaylists = get().playlists;
+    // 1. Optimistic UI update: immediately remove song from local playlist
+    set(state => ({
+      playlists: state.playlists.map(pl => {
+        if (pl.id === playlistId) {
+          return {
+            ...pl,
+            songIds: pl.songIds.filter(id => id !== songId),
+            songs: pl.songs.filter(s => s.id !== songId)
+          };
+        }
+        return pl;
+      })
+    }));
 
+    try {
       const { error } = await supabase.from('playlist_songs').delete().match({ playlist_id: playlistId, song_id: songId });
       if (error) throw error;
       return true;
     } catch (e) {
-      console.error('Failed to remove song from playlist:', e);
+      console.error('Failed to remove song from playlist in cloud, rolling back:', e);
+      set({ playlists: previousPlaylists });
       return false;
     }
   },

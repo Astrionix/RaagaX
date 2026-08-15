@@ -88,10 +88,14 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
   const { 
     isActiveDevice, 
     activeDeviceId, 
+    connectedDeviceId,
     deviceId, 
+    connectToDevice,
+    disconnectDevice,
     transferPlayback, 
     onlineDevices, 
     remoteDeviceName,
+    availableDevicePlaybackStates,
     isTransferring,
     transferringDeviceId,
     toggleDeviceModal,
@@ -125,10 +129,13 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
     };
   }, [isOpen]);
 
-  const activeDeviceObj = onlineDevices.find((d) => d.id === activeDeviceId);
-  const activeName = !isActiveDevice 
+  const activeDeviceObj = onlineDevices.find((d) => d.id === activeDeviceId || d.id === connectedDeviceId);
+  const localDeviceObj = onlineDevices.find((d) => d.id === deviceId);
+  const localDeviceName = localDeviceObj?.name || 'This Device';
+  const isRemoteConnected = !isActiveDevice && !!connectedDeviceId;
+  const activeName = isRemoteConnected 
     ? (remoteDeviceName || activeDeviceObj?.name || 'Remote Device') 
-    : 'This Device';
+    : localDeviceName;
 
   return (
     <div className="relative inline-block" ref={containerRef}>
@@ -140,17 +147,17 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
             setIsOpen(!isOpen);
           }}
           className={`px-4 py-3.5 rounded-2xl surface-card border transition-all flex items-center gap-2.5 cursor-pointer font-bold text-xs select-none ${
-            !isActiveDevice 
-              ? 'border-red-500/50 bg-red-500/10 text-red-400 hover:bg-red-500/20 animate-pulse shadow-lg' 
+            isRemoteConnected 
+              ? 'border-red-500/50 bg-red-500/10 text-red-400 hover:bg-red-500/20 shadow-lg' 
               : isOpen
               ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-400 shadow-md'
               : 'border-white/15 hover:border-emerald-500/50 text-slate-200 hover:text-white bg-white/5'
           } ${className}`}
-          title={!isActiveDevice ? `Controlling ${activeName}` : "Connect to a device"}
+          title={isRemoteConnected ? `Controlling ${activeName}` : "Connect to a device"}
         >
           <div className="relative flex items-center justify-center">
-            <MonitorSmartphone className={`w-4 h-4 ${!isActiveDevice ? 'text-red-400' : 'text-emerald-400'}`} />
-            <span className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ${!isActiveDevice ? 'bg-red-500 animate-ping' : 'bg-emerald-400'}`} />
+            <MonitorSmartphone className={`w-4 h-4 ${isRemoteConnected ? 'text-red-400' : 'text-emerald-400'}`} />
+            <span className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ${isRemoteConnected ? 'bg-red-500 animate-ping' : 'bg-emerald-400'}`} />
           </div>
           <span className="truncate max-w-[120px] font-extrabold">{activeName}</span>
           <ChevronUp className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180 text-emerald-400' : ''}`} />
@@ -165,16 +172,16 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
             setIsOpen(!isOpen);
           }}
           className={`p-2 sm:p-2.5 rounded-xl sm:rounded-2xl transition-all relative cursor-pointer border select-none ${
-            !isActiveDevice 
+            isRemoteConnected 
               ? 'bg-red-500/10 border-red-500/30 text-red-400 animate-pulse' 
               : isOpen
               ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400 shadow-lg'
               : 'surface-card border-white/10 text-slate-300 hover:text-white hover:border-white/20'
           } ${className}`}
-          title={!isActiveDevice ? `Controlling ${activeName}` : "Connect to a device"}
+          title={isRemoteConnected ? `Controlling ${activeName}` : "Connect to a device"}
         >
           <MonitorSmartphone className="w-5 h-5 sm:w-6 sm:h-6" />
-          <span className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full ${!isActiveDevice ? 'bg-red-500 animate-ping' : 'bg-emerald-400'}`} />
+          <span className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full ${isRemoteConnected ? 'bg-red-500 animate-ping' : 'bg-emerald-400'}`} />
         </button>
       )}
 
@@ -186,16 +193,16 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
             setIsOpen(!isOpen);
           }}
           className={`p-1.5 rounded-lg transition-all relative cursor-pointer select-none ${
-            !isActiveDevice 
+            isRemoteConnected 
               ? 'text-red-400 bg-red-500/10 animate-pulse' 
               : isOpen 
               ? 'text-emerald-400 bg-emerald-500/20'
               : 'text-slate-400 hover:text-emerald-400 hover:bg-white/10'
           } ${className}`}
-          title={!isActiveDevice ? `Controlling ${activeName}` : "Connect to a device"}
+          title={isRemoteConnected ? `Controlling ${activeName}` : "Connect to a device"}
         >
           <MonitorSmartphone className="w-4 h-4 sm:w-5 sm:h-5" />
-          <span className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${!isActiveDevice ? 'bg-red-500' : 'bg-emerald-400'}`} />
+          <span className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${isRemoteConnected ? 'bg-red-500' : 'bg-emerald-400'}`} />
         </button>
       )}
 
@@ -203,7 +210,7 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
       {isOpen && (
         <div 
           ref={popoverRef}
-          className={`absolute bottom-full mb-3 ${alignClass} w-72 sm:w-80 max-w-[calc(100vw-2rem)] bg-[#121214]/95 backdrop-blur-2xl border border-white/15 rounded-2xl p-4 shadow-2xl z-[250] animate-in fade-in zoom-in-95 duration-200 text-white select-none`}
+          className={`absolute bottom-full mb-3 ${alignClass} w-80 max-w-[calc(100vw-2rem)] bg-[#121214]/95 backdrop-blur-2xl border border-white/15 rounded-2xl p-4 shadow-2xl z-[250] animate-in fade-in zoom-in-95 duration-200 text-white select-none`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -213,8 +220,8 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
                 <Wifi className="w-4 h-4 animate-pulse" />
               </div>
               <div>
-                <h4 className="text-xs font-black uppercase tracking-wider text-white">Connect to a Device</h4>
-                <p className="text-[10px] text-slate-400 font-medium">RaagaX Cross-Device Audio Sync</p>
+                <h4 className="text-xs font-black uppercase tracking-wider text-white">Devices</h4>
+                <p className="text-[10px] text-slate-400 font-medium">Automatic Discovery · Explicit Connect</p>
               </div>
             </div>
             <button 
@@ -226,23 +233,18 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
           </div>
 
           {/* Current & Available Devices */}
-          <div className="space-y-2 max-h-56 overflow-y-auto no-scrollbar pr-0.5">
+          <div className="space-y-2.5 max-h-64 overflow-y-auto no-scrollbar pr-0.5">
             <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 px-1">
-              Current & Available Devices
+              {isRemoteConnected ? `Controlling ${activeName}` : `${localDeviceName} (This Device)`}
             </div>
 
-            {/* This Device */}
-            <button 
-              disabled={isTransferring}
-              onClick={() => {
-                if (!isActiveDevice) transferPlayback(deviceId);
-                setIsOpen(false);
-              }}
-              className={`w-full text-left p-3 rounded-xl flex items-center justify-between transition-all border ${
+            {/* This Device Row */}
+            <div 
+              className={`w-full p-3 rounded-xl flex items-center justify-between transition-all border ${
                 isActiveDevice 
                   ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-sm' 
-                  : 'bg-white/5 border-transparent hover:bg-white/10 text-white'
-              } ${isTransferring ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  : 'bg-white/5 border-transparent text-white'
+              }`}
             >
               <div className="flex items-center gap-3 min-w-0">
                 <div className={`p-2 rounded-lg ${isActiveDevice ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-slate-400'}`}>
@@ -250,75 +252,112 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-extrabold truncate">This Device</span>
-                    <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-white/10 text-slate-300 font-mono">Web</span>
+                    <span className="text-xs font-extrabold truncate">{localDeviceName}</span>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-white/10 text-slate-300 font-mono">This Device</span>
                   </div>
                   <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                    {isTransferring && transferringDeviceId === deviceId 
-                      ? 'Switching audio here...' 
-                      : isActiveDevice 
-                      ? 'Listening on this device' 
-                      : 'Click to transfer playback here'}
+                    {isActiveDevice ? 'Active audio renderer' : 'Controller mode'}
                   </p>
                 </div>
               </div>
               {isActiveDevice ? (
-                <div className="flex items-center gap-1 text-emerald-400">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                  </span>
-                  <Check className="w-4 h-4 ml-1" />
+                <div className="flex items-center gap-1 text-emerald-400 font-bold text-[10px]">
+                  <Check className="w-4 h-4 mr-0.5" /> Active
                 </div>
-              ) : isTransferring && transferringDeviceId === deviceId ? (
-                <span className="text-[10px] font-bold text-amber-400 animate-pulse">Switching...</span>
-              ) : null}
-            </button>
-
-            {/* Other Online Devices */}
-            {onlineDevices.filter(d => d.id !== deviceId).map((device) => {
-              const isActive = activeDeviceId === device.id;
-              const isTargetTransfer = isTransferring && transferringDeviceId === device.id;
-              const isMobile = device.name.toLowerCase().includes('mobile') || device.name.toLowerCase().includes('phone');
-              return (
+              ) : (
                 <button
-                  key={device.id}
                   disabled={isTransferring}
                   onClick={() => {
-                    transferPlayback(device.id);
+                    transferPlayback(deviceId);
                     setIsOpen(false);
                   }}
-                  className={`w-full text-left p-3 rounded-xl flex items-center justify-between transition-all border ${
-                    isActive 
-                      ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400' 
-                      : 'bg-white/5 border-transparent hover:bg-white/10 text-white'
-                  } ${isTransferring ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className="px-2.5 py-1 rounded-lg bg-[#fa233b] hover:bg-[#d91533] text-white text-[10px] font-bold transition-all active:scale-95"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`p-2 rounded-lg ${isActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-slate-400'}`}>
+                  Play Here
+                </button>
+              )}
+            </div>
+
+            {/* Other Online / Available Devices */}
+            <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 px-1 pt-1">
+              Available Devices
+            </div>
+
+            {onlineDevices.filter(d => d.id !== deviceId).map((device) => {
+              const isConnected = connectedDeviceId === device.id;
+              const isTargetTransfer = isTransferring && transferringDeviceId === device.id;
+              const isMobile = device.name.toLowerCase().includes('mobile') || device.name.toLowerCase().includes('phone');
+              const preview = availableDevicePlaybackStates?.[device.id];
+              const previewText = preview?.isPlaying && preview.songTitle 
+                ? `Playing · ${preview.songTitle}` 
+                : 'Available';
+
+              return (
+                <div
+                  key={device.id}
+                  className={`w-full p-3 rounded-xl flex items-center justify-between transition-all border ${
+                    isConnected 
+                      ? 'bg-red-500/15 border-red-500/30 text-white' 
+                      : 'bg-white/5 border-transparent text-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                    <div className={`p-2 rounded-lg ${isConnected ? 'bg-red-500/20 text-red-400' : 'bg-white/5 text-slate-400'}`}>
                       {isMobile ? <Smartphone className="w-4 h-4" /> : <MonitorSmartphone className="w-4 h-4" />}
                     </div>
                     <div className="min-w-0">
                       <span className="text-xs font-extrabold truncate block">{device.name}</span>
-                      <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                        {isTargetTransfer 
-                          ? 'Switching audio to device...' 
-                          : isActive 
-                          ? 'Listening on this device' 
-                          : 'Click to switch audio'}
+                      <p className={`text-[10px] truncate mt-0.5 ${isConnected ? 'text-red-300 font-semibold' : 'text-slate-400'}`}>
+                        {isConnected ? 'Connected (Remote Control)' : previewText}
                       </p>
                     </div>
                   </div>
-                  {isActive ? (
-                    <Check className="w-4 h-4 text-emerald-400" />
-                  ) : isTargetTransfer ? (
-                    <span className="text-[10px] font-bold text-amber-400 animate-pulse">Switching...</span>
-                  ) : (
-                    <span className="text-[10px] font-bold text-slate-400 hover:text-white">Switch</span>
-                  )}
-                </button>
+
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {isConnected ? (
+                      <button
+                        onClick={() => {
+                          disconnectDevice();
+                          setIsOpen(false);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-red-500/20 text-red-400 text-[10px] font-bold border border-red-500/30 transition-all active:scale-95"
+                      >
+                        Disconnect
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => {
+                            connectToDevice(device.id);
+                            setIsOpen(false);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold border border-white/10 transition-all active:scale-95"
+                        >
+                          Connect
+                        </button>
+                        <button
+                          disabled={isTransferring}
+                          onClick={() => {
+                            transferPlayback(device.id);
+                            setIsOpen(false);
+                          }}
+                          className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-[10px] font-bold border border-emerald-500/30 transition-all active:scale-95"
+                        >
+                          {isTargetTransfer ? 'Switching...' : 'Play'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
               );
             })}
+
+            {onlineDevices.filter(d => d.id !== deviceId).length === 0 && (
+              <div className="py-4 px-3 rounded-xl bg-white/[0.02] border border-dashed border-white/10 text-center space-y-0.5">
+                <p className="text-[11px] font-bold text-white/60">No other devices detected</p>
+                <p className="text-[9px] text-white/40">Open RaagaX on another device with your account to connect.</p>
+              </div>
+            )}
           </div>
 
           {/* Quick Actions Footer */}

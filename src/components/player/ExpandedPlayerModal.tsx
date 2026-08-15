@@ -27,6 +27,11 @@ export function ExpandedPlayerModal() {
   const {
     isPlayerExpanded,
     togglePlayerExpanded,
+    deviceId,
+    volume,
+    isMuted,
+    setVolume,
+    toggleMute,
     activeRenderer,
     currentSong,
     isPlaying,
@@ -201,9 +206,11 @@ export function ExpandedPlayerModal() {
   };
 
   const activeDeviceObj = onlineDevices.find((d) => d.id === activeDeviceId);
+  const localDeviceObj = onlineDevices.find((d) => d.id === deviceId);
+  const localDeviceName = localDeviceObj?.name || 'This Device';
   const activeName = !isActiveDevice 
     ? (remoteDeviceName || activeDeviceObj?.name || 'Remote Device') 
-    : 'This Phone';
+    : localDeviceName;
 
   return (
     <div
@@ -683,23 +690,48 @@ export function ExpandedPlayerModal() {
           </div>
 
           {/* PLAYER ACTION TOOLBAR ROW */}
-          <div className="flex items-center justify-between w-full max-w-4xl mx-auto px-1 pb-1">
+          <div className="flex items-center justify-between w-full max-w-4xl mx-auto px-1 pb-1 gap-2">
             
-            {/* Synced Lyrics Toggle Button */}
+            {/* Left: Synced Lyrics Toggle Button */}
             <button
               onClick={() => setViewMode(v => v === 'lyrics' ? 'art' : 'lyrics')}
-              className={`px-4 py-2 rounded-2xl font-black text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer ${
+              className={`px-3.5 py-2 rounded-2xl font-black text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer flex-shrink-0 ${
                 viewMode === 'lyrics'
                   ? 'bg-[#fa233b] text-white shadow-[#fa233b]/30'
                   : 'bg-white/10 hover:bg-white/20 text-white/90'
               }`}
             >
               <Mic2 className={`w-4 h-4 ${viewMode === 'lyrics' ? 'text-white' : 'text-[#fa233b]'}`} /> 
-              {viewMode === 'lyrics' ? 'Album Art' : 'Synced Lyrics'}
+              <span>{viewMode === 'lyrics' ? 'Album Art' : 'Lyrics'}</span>
             </button>
 
+            {/* Middle: Integrated Volume Slider */}
+            <div className="hidden sm:flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-2xl">
+              <button 
+                onClick={toggleMute}
+                className="text-white/60 hover:text-white transition-colors"
+                title={isMuted ? "Unmute" : "Mute"}
+              >
+                {isMuted || volume === 0 ? (
+                  <Volume2 className="w-3.5 h-3.5 text-[#fa233b]" />
+                ) : (
+                  <Volume2 className="w-3.5 h-3.5" />
+                )}
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={isMuted ? 0 : volume}
+                onChange={(e) => setVolume(parseFloat(e.target.value))}
+                className="w-20 h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-[#fa233b]"
+                title={`Volume: ${Math.round((isMuted ? 0 : volume) * 100)}%`}
+              />
+            </div>
+
             {/* Right Action Utilities: Download, Sleep Timer, Equalizer, Queue */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
               
               {/* Offline Download Button (4-State) */}
               <button
