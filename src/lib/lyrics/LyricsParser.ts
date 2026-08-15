@@ -1,10 +1,12 @@
 import { LyricsLine, LyricsType } from './LyricsTypes';
+import { Romanizer } from './Romanizer';
 
 export class LyricsParser {
   /**
    * Parses a raw lyrics string (LRC or plain text) into structured LyricsLine objects.
+   * Automatically derives nativeText and romanizedText using the Romanizer registry.
    */
-  public static parse(raw: string): { type: LyricsType, lines: LyricsLine[] } {
+  public static parse(raw: string, languageHint?: string): { type: LyricsType, lines: LyricsLine[] } {
     if (!raw || !raw.trim()) {
       return { type: 'plain', lines: [] };
     }
@@ -28,26 +30,28 @@ export class LyricsParser {
         const milliseconds = match[3] ? parseInt(match[3].padEnd(3, '0'), 10) : 0;
         
         const text = match[4].trim();
-
         const startMs = (minutes * 60 * 1000) + (seconds * 1000) + milliseconds;
+        const romanized = Romanizer.romanize(text, languageHint);
 
         parsedLines.push({
           id: `line-${i}-${startMs}`,
           startMs,
-          text
+          text,
+          nativeText: text,
+          romanizedText: romanized !== text ? romanized : undefined
         });
       } else if (!isSynced) {
         // If we haven't encountered any synced lines yet, just add as plain text.
-        // We assign arbitrary increasing timestamps to maintain structure, 
-        // though they won't be used for synced scrolling.
+        const romanized = Romanizer.romanize(line, languageHint);
         parsedLines.push({
           id: `line-${i}`,
           startMs: i * 1000, 
-          text: line
+          text: line,
+          nativeText: line,
+          romanizedText: romanized !== line ? romanized : undefined
         });
       } else {
         // We encountered a plain line in the middle of an LRC file (like metadata [ar:Artist]).
-        // Usually, we ignore non-timestamped lines in a synced file unless we want to parse tags.
       }
     }
 

@@ -8,7 +8,7 @@ import { LyricsLine } from '@/lib/lyrics/LyricsTypes';
 import { X, Mic2, Music } from 'lucide-react';
 
 export function LyricsPanel() {
-  const { status, type, lines, currentLineIndex } = useLyricsStore();
+  const { status, type, lines, currentLineIndex, scriptMode, setScriptMode, hasRomanized } = useLyricsStore();
   const { isLyricsOpen, toggleLyrics, currentSong } = usePlayerStore();
   const { resolvedTheme } = useThemeStore();
   const isLight = resolvedTheme === 'light';
@@ -119,6 +119,9 @@ export function LyricsPanel() {
             const isActive = index === currentLineIndex;
             const isPassed = index < currentLineIndex;
             
+            const showNative = scriptMode === 'native' || scriptMode === 'both' || !line.romanizedText;
+            const showRomanized = (scriptMode === 'romanized' || scriptMode === 'both') && !!line.romanizedText;
+
             return (
               <div
                 key={line.id}
@@ -149,7 +152,14 @@ export function LyricsPanel() {
                   }
                 }}
               >
-                {line.text}
+                {showNative && (
+                  <div className="leading-snug">{line.nativeText || line.text}</div>
+                )}
+                {showRomanized && (
+                  <div className={`leading-snug ${scriptMode === 'both' ? (isActive ? 'text-sm sm:text-base font-semibold opacity-90 mt-1 tracking-wide' : 'text-xs sm:text-sm font-medium opacity-75 mt-0.5') : ''}`}>
+                    {line.romanizedText}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -186,6 +196,45 @@ export function LyricsPanel() {
           <Mic2 className="w-5 h-5 text-[#FA233B]" />
           <h3 className={`text-base font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>Live Synced Lyrics</h3>
         </div>
+        
+        {/* Script Mode Switcher (Native / Romanized / Both) */}
+        {hasRomanized && (
+          <div className={`flex items-center p-0.5 rounded-lg border text-[11px] font-bold ${
+            isLight ? 'bg-slate-100 border-slate-200' : 'bg-white/5 border-white/10'
+          }`}>
+            <button
+              onClick={() => setScriptMode('native')}
+              className={`px-2 py-0.5 rounded-md transition-all ${
+                scriptMode === 'native' 
+                  ? (isLight ? 'bg-white text-slate-900 shadow-sm' : 'bg-white/20 text-white shadow-sm')
+                  : (isLight ? 'text-slate-500 hover:text-slate-900' : 'text-white/50 hover:text-white')
+              }`}
+            >
+              Native
+            </button>
+            <button
+              onClick={() => setScriptMode('romanized')}
+              className={`px-2 py-0.5 rounded-md transition-all ${
+                scriptMode === 'romanized' 
+                  ? (isLight ? 'bg-white text-slate-900 shadow-sm' : 'bg-white/20 text-white shadow-sm')
+                  : (isLight ? 'text-slate-500 hover:text-slate-900' : 'text-white/50 hover:text-white')
+              }`}
+            >
+              Roman
+            </button>
+            <button
+              onClick={() => setScriptMode('both')}
+              className={`px-2 py-0.5 rounded-md transition-all ${
+                scriptMode === 'both' 
+                  ? (isLight ? 'bg-white text-slate-900 shadow-sm' : 'bg-white/20 text-white shadow-sm')
+                  : (isLight ? 'text-slate-500 hover:text-slate-900' : 'text-white/50 hover:text-white')
+              }`}
+            >
+              Both
+            </button>
+          </div>
+        )}
+
         <button
           onClick={toggleLyrics}
           className={`p-2 rounded-full transition-colors ${

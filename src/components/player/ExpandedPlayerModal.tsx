@@ -21,7 +21,15 @@ export function ExpandedPlayerModal() {
   const { playlists, addSongToPlaylist } = usePlaylistStore();
   const [showPlaylists, setShowPlaylists] = useState(false);
   const [viewMode, setViewMode] = useState<'art' | 'lyrics'>('art');
-  const { status: lyricsStatus, type: lyricsType, lines: lyricsLines, currentLineIndex: lyricsIndex } = useLyricsStore();
+  const { 
+    status: lyricsStatus, 
+    type: lyricsType, 
+    lines: lyricsLines, 
+    currentLineIndex: lyricsIndex,
+    scriptMode,
+    setScriptMode,
+    hasRomanized
+  } = useLyricsStore();
   const modalLyricsScrollRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -505,6 +513,37 @@ export function ExpandedPlayerModal() {
               <div className="flex items-center gap-2 text-xs font-black text-white/90">
                 <Mic2 className="w-4 h-4 text-[#fa233b]" /> Live Synced Lyrics
               </div>
+
+              {/* Script Mode Switcher (Native / Romanized / Both) */}
+              {hasRomanized && (
+                <div className="flex items-center p-0.5 rounded-lg border border-white/10 bg-white/5 text-[11px] font-bold">
+                  <button
+                    onClick={() => setScriptMode('native')}
+                    className={`px-2 py-0.5 rounded-md transition-all ${
+                      scriptMode === 'native' ? 'bg-white/20 text-white shadow-sm' : 'text-white/50 hover:text-white'
+                    }`}
+                  >
+                    Native
+                  </button>
+                  <button
+                    onClick={() => setScriptMode('romanized')}
+                    className={`px-2 py-0.5 rounded-md transition-all ${
+                      scriptMode === 'romanized' ? 'bg-white/20 text-white shadow-sm' : 'text-white/50 hover:text-white'
+                    }`}
+                  >
+                    Roman
+                  </button>
+                  <button
+                    onClick={() => setScriptMode('both')}
+                    className={`px-2 py-0.5 rounded-md transition-all ${
+                      scriptMode === 'both' ? 'bg-white/20 text-white shadow-sm' : 'text-white/50 hover:text-white'
+                    }`}
+                  >
+                    Both
+                  </button>
+                </div>
+              )}
+
               <button 
                 onClick={() => setViewMode('art')}
                 className="text-xs font-bold text-white/80 hover:text-white px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-all cursor-pointer"
@@ -532,6 +571,9 @@ export function ExpandedPlayerModal() {
                 lyricsLines.map((line, idx) => {
                   const isActive = idx === lyricsIndex;
                   const isPassed = idx < lyricsIndex;
+                  const showNative = scriptMode === 'native' || scriptMode === 'both' || !line.romanizedText;
+                  const showRomanized = (scriptMode === 'romanized' || scriptMode === 'both') && !!line.romanizedText;
+
                   return (
                     <div
                       key={line.id}
@@ -557,7 +599,14 @@ export function ExpandedPlayerModal() {
                             : 'text-lg sm:text-2xl font-bold text-white/60 hover:text-white/95 opacity-70'}
                       `}
                     >
-                      {line.text}
+                      {showNative && (
+                        <div>{line.nativeText || line.text}</div>
+                      )}
+                      {showRomanized && (
+                        <div className={`${scriptMode === 'both' ? (isActive ? 'text-base sm:text-xl font-semibold opacity-90 mt-1' : 'text-sm sm:text-base font-medium opacity-65 mt-0.5') : ''}`}>
+                          {line.romanizedText}
+                        </div>
+                      )}
                     </div>
                   );
                 })

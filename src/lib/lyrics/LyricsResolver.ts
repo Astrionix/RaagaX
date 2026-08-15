@@ -73,13 +73,16 @@ export class LyricsResolver {
 
       if (!rawText) return null;
 
-      const parsed = LyricsParser.parse(rawText);
+      const langHint = (metadata as any)?.language || (metadata as any)?.genre;
+      const parsed = LyricsParser.parse(rawText, langHint);
       
       const lyricsData: LyricsData = {
         trackId,
         type: parsed.type,
         lines: parsed.lines,
-        source
+        source,
+        language: langHint,
+        hasRomanized: parsed.lines.some(l => !!l.romanizedText)
       };
 
       // 3. Save to Cache
