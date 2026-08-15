@@ -25,10 +25,12 @@ import { DeviceSelector } from '@/components/providers/DeviceSyncProvider';
 import { SeekBar } from '@/components/player/SeekBar';
 
 function formatTime(seconds: number): string {
-  if (isNaN(seconds)) return '0:00';
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return '--:--';
+  }
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
 export function PlayerBar() {
@@ -203,7 +205,7 @@ export function PlayerBar() {
           <div className="w-full flex items-center gap-3 max-w-md">
             <span className="text-[10px] font-mono text-slate-400 font-bold min-w-[32px] text-right">{formatTime(currentTime)}</span>
             <SeekBar className="w-full flex-1" height="h-1" thumbSize="w-3 h-3" />
-            <span className="text-[10px] font-mono text-slate-400 font-bold min-w-[32px]">{formatTime(duration)}</span>
+            <span className="text-[10px] font-mono text-slate-400 font-bold min-w-[32px]">{formatTime(Number.isFinite(duration) && duration > 0 ? duration : (Number.isFinite(currentSong?.duration) && currentSong.duration > 0 ? currentSong.duration : -1))}</span>
           </div>
         )}
       </div>

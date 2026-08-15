@@ -191,11 +191,13 @@ export function ExpandedPlayerModal() {
   const isDownloaded = downloadedSongIds.includes(currentSong.id);
   const isCloudRecorded = (cloudDownloadedSongIds || []).includes(currentSong.id);
 
-  const formatTime = (seconds: number) => {
-    if (!seconds || isNaN(seconds)) return '0:00';
+  const formatTime = (seconds: number): string => {
+    if (!Number.isFinite(seconds) || seconds < 0) {
+      return '--:--';
+    }
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const activeDeviceObj = onlineDevices.find((d) => d.id === activeDeviceId);
@@ -535,6 +537,9 @@ export function ExpandedPlayerModal() {
                           import('@/lib/lyrics/LyricsEngine').then(({ LyricsEngine }) => {
                             LyricsEngine.getInstance().seek(line.startMs);
                           }).catch(() => {});
+                          import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+                            ConnectManager.getInstance().dispatchPlaybackCommand('SEEK', { positionMs: line.startMs });
+                          }).catch(() => {});
                         }
                       }}
                       className={`w-full text-left transition-all duration-300 transform origin-left cursor-pointer select-none leading-snug py-1
@@ -599,8 +604,8 @@ export function ExpandedPlayerModal() {
               activeColor="bg-[#fa233b]"
             />
             <div className="flex items-center justify-between text-[11px] font-mono text-white/50 font-bold px-0.5">
-              <span>{formatTime(visualTime)}</span>
-              <span>{formatTime(duration || currentSong.duration || 0)}</span>
+              <span>{formatTime(currentTime)}</span>
+              <span>{formatTime(Number.isFinite(duration) && duration > 0 ? duration : (Number.isFinite(currentSong?.duration) && currentSong.duration > 0 ? currentSong.duration : -1))}</span>
             </div>
           </div>
 

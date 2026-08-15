@@ -104,6 +104,8 @@ interface PlayerState {
   isTransferring: boolean;
   transferringDeviceId: string | null;
   remoteDeviceName: string | null;
+  remoteAnchorPositionMs: number;
+  remoteAnchorTimeMs: number;
   lastSyncDbTime: string | null;
   lastSyncPositionMs: number | null;
   playbackSession: import('@/lib/playback/PlaybackSession').UnifiedPlaybackSession | null;
@@ -385,6 +387,8 @@ export const usePlayerStore = create<PlayerState>()(
   isTransferring: false,
   transferringDeviceId: null,
   remoteDeviceName: null,
+  remoteAnchorPositionMs: 0,
+  remoteAnchorTimeMs: 0,
   lastSyncDbTime: null,
   lastSyncPositionMs: null,
   playbackSession: null,
@@ -829,24 +833,21 @@ export const usePlayerStore = create<PlayerState>()(
   },
   setCurrentTime: (time, fromRemote = false) => {
     if (get().isTransferring && !fromRemote) return;
+    if (typeof time !== 'number' || !Number.isFinite(time) || isNaN(time) || time < 0) return;
+    
     // Optimistic UI: Always update local state immediately
     set({ currentTime: time });
-    
-    if (!fromRemote) {
-      ConnectManager.getInstance().dispatchPlaybackCommand('SEEK', { positionMs: time * 1000 });
-      if (get().isActiveDevice) {
-        import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
-          PlaybackStateSync.getInstance().broadcastState(false);
-        });
-      }
-    }
 
     const state = get();
     if (state.isActiveDevice && state.currentSong) {
       throttlePersistSession(state, fromRemote);
     }
   },
-  setDuration: (dur) => set({ duration: dur }),
+  setDuration: (dur) => {
+    if (typeof dur === 'number' && Number.isFinite(dur) && !isNaN(dur) && dur > 0) {
+      set({ duration: dur });
+    }
+  },
   setVolume: (vol) => {
     set({ volume: vol });
     if (get().isActiveDevice) {

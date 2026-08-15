@@ -72,11 +72,13 @@ export function MobileDeviceConnectModal() {
     }
   };
 
-  const formatTime = (secs: number) => {
-    if (!secs || isNaN(secs)) return '0:00';
+  const formatTime = (secs: number): string => {
+    if (!Number.isFinite(secs) || secs < 0) {
+      return '--:--';
+    }
     const mins = Math.floor(secs / 60);
     const remaining = Math.floor(secs % 60);
-    return `${mins}:${remaining < 10 ? '0' : ''}${remaining}`;
+    return `${mins}:${remaining.toString().padStart(2, '0')}`;
   };
 
   const getDeviceIcon = (platform?: string) => {
@@ -208,7 +210,7 @@ export function MobileDeviceConnectModal() {
                 <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs text-white/80">
                   <span className="truncate max-w-[240px] font-bold text-white">{currentSong.title}</span>
                   <span className="text-[11px] text-white/60 font-mono font-bold">
-                    {formatTime(currentTime)} / {formatTime(duration || currentSong.duration || 0)}
+                    {formatTime(currentTime)} / {formatTime(Number.isFinite(duration) && duration > 0 ? duration : (Number.isFinite(currentSong?.duration) && currentSong.duration > 0 ? currentSong.duration : -1))}
                   </span>
                 </div>
               )}

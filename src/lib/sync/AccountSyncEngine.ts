@@ -234,10 +234,26 @@ export class AccountSyncEngine {
 
     if (this.isOnline && this.isUUID(userId)) {
       try {
-        await supabase
+        const { error } = await supabase
           .from('liked_songs')
-          .upsert({ user_id: userId, song_id: songId }, { onConflict: 'user_id,song_id' });
-        return;
+          .upsert(
+            { user_id: userId, song_id: songId },
+            { onConflict: 'user_id,song_id', ignoreDuplicates: true }
+          );
+
+        if (error) {
+          // If 409 Conflict or 23505 duplicate key, the song is already liked (idempotent success)
+          if (error.code === '23505' || (error as any).status === 409) {
+            return;
+          }
+          if (error.code === '23503') {
+            console.debug('[AccountSyncEngine] Profiles row missing for user, kept like locally');
+            return;
+          }
+          console.warn('[AccountSyncEngine] Remote like failed:', error.message);
+        } else {
+          return;
+        }
       } catch (e) {
         console.warn('[AccountSyncEngine] Remote like failed, queueing offline mutation:', e);
       }
@@ -262,12 +278,13 @@ export class AccountSyncEngine {
 
     if (this.isOnline && this.isUUID(userId)) {
       try {
-        await supabase
+        const { error } = await supabase
           .from('liked_songs')
           .delete()
           .eq('user_id', userId)
           .eq('song_id', songId);
-        return;
+
+        if (!error) return;
       } catch (e) {
         console.warn('[AccountSyncEngine] Remote unlike failed, queueing offline mutation:', e);
       }
@@ -295,11 +312,19 @@ export class AccountSyncEngine {
         const { data, error } = await supabase
           .from('playlists')
           .select('*')
-          .eq('user_id', userId)
+          .or(`owner_id.eq.${userId},user_id.eq.${userId}`)
           .order('created_at', { ascending: false });
 
         if (!error && data) {
-          const playlists = data as UserPlaylist[];
+          const playlists = (data || []).map((p: any) => ({
+            id: p.id,
+            user_id: p.owner_id || p.user_id || userId,
+            name: p.name || p.title || 'Untitled Playlist',
+            description: p.description || '',
+            created_at: p.created_at || new Date().toISOString(),
+            updated_at: p.updated_at || new Date().toISOString(),
+            songs: [],
+          })) as UserPlaylist[];
           await localDb.setUserStore(userId, 'playlists', playlists);
           return playlists;
         }
@@ -334,14 +359,22 @@ export class AccountSyncEngine {
           .from('playlists')
           .insert({
             id: newPlaylist.id,
-            user_id: userId,
+            owner_id: userId,
             name,
-            description,
+            description: description || '',
           })
           .select()
           .single();
 
-        if (!error && data) return data as UserPlaylist;
+        if (!error && data) return {
+          id: data.id,
+          user_id: data.owner_id || userId,
+          name: data.name || name,
+          description: data.description || '',
+          created_at: data.created_at,
+          updated_at: data.updated_at,
+          songs: [],
+        } as UserPlaylist;
       } catch (e) {
         console.warn('[AccountSyncEngine] Create remote playlist failed, queueing offline mutation:', e);
       }
@@ -548,13 +581,13 @@ export class AccountSyncEngine {
       for (const mut of mutations) {
         try {
           if (mut.type === 'LIKE_SONG') {
-            await supabase.from('liked_songs').upsert({ user_id: mut.user_id, song_id: mut.entity_id }, { onConflict: 'user_id,song_id' });
+            await supabase.from('liked_songs').upsert({ user_id: mut.user_id, song_id: mut.entity_id }, { onConflict: 'user_id,song_id', ignoreDuplicates: true });
           } else if (mut.type === 'UNLIKE_SONG') {
             await supabase.from('liked_songs').delete().eq('user_id', mut.user_id).eq('song_id', mut.entity_id);
           } else if (mut.type === 'CREATE_PLAYLIST') {
-            await supabase.from('playlists').insert({ id: mut.entity_id, user_id: mut.user_id, name: mut.payload?.name, description: mut.payload?.description });
+            await supabase.from('playlists').insert({ id: mut.entity_id, owner_id: mut.user_id, name: mut.payload?.name, description: mut.payload?.description });
           } else if (mut.type === 'DELETE_PLAYLIST') {
-            await supabase.from('playlists').delete().eq('id', mut.entity_id).eq('user_id', mut.user_id);
+            await supabase.from('playlists').delete().eq('id', mut.entity_id);
           } else if (mut.type === 'RECORD_DOWNLOAD' && this.hasUserDownloadsTable) {
             const { error } = await supabase.from('user_downloads').upsert({
               user_id: mut.user_id,

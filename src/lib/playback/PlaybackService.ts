@@ -727,12 +727,6 @@ export class PlaybackService {
       store.setDuration(dur);
     }
 
-    if (store.isActiveDevice) {
-      import('../connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
-        PlaybackStateSync.getInstance().broadcastState(false);
-      });
-    }
-
     // Continuously evaluate and pre-resolve next track into standby audio element for mobile background playback
     PreloadManager.getInstance().evaluatePreload(standby);
 

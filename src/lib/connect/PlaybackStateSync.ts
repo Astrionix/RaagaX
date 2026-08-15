@@ -38,6 +38,15 @@ export class PlaybackStateSync {
   private lastSentSongId: string | null = null;
   private lastSentQueueIndex: number | null = null;
 
+  // Dedicated Target-Aware Seek State Machine
+  private seekShieldState = {
+    active: false,
+    targetMs: 0,
+    commandId: null as string | null,
+    startedAt: 0,
+    songId: null as string | null,
+  };
+
   private constructor() {}
 
   public static getInstance(): PlaybackStateSync {
@@ -50,12 +59,32 @@ export class PlaybackStateSync {
   /**
    * Tracks a sent command to shield optimistic UI state from conflicting incoming updates.
    */
-  public recordSentCommand(type: string, songId: string | null = null, queueIndex: number | null = null) {
+  public recordSentCommand(
+    type: string,
+    songId: string | null = null,
+    queueIndex: number | null = null,
+    positionMs?: number,
+    commandId?: string
+  ) {
     this.lastSentCommand = type;
     this.lastSentCommandTime = Date.now();
     this.lastSentSongId = songId;
     this.lastSentQueueIndex = queueIndex;
-    console.log(`[PlaybackStateSync] Shielding enabled for command ${type} (songId=${songId}, queueIndex=${queueIndex})`);
+
+    if (type === 'SEEK') {
+      const store = usePlayerStore.getState();
+      const target = typeof positionMs === 'number' ? positionMs : Math.round(store.currentTime * 1000);
+      this.seekShieldState = {
+        active: true,
+        targetMs: target,
+        commandId: commandId || null,
+        startedAt: Date.now(),
+        songId: songId || store.currentSong?.id || null,
+      };
+      console.log(`[PlaybackStateSync] SEEK state machine activated for target ${target}ms (commandId: ${commandId})`);
+    }
+
+    console.log(`[PlaybackStateSync] Shielding enabled for command ${type} (songId=${songId}, queueIndex=${queueIndex}, pos=${positionMs})`);
   }
 
   /**
@@ -148,8 +177,35 @@ export class PlaybackStateSync {
       return;
     }
 
-    // Apply command shielding to filter out delayed contradicting updates before target device updates
     const now = Date.now();
+
+    // 1. Target-Aware SEEK State Machine Shielding
+    if (this.seekShieldState.active) {
+      const timeSinceSeek = now - this.seekShieldState.startedAt;
+      const isSameSong = !this.seekShieldState.songId || !remoteState.songId || this.seekShieldState.songId === remoteState.songId;
+
+      if (isSameSong) {
+        const delta = Math.abs(remoteState.positionMs - this.seekShieldState.targetMs);
+
+        if (delta < 2500) {
+          // The remote player has reached the requested seek position!
+          console.log(`[PlaybackStateSync] Remote player reached seek target ${remoteState.positionMs}ms (target: ${this.seekShieldState.targetMs}ms, delta: ${delta}ms). Cleared seek shield.`);
+          this.seekShieldState.active = false;
+        } else if (timeSinceSeek < 5000) {
+          // The remote player is still in transition (e.g. reporting transient 0ms). Preserve our local target.
+          console.log(`[PlaybackStateSync] Shielding stale remote seek position ${remoteState.positionMs}ms (waiting for ~${this.seekShieldState.targetMs}ms, elapsed: ${timeSinceSeek}ms)`);
+          remoteState.positionMs = this.seekShieldState.targetMs;
+        } else {
+          // Timeout (>5s) safety release
+          console.warn(`[PlaybackStateSync] Seek shield timed out after ${timeSinceSeek}ms. Accepting remote pos ${remoteState.positionMs}ms.`);
+          this.seekShieldState.active = false;
+        }
+      } else {
+        this.seekShieldState.active = false;
+      }
+    }
+
+    // 2. Apply command shielding for PLAY, PAUSE, NEXT, PREV
     if (this.lastSentCommand && now - this.lastSentCommandTime < 2500) {
       if (this.lastSentCommand === 'PLAY' || this.lastSentCommand === 'NEXT' || this.lastSentCommand === 'PREV') {
         const isSongMatched = !this.lastSentSongId || remoteState.songId === this.lastSentSongId;
@@ -177,16 +233,6 @@ export class PlaybackStateSync {
         } else {
           console.log(`[PlaybackStateSync] Shielding optimistic pause state. Incoming: isPlaying=true. Kept local isPlaying=false`);
           remoteState.isPlaying = false;
-        }
-      } else if (this.lastSentCommand === 'SEEK') {
-        const localTime = store.currentTime;
-        const remoteTime = remoteState.positionMs / 1000;
-        if (Math.abs(remoteTime - localTime) < 2) {
-          // Renderer has caught up to our optimistic state, clear shielding
-          this.lastSentCommand = null;
-        } else {
-          console.log(`[PlaybackStateSync] Shielding optimistic seek position. Incoming: pos=${remoteTime}s. Kept local pos=${localTime}s`);
-          remoteState.positionMs = Math.round(localTime * 1000);
         }
       }
     }
@@ -217,6 +263,8 @@ export class PlaybackStateSync {
       currentTime: remoteState.positionMs / 1000,
       duration: remoteState.durationMs / 1000,
       isPlaying: remoteState.isPlaying,
+      remoteAnchorPositionMs: remoteState.positionMs,
+      remoteAnchorTimeMs: Date.now(),
       queue: remoteState.queue || [],
       queueIndex: remoteState.queueIndex || 0,
       shuffleMode: (remoteState.shuffleMode || 'OFF') as any,

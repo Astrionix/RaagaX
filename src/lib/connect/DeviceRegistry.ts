@@ -213,6 +213,7 @@ export class DeviceRegistry {
 
     console.log(`[DeviceRegistry] Subscribing to device presence for user ${userId}`);
 
+    let presenceTimeout: NodeJS.Timeout | null = null;
     this.presenceChannel = supabase.channel(channelName)
       .on('postgres_changes', {
         event: '*',
@@ -221,7 +222,10 @@ export class DeviceRegistry {
         filter: `user_id=eq.${userId}`
       }, () => {
         console.log('[DeviceRegistry] Device presence change detected via Realtime');
-        this.fetchAndPublishOnlineDevices(userId);
+        if (presenceTimeout) clearTimeout(presenceTimeout);
+        presenceTimeout = setTimeout(() => {
+          this.fetchAndPublishOnlineDevices(userId);
+        }, 500);
       })
       .subscribe();
 
@@ -314,7 +318,7 @@ export class DeviceRegistry {
   private startAdaptiveHeartbeat() {
     if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
     
-    // Send heartbeat every 15 seconds to maintain accurate online status
+    // Lightweight heartbeat every 25 seconds to maintain online presence without any playback position overhead
     this.heartbeatInterval = setInterval(async () => {
       const store = usePlayerStore.getState();
       
@@ -330,6 +334,6 @@ export class DeviceRegistry {
       } catch (e) {
         console.warn('[DeviceRegistry] Heartbeat failed:', e);
       }
-    }, 15000);
+    }, 25000);
   }
 }

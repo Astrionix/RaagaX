@@ -138,6 +138,7 @@ export class ConnectManager {
     } catch (e) {
       console.error('[ConnectManager] Recovery failed, retrying...', e);
       this.transitionState('READY');
+      // Exponential backoff for recovery would be ideal here if it continuously fails
     } finally {
       this.isRecovering = false;
     }
@@ -160,6 +161,9 @@ export class ConnectManager {
 
   private subscribeInbox() {
     if (!this.userId || !this.deviceId) return;
+    if (this.inboxChannel && (this.currentState === 'CONNECTED' || this.currentState === 'SUBSCRIBING' || this.currentState === 'READY')) {
+       return; // Already connecting or connected
+    }
     if (this.inboxChannel) {
       try { supabase.removeChannel(this.inboxChannel); } catch (e) {}
       this.inboxChannel = null;
@@ -194,6 +198,10 @@ export class ConnectManager {
   }
 
   public subscribeSession(sessionId: string) {
+    if (this.sessionChannel && this.sessionId === sessionId && (this.currentState === 'CONNECTED' || this.currentState === 'SUBSCRIBING' || this.currentState === 'READY')) {
+       return; // Already connected to this session
+    }
+    
     this.unsubscribeSession();
     this.sessionId = sessionId;
     
@@ -227,7 +235,9 @@ export class ConnectManager {
       } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
          console.warn('[ConnectManager] Session channel disconnected, scheduling resync...');
          this.sessionChannel = null;
-         this.transitionState('RECOVERING');
+         if (this.currentState !== 'RECOVERING' && this.currentState !== 'CONNECTING') {
+           this.transitionState('RECOVERING');
+         }
       }
     });
   }
@@ -358,7 +368,9 @@ export class ConnectManager {
         PlaybackStateSync.getInstance().recordSentCommand(
           type,
           store.currentSong?.id || null,
-          store.queueIndex
+          store.queueIndex,
+          payload?.positionMs,
+          commandId
         );
       }).catch(() => {});
     }

@@ -96,23 +96,26 @@ export class UserBehaviorTracker {
           query: event.query,
           metadata: event.metadata,
         });
-        // 409 = RLS policy conflict or duplicate insert from rapid re-render — safe to ignore
-        if (eventError && eventError.code !== '23505' && (eventError as any).status !== 409) {
+        // 409/23505 = duplicate, 23503 = FK violation (user row missing)
+        if (eventError && eventError.code !== '23505' && eventError.code !== '23503' && (eventError as any).status !== 409) {
           console.warn('[UserBehaviorTracker] user_events insert error:', eventError.message);
         }
 
         // Upsert artist affinity if present
         if (event.artist_id) {
           try {
-            await supabase.rpc('increment_artist_affinity', {
-              p_user_id: userId,
-              p_artist_id: event.artist_id,
-              p_weight: weight,
-            });
+            await supabase.from('user_artist_affinity').upsert({
+              user_id: userId,
+              artist_id: event.artist_id,
+              score: weight,
+              like_count: event.event_type === 'LIKE' ? 1 : 0,
+              play_count: event.event_type === 'PLAY' || event.event_type === 'COMPLETE' ? 1 : 0,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'user_id,artist_id', ignoreDuplicates: false });
           } catch (err) {}
         }
 
-        // Update language affinity via RPC
+        // Update language affinity via RPC if available
         if (event.language) {
           try {
             await supabase.rpc('update_user_language_score', {
@@ -124,7 +127,7 @@ export class UserBehaviorTracker {
           } catch (err) {}
         }
       } catch (e) {
-        console.warn('[UserBehaviorTracker] Failed to record event remote:', e);
+        // Analytics failure is non-fatal and must never disrupt UI
       }
     }
   }

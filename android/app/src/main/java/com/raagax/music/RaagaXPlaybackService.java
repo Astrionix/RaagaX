@@ -106,6 +106,21 @@ public class RaagaXPlaybackService extends Service {
                 }
             }
 
+            // ── Native Seek Confirmation from ExoPlayer read head ─────────────
+            @Override
+            public void onPositionDiscontinuity(Player.PositionInfo oldPosition, Player.PositionInfo newPosition, int reason) {
+                if (reason == Player.DISCONTINUITY_REASON_SEEK) {
+                    long confirmedPos = newPosition.positionMs;
+                    boolean isPlaying = player != null && player.isPlaying();
+                    Log.d(TAG, "[SEEK_CONFIRMED] ExoPlayer discontinuity settled: old=" + oldPosition.positionMs + "ms -> confirmed=" + confirmedPos + "ms | isPlaying=" + isPlaying);
+
+                    Intent seekDone = new Intent("com.raagax.music.SEEK_COMPLETE");
+                    seekDone.putExtra("positionMs", confirmedPos);
+                    seekDone.putExtra("wasPlaying", isPlaying);
+                    sendBroadcast(seekDone);
+                }
+            }
+
             // ── Playback state ────────────────────────────────────────────────
             @Override
             public void onPlaybackStateChanged(int state) {
@@ -549,14 +564,7 @@ public class RaagaXPlaybackService extends Service {
                 // after seekTo when setPlayWhenReady is false.
             }
 
-            Log.d(TAG, "[SEEK] Post-seek position: " + player.getCurrentPosition() + "ms"
-                    + " | isPlaying=" + player.isPlaying());
-
-            // ── Broadcast SEEK_COMPLETE so the JS poll can confirm the settled position ──
-            Intent seekDone = new Intent("com.raagax.music.SEEK_COMPLETE");
-            seekDone.putExtra("positionMs", targetPos);
-            seekDone.putExtra("wasPlaying", wasPlaying);
-            sendBroadcast(seekDone);
+            Log.d(TAG, "[SEEK] Requested seekTo " + targetPos + "ms dispatch to ExoPlayer read-head.");
         });
     }
     public void setVolume(float v) { runOnMainThread(() -> { if (player != null) player.setVolume(v); }); }

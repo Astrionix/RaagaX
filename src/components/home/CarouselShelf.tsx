@@ -258,7 +258,7 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
   const totalSongs = pagination?.total || shelfItems.length;
 
   const formatTime = (s: number) => {
-    if (!s) return '3:42'; // fallback
+    if (!Number.isFinite(s) || s < 0) return '--:--';
     const m = Math.floor(s / 60);
     const sec = Math.floor(s % 60);
     return `${m}:${sec < 10 ? '0' : ''}${sec}`;

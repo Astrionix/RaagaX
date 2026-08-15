@@ -39,7 +39,19 @@ export class PlaybackSessionManager {
     if (!this.sessionId || !this.isSchemaSupported) return;
     
     const engine = PlaybackEngine.getInstance();
-    const currentPosition = engine.getCanonicalPositionMs();
+    let currentPosition = engine.getCanonicalPositionMs();
+    const store = usePlayerStore.getState();
+
+    // Guard against engine returning 0ms if store has an accurate position
+    if (currentPosition === 0 && store.currentTime > 0) {
+      currentPosition = Math.round(store.currentTime * 1000);
+    }
+
+    // Skip transient 0ms checkpoints during active playback or post-seek transition
+    if (currentPosition === 0 && this.lastCheckpointPosition > 5000 && store.currentSong && store.isPlaying) {
+      console.log('[PlaybackSessionManager] Skipping checkpoint of transient 0ms position during active playback');
+      return;
+    }
     
     // Only write if forced, dirty, or position drifted significantly (>60s)
     const positionDrift = Math.abs(currentPosition - this.lastCheckpointPosition);
@@ -47,7 +59,6 @@ export class PlaybackSessionManager {
       return;
     }
 
-    const store = usePlayerStore.getState();
     const status = store.isPlaying ? 'playing' : 'paused';
     const sequencer = (await import('../connect/CommandSequencer')).CommandSequencer.getInstance();
     

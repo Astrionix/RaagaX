@@ -14,6 +14,7 @@ export class CommandBus {
   private localDeviceId: string | null = null;
   private sessionId: string | null = null;
   private signalListeners: Set<(command: ConnectCommand) => void> = new Set();
+  private processedCommandIds: Map<string, number> = new Map();
 
   public subscribeToSignals(listener: (command: ConnectCommand) => void): () => void {
     this.signalListeners.add(listener);
@@ -67,6 +68,43 @@ export class CommandBus {
     }
 
     if (!this.validator.validate(command)) return;
+
+    // Idempotency: Ignore already processed commands
+    if (command.commandId) {
+      const now = Date.now();
+      if (this.processedCommandIds.has(command.commandId)) {
+        console.log(`[CommandBus] Duplicate command suppressed: ${command.type} (${command.commandId})`);
+        if (store.isActiveDevice && command.type !== 'COMMAND_ACK' && command.sourceDeviceId) {
+          const ackPayload = {
+            commandId: command.commandId,
+            status: 'APPLIED',
+            epoch: sequencer.getEpoch()
+          };
+          const ackCommand: ConnectCommand = {
+            commandId: crypto.randomUUID(),
+            sessionId: command.sessionId,
+            epoch: sequencer.getEpoch(),
+            sequence: sequencer.nextSequence(),
+            sourceDeviceId: store.deviceId,
+            targetDeviceId: command.sourceDeviceId,
+            type: 'COMMAND_ACK',
+            sentAt: Date.now(),
+            payload: ackPayload
+          };
+          import('./ConnectManager').then(({ ConnectManager }) => {
+            ConnectManager.getInstance().sendTargetedCommand(command.sourceDeviceId!, ackCommand);
+          });
+        }
+        return;
+      }
+      this.processedCommandIds.set(command.commandId, now);
+      if (this.processedCommandIds.size > 200) {
+        const cutoff = now - 30000;
+        for (const [id, time] of this.processedCommandIds.entries()) {
+          if (time < cutoff) this.processedCommandIds.delete(id);
+        }
+      }
+    }
 
     this.applyCommand(command);
 

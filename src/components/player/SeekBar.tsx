@@ -18,7 +18,7 @@ export function SeekBar({
   activeColor?: string;
   trackColor?: string;
 }) {
-  const { currentTime, duration, setCurrentTime, setSeekTarget } = usePlayerStore();
+  const { currentTime, duration, currentSong, setCurrentTime, setSeekTarget } = usePlayerStore();
   const trackRef = useRef<HTMLDivElement>(null);
   
   const [isSeeking, setIsSeeking] = useState(false);
@@ -26,18 +26,31 @@ export function SeekBar({
   const [localProgress, setLocalProgress] = useState(0); // 0 to 1
   const [hoverProgress, setHoverProgress] = useState<number | null>(null);
 
-  // 60 FPS ultra-smooth local progress prediction driven by PlaybackEngine
+  const effectiveDuration = Number.isFinite(duration) && duration > 0 
+    ? duration 
+    : (currentSong && Number.isFinite(currentSong.duration) && (currentSong.duration || 0) > 0 ? (currentSong.duration || 0) : 0);
+
+  // 60 FPS ultra-smooth local progress prediction driven by PlaybackEngine & Remote Anchor Clock
   useEffect(() => {
     let animFrame: number;
 
     const tick = () => {
-      if (!isSeeking && !isSeekSettling && duration > 0) {
-        const engine = PlaybackEngine.getInstance();
-        if (engine.isPlayingLocally()) {
-          const liveSec = engine.getCanonicalPositionMs() / 1000;
-          setLocalProgress(Math.min(1, Math.max(0, liveSec / duration)));
+      if (!isSeeking && !isSeekSettling && effectiveDuration > 0) {
+        const store = usePlayerStore.getState();
+        if (store.isActiveDevice) {
+          const engine = PlaybackEngine.getInstance();
+          const liveSec = engine.isPlayingLocally() ? engine.getCanonicalPositionMs() / 1000 : store.currentTime;
+          const validSec = Number.isFinite(liveSec) && !isNaN(liveSec) && liveSec >= 0 ? liveSec : 0;
+          setLocalProgress(Math.min(1, Math.max(0, validSec / effectiveDuration)));
         } else {
-          setLocalProgress(Math.min(1, Math.max(0, currentTime / duration)));
+          // Remote follower: interpolate smoothly from remote anchor timestamp
+          let liveSec = store.currentTime;
+          if (store.isPlaying && store.remoteAnchorTimeMs > 0) {
+            const elapsed = (Date.now() - store.remoteAnchorTimeMs) / 1000;
+            liveSec = Math.min(effectiveDuration, (store.remoteAnchorPositionMs / 1000) + elapsed);
+          }
+          const validSec = Number.isFinite(liveSec) && !isNaN(liveSec) && liveSec >= 0 ? liveSec : 0;
+          setLocalProgress(Math.min(1, Math.max(0, validSec / effectiveDuration)));
         }
       }
       animFrame = requestAnimationFrame(tick);
@@ -46,7 +59,7 @@ export function SeekBar({
     animFrame = requestAnimationFrame(tick);
 
     return () => cancelAnimationFrame(animFrame);
-  }, [currentTime, duration, isSeeking, isSeekSettling]);
+  }, [currentTime, duration, effectiveDuration, isSeeking, isSeekSettling]);
 
   const calculateProgressFromEvent = (e: React.PointerEvent) => {
     if (!trackRef.current) return 0;
@@ -70,6 +83,8 @@ export function SeekBar({
 
     setIsSeeking(true);
     setIsSeekSettling(false);
+    if (effectiveDuration <= 0) return;
+    
     const p = calculateProgressFromEvent(e);
     setLocalProgress(p);
   };
@@ -83,6 +98,7 @@ export function SeekBar({
     }
 
     if (isSeeking) {
+      if (effectiveDuration <= 0) return;
       const p = calculateProgressFromEvent(e);
       setLocalProgress(p);
     }
@@ -95,28 +111,41 @@ export function SeekBar({
     }
     
     if (isSeeking) {
-      const p = calculateProgressFromEvent(e);
-      const newTime = p * duration;
+      if (effectiveDuration <= 0) {
+        setIsSeeking(false);
+        setIsSeekSettling(false);
+        return;
+      }
       
+      const p = calculateProgressFromEvent(e);
+      const newTime = Math.min(effectiveDuration, Math.max(0, p * effectiveDuration));
+      
+      console.log('[SEEKBAR RELEASE]', {
+        effectiveDuration,
+        progress: p,
+        targetSeconds: newTime,
+        targetMs: Math.round(newTime * 1000)
+      });
+
       setIsSeeking(false);
       setIsSeekSettling(true);
       setLocalProgress(p);
       
       // End SeekLock with a settling window — blocks stale remote position
-      // updates for 500ms after release so ExoPlayer can confirm the seek
-      SeekLock.endSeeking(500);
+      // updates for 800ms after release so ExoPlayer can confirm the seek
+      SeekLock.endSeeking(800);
 
       setCurrentTime(newTime);
       setSeekTarget(newTime);
 
       // Cross-device: broadcast SEEK so the remote device (Laptop/Phone) also seeks
-      import('@/lib/connect/CommandBus').then(({ CommandBus }) => {
-        CommandBus.getInstance().send('SEEK', { positionMs: Math.round(newTime * 1000) });
+      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+        ConnectManager.getInstance().dispatchPlaybackCommand('SEEK', { positionMs: Math.round(newTime * 1000) });
       });
 
       setTimeout(() => {
         setIsSeekSettling(false);
-      }, 500);
+      }, 800);
     }
   };
 
@@ -129,15 +158,17 @@ export function SeekBar({
     SeekLock.endSeeking(0); // cancel drag — no settle window needed
     setIsSeeking(false);
     setIsSeekSettling(false);
-    setLocalProgress(duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0);
+    setLocalProgress(effectiveDuration > 0 ? Math.min(1, Math.max(0, currentTime / effectiveDuration)) : 0);
   };
 
   const handlePointerLeave = (e: React.PointerEvent) => {
     setHoverProgress(null);
   };
 
-  const formatTime = (seconds: number) => {
-    if (!seconds || isNaN(seconds)) return '0:00';
+  const formatTime = (seconds: number): string => {
+    if (!Number.isFinite(seconds) || seconds < 0) {
+      return '--:--';
+    }
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
     return `${m}:${s.toString().padStart(2, '0')}`;

@@ -62,30 +62,33 @@ export function PlaylistDetailView() {
           .eq('playlist_id', selectedPlaylistId)
           .order('position', { ascending: true });
 
-        const mappedSongs: Song[] = (mappings || []).map((m: any) => ({
-          id: m.canonical_songs.id,
-          title: m.canonical_songs.title,
-          artist: m.canonical_songs.artist,
-          artistId: m.canonical_songs.artist, // Mock
-          album: m.canonical_songs.album,
-          albumId: m.canonical_songs.album, // Mock
-          duration: m.canonical_songs.duration || 210,
-          coverUrl: m.canonical_songs.cover_url,
-          audioUrl: '', // StreamResolver handles this
-          genre: 'Telugu',
-          category: 'latest_telugu',
-          releaseYear: 2026,
-          plays: 0,
-          likes: 0
-        }));
+        const mappedSongs: Song[] = (mappings || [])
+          .filter((m: any) => m && m.canonical_songs)
+          .map((m: any) => ({
+            id: m.canonical_songs.id,
+            title: m.canonical_songs.title || 'Untitled Track',
+            artist: m.canonical_songs.artist || 'Unknown Artist',
+            artistId: m.canonical_songs.artist,
+            album: m.canonical_songs.album || '',
+            albumId: m.canonical_songs.album,
+            duration: m.canonical_songs.duration || 210,
+            coverUrl: m.canonical_songs.cover_url || '/app-icon.png',
+            audioUrl: '', // StreamResolver handles this
+            genre: 'Telugu',
+            category: 'latest_telugu',
+            releaseYear: 2026,
+            plays: 0,
+            likes: 0
+          }));
 
         if (isMounted) {
           setPlaylist({
             id: plData.id,
-            title: plData.title,
+            title: plData.name || plData.title || 'Untitled Playlist',
+            description: plData.description || '',
             coverUrl: plData.cover_url || '/app-icon.png',
             songs: mappedSongs,
-            isUserOwned: true, // We can use this to show Edit buttons later
+            isUserOwned: true,
             ownerId: plData.owner_id
           } as any);
           setIsLoading(false);

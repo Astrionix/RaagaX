@@ -124,12 +124,19 @@ export function AudioPlayerController() {
     // doesn't snap back during the 1-second poll gap.
     const unsubSeekComplete = RaagaXNativePlayer.addSeekCompleteListener((data) => {
       console.log('[AudioPlayerController] Native seekComplete confirmed at:', data.positionMs, 'ms | wasPlaying:', data.wasPlaying);
+      lastSeekTimeRef.current = Date.now();
       // Apply authoritative position immediately — this replaces the stale pre-seek value
       usePlayerStore.getState().setCurrentTime(data.positionMs / 1000, true);
       // Sync lyrics engine to the new position
       import('@/lib/lyrics/LyricsEngine').then(({ LyricsEngine }) => {
         LyricsEngine.getInstance().seek(data.positionMs);
       });
+      // Immediately broadcast authoritative state to followers
+      if (usePlayerStore.getState().isActiveDevice) {
+        import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+          PlaybackStateSync.getInstance().broadcastState(true);
+        });
+      }
     });
 
     return () => {
@@ -152,14 +159,15 @@ export function AudioPlayerController() {
       }
       const state = await RaagaXNativePlayer.getPlaybackState();
       if (state && state.positionMs >= 0) {
+        const store = usePlayerStore.getState();
+        // Guard against transient 0ms report while native player is buffering after seek
+        if (state.positionMs === 0 && store.currentTime > 5 && Date.now() - lastSeekTimeRef.current < 5000) {
+          console.log('[AudioPlayerController] Suppressing transient 0ms report during post-seek settle');
+          return;
+        }
         usePlayerStore.getState().setCurrentTime(state.positionMs / 1000, true);
         if (state.durationMs > 0) {
           usePlayerStore.getState().setDuration(state.durationMs / 1000);
-        }
-        if (usePlayerStore.getState().isActiveDevice) {
-          import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
-            PlaybackStateSync.getInstance().broadcastState(false);
-          });
         }
       }
     }, 1000);
@@ -371,22 +379,21 @@ export function AudioPlayerController() {
     return () => clearInterval(interval);
   }, []);
 
-  // Remote Device Clock Interpolation
+  // Remote Device Clock Interpolation (Follower)
   useEffect(() => {
     if (isActiveDevice || !isPlaying) return;
     
     const interval = setInterval(() => {
        const store = usePlayerStore.getState();
-       if (!store.lastSyncDbTime || store.lastSyncPositionMs === null) return;
+       if (!store.isPlaying || !store.remoteAnchorTimeMs) return;
 
-       const dbTime = new Date(store.lastSyncDbTime).getTime();
-       const elapsed = Date.now() - dbTime;
-       const livePositionSeconds = (store.lastSyncPositionMs + elapsed) / 1000;
+       const elapsedMs = Date.now() - store.remoteAnchorTimeMs;
+       const liveSeconds = (store.remoteAnchorPositionMs + elapsedMs) / 1000;
        
-       if (livePositionSeconds <= store.duration) {
-         usePlayerStore.setState({ currentTime: livePositionSeconds });
+       if (liveSeconds <= (store.duration || Infinity)) {
+         usePlayerStore.setState({ currentTime: liveSeconds });
        }
-    }, 1000);
+    }, 250);
 
     return () => clearInterval(interval);
   }, [isActiveDevice, isPlaying]);
@@ -394,7 +401,9 @@ export function AudioPlayerController() {
   const handleLoadedMetadata = (e: React.SyntheticEvent<HTMLAudioElement>) => {
     const audio = e.currentTarget;
     if (audio === PlaybackService.getInstance().getActiveAudio()) {
-      setDuration(audio.duration);
+      if (Number.isFinite(audio.duration) && audio.duration > 0) {
+        setDuration(audio.duration);
+      }
     }
   };
 

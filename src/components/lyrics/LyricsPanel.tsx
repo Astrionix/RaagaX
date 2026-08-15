@@ -143,6 +143,9 @@ export function LyricsPanel() {
                     import('@/lib/lyrics/LyricsEngine').then(({ LyricsEngine }) => {
                       LyricsEngine.getInstance().seek(line.startMs);
                     }).catch(() => {});
+                    import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+                      ConnectManager.getInstance().dispatchPlaybackCommand('SEEK', { positionMs: line.startMs });
+                    }).catch(() => {});
                   }
                 }}
               >

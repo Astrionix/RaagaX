@@ -100,21 +100,27 @@ export class TransferManager {
       const queueToRestore = payload.queue && payload.queue.length > 0 ? payload.queue : (payload.songData ? [payload.songData] : []);
       const queueIndexToRestore = payload.queueIndex !== undefined ? payload.queueIndex : 0;
 
-      // 1. PREPARING phase: Restore transferred queue and current song
-      console.log(`[TRANSFER TARGET] PREPARING: Restoring queue (${queueToRestore.length} tracks)...`);
+      // 1. PREPARING phase: Restore transferred queue, song, and exact timeline position
+      const targetPosSeconds = (payload.positionMs || 0) / 1000;
+      console.log(`[TRANSFER TARGET] PREPARING: Restoring queue (${queueToRestore.length} tracks) at pos=${payload.positionMs || 0}ms...`);
+      
       if (payload.songData) {
         usePlayerStore.setState({
           currentSong: payload.songData,
           queue: queueToRestore,
           queueIndex: queueIndexToRestore,
-          currentTime: (payload.positionMs || 0) / 1000,
+          currentTime: targetPosSeconds,
+          isPlaying: false, // HARD RULE: Transferred session is strictly PAUSED until user resumes
+          playbackIntent: 'PAUSED',
+          playbackStatus: 'paused',
           isActiveDevice: true,
           activeDeviceId: store.deviceId,
+          remoteDeviceName: null,
           isTransferring: false,
           transferringDeviceId: null,
         });
 
-        console.log(`[TRANSFER TARGET] MEDIA_LOADED: Song "${payload.songData.title}" (${payload.songData.id}) loaded`);
+        console.log(`[TRANSFER TARGET] MEDIA_LOADED: Song "${payload.songData.title}" (${payload.songData.id}) loaded at ${targetPosSeconds}s (PAUSED)`);
 
         // Initialize QueueManager with received queue
         try {
@@ -127,25 +133,31 @@ export class TransferManager {
       const leaseSuccess = await DeviceLeaseManager.getInstance().acquireLease(command.sessionId, true);
       console.log(`[TRANSFER TARGET] READY_TO_COMMIT: Lease acquired (success=${leaseSuccess})`);
       
-      // 3. START phase: play audio locally if active on source
+      // 3. PREPARE PLAYER: Load audio in PAUSED state at exact position
       const { PlaybackService } = await import('@/lib/playback/PlaybackService');
       const { RaagaXNativePlayer } = await import('../playback/native/RaagaXNativePlayer');
 
-      if (payload.isPlaying && payload.songData) {
+      if (payload.songData) {
         if (RaagaXNativePlayer.isNative() && queueToRestore.length > 0) {
-          await PlaybackService.getInstance().loadQueueContext(queueToRestore, queueIndexToRestore, true, payload.positionMs || 0);
+          // Native Android: set full playlist in paused state with starting position
+          await PlaybackService.getInstance().loadQueueContext(queueToRestore, queueIndexToRestore, false, payload.positionMs || 0);
         } else {
-          await PlaybackService.getInstance().playTrack(payload.songData, true);
+          // Web / PWA: prepare track in paused state (forceResume = false)
+          const service = PlaybackService.getInstance();
+          await service.playTrack(payload.songData, false);
           if (payload.positionMs > 0) {
-            PlaybackService.getInstance().seek(payload.positionMs / 1000, true);
+            service.seek(targetPosSeconds, true);
+          }
+          // Ensure audio element is strictly paused
+          const activeAudio = service.getActiveAudio();
+          if (activeAudio && !activeAudio.paused) {
+            activeAudio.pause();
           }
         }
-        console.log(`[TRANSFER TARGET] PLAYING: Local playback running at ${payload.positionMs}ms`);
-      } else if (payload.positionMs > 0) {
-        PlaybackService.getInstance().seek(payload.positionMs / 1000, true);
+        console.log(`[TRANSFER TARGET] PREPARED: Local player ready at ${payload.positionMs || 0}ms in PAUSED state`);
       }
 
-      // Broadcast the newly acquired authoritative state immediately
+      // Broadcast the newly acquired authoritative PAUSED state immediately
       import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
         PlaybackStateSync.getInstance().broadcastState(true);
       });
@@ -229,6 +241,8 @@ export class TransferManager {
         isActiveDevice: false, 
         activeDeviceId: command.sourceDeviceId,
         isPlaying: false,
+        playbackIntent: 'PAUSED',
+        playbackStatus: 'paused',
         isTransferring: false, 
         transferringDeviceId: null 
       });

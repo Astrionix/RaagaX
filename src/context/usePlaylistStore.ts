@@ -47,12 +47,12 @@ export const usePlaylistStore = create<PlaylistStore>()(
 
       if (error) throw error;
       
-      const parsedPlaylists: UserPlaylist[] = playlistsData.map(p => ({
+      const parsedPlaylists: UserPlaylist[] = (playlistsData || []).map(p => ({
         id: p.id,
-        title: p.title,
+        title: p.name || p.title || 'Untitled Playlist',
         description: p.description || '',
         coverUrl: p.cover_url || '',
-        visibility: p.visibility as any,
+        visibility: (p.visibility || 'private') as any,
         ownerId: p.owner_id,
         creator: 'You',
         songIds: [],
@@ -75,21 +75,20 @@ export const usePlaylistStore = create<PlaylistStore>()(
       const id = crypto.randomUUID();
       const { data, error } = await supabase.from('playlists').insert({
         id,
-        title,
-        description,
-        visibility,
+        name: title,
+        description: description || '',
+        visibility: visibility || 'private',
         owner_id: session.user.id,
-        language: 'Telugu' // Default
       }).select().single();
 
       if (error) throw error;
 
       const newPl: UserPlaylist = {
         id: data.id,
-        title: data.title,
+        title: data.name || data.title || title,
         description: data.description || '',
         coverUrl: data.cover_url || '',
-        visibility: data.visibility as any,
+        visibility: (data.visibility || visibility || 'private') as any,
         ownerId: data.owner_id,
         creator: 'You',
         songIds: [],
@@ -118,18 +117,36 @@ export const usePlaylistStore = create<PlaylistStore>()(
 
   addSongToPlaylist: async (playlistId, song) => {
     try {
-      // First, upsert the song into canonical_songs to ensure it exists
-      await supabase.from('canonical_songs').upsert({
-        id: song.id,
-        title: song.title,
-        artist: song.artist,
-        album: song.album,
-        duration: song.duration,
-        cover_url: song.coverUrl,
-        language: 'Telugu'
-      }, { onConflict: 'id' });
+      // 1. Optimistic UI update: immediately show song in local playlist
+      set(state => ({
+        playlists: state.playlists.map(pl => {
+          if (pl.id === playlistId) {
+            const hasSong = pl.songIds.includes(song.id);
+            if (hasSong) return pl;
+            return {
+              ...pl,
+              songIds: [...pl.songIds, song.id],
+              songs: [...pl.songs, song]
+            };
+          }
+          return pl;
+        })
+      }));
 
-      // Get current max position
+      // 2. Upsert song into canonical_songs if possible
+      try {
+        await supabase.from('canonical_songs').upsert({
+          id: song.id,
+          title: song.title,
+          artist: song.artist,
+          album: song.album,
+          duration: typeof song.duration === 'string' ? song.duration : `${song.duration || 0}`,
+          cover_url: song.coverUrl,
+          language: 'Telugu'
+        }, { onConflict: 'id', ignoreDuplicates: true });
+      } catch (err) {}
+
+      // 3. Get current max position
       const { data: existing } = await supabase
         .from('playlist_songs')
         .select('position')
@@ -139,16 +156,15 @@ export const usePlaylistStore = create<PlaylistStore>()(
 
       const nextPosition = (existing && existing[0]?.position !== undefined) ? existing[0].position + 1 : 1;
 
-      const { data: { session } } = await supabase.auth.getSession();
-
-      const { error } = await supabase.from('playlist_songs').insert({
+      const { error } = await supabase.from('playlist_songs').upsert({
         playlist_id: playlistId,
         song_id: song.id,
         position: nextPosition,
-        added_by: session?.user?.id
-      });
+      }, { onConflict: 'playlist_id,song_id', ignoreDuplicates: true });
 
-      if (error) throw error;
+      if (error && error.code !== '23505' && (error as any).status !== 409) {
+        console.warn('[usePlaylistStore] Add song to playlist warning:', error.message);
+      }
       return true;
     } catch (e) {
       console.error('Failed to add song to playlist:', e);
@@ -158,6 +174,20 @@ export const usePlaylistStore = create<PlaylistStore>()(
 
   removeSongFromPlaylist: async (playlistId, songId) => {
     try {
+      // 1. Optimistic UI update: immediately remove song from local playlist
+      set(state => ({
+        playlists: state.playlists.map(pl => {
+          if (pl.id === playlistId) {
+            return {
+              ...pl,
+              songIds: pl.songIds.filter(id => id !== songId),
+              songs: pl.songs.filter(s => s.id !== songId)
+            };
+          }
+          return pl;
+        })
+      }));
+
       const { error } = await supabase.from('playlist_songs').delete().match({ playlist_id: playlistId, song_id: songId });
       if (error) throw error;
       return true;
