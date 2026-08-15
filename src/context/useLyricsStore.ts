@@ -1,14 +1,29 @@
 import { create } from 'zustand';
 import { LyricsLine, LyricsStatus, LyricsType, LyricsData, LyricsScriptMode } from '@/lib/lyrics/LyricsTypes';
 
+const SCRIPT_MODE_STORAGE_KEY = 'raagax_lyrics_script_mode';
+
+const getStoredScriptMode = (): LyricsScriptMode => {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const saved = localStorage.getItem(SCRIPT_MODE_STORAGE_KEY) as LyricsScriptMode;
+      if (saved === 'native' || saved === 'romanized' || saved === 'both' || saved === 'all') {
+        return saved;
+      }
+    } catch {}
+  }
+  return 'both';
+};
+
 interface LyricsState {
   trackId: string | null;
   status: LyricsStatus;
   type: LyricsType;
   lines: LyricsLine[];
   hasRomanized: boolean;
+  hasTranslation: boolean;
   
-  // Active script presentation mode ('native' | 'romanized' | 'both')
+  // Active script presentation mode ('native' | 'romanized' | 'both' | 'all')
   scriptMode: LyricsScriptMode;
   
   // The actively highlighted line
@@ -30,13 +45,15 @@ export const useLyricsStore = create<LyricsState>((set) => ({
   type: 'plain',
   lines: [],
   hasRomanized: false,
-  scriptMode: 'both',
+  hasTranslation: false,
+  scriptMode: getStoredScriptMode(),
   currentLineIndex: -1,
   userOffsetMs: 0,
 
   setLyricsData: (trackId, data, status) => {
     const lines = data?.lines || [];
     const hasRomanized = lines.some(l => !!l.romanizedText && l.romanizedText !== l.nativeText);
+    const hasTranslation = lines.some(l => !!l.translationText);
 
     return set({
       trackId,
@@ -44,6 +61,7 @@ export const useLyricsStore = create<LyricsState>((set) => ({
       type: data?.type || 'plain',
       lines,
       hasRomanized,
+      hasTranslation,
       currentLineIndex: -1,
       // Reset offset on new track
       userOffsetMs: 0
@@ -54,7 +72,14 @@ export const useLyricsStore = create<LyricsState>((set) => ({
   
   setUserOffsetMs: (offset) => set({ userOffsetMs: offset }),
 
-  setScriptMode: (mode) => set({ scriptMode: mode }),
+  setScriptMode: (mode) => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        localStorage.setItem(SCRIPT_MODE_STORAGE_KEY, mode);
+      } catch {}
+    }
+    set({ scriptMode: mode });
+  },
 
   reset: () => set({
     trackId: null,
@@ -62,6 +87,7 @@ export const useLyricsStore = create<LyricsState>((set) => ({
     type: 'plain',
     lines: [],
     hasRomanized: false,
+    hasTranslation: false,
     currentLineIndex: -1,
     userOffsetMs: 0
   })

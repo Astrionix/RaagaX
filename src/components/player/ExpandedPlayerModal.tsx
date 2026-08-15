@@ -514,13 +514,13 @@ export function ExpandedPlayerModal() {
                 <Mic2 className="w-4 h-4 text-[#fa233b]" /> Live Synced Lyrics
               </div>
 
-              {/* Script Mode Switcher (Native / Romanized / Both) */}
+              {/* Script Mode Switcher (Native / Romanized / Both / All) */}
               {hasRomanized && (
                 <div className="flex items-center p-0.5 rounded-lg border border-white/10 bg-white/5 text-[11px] font-bold">
                   <button
                     onClick={() => setScriptMode('native')}
                     className={`px-2 py-0.5 rounded-md transition-all ${
-                      scriptMode === 'native' ? 'bg-white/20 text-white shadow-sm' : 'text-white/50 hover:text-white'
+                      scriptMode === 'native' ? 'bg-white/20 text-white shadow-sm font-black' : 'text-white/50 hover:text-white'
                     }`}
                   >
                     Native
@@ -528,7 +528,7 @@ export function ExpandedPlayerModal() {
                   <button
                     onClick={() => setScriptMode('romanized')}
                     className={`px-2 py-0.5 rounded-md transition-all ${
-                      scriptMode === 'romanized' ? 'bg-white/20 text-white shadow-sm' : 'text-white/50 hover:text-white'
+                      scriptMode === 'romanized' ? 'bg-white/20 text-white shadow-sm font-black' : 'text-white/50 hover:text-white'
                     }`}
                   >
                     Roman
@@ -536,11 +536,21 @@ export function ExpandedPlayerModal() {
                   <button
                     onClick={() => setScriptMode('both')}
                     className={`px-2 py-0.5 rounded-md transition-all ${
-                      scriptMode === 'both' ? 'bg-white/20 text-white shadow-sm' : 'text-white/50 hover:text-white'
+                      scriptMode === 'both' ? 'bg-white/20 text-white shadow-sm font-black' : 'text-white/50 hover:text-white'
                     }`}
                   >
                     Both
                   </button>
+                  {useLyricsStore.getState().hasTranslation && (
+                    <button
+                      onClick={() => setScriptMode('all')}
+                      className={`px-2 py-0.5 rounded-md transition-all ${
+                        scriptMode === 'all' ? 'bg-white/20 text-white shadow-sm font-black' : 'text-white/50 hover:text-white'
+                      }`}
+                    >
+                      All
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -554,7 +564,7 @@ export function ExpandedPlayerModal() {
             
             <div 
               ref={modalLyricsScrollRef}
-              className="flex-1 overflow-y-auto scrollbar-hide py-16 px-4 space-y-4 sm:space-y-6 flex flex-col items-start"
+              className="flex-1 overflow-y-auto scrollbar-hide py-20 px-3 sm:px-4 space-y-6 sm:space-y-8 flex flex-col items-start"
             >
               {lyricsStatus === 'loading' && (
                 <div className="w-full flex flex-col items-center justify-center py-16 text-white/60 gap-3">
@@ -571,8 +581,9 @@ export function ExpandedPlayerModal() {
                 lyricsLines.map((line, idx) => {
                   const isActive = idx === lyricsIndex;
                   const isPassed = idx < lyricsIndex;
-                  const showNative = scriptMode === 'native' || scriptMode === 'both' || !line.romanizedText;
-                  const showRomanized = (scriptMode === 'romanized' || scriptMode === 'both') && !!line.romanizedText;
+                  const showNative = scriptMode === 'native' || scriptMode === 'both' || scriptMode === 'all' || !line.romanizedText;
+                  const showRomanized = (scriptMode === 'romanized' || scriptMode === 'both' || scriptMode === 'all') && !!line.romanizedText;
+                  const showTranslation = scriptMode === 'all' && !!line.translationText;
 
                   return (
                     <div
@@ -593,18 +604,27 @@ export function ExpandedPlayerModal() {
                       }}
                       className={`w-full text-left transition-all duration-300 transform origin-left cursor-pointer select-none leading-snug py-1
                         ${isActive 
-                          ? 'text-2xl sm:text-4xl font-black text-[#fa233b] drop-shadow-[0_0_25px_rgba(250,35,59,0.85)] scale-[1.03]' 
+                          ? 'text-2xl sm:text-4xl font-black text-[#fa233b] drop-shadow-[0_0_25px_rgba(250,35,59,0.85)] scale-[1.02]' 
                           : isPassed 
-                            ? 'text-lg sm:text-2xl font-bold text-white/30 opacity-40 hover:opacity-75' 
-                            : 'text-lg sm:text-2xl font-bold text-white/60 hover:text-white/95 opacity-70'}
+                            ? 'text-lg sm:text-2xl font-bold text-white/35 opacity-40 hover:opacity-75' 
+                            : 'text-lg sm:text-2xl font-bold text-white/65 hover:text-white/95 opacity-70'}
                       `}
                     >
                       {showNative && (
-                        <div>{line.nativeText || line.text}</div>
+                        <div className="tracking-tight break-words">{line.nativeText || line.text}</div>
                       )}
                       {showRomanized && (
-                        <div className={`${scriptMode === 'both' ? (isActive ? 'text-base sm:text-xl font-semibold opacity-90 mt-1' : 'text-sm sm:text-base font-medium opacity-65 mt-0.5') : ''}`}>
+                        <div className={`break-words ${
+                          scriptMode === 'both' || scriptMode === 'all'
+                            ? (isActive ? 'text-lg sm:text-2xl font-semibold text-white/90 mt-1.5' : 'text-sm sm:text-lg font-medium text-white/55 mt-1')
+                            : ''
+                        }`}>
                           {line.romanizedText}
+                        </div>
+                      )}
+                      {showTranslation && (
+                        <div className="text-sm sm:text-base font-normal italic text-white/65 mt-1 break-words">
+                          {line.translationText}
                         </div>
                       )}
                     </div>

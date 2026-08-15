@@ -113,29 +113,30 @@ export function LyricsPanel() {
           ref={scrollRef}
           onWheel={handleScroll}
           onTouchMove={handleScroll}
-          className="flex-1 overflow-y-auto scrollbar-hide py-32 space-y-4 flex flex-col items-start px-2"
+          className="flex-1 overflow-y-auto scrollbar-hide py-32 space-y-5 flex flex-col items-start px-2"
         >
           {lines.map((line, index) => {
             const isActive = index === currentLineIndex;
             const isPassed = index < currentLineIndex;
             
-            const showNative = scriptMode === 'native' || scriptMode === 'both' || !line.romanizedText;
-            const showRomanized = (scriptMode === 'romanized' || scriptMode === 'both') && !!line.romanizedText;
+            const showNative = scriptMode === 'native' || scriptMode === 'both' || scriptMode === 'all' || !line.romanizedText;
+            const showRomanized = (scriptMode === 'romanized' || scriptMode === 'both' || scriptMode === 'all') && !!line.romanizedText;
+            const showTranslation = scriptMode === 'all' && !!line.translationText;
 
             return (
               <div
                 key={line.id}
                 id={`lyric-line-${index}`}
                 className={`transition-all duration-300 transform origin-left w-full text-left cursor-pointer select-none
-                  ${type === 'plain' ? (isLight ? 'text-sm text-slate-800 font-medium' : 'text-sm text-white font-medium') : ''}
+                  ${type === 'plain' ? (isLight ? 'text-base text-slate-800 font-medium' : 'text-base text-white font-medium') : ''}
                   ${type === 'line-synced' ? (
                     isActive 
                       ? (isLight 
-                          ? 'text-xl sm:text-2xl font-black text-[#D90429] drop-shadow-[0_0_14px_rgba(217,4,41,0.3)] scale-[1.03]' 
-                          : 'text-xl sm:text-2xl font-black text-[#FA233B] drop-shadow-[0_0_20px_rgba(250,35,59,0.55)] scale-[1.03]')
+                          ? 'text-2xl sm:text-3xl font-black text-[#D90429] drop-shadow-[0_0_14px_rgba(217,4,41,0.3)] scale-[1.02]' 
+                          : 'text-2xl sm:text-3xl font-black text-[#FA233B] drop-shadow-[0_0_20px_rgba(250,35,59,0.55)] scale-[1.02]')
                       : isPassed 
-                        ? (isLight ? 'text-base sm:text-lg font-bold text-slate-400/80' : 'text-base sm:text-lg font-bold text-white/35')
-                        : (isLight ? 'text-base sm:text-lg font-bold text-slate-600 hover:text-slate-900' : 'text-base sm:text-lg font-bold text-white/60 hover:text-white/90')
+                        ? (isLight ? 'text-lg sm:text-xl font-bold text-slate-400/70' : 'text-lg sm:text-xl font-bold text-white/30')
+                        : (isLight ? 'text-lg sm:text-xl font-bold text-slate-600 hover:text-slate-900' : 'text-lg sm:text-xl font-bold text-white/60 hover:text-white/90')
                   ) : ''}
                 `}
                 onClick={() => {
@@ -153,11 +154,24 @@ export function LyricsPanel() {
                 }}
               >
                 {showNative && (
-                  <div className="leading-snug">{line.nativeText || line.text}</div>
+                  <div className="leading-snug break-words tracking-tight">
+                    {line.nativeText || line.text}
+                  </div>
                 )}
                 {showRomanized && (
-                  <div className={`leading-snug ${scriptMode === 'both' ? (isActive ? 'text-sm sm:text-base font-semibold opacity-90 mt-1 tracking-wide' : 'text-xs sm:text-sm font-medium opacity-75 mt-0.5') : ''}`}>
+                  <div className={`break-words tracking-normal ${
+                    scriptMode === 'both' || scriptMode === 'all'
+                      ? (isActive 
+                          ? 'text-base sm:text-lg font-semibold text-white/90 dark:text-white/90 mt-1.5' 
+                          : 'text-sm sm:text-base font-medium text-white/60 dark:text-white/50 mt-1')
+                      : 'leading-snug'
+                  }`}>
                     {line.romanizedText}
+                  </div>
+                )}
+                {showTranslation && (
+                  <div className="text-xs sm:text-sm font-normal italic text-white/70 dark:text-white/60 mt-1 break-words">
+                    {line.translationText}
                   </div>
                 )}
               </div>
@@ -197,7 +211,7 @@ export function LyricsPanel() {
           <h3 className={`text-base font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>Live Synced Lyrics</h3>
         </div>
         
-        {/* Script Mode Switcher (Native / Romanized / Both) */}
+        {/* Script Mode Switcher (Native / Romanized / Both / All) */}
         {hasRomanized && (
           <div className={`flex items-center p-0.5 rounded-lg border text-[11px] font-bold ${
             isLight ? 'bg-slate-100 border-slate-200' : 'bg-white/5 border-white/10'
@@ -206,7 +220,7 @@ export function LyricsPanel() {
               onClick={() => setScriptMode('native')}
               className={`px-2 py-0.5 rounded-md transition-all ${
                 scriptMode === 'native' 
-                  ? (isLight ? 'bg-white text-slate-900 shadow-sm' : 'bg-white/20 text-white shadow-sm')
+                  ? (isLight ? 'bg-white text-slate-900 shadow-sm font-black' : 'bg-white/20 text-white shadow-sm font-black')
                   : (isLight ? 'text-slate-500 hover:text-slate-900' : 'text-white/50 hover:text-white')
               }`}
             >
@@ -216,7 +230,7 @@ export function LyricsPanel() {
               onClick={() => setScriptMode('romanized')}
               className={`px-2 py-0.5 rounded-md transition-all ${
                 scriptMode === 'romanized' 
-                  ? (isLight ? 'bg-white text-slate-900 shadow-sm' : 'bg-white/20 text-white shadow-sm')
+                  ? (isLight ? 'bg-white text-slate-900 shadow-sm font-black' : 'bg-white/20 text-white shadow-sm font-black')
                   : (isLight ? 'text-slate-500 hover:text-slate-900' : 'text-white/50 hover:text-white')
               }`}
             >
@@ -226,12 +240,24 @@ export function LyricsPanel() {
               onClick={() => setScriptMode('both')}
               className={`px-2 py-0.5 rounded-md transition-all ${
                 scriptMode === 'both' 
-                  ? (isLight ? 'bg-white text-slate-900 shadow-sm' : 'bg-white/20 text-white shadow-sm')
+                  ? (isLight ? 'bg-white text-slate-900 shadow-sm font-black' : 'bg-white/20 text-white shadow-sm font-black')
                   : (isLight ? 'text-slate-500 hover:text-slate-900' : 'text-white/50 hover:text-white')
               }`}
             >
               Both
             </button>
+            {useLyricsStore.getState().hasTranslation && (
+              <button
+                onClick={() => setScriptMode('all')}
+                className={`px-2 py-0.5 rounded-md transition-all ${
+                  scriptMode === 'all' 
+                    ? (isLight ? 'bg-white text-slate-900 shadow-sm font-black' : 'bg-white/20 text-white shadow-sm font-black')
+                    : (isLight ? 'text-slate-500 hover:text-slate-900' : 'text-white/50 hover:text-white')
+                }`}
+              >
+                All
+              </button>
+            )}
           </div>
         )}
 

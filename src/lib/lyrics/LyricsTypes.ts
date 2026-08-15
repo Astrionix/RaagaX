@@ -1,6 +1,6 @@
 export type LyricsStatus = 'idle' | 'loading' | 'ready' | 'unavailable' | 'error';
 export type LyricsType = 'plain' | 'line-synced';
-export type LyricsScriptMode = 'native' | 'romanized' | 'both';
+export type LyricsScriptMode = 'native' | 'romanized' | 'both' | 'all';
 
 export interface LyricsLine {
   id: string;
