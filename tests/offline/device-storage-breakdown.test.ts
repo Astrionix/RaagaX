@@ -24,6 +24,27 @@ if (typeof window === 'undefined' || !(window as any).addEventListener) {
 (global as any).localStorage = mockLocalStorage;
 (global as any).sessionStorage = mockLocalStorage;
 
+const mockStorageEstimate = {
+  quota: 512 * 1024 * 1024 * 1024,
+  usage: (4.2 * 1024 * 1024 * 1024) + (800 * 1024 * 1024),
+  usageDetails: {
+    indexedDB: 4.2 * 1024 * 1024 * 1024,
+    caches: 800 * 1024 * 1024,
+  }
+};
+
+Object.defineProperty(global, 'navigator', {
+  value: {
+    onLine: true,
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    storage: {
+      estimate: vi.fn().mockResolvedValue(mockStorageEstimate)
+    }
+  },
+  writable: true,
+  configurable: true
+});
+
 const mockSong1: Song = {
   id: 'song_storage_001',
   title: 'Hoyna Hoyna',
