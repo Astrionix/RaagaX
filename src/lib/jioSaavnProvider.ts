@@ -25,7 +25,7 @@ function decode(s: string): string {
     .replace(/&gt;/g, '>');
 }
 
-function mapTrackToSong(track: any, idx: number): Song {
+export function mapTrackToSong(track: any, idx: number = 0): Song {
   const pa = track.artists?.primary || track.artists?.all || [];
   const artist =
     pa.length > 0

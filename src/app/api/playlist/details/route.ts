@@ -52,12 +52,21 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 2. Resolve on Cache Miss (Try Spotify first, then JioSaavn if ID is numeric or Spotify returns empty)
+    // 2. Resolve on Cache Miss (Try Spotify with a safe timeout, then JioSaavn)
     const baseUrl = getBaseUrl(req);
     const resolver = new PlaylistResolver(baseUrl);
-    let resolvedSongs = await resolver.resolveSpotifyPlaylist(playlistId);
+    
+    // Timeout Spotify resolution after 8 seconds so Vercel function does not time out (10s max on hobby)
+    let resolvedSongs: Song[] = [];
+    try {
+      const resolvePromise = resolver.resolveSpotifyPlaylist(playlistId);
+      const timeoutPromise = new Promise<Song[]>((resolve) => setTimeout(() => resolve([]), 8000));
+      resolvedSongs = await Promise.race([resolvePromise, timeoutPromise]);
+    } catch (e) {
+      console.warn('[PLAYLIST DETAILS API] Spotify resolver error:', e);
+    }
 
-    // If Spotify didn't resolve (e.g. numeric JioSaavn ID like 150750109 or legacy playlist)
+    // If Spotify didn't resolve (e.g. numeric JioSaavn ID like 150750109 or Spotify timed out)
     if (!resolvedSongs || resolvedSongs.length === 0) {
       try {
         const { JioSaavnProvider } = await import('@/lib/jioSaavnProvider');
@@ -69,6 +78,21 @@ export async function GET(req: NextRequest) {
       } catch (saavnErr) {
         console.warn('[PLAYLIST DETAILS API] JioSaavn fallback error:', saavnErr);
       }
+    }
+
+    // Direct search fallback if still empty (ensures playlist ALWAYS loads songs)
+    if (!resolvedSongs || resolvedSongs.length === 0) {
+      try {
+        const searchRes = await fetch(`${baseUrl}/api/search/songs?query=${encodeURIComponent(`Top ${lang} Songs`)}&limit=25`);
+        if (searchRes.ok) {
+          const searchData = await searchRes.json();
+          const raw = searchData.data?.results || searchData.results || [];
+          if (raw.length > 0) {
+            const { mapTrackToSong } = await import('@/lib/jioSaavnProvider');
+            resolvedSongs = raw.map(mapTrackToSong);
+          }
+        }
+      } catch {}
     }
 
     const sourceTrackCount = (resolvedSongs as any)?.sourceTrackCount ?? resolvedSongs?.length ?? 0;
