@@ -10,6 +10,8 @@ import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { OfflineCatalog } from '@/lib/offline/OfflineCatalog';
 import { LocalDatabase } from '@/lib/offline/LocalDatabase';
 import { useAuthStore } from '@/context/useAuthStore';
+import { usePlaylistStore } from '@/context/usePlaylistStore';
+import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 import { Song } from '@/types/music';
 
 export function LibraryView() {
@@ -96,10 +98,18 @@ export function LibraryView() {
     }
   });
 
-  // Automatically fetch metadata for any liked song IDs not yet in memory
+  const { playlists: userPlaylists = [], fetchPlaylists } = usePlaylistStore();
+  const { setSelectedArtistId, setSelectedPlaylistId, setActiveTab, setCreatePlaylistModalOpen } = usePlayerStore();
+
   useEffect(() => {
-    if (likedSongIds.length === 0) return;
-    const missingIds = likedSongIds.filter((id) => !knownSongsMap.has(id));
+    fetchPlaylists();
+  }, [fetchPlaylists]);
+
+  // Automatically fetch metadata for any liked or history song IDs not yet in memory
+  useEffect(() => {
+    const allNeededIds = Array.from(new Set([...likedSongIds, ...historySongIds]));
+    if (allNeededIds.length === 0) return;
+    const missingIds = allNeededIds.filter((id) => !knownSongsMap.has(id));
     if (missingIds.length === 0) return;
 
     import('@/lib/discovery/SongResolver').then(({ SongResolver }) => {
@@ -115,7 +125,7 @@ export function LibraryView() {
         }
       }).catch((e) => console.warn('[LibraryView] SongResolver error:', e));
     });
-  }, [likedSongIds]);
+  }, [likedSongIds, historySongIds]);
 
   const likedSongs = likedSongIds
     .map((id) => knownSongsMap.get(id) || {
@@ -140,15 +150,29 @@ export function LibraryView() {
     .filter((s): s is Song => Boolean(s));
 
   const historySongs = historySongIds
-    .map((id) => knownSongsMap.get(id))
-    .filter((s): s is Song => Boolean(s));
+    .map((id) => knownSongsMap.get(id) || {
+      id,
+      title: 'Played Track',
+      artist: 'Unknown Artist',
+      album: 'Recent History',
+      coverUrl: '/app-icon.png',
+      duration: 210,
+      audioUrl: '',
+      artistId: 'unknown',
+      albumId: 'unknown',
+      genre: 'Various',
+      category: 'global_trending' as const,
+      releaseYear: new Date().getFullYear(),
+      plays: 1,
+      likes: 0
+    });
 
   const libraryNavItems = [
     { id: 'liked', label: 'Liked Songs', icon: Heart, count: likedSongIds.length, color: 'text-[#F51B3D]', bg: 'bg-[#F51B3D]/10' },
     { id: 'downloads', label: 'Downloaded', icon: Download, count: downloadedSongIds.length, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-    { id: 'playlists', label: 'Playlists', icon: ListMusic, count: 0, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+    { id: 'playlists', label: 'Playlists', icon: ListMusic, count: userPlaylists.length, color: 'text-purple-400', bg: 'bg-purple-500/10' },
     { id: 'history', label: 'Recently Played', icon: Clock, count: historySongIds.length, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-    { id: 'artists', label: 'Artists', icon: User, count: favoriteArtistIds.length, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+    { id: 'artists', label: 'Artists', icon: User, count: favoriteArtistIds.length > 0 ? favoriteArtistIds.length : 6, color: 'text-blue-400', bg: 'bg-blue-500/10' },
     { id: 'albums', label: 'Albums', icon: Disc, count: favoriteAlbumIds.length, color: 'text-rose-400', bg: 'bg-rose-500/10' },
   ];
 
@@ -164,7 +188,7 @@ export function LibraryView() {
         <div className="flex flex-col items-center justify-center py-20 text-[#8E92A4]">
           <Music className="w-12 h-12 mb-4 opacity-40 text-slate-500" />
           <p className="text-sm font-semibold text-white">No songs found in {title} yet.</p>
-          <p className="text-xs text-[#8E92A4] mt-1">Songs added or liked will appear here.</p>
+          <p className="text-xs text-[#8E92A4] mt-1">Songs added or played will appear here.</p>
         </div>
       );
     }
@@ -236,6 +260,90 @@ export function LibraryView() {
       case 'downloads':
         content = renderSongList(downloadedSongs, 'Downloads');
         break;
+      case 'playlists':
+        content = (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-[#8E92A4]">{userPlaylists.length} Playlists</span>
+              <button
+                onClick={() => setCreatePlaylistModalOpen(true)}
+                className="px-3.5 py-1.5 rounded-full bg-[#FA233B] text-white text-xs font-bold shadow-md shadow-[#FA233B]/20"
+              >
+                + New Playlist
+              </button>
+            </div>
+            {userPlaylists.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {userPlaylists.map((pl) => (
+                  <div
+                    key={pl.id}
+                    onClick={() => {
+                      setSelectedPlaylistId(pl.id);
+                      setActiveTab('playlist');
+                    }}
+                    className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 hover:bg-white/5 transition-all flex items-center gap-3.5 cursor-pointer group"
+                  >
+                    <img
+                      src={pl.coverUrl || pl.songs?.[0]?.coverUrl || '/app-icon.png'}
+                      alt={pl.title}
+                      className="w-12 h-12 rounded-xl object-cover bg-slate-800 flex-shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-xs font-bold text-white group-hover:text-[#FA233B] transition-colors truncate">
+                        {pl.title}
+                      </h4>
+                      <p className="text-[11px] text-[#8E92A4] truncate mt-0.5">
+                        {pl.songs?.length || pl.songIds?.length || 0} tracks • By You
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-20 text-[#8E92A4]">
+                <ListMusic className="w-12 h-12 mb-4 opacity-40 text-purple-400" />
+                <p className="text-sm font-semibold text-white">No playlists created yet.</p>
+                <button
+                  onClick={() => setCreatePlaylistModalOpen(true)}
+                  className="mt-3 px-4 py-2 rounded-full bg-[#FA233B] text-white text-xs font-bold"
+                >
+                  Create Your First Playlist
+                </button>
+              </div>
+            )}
+          </div>
+        );
+        break;
+      case 'artists':
+        content = (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {POPULAR_ARTISTS.map((artist) => (
+                <div
+                  key={artist.id}
+                  onClick={() => {
+                    setSelectedArtistId(artist.id);
+                    setActiveTab('artist');
+                  }}
+                  className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 hover:bg-white/5 text-center space-y-2.5 cursor-pointer group transition-all"
+                >
+                  <img
+                    src={artist.image}
+                    alt={artist.name}
+                    className="w-18 h-18 rounded-full mx-auto object-cover shadow-md group-hover:scale-105 transition-transform bg-slate-800"
+                  />
+                  <div>
+                    <h4 className="text-xs font-bold text-white group-hover:text-[#FA233B] transition-colors truncate">
+                      {artist.name}
+                    </h4>
+                    <p className="text-[10px] text-[#8E92A4] mt-0.5 truncate">{artist.genres.join(' • ')}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+        break;
       default:
         content = (
           <div className="flex flex-col items-center justify-center py-20 text-[#8E92A4]">
@@ -256,7 +364,7 @@ export function LibraryView() {
           </button>
           <div>
             <h1 className="text-2xl font-black text-white tracking-tight">{activeItem?.label}</h1>
-            <p className="text-xs text-[#8E92A4]">{activeItem?.count} tracks in your cloud library</p>
+            <p className="text-xs text-[#8E92A4]">{activeItem?.count} items in your cloud library</p>
           </div>
         </div>
         {content}
