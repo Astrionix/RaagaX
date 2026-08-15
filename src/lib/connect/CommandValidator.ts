@@ -64,9 +64,10 @@ export class CommandValidator {
       }
     }
 
-    // 4. Revision Validation
-    if (command.revision && command.revision < this.currentRevision) {
-      console.warn(`[CommandValidator] Rejected stale revision ${command.revision} < current ${this.currentRevision}`);
+    // 4. Revision Validation (only apply to standard playback commands, never block transfer negotiation or ACKs)
+    const isTransferControlCommand = command.type.startsWith('TRANSFER_') || command.type === 'COMMAND_ACK' || command.type === 'WEBRTC_SIGNAL';
+    if (!isTransferControlCommand && typeof command.revision === 'number' && command.revision < this.currentRevision) {
+      console.warn(`[CommandValidator] Rejected stale revision ${command.revision} < current ${this.currentRevision} for ${command.type}`);
       return false;
     }
 
