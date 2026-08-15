@@ -422,7 +422,7 @@ CREATE TABLE public.spotify_playlist_cache (
 -- ============================================================================
 CREATE TABLE public.user_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     event_type TEXT NOT NULL,
     song_id TEXT,
     album_id TEXT,
@@ -436,16 +436,19 @@ CREATE TABLE public.user_events (
 );
 
 CREATE TABLE public.user_artist_affinity (
-    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     artist_id TEXT NOT NULL,
     score INT DEFAULT 0,
+    like_count INT DEFAULT 0,
+    play_count INT DEFAULT 0,
     interaction_count INT DEFAULT 0,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
     last_interaction TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (user_id, artist_id)
 );
 
 CREATE TABLE public.user_genre_affinity (
-    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     genre TEXT NOT NULL,
     score INT DEFAULT 0,
     interaction_count INT DEFAULT 0,
@@ -454,7 +457,7 @@ CREATE TABLE public.user_genre_affinity (
 );
 
 CREATE TABLE public.user_language_affinity (
-    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     language VARCHAR(50) NOT NULL,
     score INT DEFAULT 0,
     state VARCHAR(20) DEFAULT 'BLOCKED',
@@ -558,6 +561,8 @@ ALTER TABLE public.spotify_playlist_cache ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow public read access on artists" ON public.artists FOR SELECT USING (true);
 CREATE POLICY "Allow public read access on movies" ON public.movies FOR SELECT USING (true);
 CREATE POLICY "Allow public read access on canonical_songs" ON public.canonical_songs FOR SELECT USING (true);
+CREATE POLICY "Allow insert on canonical_songs" ON public.canonical_songs FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow update on canonical_songs" ON public.canonical_songs FOR UPDATE USING (true);
 CREATE POLICY "Allow public read access on song_artists" ON public.song_artists FOR SELECT USING (true);
 CREATE POLICY "Allow public read access on movie_songs" ON public.movie_songs FOR SELECT USING (true);
 CREATE POLICY "Allow public read access on charts" ON public.charts FOR SELECT USING (true);

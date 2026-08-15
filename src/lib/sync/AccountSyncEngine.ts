@@ -32,6 +32,9 @@ export class AccountSyncEngine {
   private channel: any = null;
   private subscribedUserId: string | null = null;
   private hasUserDownloadsTable: boolean = true;
+  private inFlightReconcile: Promise<string[]> | null = null;
+  private lastReconcileTime = 0;
+  private lastReconciledUser: string | null = null;
 
   private constructor() {
     if (typeof window !== 'undefined') {
@@ -44,20 +47,13 @@ export class AccountSyncEngine {
         this.isOnline = false;
       });
 
-      // Auto-listen to auth changes and reconcile
+      // Auto-listen to auth changes and reconcile idempotently
       supabase.auth.onAuthStateChange((event, session) => {
         if (session?.user?.id) {
           this.subscribeToRealtime(session.user.id);
           this.reconcile(session.user.id);
         } else {
           this.unsubscribe();
-        }
-      });
-
-      supabase.auth.getSession().then(({ data }) => {
-        if (data.session?.user?.id) {
-          this.subscribeToRealtime(data.session.user.id);
-          this.reconcile(data.session.user.id);
         }
       });
     }
@@ -337,11 +333,26 @@ export class AccountSyncEngine {
 
   public async reconcile(userId: string): Promise<string[]> {
     if (!this.isUUID(userId)) return [];
-    try {
-      const localDb = LocalDatabase.getInstance();
-      const { usePlayerStore } = await import('@/context/usePlayerStore');
-      const { usePlaylistStore } = await import('@/context/usePlaylistStore');
-      const { OfflineCatalog } = await import('@/lib/offline/OfflineCatalog');
+
+    // Coalesce duplicate concurrent reconcile calls
+    if (this.inFlightReconcile && this.lastReconciledUser === userId) {
+      return this.inFlightReconcile;
+    }
+
+    const now = Date.now();
+    if (this.lastReconciledUser === userId && now - this.lastReconcileTime < 800) {
+      return [];
+    }
+
+    this.lastReconciledUser = userId;
+    this.lastReconcileTime = now;
+
+    this.inFlightReconcile = (async () => {
+      try {
+        const localDb = LocalDatabase.getInstance();
+        const { usePlayerStore } = await import('@/context/usePlayerStore');
+        const { usePlaylistStore } = await import('@/context/usePlaylistStore');
+        const { OfflineCatalog } = await import('@/lib/offline/OfflineCatalog');
 
       // 1. Reconcile Liked Songs
       const { data: likedData, error: likedError } = await supabase
@@ -426,18 +437,23 @@ export class AccountSyncEngine {
         }
       }
 
-      // 5. Authoritative Local Device Storage Check
-      // IMPORTANT RULE: Only mark as locally downloaded if the actual audio file is present in IndexedDB on THIS device!
-      const catalog = OfflineCatalog.getInstance();
-      const allLocalTracks = await catalog.getAllTracks();
-      const localIds = allLocalTracks.map((t) => t.trackId);
-      usePlayerStore.setState({ downloadedSongIds: localIds });
+        // 5. Authoritative Local Device Storage Check
+        // IMPORTANT RULE: Only mark as locally downloaded if the actual audio file is present in IndexedDB on THIS device!
+        const catalog = OfflineCatalog.getInstance();
+        const allLocalTracks = await catalog.getAllTracks();
+        const localIds = allLocalTracks.map((t) => t.trackId);
+        usePlayerStore.setState({ downloadedSongIds: localIds });
 
-      return localIds;
-    } catch (e) {
-      console.warn('[AccountSyncEngine] Reconcile error:', e);
-    }
-    return [];
+        return localIds;
+      } catch (e) {
+        console.warn('[AccountSyncEngine] Reconcile error:', e);
+        return [];
+      } finally {
+        this.inFlightReconcile = null;
+      }
+    })();
+
+    return this.inFlightReconcile;
   }
 
   // --- LIKES ---
