@@ -43,25 +43,35 @@ export class LyricsEngine {
   }
 
   public getEffectivePositionMs(): number {
-    // Tier 1: Web audio element with sub-millisecond precision via PlaybackEngine
-    try {
-      const engine = PlaybackEngine.getInstance();
-      const mediaMs = engine.getMediaPositionMs();
-      if (mediaMs > 0) return mediaMs;
-    } catch {}
+    const store = usePlayerStore.getState();
 
-    // Tier 2: Direct active audio element from PlaybackService
-    try {
-      const { PlaybackService } = require('@/lib/playback/PlaybackService');
-      const active = PlaybackService.getInstance().getActiveAudio();
-      if (active && !isNaN(active.currentTime) && active.currentTime > 0) {
-        return active.currentTime * 1000;
+    // Tier 1: Web audio element with sub-millisecond precision via PlaybackEngine (Local Player)
+    if (store.isActiveDevice) {
+      try {
+        const engine = PlaybackEngine.getInstance();
+        const mediaMs = engine.getMediaPositionMs();
+        if (mediaMs > 0) return mediaMs;
+      } catch {}
+
+      try {
+        const { PlaybackService } = require('@/lib/playback/PlaybackService');
+        const active = PlaybackService.getInstance().getActiveAudio();
+        if (active && !isNaN(active.currentTime) && active.currentTime > 0) {
+          return active.currentTime * 1000;
+        }
+      } catch {}
+    } else {
+      // Tier 2: Remote Connect Controller — Interpolate from remote anchor timestamp for 0ms lag
+      if (store.remoteAnchorPositionMs !== undefined && store.remoteAnchorTimeMs) {
+        const elapsed = Date.now() - store.remoteAnchorTimeMs;
+        const liveRemoteMs = store.remoteAnchorPositionMs + (store.isPlaying ? elapsed : 0);
+        if (liveRemoteMs >= 0) return liveRemoteMs;
       }
-    } catch {}
+    }
 
-    // Tier 3: Universal centralized usePlayerStore (ExoPlayer Native, Spotify Connect, Offline)
+    // Tier 3: Universal centralized usePlayerStore (ExoPlayer Native, Offline fallback)
     try {
-      const storeTime = usePlayerStore.getState().currentTime;
+      const storeTime = store.currentTime;
       if (storeTime !== undefined && !isNaN(storeTime) && storeTime > 0) {
         return storeTime * 1000;
       }
