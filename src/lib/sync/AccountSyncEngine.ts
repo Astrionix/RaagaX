@@ -401,6 +401,25 @@ export class AccountSyncEngine {
         console.warn('[AccountSyncEngine] Failed to reconcile favorites:', favErr);
       }
 
+      // 4. Reconcile Recently Played (listening_events)
+      try {
+        const { data: historyData, error: historyError } = await supabase
+          .from('listening_events')
+          .select('song_id')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (!historyError && historyData && historyData.length > 0) {
+          const cloudHistory = Array.from(new Set(historyData.map((d: any) => d.song_id).filter(Boolean)));
+          const currentHistory = usePlayerStore.getState().historySongIds || [];
+          const mergedHistory = Array.from(new Set([...cloudHistory, ...currentHistory])).slice(0, 50);
+          usePlayerStore.setState({ historySongIds: mergedHistory });
+        }
+      } catch (historyErr) {
+        console.warn('[AccountSyncEngine] Failed to reconcile history:', historyErr);
+      }
+
       // 4. Reconcile Cloud Download Records (User's Cloud Download List)
       if (this.hasUserDownloadsTable) {
         try {

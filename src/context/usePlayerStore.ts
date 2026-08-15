@@ -708,7 +708,10 @@ export const usePlayerStore = create<PlayerState>()(
     const syncedQueue = snapshot.items.map((i: any) => i.song);
     const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
 
-    // Atomically commit playing state, queue & queueIndex
+    // Atomically commit playing state, queue & queueIndex + update local Recently Played history
+    const existingHistory = get().historySongIds.filter(id => id !== song.id);
+    const updatedHistory = [song.id, ...existingHistory].slice(0, 50);
+
     set({ 
       isPlaying: true, 
       playbackIntent: 'PLAYING',
@@ -717,9 +720,27 @@ export const usePlayerStore = create<PlayerState>()(
       currentTime: 0, 
       currentSong: song, 
       queue: syncedQueue, 
-      queueIndex: syncedIndex 
+      queueIndex: syncedIndex,
+      historySongIds: updatedHistory
     });
-    persistSessionHelper({ ...get(), currentSong: song, currentTime: 0, queue: syncedQueue, queueIndex: syncedIndex });
+    persistSessionHelper({ ...get(), currentSong: song, currentTime: 0, queue: syncedQueue, queueIndex: syncedIndex, historySongIds: updatedHistory });
+
+    // Track playback activity to Supabase listening_events & user_events for cross-device Recently Played
+    import('@/context/useAuthStore').then(({ useAuthStore }) => {
+      const authUser = useAuthStore.getState().user;
+      if (authUser?.id) {
+        import('@/lib/supabase').then(async ({ supabase }) => {
+          try {
+            await supabase.from('listening_events').insert({
+              id: crypto.randomUUID(),
+              user_id: authUser.id,
+              song_id: song.id,
+              created_at: new Date().toISOString(),
+            });
+          } catch {}
+        });
+      }
+    });
 
     // Ensure local device owns playback if not explicitly connected to a remote device
     if (!get().connectedDeviceId) {
