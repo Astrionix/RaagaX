@@ -42,10 +42,24 @@ export class AccountSyncEngine {
       window.addEventListener('online', () => {
         this.isOnline = true;
         this.flushPendingMutations();
+        if (this.subscribedUserId) {
+          this.subscribeToRealtime(this.subscribedUserId);
+          this.reconcile(this.subscribedUserId);
+        }
       });
       window.addEventListener('offline', () => {
         this.isOnline = false;
       });
+
+      // Handle App Foreground / Visibility Resume (Reconcile missed changes and resubscribe if needed)
+      if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible' && this.subscribedUserId) {
+            this.subscribeToRealtime(this.subscribedUserId);
+            this.reconcile(this.subscribedUserId);
+          }
+        });
+      }
 
       // Auto-listen to auth changes and reconcile idempotently
       supabase.auth.onAuthStateChange((event, session) => {
@@ -72,8 +86,8 @@ export class AccountSyncEngine {
 
   public async subscribeToRealtime(userId: string) {
     if (!this.isUUID(userId)) return;
-    if (this.subscribedUserId === userId && this.channel) {
-      return; // Already subscribed
+    if (this.subscribedUserId === userId && this.channel && this.channel.state === 'joined') {
+      return; // Already actively subscribed
     }
 
     this.unsubscribe();
@@ -82,7 +96,7 @@ export class AccountSyncEngine {
     const channelName = `user-account-sync:${userId}`;
 
     try {
-      const rawChannels = supabase.getChannels();
+      const rawChannels = typeof supabase.getChannels === 'function' ? supabase.getChannels() : [];
       const channels = Array.isArray(rawChannels) ? rawChannels : [];
       const existing = channels.find((c: any) => c.topic === `realtime:${channelName}` || c.topic === channelName);
       if (existing) {
@@ -105,7 +119,6 @@ export class AccountSyncEngine {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'liked_songs', filter: `user_id=eq.${userId}` },
           (payload: any) => {
-            console.log('[AccountSyncEngine] Realtime liked_songs update detected:', payload.eventType);
             this.handleRealtimeLikedSongs(userId, payload);
             triggerReconcile();
           }
@@ -114,7 +127,6 @@ export class AccountSyncEngine {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'playlists', filter: `owner_id=eq.${userId}` },
           (payload: any) => {
-            console.log('[AccountSyncEngine] Realtime playlists update detected:', payload.eventType);
             this.handleRealtimePlaylists(userId, payload);
             triggerReconcile();
           }
@@ -123,7 +135,6 @@ export class AccountSyncEngine {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'playlist_songs' },
           (payload: any) => {
-            console.log('[AccountSyncEngine] Realtime playlist_songs update detected:', payload.eventType);
             this.handleRealtimePlaylistSongs(payload);
             triggerReconcile();
           }
@@ -132,7 +143,6 @@ export class AccountSyncEngine {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'user_favorites', filter: `user_id=eq.${userId}` },
           (payload: any) => {
-            console.log('[AccountSyncEngine] Realtime user_favorites update detected:', payload.eventType);
             this.handleRealtimeUserFavorites(userId, payload);
             triggerReconcile();
           }
@@ -141,7 +151,6 @@ export class AccountSyncEngine {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'user_library_state', filter: `user_id=eq.${userId}` },
           () => {
-            console.log('[AccountSyncEngine] Realtime library revision bump detected, reconciling...');
             triggerReconcile();
           }
         )
@@ -149,11 +158,14 @@ export class AccountSyncEngine {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'user_downloads', filter: `user_id=eq.${userId}` },
           () => {
-            console.log('[AccountSyncEngine] Realtime user_downloads update detected, reconciling...');
             triggerReconcile();
           }
         )
-        .subscribe();
+        .subscribe((status, err) => {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.warn(`[AccountSyncEngine] Realtime channel status: ${status}`, err);
+          }
+        });
     } catch (err) {
       console.warn('[AccountSyncEngine] Realtime subscription error:', err);
     }

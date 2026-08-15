@@ -49,6 +49,8 @@ export function DeviceSyncProvider({ children }: { children: React.ReactNode }) 
       initQueueSystem();
       
       if (user?.id) {
+        const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
+        AccountSyncEngine.getInstance().subscribeToRealtime(user.id);
         await usePlayerStore.getState().syncCloudLibrary();
       }
       
@@ -273,14 +275,14 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
                   }}
                   className="px-2.5 py-1 rounded-lg bg-[#fa233b] hover:bg-[#d91533] text-white text-[10px] font-bold transition-all active:scale-95"
                 >
-                  Play Here
+                  Play on this device
                 </button>
               )}
             </div>
 
             {/* Other Online / Available Devices */}
             <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 px-1 pt-1">
-              Available Devices
+              OTHER DEVICES
             </div>
 
             {onlineDevices.filter(d => d.id !== deviceId).map((device) => {
@@ -290,7 +292,7 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
               const preview = availableDevicePlaybackStates?.[device.id];
               const previewText = preview?.isPlaying && preview.songTitle 
                 ? `Playing · ${preview.songTitle}` 
-                : 'Available';
+                : 'Ready';
 
               return (
                 <div
@@ -343,7 +345,7 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
                           }}
                           className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-[10px] font-bold border border-emerald-500/30 transition-all active:scale-95"
                         >
-                          {isTargetTransfer ? 'Switching...' : 'Play'}
+                          {isTargetTransfer ? 'Switching playback…' : 'Play on this device'}
                         </button>
                       </>
                     )}

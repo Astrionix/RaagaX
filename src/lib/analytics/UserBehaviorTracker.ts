@@ -87,6 +87,7 @@ export class UserBehaviorTracker {
     if (userId && this.isUUID(userId) && navigator.onLine) {
       try {
         const { error: eventError } = await supabase.from('user_events').insert({
+          id: crypto.randomUUID(),
           user_id: userId,
           event_type: event.event_type,
           song_id: event.song_id,
@@ -107,7 +108,7 @@ export class UserBehaviorTracker {
             await supabase.from('user_artist_affinity').upsert({
               user_id: userId,
               artist_id: event.artist_id,
-              score: weight,
+              score: Math.round(weight),
               like_count: event.event_type === 'LIKE' ? 1 : 0,
               play_count: event.event_type === 'PLAY' || event.event_type === 'COMPLETE' ? 1 : 0,
               updated_at: new Date().toISOString()

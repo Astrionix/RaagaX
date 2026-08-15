@@ -55,38 +55,54 @@ export function PlaylistDetailView() {
           return;
         }
 
-        // Fetch songs
+        // Fetch songs with resilient join & store fallback
         const { data: mappings } = await supabase
           .from('playlist_songs')
-          .select('position, canonical_songs(*)')
+          .select('song_id, position')
           .eq('playlist_id', selectedPlaylistId)
           .order('position', { ascending: true });
 
-        const mappedSongs: Song[] = (mappings || [])
-          .filter((m: any) => m && m.canonical_songs)
-          .map((m: any) => ({
-            id: m.canonical_songs.id,
-            title: m.canonical_songs.title || 'Untitled Track',
-            artist: m.canonical_songs.artist || 'Unknown Artist',
-            artistId: m.canonical_songs.artist,
-            album: m.canonical_songs.album || '',
-            albumId: m.canonical_songs.album,
-            duration: m.canonical_songs.duration || 210,
-            coverUrl: m.canonical_songs.cover_url || '/app-icon.png',
-            audioUrl: '', // StreamResolver handles this
-            genre: 'Telugu',
-            category: 'latest_telugu',
-            releaseYear: 2026,
-            plays: 0,
-            likes: 0
-          }));
+        const songIds = (mappings || []).map((m: any) => m.song_id).filter(Boolean);
+
+        // Check local store songs first to provide instantaneous updates
+        const localStorePlaylists = usePlaylistStore.getState().playlists;
+        const currentPlInStore = localStorePlaylists.find(p => p.id === selectedPlaylistId);
+        const storeSongsMap = new Map((currentPlInStore?.songs || []).map(s => [s.id, s]));
+
+        let mappedSongs: Song[] = [];
+        if (songIds.length > 0) {
+          const { SongResolver } = await import('@/lib/discovery/SongResolver');
+          const resolved = await SongResolver.resolveSongs(songIds);
+          const resolvedMap = new Map(resolved.map(s => [s.id, s]));
+
+          mappedSongs = songIds.map(id => {
+            if (resolvedMap.has(id)) return resolvedMap.get(id)!;
+            if (storeSongsMap.has(id)) return storeSongsMap.get(id)!;
+            return {
+              id,
+              title: 'Track ' + id.slice(0, 6),
+              artist: 'RaagaX Artist',
+              album: '',
+              duration: 210,
+              coverUrl: '/app-icon.png',
+              audioUrl: '',
+              genre: 'Telugu',
+              category: 'latest_telugu',
+              releaseYear: 2026,
+              plays: 0,
+              likes: 0
+            } as Song;
+          });
+        } else if (currentPlInStore && currentPlInStore.songs && currentPlInStore.songs.length > 0) {
+          mappedSongs = currentPlInStore.songs;
+        }
 
         if (isMounted) {
           setPlaylist({
             id: plData.id,
             title: plData.name || plData.title || 'Untitled Playlist',
             description: plData.description || '',
-            coverUrl: plData.cover_url || '/app-icon.png',
+            coverUrl: plData.cover_url || mappedSongs[0]?.coverUrl || '/app-icon.png',
             songs: mappedSongs,
             isUserOwned: true,
             ownerId: plData.owner_id
@@ -121,7 +137,7 @@ export function PlaylistDetailView() {
     fetchPlaylist();
       
     return () => { isMounted = false; };
-  }, [selectedPlaylistId]);
+  }, [selectedPlaylistId, usePlaylistStore(state => state.playlists)]);
 
   if (isLoading) {
     return (

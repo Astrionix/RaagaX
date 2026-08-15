@@ -52,25 +52,42 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 2. Resolve on Cache Miss
+    // 2. Resolve on Cache Miss (Try Spotify first, then JioSaavn if ID is numeric or Spotify returns empty)
     const baseUrl = getBaseUrl(req);
     const resolver = new PlaylistResolver(baseUrl);
-    const resolvedSongs = await resolver.resolveSpotifyPlaylist(playlistId);
-    const sourceTrackCount = (resolvedSongs as any).sourceTrackCount ?? resolvedSongs.length;
-    const resolvedCount = (resolvedSongs as any).uniqueMatchedTrackCount ?? resolvedSongs.length;
+    let resolvedSongs = await resolver.resolveSpotifyPlaylist(playlistId);
 
-    if (resolvedSongs.length > 0) {
-      await supabaseAdmin.from('spotify_playlist_cache').upsert({
-        playlist_id: playlistId,
-        playlist_name: `${lang} Playlist`,
-        language: lang,
-        category: 'Playlist',
-        track_count: sourceTrackCount,
-        resolved_count: resolvedCount,
-        data: resolvedSongs,
-        fetched_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7).toISOString(), // 7 days
-      });
+    // If Spotify didn't resolve (e.g. numeric JioSaavn ID like 150750109 or legacy playlist)
+    if (!resolvedSongs || resolvedSongs.length === 0) {
+      try {
+        const { JioSaavnProvider } = await import('@/lib/jioSaavnProvider');
+        const saavn = JioSaavnProvider.getInstance(baseUrl);
+        const songs = await saavn.getPlaylistSongs(playlistId);
+        if (songs && songs.length > 0) {
+          resolvedSongs = songs;
+        }
+      } catch (saavnErr) {
+        console.warn('[PLAYLIST DETAILS API] JioSaavn fallback error:', saavnErr);
+      }
+    }
+
+    const sourceTrackCount = (resolvedSongs as any)?.sourceTrackCount ?? resolvedSongs?.length ?? 0;
+    const resolvedCount = (resolvedSongs as any)?.uniqueMatchedTrackCount ?? resolvedSongs?.length ?? 0;
+
+    if (resolvedSongs && resolvedSongs.length > 0) {
+      try {
+        await supabaseAdmin.from('spotify_playlist_cache').upsert({
+          playlist_id: playlistId,
+          playlist_name: `${lang} Playlist`,
+          language: lang,
+          category: 'Playlist',
+          track_count: sourceTrackCount,
+          resolved_count: resolvedCount,
+          data: resolvedSongs,
+          fetched_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7).toISOString(), // 7 days
+        });
+      } catch {}
 
       return NextResponse.json({
         success: true,
@@ -83,7 +100,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ success: false, error: 'No songs resolved' }, { status: 404 });
+    return NextResponse.json({ success: false, error: 'No songs resolved for this playlist' }, { status: 404 });
   } catch (err: any) {
     console.error('[PLAYLIST DETAILS API] Error:', err);
     return NextResponse.json({ success: false, error: err.message || 'Internal server error' }, { status: 500 });

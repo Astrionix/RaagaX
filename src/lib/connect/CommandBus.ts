@@ -362,6 +362,39 @@ export class CommandBus {
         }
         break;
       }
+
+      case 'TRANSFER_ACCEPTED': {
+        console.log(`[CommandBus] Received TRANSFER_ACCEPTED for transition: ${command.transitionId}`);
+        TransferManager.getInstance().handleTransferAccepted(command);
+        break;
+      }
+
+      case 'TRANSFER_READY': {
+        console.log(`[CommandBus] Received TRANSFER_READY for transition: ${command.transitionId}`);
+        TransferManager.getInstance().handleTransferReady(command);
+        break;
+      }
+
+      case 'TRANSFER_COMMIT': {
+        const storeDeviceId = usePlayerStore.getState().deviceId;
+        if (!command.targetDeviceId || command.targetDeviceId === this.localDeviceId || command.targetDeviceId === storeDeviceId) {
+          console.log(`[CommandBus] Received TRANSFER_COMMIT for this device (${storeDeviceId || this.localDeviceId})`);
+          TransferManager.getInstance().handleIncomingTransferCommit(command);
+        }
+        break;
+      }
+
+      case 'TRANSFER_COMMITTED': {
+        console.log(`[CommandBus] Received TRANSFER_COMMITTED for transition: ${command.transitionId}`);
+        TransferManager.getInstance().handleTransferCommitted(command);
+        break;
+      }
+
+      case 'TRANSFER_ROLLBACK': {
+        console.log(`[CommandBus] Received TRANSFER_ROLLBACK for transition: ${command.transitionId}`);
+        TransferManager.getInstance().handleTransferRollback(command.transitionId, (command.payload as any)?.reason);
+        break;
+      }
         
       case 'COMMAND_ACK':
         console.log('[CommandBus] Received ACK:', command.payload);

@@ -53,12 +53,13 @@ export class DeviceRegistry {
   }
 
   public getFriendlyDeviceName(): { name: string; type: 'mobile' | 'desktop' | 'tv' | 'tablet'; platform: string } {
-    if (typeof window === 'undefined') return { name: 'RaagaX Server', type: 'desktop', platform: 'server' };
+    if (typeof window === 'undefined') return { name: 'My Device', type: 'desktop', platform: 'server' };
 
     const ua = navigator.userAgent;
     const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(ua);
     const isTablet = /Tablet|iPad/i.test(ua);
     const isTV = /TV|SmartTV|GoogleTV|AppleTV/i.test(ua);
+    const capNative = typeof (window as any).Capacitor?.isNativePlatform === 'function' && (window as any).Capacitor.isNativePlatform();
 
     let type: 'mobile' | 'desktop' | 'tv' | 'tablet' = 'desktop';
     if (isTV) type = 'tv';
@@ -77,13 +78,24 @@ export class DeviceRegistry {
       return { name: customName.trim(), type, platform };
     }
 
-    let name = `${platform} ${type === 'mobile' ? 'Phone' : type === 'desktop' ? 'PC' : 'Device'}`;
-    if (/Chrome/i.test(ua) && !/Edg/i.test(ua)) name = `${platform} (Chrome)`;
-    else if (/Edg/i.test(ua)) name = `${platform} (Edge)`;
-    else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) name = `${platform} (Safari)`;
-    else if (/Firefox/i.test(ua)) name = `${platform} (Firefox)`;
+    // Stable friendly device naming per user requirement (Requirement 13, 14, 15)
+    let friendlyName = 'My Laptop';
+    if (isTV) {
+      friendlyName = 'Living Room TV';
+    } else if (isTablet) {
+      friendlyName = platform === 'iOS' ? 'iPad' : 'Android Tablet';
+    } else if (isMobile || capNative) {
+      friendlyName = platform === 'iOS' ? 'iPhone' : 'Android Phone';
+    } else if (platform === 'macOS') {
+      friendlyName = 'MacBook';
+    } else if (platform === 'Windows') {
+      friendlyName = 'My Laptop';
+    }
 
-    return { name, type, platform };
+    // Persist friendly name once generated
+    localStorage.setItem('raagax_device_name', friendlyName);
+
+    return { name: friendlyName, type, platform };
   }
 
   public async setCustomDeviceName(name: string): Promise<void> {
@@ -241,21 +253,33 @@ export class DeviceRegistry {
       } catch (e) {}
     }
 
-    console.log(`[DeviceRegistry] Subscribing to device presence for user ${userId}`);
-
     let presenceTimeout: NodeJS.Timeout | null = null;
+    let lastEventProcessedAt = 0;
+
     this.presenceChannel = supabase.channel(channelName)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'devices',
         filter: `user_id=eq.${userId}`
-      }, () => {
-        console.log('[DeviceRegistry] Device presence change detected via Realtime');
+      }, (payload: any) => {
+        // Distinguish pure heartbeat updates (only last_seen changed) from meaningful presence state changes
+        const now = Date.now();
+        if (payload?.eventType === 'UPDATE' && payload.new && payload.old) {
+          const isOnlyHeartbeat = payload.new.is_online === payload.old.is_online &&
+                                  payload.new.device_name === payload.old.device_name &&
+                                  payload.new.device_type === payload.old.device_type;
+          if (isOnlyHeartbeat && (now - lastEventProcessedAt < 10000)) {
+            // Heartbeat update without meaningful change - suppress excessive re-fetch
+            return;
+          }
+        }
+
+        lastEventProcessedAt = now;
         if (presenceTimeout) clearTimeout(presenceTimeout);
         presenceTimeout = setTimeout(() => {
           this.fetchAndPublishOnlineDevices(userId);
-        }, 500);
+        }, 1200);
       })
       .subscribe();
 
@@ -318,7 +342,7 @@ export class DeviceRegistry {
       }
 
       const now = Date.now();
-      const STALE_THRESHOLD_MS = 30000;
+      const STALE_THRESHOLD_MS = 45000; // 45s grace period to avoid flicker
 
       const activeDevices: DeviceRecord[] = data
         .filter((d: any) => {
@@ -335,13 +359,19 @@ export class DeviceRegistry {
           capabilities: d.capabilities
         }));
 
-      // Update Zustand store so modal automatically rerenders online devices
-      usePlayerStore.getState().setOnlineDevices(activeDevices.map(d => ({ 
-        id: d.id, 
-        name: d.name,
-        platform: d.platform,
-        isOnline: d.isOnline 
-      })));
+      // Update Zustand store only if device list meaningfully changed
+      const currentList = usePlayerStore.getState().onlineDevices || [];
+      const isListIdentical = currentList.length === activeDevices.length &&
+        activeDevices.every((ad, idx) => currentList[idx]?.id === ad.id && currentList[idx]?.name === ad.name);
+
+      if (!isListIdentical) {
+        usePlayerStore.getState().setOnlineDevices(activeDevices.map(d => ({ 
+          id: d.id, 
+          name: d.name,
+          platform: d.platform,
+          isOnline: d.isOnline 
+        })));
+      }
 
       return activeDevices;
     } catch (e) {
@@ -353,7 +383,7 @@ export class DeviceRegistry {
   private startAdaptiveHeartbeat() {
     if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
     
-    // Lightweight heartbeat every 25 seconds to maintain online presence without any playback position overhead
+    // Lightweight heartbeat every 30 seconds to maintain online presence
     this.heartbeatInterval = setInterval(async () => {
       const store = usePlayerStore.getState();
       
@@ -364,11 +394,9 @@ export class DeviceRegistry {
         await supabase.from('devices')
           .update({ last_seen: new Date().toISOString(), is_online: true })
           .match({ user_id: session.user.id, device_id: store.deviceId });
-
-        await this.fetchAndPublishOnlineDevices(session.user.id);
       } catch (e) {
-        console.warn('[DeviceRegistry] Heartbeat failed:', e);
+        // Non-critical background heartbeat
       }
-    }, 25000);
+    }, 30000);
   }
 }

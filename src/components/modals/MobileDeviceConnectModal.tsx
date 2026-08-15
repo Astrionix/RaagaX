@@ -185,11 +185,11 @@ export function MobileDeviceConnectModal() {
         {/* SCROLLABLE DEVICE LIST */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
           
-          {/* SECTION 1: CURRENT DEVICE */}
+          {/* SECTION 1: PLAYING ON */}
           <div>
             <div className="flex items-center justify-between mb-2.5">
               <span className="text-[11px] font-black text-white/60 uppercase tracking-wider">
-                {isRemoteConnected ? 'CONTROLLING REMOTE DEVICE' : 'CURRENT DEVICE'}
+                {isRemoteConnected ? 'CONTROLLING REMOTE DEVICE' : 'PLAYING ON'}
               </span>
               <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider border ${
                 isRemoteConnected 
@@ -244,10 +244,10 @@ export function MobileDeviceConnectModal() {
             </div>
           </div>
 
-          {/* SECTION 2: AVAILABLE DEVICES */}
+          {/* SECTION 2: OTHER DEVICES */}
           <div>
             <span className="text-[11px] font-black text-white/60 uppercase tracking-wider block mb-2.5">
-              AVAILABLE DEVICES
+              OTHER DEVICES
             </span>
 
             <div className="space-y-2.5">
@@ -272,10 +272,10 @@ export function MobileDeviceConnectModal() {
                     {transferringId === deviceId ? (
                       <>
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Switching...</span>
+                        <span>Switching playback…</span>
                       </>
                     ) : (
-                      <span>Play Here</span>
+                      <span>Play on this device</span>
                     )}
                   </button>
                 </div>
@@ -289,7 +289,7 @@ export function MobileDeviceConnectModal() {
                 const preview = availableDevicePlaybackStates?.[dev.id];
                 const previewText = preview?.isPlaying && preview.songTitle 
                   ? `Playing · ${preview.songTitle}` 
-                  : 'Available';
+                  : 'Ready';
 
                 return (
                   <div key={dev.id} className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 flex items-center justify-between transition-all hover:bg-white/[0.06]">
@@ -330,10 +330,10 @@ export function MobileDeviceConnectModal() {
                             {isTransferring ? (
                               <>
                                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                <span>Switching...</span>
+                                <span>Switching playback…</span>
                               </>
                             ) : (
-                              <span>Play Here</span>
+                              <span>Play on this device</span>
                             )}
                           </button>
                         </>

@@ -170,20 +170,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
     }));
 
     try {
-      // 2. Upsert song into canonical_songs if possible
-      try {
-        await supabase.from('canonical_songs').upsert({
-          id: song.id,
-          title: song.title,
-          artist: song.artist,
-          album: song.album,
-          duration: typeof song.duration === 'string' ? song.duration : `${song.duration || 0}`,
-          cover_url: song.coverUrl,
-          language: 'Telugu'
-        }, { onConflict: 'id', ignoreDuplicates: true });
-      } catch (err) {}
-
-      // 3. Get current max position
+      // 2. Get current max position in playlist
       const { data: existing } = await supabase
         .from('playlist_songs')
         .select('position')
@@ -193,6 +180,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
 
       const nextPosition = (existing && existing[0]?.position !== undefined) ? existing[0].position + 1 : 1;
 
+      // 3. Insert/Upsert into playlist_songs
       const { error } = await supabase.from('playlist_songs').upsert({
         playlist_id: playlistId,
         song_id: song.id,

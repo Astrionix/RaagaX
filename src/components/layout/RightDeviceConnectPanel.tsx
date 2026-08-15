@@ -72,10 +72,10 @@ export function RightDeviceConnectPanel() {
                   </h4>
                   <p className="text-[11px] text-slate-400 mt-0.5">
                     {isTargetTransfer 
-                      ? 'Switching audio...' 
+                      ? 'Switching playback…' 
                       : isActive 
                       ? '● Playing here' 
-                      : 'Available'}
+                      : 'Ready'}
                   </p>
                 </div>
               </div>
@@ -83,7 +83,7 @@ export function RightDeviceConnectPanel() {
               {isActive ? (
                 <Check className="w-4 h-4 text-[#1ed760]" />
               ) : isTargetTransfer ? (
-                <span className="text-[10px] font-bold text-amber-400 animate-pulse">Switching...</span>
+                <span className="text-[10px] font-bold text-amber-400 animate-pulse">Switching playback…</span>
               ) : null}
             </button>
           );
