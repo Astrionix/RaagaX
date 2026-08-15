@@ -315,23 +315,43 @@ export class LocalPeerConnection {
         }
       };
 
-      await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
 
-      this.sendSignal(senderId, {
-        type: 'answer',
-        sdp: answer
-      });
+        this.sendSignal(senderId, {
+          type: 'answer',
+          sdp: answer
+        });
+      } catch (err) {
+        console.warn(`[LocalPeer] Error creating answer for ${senderId}:`, err);
+      }
 
     } else if (signal.type === 'answer') {
       console.log(`[LocalPeer] Received answer from ${senderId}`);
       if (pc) {
-        await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        try {
+          if (pc.signalingState === 'have-local-offer' || pc.signalingState === 'have-remote-pranswer') {
+            await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          } else if (pc.signalingState === 'stable') {
+            console.debug(`[LocalPeer] Ignoring redundant answer SDP for ${senderId} - connection is already stable.`);
+          } else {
+            console.warn(`[LocalPeer] Skipping setRemoteDescription in state: ${pc.signalingState}`);
+          }
+        } catch (err) {
+          console.warn(`[LocalPeer] Error applying remote answer SDP from ${senderId}:`, err);
+        }
       }
     } else if (signal.type === 'candidate') {
       if (pc && signal.candidate) {
-        await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+        try {
+          if (pc.remoteDescription && pc.remoteDescription.type) {
+            await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+          }
+        } catch (err) {
+          console.debug(`[LocalPeer] ICE candidate ignored for ${senderId}:`, err);
+        }
       }
     }
   }
