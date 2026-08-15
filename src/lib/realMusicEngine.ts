@@ -331,22 +331,24 @@ export class RealMusicEngine {
 
   private deduplicate(songs: Song[]): Song[] {
     const seenIds = new Set<string>();
-    const seenTitles = new Set<string>();
+    const seenComposites = new Set<string>();
     const unique: Song[] = [];
     for (const song of songs) {
       if (!song.id || seenIds.has(song.id)) continue;
-      const clean = song.title
+      
+      const cleanTitle = song.title
         .toLowerCase()
-        .replace(/\(from[^)]*\)/gi, '')
-        .replace(/\([^)]*\)/g, '')
-        .replace(/\[[^\]]*\]/g, '')
-        .replace(/\b(lofi|remix|slowed|reverb|flip|mix|instrumental|version|feat)\b/gi, '')
         .replace(/[^a-z0-9]/gi, '')
         .trim();
-      const key = clean.length >= 3 ? clean : song.title.toLowerCase().trim();
-      if (seenTitles.has(key)) continue;
+      const firstArtist = (song.artist || '').split(',')[0].toLowerCase().replace(/[^a-z0-9]/gi, '').trim();
+      const compositeKey = `${cleanTitle}:::${firstArtist}`;
+
+      if (compositeKey.length > 5 && seenComposites.has(compositeKey)) continue;
+
       seenIds.add(song.id);
-      seenTitles.add(key);
+      if (compositeKey.length > 5) {
+        seenComposites.add(compositeKey);
+      }
       unique.push(song);
     }
     return unique;
