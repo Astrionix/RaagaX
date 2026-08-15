@@ -304,7 +304,13 @@ export function LibraryView() {
           return (
             <button
               key={item.id}
-              onClick={() => setTab(item.id)}
+              onClick={() => {
+                if (item.id === 'downloads') {
+                  usePlayerStore.getState().setActiveTab('downloads');
+                } else {
+                  setTab(item.id);
+                }
+              }}
               className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/15 hover:bg-white/[0.05] transition-all flex items-center justify-between group text-left"
             >
               <div className="flex items-center gap-3.5">

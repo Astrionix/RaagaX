@@ -166,11 +166,18 @@ export function DownloadsView() {
 
   return (
     <div className="space-y-6 pb-12 text-white select-none">
-      {/* Header with Dynamic Device Identity & Offline Switch */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-black text-white tracking-tight">Downloads & Storage</h1>
+            <button
+              onClick={() => usePlayerStore.getState().setActiveTab('library')}
+              className="md:hidden p-2 -ml-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
+              title="Back to Library"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Downloads & Storage</h1>
             <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] font-bold text-slate-300">
               {renderDeviceIcon()}
               {storageInfo?.platform || 'Device'}
