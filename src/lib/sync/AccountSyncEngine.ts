@@ -147,22 +147,10 @@ export class AccountSyncEngine {
             triggerReconcile();
           }
         )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'user_library_state', filter: `user_id=eq.${userId}` },
-          () => {
-            triggerReconcile();
-          }
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'user_downloads', filter: `user_id=eq.${userId}` },
-          () => {
-            triggerReconcile();
-          }
-        )
         .subscribe((status, err) => {
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          if (status === 'SUBSCRIBED') {
+            console.log('[AccountSyncEngine] Subscribed to account realtime changes');
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
             console.warn(`[AccountSyncEngine] Realtime channel status: ${status}`, err);
           }
         });
