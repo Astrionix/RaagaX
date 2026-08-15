@@ -109,6 +109,19 @@ export function PlaylistDetailView() {
           } as any);
           setIsLoading(false);
         }
+      } else if (selectedPlaylistId.startsWith('album:')) {
+        // Direct Album Loader — never routes to /api/playlist/details
+        try {
+          const albumData = await RealMusicEngine.getInstance().getPlaylistDetails(selectedPlaylistId);
+          if (albumData && isMounted) {
+            setPlaylist(albumData);
+            setIsLoading(false);
+            return;
+          }
+        } catch (e) {
+          console.warn('Failed to load album:', e);
+        }
+        if (isMounted) setIsLoading(false);
       } else {
         const prefLang = usePlayerStore.getState().preferredLanguage || 'Telugu';
         try {
