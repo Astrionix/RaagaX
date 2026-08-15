@@ -95,18 +95,33 @@ export class SearchSongsUseCase implements IUseCase<SearchSongsArgs, z.infer<typ
             params: { pids: songIds.join(',') }
           });
 
-          const rawList = Array.isArray(songsDetailRes.data?.songs) 
-            ? songsDetailRes.data.songs 
-            : Array.isArray(songsDetailRes.data) 
-              ? songsDetailRes.data 
-              : Object.values(songsDetailRes.data?.songs || {});
+          let rawList: any[] = [];
+          if (Array.isArray(songsDetailRes.data?.songs)) {
+            rawList = songsDetailRes.data.songs;
+          } else if (Array.isArray(songsDetailRes.data)) {
+            rawList = songsDetailRes.data;
+          } else if (songsDetailRes.data?.songs && typeof songsDetailRes.data.songs === 'object') {
+            rawList = Object.values(songsDetailRes.data.songs);
+          } else if (songsDetailRes.data && typeof songsDetailRes.data === 'object') {
+            rawList = Object.values(songsDetailRes.data).filter((x: any) => x && typeof x === 'object' && x.id);
+          }
 
           if (rawList.length > 0) {
-            return {
-              total: rawList.length,
-              start: 0,
-              results: rawList.map(createSongPayload).slice(0, limit)
-            };
+            const mapped = rawList.map((item: any) => {
+              try {
+                return createSongPayload(item);
+              } catch {
+                return null;
+              }
+            }).filter(Boolean);
+
+            if (mapped.length > 0) {
+              return {
+                total: mapped.length,
+                start: 0,
+                results: mapped.slice(0, limit) as any
+              };
+            }
           }
         }
       }
