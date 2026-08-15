@@ -1,10 +1,9 @@
-'use client';
-
-import React, { useState, useEffect } from 'react';
-import { Heart, Play, User, Music, Shuffle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Heart, Play, User, Music, Shuffle, Loader2 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { OfflineCatalog } from '@/lib/offline/OfflineCatalog';
+import { SongResolver } from '@/lib/discovery/SongResolver';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 import { Song } from '@/types/music';
 
@@ -25,6 +24,9 @@ export function FavoritesView() {
   } = usePlayerStore();
 
   const [offlineTracks, setOfflineTracks] = useState<Song[]>([]);
+  const [resolvedSongsMap, setResolvedSongsMap] = useState<Record<string, Song>>({});
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const resolvingRef = useRef<boolean>(false);
 
   useEffect(() => {
     OfflineCatalog.getInstance().getAllTracks().then((tracks) => {
@@ -53,14 +55,15 @@ export function FavoritesView() {
     });
   }, [likedSongIds.length]);
 
-  // Combine store likedSongs, queue, cloud download records, and offline tracks to resolve full liked songs list
-  const songMap = new Map<string, Song>();
-  likedSongs.forEach((s) => { if (s?.id) songMap.set(s.id, s); });
-  queue.forEach((s) => { if (s?.id) songMap.set(s.id, s); });
-  offlineTracks.forEach((s) => { if (s?.id) songMap.set(s.id, s); });
+  // Combine known store songs, queue, and offline tracks into seed map
+  const knownMap = new Map<string, Song>();
+  likedSongs.forEach((s) => { if (s?.id) knownMap.set(s.id, s); });
+  queue.forEach((s) => { if (s?.id) knownMap.set(s.id, s); });
+  offlineTracks.forEach((s) => { if (s?.id) knownMap.set(s.id, s); });
+  Object.values(resolvedSongsMap).forEach((s) => { if (s?.id) knownMap.set(s.id, s); });
   cloudDownloadRecords.forEach((r) => {
-    if (r?.song_id && !songMap.has(r.song_id)) {
-      songMap.set(r.song_id, {
+    if (r?.song_id && !knownMap.has(r.song_id)) {
+      knownMap.set(r.song_id, {
         id: r.song_id,
         title: r.song_title || 'Unknown Title',
         artist: r.song_artist || 'Unknown Artist',
@@ -79,9 +82,54 @@ export function FavoritesView() {
     }
   });
 
-  const resolvedLikedSongs = likedSongIds
-    .map((id) => songMap.get(id))
-    .filter((s): s is Song => Boolean(s));
+  // Automatically fetch metadata for any liked song IDs not yet in memory
+  useEffect(() => {
+    if (likedSongIds.length === 0) return;
+    const missingIds = likedSongIds.filter((id) => !knownMap.has(id));
+    if (missingIds.length === 0 || resolvingRef.current) return;
+
+    resolvingRef.current = true;
+    setIsLoading(true);
+
+    SongResolver.resolveSongs(missingIds)
+      .then((resolved) => {
+        if (resolved && resolved.length > 0) {
+          setResolvedSongsMap((prev) => {
+            const updated = { ...prev };
+            resolved.forEach((song) => {
+              if (song?.id) updated[song.id] = song;
+            });
+            return updated;
+          });
+        }
+      })
+      .catch((e) => {
+        console.warn('[FavoritesView] Error resolving missing liked songs:', e);
+      })
+      .finally(() => {
+        resolvingRef.current = false;
+        setIsLoading(false);
+      });
+  }, [likedSongIds]);
+
+  // Single canonical resolved liked songs array
+  const resolvedLikedSongs: Song[] = likedSongIds
+    .map((id) => knownMap.get(id) || {
+      id,
+      title: 'Liked Track',
+      artist: 'Unknown Artist',
+      album: 'Liked Songs',
+      coverUrl: '/app-icon.png',
+      duration: 210,
+      audioUrl: '',
+      artistId: 'unknown',
+      albumId: 'unknown',
+      genre: 'Various',
+      category: 'global_trending' as const,
+      releaseYear: new Date().getFullYear(),
+      plays: 0,
+      likes: 1
+    });
 
   const favoriteArtists = POPULAR_ARTISTS.filter((a) => favoriteArtistIds.includes(a.id));
 
@@ -162,7 +210,12 @@ export function FavoritesView() {
       {/* Content View */}
       {activeSubTab === 'songs' && (
         <div className="space-y-3">
-          {resolvedLikedSongs.length > 0 ? (
+          {isLoading && resolvedLikedSongs.length === 0 ? (
+            <div className="py-16 text-center text-slate-500 space-y-3 bg-white/[0.02] rounded-2xl border border-white/5 flex flex-col items-center justify-center">
+              <Loader2 className="w-6 h-6 text-[#FA233B] animate-spin" />
+              <p className="text-xs font-bold text-white">Loading your favorites...</p>
+            </div>
+          ) : resolvedLikedSongs.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
               {resolvedLikedSongs.map((song, idx) => (
                 <div
