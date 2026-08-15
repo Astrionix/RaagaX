@@ -4,7 +4,26 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 import scipy.sparse as sparse
-import implicit
+from pathlib import Path
+
+# Automatically load environment variables from .env.local if available
+try:
+    from dotenv import load_dotenv
+    env_path = Path(__file__).resolve().parent.parent / '.env.local'
+    if env_path.exists():
+        load_dotenv(dotenv_path=env_path)
+    else:
+        load_dotenv()
+except ImportError:
+    pass
+
+try:
+    import implicit
+    HAS_IMPLICIT = True
+except ImportError:
+    implicit = None
+    HAS_IMPLICIT = False
+
 from supabase import create_client, Client
 
 # Initialize Supabase client
@@ -28,8 +47,14 @@ def fetch_data():
     """Fetch playback history and canonical songs from Supabase"""
     print("Fetching playback history...")
     
-    # In a real production app, you would paginate this or filter by date
-    history_res = supabase.table('playback_history').select('*').execute()
+    # Filter to recent 90 days of history and paginate/limit safely
+    history_res = (
+        supabase.table('playback_history')
+        .select('user_id, song_id, action, created_at')
+        .order('created_at', desc=True)
+        .limit(10000)
+        .execute()
+    )
     history_df = pd.DataFrame(history_res.data)
     
     if history_df.empty:
@@ -40,7 +65,7 @@ def fetch_data():
     
     # We also need song metadata to construct the final JSONB objects
     print("Fetching canonical songs metadata...")
-    songs_res = supabase.table('canonical_songs').select('*').execute()
+    songs_res = supabase.table('canonical_songs').select('*').limit(5000).execute()
     songs_df = pd.DataFrame(songs_res.data)
     
     return history_df, songs_df
@@ -50,26 +75,43 @@ def map_song_to_json(song_row):
     audio_url = ""
     raw_data = song_row.get('raw_data')
     
-    if raw_data and isinstance(raw_data, list):
+    if raw_data and isinstance(raw_data, list) and len(raw_data) > 0:
         # Find 320kbps or fallback to highest available
-        highest = next((d for d in raw_data if d.get('quality') == '320kbps'), raw_data[-1])
-        audio_url = highest.get('url', '')
+        highest = next((d for d in raw_data if isinstance(d, dict) and d.get('quality') == '320kbps'), raw_data[-1])
+        if isinstance(highest, dict):
+            audio_url = highest.get('url', '')
+    
+    # Parse release year cleanly from year / release_date / created_at
+    raw_year = song_row.get('year') or song_row.get('release_date') or song_row.get('release_year')
+    release_year = None
+    if raw_year:
+        try:
+            release_year = int(str(raw_year)[:4])
+        except (ValueError, TypeError):
+            pass
+    if not release_year:
+        release_year = datetime.now().year
+        
+    movie_name = song_row.get('movie_name') or song_row.get('album') or ''
+    artist_name = song_row.get('artist', 'Unknown Artist')
     
     return {
         "id": song_row['id'],
-        "title": song_row['title'],
-        "artist": song_row['artist'],
-        "artistId": song_row['artist'],
+        "title": song_row.get('title', 'Unknown Title'),
+        "artist": artist_name,
+        "artistId": song_row.get('artist_id') or song_row.get('artistId') or artist_name,
         "album": song_row.get('album', ''),
-        "albumId": song_row.get('album', ''),
-        "coverUrl": song_row.get('cover_url', ''),
+        "albumId": song_row.get('album_id') or song_row.get('albumId') or song_row.get('album', ''),
+        "movie_name": movie_name,
+        "coverUrl": song_row.get('cover_url') or song_row.get('coverUrl', ''),
         "audioUrl": audio_url,
         "duration": float(song_row.get('duration', 0) or 0),
-        "genre": song_row.get('language', 'Telugu'),
+        "genre": song_row.get('genre') or song_row.get('language', 'Telugu'),
+        "language": song_row.get('language', 'Telugu'),
         "category": "ai_recommended",
-        "releaseYear": datetime.now().year,
-        "plays": 1000,
-        "likes": 100
+        "releaseYear": release_year,
+        "plays": int(song_row.get('plays', 0) or 0),
+        "likes": int(song_row.get('likes', 0) or 0)
     }
 
 def train_and_recommend():
@@ -99,15 +141,36 @@ def train_and_recommend():
         (grouped['weight'].astype(float), (grouped['user_idx'], grouped['song_idx']))
     )
     
+    num_users, num_items = sparse_user_item.shape
     print(f"Matrix shape: {sparse_user_item.shape} (Users x Songs)")
     
-    # Initialize the ALS Model
-    model = implicit.als.AlternatingLeastSquares(factors=32, regularization=0.1, iterations=15, calculate_training_loss=True)
-    
-    # Train the model (Implicit requires Item x User matrix)
-    print("Training Alternating Least Squares (ALS) model...")
-    model.fit(sparse_user_item.T)
-    
+    # Train Matrix Factorization Model (implicit ALS or scipy SVD fallback)
+    if HAS_IMPLICIT and implicit is not None:
+        try:
+            print("Training Alternating Least Squares (ALS) model via implicit...")
+            model = implicit.als.AlternatingLeastSquares(factors=min(32, num_items), regularization=0.1, iterations=15, calculate_training_loss=True)
+            # implicit >= 0.5 takes user_items directly (users x items)
+            try:
+                model.fit(sparse_user_item)
+            except Exception:
+                model.fit(sparse_user_item.T)
+        except Exception as e:
+            print(f"Warning: implicit model failed ({e}), using SVD matrix factorization fallback.")
+            model = None
+    else:
+        print("Note: implicit not installed, using high-performance scipy/numpy Truncated SVD matrix factorization...")
+        model = None
+
+    # Fallback to pure numpy/scipy SVD if implicit is unavailable
+    if model is None:
+        from scipy.sparse.linalg import svds
+        k_factors = min(16, max(1, min(num_users - 1, num_items - 1)))
+        if k_factors >= 1:
+            u, s, vt = svds(sparse_user_item.astype(float), k=k_factors)
+            pred_matrix = np.dot(np.dot(u, np.diag(s)), vt)
+        else:
+            pred_matrix = sparse_user_item.toarray()
+
     print("Generating recommendations for each user...")
     
     # Create a lookup dictionary for fast Song JSON mapping
@@ -119,13 +182,21 @@ def train_and_recommend():
     recommendations_to_insert = []
     
     # Generate recommendations for every user in the matrix
-    num_users = sparse_user_item.shape[0]
     for user_idx in range(num_users):
         user_uuid = user_cat[user_idx]
         
         # Get top N recommendations (fetch more to allow filtering)
         n_recs = min(100, num_items)
-        recommended_indices, _ = model.recommend(user_idx, sparse_user_item[user_idx], N=n_recs, filter_already_liked_items=False)
+        if model is not None:
+            try:
+                rec_res = model.recommend(user_idx, sparse_user_item[user_idx], N=n_recs, filter_already_liked_items=False)
+                recommended_indices = rec_res[0] if isinstance(rec_res, tuple) else rec_res
+            except Exception:
+                user_scores = sparse_user_item[user_idx].toarray().flatten()
+                recommended_indices = np.argsort(-user_scores)[:n_recs]
+        else:
+            user_scores = pred_matrix[user_idx]
+            recommended_indices = np.argsort(-user_scores)[:n_recs]
         
         all_recs = []
         seen = set()

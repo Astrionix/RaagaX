@@ -7,6 +7,7 @@ import { QueueManager } from '@/lib/queue/QueueManager';
 import { ClockSynchronizer } from './ClockSynchronizer';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { TransferManager } from './TransferManager';
+import { CommandObservabilityStore } from './CommandObservabilityStore';
 
 export class CommandBus {
   private static instance: CommandBus;
@@ -44,6 +45,17 @@ export class CommandBus {
   public async dispatch(command: ConnectCommand) {
     const { ConnectManager } = await import('./ConnectManager');
     const connectManager = ConnectManager.getInstance();
+
+    // Record command entry for observability before dispatch
+    const { ConnectivityRouter } = await import('./ConnectivityRouter');
+    CommandObservabilityStore.getInstance().record({
+      commandId: command.commandId,
+      type: command.type,
+      sourceDeviceId: command.sourceDeviceId,
+      targetDeviceId: command.targetDeviceId,
+      transport: ConnectivityRouter.getInstance().getActiveTransport(),
+      sentAt: command.sentAt || Date.now(),
+    });
     
     if (command.targetDeviceId) {
       await connectManager.sendTargetedCommand(command.targetDeviceId, command);

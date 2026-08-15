@@ -58,6 +58,10 @@ export class PlaybackEngine implements PlaybackClock {
     this.anchor();
   }
 
+  public getActiveMediaElement(): HTMLMediaElement | null {
+    return this.activeMediaElement;
+  }
+
   public detachMediaElement() {
     this.activeMediaElement = null;
     this.activeRenderer = null;

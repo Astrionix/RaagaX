@@ -265,43 +265,56 @@ export class ConnectManager {
   public async sendTargetedCommand(targetDeviceId: string, command: ConnectCommand) {
     if (!this.userId) return;
 
-    if (command.type !== 'WEBRTC_SIGNAL') {
-      const { LocalPeerConnection } = await import('./LocalPeerConnection');
-      const sentDirect = LocalPeerConnection.getInstance().sendDirectCommand(targetDeviceId, command);
-      if (sentDirect) {
-        console.log(`[ConnectManager] Targeted command ${command.type} sent directly to ${targetDeviceId}`);
-        return;
-      }
-    }
-
-    const targetTopic = `user:${this.userId}:device:${targetDeviceId}`;
-    const tempChannel = supabase.channel(targetTopic, { config: { broadcast: { self: false } } });
-    tempChannel.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-         await tempChannel.send({
-           type: 'broadcast',
-           event: 'COMMAND',
-           payload: command
-         });
-         supabase.removeChannel(tempChannel); // Cleanup immediately
-      }
-    });
-  }
-
-  public async sendSessionCommand(command: ConnectCommand) {
-    const { LocalPeerConnection } = await import('./LocalPeerConnection');
-    const sentDirect = LocalPeerConnection.getInstance().sendDirectBroadcast(command);
-    if (sentDirect) {
-      console.log(`[ConnectManager] Session command ${command.type} sent directly over LAN`);
+    // WebRTC signals are routed directly — they bootstrap the DataChannel itself
+    // and cannot be sent over a DataChannel that doesn't yet exist.
+    if (command.type === 'WEBRTC_SIGNAL') {
+      const targetTopic = `user:${this.userId}:device:${targetDeviceId}`;
+      const tempChannel = supabase.channel(targetTopic, { config: { broadcast: { self: false } } });
+      tempChannel.subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await tempChannel.send({ type: 'broadcast', event: 'COMMAND', payload: command });
+          supabase.removeChannel(tempChannel);
+        }
+      });
       return;
     }
 
-    if (!this.sessionChannel) return;
-    await this.sessionChannel.send({
-      type: 'broadcast',
-      event: 'COMMAND',
-      payload: command
-    });
+    // All other commands go through TransportRouter for LAN-first selection with cloud fallback
+    const { TransportRouter } = await import('./TransportRouter');
+    const cloudFallback = async (cmd: ConnectCommand) => {
+      const targetTopic = `user:${this.userId}:device:${targetDeviceId}`;
+      const tempChannel = supabase.channel(targetTopic, { config: { broadcast: { self: false } } });
+      await new Promise<void>((resolve) => {
+        tempChannel.subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            await tempChannel.send({ type: 'broadcast', event: 'COMMAND', payload: cmd });
+            supabase.removeChannel(tempChannel);
+            resolve();
+          }
+        });
+      });
+    };
+
+    const result = await TransportRouter.getInstance().dispatchTargeted(
+      targetDeviceId,
+      command,
+      cloudFallback
+    );
+
+    if (result.sent) {
+      console.log(`[ConnectManager] Targeted command ${command.type} sent via ${result.via}`);
+    } else {
+      console.error(`[ConnectManager] Failed to deliver command ${command.type}: ${result.reason}`);
+    }
+  }
+
+  public async sendSessionCommand(command: ConnectCommand) {
+    const { TransportRouter } = await import('./TransportRouter');
+    const cloudFallback = async (cmd: ConnectCommand) => {
+      if (!this.sessionChannel) return;
+      await this.sessionChannel.send({ type: 'broadcast', event: 'COMMAND', payload: cmd });
+    };
+    await TransportRouter.getInstance().dispatchBroadcast(command, cloudFallback);
   }
 
   public async broadcastSessionState(statePayload: any) {
@@ -331,6 +344,13 @@ export class ConnectManager {
         resolver.reject(new Error(payload.reason || payload.status));
       }
     }
+    // Resolve the observability trace regardless of whether we have a resolver
+    import('./CommandObservabilityStore').then(({ CommandObservabilityStore }) => {
+      CommandObservabilityStore.getInstance().resolve(payload.commandId, {
+        ackAt: Date.now(),
+        result: payload.status,
+      });
+    }).catch(() => {});
   }
 
   public async connectToDevice(targetDeviceId: string): Promise<boolean> {
@@ -347,14 +367,23 @@ export class ConnectManager {
     });
 
     try {
-      const { PlaybackStateSync } = await import('./PlaybackStateSync');
-      const cached = PlaybackStateSync.getInstance().getCachedRemoteState(targetDeviceId);
-      if (cached) {
-        console.log(`[ConnectManager] Instant optimistic remote connection from cache for ${targetDeviceId}`);
-        PlaybackStateSync.getInstance().adoptRemoteState(cached);
+      const { LocalPeerConnection } = await import('./LocalPeerConnection');
+      // Attempt fast direct LAN connection handshake
+      const lanConnected = await LocalPeerConnection.getInstance().connectToDevice(targetDeviceId);
+      
+      if (lanConnected) {
+        console.log(`[ConnectManager] Fast local LAN channel established with ${targetDeviceId}`);
+      } else {
+        console.warn(`[ConnectManager] Direct LAN channel failed. Falling back to Cloud Relay for ${targetDeviceId}`);
+        // Fallback: adopt optimistic state from cache
+        const { PlaybackStateSync } = await import('./PlaybackStateSync');
+        const cached = PlaybackStateSync.getInstance().getCachedRemoteState(targetDeviceId);
+        if (cached) {
+          PlaybackStateSync.getInstance().adoptRemoteState(cached);
+        }
       }
 
-      // If we don't have a session channel active, subscribe now
+      // Always subscribe to Supabase session channel as the cloud control/recovery layer
       if (this.sessionId) {
         this.subscribeSession(this.sessionId);
       }
@@ -379,11 +408,31 @@ export class ConnectManager {
 
   public disconnectFromDevice() {
     console.log('[ConnectManager] Disconnecting from remote device');
+    const store = usePlayerStore.getState();
+    const targetId = store.connectedDeviceId;
+
     usePlayerStore.setState({
       deviceConnectionState: 'DISCONNECTING',
     });
 
-    // Reset local store to independent mode without sending pause/stop commands to remote renderer
+    if (targetId) {
+      import('./LocalPeerConnection').then(({ LocalPeerConnection }) => {
+        LocalPeerConnection.getInstance().cleanup(targetId);
+      }).catch(() => {});
+
+      // Notify TransportRouter so TransportScorer marks LAN unavailable
+      // and ConnectivityRouter immediately falls back to CLOUD_RELAY.
+      import('./TransportRouter').then(({ TransportRouter }) => {
+        TransportRouter.getInstance().onLanChannelLost(targetId);
+      }).catch(() => {});
+    }
+
+    // Clear local snapshot so browser refresh doesn't restore a stale session
+    import('./SessionReconciler').then(({ SessionReconciler }) => {
+      SessionReconciler.getInstance().clearLocalSnapshot();
+    }).catch(() => {});
+
+    // Reset local store to independent mode without interrupting remote playback
     usePlayerStore.setState({
       connectedDeviceId: null,
       activeDeviceId: null,
@@ -394,22 +443,28 @@ export class ConnectManager {
   }
 
   public async dispatchPlaybackCommand(type: ConnectCommand['type'], payload: any = {}): Promise<{ success: boolean; reason?: string }> {
-    if (!NetworkManager.getInstance().isOnline()) {
+    const store = usePlayerStore.getState();
+    const targetDeviceId = store.connectedDeviceId || store.activeDeviceId || undefined;
+
+    // Direct offline validation: only allow commands if network is online OR direct LAN is active
+    const { ConnectivityRouter } = await import('./ConnectivityRouter');
+    const router = ConnectivityRouter.getInstance();
+    const activeTransport = router.getActiveTransport();
+
+    if (activeTransport === 'CLOUD_RELAY' && !NetworkManager.getInstance().isOnline()) {
       console.warn(`[ConnectManager] Cannot dispatch ${type} command while offline.`);
       return { success: false, reason: 'offline' };
     }
     
-    if (this.currentState === 'OFFLINE') {
+    if (this.currentState === 'OFFLINE' && activeTransport === 'CLOUD_RELAY') {
       console.warn(`[ConnectManager] Cannot dispatch ${type} command while in state: ${this.currentState}`);
       return { success: false, reason: 'offline_state' };
     }
     
-    const store = usePlayerStore.getState();
     const sequencer = CommandSequencer.getInstance();
     const clock = ClockSynchronizer.getInstance();
-    
-    const targetDeviceId = store.connectedDeviceId || store.activeDeviceId || undefined;
     const commandId = crypto.randomUUID();
+
     const command: ConnectCommand = {
       commandId,
       sessionId: this.sessionId || 'global',
@@ -427,15 +482,14 @@ export class ConnectManager {
     };
 
     if (type === 'PLAY' || type === 'PAUSE' || type === 'SEEK' || type === 'NEXT' || type === 'PREV' || type === 'SET_VOLUME') {
-      import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
-        PlaybackStateSync.getInstance().recordSentCommand(
-          type,
-          store.currentSong?.id || null,
-          store.queueIndex,
-          payload?.positionMs,
-          commandId
-        );
-      }).catch(() => {});
+      const { PlaybackStateSync } = await import('./PlaybackStateSync');
+      PlaybackStateSync.getInstance().recordSentCommand(
+        type,
+        store.currentSong?.id || null,
+        store.queueIndex,
+        payload?.positionMs,
+        commandId
+      );
     }
     
     return new Promise(async (resolve, reject) => {
@@ -451,7 +505,41 @@ export class ConnectManager {
       });
 
       try {
-        await CommandBus.getInstance().dispatch(command);
+        const { TransportRouter } = await import('./TransportRouter');
+        
+        if (targetDeviceId) {
+          // Targeted command — TransportRouter picks LAN or Cloud, same commandId either way
+          const cloudFallback = async (cmd: ConnectCommand) => {
+            await CommandBus.getInstance().dispatch(cmd);
+          };
+
+          const result = await TransportRouter.getInstance().dispatchTargeted(
+            targetDeviceId,
+            command,
+            cloudFallback
+          );
+
+          if (result.sent && result.via !== 'CLOUD_RELAY') {
+            // LAN delivery: optimistically resolve playback control commands immediately
+            if (['PLAY', 'PAUSE', 'SEEK', 'SET_VOLUME', 'NEXT', 'PREV'].includes(type)) {
+              clearTimeout(timeout);
+              this.pendingCommandResolvers.delete(commandId);
+              resolve({ success: true });
+            }
+            // For other commands wait for ACK from the renderer
+          } else if (!result.sent) {
+            clearTimeout(timeout);
+            this.pendingCommandResolvers.delete(commandId);
+            resolve({ success: false, reason: result.reason });
+          }
+          // If sent via Cloud, wait for ACK normally
+        } else {
+          // Broadcast (no specific target)
+          const cloudFallback = async (cmd: ConnectCommand) => {
+            await CommandBus.getInstance().dispatch(cmd);
+          };
+          await TransportRouter.getInstance().dispatchBroadcast(command, cloudFallback);
+        }
       } catch (e) {
         clearTimeout(timeout);
         this.pendingCommandResolvers.delete(commandId);

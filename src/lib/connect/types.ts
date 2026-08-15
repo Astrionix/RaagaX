@@ -7,7 +7,15 @@ export interface DeviceCapabilities {
   remoteControl: boolean;
   offline: boolean;
   connect: boolean;
+  queue?: boolean;      // Can receive QUEUE_SHUFFLE_COMMIT
+  transfer?: boolean;   // Can be renderer target of TRANSFER
 }
+
+/** How close this device is to the current one — drives UI proximity labels. */
+export type DeviceProximity = 'NEARBY' | 'LOCAL' | 'REMOTE' | 'UNREACHABLE';
+
+/** Role of a device in the current session. */
+export type DeviceRole = 'RENDERER' | 'CONTROLLER' | 'OBSERVER';
 
 export type TransportMode = 'LOCAL_DIRECT' | 'HOTSPOT_DIRECT' | 'CLOUD_RELAY';
 
@@ -16,7 +24,11 @@ export type DeviceConnectionState =
   | "CONNECTING"
   | "CONNECTED"
   | "DISCONNECTING"
-  | "OFFLINE";
+  | "OFFLINE"
+  | "LAN_CONNECTED"
+  | "LAN_DEGRADED"
+  | "LAN_LOST"
+  | "CLOUD_CONNECTED";
 
 export type SeekTransactionState =
   | "SEEK_IDLE"
@@ -40,6 +52,8 @@ export type ConnectCommandType =
   | "PLAY"
   | "PAUSE"
   | "SEEK"
+  | "SEEK_DRAG"         // HIGH_FREQUENCY: local only, never sent
+  | "POSITION_PREVIEW"  // HIGH_FREQUENCY: local only, never sent  
   | "NEXT"
   | "PREV"
   | "SET_VOLUME"
@@ -54,7 +68,59 @@ export type ConnectCommandType =
   | "HANDOFF"
   | "QUEUE_SHUFFLE_COMMIT"
   | "WEBRTC_SIGNAL"
-  | "COMMAND_ACK";
+  | "CONNECT_REQUEST"
+  | "CONNECT_RESPONSE"
+  | "HEARTBEAT"
+  | "HEARTBEAT_ACK"
+  | "COMMAND_ACK"
+  | "CONTROLLER_REQUEST"  // Request control of a renderer
+  | "CONTROLLER_RELEASE"; // Release controller role
+
+/**
+ * Command delivery class — determines how TransportRouter handles each command type.
+ *
+ * CRITICAL:       Sent over best transport + duplicated to Cloud (same commandId).
+ *                 Renderer deduplicates. Use for commands where exactly-once delivery matters.
+ *
+ * INTERACTIVE:    Best transport only. Rapid identical commands coalesced (last wins within 50ms).
+ *                 Safe to lose a frame; don't need cloud redundancy.
+ *
+ * HIGH_FREQUENCY: Never sent over any transport. Local UI only (e.g. seekbar drag preview).
+ */
+export type CommandClass = 'CRITICAL' | 'INTERACTIVE' | 'HIGH_FREQUENCY';
+
+export const COMMAND_CLASS_MAP: Readonly<Record<ConnectCommandType, CommandClass>> = {
+  // Critical — durable delivery + idempotency required
+  PLAY:                'CRITICAL',
+  PAUSE:               'CRITICAL',
+  SEEK:                'CRITICAL',
+  NEXT:                'CRITICAL',
+  PREV:                'CRITICAL',
+  TRANSFER_REQUEST:    'CRITICAL',
+  TRANSFER_ACCEPTED:   'CRITICAL',
+  TRANSFER_PREPARING:  'CRITICAL',
+  TRANSFER_READY:      'CRITICAL',
+  TRANSFER_COMMIT:     'CRITICAL',
+  TRANSFER_ROLLBACK:   'CRITICAL',
+  HANDOFF:             'CRITICAL',
+  CONTROLLER_REQUEST:  'CRITICAL',
+  CONTROLLER_RELEASE:  'CRITICAL',
+  // Interactive — LAN-preferred, coalesceable
+  SET_VOLUME:          'INTERACTIVE',
+  SET_SHUFFLE:         'INTERACTIVE',
+  SET_REPEAT:          'INTERACTIVE',
+  QUEUE_SHUFFLE_COMMIT:'INTERACTIVE',
+  // High-frequency — local only, never dispatched
+  SEEK_DRAG:           'HIGH_FREQUENCY',
+  POSITION_PREVIEW:    'HIGH_FREQUENCY',
+  HEARTBEAT:           'HIGH_FREQUENCY',
+  HEARTBEAT_ACK:       'HIGH_FREQUENCY',
+  // Signalling — always Cloud, never LAN (bootstrap phase)
+  WEBRTC_SIGNAL:       'HIGH_FREQUENCY',
+  CONNECT_REQUEST:     'HIGH_FREQUENCY',
+  CONNECT_RESPONSE:    'HIGH_FREQUENCY',
+  COMMAND_ACK:         'HIGH_FREQUENCY',
+};
 
 export interface ConnectCommand<T = unknown> {
   commandId: string;

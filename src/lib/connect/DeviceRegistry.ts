@@ -72,7 +72,7 @@ export class DeviceRegistry {
     else if (/iPhone|iPad|iPod/i.test(ua)) platform = 'iOS';
     else if (/Linux/i.test(ua)) platform = 'Linux';
 
-    const customName = localStorage.getItem('raagax_custom_device_name');
+    const customName = localStorage.getItem('raagax_custom_device_name') || localStorage.getItem('raagax_device_name');
     if (customName && customName.trim()) {
       return { name: customName.trim(), type, platform };
     }
@@ -84,6 +84,36 @@ export class DeviceRegistry {
     else if (/Firefox/i.test(ua)) name = `${platform} (Firefox)`;
 
     return { name, type, platform };
+  }
+
+  public async setCustomDeviceName(name: string): Promise<void> {
+    if (typeof window === 'undefined' || !name.trim()) return;
+    const cleanName = name.trim();
+    localStorage.setItem('raagax_custom_device_name', cleanName);
+    localStorage.setItem('raagax_device_name', cleanName);
+
+    const store = usePlayerStore.getState();
+    const deviceId = store.deviceId;
+
+    // Update in-memory online devices
+    const currentOnline = store.onlineDevices || [];
+    const updated = currentOnline.map((d: any) => (d.id === deviceId ? { ...d, name: cleanName } : d));
+    if (!updated.some((d: any) => d.id === deviceId)) {
+      updated.push({ id: deviceId, name: cleanName, platform: 'Web', isOnline: true });
+    }
+    usePlayerStore.getState().setOnlineDevices(updated);
+
+    // Sync to Supabase devices table if logged in
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        await supabase.from('devices')
+          .update({ device_name: cleanName, last_seen: new Date().toISOString() })
+          .match({ user_id: session.user.id, device_id: deviceId });
+      }
+    } catch (e) {
+      console.warn('[DeviceRegistry] Failed to sync custom device name to Supabase:', e);
+    }
   }
 
   private isUUID(str: string): boolean {

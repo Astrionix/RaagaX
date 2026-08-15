@@ -2,6 +2,10 @@ export class ClockSynchronizer {
   private static instance: ClockSynchronizer;
   private serverTimeOffsetMs: number = 0;
   private isSynchronized: boolean = false;
+  /** Half the measured HTTP round-trip time — represents our clock confidence bound. */
+  private clockUncertaintyMs: number = 50;
+  private lastSyncAt: number = 0;
+  private syncCount: number = 0;
 
   private constructor() {}
 
@@ -35,9 +39,12 @@ export class ClockSynchronizer {
       
       // Offset is the difference between true server time and our estimated local time
       this.serverTimeOffsetMs = serverTimeMs - estimatedLocalTimeAtServer;
+      this.clockUncertaintyMs = latencyMs; // full RTT as uncertainty, halved is the one-way estimate
       this.isSynchronized = true;
+      this.lastSyncAt = Date.now();
+      this.syncCount++;
       
-      console.log(`[ClockSynchronizer] Synced! Offset: ${this.serverTimeOffsetMs.toFixed(0)}ms (latency ~${latencyMs.toFixed(0)}ms)`);
+      console.log(`[ClockSynchronizer] Synced! Offset: ${this.serverTimeOffsetMs.toFixed(0)}ms, uncertainty: ±${latencyMs.toFixed(0)}ms (latency ~${latencyMs.toFixed(0)}ms)`);
     } catch (e) {
       console.warn('[ClockSynchronizer] Failed to synchronize clock:', e);
       // Fallback: assume 0 offset
@@ -55,5 +62,22 @@ export class ClockSynchronizer {
 
   public getOffsetMs(): number {
     return this.serverTimeOffsetMs;
+  }
+
+  /**
+   * Returns the one-way clock uncertainty bound in milliseconds.
+   * Positions within this tolerance are considered "in sync" and
+   * should not trigger visible jump corrections.
+   */
+  public getUncertaintyMs(): number {
+    return this.clockUncertaintyMs;
+  }
+
+  public getLastSyncAt(): number {
+    return this.lastSyncAt;
+  }
+
+  public isSyncFresh(maxAgeMs: number = 60_000): boolean {
+    return this.isSynchronized && (Date.now() - this.lastSyncAt) < maxAgeMs;
   }
 }

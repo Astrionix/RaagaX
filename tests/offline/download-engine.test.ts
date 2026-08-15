@@ -88,7 +88,15 @@ describe('RaagaX Production Download & Offline Architecture Tests', () => {
       usage: 95 * 1024 * 1024,
       available: 5 * 1024 * 1024, // Only 5MB free (less than 10MB + 20MB buffer)
       raagaXUsed: 20 * 1024 * 1024,
+      raagaXDownloads: 18 * 1024 * 1024,
+      raagaXCache: 2 * 1024 * 1024,
+      raagaXSongCount: 12,
       percentUsed: 95,
+      isNative: false,
+      storageType: 'browser',
+      deviceName: 'Test Browser',
+      deviceType: 'desktop',
+      platform: 'web',
     });
 
     const check = await storage.checkStorageAvailable(10 * 1024 * 1024);

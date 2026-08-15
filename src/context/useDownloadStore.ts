@@ -125,7 +125,15 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
         usage: 0,
         available: 64 * 1024 * 1024 * 1024,
         raagaXUsed: 0,
-        percentUsed: 0
+        raagaXDownloads: 0,
+        raagaXCache: 0,
+        raagaXSongCount: 0,
+        percentUsed: 0,
+        isNative: false,
+        storageType: 'browser',
+        deviceName: 'Current Device',
+        deviceType: 'desktop',
+        platform: 'Web',
       };
       set({ storageInfo: fallback });
       return fallback;

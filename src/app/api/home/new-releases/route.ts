@@ -18,8 +18,11 @@ export async function GET(request: Request) {
       .maybeSingle();
 
     let cachedSongs: any[] = [];
-    if (cacheData && cacheData.data && Array.isArray(cacheData.data)) {
-      cachedSongs = (cacheData.data as any[]).filter(s => s && s.title && !s.title.includes('New Release') && s.artist !== 'Unknown');
+    if (cacheData && cacheData.data) {
+      const list = Array.isArray(cacheData.data)
+        ? cacheData.data
+        : (typeof cacheData.data === 'object' && Array.isArray((cacheData.data as any).songs) ? (cacheData.data as any).songs : []);
+      cachedSongs = (list as any[]).filter(s => s && s.title && !s.title.includes('New Release') && s.artist !== 'Unknown');
     }
 
     // 2. Fetch from verified_releases

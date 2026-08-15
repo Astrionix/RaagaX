@@ -1,5 +1,6 @@
 import { TransportMode, ConnectCommand } from './types';
 import { NetworkManager } from '../offline/NetworkManager';
+import { TransportScorer, TransportScore } from './TransportScorer';
 
 export interface TransportMetrics {
   mode: TransportMode;
@@ -13,11 +14,6 @@ export class ConnectivityRouter {
 
   private activeTransport: TransportMode = 'CLOUD_RELAY';
   private localPeerAvailable: boolean = false;
-  private metrics: Map<TransportMode, TransportMetrics> = new Map([
-    ['LOCAL_DIRECT', { mode: 'LOCAL_DIRECT', latencyMs: 8, isAvailable: false, lastChecked: 0 }],
-    ['HOTSPOT_DIRECT', { mode: 'HOTSPOT_DIRECT', latencyMs: 12, isAvailable: false, lastChecked: 0 }],
-    ['CLOUD_RELAY', { mode: 'CLOUD_RELAY', latencyMs: 35, isAvailable: true, lastChecked: 0 }],
-  ]);
 
   private listeners: Set<(mode: TransportMode) => void> = new Set();
 
@@ -26,6 +22,8 @@ export class ConnectivityRouter {
       window.addEventListener('online', () => this.handleNetworkShift('online'));
       window.addEventListener('offline', () => this.handleNetworkShift('offline'));
     }
+    // Cloud is always baseline-available
+    TransportScorer.getInstance().markAvailable('CLOUD_RELAY');
   }
 
   public static getInstance(): ConnectivityRouter {
@@ -35,51 +33,62 @@ export class ConnectivityRouter {
     return ConnectivityRouter.instance;
   }
 
-  /**
-   * Returns current active transport mode.
-   */
+  /** Returns current active transport mode. */
   public getActiveTransport(): TransportMode {
     return this.activeTransport;
   }
 
   /**
-   * Registers a direct local peer connection (e.g. WebRTC DataChannel on same LAN/Hotspot).
+   * Returns current transport health status based on scorer state.
+   */
+  public getTransportHealth(): 'LAN_CONNECTED' | 'LAN_DEGRADED' | 'LAN_LOST' | 'CLOUD_CONNECTED' | 'OFFLINE' {
+    if (typeof window !== 'undefined' && !navigator.onLine) {
+      return 'OFFLINE';
+    }
+    if (this.activeTransport === 'LOCAL_DIRECT' || this.activeTransport === 'HOTSPOT_DIRECT') {
+      const lanScore = TransportScorer.getInstance().getScore(this.activeTransport);
+      if (TransportScorer.getInstance().isLanDegrading()) return 'LAN_DEGRADED';
+      return lanScore.isAvailable ? 'LAN_CONNECTED' : 'LAN_LOST';
+    }
+    if (this.localPeerAvailable) {
+      return 'LAN_DEGRADED';
+    }
+    const local = TransportScorer.getInstance().getScore('LOCAL_DIRECT');
+    const hotspot = TransportScorer.getInstance().getScore('HOTSPOT_DIRECT');
+    // LAN_LOST only when we actually measured live samples (sampleCount > 0) and recently lost them
+    const recentlyHadLan = (local.sampleCount > 0 || hotspot.sampleCount > 0)
+      && !local.isAvailable && !hotspot.isAvailable
+      && Date.now() - Math.max(local.lastUpdatedAt, hotspot.lastUpdatedAt) < 10_000;
+    if (recentlyHadLan) return 'LAN_LOST';
+    return 'CLOUD_CONNECTED';
+  }
+
+  /**
+   * Registers a direct local peer connection becoming available/unavailable.
+   * Feeds availability into TransportScorer which then drives route recalculation.
    */
   public setLocalPeerAvailable(available: boolean, isHotspot: boolean = false) {
     this.localPeerAvailable = available;
-    const targetMode: TransportMode = isHotspot ? 'HOTSPOT_DIRECT' : 'LOCAL_DIRECT';
-    
-    const metric = this.metrics.get(targetMode);
-    if (metric) {
-      metric.isAvailable = available;
-      metric.lastChecked = Date.now();
+    const mode: TransportMode = isHotspot ? 'HOTSPOT_DIRECT' : 'LOCAL_DIRECT';
+    const scorer = TransportScorer.getInstance();
+    if (available) {
+      scorer.markAvailable(mode);
+    } else {
+      scorer.markUnavailable(mode);
     }
-
     this.recalculateBestRoute();
   }
 
   /**
-   * Re-evaluates best route based on priority:
-   * 1. LOCAL_DIRECT (< 10ms)
-   * 2. HOTSPOT_DIRECT (< 15ms)
-   * 3. CLOUD_RELAY (< 40ms)
+   * Recalculates and applies the best route according to live TransportScorer data.
+   * This replaces the old fixed-priority (LOCAL > HOTSPOT > CLOUD) logic with
+   * score-based selection so degraded LAN can lose to healthy Cloud.
    */
   public recalculateBestRoute(): TransportMode {
-    const local = this.metrics.get('LOCAL_DIRECT');
-    const hotspot = this.metrics.get('HOTSPOT_DIRECT');
-
-    let nextMode: TransportMode = 'CLOUD_RELAY';
-
-    if (local?.isAvailable) {
-      nextMode = 'LOCAL_DIRECT';
-    } else if (hotspot?.isAvailable) {
-      nextMode = 'HOTSPOT_DIRECT';
-    } else {
-      nextMode = 'CLOUD_RELAY';
-    }
+    const nextMode = TransportScorer.getInstance().getBestTransport();
 
     if (nextMode !== this.activeTransport) {
-      console.log(`[ConnectivityRouter] Transport shifted: ${this.activeTransport} -> ${nextMode} (Session preserved)`);
+      console.log(`[ConnectivityRouter] Transport shifted: ${this.activeTransport} → ${nextMode} (Session preserved)`);
       this.activeTransport = nextMode;
       this.notifyListeners(nextMode);
     }
@@ -87,20 +96,16 @@ export class ConnectivityRouter {
     return this.activeTransport;
   }
 
-  /**
-   * Handles network changes (e.g. Wi-Fi <-> Hotspot <-> Mobile Data) without terminating active session.
-   */
+  /** Handles network changes without terminating active session. */
   private handleNetworkShift(status: 'online' | 'offline') {
+    const scorer = TransportScorer.getInstance();
     if (status === 'offline') {
       console.warn('[ConnectivityRouter] Network lost. Checking for direct LAN/Hotspot peer...');
+      scorer.markUnavailable('CLOUD_RELAY');
       this.recalculateBestRoute();
     } else {
-      console.log('[ConnectivityRouter] Network restored. Resuming cloud relay / local probe...');
-      const cloudMetric = this.metrics.get('CLOUD_RELAY');
-      if (cloudMetric) {
-        cloudMetric.isAvailable = true;
-        cloudMetric.lastChecked = Date.now();
-      }
+      console.log('[ConnectivityRouter] Network restored. Re-enabling cloud relay...');
+      scorer.markAvailable('CLOUD_RELAY');
       this.recalculateBestRoute();
     }
   }
@@ -112,23 +117,32 @@ export class ConnectivityRouter {
 
   private notifyListeners(mode: TransportMode) {
     for (const listener of this.listeners) {
-      try {
-        listener(mode);
-      } catch (e) {
+      try { listener(mode); } catch (e) {
         console.error('[ConnectivityRouter] Listener error:', e);
       }
     }
   }
 
+  /** Returns live scored metrics for all transports — used by DiagnosticsPanel. */
+  public getScores(): TransportScore[] {
+    return TransportScorer.getInstance().getAllScores();
+  }
+
+  /** Legacy compat: returns TransportMetrics shape for existing callers. */
   public getMetrics(): TransportMetrics[] {
-    return Array.from(this.metrics.values());
+    return this.getScores().map(s => ({
+      mode: s.mode,
+      latencyMs: s.rttMs,
+      isAvailable: s.isAvailable,
+      lastChecked: s.lastUpdatedAt,
+    }));
   }
 
   public reset() {
     this.activeTransport = 'CLOUD_RELAY';
     this.localPeerAvailable = false;
-    for (const m of this.metrics.values()) {
-      m.isAvailable = m.mode === 'CLOUD_RELAY';
-    }
+    TransportScorer.getInstance().reset();
+    TransportScorer.getInstance().markAvailable('CLOUD_RELAY');
   }
 }
+

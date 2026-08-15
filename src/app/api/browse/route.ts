@@ -57,10 +57,19 @@ export async function GET(req: NextRequest) {
       let items: any[] = [];
       let total = 0;
 
-      if (cached && cached.data && Array.isArray(cached.data) && cached.data.length > 0) {
-        const isStale = new Date(cached.expires_at).getTime() < Date.now();
-        const isUndersized = cached.data.length < 15;
-        total = cached.data.length;
+      let cachedSongs: any[] = [];
+      if (cached && cached.data) {
+        if (Array.isArray(cached.data)) {
+          cachedSongs = cached.data;
+        } else if (typeof cached.data === 'object' && Array.isArray((cached.data as any).songs)) {
+          cachedSongs = (cached.data as any).songs;
+        }
+      }
+
+      if (cachedSongs.length > 0) {
+        const isStale = cached?.expires_at ? new Date(cached.expires_at).getTime() < Date.now() : false;
+        const isUndersized = cachedSongs.length < 15;
+        total = cachedSongs.length;
 
         if (isStale || isUndersized) {
           status = 'stale';
@@ -69,7 +78,7 @@ export async function GET(req: NextRequest) {
         } else {
           status = 'ready';
         }
-        items = cached.data;
+        items = cachedSongs;
       } else {
         // Cache MISS - enqueue immediately and return loading
         status = 'loading';

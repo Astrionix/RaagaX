@@ -16,13 +16,25 @@ import {
   Sliders,
   Search,
   RefreshCw,
-  Cloud
+  Cloud,
+  Laptop,
+  Smartphone,
+  Tablet,
+  Tv,
+  Edit2,
+  Check,
+  X,
+  Layers,
+  Database,
+  Info,
+  Sparkles
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { OfflineCatalog } from '@/lib/offline/OfflineCatalog';
 import { DownloadStorage } from '@/lib/offline/DownloadStorage';
-import { OfflineTrack } from '@/lib/offline/types';
+import { DeviceRegistry } from '@/lib/connect/DeviceRegistry';
+import { OfflineTrack, StorageEstimateInfo } from '@/lib/offline/types';
 import { Song } from '@/types/music';
 
 export function DownloadsView() {
@@ -49,42 +61,42 @@ export function DownloadsView() {
   const [activeSubTab, setActiveSubTab] = useState<'device' | 'cloud'>('device');
   const [offlineCatalogTracks, setOfflineCatalogTracks] = useState<OfflineTrack[]>([]);
   const [localSearch, setLocalSearch] = useState('');
-  const [storageUsage, setStorageUsage] = useState({ used: 0, total: 64 * 1024 * 1024 * 1024 });
+  const [storageInfo, setStorageInfo] = useState<StorageEstimateInfo | null>(null);
+  
+  // Custom device name editing
+  const [isEditingDeviceName, setIsEditingDeviceName] = useState(false);
+  const [customDeviceInput, setCustomDeviceInput] = useState('');
 
   const refreshCatalog = async () => {
     try {
       const tracks = await OfflineCatalog.getInstance().getAllTracks();
       setOfflineCatalogTracks(tracks);
       
-      const usedBytes = await DownloadStorage.getInstance().getTotalStorageUsed();
-      if (navigator.storage && navigator.storage.estimate) {
-        const estimate = await navigator.storage.estimate();
-        setStorageUsage({
-          used: usedBytes || estimate.usage || 0,
-          total: estimate.quota || 64 * 1024 * 1024 * 1024,
-        });
-      } else {
-        setStorageUsage({
-          used: usedBytes,
-          total: 64 * 1024 * 1024 * 1024,
-        });
-      }
+      const info = await DownloadStorage.getInstance().getStorageEstimate();
+      setStorageInfo(info);
     } catch {}
   };
 
   useEffect(() => {
     refreshCatalog();
-  }, [Object.keys(tasks).length]);
+  }, [Object.keys(tasks).length, downloadedSongIds.length]);
 
-  const formatBytes = (bytes: number) => {
-    if (!bytes || bytes === 0) return '0 MB';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  const handleSaveDeviceName = async () => {
+    if (customDeviceInput.trim()) {
+      await DeviceRegistry.getInstance().setCustomDeviceName(customDeviceInput.trim());
+      await refreshCatalog();
+    }
+    setIsEditingDeviceName(false);
   };
 
-  const usedPercent = Math.min(100, (storageUsage.used / storageUsage.total) * 100);
+  const formatBytes = (bytes: number) => {
+    if (!bytes || bytes <= 0) return '0 MB';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    const val = bytes / Math.pow(k, i);
+    return (val >= 10 ? val.toFixed(0) : val.toFixed(1)) + ' ' + sizes[i];
+  };
 
   const activeTasks = Object.values(tasks).filter(
     t => t.status === 'downloading' || t.status === 'queued' || t.status === 'paused' || t.status === 'verifying' || t.status === 'error'
@@ -103,7 +115,7 @@ export function DownloadsView() {
       albumId: `alb-${track.trackId}`,
       duration: track.duration || Math.round(track.durationMs / 1000) || 180,
       coverUrl: track.artworkUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&h=300&fit=crop',
-      audioUrl: '', // PlaybackSourceResolver will supply the local Blob URL
+      audioUrl: '', // PlaybackSourceResolver supplies the local Blob URL
       genre: 'OFFLINE',
       category: 'melody',
       releaseYear: new Date().getFullYear(),
@@ -124,12 +136,46 @@ export function DownloadsView() {
     playSong(song, filteredOfflineSongs);
   };
 
+  // Safe storage metrics
+  const totalQuota = storageInfo?.quota || 64 * 1024 * 1024 * 1024;
+  const raagaXDownloads = storageInfo?.raagaXDownloads || 0;
+  const raagaXCache = storageInfo?.raagaXCache || 0;
+  const raagaXTotal = storageInfo?.raagaXUsed || (raagaXDownloads + raagaXCache);
+  const totalUsage = storageInfo?.usage || raagaXTotal;
+  const freeSpace = Math.max(0, totalQuota - totalUsage);
+
+  // Proportions for multi-segmented bar
+  const raagaXDownloadsPct = totalQuota > 0 ? Math.min(100, (raagaXDownloads / totalQuota) * 100) : 0;
+  const raagaXCachePct = totalQuota > 0 ? Math.min(100, (raagaXCache / totalQuota) * 100) : 0;
+  const otherUsedPct = totalQuota > 0 ? Math.max(0, Math.min(100, ((totalUsage - raagaXTotal) / totalQuota) * 100)) : 0;
+
+  // Device icon based on device type
+  const renderDeviceIcon = () => {
+    switch (storageInfo?.deviceType) {
+      case 'mobile':
+        return <Smartphone className="w-5 h-5 text-sky-400" />;
+      case 'tablet':
+        return <Tablet className="w-5 h-5 text-indigo-400" />;
+      case 'tv':
+        return <Tv className="w-5 h-5 text-purple-400" />;
+      case 'desktop':
+      default:
+        return <Laptop className="w-5 h-5 text-emerald-400" />;
+    }
+  };
+
   return (
     <div className="space-y-6 pb-12 text-white select-none">
-      {/* Header */}
+      {/* Header with Dynamic Device Identity & Offline Switch */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
         <div>
-          <h1 className="text-3xl font-black text-white tracking-tight">Downloads & Storage</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-black text-white tracking-tight">Downloads & Storage</h1>
+            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] font-bold text-slate-300">
+              {renderDeviceIcon()}
+              {storageInfo?.platform || 'Device'}
+            </span>
+          </div>
           <p className="text-xs text-slate-400 mt-1">App-private offline listening cache & device media export</p>
         </div>
 
@@ -148,27 +194,157 @@ export function DownloadsView() {
         </div>
       </div>
 
-      {/* Storage & Preferences Card */}
-      <div className="p-5 rounded-2xl bg-[#161618] border border-white/10 space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-bold">
-          <span className="flex items-center gap-2 text-slate-200">
-            <HardDrive className="w-4 h-4 text-[#fa233b]" /> Device Storage & Offline Cache
-          </span>
-          <div className="flex items-center gap-4 text-xs font-mono">
-            <span className="text-emerald-400">
-              Free: <span className="font-bold">{formatBytes(Math.max(0, storageUsage.total - storageUsage.used))}</span>
-            </span>
-            <span className="text-[#fa233b]">
-              RaagaX: <span className="font-bold">{formatBytes(storageUsage.used)}</span>
-            </span>
-            <span className="text-slate-500">
-              Total: {formatBytes(storageUsage.total)}
+      {/* Concept 1: Dynamic Device Storage & Quota Card */}
+      <div className="p-5 rounded-2xl bg-[#161618] border border-white/10 space-y-5 shadow-xl">
+        {/* Device Registered Name Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+              {renderDeviceIcon()}
+            </div>
+            {isEditingDeviceName ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={customDeviceInput}
+                  onChange={(e) => setCustomDeviceInput(e.target.value)}
+                  placeholder="e.g. TNT Gaming PC or Galaxy S23"
+                  className="bg-[#202024] border border-white/20 text-white font-bold text-sm rounded-lg px-2.5 py-1 focus:outline-none focus:border-red-500"
+                  autoFocus
+                />
+                <button 
+                  onClick={handleSaveDeviceName}
+                  className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+                  title="Save device name"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={() => setIsEditingDeviceName(false)}
+                  className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-white"
+                  title="Cancel"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 group">
+                <span className="text-base font-black text-white tracking-wide">
+                  {storageInfo?.deviceName || 'Active Device'}
+                </span>
+                <button 
+                  onClick={() => {
+                    setCustomDeviceInput(storageInfo?.deviceName || '');
+                    setIsEditingDeviceName(true);
+                  }}
+                  className="p-1 rounded-md text-slate-500 hover:text-white hover:bg-white/5 transition-colors"
+                  title="Rename this device"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-semibold text-slate-400 px-2.5 py-1 rounded-full bg-white/5 border border-white/5">
+              {storageInfo?.isNative ? '📱 Android Native Storage' : '💻 Browser / Desktop Storage Quota'}
             </span>
           </div>
         </div>
 
-        <div className="w-full h-2.5 rounded-full bg-white/10 overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-red-500 via-[#fa233b] to-emerald-400 rounded-full transition-all duration-500" style={{ width: `${Math.max(1, usedPercent)}%` }} />
+        {/* Storage Bar & Values */}
+        <div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-bold mb-2.5">
+            <span className="flex items-center gap-2 text-slate-300">
+              <HardDrive className="w-4 h-4 text-[#fa233b]" /> Device Storage & Offline Cache
+            </span>
+            <div className="flex items-center gap-4 text-xs font-mono">
+              <span className="text-emerald-400">
+                Free: <span className="font-bold">{formatBytes(freeSpace)}</span>
+              </span>
+              <span className="text-[#fa233b]">
+                RaagaX: <span className="font-bold">{formatBytes(raagaXTotal)}</span>
+              </span>
+              <span className="text-slate-400">
+                Total: <span className="font-bold">{formatBytes(totalQuota)}</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Multi-segment Storage Bar */}
+          <div className="w-full h-3 rounded-full bg-white/10 overflow-hidden flex">
+            {otherUsedPct > 0 && (
+              <div 
+                className="h-full bg-slate-600 transition-all duration-500" 
+                style={{ width: `${otherUsedPct}%` }}
+                title={`System & Other Apps: ${formatBytes(totalUsage - raagaXTotal)}`}
+              />
+            )}
+            {raagaXDownloadsPct > 0 && (
+              <div 
+                className="h-full bg-[#fa233b] transition-all duration-500" 
+                style={{ width: `${Math.max(1, raagaXDownloadsPct)}%` }}
+                title={`RaagaX Downloads: ${formatBytes(raagaXDownloads)}`}
+              />
+            )}
+            {raagaXCachePct > 0 && (
+              <div 
+                className="h-full bg-amber-400 transition-all duration-500" 
+                style={{ width: `${Math.max(1, raagaXCachePct)}%` }}
+                title={`RaagaX Cache: ${formatBytes(raagaXCache)}`}
+              />
+            )}
+          </div>
+
+          {/* Legend */}
+          <div className="flex flex-wrap items-center gap-4 text-[10px] font-medium text-slate-400 mt-2">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#fa233b]" /> RaagaX Downloads ({formatBytes(raagaXDownloads)})
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-400" /> Offline & Stream Cache ({formatBytes(raagaXCache)})
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" /> Free Space ({formatBytes(freeSpace)})
+            </span>
+          </div>
+        </div>
+
+        {/* Concept 2: Granular RaagaX Breakdown Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+          <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5 flex flex-col justify-between">
+            <div className="flex items-center justify-between text-slate-400 text-xs">
+              <span className="font-semibold">Song Downloads</span>
+              <Music className="w-4 h-4 text-[#fa233b]" />
+            </div>
+            <div className="mt-2">
+              <p className="text-lg font-black text-white">{formatBytes(raagaXDownloads)}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">{offlineSongs.length} downloaded songs</p>
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5 flex flex-col justify-between">
+            <div className="flex items-center justify-between text-slate-400 text-xs">
+              <span className="font-semibold">Offline Cache</span>
+              <Layers className="w-4 h-4 text-amber-400" />
+            </div>
+            <div className="mt-2">
+              <p className="text-lg font-black text-white">{formatBytes(raagaXCache)}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Stream buffers & artwork</p>
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5 flex flex-col justify-between">
+            <div className="flex items-center justify-between text-slate-400 text-xs">
+              <span className="font-semibold">Total RaagaX</span>
+              <Database className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div className="mt-2">
+              <p className="text-lg font-black text-white">{formatBytes(raagaXTotal)}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">App-sandboxed footprint</p>
+            </div>
+          </div>
         </div>
 
         {/* Preferences Toggle Bar */}
@@ -209,6 +385,7 @@ export function DownloadsView() {
           </div>
         </div>
 
+        {/* Action Buttons Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-white/5 text-xs">
           <div className="flex items-center gap-2 text-emerald-400 font-bold text-[11px]">
             <CheckCircle2 className="w-4 h-4" /> App-Private Offline Storage • Zero Permissions Needed
@@ -216,19 +393,24 @@ export function DownloadsView() {
 
           <div className="flex gap-2">
             <button
-              onClick={() => useDownloadStore.getState().clearStreamingCache()}
-              className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-[11px] transition-colors"
+              onClick={async () => {
+                await useDownloadStore.getState().clearStreamingCache();
+                await refreshCatalog();
+              }}
+              className="px-3.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-[11px] transition-colors flex items-center gap-1.5"
             >
-              Clear Cache
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Clear Cache</span>
             </button>
             <button
               onClick={async () => {
                 await useDownloadStore.getState().purgeOfflineDownloads();
                 await refreshCatalog();
               }}
-              className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold text-[11px] transition-colors"
+              className="px-3.5 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold text-[11px] transition-colors flex items-center gap-1.5"
             >
-              Purge All Downloads
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Purge All Downloads</span>
             </button>
           </div>
         </div>
@@ -313,18 +495,18 @@ export function DownloadsView() {
           <div className="flex items-center gap-2 p-1 bg-white/5 rounded-xl border border-white/5 self-start">
             <button
               onClick={() => setActiveSubTab('device')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
                 activeSubTab === 'device'
                   ? 'bg-[#fa233b] text-white shadow-md'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
               <HardDrive className="w-3.5 h-3.5" />
-              <span>On This Device ({filteredOfflineSongs.length})</span>
+              <span>On This Device ({offlineSongs.length})</span>
             </button>
             <button
               onClick={() => setActiveSubTab('cloud')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
                 activeSubTab === 'cloud'
                   ? 'bg-sky-500 text-white shadow-md'
                   : 'text-slate-400 hover:text-white'
@@ -385,51 +567,57 @@ export function DownloadsView() {
 
         {activeSubTab === 'device' ? (
           filteredOfflineSongs.length > 0 ? (
-            <div className="divide-y divide-white/5 bg-[#161618] rounded-2xl border border-white/10 overflow-hidden shadow-lg">
-              {filteredOfflineSongs.map((song) => (
-                <div key={song.id} className="p-3.5 flex items-center justify-between hover:bg-white/5 transition-colors group">
-                  <div className="flex items-center gap-3.5 cursor-pointer min-w-0 flex-1" onClick={() => handlePlayDownloadedSong(song)}>
-                    <img src={song.coverUrl} alt={song.title} className="w-12 h-12 rounded-xl object-cover shadow-sm flex-shrink-0" />
-                    <div className="min-w-0">
-                      <h4 className="text-xs font-bold text-white truncate group-hover:text-red-400 transition-colors">{song.title}</h4>
-                      <p className="text-[11px] text-slate-400 truncate mt-0.5">{song.artist}</p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+                <span>{filteredOfflineSongs.length} downloaded songs • {formatBytes(raagaXDownloads)}</span>
+              </div>
+
+              <div className="divide-y divide-white/5 bg-[#161618] rounded-2xl border border-white/10 overflow-hidden shadow-lg">
+                {filteredOfflineSongs.map((song) => (
+                  <div key={song.id} className="p-3.5 flex items-center justify-between hover:bg-white/5 transition-colors group">
+                    <div className="flex items-center gap-3.5 cursor-pointer min-w-0 flex-1" onClick={() => handlePlayDownloadedSong(song)}>
+                      <img src={song.coverUrl} alt={song.title} className="w-12 h-12 rounded-xl object-cover shadow-sm flex-shrink-0" />
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-bold text-white truncate group-hover:text-red-400 transition-colors">{song.title}</h4>
+                        <p className="text-[11px] text-slate-400 truncate mt-0.5">{song.artist}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {/* Mode B: Export as MP3 */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          exportSong(song);
+                        }}
+                        title="Export MP3 to device storage (Mode B)"
+                        className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                      >
+                        <FileDown className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        onClick={() => handlePlayDownloadedSong(song)}
+                        className="p-2 rounded-xl bg-[#fa233b] text-white shadow-md hover:scale-105 transition-transform"
+                        title="Play Offline"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
+                      </button>
+
+                      <button 
+                        onClick={async () => {
+                          await removeDownload(song.id);
+                          await refreshCatalog();
+                        }} 
+                        className="p-2 text-slate-400 hover:text-red-400"
+                        title="Delete from Device"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {/* Mode B: Export as MP3 */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        exportSong(song);
-                      }}
-                      title="Export MP3 to device (Mode B)"
-                      className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-                    >
-                      <FileDown className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      onClick={() => handlePlayDownloadedSong(song)}
-                      className="p-2 rounded-xl bg-[#fa233b] text-white shadow-md hover:scale-105 transition-transform"
-                      title="Play Offline"
-                    >
-                      <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
-                    </button>
-
-                    <button 
-                      onClick={async () => {
-                        await removeDownload(song.id);
-                        await refreshCatalog();
-                      }} 
-                      className="p-2 text-slate-400 hover:text-red-400"
-                      title="Delete from Device"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           ) : (
             <div className="py-12 text-center text-slate-500 space-y-3 bg-[#161618] rounded-2xl border border-white/10">
@@ -447,78 +635,84 @@ export function DownloadsView() {
         ) : (
           /* Cloud Download History Tab */
           cloudDownloadRecords.length > 0 ? (
-            <div className="divide-y divide-white/5 bg-[#161618] rounded-2xl border border-white/10 overflow-hidden shadow-lg">
-              {cloudDownloadRecords
-                .filter(r => !localSearch.trim() || (r.song_title?.toLowerCase().includes(localSearch.toLowerCase()) || r.song_artist?.toLowerCase().includes(localSearch.toLowerCase())))
-                .map((record) => {
-                  const isLocal = downloadedSongIds.includes(record.song_id);
-                  const songObj: Song = {
-                    id: record.song_id,
-                    title: record.song_title || 'Unknown Title',
-                    artist: record.song_artist || 'Unknown Artist',
-                    artistId: `art-${record.song_id}`,
-                    album: 'Cloud Downloads',
-                    albumId: `alb-${record.song_id}`,
-                    duration: record.song_duration || 180,
-                    coverUrl: record.song_cover || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&h=300&fit=crop',
-                    audioUrl: '',
-                    genre: 'OFFLINE',
-                    category: 'melody',
-                    releaseYear: new Date().getFullYear(),
-                    plays: 1,
-                    likes: 1,
-                  };
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+                <span>{cloudDownloadRecords.length} songs recorded in Cloud History • 1-click restore across devices</span>
+              </div>
 
-                  return (
-                    <div key={record.song_id} className="p-3.5 flex items-center justify-between hover:bg-white/5 transition-colors group">
-                      <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                        <img src={songObj.coverUrl} alt={songObj.title} className="w-12 h-12 rounded-xl object-cover shadow-sm flex-shrink-0" />
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h4 className="text-xs font-bold text-white truncate">{songObj.title}</h4>
-                            {isLocal ? (
-                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[9px] font-bold border border-emerald-500/20">
-                                On Device ✓
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 text-[9px] font-bold border border-sky-500/20">
-                                Cloud Only
-                              </span>
-                            )}
+              <div className="divide-y divide-white/5 bg-[#161618] rounded-2xl border border-white/10 overflow-hidden shadow-lg">
+                {cloudDownloadRecords
+                  .filter(r => !localSearch.trim() || (r.song_title?.toLowerCase().includes(localSearch.toLowerCase()) || r.song_artist?.toLowerCase().includes(localSearch.toLowerCase())))
+                  .map((record) => {
+                    const isLocal = downloadedSongIds.includes(record.song_id);
+                    const songObj: Song = {
+                      id: record.song_id,
+                      title: record.song_title || 'Unknown Title',
+                      artist: record.song_artist || 'Unknown Artist',
+                      artistId: `art-${record.song_id}`,
+                      album: 'Cloud Downloads',
+                      albumId: `alb-${record.song_id}`,
+                      duration: record.song_duration || 180,
+                      coverUrl: record.song_cover || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&h=300&fit=crop',
+                      audioUrl: '',
+                      genre: 'OFFLINE',
+                      category: 'melody',
+                      releaseYear: new Date().getFullYear(),
+                      plays: 1,
+                      likes: 1,
+                    };
+
+                    return (
+                      <div key={record.song_id} className="p-3.5 flex items-center justify-between hover:bg-white/5 transition-colors group">
+                        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                          <img src={songObj.coverUrl} alt={songObj.title} className="w-12 h-12 rounded-xl object-cover shadow-sm flex-shrink-0" />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-xs font-bold text-white truncate">{songObj.title}</h4>
+                              {isLocal ? (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[9px] font-bold border border-emerald-500/20">
+                                  On Device ✓
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 text-[9px] font-bold border border-sky-500/20">
+                                  Cloud Only
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-400 truncate mt-0.5">{songObj.artist}</p>
                           </div>
-                          <p className="text-[11px] text-slate-400 truncate mt-0.5">{songObj.artist}</p>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {isLocal ? (
+                            <button
+                              onClick={async () => {
+                                await removeDownload(record.song_id);
+                                await refreshCatalog();
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-400 text-xs font-bold flex items-center gap-1.5 transition-all"
+                              title="Remove from this device only"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Remove Local</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={async () => {
+                                await saveForOffline(songObj);
+                                await refreshCatalog();
+                              }}
+                              className="px-3.5 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-sky-500/20 transition-all hover:scale-105"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>Download Again ↓</span>
+                            </button>
+                          )}
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {isLocal ? (
-                          <button
-                            onClick={async () => {
-                              await removeDownload(record.song_id);
-                              await refreshCatalog();
-                            }}
-                            className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-400 text-xs font-bold flex items-center gap-1.5 transition-all"
-                            title="Remove from this device only"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Remove Local</span>
-                          </button>
-                        ) : (
-                          <button
-                            onClick={async () => {
-                              await saveForOffline(songObj);
-                              await refreshCatalog();
-                            }}
-                            className="px-3.5 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-sky-500/20 transition-all hover:scale-105"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            <span>Download Again ↓</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+              </div>
             </div>
           ) : (
             <div className="py-12 text-center text-slate-500 space-y-3 bg-[#161618] rounded-2xl border border-white/10">
@@ -534,4 +728,3 @@ export function DownloadsView() {
     </div>
   );
 }
-

@@ -17,7 +17,15 @@ export interface StorageEstimateInfo {
   usage: number;
   available: number;
   raagaXUsed: number;
+  raagaXDownloads: number;
+  raagaXCache: number;
+  raagaXSongCount: number;
   percentUsed: number;
+  isNative: boolean;
+  storageType: 'device' | 'browser';
+  deviceName: string;
+  deviceType: 'desktop' | 'mobile' | 'tablet' | 'tv';
+  platform: string;
 }
 
 export interface TrackDownloadState {

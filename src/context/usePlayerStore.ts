@@ -721,6 +721,11 @@ export const usePlayerStore = create<PlayerState>()(
     });
     persistSessionHelper({ ...get(), currentSong: song, currentTime: 0, queue: syncedQueue, queueIndex: syncedIndex });
 
+    // Ensure local device owns playback if not explicitly connected to a remote device
+    if (!get().connectedDeviceId) {
+      set({ isActiveDevice: true, activeDeviceId: get().deviceId });
+    }
+
     // Delegate to PlaybackService (local) or ConnectManager (remote)
     if (get().isActiveDevice) {
       const service = PlaybackService.getInstance();
@@ -809,6 +814,10 @@ export const usePlayerStore = create<PlayerState>()(
     set({ isPlaying: isNowPlaying, playbackIntent: isNowPlaying ? 'PLAYING' : 'PAUSED' });
     persistSessionHelper({ ...get() });
 
+    if (!get().connectedDeviceId && !get().isActiveDevice) {
+      set({ isActiveDevice: true, activeDeviceId: get().deviceId });
+    }
+
     if (get().isActiveDevice) {
       if (!isNowPlaying) {
         PlaybackService.getInstance().pause();
@@ -840,6 +849,10 @@ export const usePlayerStore = create<PlayerState>()(
     }
     set({ isPlaying: playing, playbackIntent: playing ? 'PLAYING' : 'PAUSED' });
     persistSessionHelper({ ...get() });
+
+    if (!get().connectedDeviceId && !get().isActiveDevice && !fromRemote) {
+      set({ isActiveDevice: true, activeDeviceId: get().deviceId });
+    }
 
     if (get().isActiveDevice && !fromRemote) {
       if (!playing) {

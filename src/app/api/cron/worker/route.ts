@@ -20,7 +20,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, message: 'No pending jobs', processed: 0 });
     }
 
-    const host = request.headers.get('host') || 'localhost:3001';
+    const port = process.env.PORT || '3000';
+    const host = request.headers.get('host') || `localhost:${port}`;
     const proto = request.headers.get('x-forwarded-proto') || 'http';
     const baseUrl = `${proto}://${host}`;
     const resolver = new PlaylistResolver(baseUrl);

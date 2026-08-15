@@ -47,32 +47,90 @@ export class DownloadStorage {
 
   /**
    * Queries real device storage quota via navigator.storage.estimate()
-   * and calculates available free space vs RaagaX offline media usage.
+   * and calculates available free space vs RaagaX offline media usage and stream cache.
    */
   public async getStorageEstimate(): Promise<StorageEstimateInfo> {
-    const raagaXUsed = await this.getTotalStorageUsed();
+    const raagaXDownloads = await this.getTotalStorageUsed();
+    const allTrackIds = await this.getAllDownloadedTrackIds();
+    const raagaXSongCount = allTrackIds.length;
+
     let quota = 64 * 1024 * 1024 * 1024; // 64 GB fallback
-    let usage = raagaXUsed;
+    let usage = raagaXDownloads;
+    let raagaXCache = 0;
+    let isNative = false;
+
+    // Detect Capacitor Android / Native environment
+    if (typeof window !== 'undefined' && (window as any).Capacitor) {
+      const cap = (window as any).Capacitor;
+      if (typeof cap.isNativePlatform === 'function' && cap.isNativePlatform()) {
+        isNative = true;
+      }
+    }
 
     if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.estimate) {
       try {
-        const estimate = await navigator.storage.estimate();
+        const estimate: any = await navigator.storage.estimate();
         if (estimate.quota) quota = estimate.quota;
         if (estimate.usage) usage = estimate.usage;
+        
+        // Check Chromium usageDetails
+        if (estimate.usageDetails?.caches) {
+          raagaXCache = estimate.usageDetails.caches;
+        } else if (estimate.usage && estimate.usage > raagaXDownloads) {
+          raagaXCache = Math.max(0, estimate.usage - raagaXDownloads);
+        }
       } catch (err) {
         console.warn('[DownloadStorage] Failed to query navigator.storage.estimate:', err);
       }
     }
 
+    // If cache was not determined via estimate.usageDetails, check CacheStorage directly
+    if (raagaXCache === 0 && typeof window !== 'undefined' && 'caches' in window) {
+      try {
+        const cacheKeys = await caches.keys();
+        // A minimal approximate estimation if caches exist
+        if (cacheKeys.length > 0) {
+          raagaXCache = cacheKeys.length * 1024 * 1024 * 2; // ~2MB average per cache
+        }
+      } catch {}
+    }
+
+    const raagaXUsed = raagaXDownloads + raagaXCache;
     const available = Math.max(0, quota - usage);
     const percentUsed = quota > 0 ? (usage / quota) * 100 : 0;
+
+    // Device identification
+    let deviceName = 'My Device';
+    let deviceType: 'desktop' | 'mobile' | 'tablet' | 'tv' = 'desktop';
+    let platform = 'Web';
+
+    try {
+      const { DeviceRegistry } = await import('@/lib/connect/DeviceRegistry');
+      const friendly = DeviceRegistry.getInstance().getFriendlyDeviceName();
+      deviceName = friendly.name;
+      deviceType = friendly.type;
+      platform = friendly.platform;
+    } catch {
+      if (typeof window !== 'undefined') {
+        const custom = localStorage.getItem('raagax_custom_device_name') || localStorage.getItem('raagax_device_name');
+        if (custom) deviceName = custom;
+      }
+    }
 
     return {
       quota,
       usage,
       available,
       raagaXUsed,
+      raagaXDownloads,
+      raagaXCache,
+      raagaXSongCount,
       percentUsed: Math.min(100, Math.max(0, percentUsed)),
+      isNative,
+      storageType: isNative ? 'device' : 'browser',
+      deviceName,
+      deviceType,
+      platform,
     };
   }
 

@@ -6,6 +6,7 @@ import { DeviceRegistry } from './DeviceRegistry';
 import { RaagaXNativePlayer } from '../playback/native/RaagaXNativePlayer';
 import { PlaybackService } from '../playback/PlaybackService';
 import { SeekLock } from '../playback/SeekLock';
+import { ClockSynchronizer } from './ClockSynchronizer';
 
 export interface RemotePlaybackState {
   activeDeviceId: string;
@@ -48,6 +49,19 @@ export class PlaybackStateSync {
   };
 
   private cachedRemoteStates: Map<string, RemotePlaybackState> = new Map();
+
+  // ── Zero-Jump Reconciliation ─────────────────────────────────────────────
+  // When a new remote position arrives, if it's close to our predicted position
+  // we smoothly drift toward it rather than hard-snapping.
+  private driftCorrection: {
+    active: boolean;
+    targetMs: number;
+    startMs: number;
+    startedAt: number;
+    durationMs: number;
+  } = { active: false, targetMs: 0, startMs: 0, startedAt: 0, durationMs: 500 };
+
+  private driftTimer: ReturnType<typeof setInterval> | null = null;
 
   private constructor() {}
 
@@ -281,9 +295,10 @@ export class PlaybackStateSync {
 
   /**
    * Adopts remote playback state into local store without producing local audio.
+   * Applies zero-jump reconciliation: small drifts are smoothed, large drifts snap.
    */
   public adoptRemoteState(remoteState: RemotePlaybackState, revision?: number) {
-    // 1. HARD RULE: Controller MUST NOT output audio locally (silence local media elements without mutating store.isPlaying)
+    // 1. HARD RULE: Controller MUST NOT output audio locally
     if (RaagaXNativePlayer.isNative()) {
       RaagaXNativePlayer.pause().catch(() => {});
     } else {
@@ -293,6 +308,44 @@ export class PlaybackStateSync {
       }
     }
 
+    const store = usePlayerStore.getState();
+    const now = Date.now();
+
+    // ── Zero-Jump Position Reconciliation ────────────────────────────────────
+    // Predict what position we'd expect based on the anchor we have
+    const anchorMs = store.remoteAnchorPositionMs ?? remoteState.positionMs;
+    const anchorAge = store.remoteAnchorTimeMs ? now - store.remoteAnchorTimeMs : 0;
+    const predictedMs = anchorMs + (remoteState.isPlaying ? anchorAge : 0);
+
+    const incomingMs = remoteState.positionMs;
+    const drift = Math.abs(incomingMs - predictedMs);
+
+    // Uncertainty tolerance = clock uncertainty + network jitter headroom
+    const uncertaintyMs = ClockSynchronizer.getInstance().getUncertaintyMs() + 200;
+    const SNAP_THRESHOLD_MS = 1500; // Drifts larger than this snap immediately
+
+    let finalPositionMs = incomingMs;
+
+    // If a seek shield was recently active, the incoming position is authoritative
+    // (renderer confirmed it) — adopt directly without drift animation.
+    const seekJustCleared = !this.seekShieldState.active && this.seekShieldState.startedAt > 0
+      && (Date.now() - this.seekShieldState.startedAt) < 6000;
+
+
+
+    if (seekJustCleared) {
+      // Accept incoming position as-is: it is the renderer's confirmed seek position
+      finalPositionMs = incomingMs;
+    } else if (drift < uncertaintyMs) {
+      // Within tolerance: use incomingMs directly (prediction adds noise at sub-50ms granularity)
+      finalPositionMs = incomingMs;
+    } else if (drift < SNAP_THRESHOLD_MS) {
+      // Gradual correction: drift toward remote position over 500ms
+      this.startDriftCorrection(predictedMs, incomingMs, 500);
+      finalPositionMs = predictedMs; // Use local prediction now; drift timer will correct
+    }
+    // else: large drift → hard snap to incomingMs (user performed explicit seek, track changed, etc.)
+
     // 2. Adopt remote state into local store for display in MiniPlayer / PlayerBar / SeekBar
     usePlayerStore.setState({
       isActiveDevice: false,
@@ -301,12 +354,12 @@ export class PlaybackStateSync {
       remoteDeviceName: remoteState.activeDeviceName,
       deviceConnectionState: 'CONNECTED',
       currentSong: remoteState.songData,
-      currentTime: remoteState.positionMs / 1000,
+      currentTime: finalPositionMs / 1000,
       duration: remoteState.durationMs / 1000,
       isPlaying: remoteState.isPlaying,
       playbackIntent: remoteState.isPlaying ? 'PLAYING' : 'PAUSED',
-      remoteAnchorPositionMs: remoteState.positionMs,
-      remoteAnchorTimeMs: Date.now(),
+      remoteAnchorPositionMs: incomingMs,  // Always anchor to the canonical remote position
+      remoteAnchorTimeMs: now,
       queue: remoteState.queue || [],
       queueIndex: remoteState.queueIndex || 0,
       shuffleMode: (remoteState.shuffleMode || 'OFF') as any,
@@ -326,5 +379,48 @@ export class PlaybackStateSync {
         manager.setShuffleMode(remoteState.shuffleMode as any);
       }
     }).catch(() => {});
+  }
+
+  /**
+   * Starts a gradual drift correction animation from startMs to targetMs over durationMs.
+   * Uses setInterval to step currentTime smoothly in the store.
+   */
+  private startDriftCorrection(startMs: number, targetMs: number, durationMs: number) {
+    if (this.driftTimer) {
+      clearInterval(this.driftTimer);
+      this.driftTimer = null;
+    }
+
+    this.driftCorrection = {
+      active: true,
+      startMs,
+      targetMs,
+      startedAt: Date.now(),
+      durationMs,
+    };
+
+    const STEP_MS = 16; // ~60fps
+    this.driftTimer = setInterval(() => {
+      const { active, startMs, targetMs, startedAt, durationMs } = this.driftCorrection;
+      if (!active) {
+        clearInterval(this.driftTimer!);
+        this.driftTimer = null;
+        return;
+      }
+
+      const elapsed = Date.now() - startedAt;
+      const t = Math.min(elapsed / durationMs, 1);
+      // Ease-out: decelerate as we approach target
+      const eased = 1 - Math.pow(1 - t, 2);
+      const correctedMs = startMs + (targetMs - startMs) * eased;
+
+      usePlayerStore.setState({ currentTime: correctedMs / 1000 });
+
+      if (t >= 1) {
+        this.driftCorrection.active = false;
+        clearInterval(this.driftTimer!);
+        this.driftTimer = null;
+      }
+    }, STEP_MS);
   }
 }

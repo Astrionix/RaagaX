@@ -21,15 +21,17 @@ const fetcherWithCache = async (url: string) => {
     const res = await fetch(url);
     const data = await res.json();
     
-    // Store in IndexedDB for instant loads next time
-    if (data.success) {
+    // Store in IndexedDB for instant loads next time (only if populated with items)
+    if (data.success && data.sections?.some((s: any) => s.items && s.items.length > 0)) {
       await db.put(STORES.BROWSE_CACHE, { id: cacheKey, data, updatedAt: Date.now() });
     }
     return data;
   } catch (err) {
     // If network fails, try to return from IndexedDB
     const cached = await db.get<any>(STORES.BROWSE_CACHE, cacheKey);
-    if (cached) return cached.data;
+    if (cached && cached.data?.sections?.some((s: any) => s.items && s.items.length > 0)) {
+      return cached.data;
+    }
     throw err;
   }
 };

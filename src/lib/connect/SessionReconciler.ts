@@ -113,11 +113,11 @@ export class SessionReconciler {
     validator.setRevision(snapshot.revision);
     
     const isOwner = snapshot.ownerDeviceId === store.deviceId;
-    
-    // If the local device is the owner and already has a track configured from local history,
-    // do not overwrite local state with non-playing remote data
-    if (isOwner && snapshot.status !== 'playing' && store.currentSong) {
-      console.log('[SessionReconciler] Local device is owner and player is configured. Retaining local track.');
+
+    // If snapshot is non-playing and stale (> 15 mins) or local device already has player configured from local session, retain local track
+    const isStaleSnapshot = snapshot.status !== 'playing' && snapshot.serverTimestamp && (Date.now() - snapshot.serverTimestamp > 15 * 60 * 1000);
+    if ((isOwner || isStaleSnapshot) && snapshot.status !== 'playing' && store.currentSong) {
+      console.log('[SessionReconciler] Local player is configured and snapshot is not playing. Retaining local track.');
       return;
     }
 
@@ -178,6 +178,57 @@ export class SessionReconciler {
       // FOLLOWER DEVICE: Ensure local engine is completely paused and silent so it acts purely as controller
       const engine = PlaybackEngine.getInstance();
       engine.pause();
+    }
+
+    // Persist snapshot locally for self-healing session recovery on browser refresh
+    this.persistSnapshotLocally(snapshot);
+  }
+
+  /**
+   * Persist the current snapshot to sessionStorage so that a browser refresh
+   * can restore session state without a cloud round-trip.
+   */
+  public persistSnapshotLocally(snapshot: PlaybackSnapshot) {
+    if (typeof window === 'undefined') return;
+    try {
+      sessionStorage.setItem(
+        'raagax_session_snapshot',
+        JSON.stringify({ ...snapshot, persistedAt: Date.now() })
+      );
+    } catch (e) {
+      // Storage full or private mode — ignore
+    }
+  }
+
+  /**
+   * Attempt to restore session from sessionStorage (browser refresh path).
+   * Returns the snapshot if it is recent (< 5 minutes) and valid, null otherwise.
+   *
+   * This is called on startup BEFORE fetching from Cloud, allowing instant recovery
+   * without waiting for the Supabase round-trip.
+   */
+  public restoreLocalSnapshot(): PlaybackSnapshot | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = sessionStorage.getItem('raagax_session_snapshot');
+      if (!raw) return null;
+      const snapshot = JSON.parse(raw) as PlaybackSnapshot & { persistedAt?: number };
+      const age = Date.now() - (snapshot.persistedAt ?? 0);
+      // Only use if less than 5 minutes old (session is still likely alive)
+      if (age > 5 * 60 * 1000) {
+        sessionStorage.removeItem('raagax_session_snapshot');
+        return null;
+      }
+      return snapshot;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /** Clear the locally persisted snapshot (e.g. after explicit disconnect or logout). */
+  public clearLocalSnapshot() {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('raagax_session_snapshot');
     }
   }
 }

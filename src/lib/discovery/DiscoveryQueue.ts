@@ -53,8 +53,12 @@ export class DiscoveryQueue {
         updated_at: new Date().toISOString()
       }, { onConflict: 'playlist_id' });
 
-      // Trigger background worker asynchronously
-      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001';
+      // Trigger background worker asynchronously — resolve base URL from env
+      const port = process.env.PORT || '3000';
+      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL
+        || process.env.NEXTAUTH_URL
+        || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
+        || `http://localhost:${port}`;
       fetch(`${baseUrl}/api/cron/worker`).catch(() => { });
 
       return true;

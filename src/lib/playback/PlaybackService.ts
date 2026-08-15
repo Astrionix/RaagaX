@@ -617,7 +617,7 @@ export class PlaybackService {
       return;
     }
 
-    const active = this.getActiveAudio();
+    const active = this.getActiveAudio() || PlaybackEngine.getInstance().getActiveMediaElement();
     if (active) {
       active.currentTime = timeSeconds;
       PlaybackEngine.getInstance().anchor();
@@ -627,6 +627,9 @@ export class PlaybackService {
         duration: active.duration || store.duration || 0,
         position: timeSeconds
       });
+    } else {
+      const store = usePlayerStore.getState();
+      store.setCurrentTime(timeSeconds, fromRemote);
     }
   }
 
