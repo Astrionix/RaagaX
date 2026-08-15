@@ -211,41 +211,72 @@ export class SongResolver {
   public static async resolveSongs(songIds: string[]): Promise<Song[]> {
     if (!songIds || songIds.length === 0) return [];
     
+    const resolved: Song[] = [];
+    const missingIds: string[] = [];
+
     try {
       const { data, error } = await supabase
         .from('canonical_songs')
         .select('*')
         .in('id', songIds);
         
-      if (error) throw error;
-      
-      return (data || []).map((s: any) => {
-        let audioUrl = '';
-        if (s.raw_data && Array.isArray(s.raw_data)) {
-          const highest = s.raw_data.find((d: any) => d.quality === '320kbps') || s.raw_data[s.raw_data.length - 1];
-          audioUrl = highest?.url || '';
-        }
+      if (!error && data) {
+        data.forEach((s: any) => {
+          let audioUrl = '';
+          if (s.raw_data && Array.isArray(s.raw_data)) {
+            const highest = s.raw_data.find((d: any) => d.quality === '320kbps') || s.raw_data[s.raw_data.length - 1];
+            audioUrl = highest?.url || '';
+          }
 
-        return {
-          id: s.id,
-          title: s.title,
-          artist: s.artist,
-          artistId: s.artist,
-          album: s.album || '',
-          albumId: s.album || '',
-          coverUrl: s.cover_url || s.coverUrl,
-          audioUrl: audioUrl,
-          duration: Number(s.duration) || 0,
-          genre: 'Telugu',
-          category: 'latest_telugu',
-          releaseYear: 2024,
-          plays: 1000,
-          likes: 100,
-        };
+          resolved.push({
+            id: s.id,
+            title: s.title,
+            artist: s.artist,
+            artistId: s.artist,
+            album: s.album || '',
+            albumId: s.album || '',
+            coverUrl: s.cover_url || s.coverUrl,
+            audioUrl: audioUrl,
+            duration: Number(s.duration) || 0,
+            genre: 'Telugu',
+            category: 'latest_telugu',
+            releaseYear: 2024,
+            plays: 1000,
+            likes: 100,
+          });
+        });
+      }
+
+      // Check which IDs still need full metadata
+      const foundSet = new Set(resolved.map(s => s.id));
+      songIds.forEach(id => {
+        if (!foundSet.has(id)) missingIds.push(id);
       });
+
+      // Query /api/songs for missing IDs (JioSaavn provider)
+      if (missingIds.length > 0 && typeof window !== 'undefined') {
+        const url = `${window.location.origin}/api/songs?ids=${encodeURIComponent(missingIds.join(','))}`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const json = await res.json();
+          const rawTracks = json.data || [];
+          if (Array.isArray(rawTracks) && rawTracks.length > 0) {
+            const { mapTrackToSong } = await import('@/lib/jioSaavnProvider');
+            rawTracks.forEach((track, idx) => {
+              const mapped = mapTrackToSong(track, idx);
+              if (mapped?.id && !foundSet.has(mapped.id)) {
+                resolved.push(mapped);
+                foundSet.add(mapped.id);
+              }
+            });
+          }
+        }
+      }
+
+      return resolved;
     } catch (e) {
-      console.error("Failed to resolve songs from canonical_songs:", e);
-      return [];
+      console.error("Failed to resolve songs from canonical_songs / API:", e);
+      return resolved;
     }
   }
 }

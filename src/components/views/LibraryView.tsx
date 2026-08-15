@@ -20,6 +20,8 @@ export function LibraryView() {
   const {
     queue,
     likedSongIds,
+    likedSongs: storeLikedSongs = [],
+    cloudDownloadRecords = [],
     downloadedSongIds,
     historySongIds,
     favoriteArtistIds,
@@ -36,6 +38,8 @@ export function LibraryView() {
     deviceId,
     transferPlayback,
   } = usePlayerStore();
+
+  const [resolvedSongsMap, setResolvedSongsMap] = useState<Record<string, Song>>({});
 
   useEffect(() => {
     // Load offline tracks from catalog
@@ -65,14 +69,71 @@ export function LibraryView() {
     });
   }, [downloadedSongIds.length]);
 
-  // Combine queue songs with offline tracks for display
+  // Combine queue songs, store liked songs, offline tracks, resolved map, and cloud records into known map
   const knownSongsMap = new Map<string, Song>();
+  storeLikedSongs.forEach((s) => { if (s?.id) knownSongsMap.set(s.id, s); });
   queue.forEach((s) => { if (s?.id) knownSongsMap.set(s.id, s); });
   offlineTrackList.forEach((s) => { if (s?.id) knownSongsMap.set(s.id, s); });
+  Object.values(resolvedSongsMap).forEach((s) => { if (s?.id) knownSongsMap.set(s.id, s); });
+  cloudDownloadRecords.forEach((r) => {
+    if (r?.song_id && !knownSongsMap.has(r.song_id)) {
+      knownSongsMap.set(r.song_id, {
+        id: r.song_id,
+        title: r.song_title || 'Unknown Title',
+        artist: r.song_artist || 'Unknown Artist',
+        artistId: `art-${r.song_id}`,
+        album: 'Liked Songs',
+        albumId: `alb-${r.song_id}`,
+        coverUrl: r.song_cover || '/app-icon.png',
+        duration: r.song_duration || 180,
+        audioUrl: '',
+        genre: 'Various',
+        category: 'global_trending',
+        releaseYear: new Date().getFullYear(),
+        plays: 0,
+        likes: 1,
+      });
+    }
+  });
+
+  // Automatically fetch metadata for any liked song IDs not yet in memory
+  useEffect(() => {
+    if (likedSongIds.length === 0) return;
+    const missingIds = likedSongIds.filter((id) => !knownSongsMap.has(id));
+    if (missingIds.length === 0) return;
+
+    import('@/lib/discovery/SongResolver').then(({ SongResolver }) => {
+      SongResolver.resolveSongs(missingIds).then((resolved) => {
+        if (resolved && resolved.length > 0) {
+          setResolvedSongsMap((prev) => {
+            const updated = { ...prev };
+            resolved.forEach((song) => {
+              if (song?.id) updated[song.id] = song;
+            });
+            return updated;
+          });
+        }
+      }).catch((e) => console.warn('[LibraryView] SongResolver error:', e));
+    });
+  }, [likedSongIds]);
 
   const likedSongs = likedSongIds
-    .map((id) => knownSongsMap.get(id))
-    .filter((s): s is Song => Boolean(s));
+    .map((id) => knownSongsMap.get(id) || {
+      id,
+      title: 'Liked Track',
+      artist: 'Unknown Artist',
+      album: 'Liked Songs',
+      coverUrl: '/app-icon.png',
+      duration: 210,
+      audioUrl: '',
+      artistId: 'unknown',
+      albumId: 'unknown',
+      genre: 'Various',
+      category: 'global_trending' as const,
+      releaseYear: new Date().getFullYear(),
+      plays: 0,
+      likes: 1
+    });
 
   const downloadedSongs = downloadedSongIds
     .map((id) => knownSongsMap.get(id))
