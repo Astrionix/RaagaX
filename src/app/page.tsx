@@ -59,10 +59,30 @@ export default function Page() {
 
   React.useEffect(() => {
     const handlePopState = (e: PopStateEvent) => {
+      const store = usePlayerStore.getState();
+      
+      // 1. If Full Player is expanded, collapse it first
+      if (store.isPlayerExpanded) {
+        store.collapsePlayer();
+        import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact());
+        return;
+      }
+
+      // 2. If Settings or Device modal is open, close it first
+      if (store.isSettingsModalOpen) {
+        store.toggleSettingsModal();
+        return;
+      }
+      if (store.isDeviceModalOpen) {
+        store.toggleDeviceModal();
+        return;
+      }
+
+      // 3. Otherwise navigate smoothly through tab history
       if (e.state && e.state.tab) {
-        usePlayerStore.getState().setActiveTab(e.state.tab);
+        store.setActiveTab(e.state.tab);
       } else {
-        usePlayerStore.getState().setActiveTab('home');
+        store.setActiveTab('home');
       }
     };
 

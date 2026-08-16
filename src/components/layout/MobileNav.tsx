@@ -44,7 +44,10 @@ export function MobileNav() {
           return (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id as ActiveTab)}
+              onClick={() => {
+                import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact());
+                setActiveTab(item.id as ActiveTab);
+              }}
               className={`relative flex-1 flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
                 isActive 
                   ? 'text-white scale-105' 

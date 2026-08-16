@@ -89,6 +89,18 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- RaagaX Home Screen Liquid Lens Widget Provider -->
+        <receiver
+            android:name=".RaagaXWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_raaga_player_info" />
+        </receiver>
     </application>
 
 </manifest>

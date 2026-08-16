@@ -4,4 +4,5 @@
     <string name="title_activity_main">RaagaX Music</string>
     <string name="package_name">com.raagax.music</string>
     <string name="custom_url_scheme">com.raagax.music</string>
+    <string name="widget_description">RaagaX Lossless Pro Music Player</string>
 </resources>

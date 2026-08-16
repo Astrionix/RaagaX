@@ -44,6 +44,7 @@ export function AudioPlayerController() {
     playNext,
     playPrev,
     setCurrentTime,
+    duration,
     setDuration,
     setIsPlaying,
     sleepTimerEndsAt,
@@ -363,6 +364,35 @@ export function AudioPlayerController() {
       if (activeAudio) activeAudio.volume = effectiveVolume;
     }
   }, [volume, isMuted]);
+
+  // ── Gapless Playback Engine: Silent Pre-Caching Next Track ──────────────
+  const prebufferedIndexRef = useRef<number>(-1);
+  useEffect(() => {
+    const effectiveDuration = duration > 0 ? duration : (currentSong?.duration || 0);
+    if (!isPlaying || effectiveDuration <= 0) return;
+
+    // When current track reaches 75% progress, silently pre-resolve and pre-buffer next track
+    const progress = currentTime / effectiveDuration;
+    const nextIndex = queueIndex + 1;
+
+    if (progress >= 0.75 && nextIndex < queue.length && prebufferedIndexRef.current !== nextIndex) {
+      prebufferedIndexRef.current = nextIndex;
+      const nextSong = queue[nextIndex];
+      if (nextSong && nextSong.id) {
+        console.log('[GAPLESS_ENGINE] Pre-buffering next track audio stream:', nextSong.title);
+        import('@/lib/playbackSourceResolver').then(({ PlaybackSourceResolver }) => {
+          PlaybackSourceResolver.getInstance().resolvePlayableSource(nextSong).then(source => {
+            if (source?.url && typeof window !== 'undefined') {
+              // Silently warm up audio cache / connection
+              const prefetch = new Audio();
+              prefetch.preload = 'auto';
+              prefetch.src = source.url;
+            }
+          }).catch(() => {});
+        });
+      }
+    }
+  }, [currentTime, duration, isPlaying, queueIndex, queue]);
 
   // Handle Sleep Timer
   useEffect(() => {
