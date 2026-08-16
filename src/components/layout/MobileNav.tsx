@@ -20,6 +20,7 @@ export function MobileNav() {
 
   const navItems = [
     { id: 'home' as const, label: 'Home', icon: Home },
+    { id: 'browse' as const, label: 'Browse', icon: Compass },
     { id: 'search' as const, label: 'Search', icon: Search },
     { id: 'library' as const, label: 'Library', icon: Library },
     { id: 'profile' as const, label: 'Profile', icon: User },
@@ -31,7 +32,7 @@ export function MobileNav() {
       style={{ bottom: 'calc(0.35rem + env(safe-area-inset-bottom))' }}
     >
       <nav 
-        className="pointer-events-auto flex items-center justify-between gap-1 px-3 py-1.5 rounded-[28px] lens-floating shadow-[0_16px_40px_rgba(0,0,0,0.7)] w-full max-w-[340px] border border-white/10 relative overflow-hidden"
+        className="pointer-events-auto flex items-center justify-between gap-1 px-3 py-1.5 rounded-[28px] lens-floating shadow-[0_16px_40px_rgba(0,0,0,0.7)] w-full max-w-[380px] border border-white/10 relative overflow-hidden"
         aria-label="Mobile Navigation"
       >
         {/* Specular Liquid Edge Light */}
