@@ -160,7 +160,15 @@ export function HomeView() {
   }, [preferredLanguage, activeUserId, payload?.sections?.length]);
 
   const hours = new Date().getHours();
-  const greeting = !isMounted ? 'Good day' : (hours < 12 ? 'Good morning' : hours < 17 ? 'Good afternoon' : 'Good evening');
+  const greeting = !isMounted
+    ? 'Good day'
+    : (hours < 12
+        ? 'Good morning'
+        : hours < 17
+          ? 'Good afternoon'
+          : hours < 21
+            ? 'Good evening'
+            : 'Good night');
   const displayName = user?.user_metadata?.full_name?.split(' ')[0] || 'Ram';
 
   const coverUrl = currentSong?.coverUrl && !currentSong.coverUrl.includes('/null/')

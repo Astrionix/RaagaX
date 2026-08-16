@@ -136,6 +136,20 @@ export interface Device {
   volume: number;
 }
 
+export type PlaybackStatus =
+  | 'idle'
+  | 'loading'
+  | 'buffering'
+  | 'playing'
+  | 'paused'
+  | 'seeking'
+  | 'switching'
+  | 'transferring'
+  | 'ended'
+  | 'error';
+
+export type LyricsMode = 'native' | 'english' | 'romanized' | 'dual' | 'auto';
+
 export type Renderer = 'audio' | 'video' | 'remote';
 
 export interface PlaybackSession {

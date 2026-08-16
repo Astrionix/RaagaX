@@ -20,10 +20,9 @@ export function MobileNav() {
 
   const navItems = [
     { id: 'home' as const, label: 'Home', icon: Home },
-    { id: 'browse' as const, label: 'Browse', icon: Compass },
     { id: 'search' as const, label: 'Search', icon: Search },
     { id: 'library' as const, label: 'Library', icon: Library },
-    { id: 'profile' as const, label: 'You', icon: User },
+    { id: 'profile' as const, label: 'Profile', icon: User },
   ];
 
   return (
