@@ -2,12 +2,6 @@
   "Telugu": {
     "quick_access": [
       {
-        "id": "1",
-        "title": "Liked Songs",
-        "type": "playlist",
-        "imageUrl": "/app-icon.png"
-      },
-      {
         "id": "802938312",
         "title": "Telugu Mix",
         "type": "mix",
@@ -203,12 +197,6 @@
   },
   "Tamil": {
     "quick_access": [
-      {
-        "id": "1",
-        "title": "Liked Songs",
-        "type": "playlist",
-        "imageUrl": "/app-icon.png"
-      },
       {
         "id": "1098155077",
         "title": "Tamil Mix",
@@ -406,12 +394,6 @@
   "Kannada": {
     "quick_access": [
       {
-        "id": "1",
-        "title": "Liked Songs",
-        "type": "playlist",
-        "imageUrl": "/app-icon.png"
-      },
-      {
         "id": "742368298",
         "title": "Kannada Mix",
         "type": "mix",
@@ -601,12 +583,6 @@
   },
   "Malayalam": {
     "quick_access": [
-      {
-        "id": "1",
-        "title": "Liked Songs",
-        "type": "playlist",
-        "imageUrl": "/app-icon.png"
-      },
       {
         "id": "488450766",
         "title": "Malayalam Mix",
@@ -804,12 +780,6 @@
   "Hindi": {
     "quick_access": [
       {
-        "id": "1",
-        "title": "Liked Songs",
-        "type": "playlist",
-        "imageUrl": "/app-icon.png"
-      },
-      {
         "id": "1079336813",
         "title": "Hindi Mix",
         "type": "mix",
@@ -1005,12 +975,6 @@
   },
   "English": {
     "quick_access": [
-      {
-        "id": "1",
-        "title": "Liked Songs",
-        "type": "playlist",
-        "imageUrl": "/app-icon.png"
-      },
       {
         "id": "154220365",
         "title": "English Mix",

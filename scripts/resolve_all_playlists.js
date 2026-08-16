@@ -117,12 +117,10 @@ async function main() {
   for (const lang of LANGUAGES) {
     console.log(`\n===> Processing language: ${lang}`);
     result[lang] = {
-      quick_access: [
-        { id: '1', title: 'Liked Songs', type: 'playlist', imageUrl: '/app-icon.png' }
-      ]
+      quick_access: []
     };
 
-    const seenIds = new Set(['1']);
+    const seenIds = new Set();
 
     // 1. Resolve Quick Access
     for (const qa of QUICK_ACCESS_QUERIES) {

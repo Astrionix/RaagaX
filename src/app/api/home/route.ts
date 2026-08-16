@@ -40,7 +40,6 @@ function getLanguageContent(lang: string): Record<string, ShelfItem[]> {
 
   const fallback: Record<string, ShelfItem[]> = {
     quick_access: [
-      { id: '1', title: 'Liked Songs', type: 'playlist', imageUrl: '/app-icon.png' },
       { id: getPlaylistId(defaultLang, 'Mix', '150750109'), title: `${defaultLang} Mix`, type: 'mix', imageUrl: '/app-icon.png' },
       { id: getPlaylistId(defaultLang, 'Trending', '1266643840'), title: `Trending ${defaultLang}`, type: 'playlist', imageUrl: '/app-icon.png' },
       { id: getPlaylistId(defaultLang, 'Hits', '1170578801'), title: `${defaultLang} Hits`, type: 'playlist', imageUrl: '/app-icon.png' },
