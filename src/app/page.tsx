@@ -42,6 +42,7 @@ import { DownloadsView } from '@/components/views/DownloadsView';
 import { FavoritesView } from '@/components/views/FavoritesView';
 import { SettingsView } from '@/components/views/SettingsView';
 import { SplashScreen } from '@/components/modals/SplashScreen';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
@@ -186,24 +187,48 @@ export default function Page() {
       <PlayerBar />
 
       {/* Full-Screen Overlays & Modals (Root Level Z-50) */}
-      <ExpandedPlayerModal />
-      <LyricsPanel />
-      <QueueModal />
-      <PlaylistImporterModal />
-      <BackupRestoreModal />
-      <SleepTimerModal />
-      <CastModal />
-      <SettingsModal />
-      <ContextMenuModal />
-      <OnboardingAuthModal />
-      <KeyboardShortcutsModal />
-      <MobileDeviceConnectModal />
-
-
-      <CreatePlaylistModal />
-
-      {/* One-time permission onboarding — shown only on first install, never again */}
-      <PermissionOnboardingModal />
+      <ErrorBoundary name="ExpandedPlayerModal">
+        <ExpandedPlayerModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="LyricsPanel">
+        <LyricsPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="QueueModal">
+        <QueueModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="PlaylistImporterModal">
+        <PlaylistImporterModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="BackupRestoreModal">
+        <BackupRestoreModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="SleepTimerModal">
+        <SleepTimerModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="CastModal">
+        <CastModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="SettingsModal">
+        <SettingsModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="ContextMenuModal">
+        <ContextMenuModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="OnboardingAuthModal">
+        <OnboardingAuthModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="KeyboardShortcutsModal">
+        <KeyboardShortcutsModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="MobileDeviceConnectModal">
+        <MobileDeviceConnectModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="CreatePlaylistModal">
+        <CreatePlaylistModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="PermissionOnboardingModal">
+        <PermissionOnboardingModal />
+      </ErrorBoundary>
     </div>
   );
 }

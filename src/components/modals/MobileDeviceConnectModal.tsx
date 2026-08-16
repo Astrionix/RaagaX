@@ -35,65 +35,80 @@ export function MobileDeviceConnectModal() {
   const [devices, setDevices] = useState<VerifiedDevice[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [transferringId, setTransferringId] = useState<string | null>(null);
-  const [selectedDetailDevice, setSelectedDetailDevice] = useState<VerifiedDevice | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
 
   useEffect(() => {
     if (!isDeviceModalOpen) return;
-    const engine = DeviceDiscoveryEngine.getInstance();
-    engine.startDiscovery();
-    const unsubscribe = engine.subscribe((list) => {
-      setDevices(list);
-    });
+    try {
+      const engine = DeviceDiscoveryEngine.getInstance();
+      engine.startDiscovery();
+      const unsubscribe = engine.subscribe((list) => {
+        setDevices(Array.isArray(list) ? list : []);
+      });
 
-    return () => {
-      unsubscribe();
-      engine.stopDiscovery();
-    };
+      return () => {
+        try {
+          unsubscribe();
+          engine.stopDiscovery();
+        } catch {}
+      };
+    } catch (err) {
+      console.warn('[MobileDeviceConnectModal] Error initializing discovery engine:', err);
+    }
   }, [isDeviceModalOpen]);
 
   if (!isDeviceModalOpen) return null;
 
   const filteredDevices = useMemo(() => {
-    if (!searchQuery.trim()) return devices;
+    if (!Array.isArray(devices)) return [];
+    if (!searchQuery.trim()) return devices.filter(Boolean);
     const q = searchQuery.toLowerCase();
     return devices.filter(d => 
-      d.name.toLowerCase().includes(q) || 
-      d.platform.toLowerCase().includes(q) || 
-      d.type.toLowerCase().includes(q)
+      d && (
+        (d.name || '').toLowerCase().includes(q) || 
+        (d.platform || '').toLowerCase().includes(q) || 
+        (d.type || '').toLowerCase().includes(q)
+      )
     );
   }, [devices, searchQuery]);
 
-  const currentlyPlayingDevice = filteredDevices.find(d => d.reachabilityState === 'CURRENTLY_PLAYING') || filteredDevices.find(d => d.deviceId === (activeDeviceId || deviceId));
-  const nearbyDevices = filteredDevices.filter(d => d.deviceId !== currentlyPlayingDevice?.deviceId && d.isNearby && !d.isAudioOutput && d.reachabilityState !== 'OFFLINE');
-  const audioOutputs = filteredDevices.filter(d => d.isAudioOutput);
-  const otherDevices = filteredDevices.filter(d => d.deviceId !== currentlyPlayingDevice?.deviceId && !d.isNearby && !d.isAudioOutput && d.reachabilityState !== 'OFFLINE');
-  const offlineDevices = filteredDevices.filter(d => d.reachabilityState === 'OFFLINE' || d.reachabilityState === 'STALE');
+  const currentlyPlayingDevice = filteredDevices.find(d => d?.reachabilityState === 'CURRENTLY_PLAYING') || filteredDevices.find(d => d?.deviceId === (activeDeviceId || deviceId)) || filteredDevices[0] || null;
+  const nearbyDevices = filteredDevices.filter(d => d && d.deviceId !== currentlyPlayingDevice?.deviceId && d.isNearby && !d.isAudioOutput && d.reachabilityState !== 'OFFLINE');
+  const audioOutputs = filteredDevices.filter(d => d && d.isAudioOutput);
+  const otherDevices = filteredDevices.filter(d => d && d.deviceId !== currentlyPlayingDevice?.deviceId && !d.isNearby && !d.isAudioOutput && d.reachabilityState !== 'OFFLINE');
+  const offlineDevices = filteredDevices.filter(d => d && (d.reachabilityState === 'OFFLINE' || d.reachabilityState === 'STALE'));
 
   const handleScan = () => {
     setIsScanning(true);
-    DeviceDiscoveryEngine.getInstance().refreshDiscovery();
+    try {
+      DeviceDiscoveryEngine.getInstance().refreshDiscovery();
+    } catch {}
     setTimeout(() => {
       setIsScanning(false);
     }, 1000);
   };
 
   const handleTransfer = async (targetId: string, targetName: string) => {
-    if (targetId === activeDeviceId) return;
+    if (!targetId || targetId === activeDeviceId) return;
     setErrorMessage(null);
     setTransferringId(targetId);
 
     try {
-      import('@/lib/haptics/HapticEngine').then(m => m.haptics.mediumImpact());
-      await transferPlayback(targetId);
+      import('@/lib/haptics/HapticEngine').then(m => m.haptics.mediumImpact()).catch(() => {});
+      if (typeof transferPlayback === 'function') {
+        await transferPlayback(targetId);
+      } else {
+        const { TransferManager } = await import('@/lib/connect/TransferManager');
+        await TransferManager.getInstance().initiateTransfer(targetId);
+      }
       setTimeout(() => {
         setTransferringId(null);
         toggleDeviceModal();
       }, 600);
     } catch (err: any) {
       setTransferringId(null);
-      setErrorMessage(`Couldn't switch to ${targetName}. Your current device is still playing.`);
+      setErrorMessage(`Couldn't switch to ${targetName || 'device'}. Your current device is still playing.`);
     }
   };
 
@@ -115,6 +130,10 @@ export function MobileDeviceConnectModal() {
   };
 
   const CurrentIcon = getDeviceIcon(currentlyPlayingDevice?.platform, currentlyPlayingDevice?.isAudioOutput);
+  const safeCurrentTime = Number.isFinite(currentTime) ? currentTime : 0;
+  const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : (currentSong?.duration || 180);
+  const progressPercent = Math.min(100, Math.max(0, (safeCurrentTime / safeDuration) * 100));
+  const safeVolume = Number.isFinite(volume) ? volume : 1;
 
   return (
     <div className="fixed inset-0 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
@@ -215,7 +234,7 @@ export function MobileDeviceConnectModal() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <h4 className="text-sm font-extrabold text-white leading-tight truncate">
-                          {currentlyPlayingDevice.name}
+                          {currentlyPlayingDevice?.name || 'This Device'}
                         </h4>
                         <Check className="w-4 h-4 text-[#E50914] flex-shrink-0" />
                       </div>
@@ -232,10 +251,10 @@ export function MobileDeviceConnectModal() {
                   <div className="pt-3 border-t border-white/10 space-y-3">
                     <div className="flex items-center justify-between text-xs">
                       <span className="truncate max-w-[240px] font-bold text-white flex items-center gap-1.5">
-                        <span className="text-[#E50914]">♪</span> {currentSong.title} · {currentSong.artist}
+                        <span className="text-[#E50914]">♪</span> {currentSong.title || 'Unknown Title'} · {currentSong.artist || 'Unknown Artist'}
                       </span>
                       <span className="text-[11px] text-slate-400 font-mono font-bold">
-                        {formatTime(currentTime)} / {formatTime(duration || currentSong.duration || 180)}
+                        {formatTime(safeCurrentTime)} / {formatTime(safeDuration)}
                       </span>
                     </div>
 
@@ -243,7 +262,7 @@ export function MobileDeviceConnectModal() {
                     <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
                       <div 
                         className="h-full bg-[#E50914] rounded-full transition-all duration-300"
-                        style={{ width: `${Math.min(100, Math.max(0, (currentTime / (duration || currentSong.duration || 1)) * 100))}%` }}
+                        style={{ width: `${progressPercent}%` }}
                       />
                     </div>
 
@@ -278,7 +297,7 @@ export function MobileDeviceConnectModal() {
                           min="0"
                           max="1"
                           step="0.05"
-                          value={volume}
+                          value={safeVolume}
                           onChange={(e) => setVolume(parseFloat(e.target.value))}
                           className="w-20 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-[#E50914]"
                         />
@@ -309,7 +328,7 @@ export function MobileDeviceConnectModal() {
                   return (
                     <div 
                       key={device.deviceId}
-                      onClick={() => !isBusy && handleTransfer(device.deviceId, device.name)}
+                      onClick={() => !isBusy && handleTransfer(device.deviceId, device.name || 'Nearby Device')}
                       className="p-3.5 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 flex items-center justify-between transition-all cursor-pointer group active:scale-[0.99]"
                     >
                       <div className="flex items-center gap-3.5 min-w-0">
@@ -319,7 +338,7 @@ export function MobileDeviceConnectModal() {
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <h4 className="text-xs font-bold text-white truncate group-hover:text-[#EF233C] transition-colors">
-                              {device.name}
+                              {device.name || 'Nearby Device'}
                             </h4>
                             <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-300 font-mono border border-emerald-500/20">
                               Verified
@@ -364,7 +383,7 @@ export function MobileDeviceConnectModal() {
                   return (
                     <div 
                       key={device.deviceId}
-                      onClick={() => !isBusy && handleTransfer(device.deviceId, device.name)}
+                      onClick={() => !isBusy && handleTransfer(device.deviceId, device.name || 'RaagaX Device')}
                       className="p-3.5 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 flex items-center justify-between transition-all cursor-pointer group active:scale-[0.99]"
                     >
                       <div className="flex items-center gap-3.5 min-w-0">
@@ -373,7 +392,7 @@ export function MobileDeviceConnectModal() {
                         </div>
                         <div className="min-w-0">
                           <h4 className="text-xs font-bold text-white truncate group-hover:text-[#EF233C] transition-colors">
-                            {device.name}
+                            {device.name || 'RaagaX Device'}
                           </h4>
                           <p className="text-[10px] text-slate-400 font-medium mt-0.5 flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
@@ -419,7 +438,7 @@ export function MobileDeviceConnectModal() {
                         </div>
                         <div className="min-w-0">
                           <h4 className="text-xs font-bold text-white truncate">
-                            {device.name}
+                            {device.name || 'Audio Output'}
                           </h4>
                           <p className="text-[10px] text-purple-300 font-medium mt-0.5">
                             Audio Output Device
@@ -457,7 +476,7 @@ export function MobileDeviceConnectModal() {
                         </div>
                         <div className="min-w-0">
                           <h4 className="text-xs font-medium text-white/60 truncate">
-                            {device.name}
+                            {device.name || 'Offline Device'}
                           </h4>
                           <p className="text-[10px] text-slate-500 mt-0.5">
                             Offline · Last seen recently

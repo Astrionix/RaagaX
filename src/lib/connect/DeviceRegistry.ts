@@ -26,28 +26,45 @@ export class DeviceRegistry {
     return DeviceRegistry.instance;
   }
 
+  private safeGetStorage(type: 'local' | 'session', key: string): string | null {
+    try {
+      if (typeof window === 'undefined') return null;
+      return type === 'local' ? localStorage.getItem(key) : sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  private safeSetStorage(type: 'local' | 'session', key: string, value: string): void {
+    try {
+      if (typeof window === 'undefined') return;
+      if (type === 'local') localStorage.setItem(key, value);
+      else sessionStorage.setItem(key, value);
+    } catch {}
+  }
+
   public getOrCreateDeviceId(): string {
     if (typeof window === 'undefined') return 'server-001';
-    let deviceId = localStorage.getItem('raagax_device_id');
+    let deviceId = this.safeGetStorage('local', 'raagax_device_id');
     if (!deviceId) {
       const friendly = this.getFriendlyDeviceName();
       const capNative = typeof (window as any).Capacitor?.isNativePlatform === 'function' && (window as any).Capacitor.isNativePlatform();
-      const prefix = capNative ? 'android-apk' : `${friendly.platform.toLowerCase()}-${friendly.type}`;
+      const prefix = capNative ? 'android-apk' : `${(friendly.platform || 'web').toLowerCase()}-${friendly.type || 'device'}`;
       const rand = Math.floor(100 + Math.random() * 900);
       deviceId = `${prefix}-${rand}`;
-      localStorage.setItem('raagax_device_id', deviceId);
+      this.safeSetStorage('local', 'raagax_device_id', deviceId);
     }
     return deviceId;
   }
 
   public getOrCreateDeviceInstanceId(): string {
     if (typeof window === 'undefined') return 'server_instance';
-    let instanceId = sessionStorage.getItem('raagax_device_instance_id');
+    let instanceId = this.safeGetStorage('session', 'raagax_device_instance_id');
     if (!instanceId) {
-      instanceId = localStorage.getItem('raagax_device_instance_id') ||
+      instanceId = this.safeGetStorage('local', 'raagax_device_instance_id') ||
         'inst_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
-      sessionStorage.setItem('raagax_device_instance_id', instanceId);
-      localStorage.setItem('raagax_device_instance_id', instanceId);
+      this.safeSetStorage('session', 'raagax_device_instance_id', instanceId);
+      this.safeSetStorage('local', 'raagax_device_instance_id', instanceId);
     }
     return instanceId;
   }
@@ -55,7 +72,7 @@ export class DeviceRegistry {
   public getFriendlyDeviceName(): { name: string; type: 'mobile' | 'desktop' | 'tv' | 'tablet'; platform: string } {
     if (typeof window === 'undefined') return { name: 'My Device', type: 'desktop', platform: 'server' };
 
-    const ua = navigator.userAgent;
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
     const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(ua);
     const isTablet = /Tablet|iPad/i.test(ua);
     const isTV = /TV|SmartTV|GoogleTV|AppleTV/i.test(ua);
@@ -73,7 +90,7 @@ export class DeviceRegistry {
     else if (/iPhone|iPad|iPod/i.test(ua)) platform = 'iOS';
     else if (/Linux/i.test(ua)) platform = 'Linux';
 
-    const customName = localStorage.getItem('raagax_custom_device_name') || localStorage.getItem('raagax_device_name');
+    const customName = this.safeGetStorage('local', 'raagax_custom_device_name') || this.safeGetStorage('local', 'raagax_device_name');
     if (customName && customName.trim()) {
       return { name: customName.trim(), type, platform };
     }
@@ -93,7 +110,7 @@ export class DeviceRegistry {
     }
 
     // Persist friendly name once generated
-    localStorage.setItem('raagax_device_name', friendlyName);
+    this.safeSetStorage('local', 'raagax_device_name', friendlyName);
 
     return { name: friendlyName, type, platform };
   }

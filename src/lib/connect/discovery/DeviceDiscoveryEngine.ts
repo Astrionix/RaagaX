@@ -44,15 +44,27 @@ export class DeviceDiscoveryEngine {
     this.activeDiscovery = true;
 
     console.log('[DeviceDiscoveryEngine] Starting Multi-Layer Discovery Engine...');
-    this.runDiscoveryCycle();
+    try {
+      this.runDiscoveryCycle();
+    } catch (err) {
+      console.warn('[DeviceDiscoveryEngine] Discovery initial cycle error:', err);
+    }
 
     this.discoveryInterval = setInterval(() => {
-      this.runDiscoveryCycle();
+      try {
+        this.runDiscoveryCycle();
+      } catch (err) {
+        console.warn('[DeviceDiscoveryEngine] Discovery interval cycle error:', err);
+      }
     }, 4000);
 
     // Heartbeat monitor for stale device cleanup
     this.heartbeatInterval = setInterval(() => {
-      this.pruneStaleDevices();
+      try {
+        this.pruneStaleDevices();
+      } catch (err) {
+        console.warn('[DeviceDiscoveryEngine] Prune error:', err);
+      }
     }, 5000);
   }
 
@@ -69,12 +81,20 @@ export class DeviceDiscoveryEngine {
   }
 
   public refreshDiscovery() {
-    this.runDiscoveryCycle();
+    try {
+      this.runDiscoveryCycle();
+    } catch (err) {
+      console.warn('[DeviceDiscoveryEngine] Refresh discovery error:', err);
+    }
   }
 
   public subscribe(listener: (devices: VerifiedDevice[]) => void): () => void {
     this.listeners.add(listener);
-    listener(this.getRankedDevices());
+    try {
+      listener(this.getRankedDevices());
+    } catch (err) {
+      console.warn('[DeviceDiscoveryEngine] Initial subscriber notify error:', err);
+    }
     return () => {
       this.listeners.delete(listener);
     };
@@ -84,133 +104,150 @@ export class DeviceDiscoveryEngine {
    * Multi-Source Discovery Cycle
    */
   public async runDiscoveryCycle() {
-    const store = usePlayerStore.getState();
-    const localDeviceId = store.deviceId || DeviceRegistry.getInstance().getOrCreateDeviceId();
+    try {
+      const store = usePlayerStore.getState();
+      const localDeviceId = store.deviceId || DeviceRegistry.getInstance().getOrCreateDeviceId();
 
-    // 1. Ingest Trusted & Local Devices
-    this.ingestLocalDevice(localDeviceId);
+      // 1. Ingest Trusted & Local Devices
+      this.ingestLocalDevice(localDeviceId);
 
-    // 2. Ingest Cloud Presence from Supabase
-    await this.ingestCloudPresence(localDeviceId);
+      // 2. Ingest Cloud Presence from Supabase
+      await this.ingestCloudPresence(localDeviceId);
 
-    // 3. Ingest Local LAN mDNS / WebRTC Candidate Layer
-    await this.ingestLocalLANDevices(localDeviceId);
+      // 3. Ingest Local LAN mDNS / WebRTC Candidate Layer
+      await this.ingestLocalLANDevices(localDeviceId);
 
-    // 4. Ingest Connected Audio Outputs (Bluetooth / System)
-    await this.ingestAudioOutputs();
+      // 4. Ingest Connected Audio Outputs (Bluetooth / System)
+      await this.ingestAudioOutputs();
 
-    // 5. Rank and broadcast verified devices
-    this.notifyListeners();
+      // 5. Rank and broadcast verified devices
+      this.notifyListeners();
+    } catch (err) {
+      console.warn('[DeviceDiscoveryEngine] Run discovery cycle failed gracefully:', err);
+    }
   }
 
   private ingestLocalDevice(localDeviceId: string) {
-    const store = usePlayerStore.getState();
-    const friendly = DeviceRegistry.getInstance().getFriendlyDeviceName();
-    const isPlayingLocally = store.isActiveDevice && store.isPlaying;
+    try {
+      const store = usePlayerStore.getState();
+      const friendly = DeviceRegistry.getInstance().getFriendlyDeviceName();
+      const isPlayingLocally = store.isActiveDevice && store.isPlaying;
 
-    const localDevice: VerifiedDevice = {
-      deviceId: localDeviceId,
-      installationId: DeviceRegistry.getInstance().getOrCreateDeviceInstanceId(),
-      name: `${friendly.name} (This Device)`,
-      type: friendly.type,
-      platform: friendly.platform as any,
-      appVersion: '2.5.0',
-      protocolVersion: 2,
-      capabilities: {
-        audio: true,
-        video: false,
-        seek: true,
-        volume: true,
-        backgroundPlayback: true,
-        remoteControl: true,
-        offline: true,
-        connect: true,
-        queue: true,
-        transfer: true,
-      },
-      reachabilityState: isPlayingLocally ? 'CURRENTLY_PLAYING' : 'PLAYBACK_READY',
-      discoverySources: new Set(['TRUSTED', 'LAN']),
-      isTrusted: true,
-      isNearby: true,
-      isAudioOutput: false,
-      activePlaybackSong: store.currentSong?.title,
-      activePlaybackPositionMs: store.currentTime * 1000,
-      lastSeenTimestamp: Date.now(),
-      verifiedAtTimestamp: Date.now(),
-      rankingScore: 1000,
-    };
-
-    this.verifiedDevices.set(localDeviceId, localDevice);
-  }
-
-  private async ingestCloudPresence(localDeviceId: string) {
-    const store = usePlayerStore.getState();
-    const onlineList = store.onlineDevices || [];
-
-    for (const record of onlineList) {
-      if (record.id === localDeviceId) continue;
-
-      const existing = this.verifiedDevices.get(record.id);
-      const isOnline = record.isOnline !== false;
-      const isRemoteActive = store.activeDeviceId === record.id;
-
-      let state: DeviceReachabilityState = 'OFFLINE';
-      if (isRemoteActive && store.isPlaying) {
-        state = 'CURRENTLY_PLAYING';
-      } else if (isOnline) {
-        state = 'PLAYBACK_READY';
-      } else {
-        state = 'STALE';
-      }
-
-      const sources = existing?.discoverySources || new Set<DiscoverySource>();
-      sources.add('CLOUD');
-
-      const devRecord = record as any;
-      const updated: VerifiedDevice = {
-        deviceId: record.id,
-        installationId: existing?.installationId || 'inst_' + record.id,
-        name: record.name || 'RaagaX Player',
-        type: devRecord.type || 'desktop',
-        platform: (record.platform as any) || 'Windows',
+      const localDevice: VerifiedDevice = {
+        deviceId: localDeviceId,
+        installationId: DeviceRegistry.getInstance().getOrCreateDeviceInstanceId(),
+        name: `${friendly.name || 'My Device'} (This Device)`,
+        type: friendly.type || 'desktop',
+        platform: (friendly.platform || 'Web') as any,
         appVersion: '2.5.0',
         protocolVersion: 2,
-        capabilities: devRecord.capabilities || {
+        capabilities: {
           audio: true,
           video: false,
           seek: true,
           volume: true,
           backgroundPlayback: true,
           remoteControl: true,
-          offline: false,
+          offline: true,
           connect: true,
           queue: true,
           transfer: true,
         },
-        reachabilityState: state,
-        discoverySources: sources,
+        reachabilityState: isPlayingLocally ? 'CURRENTLY_PLAYING' : 'PLAYBACK_READY',
+        discoverySources: new Set(['TRUSTED', 'LAN']),
         isTrusted: true,
-        isNearby: sources.has('LAN'),
+        isNearby: true,
         isAudioOutput: false,
-        activePlaybackSong: isRemoteActive ? store.currentSong?.title : undefined,
-        activePlaybackPositionMs: isRemoteActive ? store.currentTime * 1000 : undefined,
-        lastSeenTimestamp: isOnline ? Date.now() : existing?.lastSeenTimestamp || Date.now() - 300000,
+        activePlaybackSong: store.currentSong?.title,
+        activePlaybackPositionMs: (store.currentTime || 0) * 1000,
+        lastSeenTimestamp: Date.now(),
         verifiedAtTimestamp: Date.now(),
-        rankingScore: isRemoteActive ? 900 : isOnline ? 500 : 100,
+        rankingScore: 1000,
       };
 
-      this.verifiedDevices.set(record.id, updated);
+      this.verifiedDevices.set(localDeviceId, localDevice);
+    } catch (err) {
+      console.warn('[DeviceDiscoveryEngine] ingestLocalDevice error:', err);
+    }
+  }
+
+  private async ingestCloudPresence(localDeviceId: string) {
+    try {
+      const store = usePlayerStore.getState();
+      const onlineList = store.onlineDevices || [];
+
+      for (const record of onlineList) {
+        if (!record || record.id === localDeviceId) continue;
+
+        const existing = this.verifiedDevices.get(record.id);
+        const isOnline = record.isOnline !== false;
+        const isRemoteActive = store.activeDeviceId === record.id;
+
+        let state: DeviceReachabilityState = 'OFFLINE';
+        if (isRemoteActive && store.isPlaying) {
+          state = 'CURRENTLY_PLAYING';
+        } else if (isOnline) {
+          state = 'PLAYBACK_READY';
+        } else {
+          state = 'STALE';
+        }
+
+        const sources = (existing?.discoverySources instanceof Set)
+          ? existing.discoverySources
+          : new Set<DiscoverySource>();
+        sources.add('CLOUD');
+
+        const devRecord = record as any;
+        const updated: VerifiedDevice = {
+          deviceId: record.id,
+          installationId: existing?.installationId || 'inst_' + record.id,
+          name: record.name || 'RaagaX Player',
+          type: devRecord.type || 'desktop',
+          platform: (record.platform as any) || 'Windows',
+          appVersion: '2.5.0',
+          protocolVersion: 2,
+          capabilities: devRecord.capabilities || {
+            audio: true,
+            video: false,
+            seek: true,
+            volume: true,
+            backgroundPlayback: true,
+            remoteControl: true,
+            offline: false,
+            connect: true,
+            queue: true,
+            transfer: true,
+          },
+          reachabilityState: state,
+          discoverySources: sources,
+          isTrusted: true,
+          isNearby: sources.has('LAN'),
+          isAudioOutput: false,
+          activePlaybackSong: isRemoteActive ? store.currentSong?.title : undefined,
+          activePlaybackPositionMs: isRemoteActive ? (store.currentTime || 0) * 1000 : undefined,
+          lastSeenTimestamp: isOnline ? Date.now() : existing?.lastSeenTimestamp || Date.now() - 300000,
+          verifiedAtTimestamp: Date.now(),
+          rankingScore: isRemoteActive ? 900 : isOnline ? 500 : 100,
+        };
+
+        this.verifiedDevices.set(record.id, updated);
+      }
+    } catch (err) {
+      console.warn('[DeviceDiscoveryEngine] ingestCloudPresence error:', err);
     }
   }
 
   private async ingestLocalLANDevices(localDeviceId: string) {
     // Attempt local peer discovery / mDNS abstraction
     try {
-      const { LocalPeerConnection } = await import('../LocalPeerConnection');
       // For any peers with active direct WebRTC data channels, mark as LAN_REACHABLE
       this.verifiedDevices.forEach((device) => {
-        if (device.deviceId !== localDeviceId && device.reachabilityState !== 'OFFLINE') {
-          device.discoverySources.add('LAN');
+        if (device && device.deviceId !== localDeviceId && device.reachabilityState !== 'OFFLINE') {
+          if (device.discoverySources instanceof Set) {
+            device.discoverySources.add('LAN');
+          } else {
+            device.discoverySources = new Set(['LAN']);
+          }
           device.isNearby = true;
         }
       });
@@ -218,19 +255,19 @@ export class DeviceDiscoveryEngine {
   }
 
   private async ingestAudioOutputs() {
-    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) return;
-
     try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const audioOutputs = devices.filter((d) => d.kind === 'audiooutput');
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) return;
+      const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+      if (!Array.isArray(devices)) return;
+      const audioOutputs = (devices as MediaDeviceInfo[]).filter((d) => d && d.kind === 'audiooutput');
 
       for (const output of audioOutputs) {
-        if (!output.deviceId || output.deviceId === 'default') continue;
+        if (!output || !output.deviceId || output.deviceId === 'default') continue;
         const name = output.label || 'Bluetooth / External Speaker';
         const isHeadphones = /headphone|buds|airpod|ear/i.test(name);
         const isSpeaker = /speaker|soundbar|tv|hdmi/i.test(name);
 
-        const id = `output_${output.deviceId.substring(0, 12)}`;
+        const id = `output_${String(output.deviceId).substring(0, 12)}`;
         const outputDevice: VerifiedDevice = {
           deviceId: id,
           installationId: `hw_${id}`,
