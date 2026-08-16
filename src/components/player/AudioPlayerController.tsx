@@ -406,10 +406,13 @@ export function AudioPlayerController() {
         import('@/lib/playbackSourceResolver').then(({ PlaybackSourceResolver }) => {
           PlaybackSourceResolver.getInstance().resolvePlayableSource(nextSong).then(source => {
             if (source?.url && typeof window !== 'undefined') {
-              // Silently warm up audio cache / connection
-              const prefetch = new Audio();
-              prefetch.preload = 'auto';
-              prefetch.src = source.url;
+              // Silently pre-buffer into standby audio element for 0ms gapless transition
+              const standby = PlaybackService.getInstance().getStandbyAudio();
+              if (standby) {
+                standby.preload = 'auto';
+                standby.src = source.url;
+                standby.load();
+              }
             }
           }).catch(() => {});
         });

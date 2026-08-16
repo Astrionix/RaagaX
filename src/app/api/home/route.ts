@@ -117,27 +117,40 @@ export async function GET(request: Request) {
   const content = getLanguageContent(lang);
   const sections: HomeSection[] = [];
 
-  // Lifecycle Gated Sections (Preserves original user phases)
+function dedupeItems(items: ShelfItem[]): ShelfItem[] {
+  if (!items || items.length === 0) return [];
+  const seen = new Set<string>();
+  const result: ShelfItem[] = [];
+  for (const it of items) {
+    if (it && it.id && !seen.has(it.id)) {
+      seen.add(it.id);
+      result.push(it);
+    }
+  }
+  return result;
+}
+
+  // 1. Discover Your Sound (Quick Access)
   if (phase === 'BOOTSTRAP') {
     sections.push({
       id: 'bootstrap_discovery',
       type: 'carousel',
       title: '✨ Discover Your Sound',
-      items: content.quick_access || []
+      items: dedupeItems(content.quick_access || [])
     });
   } else if (phase === 'EARLY') {
     sections.push({
       id: 'early_favorites',
       type: 'carousel',
       title: '🌱 Early Favorites for You',
-      items: content.genres || content.quick_access || []
+      items: dedupeItems(content.genres || content.quick_access || [])
     });
   } else if (phase === 'MATURE' || phase === 'DEVELOPING') {
     sections.push({
       id: 'made_for_you',
       type: 'carousel',
       title: '❤️ Made For You',
-      items: content.genres || content.quick_access || []
+      items: dedupeItems(content.genres || content.quick_access || [])
     });
   }
 
@@ -147,7 +160,7 @@ export async function GET(request: Request) {
       id: 'superstar_hits',
       type: 'carousel',
       title: `🌟 ${lang === 'English' ? 'Global Pop & Rap Icons' : `${lang} Superstar Hits`}`,
-      items: content.superstars
+      items: dedupeItems(content.superstars)
     });
   }
 
@@ -157,7 +170,7 @@ export async function GET(request: Request) {
       id: 'composer_spotlight',
       type: 'carousel',
       title: `🎹 ${lang} Composer Spotlight`,
-      items: content.composers
+      items: dedupeItems(content.composers)
     });
   }
 
@@ -167,7 +180,7 @@ export async function GET(request: Request) {
       id: 'top_voices',
       type: 'carousel',
       title: `🎙️ ${lang} Top Voices & Legends`,
-      items: content.singers
+      items: dedupeItems(content.singers)
     });
   }
 
