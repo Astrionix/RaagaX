@@ -14,10 +14,10 @@
         "imageUrl": "https://c.saavncdn.com/editorial/TrendingTeluguSongs_20260529073729_500x500.jpg"
       },
       {
-        "id": "1170578805",
+        "id": "1170578801",
         "title": "Telugu Hits",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/charts_Telugu2000s_119381_20240408063159_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/charts_Telugu1990s_157621_20240408063237_500x500.jpg"
       },
       {
         "id": "1266094331",
@@ -26,7 +26,171 @@
         "imageUrl": "https://c.saavncdn.com/editorial/LatestTollywood_20250814091215_500x500.jpg"
       }
     ],
-    "trending": [
+    "superstars": [
+      {
+        "id": "63421823",
+        "title": "Let's Play - Prabhas - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayPrabhasTelugu_20240628094353_500x500.jpg"
+      },
+      {
+        "id": "3137628",
+        "title": "Let's Play - Allu Arjun - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayAlluArjunTelugu_20241204093658_500x500.jpg"
+      },
+      {
+        "id": "827843340",
+        "title": "Pawan Kalyan 2000s Hits - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/PawanKalyan2000sHitsTelugu_20260313114017_500x500.jpg"
+      },
+      {
+        "id": "1566920",
+        "title": "Let's Play - Mahesh Babu - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayMaheshBabuTelugu_20250210045234_500x500.jpg"
+      },
+      {
+        "id": "151541907",
+        "title": "Let's Play - Jr. NTR - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayJr-NTRTelugu_20250122032948_500x500.jpg"
+      },
+      {
+        "id": "54994197",
+        "title": "Let's Play - Ram Charan - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayRamCharanTelugu_20250109163838_500x500.jpg"
+      },
+      {
+        "id": "81757052",
+        "title": "Let's Play - Nani - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayNaniTelugu_20250217162110_500x500.jpg"
+      },
+      {
+        "id": "4764457",
+        "title": "Let's Play - Chiranjeevi - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayChiranjeeviTelugu_20250210045444_500x500.jpg"
+      }
+    ],
+    "composers": [
+      {
+        "id": "88613493",
+        "title": "Let's Play - Anirudh Ravichander - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayAnirudhRavichanderTelugu_20250210045518_500x500.jpg"
+      },
+      {
+        "id": "68115608",
+        "title": "Let's Play - Devi Sri Prasad - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayDeviSriPrasadTelugu_20241204093731_500x500.jpg"
+      },
+      {
+        "id": "2748627",
+        "title": "Let's Play - S Thaman - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlaySThamanTelugu_20241121090740_500x500.jpg"
+      },
+      {
+        "id": "80149174",
+        "title": "Let's Play - A.R. Rahman - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayA-R-RahmanTelugu_20240531125716_500x500.jpg"
+      },
+      {
+        "id": "64045799",
+        "title": "Let's Play - M. M. Keeravani - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayM-M-KeeravaniTelugu_20250210045149_500x500.jpg"
+      },
+      {
+        "id": "61387391",
+        "title": "Let's Play - Ilaiyaraaja - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayIlaiyaraajaTelugu_20250217161611_500x500.jpg"
+      },
+      {
+        "id": "83866994",
+        "title": "Let's Play - Mickey J Meyer - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayMickeyJMeyerTelugu_20250217162202_500x500.jpg"
+      },
+      {
+        "id": "5672129",
+        "title": "Let's Play - Harris Jayaraj - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayHarrisJayarajTelugu_20250210062015_500x500.jpg"
+      }
+    ],
+    "singers": [
+      {
+        "id": "155882739",
+        "title": "Let's Play - Sid Sriram - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlaySidSriramTelugu_20241218070925_500x500.jpg"
+      },
+      {
+        "id": "61544723",
+        "title": "Let's Play - S. P. Balasubrahmanyam - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayS-P-BalasubrahmanyamTelugu_20250210045624_500x500.jpg"
+      },
+      {
+        "id": "82190019",
+        "title": "Let's Play - Shreya Ghoshal - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayShreyaGhoshalTelugu_20250311074828_500x500.jpg"
+      },
+      {
+        "id": "3850665",
+        "title": "Let's Play - K. S. Chithra - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayK-S-ChithraTelugu_20250228123609_500x500.jpg"
+      },
+      {
+        "id": "546326403",
+        "title": "Let's Play - Anurag Kulkarni - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayAnuragKulkarniTelugu_20250210045550_500x500.jpg"
+      },
+      {
+        "id": "819006654",
+        "title": "Let's Play - Mangli - Telugu",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayMangliTelugu_20250310104207_500x500.jpg"
+      }
+    ],
+    "decades": [
+      {
+        "id": "1170578805",
+        "title": "Telugu 2000s",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/charts_Telugu2000s_119381_20240408063159_500x500.jpg"
+      },
+      {
+        "id": "1221653502",
+        "title": "1990s Hits",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/1990sHits_20240830084148_500x500.jpg"
+      },
+      {
+        "id": "901538769",
+        "title": "Telugu 1980s",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/charts_Telugu1980s_173817_20240408063333_500x500.jpg"
+      },
+      {
+        "id": "901538767",
+        "title": "Telugu 1970s",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/charts_Telugu1970s_197629_20240507052357_500x500.jpg"
+      }
+    ],
+    "genres": [
       {
         "id": "1222048287",
         "title": "Trending Tracks",
@@ -34,39 +198,11 @@
         "imageUrl": "https://c.saavncdn.com/editorial/TrendingTracks_20240910044733_500x500.jpg"
       },
       {
-        "id": "110048908",
-        "title": "Telugu Folk Songs",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/TeluguFolkSongs_20260623104212_500x500.jpg"
-      },
-      {
         "id": "814453257",
         "title": "Telugu Viral Hits",
         "type": "playlist",
         "imageUrl": "https://c.saavncdn.com/editorial/TeluguViralHits_20260814130344_500x500.jpg"
-      }
-    ],
-    "hits": [
-      {
-        "id": "901538764",
-        "title": "Telugu 1960s",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/charts_Telugu1960s_147764_20240507052427_500x500.jpg"
       },
-      {
-        "id": "1134643225",
-        "title": "Telugu: India Superhits Top 50",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/Telugu-IndiaSuperhitsTop50_20260806193207_500x500.jpg"
-      },
-      {
-        "id": "946112519",
-        "title": "Chartbusters 2021 - Telugu",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/logo/Chartbusters2021Telugu_20211201161618_500x500.jpg"
-      }
-    ],
-    "romantic": [
       {
         "id": "110732108",
         "title": "Romantic Hits 2017 - Telugu",
@@ -74,78 +210,10 @@
         "imageUrl": "https://c.saavncdn.com/editorial/RomanticHits2017Telugu_20250415030615_500x500.jpg"
       },
       {
-        "id": "383986997",
-        "title": "Love Guru - Telugu",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/LoveGuruTelugu_20250321115944_500x500.jpg"
-      },
-      {
-        "id": "848380438",
-        "title": "Cleaning Melodies",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/CleaningMelodies_20260518062229_500x500.jpg"
-      }
-    ],
-    "party": [
-      {
         "id": "696317722",
         "title": "House Party - Telugu",
         "type": "playlist",
         "imageUrl": "https://c.saavncdn.com/editorial/HousePartyTelugu_20260622091856_500x500.jpg"
-      },
-      {
-        "id": "83440681",
-        "title": "Dance Queens",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/DanceQueens_20251230061435_500x500.jpg"
-      },
-      {
-        "id": "802938312",
-        "title": "Telugu EDM - Telugu",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/TeluguEDMTelugu_20251006050054_500x500.jpg"
-      }
-    ],
-    "devotional": [
-      {
-        "id": "50728686",
-        "title": "Shiva - Telugu",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/ShivaTelugu_20260211054036_500x500.jpg"
-      },
-      {
-        "id": "158224802",
-        "title": "Telugu Bhakti Patalu",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/TeluguBhaktiPatalu_20250225052707_500x500.jpg"
-      },
-      {
-        "id": "83440063",
-        "title": "Shiv",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/Shiv_20260211045252_500x500.jpg"
-      }
-    ],
-    "workout": [
-      {
-        "id": "767984632",
-        "title": "Workout From Home - Telugu",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/logo/WorkoutfromHomeTelugu_20210507075231_500x500.jpg"
-      },
-      {
-        "id": "83443718",
-        "title": "Gym Jam",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/GymJam_20260622053446_500x500.jpg"
-      }
-    ],
-    "chill": [
-      {
-        "id": "1262856734",
-        "title": "Telugu Lofi Hits",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/TeluguLofiHits_20250408101515_500x500.jpg"
       },
       {
         "id": "250697527",
@@ -154,44 +222,28 @@
         "imageUrl": "https://c.saavncdn.com/editorial/logo/ChillatWorkTelugu_20190401202030_500x500.jpg"
       },
       {
-        "id": "784267939",
-        "title": "Acoustic Melodies",
+        "id": "767984632",
+        "title": "Workout From Home - Telugu",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/AcousticMelodies_20260710164617_500x500.jpg"
-      }
-    ],
-    "road_trip": [
-      {
-        "id": "83447013",
-        "title": "Hit The Road",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/HittheRoad_20260622061615_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/logo/WorkoutfromHomeTelugu_20210507075231_500x500.jpg"
       },
       {
         "id": "1269084691",
         "title": "Travel Cheddam",
         "type": "playlist",
         "imageUrl": "https://c.saavncdn.com/editorial/TravelCheddam_20251205063518_500x500.jpg"
-      }
-    ],
-    "sad": [
+      },
       {
-        "id": "158225272",
-        "title": "Broken Heart - Telugu",
+        "id": "88779674",
+        "title": "Venkateswara Swamy - Telugu",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/BrokenHeartTelugu_20250623115047_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/VenkateswaraSwamyTelugu_20240730054019_500x500.jpg"
       },
       {
         "id": "841239753",
         "title": "S.P Balasubrahmanyam - Sad Songs - Telugu",
         "type": "playlist",
         "imageUrl": "https://c.saavncdn.com/editorial/SPBSadSongsTelugu_20240326090118_500x500.jpg"
-      },
-      {
-        "id": "1302089242",
-        "title": "Chartbusters 2026 - Telugu",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/Chartbusters2026SoFarTelugu_20260709092335_500x500.jpg"
       }
     ]
   },
@@ -210,10 +262,10 @@
         "imageUrl": "https://c.saavncdn.com/editorial/TrendingTamilSongs_20251113131029_500x500.jpg"
       },
       {
-        "id": "1170578783",
+        "id": "1170578779",
         "title": "Tamil Hits",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/charts_Tamil2000s_171230_20240408062044_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/charts_Tamil1990s_190250_20240408062124_500x500.jpg"
       },
       {
         "id": "1266069738",
@@ -222,7 +274,165 @@
         "imageUrl": "https://c.saavncdn.com/editorial/LatestKollywood_20250813101049_500x500.jpg"
       }
     ],
-    "trending": [
+    "superstars": [
+      {
+        "id": "82543613",
+        "title": "Let's Play - Vijay",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayVijay_20250217095544_500x500.jpg"
+      },
+      {
+        "id": "79316075",
+        "title": "Let's Play - Rajinikanth",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayRajinikanth_20250218065230_500x500.jpg"
+      },
+      {
+        "id": "58694540",
+        "title": "Let's Play - Ajith Kumar",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayAjithKumar_20250310083422_500x500.jpg"
+      },
+      {
+        "id": "67453091",
+        "title": "Let's Play - Dhanush - Tamil",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayDhanushTamil_20250217095456_500x500.jpg"
+      },
+      {
+        "id": "66662540",
+        "title": "Let's Play - Suriya",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlaySuriya_20250217095552_500x500.jpg"
+      },
+      {
+        "id": "78041598",
+        "title": "Let's Play - Kamal Haasan - Tamil",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayKamalHaasanTamil_20250218065210_500x500.jpg"
+      },
+      {
+        "id": "81145416",
+        "title": "Let's Play - Sivakarthikeyan",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlaySivakarthikeyan_20250211135435_500x500.jpg"
+      },
+      {
+        "id": "38511240",
+        "title": "Let's Play - Vikram",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayVikram_20231220064819_500x500.jpg"
+      }
+    ],
+    "composers": [
+      {
+        "id": "76182059",
+        "title": "Let's Play - Anirudh Ravichander - Tamil",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayAnirudhRavichanderTamil_20250217095503_500x500.jpg"
+      },
+      {
+        "id": "3573131",
+        "title": "A.R. Rahman - Love Songs - Tamil",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/A-R-RahmanLoveSongsTamil_20240213061239_500x500.jpg"
+      },
+      {
+        "id": "154637590",
+        "title": "Yuvan Shankar Raja - Love Songs - Tamil",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/YuvanLoveSongsTamil_20240213055214_500x500.jpg"
+      },
+      {
+        "id": "1224055924",
+        "title": "Harris Jayaraj - Love Songs - Tamil",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/HarrisJayarajLoveSongsTamil_20241107100631_500x500.jpg"
+      },
+      {
+        "id": "1264852151",
+        "title": "Ilaiyaraaja Tamil Hits - Carvaan Select",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/IlaiyaraajaTamilHitsCarvaanSelect_20250626135253_500x500.jpg"
+      },
+      {
+        "id": "83049858",
+        "title": "Let's Play - Santhosh Narayanan",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlaySanthoshNarayanan_20240531114652_500x500.jpg"
+      },
+      {
+        "id": "2672955",
+        "title": "Let's Play - D. Imman",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayD-Imman_20250217092231_500x500.jpg"
+      }
+    ],
+    "singers": [
+      {
+        "id": "83970046",
+        "title": "Let's Play - Sid Sriram",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlaySidSriram_20250829053909_500x500.jpg"
+      },
+      {
+        "id": "81861086",
+        "title": "Let's Play - S.P. Balasubrahmanyam - Tamil",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/PaatuThalaivanSPB_20250218065158_500x500.jpg"
+      },
+      {
+        "id": "3248636",
+        "title": "Let's Play - Hariharan",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayHariharan_20250217092238_500x500.jpg"
+      },
+      {
+        "id": "82172029",
+        "title": "Let's Play - Shreya Ghoshal - Tamil",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayShreyaGhoshalTamil_20250310055507_500x500.jpg"
+      },
+      {
+        "id": "72616112",
+        "title": "Let's Play - Chinmayi Sripada",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayChinmayiSripada_20250223143509_500x500.jpg"
+      },
+      {
+        "id": "84737646",
+        "title": "Let's Play - Pradeep Kumar - Tamil",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayPradeepKumarTamil_20240102062305_500x500.jpg"
+      }
+    ],
+    "decades": [
+      {
+        "id": "1170578783",
+        "title": "Tamil 2000s",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/charts_Tamil2000s_171230_20240408062044_500x500.jpg"
+      },
+      {
+        "id": "831580034",
+        "title": "Decade Of Singers - 1990s - Tamil",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/DecadeOfSingers1990sTamil_20250409114947_500x500.jpg"
+      },
+      {
+        "id": "901538755",
+        "title": "Tamil 1980s",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/charts_Tamil1980s_157873_20240408062147_500x500.jpg"
+      },
+      {
+        "id": "901538753",
+        "title": "Tamil 1970s",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/charts_Tamil1970s_102109_20240408062208_500x500.jpg"
+      }
+    ],
+    "genres": [
       {
         "id": "919280091",
         "title": "Trending POP - Tamil",
@@ -236,112 +446,16 @@
         "imageUrl": "https://c.saavncdn.com/editorial/charts_Tamil2010s_138543_20240408061942_500x500.jpg"
       },
       {
-        "id": "80802063",
-        "title": "Tamil Viral Hits",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/TamilViralHits_20260805060135_500x500.jpg"
-      }
-    ],
-    "hits": [
-      {
-        "id": "901538752",
-        "title": "Tamil 1960s",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/charts_Tamil1960s_20240507052255_500x500.jpg"
-      },
-      {
-        "id": "1134651042",
-        "title": "Tamil: India Superhits Top 50",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/Tamil-IndiaSuperhitsTop50_20260814053619_500x500.jpg"
-      },
-      {
-        "id": "680010196",
-        "title": "Chartbusters 2019 - Tamil",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/Bestof2019100Chartbusters-Tamil_20250416063210_500x500.jpg"
-      }
-    ],
-    "romantic": [
-      {
         "id": "4280738",
         "title": "Romantic Hits 2016 - Tamil",
         "type": "playlist",
         "imageUrl": "https://c.saavncdn.com/editorial/BestofTamilRomance2016_20250408061755_500x500.jpg"
       },
       {
-        "id": "804092154",
-        "title": "Sad Love - Tamil",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/SadLoveTamil_20260623063519_500x500.jpg"
-      },
-      {
-        "id": "926362118",
-        "title": "Tamil POP - Melodies - Tamil",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/TamilPOPMelodiesTamil_20260310121118_500x500.jpg"
-      }
-    ],
-    "party": [
-      {
         "id": "76293059",
         "title": "Anirudh Ravichander - Party Songs - Tamil",
         "type": "playlist",
         "imageUrl": "https://c.saavncdn.com/editorial/AnirudhDanceSongsTamil_20240213054952_500x500.jpg"
-      },
-      {
-        "id": "841398221",
-        "title": "2000s Dance Hits - Tamil",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/2000sDanceHitsTamil_20240910061235_500x500.jpg"
-      },
-      {
-        "id": "799619460",
-        "title": "Tamil EDM",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/TamilEDM_20251217093628_500x500.jpg"
-      }
-    ],
-    "devotional": [
-      {
-        "id": "1263804759",
-        "title": "Anuradha Paudwal Devotional Songs",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/AnuradhaPaudwalDevotionalSongs_20250515100613_500x500.jpg"
-      },
-      {
-        "id": "1299312854",
-        "title": "Saibaba Bakthi Paadalgal",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/SaiBabaBhaktiPaadalgal_20260406072956_500x500.jpg"
-      },
-      {
-        "id": "83440063",
-        "title": "Shiv",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/Shiv_20260211045252_500x500.jpg"
-      }
-    ],
-    "workout": [
-      {
-        "id": "83412571",
-        "title": "Workout Beats - Tamil",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/WorkoutBeatsTamil_20260623102819_500x500.jpg"
-      },
-      {
-        "id": "84791848",
-        "title": "Gym Jock",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/GymJock_20250325111540_500x500.jpg"
-      }
-    ],
-    "chill": [
-      {
-        "id": "1098155077",
-        "title": "Tamil Lo-Fi Mix",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/TamilLoFiMix_20260409120524_500x500.jpg"
       },
       {
         "id": "221835210",
@@ -350,44 +464,28 @@
         "imageUrl": "https://c.saavncdn.com/editorial/Chillena_20260327083212_500x500.jpg"
       },
       {
-        "id": "784267939",
-        "title": "Acoustic Melodies",
+        "id": "83412571",
+        "title": "Workout Beats - Tamil",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/AcousticMelodies_20260710164617_500x500.jpg"
-      }
-    ],
-    "road_trip": [
-      {
-        "id": "1200336568",
-        "title": "Main Nikla Gaddi Leke - Road Trip Hits",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/MainNiklaGaddiLekeRoadTripHits_20230925070556_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/WorkoutBeatsTamil_20260623102819_500x500.jpg"
       },
       {
         "id": "855957889",
         "title": "Travel Beats - Tamil",
         "type": "playlist",
         "imageUrl": "https://c.saavncdn.com/editorial/TravelTunesTamil_20260512124202_500x500.jpg"
-      }
-    ],
-    "sad": [
-      {
-        "id": "82012399",
-        "title": "Let's Play - Sadhana Sargam",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlaySadhanaSargam_20250310082940_500x500.jpg"
       },
       {
-        "id": "1074590003",
-        "title": "Tamil BGM",
+        "id": "1263804759",
+        "title": "Anuradha Paudwal Devotional Songs",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/TamilBGM_20260811075813_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/AnuradhaPaudwalDevotionalSongs_20250515100613_500x500.jpg"
       },
       {
-        "id": "83438694",
-        "title": "Heartbreak Hits",
+        "id": "804092154",
+        "title": "Sad Love - Tamil",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/HeartbreakHits_20220919121933_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/SadLoveTamil_20260623063519_500x500.jpg"
       }
     ]
   },
@@ -406,10 +504,10 @@
         "imageUrl": "https://c.saavncdn.com/editorial/ArijitSinghTrendingBollywoodHits_20260723071020_500x500.jpg"
       },
       {
-        "id": "1170578916",
+        "id": "1170578913",
         "title": "Kannada Hits",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/charts_Kannada2000s_142612_20240408062043_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/charts_Kannada1980s_168899_20240408062140_500x500.jpg"
       },
       {
         "id": "1266065243",
@@ -418,7 +516,153 @@
         "imageUrl": "https://c.saavncdn.com/editorial/LatestSandawlood_20250813062534_500x500.jpg"
       }
     ],
-    "trending": [
+    "superstars": [
+      {
+        "id": "80202238",
+        "title": "Let's Play - Yash",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayYash_20250228051505_500x500.jpg"
+      },
+      {
+        "id": "158225722",
+        "title": "Let's Play - Puneeth Rajkumar",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayPuneethRajkumar_20240131072359_500x500.jpg"
+      },
+      {
+        "id": "50728647",
+        "title": "Let's Play - Darshan",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/DarshanHits_20260515085114_500x500.jpg"
+      },
+      {
+        "id": "80372390",
+        "title": "Kiccha Sudeep 2000s Hits",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/SudeepSuperhits_20240614110926_500x500.jpg"
+      },
+      {
+        "id": "84465820",
+        "title": "Let's Play - Rakshit Shetty",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayRakshitShetty_20240304115020_500x500.jpg"
+      },
+      {
+        "id": "935121964",
+        "title": "Shiva Rajkumar - Love Songs",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/ShivaRajkumarLoveSongs_20240227093006_500x500.jpg"
+      },
+      {
+        "id": "590461972",
+        "title": "Namma Ganesha Superstar",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/SuperstarsDeepawali_20240827065533_500x500.jpg"
+      },
+      {
+        "id": "1186785649",
+        "title": "Let's Play - Rishab Shetty",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayRishabShetty_20240305122903_500x500.jpg"
+      }
+    ],
+    "composers": [
+      {
+        "id": "158226194",
+        "title": "Let's Play - B. Ajaneesh Loknath",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayB-AjaneeshLoknath_20240223124358_500x500.jpg"
+      },
+      {
+        "id": "158226197",
+        "title": "Let's Play - Charan Raj",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayCharanRaj_20240213112636_500x500.jpg"
+      },
+      {
+        "id": "3253800",
+        "title": "Let's Play - V. Harikrishna",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayV-Harikrishna_20250227174959_500x500.jpg"
+      },
+      {
+        "id": "903216781",
+        "title": "Arjun Janya - Love Songs - Kannada",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/ArjunJanyaLoveSongsKannada_20240312085746_500x500.jpg"
+      },
+      {
+        "id": "826398854",
+        "title": "Icons - Hamsalekha And S. P. Balasubrahmanyam",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/BhaleJodiHamsalekhaandS-P-B_20241218112844_500x500.jpg"
+      },
+      {
+        "id": "158226294",
+        "title": "Let's Play - Ravi Basrur",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayRaviBasrur_20240223125406_500x500.jpg"
+      }
+    ],
+    "singers": [
+      {
+        "id": "67821185",
+        "title": "Let's Play - Sonu Nigam - Kannada",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlaySonuNigamKannada_20250224123912_500x500.jpg"
+      },
+      {
+        "id": "158224198",
+        "title": "Vijay Prakash Party Songs",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/VersatileVijayPrakashKannada_20250204114457_500x500.jpg"
+      },
+      {
+        "id": "902610311",
+        "title": "Sanjith Hegde - Love Songs - Kannada",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/SanjithHegdeLoveSongsKannada_20240219110941_500x500.jpg"
+      },
+      {
+        "id": "82212351",
+        "title": "Let's Play - Shreya Ghoshal - Kannada",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayShreyaGhoshalKannada_20250310073442_500x500.jpg"
+      },
+      {
+        "id": "82452490",
+        "title": "Let's Play - Raghu Dixit",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayRaghuDixit_20240221122607_500x500.jpg"
+      },
+      {
+        "id": "2677587",
+        "title": "K. S. Chithra 2000s Hits - Kannada",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/K-S-Chithra2000sHitsKannada_20251215124211_500x500.jpg"
+      }
+    ],
+    "decades": [
+      {
+        "id": "1170578916",
+        "title": "Kannada 2000s",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/charts_Kannada2000s_142612_20240408062043_500x500.jpg"
+      },
+      {
+        "id": "1170578914",
+        "title": "Kannada 1990s",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/charts_Kannada1990s_165009_20240408062114_500x500.jpg"
+      },
+      {
+        "id": "831958927",
+        "title": "Decade Of Heroes - 1980s - Kannada",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/DecadeofHeroes1980sKannada_20240826091725_500x500.jpg"
+      }
+    ],
+    "genres": [
       {
         "id": "1261305331",
         "title": "Trending Songs",
@@ -426,118 +670,22 @@
         "imageUrl": "https://c.saavncdn.com/editorial/TrendingSongs_20260312113927_500x500.jpg"
       },
       {
-        "id": "1170578921",
-        "title": "Kannada 2010s",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/charts_Kannada2010s_181223_20240408062005_500x500.jpg"
-      },
-      {
         "id": "85728084",
         "title": "Kannada Viral Hits",
         "type": "playlist",
         "imageUrl": "https://c.saavncdn.com/editorial/KannadaViralHits_20260805112818_500x500.jpg"
-      }
-    ],
-    "hits": [
-      {
-        "id": "901538806",
-        "title": "Kannada 1960s",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/charts_Kannada1960s_20240509085123_500x500.jpg"
       },
       {
-        "id": "1134591169",
-        "title": "Kannada: India Superhits Top 50",
+        "id": "946691375",
+        "title": "Best Of Sad Romantic - Kannada",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/Kannada-IndiaSuperhitsTop50_20260813110148_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/BestOfSadRomanticKannada_20251126102612_500x500.jpg"
       },
-      {
-        "id": "944891746",
-        "title": "Chartbusters 2021 - Kannada",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/Chartbusters2021Kannada_20250605181251_500x500.jpg"
-      }
-    ],
-    "romantic": [
-      {
-        "id": "570114219",
-        "title": "Romantic Coffee Bytes",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/RomanticCoffeeBytes_20250414121746_500x500.jpg"
-      },
-      {
-        "id": "84228811",
-        "title": "Rajesh Krishnan - Love Songs - Kannada",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/RajeshKrishnanLoveSongsKannada_20240223124131_500x500.jpg"
-      },
-      {
-        "id": "1300651911",
-        "title": "Melodies - Kannada",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/MelodiesKannada_20260520132857_500x500.jpg"
-      }
-    ],
-    "party": [
       {
         "id": "233870049",
         "title": "Rangeride Party Hits.",
         "type": "playlist",
         "imageUrl": "https://c.saavncdn.com/editorial/RangeridePartyHits-_20260225071504_500x500.jpg"
-      },
-      {
-        "id": "837454047",
-        "title": "2000s Dance Hits - Kannada",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/2000sKannadaDance_20240904184612_500x500.jpg"
-      },
-      {
-        "id": "158225833",
-        "title": "EDM - Kannada",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/EDMKannada_20250530142325_500x500.jpg"
-      }
-    ],
-    "devotional": [
-      {
-        "id": "159470122",
-        "title": "Yesu - Kannada Devotional Hits",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/ChristmasKannadaDevotionalHits_20251222183442_500x500.jpg"
-      },
-      {
-        "id": "158224800",
-        "title": "Bhakthi Geethegalu - Kannada",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/logo/BhakthiGeethegaluKannada_20200206121327_500x500.jpg"
-      },
-      {
-        "id": "83440063",
-        "title": "Shiv",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/Shiv_20260211045252_500x500.jpg"
-      }
-    ],
-    "workout": [
-      {
-        "id": "158225844",
-        "title": "Workout - Kannada",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/WorkoutKannada_20260622105510_500x500.jpg"
-      },
-      {
-        "id": "84791848",
-        "title": "Gym Jock",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/GymJock_20250325111540_500x500.jpg"
-      }
-    ],
-    "chill": [
-      {
-        "id": "1212002367",
-        "title": "Kannada Lofi Hits",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/KannadaLofiMix_20240828121944_500x500.jpg"
       },
       {
         "id": "855634732",
@@ -546,38 +694,28 @@
         "imageUrl": "https://c.saavncdn.com/editorial/ChillYoga_20250520073237_500x500.jpg"
       },
       {
-        "id": "784267939",
-        "title": "Acoustic Melodies",
+        "id": "158225844",
+        "title": "Workout - Kannada",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/AcousticMelodies_20260710164617_500x500.jpg"
-      }
-    ],
-    "road_trip": [
+        "imageUrl": "https://c.saavncdn.com/editorial/WorkoutKannada_20260622105510_500x500.jpg"
+      },
       {
         "id": "218670238",
         "title": "Payana - Travel Hits",
         "type": "playlist",
         "imageUrl": "https://c.saavncdn.com/editorial/PayanaTravelMix_20240829123631_500x500.jpg"
-      }
-    ],
-    "sad": [
-      {
-        "id": "1267185172",
-        "title": "Patho Beats",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/PathoBeats_20250924124511_500x500.jpg"
       },
       {
-        "id": "1082268466",
-        "title": "Kannada Hit Songs",
+        "id": "159470122",
+        "title": "Yesu - Kannada Devotional Hits",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/KannadaHitSongs_20250214135848_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/ChristmasKannadaDevotionalHits_20251222183442_500x500.jpg"
       },
       {
-        "id": "109489931",
-        "title": "Guru Raghavendra - Kannada",
+        "id": "398346993",
+        "title": "Sad - Kannada",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/GuruRaghavendraBhakthiGeethe_20251205124207_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/SadKannada_20250221052233_500x500.jpg"
       }
     ]
   },
@@ -608,52 +746,94 @@
         "imageUrl": "https://c.saavncdn.com/editorial/LatestMollywood_20250813075203_500x500.jpg"
       }
     ],
-    "trending": [
+    "superstars": [
       {
-        "id": "592722547",
-        "title": "Malayalam Viral Hits",
+        "id": "10763433",
+        "title": "Mohanlal Classics",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/MalayalamViralHits_20260814140714_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/MohanlalClassics_20250212061216_500x500.jpg"
       },
       {
-        "id": "1302054990",
-        "title": "Chartbusters 2026 - Malayalam",
+        "id": "3344794",
+        "title": "Let's Play - Mammootty - Malayalam",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/Chartbusters2026Malayalam_20260706072957_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayMammootty_20240919131334_500x500.jpg"
       },
       {
-        "id": "592722547",
-        "title": "Malayalam Viral Hits",
+        "id": "67534892",
+        "title": "Let's Play - Dulquer Salmaan - Malayalam",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/MalayalamViralHits_20260814140714_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayDulquerSalmaan_20240919131307_500x500.jpg"
+      },
+      {
+        "id": "68922143",
+        "title": "Let's Play - Fahadh Faasil - Malayalam",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayFahadhFaasil_20240131054224_500x500.jpg"
+      },
+      {
+        "id": "173738203",
+        "title": "Let's Play - Tovino Thomas - Malayalam",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayTovinoThomas_20240919131705_500x500.jpg"
+      },
+      {
+        "id": "72168272",
+        "title": "Let's Play - Nivin Pauly - Malayalam",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayNivinPaulyMalayalam_20241007114443_500x500.jpg"
+      },
+      {
+        "id": "76106309",
+        "title": "Let's Play - Prithviraj Sukumaran - Malayalam",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayPrithvirajSukumaranMalayalam_20241014083324_500x500.jpg"
       }
     ],
-    "hits": [
+    "composers": [
       {
-        "id": "435154802",
-        "title": "2000s Romance - Malayalam",
+        "id": "567997368",
+        "title": "Let's Play - Sushin Shyam - Malayalam",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/2000sRomanceMalayalam_20260302060511_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlaySushinShyam_20240919131712_500x500.jpg"
       },
       {
-        "id": "1134705865",
-        "title": "Malayalam: India Superhits Top 50",
+        "id": "158225866",
+        "title": "Let's Play - Shaan Rahman - Malayalam",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/Malayalam-IndiaSuperhitsTop50_20260731054730_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayShaanRahmanMalayalam_20240227101451_500x500.jpg"
       },
       {
-        "id": "946323211",
-        "title": "Chartbusters 2021 - Malayalam",
+        "id": "84345901",
+        "title": "Let's Play - Gopi Sunder - Malayalam",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/Chartbusters2021Malayalam_20250410173656_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayGopiSunderMalayalam_20240306051723_500x500.jpg"
+      },
+      {
+        "id": "908746642",
+        "title": "Let's Play - Jakes Bejoy - Malayalam",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayJakesBejoyMalayalam_20240612064001_500x500.jpg"
+      },
+      {
+        "id": "1189153159",
+        "title": "Let's Play - Hesham Abdul Wahab - Malayalam",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayHeshamAbdulWahabMalayalam_20241010182711_500x500.jpg"
+      },
+      {
+        "id": "81983404",
+        "title": "Let's Play - Vidyasagar - Malayalam",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayVidyasagarMalayalam_20241118101359_500x500.jpg"
       }
     ],
-    "romantic": [
+    "singers": [
       {
-        "id": "898969421",
-        "title": "Romantic Top 40 - Malayalam",
+        "id": "80236655",
+        "title": "Let's Play - K.J. Yesudas - Malayalam",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/logo/charts_RomanticTop40-Malayalam_193645_20220107143532_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayK-J-YesudasMalayalam_20241004132118_500x500.jpg"
       },
       {
         "id": "1215748422",
@@ -662,13 +842,63 @@
         "imageUrl": "https://c.saavncdn.com/editorial/VijayYesudasLoveSongsMalayalam_20240402075516_500x500.jpg"
       },
       {
-        "id": "1300063145",
-        "title": "Moonlight Melodies - Malayalam",
+        "id": "787455230",
+        "title": "Let's Play - KS Harisankar - Malayalam",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/MoonlightMelodies---Malayalam_20260430105942_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayKSHarisankarMalayalam_20240617101632_500x500.jpg"
+      },
+      {
+        "id": "149130598",
+        "title": "Let's Play - Sithara Krishnakumar - Malayalam",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlaySitharaKrishnakumarMalayalam_20250311193216_500x500.jpg"
+      },
+      {
+        "id": "74803675",
+        "title": "Let's Play - Vineeth Sreenivasan",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayVineethSreenivasan_20240925125313_500x500.jpg"
+      },
+      {
+        "id": "6076409",
+        "title": "Let's Play - K. S. Chithra - Malayalam",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayK-S-ChithraMalayalam_20250311193050_500x500.jpg"
       }
     ],
-    "party": [
+    "decades": [
+      {
+        "id": "829477391",
+        "title": "Best Of 2000s - Malayalam",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Bestof2000sMalayalam_20251128141626_500x500.jpg"
+      },
+      {
+        "id": "1181705743",
+        "title": "Malayalam 1990s",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/charts_Malayalam1990s_170434_20240408063530_500x500.jpg"
+      },
+      {
+        "id": "1181705744",
+        "title": "Malayalam 1980s",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/charts_Malayalam1980s_132298_20240408063554_500x500.jpg"
+      }
+    ],
+    "genres": [
+      {
+        "id": "723173023",
+        "title": "Malayalam Remix",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/MalayalamRemix_20251229103954_500x500.jpg"
+      },
+      {
+        "id": "387869667",
+        "title": "Romantic Hits 2019 - Malayalam",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Bestof2019MalayalamLoveSongs_20250401131649_500x500.jpg"
+      },
       {
         "id": "293566951",
         "title": "Pool Party - Malayalam",
@@ -676,19 +906,23 @@
         "imageUrl": "https://c.saavncdn.com/editorial/PoolPartyMalayalamHits_20250505115319_500x500.jpg"
       },
       {
-        "id": "44590419",
-        "title": "Party Hits - Malayalam",
+        "id": "638997429",
+        "title": "Chill At Mini Ooty",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/PartyHitsMalayalam_20251230134911_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/logo/ChillAtMiniOoty_20191119161657_500x500.jpg"
       },
       {
-        "id": "332137998",
-        "title": "Best Of EDM - Malayalam",
+        "id": "1208889681",
+        "title": "Monsoon Lofi Beats",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/BestOfEDMMalayalam_20241017061736_500x500.jpg"
-      }
-    ],
-    "devotional": [
+        "imageUrl": "https://c.saavncdn.com/editorial/MonsoonLofiBeats_20231129150222_500x500.jpg"
+      },
+      {
+        "id": "1264830695",
+        "title": "Travel Hits - Carvaan Select",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/TravelHitsCarvaanSelect_20250625162353_500x500.jpg"
+      },
       {
         "id": "43853901",
         "title": "Swami Ayyappan - Malayalam",
@@ -696,84 +930,10 @@
         "imageUrl": "https://c.saavncdn.com/editorial/SwamiAyyappanMalayalam_20260112044556_500x500.jpg"
       },
       {
-        "id": "158226016",
-        "title": "Malayalam Bhakthi Geetham",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/MalayalamBhakthiGeethamDevotional_20250616070726_500x500.jpg"
-      },
-      {
-        "id": "83440063",
-        "title": "Shiv",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/Shiv_20260211045252_500x500.jpg"
-      }
-    ],
-    "workout": [
-      {
-        "id": "1018078271",
-        "title": "Workoutinde New Year",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/logo/WorkoutindeNewYear_20211231132611_500x500.jpg"
-      },
-      {
-        "id": "84791848",
-        "title": "Gym Jock",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/GymJock_20250325111540_500x500.jpg"
-      }
-    ],
-    "chill": [
-      {
-        "id": "1220311803",
-        "title": "Malayalam Lofi",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/MalayalamLofi_20251203053822_500x500.jpg"
-      },
-      {
-        "id": "638958641",
-        "title": "Chill At Fort Kochi",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/ChillAtFortKochi_20251118114602_500x500.jpg"
-      },
-      {
-        "id": "784267939",
-        "title": "Acoustic Melodies",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/AcousticMelodies_20260710164617_500x500.jpg"
-      }
-    ],
-    "road_trip": [
-      {
-        "id": "148446070",
-        "title": "Malayalam Road Trip Mix",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/MalayalamRoadtripMix_20260624105025_500x500.jpg"
-      },
-      {
-        "id": "148446812",
-        "title": "Marathi Roadtrip Hits",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/MarathiRoadtripHits_20260624071126_500x500.jpg"
-      }
-    ],
-    "sad": [
-      {
         "id": "157594140",
         "title": "Weekend Sadhya",
         "type": "playlist",
         "imageUrl": "https://c.saavncdn.com/editorial/WeekendSadhya_20260525093251_500x500.jpg"
-      },
-      {
-        "id": "968401133",
-        "title": "DJ Mix - Malayalam",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/DJMixMalayalam_20251230134925_500x500.jpg"
-      },
-      {
-        "id": "723173023",
-        "title": "Malayalam Remix",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/MalayalamRemix_20251229103954_500x500.jpg"
       }
     ]
   },
@@ -792,10 +952,10 @@
         "imageUrl": "https://c.saavncdn.com/editorial/TrendingonReels_20251211060118_500x500.jpg"
       },
       {
-        "id": "1167751270",
+        "id": "1167751266",
         "title": "Hindi Hits",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/charts_Hindi2000s_156632_20240408061838_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/charts_Hindi1990s_136920_20240408061858_500x500.jpg"
       },
       {
         "id": "6689255",
@@ -804,7 +964,165 @@
         "imageUrl": "https://c.saavncdn.com/editorial/TaazaTunes_20260807072938_500x500.jpg"
       }
     ],
-    "trending": [
+    "superstars": [
+      {
+        "id": "77499947",
+        "title": "Let's Play - Shah Rukh Khan",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayShahRukhKhan_20241029092403_500x500.jpg"
+      },
+      {
+        "id": "67564943",
+        "title": "Let's Play - Salman Khan",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlaySalmanKhan_20240627122843_500x500.jpg"
+      },
+      {
+        "id": "702422",
+        "title": "Let's Play - Aamir Khan",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayAamirKhan_20240313180550_500x500.jpg"
+      },
+      {
+        "id": "4340227",
+        "title": "Let's Play - Ranbir Kapoor",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayRanbirKapoor_20240927121446_500x500.jpg"
+      },
+      {
+        "id": "64054667",
+        "title": "Let's Play - Ranveer Singh",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayRanveerSingh_20260706081211_500x500.jpg"
+      },
+      {
+        "id": "47928426",
+        "title": "Let's Play - Hrithik Roshan",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayHrithikRoshan_20241230082046_500x500.jpg"
+      },
+      {
+        "id": "4185238",
+        "title": "Let's Play - Akshay Kumar",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayAkshayKumar_20240906031010_500x500.jpg"
+      }
+    ],
+    "composers": [
+      {
+        "id": "5519117",
+        "title": "Let's Play - A.R. Rahman - Hindi",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayA-R-RahmanHindi_20240531054747_500x500.jpg"
+      },
+      {
+        "id": "87335138",
+        "title": "Let's Play - Pritam - Hindi",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayPritamHindi_20250108070951_500x500.jpg"
+      },
+      {
+        "id": "63084926",
+        "title": "Let's Play - Vishal-Shekhar - Hindi",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayVishalShekharHindi_20250303052233_500x500.jpg"
+      },
+      {
+        "id": "110470443",
+        "title": "Let's Play - Sachin-Jigar - Hindi",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlaySachinJigarHindi_20250429062944_500x500.jpg"
+      },
+      {
+        "id": "158220711",
+        "title": "Let's Play - Mithoon - Hindi",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayMithoonHindi_20250107070846_500x500.jpg"
+      },
+      {
+        "id": "152747694",
+        "title": "Let's Play - Shankar-Ehsaan-Loy",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayShankarEhsaanLoy_20240514084319_500x500.jpg"
+      },
+      {
+        "id": "4334455",
+        "title": "Let's Play - Amit Trivedi",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayAmitTrivedi_20241218060931_500x500.jpg"
+      }
+    ],
+    "singers": [
+      {
+        "id": "1191141029",
+        "title": "Best Of Romance - Arijit Singh",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/BestofRomanceArijitSingh_20231005095622_500x500.jpg"
+      },
+      {
+        "id": "1019475",
+        "title": "Let's Play - Shreya Ghoshal - Hindi",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayShreyaGhoshalHindi_20250310050045_500x500.jpg"
+      },
+      {
+        "id": "85976154",
+        "title": "Let's Play - Sonu Nigam - Hindi",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlaySonuNigamHindi_20250331054548_500x500.jpg"
+      },
+      {
+        "id": "156654587",
+        "title": "Let's Play - Jubin Nautiyal - Hindi",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayJubinNautiyalHindi_20240627085713_500x500.jpg"
+      },
+      {
+        "id": "1167751270",
+        "title": "Hindi 2000s",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/charts_Hindi2000s_156632_20240408061838_500x500.jpg"
+      },
+      {
+        "id": "1262025068",
+        "title": "Kishore Kumar Hits - Carvaan Select",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/KishoreKumarHitsCarvaanSelect_20250625163005_500x500.jpg"
+      },
+      {
+        "id": "82194712",
+        "title": "Let's Play - Mohit Chauhan",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/MohitChauhanKuchKhaasHai_20240304102301_500x500.jpg"
+      }
+    ],
+    "decades": [
+      {
+        "id": "155321561",
+        "title": "Best Of 2000s - Hindi",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/BestOf2000sHindi_20260403094953_500x500.jpg"
+      },
+      {
+        "id": "829466184",
+        "title": "Decade Of Heroes - 1990s",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/DecadeOfHeroes1990s_20240903100210_500x500.jpg"
+      },
+      {
+        "id": "81787348",
+        "title": "New Saavn Charts - Editorial - English - Top Songs - 1980s",
+        "type": "playlist",
+        "imageUrl": "https://pli.saavncdn.com/73/48/81787348_500x500.jpg"
+      },
+      {
+        "id": "81787681",
+        "title": "New Saavn Charts - Editorial - Hindi - Top Songs - 1970s",
+        "type": "playlist",
+        "imageUrl": "https://pli.saavncdn.com/76/81/81787681_500x500.jpg"
+      }
+    ],
+    "genres": [
       {
         "id": "1191142644",
         "title": "Arijit Singh Trending Bollywood Hits",
@@ -812,39 +1130,11 @@
         "imageUrl": "https://c.saavncdn.com/editorial/ArijitSinghTrendingBollywoodHits_20260723071020_500x500.jpg"
       },
       {
-        "id": "81787637",
-        "title": "New Saavn Charts - Editorial - Hindi - Top Songs - Retro",
-        "type": "playlist",
-        "imageUrl": "https://pli.saavncdn.com/76/37/81787637_500x500.jpg"
-      },
-      {
-        "id": "1202559627",
-        "title": "Viral Desi Dance Hits",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/ViralDesiDanceHits_20260723071136_500x500.jpg"
-      }
-    ],
-    "hits": [
-      {
         "id": "1219015193",
         "title": "Old Hindi Hits",
         "type": "playlist",
         "imageUrl": "https://c.saavncdn.com/editorial/OldHindiHits_20250826092719_500x500.jpg"
       },
-      {
-        "id": "1134548194",
-        "title": "India Superhits Top 50",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/IndiaSuperhitsTop50_20260731044441_500x500.jpg"
-      },
-      {
-        "id": "944760302",
-        "title": "Chartbusters 2021 - Hindi",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/Chartbusters2021Hindi_20250326093644_500x500.jpg"
-      }
-    ],
-    "romantic": [
       {
         "id": "1259581834",
         "title": "2000s Romantic Hits",
@@ -852,78 +1142,10 @@
         "imageUrl": "https://c.saavncdn.com/editorial/2000sRomanticHits_20241226075008_500x500.jpg"
       },
       {
-        "id": "1150256436",
-        "title": "Love Melodies",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/LoveMelodies_20260416103613_500x500.jpg"
-      },
-      {
-        "id": "1139629913",
-        "title": "Bollywood Melodies",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/BollywoodMelodies_20230202074221_500x500.jpg"
-      }
-    ],
-    "party": [
-      {
         "id": "79653434",
         "title": "Non-Stop Party",
         "type": "playlist",
         "imageUrl": "https://c.saavncdn.com/editorial/NonStopParty_20251226043305_500x500.jpg"
-      },
-      {
-        "id": "932189657",
-        "title": "Best Of Dance - Hindi",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/BestOfDanceHindi_20260622051632_500x500.jpg"
-      },
-      {
-        "id": "804316688",
-        "title": "Best Of EDM - Hindi",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/BestOfEDMHindi_20251003074023_500x500.jpg"
-      }
-    ],
-    "devotional": [
-      {
-        "id": "1263804759",
-        "title": "Anuradha Paudwal Devotional Songs",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/AnuradhaPaudwalDevotionalSongs_20250515100613_500x500.jpg"
-      },
-      {
-        "id": "1220869727",
-        "title": "Shiv Bhakti Bhajan",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/ShivBhakti_20250804090356_500x500.jpg"
-      },
-      {
-        "id": "1262711920",
-        "title": "Spiritual Songs - Carvaan Select",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/CarvaanSpiritualSongs_20250403062304_500x500.jpg"
-      }
-    ],
-    "workout": [
-      {
-        "id": "1200360637",
-        "title": "Bollywood Workout Hits",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/BollywoodWorkoutHits_20230925070507_500x500.jpg"
-      },
-      {
-        "id": "1298559178",
-        "title": "Dhurandhar Gym Mode On",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/DhurandharGymModeOn_20260312113554_500x500.jpg"
-      }
-    ],
-    "chill": [
-      {
-        "id": "1208889681",
-        "title": "Monsoon Lofi Beats",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/MonsoonLofiBeats_20231129150222_500x500.jpg"
       },
       {
         "id": "1212071733",
@@ -932,44 +1154,28 @@
         "imageUrl": "https://c.saavncdn.com/editorial/Pop_Chill_20240125112821_500x500.jpg"
       },
       {
-        "id": "158199563",
-        "title": "Acoustic Raatein",
+        "id": "1200360637",
+        "title": "Bollywood Workout Hits",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/AcousticRaatein_20250605063909_500x500.jpg"
-      }
-    ],
-    "road_trip": [
-      {
-        "id": "1200336568",
-        "title": "Main Nikla Gaddi Leke - Road Trip Hits",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/MainNiklaGaddiLekeRoadTripHits_20230925070556_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/BollywoodWorkoutHits_20230925070507_500x500.jpg"
       },
       {
         "id": "1264830695",
         "title": "Travel Hits - Carvaan Select",
         "type": "playlist",
         "imageUrl": "https://c.saavncdn.com/editorial/TravelHitsCarvaanSelect_20250625162353_500x500.jpg"
-      }
-    ],
-    "sad": [
+      },
+      {
+        "id": "1263804759",
+        "title": "Anuradha Paudwal Devotional Songs",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/AnuradhaPaudwalDevotionalSongs_20250515100613_500x500.jpg"
+      },
       {
         "id": "174091894",
         "title": "Sadhana Sargam - Brahmakumaris",
         "type": "playlist",
         "imageUrl": "https://c.saavncdn.com/editorial/SadhanaSargamBrahmakumaris_20181218114900_500x500.jpg"
-      },
-      {
-        "id": "1260504588",
-        "title": "Retro Rewind - 90's Emotional",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/RetroRewind90_sEmotional_20250121044238_500x500.jpg"
-      },
-      {
-        "id": "1202560069",
-        "title": "Heartbreak Collection",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/HeartbreakCollection_20240315053234_500x500.jpg"
       }
     ]
   },
@@ -1000,27 +1206,89 @@
         "imageUrl": "https://c.saavncdn.com/editorial/FreshLatinHits_20260731125835_500x500.jpg"
       }
     ],
-    "trending": [
+    "superstars": [
       {
-        "id": "48189087",
-        "title": "English Viral Hits",
+        "id": "280083933",
+        "title": "Let's Play - Taylor Swift",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/EnglishViralHits_20260807044054_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayTaylorSwift_20250312064154_500x500.jpg"
       },
       {
-        "id": "61969868",
-        "title": "International Charts",
+        "id": "110268793",
+        "title": "Let's Play - Drake",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/charts_InternationalCharts_143799_20220315153513_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayDrake_20250127103722_500x500.jpg"
       },
       {
-        "id": "902306817",
-        "title": "Viral Nation",
+        "id": "48667929",
+        "title": "Let's Play - Eminem",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/ViralNation_20260814152713_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayEminem_20241130100018_500x500.jpg"
+      },
+      {
+        "id": "85897886",
+        "title": "Let's Play - The Weeknd",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayTheWeeknd_20250205064119_500x500.jpg"
+      },
+      {
+        "id": "52312344",
+        "title": "Let's Play - Justin Bieber",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayJustinBieber_20241122142527_500x500.jpg"
+      },
+      {
+        "id": "81580124",
+        "title": "Let's Play - Ed Sheeran",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayEdSheeran_20250513105854_500x500.jpg"
+      },
+      {
+        "id": "158226384",
+        "title": "Let's Play - Post Malone",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayPostMalone_20250204101736_500x500.jpg"
+      },
+      {
+        "id": "84989841",
+        "title": "Let's Play - Ariana Grande",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayArianaGrande_20250312064753_500x500.jpg"
       }
     ],
-    "hits": [
+    "composers": [
+      {
+        "id": "87101498",
+        "title": "Let's Play - Hans Zimmer",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/SoundscapeHansZimmer_20250204092923_500x500.jpg"
+      },
+      {
+        "id": "1223058281",
+        "title": "Ariana Grande Party Songs",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/ArianaGrandePartySongs_20241008053203_500x500.jpg"
+      },
+      {
+        "id": "1224898466",
+        "title": "Let's Play - Metro Boomin",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayMetroBoomin_20241130092145_500x500.jpg"
+      },
+      {
+        "id": "48178908",
+        "title": "Let's Play - Calvin Harris",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayCalvinHarris_20240117050435_500x500.jpg"
+      },
+      {
+        "id": "78045130",
+        "title": "Let's Play - David Guetta",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayDavidGuetta_20250127103818_500x500.jpg"
+      }
+    ],
+    "singers": [
       {
         "id": "63116921",
         "title": "English 2000s",
@@ -1028,24 +1296,74 @@
         "imageUrl": "https://c.saavncdn.com/editorial/charts_English2000s_145418_20240408065308_500x500.jpg"
       },
       {
-        "id": "1134595537",
-        "title": "International : India Superhits Top 50",
+        "id": "75385535",
+        "title": "Let's Play - Bruno Mars",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/International-IndiaSuperhitsTop50_20260724052419_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayBrunoMars_20240628112755_500x500.jpg"
       },
       {
-        "id": "386221272",
-        "title": "Chartbusters 2019 - English",
+        "id": "286074037",
+        "title": "Let's Play - Billie Eilish",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/Chartbusters2019English_20240729064113_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayBillieEilish_20250312064216_500x500.jpg"
+      },
+      {
+        "id": "155871808",
+        "title": "Let's Play - Dua Lipa",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayDuaLipa_20250312064206_500x500.jpg"
+      },
+      {
+        "id": "794988616",
+        "title": "Let's Play - Harry Styles",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayHarryStyles_20240320064741_500x500.jpg"
+      },
+      {
+        "id": "45933948",
+        "title": "Let's Play - Coldplay",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/Let_sPlayColdplay_20241122142457_500x500.jpg"
       }
     ],
-    "romantic": [
+    "decades": [
       {
-        "id": "146767393",
-        "title": "Romantic Rock",
+        "id": "116545105",
+        "title": "2000s Pop - English",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/RomanticRock_20240212083006_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/2000sPopEnglish_20240722102110_500x500.jpg"
+      },
+      {
+        "id": "82711871",
+        "title": "English 1990s",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/logo/charts_English90s_179932_20220105155619_500x500.jpg"
+      },
+      {
+        "id": "901538745",
+        "title": "English 1980s",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/charts_English1980s_189374_20240408065254_500x500.jpg"
+      },
+      {
+        "id": "901538742",
+        "title": "English 1970s",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/charts_English1970s_154751_20240408110817_500x500.jpg"
+      }
+    ],
+    "genres": [
+      {
+        "id": "48189087",
+        "title": "English Viral Hits",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/EnglishViralHits_20260807044054_500x500.jpg"
+      },
+      {
+        "id": "901538738",
+        "title": "English 1960s",
+        "type": "playlist",
+        "imageUrl": "https://c.saavncdn.com/editorial/charts_English1960s_103619_20240408110826_500x500.jpg"
       },
       {
         "id": "410799331",
@@ -1054,72 +1372,10 @@
         "imageUrl": "https://c.saavncdn.com/editorial/KPopLoveSongs_20260302060021_500x500.jpg"
       },
       {
-        "id": "901538738",
-        "title": "English 1960s",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/charts_English1960s_103619_20240408110826_500x500.jpg"
-      }
-    ],
-    "party": [
-      {
-        "id": "294580620",
-        "title": "Non-Stop Party - International",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/PartyAllNight_20260429115301_500x500.jpg"
-      },
-      {
         "id": "78211018",
         "title": "Best Of Dance -  English",
         "type": "playlist",
         "imageUrl": "https://c.saavncdn.com/editorial/BestofDanceEnglish_20260414103646_500x500.jpg"
-      },
-      {
-        "id": "61632629",
-        "title": "EDM House Party",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/EDMNightOut_20260505095206_500x500.jpg"
-      }
-    ],
-    "devotional": [
-      {
-        "id": "1263093176",
-        "title": "Malini Awasthi Devotional Songs",
-        "type": "playlist",
-        "imageUrl": "https://pli.saavncdn.com/84/43/1262058443_500x500.jpg?bch=1741689207"
-      },
-      {
-        "id": "1263093176",
-        "title": "Malini Awasthi Devotional Songs",
-        "type": "playlist",
-        "imageUrl": "https://pli.saavncdn.com/84/43/1262058443_500x500.jpg?bch=1741689207"
-      },
-      {
-        "id": "83440063",
-        "title": "Shiv",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/Shiv_20260211045252_500x500.jpg"
-      }
-    ],
-    "workout": [
-      {
-        "id": "73399784",
-        "title": "Ultimate Workout  Mix",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/UltimateWorkoutMix_20260722124456_500x500.jpg"
-      },
-      {
-        "id": "1268819863",
-        "title": "Gym Phonk",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/GymPhonk_20251125105718_500x500.jpg"
-      }
-    ],
-    "chill": [
-      {
-        "id": "1263022715",
-        "title": "Artist Hits - Tia Lofi Girl",
-        "type": "playlist",
-        "imageUrl": "<!doctype html>\n<html lang=en>\n<title>500 Internal Server Error</title>\n<h1>Internal Server Error</h1>\n<p>The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the applica"
       },
       {
         "id": "78619848",
@@ -1128,44 +1384,22 @@
         "imageUrl": "https://c.saavncdn.com/editorial/MildMornings_20260505105718_500x500.jpg"
       },
       {
-        "id": "61470713",
-        "title": "Acoustic Sessions",
+        "id": "73399784",
+        "title": "Ultimate Workout  Mix",
         "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/logo/AcousticSessions_500x500.jpg"
-      }
-    ],
-    "road_trip": [
-      {
-        "id": "78619789",
-        "title": "Ultimate Road Trip Hits",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/SummerRoadTripHits_20250602122342_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/UltimateWorkoutMix_20260722124456_500x500.jpg"
       },
       {
         "id": "421843709",
         "title": "Travel Friends",
         "type": "playlist",
         "imageUrl": "https://c.saavncdn.com/editorial/logo/SocialAddaTravelFriends_20200723111913_500x500.jpg"
-      }
-    ],
-    "sad": [
-      {
-        "id": "804538610",
-        "title": "Best Of Sad Romantic - English",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/BestofSadRomanticEnglish_20260623095019_500x500.jpg"
       },
       {
-        "id": "81787521",
-        "title": "New Saavn Charts - Editorial - English - Top Songs - 1960s",
+        "id": "61470713",
+        "title": "Acoustic Sessions",
         "type": "playlist",
-        "imageUrl": "https://pli.saavncdn.com/75/21/81787521_500x500.jpg"
-      },
-      {
-        "id": "230071510",
-        "title": "Heartbreak Hip Hop",
-        "type": "playlist",
-        "imageUrl": "https://c.saavncdn.com/editorial/HeartbreakHipHop_20250805091256_500x500.jpg"
+        "imageUrl": "https://c.saavncdn.com/editorial/logo/AcousticSessions_500x500.jpg"
       }
     ]
   }

@@ -38,68 +38,32 @@ function getLanguageContent(lang: string): Record<string, ShelfItem[]> {
   const dynamicPlaylists = getDynamicPlaylists();
   const dynamicLang = dynamicPlaylists ? dynamicPlaylists[defaultLang] : null;
 
+  if (dynamicLang) {
+    return {
+      quick_access: dynamicLang.quick_access || [],
+      superstars: dynamicLang.superstars || [],
+      composers: dynamicLang.composers || [],
+      singers: dynamicLang.singers || [],
+      decades: dynamicLang.decades || [],
+      genres: dynamicLang.genres || []
+    };
+  }
+
   const fallback: Record<string, ShelfItem[]> = {
     quick_access: [
       { id: getPlaylistId(defaultLang, 'Mix', '150750109'), title: `${defaultLang} Mix`, type: 'mix', imageUrl: '/app-icon.png' },
       { id: getPlaylistId(defaultLang, 'Trending', '1266643840'), title: `Trending ${defaultLang}`, type: 'playlist', imageUrl: '/app-icon.png' },
       { id: getPlaylistId(defaultLang, 'Hits', '1170578801'), title: `${defaultLang} Hits`, type: 'playlist', imageUrl: '/app-icon.png' },
-      { id: getPlaylistId(defaultLang, 'New Releases', '1266094331'), title: `New Releases`, type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/LatestTollywood_20250814091215_500x500.jpg' },
+      { id: getPlaylistId(defaultLang, 'New Releases', '1266094331'), title: `Latest ${defaultLang}`, type: 'playlist', imageUrl: 'https://c.saavncdn.com/editorial/LatestTollywood_20250814091215_500x500.jpg' },
     ],
-    trending: [
-      { id: getPlaylistId(defaultLang, 'Trending', '1134643225'), title: `Trending Now`, type: 'playlist', imageUrl: '/app-icon.png' },
-      { id: getPlaylistId(defaultLang, 'Viral', '1302089242'), title: `Viral Hits`, type: 'playlist', imageUrl: '/app-icon.png' },
-      { id: getPlaylistId(defaultLang, 'Popular', '814453257'), title: `Popular in ${defaultLang}`, type: 'playlist', imageUrl: '/app-icon.png' },
-      { id: getPlaylistId(defaultLang, 'Top Charts', '951897805'), title: `Top Charts`, type: 'playlist', imageUrl: '/app-icon.png' }
-    ],
-    hits: [
-      { id: getPlaylistId(defaultLang, 'Hits', '1170578805'), title: `${defaultLang} Superhits`, type: 'playlist', imageUrl: '/app-icon.png' },
-      { id: getPlaylistId(defaultLang, 'Chartbusters', '1170578801'), title: `Chartbusters`, type: 'playlist', imageUrl: '/app-icon.png' }
-    ],
-    romantic: [
-      { id: getPlaylistId(defaultLang, 'Romantic', '1170578801'), title: `Romantic`, type: 'playlist', imageUrl: '/app-icon.png' },
-      { id: getPlaylistId(defaultLang, 'Melodies', '1170578805'), title: `Melodies`, type: 'playlist', imageUrl: '/app-icon.png' },
-      { id: getPlaylistId(defaultLang, 'Love', '110048908'), title: `Love Songs`, type: 'playlist', imageUrl: '/app-icon.png' }
-    ],
-    party: [
-      { id: getPlaylistId(defaultLang, 'Party', '1170578801'), title: `Party Anthems`, type: 'playlist', imageUrl: '/app-icon.png' },
-      { id: getPlaylistId(defaultLang, 'EDM', '1170578805'), title: `EDM Mix`, type: 'playlist', imageUrl: '/app-icon.png' },
-      { id: getPlaylistId(defaultLang, 'Energetic', '110048908'), title: `Energetic Beats`, type: 'playlist', imageUrl: '/app-icon.png' }
-    ],
-    devotional: [
-      { id: getPlaylistId(defaultLang, 'Devotional', '84999330'), title: `Devotional`, type: 'playlist', imageUrl: '/app-icon.png' }
-    ],
-    workout: [
-      { id: getPlaylistId(defaultLang, 'Workout', '84999330'), title: `Workout`, type: 'playlist', imageUrl: '/app-icon.png' }
-    ],
-    chill: [
-      { id: getPlaylistId(defaultLang, 'Lofi', '84999330'), title: `Lofi & Chill`, type: 'playlist', imageUrl: '/app-icon.png' }
-    ],
-    road_trip: [
-      { id: getPlaylistId(defaultLang, 'Travel', '84999330'), title: `Travel`, type: 'playlist', imageUrl: '/app-icon.png' }
-    ],
-    sad: [
-      { id: getPlaylistId(defaultLang, 'Sad', '84999330'), title: `Sad & Emotional`, type: 'playlist', imageUrl: '/app-icon.png' },
-      { id: getPlaylistId(defaultLang, 'Emotional', '84999330'), title: `Emotional`, type: 'playlist', imageUrl: '/app-icon.png' }
-    ],
-    evergreen: []
+    superstars: [],
+    composers: [],
+    singers: [],
+    decades: [],
+    genres: []
   };
 
-  if (!dynamicLang) return fallback;
-
-  // Merge dynamic playlists over fallback
-  return {
-    quick_access: dynamicLang.quick_access && dynamicLang.quick_access.length > 0 ? dynamicLang.quick_access : fallback.quick_access,
-    trending: dynamicLang.trending && dynamicLang.trending.length > 0 ? dynamicLang.trending : fallback.trending,
-    hits: dynamicLang.hits && dynamicLang.hits.length > 0 ? dynamicLang.hits : fallback.hits,
-    romantic: dynamicLang.romantic && dynamicLang.romantic.length > 0 ? dynamicLang.romantic : fallback.romantic,
-    party: dynamicLang.party && dynamicLang.party.length > 0 ? dynamicLang.party : fallback.party,
-    devotional: dynamicLang.devotional && dynamicLang.devotional.length > 0 ? dynamicLang.devotional : fallback.devotional,
-    workout: dynamicLang.workout && dynamicLang.workout.length > 0 ? dynamicLang.workout : fallback.workout,
-    chill: dynamicLang.chill && dynamicLang.chill.length > 0 ? dynamicLang.chill : fallback.chill,
-    road_trip: dynamicLang.road_trip && dynamicLang.road_trip.length > 0 ? dynamicLang.road_trip : fallback.road_trip,
-    sad: dynamicLang.sad && dynamicLang.sad.length > 0 ? dynamicLang.sad : fallback.sad,
-    evergreen: dynamicLang.evergreen && dynamicLang.evergreen.length > 0 ? dynamicLang.evergreen : fallback.evergreen
-  };
+  return fallback;
 }
 
 export async function GET(request: Request) {
@@ -153,7 +117,7 @@ export async function GET(request: Request) {
   const content = getLanguageContent(lang);
   const sections: HomeSection[] = [];
 
-  // Lifecycle Gated Sections
+  // Lifecycle Gated Sections (Preserves original user phases)
   if (phase === 'BOOTSTRAP') {
     sections.push({
       id: 'bootstrap_discovery',
@@ -166,17 +130,48 @@ export async function GET(request: Request) {
       id: 'early_favorites',
       type: 'carousel',
       title: '🌱 Early Favorites for You',
-      items: content.trending || []
+      items: content.genres || content.quick_access || []
     });
   } else if (phase === 'MATURE' || phase === 'DEVELOPING') {
     sections.push({
       id: 'made_for_you',
       type: 'carousel',
       title: '❤️ Made For You',
-      items: content.romantic || content.quick_access || []
+      items: content.genres || content.quick_access || []
     });
   }
 
+  // 2. Superstar Hits
+  if (content.superstars && content.superstars.length > 0) {
+    sections.push({
+      id: 'superstar_hits',
+      type: 'carousel',
+      title: `🌟 ${lang === 'English' ? 'Global Pop & Rap Icons' : `${lang} Superstar Hits`}`,
+      items: content.superstars
+    });
+  }
+
+  // 3. Composer Spotlight
+  if (content.composers && content.composers.length > 0) {
+    sections.push({
+      id: 'composer_spotlight',
+      type: 'carousel',
+      title: `🎹 ${lang} Composer Spotlight`,
+      items: content.composers
+    });
+  }
+
+  // 4. Top Voices & Legends
+  if (content.singers && content.singers.length > 0) {
+    sections.push({
+      id: 'top_voices',
+      type: 'carousel',
+      title: `🎙️ ${lang} Top Voices & Legends`,
+      items: content.singers
+    });
+  }
+
+  // Personalized Contextual Shelves (Daylist, Release Radar, New Movie Songs, Artist Radars)
   if (daylist && daylist.songs && daylist.songs.length > 0) {
     sections.push({
       id: 'daylist',
@@ -206,30 +201,23 @@ export async function GET(request: Request) {
 
   artistRadars.forEach(ar => sections.push(ar));
 
-  const allPlaylists = [
-    ...(content.trending || []),
-    ...(content.hits || []),
-    ...(content.romantic || []),
-    ...(content.party || []),
-    ...(content.devotional || []),
-    ...(content.workout || []),
-    ...(content.chill || []),
-    ...(content.road_trip || []),
-    ...(content.sad || [])
-  ];
+  // 5. Decade Time Machine
+  if (content.decades && content.decades.length > 0) {
+    sections.push({
+      id: 'decade_time_machine',
+      type: 'carousel',
+      title: `⏳ ${lang} Decade Time Machine`,
+      items: content.decades
+    });
+  }
 
-  const uniquePlaylists = Array.from(new Map(
-    allPlaylists
-      .filter(item => item && item.id)
-      .map(item => [item.id, item])
-  ).values());
-
-  if (uniquePlaylists.length > 0) {
+  // 6. Moods & Playlists (Original All Playlists)
+  if (content.genres && content.genres.length > 0) {
     sections.push({ 
       id: 'all_playlists', 
       type: 'carousel', 
       title: `🎧 ${lang} Playlists`, 
-      items: uniquePlaylists 
+      items: content.genres 
     });
   }
 
