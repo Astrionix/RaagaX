@@ -94,22 +94,36 @@ export default function Page() {
     };
 
     // Listen to native Android back button event via Capacitor App plugin if available
+    let isMounted = true;
     try {
-      import('@capacitor/app').then(({ App }) => {
-        appBackButtonListener = App.addListener('backButton', ({ canGoBack }) => {
+      import('@capacitor/app').then(async ({ App }) => {
+        if (!isMounted) return;
+        const handle = await App.addListener('backButton', ({ canGoBack }) => {
           const handled = handleBackNavigation();
           if (!handled) {
             App.exitApp();
           }
         });
+        if (!isMounted) {
+          handle?.remove?.();
+        } else {
+          appBackButtonListener = handle;
+        }
       }).catch(() => {});
     } catch {}
 
     window.addEventListener('popstate', handlePopState);
     return () => {
+      isMounted = false;
       window.removeEventListener('popstate', handlePopState);
-      if (appBackButtonListener && typeof appBackButtonListener.remove === 'function') {
-        appBackButtonListener.remove();
+      if (appBackButtonListener) {
+        try {
+          if (typeof appBackButtonListener.remove === 'function') {
+            appBackButtonListener.remove();
+          } else if (typeof appBackButtonListener.then === 'function') {
+            appBackButtonListener.then((h: any) => h?.remove?.());
+          }
+        } catch {}
       }
     };
   }, []);

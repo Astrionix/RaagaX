@@ -822,7 +822,18 @@ export const usePlayerStore = create<PlayerState>()(
   },
 
   togglePlayPause: async () => {
-    if (get().isTransferring) return;
+    if (get().isTransferring) {
+      const isNowPlaying = !get().isPlaying;
+      set({ isPlaying: isNowPlaying, playbackIntent: isNowPlaying ? 'PLAYING' : 'PAUSED' });
+      import('@/lib/connect/TransferManager').then(({ TransferManager }) => {
+        TransferManager.getInstance().recordPendingIntent({
+          action: isNowPlaying ? 'PLAY' : 'PAUSE',
+          positionMs: get().currentTime * 1000,
+          timestamp: Date.now()
+        });
+      });
+      return;
+    }
     const isNowPlaying = !get().isPlaying;
     const oldIsPlaying = get().isPlaying;
     const oldPlaybackIntent = get().playbackIntent;
@@ -930,7 +941,15 @@ export const usePlayerStore = create<PlayerState>()(
   toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 
   playNext: async () => {
-    if (get().isTransferring) return;
+    if (get().isTransferring) {
+      import('@/lib/connect/TransferManager').then(({ TransferManager }) => {
+        TransferManager.getInstance().recordPendingIntent({
+          action: 'NEXT',
+          timestamp: Date.now()
+        });
+      });
+      return;
+    }
     if (!PlaybackWatchdog.getInstance().acquireTransitionLock()) return;
 
     const oldSong = get().currentSong;
@@ -997,7 +1016,15 @@ export const usePlayerStore = create<PlayerState>()(
   },
 
   playPrev: async () => {
-    if (get().isTransferring) return;
+    if (get().isTransferring) {
+      import('@/lib/connect/TransferManager').then(({ TransferManager }) => {
+        TransferManager.getInstance().recordPendingIntent({
+          action: 'PREV',
+          timestamp: Date.now()
+        });
+      });
+      return;
+    }
     const oldSong = get().currentSong;
     const oldQueueIndex = get().queueIndex;
     const oldIsPlaying = get().isPlaying;

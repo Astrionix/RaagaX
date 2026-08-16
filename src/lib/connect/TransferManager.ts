@@ -42,12 +42,20 @@ export interface TransferPayload {
   context?: any;
 }
 
+export interface PendingTransferIntent {
+  action: 'PLAY' | 'PAUSE' | 'NEXT' | 'PREV' | 'SEEK';
+  positionMs?: number;
+  songData?: any;
+  timestamp: number;
+}
+
 export class TransferManager {
   private static instance: TransferManager;
   private pendingStageTimeout: NodeJS.Timeout | null = null;
   private activeTransitionId: string | null = null;
   private currentStage: TransferState = 'IDLE';
   private processedTransactions = new Map<string, { status: TransferState; handledAt: number }>();
+  private pendingIntent: PendingTransferIntent | null = null;
 
   // Bounded stage timeouts
   private readonly REQUEST_ACK_TIMEOUT_MS = 6000;
@@ -61,6 +69,17 @@ export class TransferManager {
       TransferManager.instance = new TransferManager();
     }
     return TransferManager.instance;
+  }
+
+  public recordPendingIntent(intent: PendingTransferIntent) {
+    console.log(`[TransferManager] Recorded user intent during transfer: ${intent.action}`, intent);
+    this.pendingIntent = intent;
+  }
+
+  public getAndClearPendingIntent(): PendingTransferIntent | null {
+    const intent = this.pendingIntent;
+    this.pendingIntent = null;
+    return intent;
   }
 
   public getActiveTransitionId(): string | null {
@@ -339,6 +358,19 @@ export class TransferManager {
 
     const store = usePlayerStore.getState();
     const sequencer = CommandSequencer.getInstance();
+    const queuedIntent = this.getAndClearPendingIntent();
+
+    let shouldResume = store.isPlaying;
+    let targetAction = undefined;
+    let targetPositionMs = undefined;
+
+    if (queuedIntent) {
+      console.log(`[TransferManager] [TRANSFER ${command.transitionId}] Reconciling queued user intent on commit: ${queuedIntent.action}`);
+      if (queuedIntent.action === 'PAUSE') shouldResume = false;
+      if (queuedIntent.action === 'PLAY') shouldResume = true;
+      targetAction = queuedIntent.action;
+      targetPositionMs = queuedIntent.positionMs;
+    }
 
     const commitCommand: ConnectCommand = {
       commandId: crypto.randomUUID(),
@@ -352,7 +384,9 @@ export class TransferManager {
       sentAt: Date.now(),
       payload: {
         transactionId: command.transitionId,
-        shouldResume: store.isPlaying // Pass latest playing state at moment of commit
+        shouldResume, // Reconciled playing intent
+        targetAction, // Reconciled intent (NEXT / PREV / SEEK / PAUSE / PLAY)
+        targetPositionMs
       }
     };
 
@@ -393,8 +427,50 @@ export class TransferManager {
         transferringDeviceId: null
       });
 
-      // 3. If source was actively playing at moment of commit, resume playback cleanly
-      if (payload?.shouldResume) {
+      // 3. Reconcile explicit user intent (NEXT, PREV, SEEK, PLAY, PAUSE)
+      if (payload?.targetAction === 'NEXT') {
+        const { QueueManager } = await import('@/lib/queue/QueueManager');
+        const nextItem = QueueManager.getInstance().getNext(false);
+        if (nextItem && nextItem.song) {
+          usePlayerStore.setState({
+            currentSong: nextItem.song,
+            currentTime: 0,
+            isPlaying: true,
+            playbackIntent: 'PLAYING'
+          });
+          const { RaagaXNativePlayer } = await import('../playback/native/RaagaXNativePlayer');
+          if (RaagaXNativePlayer.isNative()) {
+            await RaagaXNativePlayer.next();
+          } else {
+            const { PlaybackService } = await import('@/lib/playback/PlaybackService');
+            await PlaybackService.getInstance().playTrack(nextItem.song, true);
+          }
+        }
+      } else if (payload?.targetAction === 'PREV') {
+        const { QueueManager } = await import('@/lib/queue/QueueManager');
+        const prevItem = QueueManager.getInstance().getPrevious();
+        if (prevItem && prevItem.song) {
+          usePlayerStore.setState({
+            currentSong: prevItem.song,
+            currentTime: 0,
+            isPlaying: true,
+            playbackIntent: 'PLAYING'
+          });
+          const { RaagaXNativePlayer } = await import('../playback/native/RaagaXNativePlayer');
+          if (RaagaXNativePlayer.isNative()) {
+            await RaagaXNativePlayer.previous();
+          } else {
+            const { PlaybackService } = await import('@/lib/playback/PlaybackService');
+            await PlaybackService.getInstance().playTrack(prevItem.song, true);
+          }
+        }
+      } else if (payload?.targetAction === 'SEEK' && typeof payload.targetPositionMs === 'number') {
+        const seekSec = payload.targetPositionMs / 1000;
+        usePlayerStore.setState({ currentTime: seekSec, isPlaying: Boolean(payload.shouldResume) });
+        const { PlaybackService } = await import('@/lib/playback/PlaybackService');
+        PlaybackService.getInstance().seek(seekSec, true);
+        if (payload.shouldResume) PlaybackService.getInstance().play();
+      } else if (payload?.shouldResume) {
         const { RaagaXNativePlayer } = await import('../playback/native/RaagaXNativePlayer');
         if (RaagaXNativePlayer.isNative()) {
           console.log('[TransferReceiver] Resuming native Android ExoPlayer on commit');
