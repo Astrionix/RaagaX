@@ -1,4 +1,4 @@
-import { DeviceCapabilities } from './types';
+import { DeviceCapabilities } from '../types';
 
 export type DeviceReachabilityState =
   | 'ACCOUNT_REGISTERED'

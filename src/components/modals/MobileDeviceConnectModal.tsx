@@ -467,6 +467,10 @@ export function MobileDeviceConnectModal() {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
         </div>
 
         {/* FOOTER GUARANTEE */}

@@ -166,15 +166,16 @@ export class DeviceDiscoveryEngine {
       const sources = existing?.discoverySources || new Set<DiscoverySource>();
       sources.add('CLOUD');
 
+      const devRecord = record as any;
       const updated: VerifiedDevice = {
         deviceId: record.id,
         installationId: existing?.installationId || 'inst_' + record.id,
         name: record.name || 'RaagaX Player',
-        type: record.type || 'desktop',
+        type: devRecord.type || 'desktop',
         platform: (record.platform as any) || 'Windows',
         appVersion: '2.5.0',
         protocolVersion: 2,
-        capabilities: record.capabilities || {
+        capabilities: devRecord.capabilities || {
           audio: true,
           video: false,
           seek: true,
