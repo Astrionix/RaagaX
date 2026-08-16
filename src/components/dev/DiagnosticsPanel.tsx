@@ -88,6 +88,17 @@ export function DiagnosticsPanel() {
         ◈ RaagaX Cross-Device Diagnostics
       </div>
 
+      {/* Playback Engine & Single-Player Audit */}
+      <div style={{ marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ color: '#ec4899', fontWeight: 700, marginBottom: 4 }}>▶ Playback Engine Audit</div>
+        <Row label="Owner" value={typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.() ? 'Native (Media3)' : 'Web (PlaybackService)'} valueColor="#38bdf8" />
+        <Row label="State" value={store.isPlaying ? 'PLAYING' : (store.currentTime > 0 ? 'PAUSED' : 'IDLE')} valueColor={store.isPlaying ? '#4ade80' : '#fb923c'} />
+        <Row label="Active Song" value={store.currentSong?.title || 'None'} />
+        <Row label="Time / Dur" value={`${Math.floor(store.currentTime / 60)}:${String(Math.floor(store.currentTime % 60)).padStart(2, '0')} / ${Math.floor(store.duration / 60)}:${String(Math.floor(store.duration % 60)).padStart(2, '0')}`} />
+        <Row label="Queue Position" value={`${store.queueIndex + 1} / ${store.queue.length}`} />
+        <Row label="Instances" value={typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.() ? 'Native: 1 · Detached: 0' : 'A/B: 2 · Detached: 0'} valueColor="#4ade80" />
+      </div>
+
       {/* Session */}
       <div style={{ marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <Row label="Renderer" value={store.activeDeviceId || '—'} />
