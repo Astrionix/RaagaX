@@ -84,6 +84,61 @@ export function ExpandedPlayerModal() {
   const [visualTime, setVisualTime] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
 
+  // Artwork Gesture Tracking
+  const artTouchStartX = useRef<number | null>(null);
+  const artTouchStartY = useRef<number | null>(null);
+  const [artSwipeOffset, setArtSwipeOffset] = useState({ x: 0, y: 0 });
+
+  const handleArtTouchStart = (e: React.TouchEvent) => {
+    artTouchStartX.current = e.touches[0].clientX;
+    artTouchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleArtTouchMove = (e: React.TouchEvent) => {
+    if (artTouchStartX.current === null || artTouchStartY.current === null) return;
+    const diffX = e.touches[0].clientX - artTouchStartX.current;
+    const diffY = e.touches[0].clientY - artTouchStartY.current;
+    setArtSwipeOffset({
+      x: Math.max(-50, Math.min(50, diffX * 0.4)),
+      y: Math.max(-30, Math.min(60, diffY * 0.4)),
+    });
+  };
+
+  const handleArtTouchEnd = (e: React.TouchEvent) => {
+    if (artTouchStartX.current === null || artTouchStartY.current === null) return;
+    const diffX = e.changedTouches[0].clientX - artTouchStartX.current;
+    const diffY = e.changedTouches[0].clientY - artTouchStartY.current;
+
+    setArtSwipeOffset({ x: 0, y: 0 });
+
+    // Swipe Down -> Minimize Player
+    if (diffY > 60 && Math.abs(diffY) > Math.abs(diffX)) {
+      togglePlayerExpanded();
+      artTouchStartX.current = null;
+      artTouchStartY.current = null;
+      return;
+    }
+
+    // Swipe Left -> Next Track
+    if (diffX < -60 && Math.abs(diffX) > Math.abs(diffY)) {
+      playNext();
+      artTouchStartX.current = null;
+      artTouchStartY.current = null;
+      return;
+    }
+
+    // Swipe Right -> Previous Track
+    if (diffX > 60 && Math.abs(diffX) > Math.abs(diffY)) {
+      playPrev();
+      artTouchStartX.current = null;
+      artTouchStartY.current = null;
+      return;
+    }
+
+    artTouchStartX.current = null;
+    artTouchStartY.current = null;
+  };
+
   // Pre-load lyrics for current track
   useEffect(() => {
     if (currentSong?.id) {
@@ -489,8 +544,14 @@ export function ExpandedPlayerModal() {
           /* Album Artwork Screen */
           <div 
             onClick={() => setViewMode('lyrics')}
-            className="flex-1 min-h-0 flex flex-col items-center justify-center w-full py-2 overflow-hidden cursor-pointer group"
-            title="Tap to switch to live synced lyrics"
+            onTouchStart={handleArtTouchStart}
+            onTouchMove={handleArtTouchMove}
+            onTouchEnd={handleArtTouchEnd}
+            className="flex-1 min-h-0 flex flex-col items-center justify-center w-full py-2 overflow-hidden cursor-pointer group select-none transition-transform duration-150 ease-out"
+            style={{
+              transform: `translate(${artSwipeOffset.x}px, ${artSwipeOffset.y}px)`,
+            }}
+            title="Tap for lyrics • Swipe left/right for next/prev • Swipe down to minimize"
           >
             <div
               className="relative rounded-[24px] sm:rounded-[28px] overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.85)] border border-white/10 group-hover:scale-[1.02] transition-all duration-300"
@@ -516,7 +577,7 @@ export function ExpandedPlayerModal() {
                 <Mic2 className="w-4 h-4 text-[#fa233b]" /> Live Synced Lyrics
               </div>
 
-              {/* Script Mode Switcher: Option A (Native) ↔ Option B (Transliteration) */}
+              {/* Script Mode Switcher: Native | Transliteration | Dual */}
               {hasTransliteration && (
                 <div className="flex items-center p-0.5 rounded-lg border border-white/10 bg-white/5 text-[11px] font-bold">
                   <button
@@ -537,7 +598,17 @@ export function ExpandedPlayerModal() {
                         : 'text-white/50 hover:text-white'
                     }`}
                   >
-                    ● Transliteration
+                    ● Romanized
+                  </button>
+                  <button
+                    onClick={() => setScriptMode('dual' as any)}
+                    className={`px-2.5 py-1 rounded-md transition-all ${
+                      (scriptMode as any) === 'dual' 
+                        ? 'bg-white/20 text-white shadow-sm font-black' 
+                        : 'text-white/50 hover:text-white'
+                    }`}
+                  >
+                    ● Dual
                   </button>
                 </div>
               )}
@@ -569,9 +640,11 @@ export function ExpandedPlayerModal() {
                 lyricsLines.map((line, idx) => {
                   const isActive = idx === lyricsIndex;
                   const isPassed = idx < lyricsIndex;
-                  const displayContent = (scriptMode === 'transliteration' && line.romanizedText) 
+                  const isDual = (scriptMode as any) === 'dual';
+                  const mainContent = (scriptMode === 'transliteration' && line.romanizedText) 
                     ? line.romanizedText 
                     : (line.nativeText || line.text);
+                  const subContent = isDual ? (line.romanizedText || line.englishText) : null;
 
                   return (
                     <div
@@ -598,7 +671,12 @@ export function ExpandedPlayerModal() {
                             : 'text-lg sm:text-2xl font-bold text-white/65 hover:text-white/95 opacity-70'}
                       `}
                     >
-                      <div className="tracking-tight break-words">{displayContent}</div>
+                      <div className="tracking-tight break-words">{mainContent}</div>
+                      {subContent && (
+                        <div className={`text-sm sm:text-base font-medium mt-1 tracking-normal ${isActive ? 'text-white/80' : 'text-white/40'}`}>
+                          {subContent}
+                        </div>
+                      )}
                     </div>
                   );
                 })
