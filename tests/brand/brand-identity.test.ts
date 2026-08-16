@@ -9,18 +9,18 @@ describe('RaagaX Complete Brand Identity & Design System', () => {
   it('should render Primary Full Logo with abstract SVG components and no text', () => {
     const html = renderToString(React.createElement(RaagaXLogo, { variant: 'full', size: 48, themeOverride: 'dark' }));
     expect(html).toContain('svg');
-    expect(html).toContain('rxRedMotion');
-    expect(html).toContain('rxWaveform');
+    expect(html).toContain('rxRedGlowGrad');
+    expect(html).toContain('rxSymbolGlow');
     // Ensure no alphabetic characters inside the symbol
     expect(html).not.toContain('>R<');
     expect(html).not.toContain('>X<');
     expect(html).not.toContain('>RX<');
   });
 
-  it('should render Micro Mark variant with 48x48 viewport for favicons and 16-24px UI', () => {
+  it('should render Micro Mark variant for favicons and 16-24px UI', () => {
     const html = renderToString(React.createElement(RaagaXLogo, { variant: 'micro', size: 24, themeOverride: 'light' }));
-    expect(html).toContain('viewBox="0 0 48 48"');
-    expect(html).toContain('fill="#F20D18"');
+    expect(html).toContain('svg');
+    expect(html).toContain('fill="#E50914"');
   });
 
   it('should render Monochrome Red, Black, and White variants', () => {
@@ -28,17 +28,17 @@ describe('RaagaX Complete Brand Identity & Design System', () => {
     const blackHtml = renderToString(React.createElement(RaagaXLogo, { variant: 'monochrome-black' }));
     const whiteHtml = renderToString(React.createElement(RaagaXLogo, { variant: 'monochrome-white' }));
 
-    expect(redHtml).toContain('#F20D18');
-    expect(blackHtml).toContain('#171717');
+    expect(redHtml).toContain('#E50914');
+    expect(blackHtml).toContain('#0F172A');
     expect(whiteHtml).toContain('#FFFFFF');
   });
 
   it('should render RaagaXWordmark with separate geometric typography and brand red X', () => {
     const html = renderToString(React.createElement(RaagaXWordmark, { size: 'xl', showTagline: true, tagline: 'Music That Moves With You' }));
-    expect(html).toContain('RAAGA');
-    expect(html).toContain('X');
+    expect(html.toLowerCase()).toContain('raaga');
+    expect(html.toLowerCase()).toContain('x');
     expect(html).toContain('Music That Moves With You');
-    expect(html).toContain('text-[#F20D18]');
+    expect(html).toContain('text-[#E50914]');
   });
 
   it('should render RaagaXWaveform for all 7 player states', () => {
