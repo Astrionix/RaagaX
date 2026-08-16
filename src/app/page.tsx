@@ -50,49 +50,68 @@ export default function Page() {
   const { activeTab, selectedArtistId, rightPanelMode } = usePlayerStore();
   const { isSetupModalOpen, setSetupModalOpen } = useDownloadStore();
 
-  // Sync activeTab to browser history for mobile back gesture support
+  // Android Predictive Back Gesture & Navigation Hierarchy
   React.useEffect(() => {
-    if (window.location.hash !== `#${activeTab}`) {
-      window.history.pushState({ tab: activeTab }, '', `#${activeTab}`);
-    }
-  }, [activeTab]);
+    let appBackButtonListener: any = null;
 
-  React.useEffect(() => {
-    const handlePopState = (e: PopStateEvent) => {
+    const handleBackNavigation = () => {
       const store = usePlayerStore.getState();
-      
-      // 1. If Full Player is expanded, collapse it first
+
+      // 1. If Full Player modal is expanded, collapse it first
       if (store.isPlayerExpanded) {
-        store.collapsePlayer();
+        usePlayerStore.setState({ isPlayerExpanded: false });
         import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact());
-        return;
+        return true;
       }
 
-      // 2. If Settings or Device modal is open, close it first
+      // 2. If Settings modal is open, close it
       if (store.isSettingsModalOpen) {
         store.toggleSettingsModal();
-        return;
-      }
-      if (store.isDeviceModalOpen) {
-        store.toggleDeviceModal();
-        return;
+        return true;
       }
 
-      // 3. Otherwise navigate smoothly through tab history
-      if (e.state && e.state.tab) {
-        store.setActiveTab(e.state.tab);
-      } else {
+      // 3. If Device Connect modal is open, close it
+      if (store.isDeviceModalOpen) {
+        store.toggleDeviceModal();
+        return true;
+      }
+
+      // 4. If on any detail view / secondary tab (browse, search, library, profile, artist, album, playlist, downloads, etc.), navigate back to Home
+      if (store.activeTab !== 'home') {
         store.setActiveTab('home');
+        import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact());
+        return true;
+      }
+
+      return false; // Already on Home with no modals open -> standard app minimize/exit
+    };
+
+    const handlePopState = (e: PopStateEvent) => {
+      const handled = handleBackNavigation();
+      if (!handled && e.state && e.state.tab) {
+        usePlayerStore.getState().setActiveTab(e.state.tab);
       }
     };
 
-    // Initialize state if not present
-    if (!window.history.state?.tab) {
-      window.history.replaceState({ tab: usePlayerStore.getState().activeTab }, '', `#${usePlayerStore.getState().activeTab}`);
-    }
+    // Listen to native Android back button event via Capacitor App plugin if available
+    try {
+      import('@capacitor/app').then(({ App }) => {
+        appBackButtonListener = App.addListener('backButton', ({ canGoBack }) => {
+          const handled = handleBackNavigation();
+          if (!handled) {
+            App.exitApp();
+          }
+        });
+      }).catch(() => {});
+    } catch {}
 
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      if (appBackButtonListener && typeof appBackButtonListener.remove === 'function') {
+        appBackButtonListener.remove();
+      }
+    };
   }, []);
 
   return (
