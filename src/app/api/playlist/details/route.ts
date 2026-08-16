@@ -22,8 +22,39 @@ export async function GET(req: NextRequest) {
 
   playlistId = playlistId.replace('spotify:', '').trim();
 
+  const limitParam = searchParams.get('limit') || '100';
+  const baseUrl = getBaseUrl(req);
+  const isNumericId = /^\d+$/.test(playlistId);
+
   try {
-    // 1. Check DB Cache
+    // 1. Numeric ID -> Direct JioSaavn playlist
+    if (isNumericId) {
+      try {
+        const saavnRes = await fetch(`${baseUrl}/api/playlists?id=${playlistId}&limit=${limitParam}`);
+        if (saavnRes.ok) {
+          const saavnJson = await saavnRes.json();
+          const plData = saavnJson?.data;
+          if (plData && Array.isArray(plData.songs) && plData.songs.length > 0) {
+            const { mapTrackToSong } = await import('@/lib/jioSaavnProvider');
+            const songs = plData.songs.map(mapTrackToSong);
+            const coverUrl = plData.image?.[plData.image.length - 1]?.url || plData.image?.[0]?.url || songs[0]?.coverUrl || '/app-icon.png';
+            return NextResponse.json({
+              success: true,
+              playlist: {
+                id: playlistId,
+                title: plData.name || plData.title || `${lang} Playlist`,
+                coverUrl: typeof coverUrl === 'string' ? coverUrl.replace(/150x150|50x50/g, '500x500') : '/app-icon.png',
+                songs
+              }
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('[PLAYLIST DETAILS API] Direct JioSaavn fetch failed:', err);
+      }
+    }
+
+    // 2. Spotify ID -> Check DB Cache
     const { data: cached, error } = await supabaseAdmin
       .from('spotify_playlist_cache')
       .select('*')
@@ -52,11 +83,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 2. Resolve on Cache Miss (Try Spotify with a safe timeout, then JioSaavn)
-    const baseUrl = getBaseUrl(req);
+    // 3. Resolve Spotify on Cache Miss
     const resolver = new PlaylistResolver(baseUrl);
-    
-    // Timeout Spotify resolution after 8 seconds so Vercel function does not time out (10s max on hobby)
     let resolvedSongs: Song[] = [];
     try {
       const resolvePromise = resolver.resolveSpotifyPlaylist(playlistId);
@@ -66,7 +94,7 @@ export async function GET(req: NextRequest) {
       console.warn('[PLAYLIST DETAILS API] Spotify resolver error:', e);
     }
 
-    // If Spotify didn't resolve (e.g. numeric JioSaavn ID like 150750109 or Spotify timed out)
+    // Fallback to JioSaavn provider if Spotify resolver returned empty
     if (!resolvedSongs || resolvedSongs.length === 0) {
       try {
         const { JioSaavnProvider } = await import('@/lib/jioSaavnProvider');
@@ -78,21 +106,6 @@ export async function GET(req: NextRequest) {
       } catch (saavnErr) {
         console.warn('[PLAYLIST DETAILS API] JioSaavn fallback error:', saavnErr);
       }
-    }
-
-    // Direct search fallback if still empty (ensures playlist ALWAYS loads songs)
-    if (!resolvedSongs || resolvedSongs.length === 0) {
-      try {
-        const searchRes = await fetch(`${baseUrl}/api/search/songs?query=${encodeURIComponent(`Top ${lang} Songs`)}&limit=25`);
-        if (searchRes.ok) {
-          const searchData = await searchRes.json();
-          const raw = searchData.data?.results || searchData.results || [];
-          if (raw.length > 0) {
-            const { mapTrackToSong } = await import('@/lib/jioSaavnProvider');
-            resolvedSongs = raw.map(mapTrackToSong);
-          }
-        }
-      } catch {}
     }
 
     const sourceTrackCount = (resolvedSongs as any)?.sourceTrackCount ?? resolvedSongs?.length ?? 0;
@@ -124,7 +137,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ success: false, error: 'No songs resolved for this playlist' }, { status: 404 });
+    return NextResponse.json({ success: false, error: 'Playlist not available' }, { status: 404 });
   } catch (err: any) {
     console.error('[PLAYLIST DETAILS API] Error:', err);
     return NextResponse.json({ success: false, error: err.message || 'Internal server error' }, { status: 500 });

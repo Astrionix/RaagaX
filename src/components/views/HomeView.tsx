@@ -80,12 +80,16 @@ export function HomeView() {
   const { user } = useAuthStore();
   const activeUserId = user?.id;
 
+  const currentLang = preferredLanguage
+    ? (preferredLanguage.charAt(0).toUpperCase() + preferredLanguage.slice(1).toLowerCase())
+    : 'Telugu';
+
   const { data: payload, error, isLoading } = useSWR(
-    `/api/home?preferredLanguage=${preferredLanguage || 'telugu'}`,
-    (url) => homeFetcher(url, preferredLanguage || 'telugu'),
+    `/api/home?lang=${encodeURIComponent(currentLang)}`,
+    (url) => homeFetcher(url, currentLang),
     {
       revalidateOnFocus: false,
-      dedupingInterval: 300000,
+      dedupingInterval: 10000,
     }
   );
 

@@ -178,7 +178,7 @@ export class RealMusicEngine {
       // Album Rules
       const albumRules = {
         minimumSongs: 50,
-        targetSongs: 60,
+        targetSongs: 100,
         minimumUniquePercentage: 0.80,
         maximumOverlapPercentage: 0.20,
         maximumSameArtistPercentage: 0.25

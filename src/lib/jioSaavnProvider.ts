@@ -265,11 +265,11 @@ export class JioSaavnProvider {
     return [];
   }
 
-  async getPlaylistSongs(playlistId: string): Promise<Song[]> {
+  async getPlaylistSongs(playlistId: string, limit = 100): Promise<Song[]> {
     if (!playlistId) return [];
     const urls = [
-      `${this.localBase}/api/playlists?id=${playlistId}`,
-      `${this.externalBase}/api/playlists?id=${playlistId}`,
+      `${this.localBase}/api/playlists?id=${playlistId}&limit=${limit}`,
+      `${this.externalBase}/api/playlists?id=${playlistId}&limit=${limit}`,
     ];
 
     for (const url of urls) {

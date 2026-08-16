@@ -160,15 +160,24 @@ export function PlaylistDetailView() {
     );
   }
 
-  if (!playlist) {
+  if (!playlist || playlist.songs.length === 0) {
     return (
-      <div className="text-center text-white mt-20">
-        <h2 className="text-2xl font-bold">Playlist Not Found</h2>
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center text-white px-4">
+        <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4 text-[#EF233C]">
+          <Music className="w-8 h-8 opacity-70" />
+        </div>
+        <h2 className="text-xl sm:text-2xl font-black tracking-tight">Playlist Not Available</h2>
+        <p className="text-xs sm:text-sm text-slate-400 max-w-sm mt-1 mb-6">
+          This playlist is currently unavailable or contains no playable tracks.
+        </p>
         <button 
-          onClick={() => setActiveTab('home')}
-          className="mt-4 px-4 py-2 bg-white/10 rounded-lg hover:bg-white/20"
+          onClick={() => {
+            setSelectedPlaylistId(null);
+            setActiveTab('home');
+          }}
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#EF233C] hover:bg-[#ff3b53] text-white rounded-full font-bold text-xs shadow-lg transition-transform active:scale-95"
         >
-          Go Home
+          <ArrowLeft className="w-4 h-4" /> Back to Home
         </button>
       </div>
     );

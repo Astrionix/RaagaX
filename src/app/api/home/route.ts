@@ -27,8 +27,14 @@ function getDynamicPlaylists() {
   return null;
 }
 
+function normalizeLanguage(lang: string | null | undefined): string {
+  if (!lang) return 'Telugu';
+  const clean = lang.trim();
+  return clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
+}
+
 function getLanguageContent(lang: string): Record<string, ShelfItem[]> {
-  const defaultLang = lang || 'Telugu';
+  const defaultLang = normalizeLanguage(lang);
   const dynamicPlaylists = getDynamicPlaylists();
   const dynamicLang = dynamicPlaylists ? dynamicPlaylists[defaultLang] : null;
 
@@ -83,7 +89,7 @@ function getLanguageContent(lang: string): Record<string, ShelfItem[]> {
 
   // Merge dynamic playlists over fallback
   return {
-    quick_access: fallback.quick_access, // Keep static quick access items
+    quick_access: dynamicLang.quick_access && dynamicLang.quick_access.length > 0 ? dynamicLang.quick_access : fallback.quick_access,
     trending: dynamicLang.trending && dynamicLang.trending.length > 0 ? dynamicLang.trending : fallback.trending,
     hits: dynamicLang.hits && dynamicLang.hits.length > 0 ? dynamicLang.hits : fallback.hits,
     romantic: dynamicLang.romantic && dynamicLang.romantic.length > 0 ? dynamicLang.romantic : fallback.romantic,
@@ -100,7 +106,8 @@ function getLanguageContent(lang: string): Record<string, ShelfItem[]> {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get('userId');
-  const lang = searchParams.get('lang') || 'Telugu';
+  const rawLang = searchParams.get('lang') || searchParams.get('preferredLanguage') || searchParams.get('language') || 'Telugu';
+  const lang = normalizeLanguage(rawLang);
   const phase = searchParams.get('phase') || 'BOOTSTRAP';
 
   let releaseRadar: ShelfItem[] = [];
