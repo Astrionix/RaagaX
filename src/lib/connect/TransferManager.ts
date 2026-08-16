@@ -42,6 +42,15 @@ export interface TransferPayload {
   context?: any;
 }
 
+export interface TransferCommitPayload {
+  transactionId: string;
+  shouldResume: boolean;
+  targetAction?: 'PLAY' | 'PAUSE' | 'NEXT' | 'PREV' | 'SEEK';
+  targetPositionMs?: number;
+  status?: string;
+  rendererDeviceId?: string;
+}
+
 export interface PendingTransferIntent {
   action: 'PLAY' | 'PAUSE' | 'NEXT' | 'PREV' | 'SEEK';
   positionMs?: number;
@@ -361,8 +370,8 @@ export class TransferManager {
     const queuedIntent = this.getAndClearPendingIntent();
 
     let shouldResume = store.isPlaying;
-    let targetAction = undefined;
-    let targetPositionMs = undefined;
+    let targetAction: 'PLAY' | 'PAUSE' | 'NEXT' | 'PREV' | 'SEEK' | undefined = undefined;
+    let targetPositionMs: number | undefined = undefined;
 
     if (queuedIntent) {
       console.log(`[TransferManager] [TRANSFER ${command.transitionId}] Reconciling queued user intent on commit: ${queuedIntent.action}`);
@@ -372,7 +381,7 @@ export class TransferManager {
       targetPositionMs = queuedIntent.positionMs;
     }
 
-    const commitCommand: ConnectCommand = {
+    const commitCommand: ConnectCommand<TransferCommitPayload> = {
       commandId: crypto.randomUUID(),
       sessionId: command.sessionId,
       transitionId: command.transitionId,
