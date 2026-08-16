@@ -26,6 +26,7 @@ export function SearchView() {
   const [isSearching, setIsSearching] = useState(false);
   const [isOfflineSearch, setIsOfflineSearch] = useState(false);
   const [filterType, setFilterType] = useState<'all' | 'songs' | 'albums'>('all');
+  const [intentExplanation, setIntentExplanation] = useState<string | null>(null);
 
   useEffect(() => {
     let isCancelled = false;
@@ -33,10 +34,21 @@ export function SearchView() {
       if (!searchQuery.trim()) {
         setRealSearchResults([]);
         setRealAlbumResults([]);
+        setIntentExplanation(null);
         setIsSearching(false);
         return;
       }
       setIsSearching(true);
+
+      try {
+        const { MusicIntelligenceEngine } = await import('@/lib/intelligence/MusicIntelligenceEngine');
+        const intent = MusicIntelligenceEngine.getInstance().parseNaturalQuery(searchQuery);
+        if (intent && (intent.mood || intent.era || intent.activity)) {
+          setIntentExplanation(intent.explanation || null);
+        } else {
+          setIntentExplanation(null);
+        }
+      } catch {}
 
       const store = usePlayerStore.getState();
       const isOffline = store.networkMode === 'offline' || store.networkMode === 'offline_forced' || (typeof navigator !== 'undefined' && !navigator.onLine);
@@ -252,6 +264,14 @@ export function SearchView() {
               </span>
             )}
           </div>
+
+          {/* AI Natural Intent Badge */}
+          {intentExplanation && (
+            <div className="px-3.5 py-2 rounded-xl bg-[#fa233b]/10 border border-[#fa233b]/25 flex items-center gap-2 text-xs text-white/90 shadow-sm animate-in fade-in duration-200">
+              <Sparkles className="w-4 h-4 text-[#fa233b] flex-shrink-0" />
+              <span className="font-semibold">{intentExplanation}</span>
+            </div>
+          )}
 
           {/* Category Filter Chips: All | Songs | Albums */}
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
