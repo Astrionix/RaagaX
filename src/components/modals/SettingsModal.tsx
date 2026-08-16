@@ -178,6 +178,33 @@ export function SettingsModal() {
             </div>
           </div>
 
+          {/* Local Network Discovery Privacy (Phase 4) */}
+          <div className="space-y-3">
+            <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+              <Shield className="w-3.5 h-3.5 text-[#EF233C]" /> Local Network Discovery
+            </label>
+            <p className="text-xs text-slate-400">Allow RaagaX devices on your local Wi-Fi network to discover this device for secure lossless playback transfer.</p>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: 'VISIBLE_WHEN_APP_OPEN', label: 'App Open' },
+                { id: 'VISIBLE', label: 'Always' },
+                { id: 'INVISIBLE', label: 'Hidden' },
+              ].map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => {
+                    import('@/lib/connect/v2/KnownDevicesStoreV2').then(({ KnownDevicesStoreV2 }) => {
+                      KnownDevicesStoreV2.getInstance().setPrivacyMode(m.id as any);
+                    });
+                  }}
+                  className="py-2.5 rounded-xl text-xs font-bold transition-all border bg-white/5 hover:bg-white/10 text-slate-300 border-white/5 focus:border-[#EF233C] focus:bg-[#EF233C]/20"
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Storage & Backup */}
           <div className="space-y-3">
             <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-2">
