@@ -210,6 +210,12 @@ export class TransferManager {
    * (Sender side) Phase A — Initiates a transactional playback transfer to target device.
    */
   public async initiateTransfer(targetDeviceId: string): Promise<string> {
+    const store = usePlayerStore.getState();
+    if (targetDeviceId === store.deviceId) {
+      console.warn(`[TransferManager] Cannot transfer playback to the current device (${targetDeviceId})`);
+      throw new Error('Cannot transfer playback to the current device');
+    }
+
     if (this.isTransferInProgress() && this.activeTransitionId) {
       if (this.activeTransferContext?.targetDeviceId === targetDeviceId) {
         console.warn(`[TransferManager] Transfer ${this.activeTransitionId} to ${targetDeviceId} already in progress (Stage: ${this.currentStage}). Ignoring duplicate.`);
@@ -219,7 +225,6 @@ export class TransferManager {
       this.handleTransferRollback(this.activeTransitionId, 'SUPERSEDED_BY_NEW_TARGET');
     }
 
-    const store = usePlayerStore.getState();
     const sequencer = CommandSequencer.getInstance();
     const engine = PlaybackEngine.getInstance();
     const clock = ClockSynchronizer.getInstance();

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Play, Heart, Download, Music, User, Mic, Radio, Flame, Disc3 } from 'lucide-react';
+import { Search, Play, Heart, Download, Music, User, Mic, Radio, Flame, Disc3, Sparkles } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { RealMusicEngine } from '@/lib/realMusicEngine';
 import { SongActionMenu } from '@/components/common/SongActionMenu';

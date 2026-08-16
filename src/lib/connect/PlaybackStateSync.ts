@@ -33,11 +33,15 @@ export class PlaybackStateSync {
   private lastPublishTime: number = 0;
   private publishTimer: NodeJS.Timeout | null = null;
 
-  // Optimistic command shielding to eliminate remote state feedback loops
-  private lastSentCommand: string | null = null;
-  private lastSentCommandTime: number = 0;
-  private lastSentSongId: string | null = null;
-  private lastSentQueueIndex: number | null = null;
+  // Command-specific optimistic shielding to eliminate feedback loops
+  private activeCommandShield: {
+    commandId: string | null;
+    type: string | null;
+    songId: string | null;
+    queueIndex: number | null;
+    startedAt: number;
+    expectedPlayingState?: boolean;
+  } | null = null;
 
   // Dedicated Target-Aware Seek State Machine
   private seekShieldState = {
@@ -86,10 +90,14 @@ export class PlaybackStateSync {
     positionMs?: number,
     commandId?: string
   ) {
-    this.lastSentCommand = type;
-    this.lastSentCommandTime = Date.now();
-    this.lastSentSongId = songId;
-    this.lastSentQueueIndex = queueIndex;
+    this.activeCommandShield = {
+      commandId: commandId || null,
+      type,
+      songId,
+      queueIndex,
+      startedAt: Date.now(),
+      expectedPlayingState: type === 'PLAY' ? true : (type === 'PAUSE' ? false : undefined),
+    };
 
     if (type === 'SEEK') {
       const store = usePlayerStore.getState();
@@ -104,7 +112,13 @@ export class PlaybackStateSync {
       console.log(`[PlaybackStateSync] SEEK state machine activated for target ${target}ms (commandId: ${commandId})`);
     }
 
-    console.log(`[PlaybackStateSync] Shielding enabled for command ${type} (songId=${songId}, queueIndex=${queueIndex}, pos=${positionMs})`);
+    console.log(`[PlaybackStateSync] Command-specific shield activated for ${type} (commandId=${commandId}, songId=${songId}, queueIndex=${queueIndex}, pos=${positionMs})`);
+  }
+
+  public releaseCommandShield(commandId?: string) {
+    if (!commandId || this.activeCommandShield?.commandId === commandId) {
+      this.activeCommandShield = null;
+    }
   }
 
   /**
@@ -251,36 +265,40 @@ export class PlaybackStateSync {
       }
     }
 
-    // 2. Apply command shielding for PLAY, PAUSE, NEXT, PREV
-    if (this.lastSentCommand && now - this.lastSentCommandTime < 2500) {
-      if (this.lastSentCommand === 'PLAY' || this.lastSentCommand === 'NEXT' || this.lastSentCommand === 'PREV') {
-        const isSongMatched = !this.lastSentSongId || remoteState.songId === this.lastSentSongId;
+    // 2. Apply command-specific shielding for PLAY, PAUSE, NEXT, PREV
+    if (this.activeCommandShield && now - this.activeCommandShield.startedAt < 3000) {
+      const shield = this.activeCommandShield;
+      if (shield.type === 'PLAY' || shield.type === 'NEXT' || shield.type === 'PREV') {
+        const isSongMatched = !shield.songId || remoteState.songId === shield.songId;
         const isPlayingMatched = remoteState.isPlaying === true;
         if (isSongMatched && isPlayingMatched) {
-          // Renderer has caught up to our optimistic state, clear shielding
-          this.lastSentCommand = null;
-          this.lastSentSongId = null;
-          this.lastSentQueueIndex = null;
+          // Renderer has caught up to the matching command state, release shield immediately!
+          console.log(`[PlaybackStateSync] Remote player caught up to ${shield.type} (songId=${remoteState.songId}, isPlaying=true). Released command shield.`);
+          this.activeCommandShield = null;
         } else {
-          console.log(`[PlaybackStateSync] Shielding optimistic play/song state. Incoming: isPlaying=${remoteState.isPlaying}, songId=${remoteState.songId}. Kept local isPlaying=true, songId=${this.lastSentSongId}`);
+          console.log(`[PlaybackStateSync] Shielding optimistic play/song state. Incoming: isPlaying=${remoteState.isPlaying}, songId=${remoteState.songId}. Preserving optimistic isPlaying=true`);
           remoteState.isPlaying = true;
-          if (this.lastSentSongId && store.currentSong && store.currentSong.id === this.lastSentSongId) {
-            remoteState.songId = this.lastSentSongId;
+          if (shield.songId && store.currentSong && store.currentSong.id === shield.songId) {
+            remoteState.songId = shield.songId;
             remoteState.songData = store.currentSong;
-            if (this.lastSentQueueIndex !== null) {
-              remoteState.queueIndex = this.lastSentQueueIndex;
+            if (shield.queueIndex !== null) {
+              remoteState.queueIndex = shield.queueIndex;
             }
           }
         }
-      } else if (this.lastSentCommand === 'PAUSE') {
+      } else if (shield.type === 'PAUSE') {
         if (remoteState.isPlaying === false) {
-          // Renderer has caught up to our optimistic state, clear shielding
-          this.lastSentCommand = null;
+          // Renderer caught up to pause, release shield immediately!
+          console.log(`[PlaybackStateSync] Remote player caught up to PAUSE. Released command shield.`);
+          this.activeCommandShield = null;
         } else {
-          console.log(`[PlaybackStateSync] Shielding optimistic pause state. Incoming: isPlaying=true. Kept local isPlaying=false`);
+          console.log(`[PlaybackStateSync] Shielding optimistic pause state. Incoming: isPlaying=true. Preserving optimistic isPlaying=false`);
           remoteState.isPlaying = false;
         }
       }
+    } else if (this.activeCommandShield) {
+      // Shield expired
+      this.activeCommandShield = null;
     }
 
     console.log(`[PlaybackStateSync] Received remote state from ${remoteState.activeDeviceName} (${remoteState.activeDeviceId}):`, {

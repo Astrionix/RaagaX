@@ -21,8 +21,11 @@ export type DeviceDiscoveryPrivacyMode =
   | 'VISIBLE_WHEN_APP_OPEN'
   | 'INVISIBLE';
 
+export type DeviceOwnershipTier = 'SAME_ACCOUNT' | 'NEARBY_LAN';
+
 export interface DeviceIdentityV2 {
   deviceId: string; // e.g. "rx_<stable-random-id>"
+  userId?: string;  // Internal RaagaX Account ID (never raw email)
   name: string;
   platform: 'android' | 'windows' | 'macos' | 'ios' | 'linux' | 'web';
   appVersion: string;
@@ -35,6 +38,8 @@ export interface DeviceIdentityV2 {
 
 export interface DiscoveredDeviceV2 {
   deviceId: string;
+  userId?: string;
+  ownershipTier: DeviceOwnershipTier;
   name: string;
   platform: 'android' | 'windows' | 'macos' | 'ios' | 'linux' | 'web';
   appVersion: string;

@@ -159,6 +159,16 @@ export class ConnectManager {
     }
   }
 
+  private reconnectTimer: NodeJS.Timeout | null = null;
+
+  private scheduleReconnect() {
+    if (this.reconnectTimer) return;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.handleNetworkOnline();
+    }, 3000);
+  }
+
   private subscribeInbox() {
     if (!this.userId || !this.deviceId) return;
     if (this.inboxChannel && (this.currentState === 'CONNECTED' || this.currentState === 'SUBSCRIBING' || this.currentState === 'READY')) {
@@ -189,10 +199,10 @@ export class ConnectManager {
            this.transitionState('SUBSCRIBING');
          }
       } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-         console.warn('[ConnectManager] Inbox channel disconnected, attempting reconnect...');
+         console.warn('[ConnectManager] Inbox channel disconnected, scheduling single-flight reconnect...');
          this.transitionState('OFFLINE');
          this.inboxChannel = null;
-         setTimeout(() => this.handleNetworkOnline(), 3000);
+         this.scheduleReconnect();
       }
     });
   }
@@ -461,6 +471,25 @@ export class ConnectManager {
       return { success: false, reason: 'offline_state' };
     }
     
+    if (targetDeviceId && ['PLAY', 'PAUSE', 'NEXT', 'PREV', 'SEEK'].includes(type)) {
+      const { SingleFlightCommandQueue } = await import('./SingleFlightCommandQueue');
+      return SingleFlightCommandQueue.getInstance().executeSingleFlight(
+        targetDeviceId,
+        type,
+        payload,
+        () => this.executeDispatchInternal(type, payload, targetDeviceId)
+      );
+    }
+
+    return this.executeDispatchInternal(type, payload, targetDeviceId);
+  }
+
+  private async executeDispatchInternal(
+    type: ConnectCommand['type'],
+    payload: any,
+    targetDeviceId?: string
+  ): Promise<{ success: boolean; reason?: string }> {
+    const store = usePlayerStore.getState();
     const sequencer = CommandSequencer.getInstance();
     const clock = ClockSynchronizer.getInstance();
     const commandId = crypto.randomUUID();

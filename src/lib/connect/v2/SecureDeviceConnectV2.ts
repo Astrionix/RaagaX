@@ -4,7 +4,7 @@ import { DeviceIdentityV2, DiscoveredDeviceV2, PairingRequestV2, PairingResponse
 import { KnownDevicesStoreV2 } from './KnownDevicesStoreV2';
 import { DeviceDiscoveryEngine } from '../discovery/DeviceDiscoveryEngine';
 import { RemoteFeatureFlags } from '@/lib/config/RemoteFeatureFlags';
-import { usePlayerStore } from '@/context/usePlayerStore';
+import { useAuthStore } from '@/context/useAuthStore';
 
 const STABLE_DEVICE_ID_KEY = 'raagax_device_id_v2';
 
@@ -79,13 +79,17 @@ export class SecureDeviceConnectV2 {
       engine.subscribe((verifiedList) => {
         const now = Date.now();
         const store = KnownDevicesStoreV2.getInstance();
+        const currentUserId = useAuthStore.getState().user?.id;
 
         verifiedList.forEach((vd) => {
           if (!vd || vd.deviceId === this.localIdentity.deviceId) return;
-          const isTrusted = store.isDeviceTrusted(vd.deviceId);
+          const isSameAccount = !!currentUserId && !!vd.userId && currentUserId === vd.userId;
+          const isTrusted = isSameAccount || store.isDeviceTrusted(vd.deviceId);
 
           const dev: DiscoveredDeviceV2 = {
             deviceId: vd.deviceId,
+            userId: vd.userId,
+            ownershipTier: isSameAccount ? 'SAME_ACCOUNT' : 'NEARBY_LAN',
             name: vd.name || 'RaagaX Device',
             platform: (vd.platform?.toLowerCase() as any) || 'web',
             appVersion: vd.appVersion || '1.0.0',

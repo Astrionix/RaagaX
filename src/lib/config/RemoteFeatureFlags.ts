@@ -10,6 +10,7 @@ export interface FeatureFlags {
   smartQueueAutoplay: boolean;
   dualLyricsMode: boolean;
   deviceConnectV2: boolean;
+  deviceConnectV3: boolean;
   aiNaturalSearch: boolean;
   losslessAudioPreset: boolean;
 }
@@ -19,6 +20,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   smartQueueAutoplay: true,
   dualLyricsMode: true,
   deviceConnectV2: true,
+  deviceConnectV3: false,
   aiNaturalSearch: true,
   losslessAudioPreset: true,
 };
