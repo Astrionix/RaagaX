@@ -136,8 +136,15 @@ public class RaagaXPlaybackService extends Service {
 
             @Override
             public void onIsPlayingChanged(boolean isPlaying) {
+                long now = System.currentTimeMillis();
+                int state = player != null ? player.getPlaybackState() : -1;
+                long pos = player != null ? player.getCurrentPosition() : 0L;
+                Log.d(TAG, "[PLAYBACK_TRANSITION] isPlaying=" + isPlaying + " | exoplayerState=" + state + " | positionMs=" + pos + " | timestamp=" + now + " | title=" + currentTitle);
+
                 Intent i = new Intent("com.raagax.music.PLAYBACK_STATE");
                 i.putExtra("isPlaying", isPlaying);
+                i.putExtra("positionMs", pos);
+                i.putExtra("timestamp", now);
                 sendBroadcast(i);
                 updateNotification();
             }
@@ -166,6 +173,8 @@ public class RaagaXPlaybackService extends Service {
         }
 
         String action = intent.getAction();
+        long receivedAt = System.currentTimeMillis();
+        Log.d(TAG, "[COMMAND_RECEIVED] action=" + action + " | timestamp=" + receivedAt);
 
         if ("SET_QUEUE".equals(action)) {
             // ── PRIMARY command: full ordered playlist ────────────────────
@@ -175,6 +184,7 @@ public class RaagaXPlaybackService extends Service {
             int startIndex       = intent.getIntExtra("startIndex", 0);
             long startPositionMs = intent.getLongExtra("startPositionMs", 0L);
             boolean autoPlay     = intent.getBooleanExtra("autoPlay", true);
+            Log.d(TAG, "[SET_QUEUE_INTENT] tracks=" + (urls != null ? urls.length : 0) + " | startIndex=" + startIndex + " | startPos=" + startPositionMs + "ms | autoPlay=" + autoPlay);
             if (urls != null && urls.length > 0) {
                 setQueue(urls, titles, artists, startIndex, startPositionMs, autoPlay);
             }
