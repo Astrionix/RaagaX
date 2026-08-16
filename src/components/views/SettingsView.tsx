@@ -335,13 +335,22 @@ export function SettingsView() {
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => showToast('Profile edit modal available in next build')}
-                    className="px-4 py-2 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-colors"
-                  >
-                    Edit Profile
-                  </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {user ? (
+                    <button
+                      onClick={() => useAuthStore.getState().signOut()}
+                      className="px-4 py-2 rounded-xl text-xs font-bold text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 transition-colors"
+                    >
+                      Sign Out
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => useAuthStore.getState().setAuthModalOpen(true)}
+                      className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#E50914] hover:bg-[#FF1E27] shadow-md shadow-red-500/25 transition-all"
+                    >
+                      Sign In to RaagaX
+                    </button>
+                  )}
                   <button
                     onClick={() => showToast('Password reset link sent to your registered email')}
                     className="px-4 py-2 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-colors"

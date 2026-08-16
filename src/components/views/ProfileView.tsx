@@ -110,30 +110,49 @@ export function ProfileView() {
           </div>
         </div>
 
-        {/* Mode Switcher: Your Journey vs App Settings */}
-        <div className="flex items-center gap-1 p-1 rounded-2xl glass-frosted border border-white/10 z-10 self-start sm:self-center">
-          <button
-            onClick={() => setActiveTabSub('journey')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTabSub === 'journey'
-                ? 'bg-[#E50914] text-white shadow-md shadow-red-500/30'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Journey</span>
-          </button>
-          <button
-            onClick={() => setActiveTabSub('settings')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTabSub === 'settings'
-                ? 'bg-white/20 text-white shadow-md'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Settings className="w-3.5 h-3.5" />
-            <span>Preferences</span>
-          </button>
+        {/* Mode Switcher & Auth Action */}
+        <div className="flex flex-wrap items-center gap-2 z-10 self-start sm:self-center">
+          <div className="flex items-center gap-1 p-1 rounded-2xl glass-frosted border border-white/10">
+            <button
+              onClick={() => setActiveTabSub('journey')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                activeTabSub === 'journey'
+                  ? 'bg-[#E50914] text-white shadow-md shadow-red-500/30'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Journey</span>
+            </button>
+            <button
+              onClick={() => setActiveTabSub('settings')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                activeTabSub === 'settings'
+                  ? 'bg-white/20 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Settings className="w-3.5 h-3.5" />
+              <span>Preferences</span>
+            </button>
+          </div>
+
+          {user ? (
+            <button
+              onClick={() => useAuthStore.getState().signOut()}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-red-400 bg-white/5 hover:bg-red-500/10 border border-white/10 transition-colors flex items-center gap-1.5"
+              title="Sign Out of RaagaX"
+            >
+              <span>Sign Out</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => useAuthStore.getState().setAuthModalOpen(true)}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-[#FF1E27] to-[#E50914] hover:opacity-90 shadow-md shadow-red-500/30 transition-all flex items-center gap-1.5"
+            >
+              <span>Sign In</span>
+            </button>
+          )}
         </div>
       </section>
 
