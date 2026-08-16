@@ -395,8 +395,14 @@ export class TransferManager {
 
       // 3. If source was actively playing at moment of commit, resume playback cleanly
       if (payload?.shouldResume) {
-        const { PlaybackService } = await import('@/lib/playback/PlaybackService');
-        PlaybackService.getInstance().play();
+        const { RaagaXNativePlayer } = await import('../playback/native/RaagaXNativePlayer');
+        if (RaagaXNativePlayer.isNative()) {
+          console.log('[TransferReceiver] Resuming native Android ExoPlayer on commit');
+          RaagaXNativePlayer.resume();
+        } else {
+          const { PlaybackService } = await import('@/lib/playback/PlaybackService');
+          PlaybackService.getInstance().play();
+        }
       }
 
       this.processedTransactions.set(transitionId, { status: 'COMMITTED', handledAt: Date.now() });
