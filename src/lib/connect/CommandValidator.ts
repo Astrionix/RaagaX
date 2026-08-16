@@ -54,7 +54,7 @@ export class CommandValidator {
       const store = usePlayerStore.getState();
       const isFromActiveController = store.activeDeviceId && command.sourceDeviceId === store.activeDeviceId;
 
-      if (command.type === 'TRANSFER_COMMIT' || command.type === 'HANDOFF' || command.type === 'TRANSFER_REQUEST' || isFromActiveController) {
+      if (command.type === 'TRANSFER_COMMIT' || command.type === 'TRANSFER_COMMITTED' || command.type === 'HANDOFF' || command.type === 'TRANSFER_REQUEST' || isFromActiveController) {
         console.log(`[CommandValidator] Adopting authoritative epoch ${command.epoch} from ${command.type}`);
         sequencer.setEpoch(command.epoch);
         this.highestSequenceByDevice.clear();

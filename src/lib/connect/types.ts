@@ -107,6 +107,7 @@ export const COMMAND_CLASS_MAP: Readonly<Record<ConnectCommandType, CommandClass
   HANDOFF:             'CRITICAL',
   CONTROLLER_REQUEST:  'CRITICAL',
   CONTROLLER_RELEASE:  'CRITICAL',
+  COMMAND_ACK:         'CRITICAL',
   // Interactive — LAN-preferred, coalesceable
   SET_VOLUME:          'INTERACTIVE',
   SET_SHUFFLE:         'INTERACTIVE',
@@ -121,7 +122,6 @@ export const COMMAND_CLASS_MAP: Readonly<Record<ConnectCommandType, CommandClass
   WEBRTC_SIGNAL:       'HIGH_FREQUENCY',
   CONNECT_REQUEST:     'HIGH_FREQUENCY',
   CONNECT_RESPONSE:    'HIGH_FREQUENCY',
-  COMMAND_ACK:         'HIGH_FREQUENCY',
 };
 
 export interface ConnectCommand<T = unknown> {
