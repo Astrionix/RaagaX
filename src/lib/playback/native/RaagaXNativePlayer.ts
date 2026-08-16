@@ -107,6 +107,10 @@ export const RaagaXNativePlayer = {
     await plugin.previous();
   },
 
+  async prev(): Promise<void> {
+    return this.previous();
+  },
+
   async seekTo(positionMs: number): Promise<void> {
     const plugin = getPlugin();
     if (!plugin) return;

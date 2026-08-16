@@ -217,7 +217,13 @@ export class CommandBus {
 
           if (store.isActiveDevice) {
             if (targetMs > 0) PlaybackService.getInstance().seek(targetMs / 1000, true);
-            PlaybackService.getInstance().play();
+            import('../playback/native/RaagaXNativePlayer').then(({ RaagaXNativePlayer }) => {
+              if (RaagaXNativePlayer.isNative()) {
+                RaagaXNativePlayer.resume();
+              } else {
+                PlaybackService.getInstance().play();
+              }
+            });
             import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
               PlaybackStateSync.getInstance().broadcastState(true);
             });
@@ -234,7 +240,13 @@ export class CommandBus {
         }
 
         if (store.isActiveDevice) {
-          PlaybackService.getInstance().pause();
+          import('../playback/native/RaagaXNativePlayer').then(({ RaagaXNativePlayer }) => {
+            if (RaagaXNativePlayer.isNative()) {
+              RaagaXNativePlayer.pause();
+            } else {
+              PlaybackService.getInstance().pause();
+            }
+          });
           import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
             PlaybackStateSync.getInstance().broadcastState(true);
           });
@@ -256,7 +268,12 @@ export class CommandBus {
             currentTime: 0
           });
           if (store.isActiveDevice) {
-            PlaybackService.getInstance().playTrack(nextItem.song, true).then(() => {
+            import('../playback/native/RaagaXNativePlayer').then(async ({ RaagaXNativePlayer }) => {
+              if (RaagaXNativePlayer.isNative()) {
+                await RaagaXNativePlayer.next();
+              } else {
+                await PlaybackService.getInstance().playTrack(nextItem.song, true);
+              }
               import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
                 PlaybackStateSync.getInstance().broadcastState(true);
               });
@@ -280,7 +297,12 @@ export class CommandBus {
             currentTime: 0
           });
           if (store.isActiveDevice) {
-            PlaybackService.getInstance().playTrack(prevItem.song, true).then(() => {
+            import('../playback/native/RaagaXNativePlayer').then(async ({ RaagaXNativePlayer }) => {
+              if (RaagaXNativePlayer.isNative()) {
+                await RaagaXNativePlayer.previous();
+              } else {
+                await PlaybackService.getInstance().playTrack(prevItem.song, true);
+              }
               import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
                 PlaybackStateSync.getInstance().broadcastState(true);
               });
