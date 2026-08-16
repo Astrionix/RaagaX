@@ -147,6 +147,27 @@ export function AudioPlayerController() {
     };
   }, []);
 
+  // Native Windows Desktop: Connect hardware media keys (Play/Pause, Next, Prev)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const desktop = (window as any).raagaXDesktop;
+    if (desktop && typeof desktop.onMediaKey === 'function') {
+      console.log('[AudioPlayerController] Initializing Windows Native Media Key Bridge');
+      desktop.onMediaKey((action: string) => {
+        const store = usePlayerStore.getState();
+        if (action === 'TOGGLE_PLAY') {
+          store.togglePlayPause();
+        } else if (action === 'NEXT') {
+          store.playNext();
+        } else if (action === 'PREV') {
+          store.playPrev();
+        } else if (action === 'PAUSE') {
+          store.setIsPlaying(false);
+        }
+      });
+    }
+  }, []);
+
   // Native Android: poll ExoPlayer playback state for position & duration
   useEffect(() => {
     if (!RaagaXNativePlayer.isNative() || !isPlaying) return;
