@@ -15,6 +15,8 @@ export function DeviceSyncProvider({ children }: { children: React.ReactNode }) 
   const [isInitializing, setIsInitializing] = useState(true);
   const { user, isLoading, initializeAuth } = useAuthStore();
 
+  const lastInitializedUserIdRef = useRef<string | null>(null);
+
   // 1. Initialize Global Auth first
   useEffect(() => {
     initializeAuth();
@@ -31,12 +33,18 @@ export function DeviceSyncProvider({ children }: { children: React.ReactNode }) 
       // Fall back to a stable guest ID for unauthenticated users.
       let userId = user?.id;
       if (!userId) {
-        userId = localStorage.getItem('raagax_session_id') || '';
-        if (!userId) {
-          userId = 'guest_' + Math.random().toString(36).substring(2, 10);
-          localStorage.setItem('raagax_session_id', userId);
+        let storedId = typeof window !== 'undefined' ? localStorage.getItem('raagax_session_id') : null;
+        if (!storedId) {
+          storedId = 'guest_' + Math.random().toString(36).substring(2, 10);
+          if (typeof window !== 'undefined') localStorage.setItem('raagax_session_id', storedId);
         }
+        userId = storedId;
       }
+
+      if (lastInitializedUserIdRef.current === userId) {
+        return;
+      }
+      lastInitializedUserIdRef.current = userId;
 
       // ConnectManager.init now handles the full bootstrap:
       // inbox subscription → session create/join → lease → session subscribe → CommandBus/PSM init

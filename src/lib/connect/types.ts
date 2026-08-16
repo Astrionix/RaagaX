@@ -140,6 +140,10 @@ export interface ConnectCommand<T = unknown> {
 }
 
 export type CommandAckStatus =
+  | "RECEIVED"
+  | "ACCEPTED"
+  | "READY"
+  | "EXECUTED"
   | "APPLIED"
   | "DUPLICATE"
   | "STALE_EPOCH"
@@ -149,7 +153,9 @@ export type CommandAckStatus =
   | "UNAUTHORIZED"
   | "TRANSITION_ROLLED_BACK"
   | "PAYLOAD_TAMPERED"
-  | "REJECTED";
+  | "REJECTED"
+  | "STALE"
+  | "FAILED";
 
 export interface CommandAckPayload {
   commandId: string;

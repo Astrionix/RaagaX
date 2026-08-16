@@ -47,8 +47,11 @@ export interface TransferCommitPayload {
   shouldResume: boolean;
   targetAction?: 'PLAY' | 'PAUSE' | 'NEXT' | 'PREV' | 'SEEK';
   targetPositionMs?: number;
+  queueDelta?: number;
   status?: string;
   rendererDeviceId?: string;
+  songId?: string;
+  epoch?: number;
 }
 
 export interface PendingTransferIntent {
@@ -58,13 +61,51 @@ export interface PendingTransferIntent {
   timestamp: number;
 }
 
+export interface SemanticIntentBuffer {
+  desiredPlayingState?: boolean;
+  queueDelta: number;
+  desiredPositionMs?: number;
+  lastIntentTimestamp: number;
+}
+
+export interface TransferTimelineEntry {
+  stage: string;
+  timestamp: number;
+  details?: any;
+}
+
+export interface TransferContext {
+  transactionId: string;
+  sessionId: string;
+  sourceDeviceId: string;
+  targetDeviceId: string;
+  songId?: string;
+  songData?: any;
+  queue?: any[];
+  queueIndex?: number;
+  positionMs: number;
+  initialPlaybackState: boolean;
+  desiredPlayingState?: boolean;
+  queueDelta: number;
+  desiredPositionMs?: number;
+  targetAction?: 'PLAY' | 'PAUSE' | 'NEXT' | 'PREV' | 'SEEK';
+  commandSequence: number;
+  queueVersion: number;
+  epoch: number;
+  stage: TransferState;
+  createdAt: number;
+  timeline: TransferTimelineEntry[];
+}
+
 export class TransferManager {
   private static instance: TransferManager;
   private pendingStageTimeout: NodeJS.Timeout | null = null;
   private activeTransitionId: string | null = null;
+  private activeTransferContext: TransferContext | null = null;
   private currentStage: TransferState = 'IDLE';
   private processedTransactions = new Map<string, { status: TransferState; handledAt: number }>();
-  private pendingIntent: PendingTransferIntent | null = null;
+  private intentBuffer: SemanticIntentBuffer = { queueDelta: 0, lastIntentTimestamp: 0 };
+  private postCommitCommands: PendingTransferIntent[] = [];
 
   // Bounded stage timeouts
   private readonly REQUEST_ACK_TIMEOUT_MS = 6000;
@@ -80,19 +121,74 @@ export class TransferManager {
     return TransferManager.instance;
   }
 
-  public recordPendingIntent(intent: PendingTransferIntent) {
-    console.log(`[TransferManager] Recorded user intent during transfer: ${intent.action}`, intent);
-    this.pendingIntent = intent;
+  private recordTimeline(stage: string, details?: any) {
+    const entry: TransferTimelineEntry = {
+      stage,
+      timestamp: Date.now(),
+      details
+    };
+    if (this.activeTransferContext) {
+      this.activeTransferContext.timeline.push(entry);
+    }
+    console.log(`[TransferManager] [TIMELINE: ${stage}] (Tx: ${this.activeTransitionId || 'N/A'})`, details || '');
   }
 
-  public getAndClearPendingIntent(): PendingTransferIntent | null {
-    const intent = this.pendingIntent;
-    this.pendingIntent = null;
-    return intent;
+  /**
+   * Captures and semantically reconciles playback user controls during active transfer.
+   */
+  public recordPendingIntent(intent: PendingTransferIntent) {
+    this.recordTimeline('USER_COMMAND_DURING_TRANSFER', intent);
+    this.intentBuffer.lastIntentTimestamp = intent.timestamp;
+
+    if (intent.action === 'PLAY') {
+      this.intentBuffer.desiredPlayingState = true;
+    } else if (intent.action === 'PAUSE') {
+      this.intentBuffer.desiredPlayingState = false;
+    } else if (intent.action === 'NEXT') {
+      this.intentBuffer.queueDelta += 1;
+      this.intentBuffer.desiredPlayingState = true;
+    } else if (intent.action === 'PREV') {
+      this.intentBuffer.queueDelta -= 1;
+      this.intentBuffer.desiredPlayingState = true;
+    } else if (intent.action === 'SEEK' && typeof intent.positionMs === 'number') {
+      this.intentBuffer.desiredPositionMs = intent.positionMs;
+    }
+
+    if (this.activeTransferContext) {
+      this.activeTransferContext.queueDelta = this.intentBuffer.queueDelta;
+      this.activeTransferContext.desiredPlayingState = this.intentBuffer.desiredPlayingState;
+      this.activeTransferContext.desiredPositionMs = this.intentBuffer.desiredPositionMs;
+    }
+
+    // If transfer is already in COMMITTING or COMMITTED stage (after initial buffer snapshot was dispatched),
+    // buffer this intent into postCommitCommands to be executed on target once committed.
+    if (this.currentStage === 'COMMITTING' || this.currentStage === 'COMMITTED') {
+      console.log(`[TransferManager] Intent ${intent.action} received during ${this.currentStage} stage; buffering for post-commit execution.`);
+      this.postCommitCommands.push(intent);
+    }
+
+    this.recordTimeline('COMMAND_QUEUED', {
+      currentQueueDelta: this.intentBuffer.queueDelta,
+      desiredPlayingState: this.intentBuffer.desiredPlayingState,
+      desiredPositionMs: this.intentBuffer.desiredPositionMs
+    });
+  }
+
+  public getAndClearIntentBuffer(): SemanticIntentBuffer | null {
+    if (this.intentBuffer.lastIntentTimestamp === 0 && this.intentBuffer.queueDelta === 0 && this.intentBuffer.desiredPlayingState === undefined && this.intentBuffer.desiredPositionMs === undefined) {
+      return null;
+    }
+    const snapshot = { ...this.intentBuffer };
+    this.intentBuffer = { queueDelta: 0, lastIntentTimestamp: 0 };
+    return snapshot;
   }
 
   public getActiveTransitionId(): string | null {
     return this.activeTransitionId;
+  }
+
+  public getActiveContext(): TransferContext | null {
+    return this.activeTransferContext;
   }
 
   public isTransferInProgress(): boolean {
@@ -111,12 +207,16 @@ export class TransferManager {
   }
 
   /**
-   * (Sender side) Phase A — Initiates a 2-Phase transactional transfer to target device.
+   * (Sender side) Phase A — Initiates a transactional playback transfer to target device.
    */
   public async initiateTransfer(targetDeviceId: string): Promise<string> {
     if (this.isTransferInProgress() && this.activeTransitionId) {
-      console.warn(`[TransferManager] Transfer ${this.activeTransitionId} already in progress (State: ${this.currentStage}). Ignoring duplicate.`);
-      return this.activeTransitionId;
+      if (this.activeTransferContext?.targetDeviceId === targetDeviceId) {
+        console.warn(`[TransferManager] Transfer ${this.activeTransitionId} to ${targetDeviceId} already in progress (Stage: ${this.currentStage}). Ignoring duplicate.`);
+        return this.activeTransitionId;
+      }
+      console.warn(`[TransferManager] Switching target device from ${this.activeTransferContext?.targetDeviceId} to ${targetDeviceId}. Aborting prior transfer.`);
+      this.handleTransferRollback(this.activeTransitionId, 'SUPERSEDED_BY_NEW_TARGET');
     }
 
     const store = usePlayerStore.getState();
@@ -127,22 +227,46 @@ export class TransferManager {
     const transitionId = 'tr_' + Math.random().toString(36).substring(2, 10);
     this.activeTransitionId = transitionId;
     this.currentStage = 'REQUESTING';
+    this.postCommitCommands = [];
+    this.intentBuffer = { queueDelta: 0, lastIntentTimestamp: 0 };
+
+    const positionMs = engine.getCanonicalPositionMs();
+    const currentSong = store.currentSong;
+
+    this.activeTransferContext = {
+      transactionId: transitionId,
+      sessionId: ConnectManager.getInstance().getSessionId() || 'global-session',
+      sourceDeviceId: store.deviceId,
+      targetDeviceId,
+      songId: currentSong?.id,
+      songData: currentSong,
+      queue: store.queue,
+      queueIndex: store.queueIndex,
+      positionMs,
+      initialPlaybackState: store.isPlaying,
+      queueDelta: 0,
+      commandSequence: sequencer.nextSequence(),
+      queueVersion: store.localPlaybackRevision || 1,
+      epoch: sequencer.getEpoch(),
+      stage: 'REQUESTING',
+      createdAt: Date.now(),
+      timeline: []
+    };
 
     usePlayerStore.setState({
       isTransferring: true,
       transferringDeviceId: targetDeviceId
     });
 
-    const positionMs = engine.getCanonicalPositionMs();
-    const currentSong = store.currentSong;
+    this.recordTimeline('TRANSFER_REQUEST', { targetDeviceId, positionMs, isPlaying: store.isPlaying });
 
     const payload: TransferPayload = {
       transactionId: transitionId,
-      sessionId: ConnectManager.getInstance().getSessionId() || 'global-session',
+      sessionId: this.activeTransferContext.sessionId,
       sourceDeviceId: store.deviceId,
       targetDeviceId: targetDeviceId,
-      epoch: sequencer.getEpoch(),
-      revision: store.localPlaybackRevision || 1,
+      epoch: this.activeTransferContext.epoch,
+      revision: this.activeTransferContext.queueVersion,
       songId: currentSong?.id,
       songData: currentSong,
       queue: store.queue,
@@ -165,7 +289,7 @@ export class TransferManager {
       transitionId,
       epoch: payload.epoch,
       revision: payload.revision,
-      sequence: sequencer.nextSequence(),
+      sequence: this.activeTransferContext.commandSequence,
       sourceDeviceId: store.deviceId,
       targetDeviceId: targetDeviceId,
       type: 'TRANSFER_REQUEST',
@@ -247,8 +371,8 @@ export class TransferManager {
       };
       await ConnectManager.getInstance().sendTargetedCommand(command.sourceDeviceId, acceptedCmd);
 
-      // Step 3: AUDIO_PREPARING — Pre-buffer stream and restore queue & position
-      console.log(`[TransferReceiver] AUDIO_PREPARING: transactionId=${transitionId}`);
+      // Step 3: DESTINATION_PREPARING — Pre-buffer stream and restore queue & position
+      console.log(`[TransferReceiver] DESTINATION_PREPARING: transactionId=${transitionId}`);
 
       const queueToRestore = payload.queue && payload.queue.length > 0 ? payload.queue : (payload.songData ? [payload.songData] : []);
       const queueIndexToRestore = payload.queueIndex !== undefined ? payload.queueIndex : 0;
@@ -293,8 +417,8 @@ export class TransferManager {
         }
       }
 
-      // Step 4: READY — Notify source that target has loaded stream and is armed
-      console.log(`[TransferReceiver] READY: transactionId=${transitionId}`);
+      // Step 4: DESTINATION_READY — Notify source that target has loaded stream and is armed
+      console.log(`[TransferReceiver] DESTINATION_READY: transactionId=${transitionId}`);
       this.processedTransactions.set(transitionId, { status: 'READY', handledAt: Date.now() });
 
       const readyCmd: ConnectCommand = {
@@ -344,8 +468,9 @@ export class TransferManager {
    */
   public handleTransferAccepted(command: ConnectCommand) {
     if (command.transitionId !== this.activeTransitionId) return;
-    console.log(`[TransferManager] [TRANSFER ${command.transitionId}] Target accepted request. State: ACCEPTED ➔ PREPARING.`);
+    this.recordTimeline('TRANSFER_ACCEPTED', { fromDeviceId: command.sourceDeviceId });
     this.currentStage = 'PREPARING';
+    if (this.activeTransferContext) this.activeTransferContext.stage = 'PREPARING';
 
     this.clearStageTimeout();
     this.pendingStageTimeout = setTimeout(() => {
@@ -360,26 +485,48 @@ export class TransferManager {
    */
   public async handleTransferReady(command: ConnectCommand) {
     if (command.transitionId !== this.activeTransitionId) return;
-    console.log(`[TransferManager] [TRANSFER ${command.transitionId}] Target is READY. State: READY ➔ COMMITTING.`);
+    this.recordTimeline('DESTINATION_READY', { fromDeviceId: command.sourceDeviceId });
     this.currentStage = 'COMMITTING';
-
-    this.clearStageTimeout();
+    if (this.activeTransferContext) this.activeTransferContext.stage = 'COMMITTING';
 
     const store = usePlayerStore.getState();
     const sequencer = CommandSequencer.getInstance();
-    const queuedIntent = this.getAndClearPendingIntent();
+    const intentBuffer = this.getAndClearIntentBuffer();
 
     let shouldResume = store.isPlaying;
     let targetAction: 'PLAY' | 'PAUSE' | 'NEXT' | 'PREV' | 'SEEK' | undefined = undefined;
     let targetPositionMs: number | undefined = undefined;
+    let queueDelta = 0;
 
-    if (queuedIntent) {
-      console.log(`[TransferManager] [TRANSFER ${command.transitionId}] Reconciling queued user intent on commit: ${queuedIntent.action}`);
-      if (queuedIntent.action === 'PAUSE') shouldResume = false;
-      if (queuedIntent.action === 'PLAY') shouldResume = true;
-      targetAction = queuedIntent.action;
-      targetPositionMs = queuedIntent.positionMs;
+    if (intentBuffer) {
+      console.log(`[TransferManager] [TRANSFER ${command.transitionId}] Reconciling semantic intent buffer on commit:`, intentBuffer);
+      if (typeof intentBuffer.desiredPlayingState === 'boolean') {
+        shouldResume = intentBuffer.desiredPlayingState;
+      }
+      if (intentBuffer.queueDelta > 0) {
+        targetAction = 'NEXT';
+        queueDelta = intentBuffer.queueDelta;
+      } else if (intentBuffer.queueDelta < 0) {
+        targetAction = 'PREV';
+        queueDelta = intentBuffer.queueDelta;
+      }
+      if (typeof intentBuffer.desiredPositionMs === 'number') {
+        targetPositionMs = intentBuffer.desiredPositionMs;
+        if (!targetAction) targetAction = 'SEEK';
+      }
     }
+
+    const commitPayload: TransferCommitPayload = {
+      transactionId: command.transitionId || this.activeTransitionId,
+      shouldResume,
+      targetAction,
+      targetPositionMs,
+      queueDelta,
+      epoch: sequencer.getEpoch(),
+      rendererDeviceId: command.sourceDeviceId
+    };
+
+    this.recordTimeline('DESTINATION_COMMAND_SENT', commitPayload);
 
     const commitCommand: ConnectCommand<TransferCommitPayload> = {
       commandId: crypto.randomUUID(),
@@ -391,17 +538,13 @@ export class TransferManager {
       targetDeviceId: command.sourceDeviceId,
       type: 'TRANSFER_COMMIT',
       sentAt: Date.now(),
-      payload: {
-        transactionId: command.transitionId,
-        shouldResume, // Reconciled playing intent
-        targetAction, // Reconciled intent (NEXT / PREV / SEEK / PAUSE / PLAY)
-        targetPositionMs
-      }
+      payload: commitPayload
     };
 
-    console.log(`[TransferManager] [TRANSFER ${command.transitionId}] Dispatching TRANSFER_COMMIT to ${command.sourceDeviceId}`);
+    console.log(`[TransferManager] [TRANSFER ${command.transitionId}] Dispatching TRANSFER_COMMIT to ${command.sourceDeviceId}`, commitPayload);
     await ConnectManager.getInstance().sendTargetedCommand(command.sourceDeviceId, commitCommand);
 
+    this.clearStageTimeout();
     this.pendingStageTimeout = setTimeout(() => {
       console.warn(`[TransferManager] [TRANSFER ${command.transitionId}] COMMIT_ACK timed out. Executing ROLLBACK.`);
       this.handleTransferRollback(command.transitionId, 'COMMIT_TIMEOUT');
@@ -410,15 +553,15 @@ export class TransferManager {
 
   /**
    * (Receiver side) Handles incoming TRANSFER_COMMIT.
-   * Activates renderer ownership, claims lease, and confirms TRANSFER_COMMITTED.
+   * Activates renderer ownership, claims lease, executes reconciled intent, and confirms TRANSFER_COMMITTED.
    */
   public async handleIncomingTransferCommit(command: ConnectCommand) {
-    const payload = command.payload as any;
+    const payload = command.payload as TransferCommitPayload;
     const transitionId = command.transitionId || payload?.transactionId || 'tr_fallback';
     const store = usePlayerStore.getState();
     const sequencer = CommandSequencer.getInstance();
 
-    console.log(`[TransferReceiver] COMMIT_RECEIVED: transactionId=${transitionId}`);
+    console.log(`[TransferReceiver] COMMIT_RECEIVED: transactionId=${transitionId}`, payload);
 
     try {
       // 1. Claim server-side playback lease atomically
@@ -437,40 +580,40 @@ export class TransferManager {
       });
 
       // 3. Reconcile explicit user intent (NEXT, PREV, SEEK, PLAY, PAUSE)
-      if (payload?.targetAction === 'NEXT') {
+      const queueDelta = typeof payload?.queueDelta === 'number' ? payload.queueDelta : (payload?.targetAction === 'NEXT' ? 1 : (payload?.targetAction === 'PREV' ? -1 : 0));
+      
+      if (queueDelta !== 0) {
         const { QueueManager } = await import('@/lib/queue/QueueManager');
-        const nextItem = QueueManager.getInstance().getNext(false);
-        if (nextItem && nextItem.song) {
-          usePlayerStore.setState({
-            currentSong: nextItem.song,
-            currentTime: 0,
-            isPlaying: true,
-            playbackIntent: 'PLAYING'
-          });
-          const { RaagaXNativePlayer } = await import('../playback/native/RaagaXNativePlayer');
-          if (RaagaXNativePlayer.isNative()) {
-            await RaagaXNativePlayer.next();
-          } else {
-            const { PlaybackService } = await import('@/lib/playback/PlaybackService');
-            await PlaybackService.getInstance().playTrack(nextItem.song, true);
+        const qManager = QueueManager.getInstance();
+        let targetItem: any = null;
+        
+        if (queueDelta > 0) {
+          for (let i = 0; i < queueDelta; i++) {
+            targetItem = qManager.getNext(false);
+          }
+        } else if (queueDelta < 0) {
+          for (let i = 0; i < Math.abs(queueDelta); i++) {
+            targetItem = qManager.getPrevious();
           }
         }
-      } else if (payload?.targetAction === 'PREV') {
-        const { QueueManager } = await import('@/lib/queue/QueueManager');
-        const prevItem = QueueManager.getInstance().getPrevious();
-        if (prevItem && prevItem.song) {
+
+        if (targetItem && targetItem.song) {
+          const snapshot = qManager.getSnapshot();
           usePlayerStore.setState({
-            currentSong: prevItem.song,
+            currentSong: targetItem.song,
+            queue: snapshot.items.map((i: any) => i.song),
+            queueIndex: snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0,
             currentTime: 0,
             isPlaying: true,
             playbackIntent: 'PLAYING'
           });
           const { RaagaXNativePlayer } = await import('../playback/native/RaagaXNativePlayer');
           if (RaagaXNativePlayer.isNative()) {
-            await RaagaXNativePlayer.previous();
+            if (queueDelta > 0) await RaagaXNativePlayer.next();
+            else await RaagaXNativePlayer.previous();
           } else {
             const { PlaybackService } = await import('@/lib/playback/PlaybackService');
-            await PlaybackService.getInstance().playTrack(prevItem.song, true);
+            await PlaybackService.getInstance().playTrack(targetItem.song, true);
           }
         }
       } else if (payload?.targetAction === 'SEEK' && typeof payload.targetPositionMs === 'number') {
@@ -506,7 +649,8 @@ export class TransferManager {
         payload: {
           transactionId: transitionId,
           status: 'COMMITTED',
-          rendererDeviceId: store.deviceId
+          rendererDeviceId: store.deviceId,
+          songId: usePlayerStore.getState().currentSong?.id
         }
       };
 
@@ -542,7 +686,8 @@ export class TransferManager {
 
   /**
    * (Sender side) Handles incoming TRANSFER_COMMITTED from target.
-   * Releases local renderer ownership and transitions source into controller mode.
+   * Releases local renderer ownership, transitions source into controller mode, and flushes any post-commit intents.
+   * NEVER calls disconnectFromDevice() — control connection stays alive!
    */
   public handleTransferCommitted(command: ConnectCommand) {
     if (this.activeTransitionId && command.transitionId && command.transitionId !== this.activeTransitionId) {
@@ -550,9 +695,10 @@ export class TransferManager {
     }
 
     this.clearStageTimeout();
+    this.recordTimeline('TRANSFER_COMPLETED', { targetDeviceId: command.sourceDeviceId });
     console.log(`[TransferManager] [TRANSFER ${command.transitionId || 'unknown'}] COMMITTED by target ${command.sourceDeviceId}. Relinquishing local renderer.`);
 
-    // Pause and release local audio engine
+    // 1. Pause and release local audio engine
     if (typeof window !== 'undefined') {
       import('../playback/native/RaagaXNativePlayer').then(({ RaagaXNativePlayer }) => {
         if (RaagaXNativePlayer.isNative()) {
@@ -566,7 +712,9 @@ export class TransferManager {
       });
     }
 
-    // Source transitions to controller
+    this.recordTimeline('SOURCE_RELEASED');
+
+    // 2. Source transitions to controller (keeping active connection alive)
     usePlayerStore.setState({
       isActiveDevice: false,
       activeDeviceId: command.sourceDeviceId,
@@ -579,8 +727,29 @@ export class TransferManager {
       transferringDeviceId: null
     });
 
+    this.recordTimeline('ACTIVE_OWNER_CHANGED', { newOwnerId: command.sourceDeviceId });
+
     this.currentStage = 'COMPLETED';
+    const targetDeviceId = command.sourceDeviceId;
     this.activeTransitionId = null;
+    this.activeTransferContext = null;
+
+    // 3. Flush any pending commands that arrived while commit was in-flight
+    if (this.postCommitCommands.length > 0) {
+      const commandsToFlush = [...this.postCommitCommands];
+      this.postCommitCommands = [];
+      console.log(`[TransferManager] Flushing ${commandsToFlush.length} post-commit user commands to target ${targetDeviceId}:`, commandsToFlush);
+      
+      // Dispatch commands sequentially to newly confirmed active renderer
+      commandsToFlush.forEach((cmd) => {
+        ConnectManager.getInstance().dispatchPlaybackCommand(cmd.action, {
+          positionMs: cmd.positionMs,
+          songData: cmd.songData
+        }).catch((err) => {
+          console.warn(`[TransferManager] Failed to dispatch post-commit ${cmd.action}:`, err);
+        });
+      });
+    }
   }
 
   /**
@@ -588,7 +757,8 @@ export class TransferManager {
    */
   public handleTransferAck(command: ConnectCommand) {
     const payload = command.payload as CommandAckPayload;
-    if (payload?.status === 'APPLIED') {
+    this.recordTimeline('COMMAND_ACK', payload);
+    if (payload?.status === 'APPLIED' || payload?.status === 'EXECUTED' || payload?.status === 'READY') {
       this.handleTransferCommitted(command);
     } else {
       this.handleTransferRollback(command.transitionId, payload?.reason || 'TARGET_REJECTED');
@@ -600,10 +770,13 @@ export class TransferManager {
    */
   public handleTransferRollback(transitionId?: string, reason?: string) {
     this.clearStageTimeout();
+    this.recordTimeline('TRANSFER_ROLLBACK', { reason: reason || 'Unknown' });
     console.warn(`[TransferManager] [TRANSFER ${transitionId || 'unknown'}] ROLLBACK (Reason: ${reason || 'Unknown'}): Source device retains active renderer.`);
 
     this.currentStage = 'ROLLED_BACK';
     this.activeTransitionId = null;
+    this.activeTransferContext = null;
+    this.postCommitCommands = [];
 
     usePlayerStore.setState({
       isActiveDevice: true,
@@ -612,4 +785,3 @@ export class TransferManager {
     });
   }
 }
-

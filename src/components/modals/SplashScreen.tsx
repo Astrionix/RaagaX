@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useThemeStore } from '@/context/useThemeStore';
+import { usePlayerStore } from '@/context/usePlayerStore';
 import { splashSoundEngine } from '@/components/splash/SplashSoundEngine';
 
 export interface SplashScreenProps {
@@ -37,6 +38,30 @@ export function SplashScreen({ onComplete, enableAudio = true }: SplashScreenPro
   const soundEngineRef = useRef(splashSoundEngine);
 
   useEffect(() => {
+    // 0. Fast-path: Check if already shown in this session, or if audio is actively playing / warm resume
+    if (typeof window !== 'undefined') {
+      const alreadyShown = sessionStorage.getItem('raagax_splash_completed') === 'true';
+      const isPlayerActive = usePlayerStore.getState().isPlaying;
+      
+      if (alreadyShown || isPlayerActive) {
+        setIsVisible(false);
+        if (onComplete) onComplete();
+        return;
+      }
+
+      // Check native background service if available
+      import('@/lib/playback/native/RaagaXNativePlayer').then(({ RaagaXNativePlayer }) => {
+        if (RaagaXNativePlayer.isNative()) {
+          RaagaXNativePlayer.getPlaybackState().then(state => {
+            if (state && state.isPlaying) {
+              setIsVisible(false);
+              if (onComplete) onComplete();
+            }
+          }).catch(() => {});
+        }
+      }).catch(() => {});
+    }
+
     // 1. Accessibility: Detect Reduced Motion
     const prefersReducedMotion = typeof window !== 'undefined' 
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -51,6 +76,7 @@ export function SplashScreen({ onComplete, enableAudio = true }: SplashScreenPro
       const t4 = setTimeout(() => setPhase('transitioning'), 500);
       const t5 = setTimeout(() => {
         setIsVisible(false);
+        if (typeof window !== 'undefined') sessionStorage.setItem('raagax_splash_completed', 'true');
         if (onComplete) onComplete();
       }, 700);
 
@@ -114,6 +140,7 @@ export function SplashScreen({ onComplete, enableAudio = true }: SplashScreenPro
     // Phase 9: 2.45s - Complete & Dismount
     timers.push(setTimeout(() => {
       setIsVisible(false);
+      if (typeof window !== 'undefined') sessionStorage.setItem('raagax_splash_completed', 'true');
       if (onComplete) onComplete();
     }, 2450));
 
@@ -135,7 +162,7 @@ export function SplashScreen({ onComplete, enableAudio = true }: SplashScreenPro
   return (
     <div 
       className={`fixed inset-0 z-[9999] flex items-center justify-center select-none overflow-hidden transition-all duration-500 ease-out ${
-        isDark ? 'bg-[#000000]' : 'bg-[#FFFFFF]'
+        isDark ? 'bg-[#07090E]' : 'bg-[#FFFFFF]'
       } ${
         isTransitioning ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'
       }`}

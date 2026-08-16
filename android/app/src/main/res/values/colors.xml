@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- RaagaX Signature Liquid Glass Palette -->
+    <color name="colorPrimary">#EF233C</color>
+    <color name="colorPrimaryDark">#07090E</color>
+    <color name="colorAccent">#D90429</color>
+    <color name="colorBackground">#07090E</color>
+    <color name="colorSurface">#11141E</color>
+    <color name="colorText">#FFFFFF</color>
+    <color name="colorCrimsonGlow">#33EF233C</color>
+</resources>

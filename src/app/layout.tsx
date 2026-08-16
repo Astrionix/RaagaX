@@ -48,7 +48,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="antialiased selection:bg-red-500 selection:text-white transition-colors duration-200">
+      <body className="antialiased bg-[#07090E] text-white selection:bg-red-500 selection:text-white transition-colors duration-200">
         <ThemeProvider>
           <DeviceSyncProvider>
             {children}

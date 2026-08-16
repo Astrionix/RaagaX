@@ -24,29 +24,36 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   initializeAuth: async () => {
     try {
-      // Get initial session
+      // Get initial session safely
       const { data: { session }, error } = await supabase.auth.getSession();
       
       if (error) {
-        console.error('Error fetching session:', error);
+        console.warn('Session refresh error (clearing stale session):', error.message);
+        if (error.message?.includes('Refresh Token') || error.message?.includes('invalid_grant')) {
+          await supabase.auth.signOut().catch(() => {});
+        }
       }
       
       set({ 
-        session, 
-        user: session?.user || null,
+        session: error ? null : session, 
+        user: error ? null : (session?.user || null),
         isLoading: false 
       });
 
       // Listen for auth changes
-      supabase.auth.onAuthStateChange((_event, newSession) => {
-        set({ 
-          session: newSession, 
-          user: newSession?.user || null 
-        });
+      supabase.auth.onAuthStateChange((event, newSession) => {
+        if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
+          set({ 
+            session: newSession, 
+            user: newSession?.user || null 
+          });
+        } else if (event === 'SIGNED_OUT') {
+          set({ session: null, user: null });
+        }
       });
     } catch (e) {
-      console.error('Auth initialization failed:', e);
-      set({ isLoading: false });
+      console.warn('Auth initialization fallback:', e);
+      set({ isLoading: false, session: null, user: null });
     }
   },
 

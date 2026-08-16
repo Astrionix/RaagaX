@@ -17,6 +17,26 @@
     "apk:build": "npm run build && npm run apk:sync && cd android && build-apk.bat",
     "apk:open": "npx cap open android"
   },
+  "build": {
+    "appId": "com.raagax.music",
+    "productName": "RaagaX Lossless Pro",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "public/app-icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
   "dependencies": {
     "@capacitor/android": "^6.2.1",
     "@capacitor/app": "^6.0.3",

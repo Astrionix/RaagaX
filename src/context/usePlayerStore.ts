@@ -472,8 +472,8 @@ export const usePlayerStore = create<PlayerState>()(
   setRemoteState: (newState) => set((state) => ({ ...state, ...newState })),
   
   transferPlayback: async (targetDeviceId) => {
-    if (get().isTransferring) {
-      console.warn('[usePlayerStore] Transfer already in progress, ignoring duplicate request.');
+    if (get().isTransferring && get().transferringDeviceId === targetDeviceId) {
+      console.warn('[usePlayerStore] Transfer already in progress to target device, ignoring duplicate request.');
       return;
     }
     set({ isTransferring: true, transferringDeviceId: targetDeviceId });
@@ -870,7 +870,17 @@ export const usePlayerStore = create<PlayerState>()(
     }
   },
   setIsPlaying: async (playing, fromRemote = false) => {
-    if (get().isTransferring && !fromRemote) return;
+    if (get().isTransferring && !fromRemote) {
+      set({ isPlaying: playing, playbackIntent: playing ? 'PLAYING' : 'PAUSED' });
+      import('@/lib/connect/TransferManager').then(({ TransferManager }) => {
+        TransferManager.getInstance().recordPendingIntent({
+          action: playing ? 'PLAY' : 'PAUSE',
+          positionMs: get().currentTime * 1000,
+          timestamp: Date.now()
+        });
+      });
+      return;
+    }
     const oldIsPlaying = get().isPlaying;
     const oldPlaybackIntent = get().playbackIntent;
 
@@ -908,11 +918,21 @@ export const usePlayerStore = create<PlayerState>()(
     }
   },
   setCurrentTime: (time, fromRemote = false) => {
-    if (get().isTransferring && !fromRemote) return;
     if (typeof time !== 'number' || !Number.isFinite(time) || isNaN(time) || time < 0) return;
     
     // Optimistic UI: Always update local state immediately
     set({ currentTime: time });
+
+    if (get().isTransferring && !fromRemote) {
+      import('@/lib/connect/TransferManager').then(({ TransferManager }) => {
+        TransferManager.getInstance().recordPendingIntent({
+          action: 'SEEK',
+          positionMs: time * 1000,
+          timestamp: Date.now()
+        });
+      });
+      return;
+    }
 
     const state = get();
     if (state.isActiveDevice && state.currentSong) {
@@ -942,6 +962,20 @@ export const usePlayerStore = create<PlayerState>()(
 
   playNext: async () => {
     if (get().isTransferring) {
+      const manager = QueueManager.getInstance();
+      const nextItem = manager.getNext(false);
+      if (nextItem && nextItem.song) {
+        const snapshot = manager.getSnapshot();
+        const syncedQueue = snapshot.items.map((i: any) => i.song);
+        const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
+        set({ 
+          currentSong: nextItem.song,
+          queue: syncedQueue,
+          queueIndex: syncedIndex,
+          isPlaying: true, 
+          currentTime: 0 
+        });
+      }
       import('@/lib/connect/TransferManager').then(({ TransferManager }) => {
         TransferManager.getInstance().recordPendingIntent({
           action: 'NEXT',
@@ -1017,6 +1051,20 @@ export const usePlayerStore = create<PlayerState>()(
 
   playPrev: async () => {
     if (get().isTransferring) {
+      const manager = QueueManager.getInstance();
+      const prevItem = manager.getPrevious();
+      if (prevItem && prevItem.song) {
+        const snapshot = manager.getSnapshot();
+        const syncedQueue = snapshot.items.map((i: any) => i.song);
+        const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
+        set({
+          currentSong: prevItem.song,
+          queue: syncedQueue,
+          queueIndex: syncedIndex,
+          isPlaying: true,
+          currentTime: 0
+        });
+      }
       import('@/lib/connect/TransferManager').then(({ TransferManager }) => {
         TransferManager.getInstance().recordPendingIntent({
           action: 'PREV',
