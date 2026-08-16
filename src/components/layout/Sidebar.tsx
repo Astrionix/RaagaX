@@ -15,7 +15,8 @@ import {
   LogIn,
   Settings,
   Disc3,
-  WifiOff
+  WifiOff,
+  Bell
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
@@ -26,6 +27,12 @@ import { RaagaXLogo } from '@/components/brand/RaagaXLogo';
 import { RaagaXWordmark } from '@/components/brand/RaagaXWordmark';
 
 export function Sidebar() {
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const { isOfflineMode, setOfflineMode } = useDownloadStore();
   const {
     activeTab,
@@ -61,9 +68,19 @@ export function Sidebar() {
     <aside className="hidden md:flex fixed left-0 top-0 bottom-20 z-30 w-64 p-4 pb-6 flex-col justify-between select-none bg-[var(--sidebar-bg)] backdrop-blur-3xl border-r border-[var(--border-subtle)] text-[var(--text-primary)] text-xs transition-colors duration-200">
       <div className="space-y-5 overflow-y-auto no-scrollbar pr-1">
         {/* Brand Header */}
-        <div className="flex items-center gap-3 px-2 pt-1 pb-2">
-          <RaagaXLogo variant="full" size={36} />
-          <RaagaXWordmark size="md" subEdition="Studio Edition" />
+        <div className="flex items-center justify-between px-2 pt-1 pb-2">
+          <div className="flex items-center gap-3">
+            <RaagaXLogo variant="full" size={36} />
+            <RaagaXWordmark size="md" subEdition="Studio Edition" />
+          </div>
+          <button
+            aria-label="Notifications"
+            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors relative"
+            title="Notifications"
+          >
+            <Bell className="w-4 h-4" />
+            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#E50914] rounded-full" />
+          </button>
         </div>
 
         {/* Quick Search */}
@@ -236,7 +253,7 @@ export function Sidebar() {
         </button>
 
         <div className="pt-1">
-          {user ? (
+          {mounted && user ? (
             <div className="flex items-center justify-between p-2 rounded-2xl bg-white/5 border border-white/5">
               <div 
                 onClick={() => setActiveTab('profile')} 

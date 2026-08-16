@@ -31,8 +31,10 @@ export class PlaybackSourceResolver {
     const catalog = OfflineCatalog.getInstance();
     const storage = DownloadStorage.getInstance();
 
-    const isDownloaded = await catalog.isDownloaded(song.id);
-    if (isDownloaded) {
+    const isCatalogDownloaded = await catalog.isDownloaded(song.id);
+    const hasMediaBlob = await storage.hasMedia(song.id);
+
+    if (isCatalogDownloaded || hasMediaBlob) {
       let localUrl = await storage.getMediaUrl(song.id);
       
       // Fallback check in PWA cache
@@ -51,13 +53,6 @@ export class PlaybackSourceResolver {
           localId: song.id,
           isLocalBlob: true,
         };
-      } else {
-        // Stale catalog entry: media was deleted or evicted by OS
-        console.warn(`[PlaybackSourceResolver] Local media evicted or missing for track ${song.id}`);
-        await catalog.removeTrack(song.id);
-        usePlayerStore.setState(s => ({
-          downloadedSongIds: s.downloadedSongIds.filter(id => id !== song.id)
-        }));
       }
     }
 

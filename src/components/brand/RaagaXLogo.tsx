@@ -19,6 +19,14 @@ interface RaagaXLogoProps {
   animated?: boolean;
 }
 
+/**
+ * RaagaX Master Symbol (2026 Core Identity)
+ * Intelligent geometric combination of:
+ * - Letter 'R'
+ * - Sound wave / acoustic frequency bars
+ * - Inner play-button playback trigger
+ * - Kinetic forward-motion velocity kick
+ */
 export function RaagaXLogo({
   variant = 'full',
   size = 40,
@@ -32,44 +40,31 @@ export function RaagaXLogo({
 
   const pixelSize = typeof size === 'number' ? `${size}px` : size;
 
-  // Variant F: Micro Mark for Favicon / 16-24px UI
+  // Micro Favicon / Minimal Version (16px - 28px)
   if (variant === 'micro') {
     return (
       <svg
         width={pixelSize}
         height={pixelSize}
-        viewBox="0 0 48 48"
+        viewBox="0 0 100 100"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className={`select-none ${className}`}
-        aria-label="RaagaX Icon"
+        aria-label="RaagaX Micro Icon"
       >
-        <circle cx="24" cy="24" r="22" fill={isDark ? '#050505' : '#FFFFFF'} />
-        {/* Outer Motion Crescent */}
-        <path
-          d="M 24 4 A 20 20 0 0 1 44 24 A 20 20 0 0 1 30 42 C 38 38 40 28 36 20 C 32 12 24 8 24 4 Z"
-          fill={isDark ? '#171717' : '#CFCFCF'}
-        />
-        {/* Flowing Note Ribbon */}
-        <path
-          d="M 24 4 C 14 4 6 12 6 22 C 6 29 11 34 16 38 C 15 39.5 13 41 13 41 C 21 41 27 34 27 27 C 27 18 20 12 24 4 Z"
-          fill="#F20D18"
-        />
-        {/* Note Head */}
-        <circle cx="20" cy="34" r="5" fill="#F20D18" />
-        {/* Waveform Micro Bars */}
-        <rect x="28" y="20" width="2" height="8" rx="1" fill="#F20D18" />
-        <rect x="32" y="17" width="2" height="14" rx="1" fill="#F20D18" />
-        <rect x="36" y="21" width="2" height="6" rx="1" fill="#F20D18" />
+        <rect x="20" y="18" width="12" height="64" rx="6" fill={isDark ? '#FFFFFF' : '#0F172A'} />
+        <path d="M38 18H58C71.2548 18 82 28.7452 82 42C82 55.2548 71.2548 66 58 66H38V18Z" fill="#E50914" />
+        <path d="M50 31L66 42L50 53V31Z" fill={isDark ? '#060709' : '#FFFFFF'} />
+        <path d="M46 59L68 82H84L60 55C55 55 50 57 46 59Z" fill="#FF1E27" />
       </svg>
     );
   }
 
-  // Monochrome Variants
+  // Monochrome Single Tone Variants
   if (variant === 'monochrome-red' || variant === 'monochrome-black' || variant === 'monochrome-white') {
     const monoFill = 
-      variant === 'monochrome-red' ? '#F20D18' :
-      variant === 'monochrome-black' ? '#171717' : '#FFFFFF';
+      variant === 'monochrome-red' ? '#E50914' :
+      variant === 'monochrome-black' ? '#0F172A' : '#FFFFFF';
 
     return (
       <svg
@@ -79,34 +74,17 @@ export function RaagaXLogo({
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className={`select-none ${className}`}
-        aria-label="RaagaX Symbol"
+        aria-label="RaagaX Monochrome Symbol"
       >
-        {/* Continuity Ring */}
-        <path
-          d="M 50 10 A 40 40 0 0 1 90 50 A 40 40 0 0 1 65 86 C 80 78 84 60 76 44 C 68 28 52 18 50 10 Z"
-          fill={monoFill}
-          fillOpacity="0.4"
-        />
-        {/* Flowing Ribbon Note */}
-        <path
-          d="M 50 10 C 28 10 12 26 12 48 C 12 62 22 72 32 80 C 30 83 26 86 26 86 C 42 86 54 72 54 58 C 54 38 40 26 50 10 Z"
-          fill={monoFill}
-        />
-        {/* Central Note Head */}
-        <circle cx="40" cy="72" r="10" fill={monoFill} />
-        {/* Integrated Equalizer Waveform */}
-        <g fill={monoFill}>
-          <rect x="58" y="44" width="3.5" height="12" rx="1.75" />
-          <rect x="64" y="38" width="3.5" height="24" rx="1.75" />
-          <rect x="70" y="32" width="3.5" height="36" rx="1.75" />
-          <rect x="76" y="38" width="3.5" height="24" rx="1.75" />
-          <rect x="82" y="44" width="3.5" height="12" rx="1.75" />
-        </g>
+        <rect x="20" y="18" width="12" height="64" rx="6" fill={monoFill} />
+        <path d="M38 18H58C71.2548 18 82 28.7452 82 42C82 55.2548 71.2548 66 58 66H38V18Z" fill={monoFill} />
+        <path d="M50 31L66 42L50 53V31Z" fill={variant === 'monochrome-white' ? '#000000' : '#FFFFFF'} />
+        <path d="M46 59L68 82H84L60 55C55 55 50 57 46 59Z" fill={monoFill} />
       </svg>
     );
   }
 
-  // Flat Variant (Minimal vectors, no heavy shadows/gradients)
+  // Flat Minimal Vector (No filters)
   if (variant === 'flat') {
     return (
       <svg
@@ -116,33 +94,17 @@ export function RaagaXLogo({
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className={`select-none ${className}`}
-        aria-label="RaagaX Flat Emblem"
+        aria-label="RaagaX Flat Symbol"
       >
-        {/* Secondary Continuity Arc */}
-        <path
-          d="M 50 10 A 40 40 0 0 1 90 50 A 40 40 0 0 1 65 86 C 80 78 84 60 76 44 C 68 28 52 18 50 10 Z"
-          fill={isDark ? '#171717' : '#CFCFCF'}
-        />
-        {/* Primary Flowing Red Shape */}
-        <path
-          d="M 50 10 C 28 10 12 26 12 48 C 12 62 22 72 32 80 C 30 83 26 86 26 86 C 42 86 54 72 54 58 C 54 38 40 26 50 10 Z"
-          fill="#F20D18"
-        />
-        {/* Note Head */}
-        <circle cx="40" cy="72" r="10" fill="#F20D18" />
-        {/* Waveform Equalizer */}
-        <g fill="#F20D18">
-          <rect x="58" y="44" width="3.5" height="12" rx="1.75" />
-          <rect x="64" y="38" width="3.5" height="24" rx="1.75" />
-          <rect x="70" y="32" width="3.5" height="36" rx="1.75" />
-          <rect x="76" y="38" width="3.5" height="24" rx="1.75" />
-          <rect x="82" y="44" width="3.5" height="12" rx="1.75" />
-        </g>
+        <rect x="20" y="18" width="12" height="64" rx="6" fill={isDark ? '#FFFFFF' : '#0F172A'} />
+        <path d="M38 18H58C71.2548 18 82 28.7452 82 42C82 55.2548 71.2548 66 58 66H38V18Z" fill="#E50914" />
+        <path d="M50 31L66 42L50 53V31Z" fill={isDark ? '#060709' : '#FFFFFF'} />
+        <path d="M46 59L68 82H84L60 55C55 55 50 57 46 59Z" fill="#FF1E27" />
       </svg>
     );
   }
 
-  // Variant A: Primary Full Logo (Rich Gradients, 3D Depth, Brand Red Motion Spectrum)
+  // Primary Full Master Identity (Rich Gradients & Dynamic Atmospheric Glow)
   return (
     <div
       style={{ width: pixelSize, height: pixelSize }}
@@ -154,83 +116,56 @@ export function RaagaXLogo({
         viewBox="0 0 100 100"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        className="w-full h-full drop-shadow-md"
+        className="w-full h-full"
         aria-label="RaagaX Master Brand Emblem"
       >
         <defs>
-          {/* Brand Red Motion Gradient: #8F0008 -> #C9000D -> #F20D18 -> #FF252D */}
-          <linearGradient id="rxRedMotion" x1="12" y1="10" x2="80" y2="86" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#FF252D" />
-            <stop offset="35%" stopColor="#F20D18" />
-            <stop offset="70%" stopColor="#C9000D" />
-            <stop offset="100%" stopColor="#8F0008" />
+          <linearGradient id="rxRedGlowGrad" x1="20" y1="18" x2="84" y2="82" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#FF2E38" />
+            <stop offset="0.6" stopColor="#E50914" />
+            <stop offset="1" stopColor="#A80008" />
           </linearGradient>
 
-          {/* Deep Red for Note Head & Shadow Accents */}
-          <radialGradient id="rxNoteHead" cx="40" cy="72" r="10" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#FF2028" />
-            <stop offset="70%" stopColor="#F20D18" />
-            <stop offset="100%" stopColor="#700008" />
-          </radialGradient>
-
-          {/* Silver/Charcoal Continuity Ring Gradient */}
-          <linearGradient id="rxContinuityRing" x1="50" y1="10" x2="85" y2="85" gradientUnits="userSpaceOnUse">
-            {isDark ? (
-              <>
-                <stop offset="0%" stopColor="#171717" />
-                <stop offset="50%" stopColor="#303030" />
-                <stop offset="100%" stopColor="#666666" />
-              </>
-            ) : (
-              <>
-                <stop offset="0%" stopColor="#FFFFFF" />
-                <stop offset="40%" stopColor="#E8E8E8" />
-                <stop offset="100%" stopColor="#CFCFCF" />
-              </>
-            )}
-          </linearGradient>
-
-          {/* Waveform Equalizer Gradient */}
-          <linearGradient id="rxWaveform" x1="70" y1="32" x2="70" y2="68" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#FF252D" />
-            <stop offset="50%" stopColor="#F20D18" />
-            <stop offset="100%" stopColor="#B4000A" />
-          </linearGradient>
-
-          {/* Ambient Glow Filter */}
-          <filter id="rxGlow" x="-10%" y="-10%" width="120%" height="120%">
-            <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#F20D18" floodOpacity={isDark ? "0.35" : "0.15"} />
+          <filter id="rxSymbolGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow 
+              dx="0" 
+              dy="4" 
+              stdDeviation="5" 
+              floodColor="#E50914" 
+              floodOpacity={isDark ? 0.45 : 0.2} 
+            />
           </filter>
         </defs>
 
-        {/* Ambient Glow */}
-        <circle cx="50" cy="50" r="44" fill="none" filter="url(#rxGlow)" />
-
-        {/* 1. Secondary Continuity Ring / Device Flow */}
-        <path
-          d="M 50 10 A 40 40 0 0 1 90 50 A 40 40 0 0 1 65 86 C 80 78 84 60 76 44 C 68 28 52 18 50 10 Z"
-          fill="url(#rxContinuityRing)"
-          stroke={isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)'}
-          strokeWidth="0.5"
+        {/* 1. Left Vertical Soundwave Stem of 'R' */}
+        <rect 
+          x="20" 
+          y="18" 
+          width="12" 
+          height="64" 
+          rx="6" 
+          fill={isDark ? '#FFFFFF' : '#0F172A'} 
         />
 
-        {/* 2. Primary Flowing Crimson Ribbon */}
-        <path
-          d="M 50 10 C 28 10 12 26 12 48 C 12 62 22 72 32 80 C 30 83 26 86 26 86 C 42 86 54 72 54 58 C 54 38 40 26 50 10 Z"
-          fill="url(#rxRedMotion)"
+        {/* 2. Upper Sound Resonance Arc (Letter R Loop) with Glow */}
+        <path 
+          d="M38 18H58C71.2548 18 82 28.7452 82 42C82 55.2548 71.2548 66 58 66H38V18Z" 
+          fill="url(#rxRedGlowGrad)" 
+          filter="url(#rxSymbolGlow)"
         />
 
-        {/* 3. Central Note Head */}
-        <circle cx="40" cy="72" r="10.5" fill="url(#rxNoteHead)" />
+        {/* 3. Integrated Inner Play Triad Negative */}
+        <path 
+          d="M50 31L66 42L50 53V31Z" 
+          fill={isDark ? '#060709' : '#FFFFFF'} 
+        />
 
-        {/* 4. Integrated 5-Bar Waveform / Sound Equalizer */}
-        <g fill="url(#rxWaveform)">
-          <rect x="58" y="44" width="3.5" height="12" rx="1.75" />
-          <rect x="64" y="38" width="3.5" height="24" rx="1.75" />
-          <rect x="70" y="32" width="3.5" height="36" rx="1.75" />
-          <rect x="76" y="38" width="3.5" height="24" rx="1.75" />
-          <rect x="82" y="44" width="3.5" height="12" rx="1.75" />
-        </g>
+        {/* 4. Kinetic Forward Motion Kick */}
+        <path 
+          d="M46 59L68 82H84L60 55C55 55 50 57 46 59Z" 
+          fill="#FF1E27" 
+          filter="url(#rxSymbolGlow)"
+        />
       </svg>
     </div>
   );

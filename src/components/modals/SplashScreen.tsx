@@ -1,130 +1,376 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { RaagaXSplashScene } from '@/components/splash/RaagaXSplashScene';
-import { RaagaXLogo } from '@/components/brand/RaagaXLogo';
-import { RaagaXWordmark } from '@/components/brand/RaagaXWordmark';
-import { RaagaXWaveform } from '@/components/brand/RaagaXWaveform';
+import { useThemeStore } from '@/context/useThemeStore';
+import { splashSoundEngine } from '@/components/splash/SplashSoundEngine';
 
-export function SplashScreen() {
+export interface SplashScreenProps {
+  onComplete?: () => void;
+  enableAudio?: boolean;
+}
+
+/**
+ * 2026-Grade Cinematic Animated Splash Screen for "RaagaX"
+ * 
+ * SOUND → RHYTHM → IDENTITY → PLAYBACK → RAAGAX
+ * 
+ * TIMELINE SPECIFICATION:
+ * - 0.00–0.20s: Pure Black / Silent Dark Ambient Space
+ * - 0.20–0.55s: Sound Awakens (7-9 precision organic audio waveform bars)
+ * - 0.55–0.95s: Waveform Morphing into R geometry (continuous curve sweep + bar compression)
+ * - 0.95–1.25s: Playback Identity (negative-space play triangle emerges forward)
+ * - 1.25–1.50s: Signature Momentum Lock (settle with kinetic forward trail)
+ * - 1.50–1.75s: Wordmark Reveal ("raaga" white, "x" crimson via left-to-right wipe)
+ * - 1.75–1.95s: Tagline Reveal ("FEEL EVERY NOTE" uppercase tracking expansion)
+ * - 1.95–2.10s: Final Brand Hold
+ * - 2.10s+: Cinematic transition into application (scale down, smooth translate to header)
+ */
+export function SplashScreen({ onComplete, enableAudio = true }: SplashScreenProps) {
   const [isVisible, setIsVisible] = useState(true);
-  const [textRevealed, setTextRevealed] = useState(false);
-  const [taglineRevealed, setTaglineRevealed] = useState(false);
-  const [webGlSupported, setWebGlSupported] = useState(true);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const splashSceneRef = useRef<RaagaXSplashScene | null>(null);
+  const [phase, setPhase] = useState<
+    'black' | 'sound' | 'morph' | 'playback' | 'lock' | 'wordmark' | 'tagline' | 'hold' | 'transitioning'
+  >('black');
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const { resolvedTheme } = useThemeStore();
+  const isDark = resolvedTheme === 'dark';
+
+  const soundEngineRef = useRef(splashSoundEngine);
 
   useEffect(() => {
-    // 1. Detect WebGL Availability
-    let isWebGlAvailable = true;
-    try {
-      const canvas = document.createElement('canvas');
-      isWebGlAvailable = !!(window.WebGLRenderingContext && (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
-    } catch {
-      isWebGlAvailable = false;
-    }
-    setWebGlSupported(isWebGlAvailable);
-
-    // 2. Reduced Motion Check
+    // 1. Accessibility: Detect Reduced Motion
     const prefersReducedMotion = typeof window !== 'undefined' 
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    
+    setReducedMotion(prefersReducedMotion);
 
-    // 3. Staggered Cinematic Reveal Timeline (1.55s RAAGAX, 1.85s Tagline)
-    const t1 = setTimeout(() => setTextRevealed(true), prefersReducedMotion ? 400 : 1550);
-    const t2 = setTimeout(() => setTaglineRevealed(true), prefersReducedMotion ? 600 : 1850);
+    if (prefersReducedMotion) {
+      // Streamlined 450ms accessible sequence
+      const t1 = setTimeout(() => setPhase('lock'), 100);
+      const t2 = setTimeout(() => setPhase('wordmark'), 250);
+      const t3 = setTimeout(() => setPhase('tagline'), 350);
+      const t4 = setTimeout(() => setPhase('transitioning'), 500);
+      const t5 = setTimeout(() => {
+        setIsVisible(false);
+        if (onComplete) onComplete();
+      }, 700);
 
-    // 4. Initialize Three.js Splash
-    if (isWebGlAvailable && containerRef.current) {
-      splashSceneRef.current = new RaagaXSplashScene({
-        container: containerRef.current,
-        reducedMotion: prefersReducedMotion,
-        onComplete: () => {
-          setIsVisible(false);
-        },
-      });
+      return () => {
+        [t1, t2, t3, t4, t5].forEach(clearTimeout);
+      };
     }
 
-    // 5. Fallback timer if Three.js completes or WebGL is disabled
-    const fallbackTimer = setTimeout(() => {
+    // 2. Full 2026 Production Cinematic Timeline
+    const timers: NodeJS.Timeout[] = [];
+
+    // Phase 1: 0.20s - Sound Awakens
+    timers.push(setTimeout(() => {
+      setPhase('sound');
+      if (enableAudio) soundEngineRef.current.playSubPulse();
+    }, 200));
+
+    // Sound micro-cue: 0.35s
+    timers.push(setTimeout(() => {
+      if (enableAudio) soundEngineRef.current.playWaveformTick();
+    }, 350));
+
+    // Phase 2: 0.55s - Waveform Morphing into R
+    timers.push(setTimeout(() => {
+      setPhase('morph');
+      if (enableAudio) soundEngineRef.current.playRisingTone();
+    }, 550));
+
+    // Phase 3: 0.95s - Playback Identity Emerges
+    timers.push(setTimeout(() => {
+      setPhase('playback');
+      if (enableAudio) soundEngineRef.current.playClick();
+    }, 950));
+
+    // Phase 4: 1.25s - Signature Momentum Lock
+    timers.push(setTimeout(() => {
+      setPhase('lock');
+    }, 1250));
+
+    // Phase 5: 1.50s - Wordmark Reveal (raagax)
+    timers.push(setTimeout(() => {
+      setPhase('wordmark');
+      if (enableAudio) soundEngineRef.current.playResolutionChord();
+    }, 1500));
+
+    // Phase 6: 1.75s - Tagline Reveal (FEEL EVERY NOTE)
+    timers.push(setTimeout(() => {
+      setPhase('tagline');
+    }, 1750));
+
+    // Phase 7: 1.95s - Final Brand Hold
+    timers.push(setTimeout(() => {
+      setPhase('hold');
+    }, 1950));
+
+    // Phase 8: 2.10s - Cinematic Transition to App Header
+    timers.push(setTimeout(() => {
+      setPhase('transitioning');
+    }, 2100));
+
+    // Phase 9: 2.45s - Complete & Dismount
+    timers.push(setTimeout(() => {
       setIsVisible(false);
-    }, prefersReducedMotion ? 1200 : 3300);
+      if (onComplete) onComplete();
+    }, 2450));
 
     return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(fallbackTimer);
-      if (splashSceneRef.current) {
-        splashSceneRef.current.destroy();
-        splashSceneRef.current = null;
-      }
+      timers.forEach(clearTimeout);
     };
-  }, []);
+  }, [enableAudio, onComplete]);
 
   if (!isVisible) return null;
 
+  const isTransitioning = phase === 'transitioning';
+  const showWaveform = phase === 'sound';
+  const showMorph = phase === 'morph';
+  const showPlayback = ['playback', 'lock', 'wordmark', 'tagline', 'hold', 'transitioning'].includes(phase);
+  const showWordmark = ['wordmark', 'tagline', 'hold', 'transitioning'].includes(phase);
+  const showTagline = ['tagline', 'hold', 'transitioning'].includes(phase);
+  const isSettled = ['lock', 'wordmark', 'tagline', 'hold', 'transitioning'].includes(phase);
+
   return (
     <div 
-      className="fixed inset-0 z-[200] bg-[#040508] flex flex-col items-center justify-center select-none overflow-hidden transition-opacity duration-700 pointer-events-auto"
-      style={{ opacity: 1 }}
+      className={`fixed inset-0 z-[9999] flex items-center justify-center select-none overflow-hidden transition-all duration-500 ease-out ${
+        isDark ? 'bg-[#000000]' : 'bg-[#FFFFFF]'
+      } ${
+        isTransitioning ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'
+      }`}
+      aria-label="RaagaX Splash Screen"
     >
-      {/* Three.js 3D WebGL Canvas Layer */}
-      {webGlSupported && (
+      {/* 1. Subtle Center Ambient Glow (Dark Theme) */}
+      {isDark && (
         <div 
-          ref={containerRef} 
-          className="absolute inset-0 z-0 w-full h-full"
+          className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none transition-all duration-700 ${
+            phase === 'black' ? 'w-48 h-48 opacity-20' :
+            phase === 'playback' ? 'w-80 h-80 opacity-60' :
+            isSettled ? 'w-64 h-64 opacity-35' : 'w-56 h-56 opacity-30'
+          }`}
+          style={{
+            background: 'radial-gradient(circle, rgba(229, 9, 20, 0.45) 0%, rgba(6, 7, 9, 0) 70%)',
+            filter: 'blur(50px)',
+          }}
         />
       )}
 
-      {/* Cinematic Vignette Overlay */}
-      <div className="absolute inset-0 z-[5] pointer-events-none bg-[radial-gradient(ellipse_at_center,transparent_50%,rgba(4,5,8,0.85)_100%)]" />
-
-      {/* 2D Brand Overlay Layer (Staggered Cinematic Typography) */}
-      <div className="relative z-10 flex flex-col items-center pointer-events-none text-center px-4 mt-28 sm:mt-32">
-        {/* Fallback Static Brand Logo if WebGL is unavailable */}
-        {!webGlSupported && (
-          <div className="mb-6 animate-in zoom-in-95 duration-500">
-            <RaagaXLogo variant="full" size={100} animated={true} />
-          </div>
-        )}
-
-        {/* RAAGAX Brand Title with Light Sweep (1.55s Reveal) */}
-        <div 
-          className={`relative overflow-hidden transition-all duration-700 transform ${
-            textRevealed 
-              ? 'opacity-100 translate-y-0 scale-100' 
-              : 'opacity-0 translate-y-4 scale-95'
-          }`}
-        >
-          <div className="font-black font-sans leading-none flex items-baseline text-4xl sm:text-5xl tracking-[0.22em] drop-shadow-[0_0_25px_rgba(242,13,24,0.35)]">
-            <span className="text-white">RAAGA</span>
-            <span className="text-[#F20D18] drop-shadow-[0_0_18px_rgba(242,13,24,0.95)]">X</span>
-          </div>
-
-          {/* Subtle Light Sweep Accent */}
-          {textRevealed && (
-            <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.2s_ease-out_forwards] bg-gradient-to-r from-transparent via-white/15 to-transparent pointer-events-none" />
+      {/* 2. Master Motion Lockup Canvas */}
+      <div 
+        className={`relative z-10 flex flex-col items-center justify-center transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          isTransitioning ? 'scale-[0.88] -translate-y-6 opacity-0' : 'scale-100 translate-y-0 opacity-100'
+        }`}
+      >
+        {/* ======================================================== */}
+        {/* SVG ANIMATED LOGO MORPH CANVAS                           */}
+        {/* ======================================================== */}
+        <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center">
+          
+          {/* Subtle Momentum Trail at 1.25s */}
+          {phase === 'lock' && (
+            <div 
+              className="absolute inset-0 scale-105 opacity-30 animate-ping pointer-events-none"
+              style={{ filter: 'blur(8px)' }}
+            >
+              <svg viewBox="0 0 100 100" fill="none" className="w-full h-full">
+                <rect x="20" y="18" width="12" height="64" rx="6" fill="#E50914" />
+                <path d="M38 18H58C71.2548 18 82 28.7452 82 42C82 55.2548 71.2548 66 58 66H38V18Z" fill="#E50914" />
+                <path d="M46 59L68 82H84L60 55C55 55 50 57 46 59Z" fill="#FF1E27" />
+              </svg>
+            </div>
           )}
+
+          <svg 
+            viewBox="0 0 100 100" 
+            fill="none" 
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-full h-full drop-shadow-[0_8px_20px_rgba(229,9,20,0.35)]"
+          >
+            <defs>
+              {/* RaagaX Red Gradient */}
+              <linearGradient id="splashRedGrad" x1="20" y1="18" x2="84" y2="82" gradientUnits="userSpaceOnUse">
+                <stop stopColor="#FF2E38" />
+                <stop offset="0.6" stopColor="#E50914" />
+                <stop offset="1" stopColor="#A80008" />
+              </linearGradient>
+
+              {/* Dynamic Glow Filter */}
+              <filter id="splashGlow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow 
+                  dx="0" 
+                  dy="4" 
+                  stdDeviation="4" 
+                  floodColor="#E50914" 
+                  floodOpacity={phase === 'playback' ? "0.8" : "0.4"} 
+                />
+              </filter>
+            </defs>
+
+            {/* ---------------------------------------------------- */}
+            {/* 0.20-0.55s: INITIAL SOUNDWAVE BARS (SOUND AWAKENS)   */}
+            {/* ---------------------------------------------------- */}
+            {showWaveform && (
+              <g className="transition-all duration-300">
+                {/* Bar 1 */}
+                <rect x="20" y="38" width="6" height="24" rx="3" fill="#E50914" className="animate-[pulse_0.4s_ease-in-out_infinite_alternate]" />
+                {/* Bar 2 */}
+                <rect x="28" y="28" width="6" height="44" rx="3" fill="#FF1E27" className="animate-[pulse_0.45s_ease-in-out_infinite_alternate_0.05s]" />
+                {/* Bar 3 */}
+                <rect x="36" y="22" width="6" height="56" rx="3" fill="#E50914" className="animate-[pulse_0.5s_ease-in-out_infinite_alternate_0.1s]" />
+                {/* Bar 4 */}
+                <rect x="44" y="32" width="6" height="36" rx="3" fill="#FF1E27" className="animate-[pulse_0.42s_ease-in-out_infinite_alternate_0.15s]" />
+                {/* Bar 5 (Center) */}
+                <rect x="52" y="18" width="6" height="64" rx="3" fill="#FFFFFF" className="animate-[pulse_0.48s_ease-in-out_infinite_alternate_0.2s]" />
+                {/* Bar 6 */}
+                <rect x="60" y="30" width="6" height="40" rx="3" fill="#FF1E27" className="animate-[pulse_0.44s_ease-in-out_infinite_alternate_0.25s]" />
+                {/* Bar 7 */}
+                <rect x="68" y="24" width="6" height="52" rx="3" fill="#E50914" className="animate-[pulse_0.52s_ease-in-out_infinite_alternate_0.3s]" />
+                {/* Bar 8 */}
+                <rect x="76" y="36" width="6" height="28" rx="3" fill="#FF1E27" className="animate-[pulse_0.41s_ease-in-out_infinite_alternate_0.35s]" />
+              </g>
+            )}
+
+            {/* ---------------------------------------------------- */}
+            {/* 0.55s+: MORPHED / SETTLED RAAGAX LOGO GEOMETRY       */}
+            {/* ---------------------------------------------------- */}
+            {(showMorph || showPlayback) && (
+              <g className={`transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                showMorph ? 'opacity-90 scale-95' : 'opacity-100 scale-100'
+              }`}>
+                {/* 1. Left Vertical Stem of 'R' (White on Dark, Charcoal on Light) */}
+                <rect 
+                  x="20" 
+                  y="18" 
+                  width="12" 
+                  height="64" 
+                  rx="6" 
+                  fill={isDark ? '#FFFFFF' : '#0F172A'}
+                  className="transition-all duration-300"
+                />
+
+                {/* 2. Outer Continuous Curved R-Stroke */}
+                <path 
+                  d="M38 18H58C71.2548 18 82 28.7452 82 42C82 55.2548 71.2548 66 58 66H38V18Z" 
+                  fill="url(#splashRedGrad)" 
+                  filter="url(#splashGlow)"
+                  className="transition-all duration-400"
+                />
+
+                {/* Symbol Vector Mark with Glass Specular Highlights */}
+                <div className="relative">
+                  <svg 
+                    className={`w-14 h-14 sm:w-16 sm:h-16 transition-transform duration-300 drop-shadow-[0_4px_20px_rgba(229,9,20,0.45)]`}
+                    viewBox="0 0 100 100" 
+                    fill="none" 
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <defs>
+                      <linearGradient id="splashRhythmGlassGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.95" />
+                        <stop offset="50%" stopColor="#E2E8F0" stopOpacity="0.8" />
+                        <stop offset="100%" stopColor="#94A3B8" stopOpacity="0.6" />
+                      </linearGradient>
+                    </defs>
+
+                    {/* Geometric Stem */}
+                    <rect x="20" y="20" width="14" height="60" rx="7" fill={isDark ? "url(#splashRhythmGlassGrad)" : "#0F172A"} />
+
+                    {/* Resonant Loop / Acoustic Arc */}
+                    <path 
+                      d="M 34 20 C 58 20 74 32 74 46 C 74 60 58 64 34 64" 
+                      stroke={isDark ? "url(#splashRhythmGlassGrad)" : "#0F172A"} 
+                      strokeWidth="14" 
+                      strokeLinecap="round" 
+                      fill="none" 
+                    />
+
+                    {/* Playhead Motion Kick (RaagaX Crimson) */}
+                    <path 
+                      d="M 44 48 L 74 80" 
+                      stroke="#E50914" 
+                      strokeWidth="14" 
+                      strokeLinecap="round" 
+                    />
+
+                    {/* Embedded Kinetic Play Beacon */}
+                    <polygon 
+                      points="37,39 37,53 49,46" 
+                      fill="#E50914" 
+                      className="transition-all duration-300"
+                    />
+                  </svg>
+
+                  {/* Traveling Glass Highlight Beam: R ✦ */}
+                  <div 
+                    className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden rounded-2xl"
+                    style={{
+                      background: 'linear-gradient(105deg, transparent 20%, rgba(255,255,255,0.4) 50%, transparent 80%)',
+                      animation: 'splashGlassSweep 1.2s ease-out',
+                    }}
+                  />
+                </div>
+
+                {/* 3. Negative-Space Play Triad Geometry (Emerges at 0.95s) */}
+                <path 
+                  d="M50 31L66 42L50 53V31Z" 
+                  fill={isDark ? '#000000' : '#FFFFFF'}
+                  className={`transition-all duration-300 transform origin-center ${
+                    showPlayback ? 'opacity-100 scale-100 translate-x-0' : 'opacity-0 scale-75 -translate-x-2'
+                  }`}
+                />
+
+                {/* 4. Kinetic Forward Momentum Kick */}
+                <path 
+                  d="M46 59L68 82H84L60 55C55 55 50 57 46 59Z" 
+                  fill="#FF1E27" 
+                  filter="url(#splashGlow)"
+                  className={`transition-all duration-400 transform ${
+                    showMorph ? 'translate-y-2 opacity-70' : 'translate-y-0 opacity-100'
+                  }`}
+                />
+              </g>
+            )}
+          </svg>
         </div>
 
-        {/* Official Tagline (1.85s Reveal) */}
+        {/* ======================================================== */}
+        {/* WORDMARK: raagax (0.150s Horizontal Wipe Reveal)          */}
+        {/* ======================================================== */}
         <div 
-          className={`transition-all duration-700 delay-100 transform ${
-            taglineRevealed 
-              ? 'opacity-100 translate-y-0 tracking-[0.32em]' 
-              : 'opacity-0 translate-y-2 tracking-[0.55em]'
+          className="mt-6 overflow-hidden transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)]"
+          style={{
+            maxWidth: showWordmark ? '260px' : '0px',
+            opacity: showWordmark ? 1 : 0,
+          }}
+        >
+          <div className="font-extrabold font-sans text-3xl sm:text-4xl tracking-tight leading-none whitespace-nowrap flex items-baseline select-none">
+            <span className={isDark ? 'text-white' : 'text-[#0F172A]'}>
+              raaga
+            </span>
+            <span className="text-[#E50914] drop-shadow-[0_0_15px_rgba(229,9,20,0.85)]">
+              x
+            </span>
+          </div>
+        </div>
+
+        {/* ======================================================== */}
+        {/* TAGLINE: FEEL EVERY NOTE (0.175s Tracking Expansion)      */}
+        {/* ======================================================== */}
+        <div 
+          className={`mt-2.5 transition-all duration-500 ease-out transform ${
+            showTagline 
+              ? 'opacity-80 translate-y-0 tracking-[0.28em]' 
+              : 'opacity-0 translate-y-2 tracking-[0.15em]'
           }`}
         >
-          <p className="text-[10px] sm:text-xs font-black text-[#F20D18] uppercase mt-3.5 drop-shadow-[0_0_12px_rgba(242,13,24,0.6)]">
-            MUSIC THAT MOVES WITH YOU.
+          <p className={`text-[10px] sm:text-[11px] font-bold uppercase select-none ${
+            isDark ? 'text-[#94A3B8]' : 'text-[#475569]'
+          }`}>
+            FEEL EVERY NOTE
           </p>
         </div>
 
-        {/* WebGL Fallback Waveform Visualizer */}
-        {!webGlSupported && (
-          <div className="pt-4">
-            <RaagaXWaveform state="playing" barCount={9} height={20} />
-          </div>
-        )}
       </div>
     </div>
   );

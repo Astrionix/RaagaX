@@ -224,17 +224,19 @@ export function ExpandedPlayerModal() {
     <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="fixed inset-0 z-[100] w-full h-[100dvh] bg-[#07080c]/98 backdrop-blur-3xl p-4 sm:p-6 md:p-8 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex flex-col text-white select-none animate-in slide-in-from-bottom duration-250 overflow-hidden"
+      className="fixed inset-0 z-[100] w-full h-[100dvh] bg-[#06070a]/90 backdrop-blur-[50px] p-4 sm:p-6 md:p-8 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex flex-col text-white select-none animate-in slide-in-from-bottom duration-300 overflow-hidden"
     >
-      {/* Deep Ambient Artwork Glow Background */}
+      {/* Rhythm Glass Dynamic Atmospheric Illumination */}
       <div
-        className="absolute inset-0 opacity-35 pointer-events-none blur-[150px] scale-[1.4] transition-all duration-1000 saturate-[180%] mix-blend-screen"
+        className="absolute inset-0 opacity-45 pointer-events-none blur-[120px] scale-[1.3] transition-all duration-1000 saturate-[220%]"
         style={{
           backgroundImage: `url(${currentSong.coverUrl || '/app-icon.png'})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
       />
+      {/* Specular Highlight Sheen */}
+      <div className="absolute inset-0 bg-gradient-to-b from-white/[0.07] via-transparent to-black/40 pointer-events-none" />
 
       {/* TOP NAVIGATION BAR */}
       <div className="relative z-50 flex items-center justify-between w-full pt-1 pb-2 sm:pb-3 max-w-5xl mx-auto flex-shrink-0">

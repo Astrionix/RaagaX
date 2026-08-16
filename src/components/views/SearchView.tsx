@@ -123,23 +123,54 @@ export function SearchView() {
   ];
 
   return (
-    <div className="space-y-6 pb-6 text-white select-none">
-      {/* Search Header */}
-      <h1 className="text-3xl font-black tracking-tight text-white pt-1">Search</h1>
-
-      {/* iOS Search Pill Input */}
+    <div className="space-y-6 pb-24 text-white select-none">
+      
+      {/* 3D Liquid Lens Search Bar (Level 1 Soft Lens) */}
       <div className="relative">
-        <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Artists, Songs, Lyrics and More"
-          className="w-full bg-[#1C1C1E] border border-white/10 rounded-2xl py-3 pl-11 pr-10 text-sm font-medium text-white placeholder-slate-400 focus:outline-none focus:border-[#EF233C] transition-colors"
-        />
-        <button className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">
-          <Mic className="w-4 h-4" />
-        </button>
+        <div className="relative flex items-center rounded-2xl lens-soft border border-white/18 focus-within:border-[#E50914]/60 shadow-[0_12px_35px_rgba(0,0,0,0.6)] focus-within:shadow-[0_12px_40px_rgba(229,9,20,0.25)] transition-all">
+          <Search className="w-5 h-5 text-[#E50914] ml-4 flex-shrink-0" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="✦ Search songs, lyrics in Telugu/English, or ask AI DJ..."
+            className="w-full bg-transparent px-3.5 py-3.5 text-sm text-white placeholder-slate-400 font-medium focus:outline-none"
+            autoFocus
+          />
+          {searchQuery ? (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="mr-3.5 px-2 py-1 text-xs text-slate-400 hover:text-white rounded-lg bg-white/5"
+            >
+              Clear
+            </button>
+          ) : (
+            <div className="mr-3.5 flex items-center gap-1.5">
+              <span className="px-2 py-1 rounded-md bg-white/5 text-[10px] font-mono text-slate-400">AI DJ</span>
+              <Mic className="w-4 h-4 text-slate-400" />
+            </div>
+          )}
+        </div>
+
+        {/* AI DJ Natural Language Prompt Suggestions */}
+        {!searchQuery && (
+          <div className="flex items-center gap-2 mt-3 overflow-x-auto no-scrollbar py-1">
+            {[
+              '“Late night Telugu melodies”',
+              '“Sid Sriram top tracks in FLAC”',
+              '“Energetic gym Telugu beats”',
+              '“2000s nostalgic classics”'
+            ].map((prompt, i) => (
+              <button
+                key={i}
+                onClick={() => setSearchQuery(prompt.replace(/[“”]/g, ''))}
+                className="px-3 py-1.5 rounded-full lens-floating text-xs font-medium text-slate-300 hover:text-white border border-white/12 hover:border-[#E50914]/40 whitespace-nowrap transition-all active:scale-95"
+              >
+                ✦ {prompt}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {!searchQuery && (
