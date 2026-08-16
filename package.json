@@ -13,6 +13,7 @@
     "test": "vitest run",
     "electron:dev": "concurrently \"next dev\" \"wait-on tcp:3000 && electron .\"",
     "electron:build": "npm run build && electron-builder --win",
+    "doctor": "node scripts/doctor.js",
     "apk:sync": "npx cap copy android && npx cap sync android",
     "apk:build": "npm run build && npm run apk:sync && cd android && build-apk.bat",
     "apk:open": "npx cap open android"
