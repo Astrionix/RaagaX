@@ -320,6 +320,18 @@ export class PlaybackService {
       const standbyAudio = this.getStandbyAudio();
       if (!activeAudio) return false;
 
+      // ── TRACK IDENTITY GUARD ───────────────────────────────────────────────
+      // If this exact song is already loaded on the active audio element and playing or ready,
+      // DO NOT reload the audio source or reset currentTime to 0!
+      if (activeAudio.dataset.trackId === song.id && activeAudio.src && activeAudio.readyState >= 2) {
+        console.log('[PlaybackService] Track already active and loaded — resuming without reloading src:', song.title);
+        if (forceResume && activeAudio.paused) {
+          await activeAudio.play().catch(() => {});
+          usePlayerStore.getState().setIsPlaying(true, true);
+        }
+        return true;
+      }
+
       const currentGen = ++this.playbackGeneration;
 
       const store = usePlayerStore.getState();

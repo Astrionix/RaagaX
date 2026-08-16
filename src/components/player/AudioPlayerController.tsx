@@ -279,6 +279,7 @@ export function AudioPlayerController() {
   }, [queueIndex, queue, currentSong, isAutoplayEnabled, addToQueue, historySongIds, likedSongIds]);
 
   // Handle Play/Pause State Synchronization
+  const lastPlaybackIntentRef = useRef<string>('IDLE');
   useEffect(() => {
     const shouldRenderAudio = activeRenderer === 'audio' && isActiveDevice;
     const store = usePlayerStore.getState();
@@ -311,11 +312,12 @@ export function AudioPlayerController() {
       }
       LyricsEngine.getInstance().setPlaying(false);
     } else {
-      if (canPlay && activeAudio.paused) {
-        PlaybackService.getInstance().play();
+      if (canPlay && activeAudio.paused && activeAudio.readyState >= 2) {
+        // Resume existing playback smoothly without reloading or seeking to 0
+        activeAudio.play().catch(() => {});
         LyricsEngine.getInstance().setPlaying(true);
       } else if (!canPlay && !activeAudio.paused) {
-        PlaybackService.getInstance().pause();
+        activeAudio.pause();
         LyricsEngine.getInstance().setPlaying(false);
       }
     }
