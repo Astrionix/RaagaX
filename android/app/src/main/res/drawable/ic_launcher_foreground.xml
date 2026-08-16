@@ -1,0 +1,44 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- White Pillar Stem with Rounded Corners -->
+    <path
+        android:pathData="M30,26 L30,82 C30,85.3 32.7,88 36,88 C39.3,88 42,85.3 42,82 L42,26 C42,22.7 39.3,20 36,20 C32.7,20 30,22.7 30,26 Z"
+        android:fillColor="#FFFFFF" />
+
+    <!-- RaagaX Red Upper Loop with Gradient -->
+    <path
+        android:pathData="M48,20 L68,20 C81.25,20 92,30.75 92,44 C92,57.25 81.25,68 68,68 L48,68 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="48"
+                android:startY="20"
+                android:endX="92"
+                android:endY="68"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FFFF2E38"/>
+                <item android:offset="0.6" android:color="#FFE50914"/>
+                <item android:offset="1.0" android:color="#FFA80008"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Inner Play Triangle (Dark Obsidian Void) -->
+    <path
+        android:pathData="M60,33 L76,44 L60,55 Z"
+        android:fillColor="#07090E" />
+
+    <!-- Dynamic Kick Leg -->
+    <path
+        android:pathData="M56,61 L78,84 L94,84 L70,57 C65,57 60,59 56,61 Z"
+        android:fillColor="#FFFF1E27" />
+
+    <!-- Sparkle Star Accent Top-Right -->
+    <path
+        android:pathData="M88,16 L90.5,21.5 L96,24 L90.5,26.5 L88,32 L85.5,26.5 L80,24 L85.5,21.5 Z"
+        android:fillColor="#FFFFD700" />
+</vector>
