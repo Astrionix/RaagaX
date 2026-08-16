@@ -151,9 +151,11 @@ export class DeviceRegistry {
 
   public async createOrJoinSession(userId: string): Promise<string | null> {
     if (!userId || !this.isUUID(userId)) {
-      const fallback = localStorage.getItem('raagax_fallback_session') ||
+      const fallback = (typeof window !== 'undefined' && typeof localStorage !== 'undefined' ? localStorage.getItem('raagax_fallback_session') : null) ||
         'local_sess_' + Math.random().toString(36).substring(2, 10);
-      localStorage.setItem('raagax_fallback_session', fallback);
+      if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+        localStorage.setItem('raagax_fallback_session', fallback);
+      }
       return fallback;
     }
 

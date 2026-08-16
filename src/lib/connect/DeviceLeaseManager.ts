@@ -161,4 +161,31 @@ export class DeviceLeaseManager {
       }
     }, 25000);
   }
+
+  public async releaseLease(sessionId?: string): Promise<void> {
+    if (this.leaseInterval) {
+      clearInterval(this.leaseInterval);
+      this.leaseInterval = null;
+    }
+    const token = this.currentLeaseToken;
+    this.currentLeaseToken = null;
+    this.currentLeaseVersion = 0;
+    this.leaseExpiresAt = 0;
+
+    if (!token) return;
+
+    try {
+      const store = usePlayerStore.getState();
+      const sId = sessionId || (await import('./ConnectManager')).ConnectManager.getInstance().getSessionId();
+      if (sId) {
+        await supabase.rpc('release_playback_lease', {
+          p_session_id: sId,
+          p_device_id: store.deviceId,
+          p_lease_token: token
+        });
+      }
+    } catch (e) {
+      console.warn('[DeviceLeaseManager] Lease release notification completed:', e);
+    }
+  }
 }

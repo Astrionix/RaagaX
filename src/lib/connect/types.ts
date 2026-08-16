@@ -46,7 +46,9 @@ export type ConnectState =
   | "RESYNCING"
   | "READY"
   | "STALE"
-  | "TAKEOVER_PENDING";
+  | "TAKEOVER_PENDING"
+  | "DISCONNECTING"
+  | "DISCONNECTED";
 
 export type ConnectCommandType = 
   | "PLAY"

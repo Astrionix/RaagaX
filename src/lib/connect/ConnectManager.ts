@@ -26,6 +26,11 @@ export class ConnectManager {
   private isRecovering: boolean = false;
   private pendingCommandResolvers = new Map<string, { resolve: (val: any) => void; reject: (err: any) => void; timeout: NodeJS.Timeout }>();
 
+  // Strict Manual Disconnect & Generation Token System
+  private manualDisconnectRequested: boolean = false;
+  private connectionGeneration: number = 0;
+  private recoveryTimer: NodeJS.Timeout | null = null;
+
   private constructor() {
     NetworkManager.getInstance().subscribe((mode) => {
       if (mode === 'online') {
@@ -43,7 +48,17 @@ export class ConnectManager {
     return ConnectManager.instance;
   }
 
+  public isManualDisconnectRequested(): boolean {
+    return this.manualDisconnectRequested;
+  }
+
+  public getConnectionGeneration(): number {
+    return this.connectionGeneration;
+  }
+
   public async init(userId: string, deviceId: string) {
+    this.manualDisconnectRequested = false;
+    this.connectionGeneration++;
     this.userId = userId;
     this.deviceId = deviceId;
     this.deviceInstanceId = DeviceRegistry.getInstance().getOrCreateDeviceInstanceId();
@@ -107,6 +122,10 @@ export class ConnectManager {
   }
 
   public async handleNetworkOnline() {
+    if (this.manualDisconnectRequested) {
+      console.log('[ConnectManager] Reconnect cancelled: manual disconnect');
+      return;
+    }
     console.log('[ConnectManager] Network online — restoring subscriptions...');
     if (this.sessionId) {
       this.subscribeSession(this.sessionId);
@@ -121,6 +140,10 @@ export class ConnectManager {
   }
 
   public async initiateRecovery() {
+    if (this.manualDisconnectRequested) {
+      console.log('[ConnectManager] Reconnect cancelled: manual disconnect');
+      return;
+    }
     if (this.isRecovering) return;
     this.isRecovering = true;
     try {
@@ -162,15 +185,27 @@ export class ConnectManager {
   private reconnectTimer: NodeJS.Timeout | null = null;
 
   private scheduleReconnect() {
+    if (this.manualDisconnectRequested) {
+      console.log('[ConnectManager] Reconnect cancelled: manual disconnect');
+      return;
+    }
     if (this.reconnectTimer) return;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
+      if (this.manualDisconnectRequested) {
+        console.log('[ConnectManager] Reconnect cancelled: manual disconnect');
+        return;
+      }
       this.handleNetworkOnline();
     }, 3000);
   }
 
   private subscribeInbox() {
     if (!this.userId || !this.deviceId) return;
+    if (this.manualDisconnectRequested) {
+      console.log('[ConnectManager] Reconnect cancelled: manual disconnect');
+      return;
+    }
     if (this.inboxChannel && (this.currentState === 'CONNECTED' || this.currentState === 'SUBSCRIBING' || this.currentState === 'READY')) {
        return; // Already connecting or connected
     }
@@ -187,27 +222,46 @@ export class ConnectManager {
       try { supabase.removeChannel(existing); } catch (e) {}
     }
 
-    console.log(`[ConnectManager] Subscribing to inbox: ${inboxTopic}`);
+    const currentGen = this.connectionGeneration;
+    console.log(`[ConnectManager] Subscribing to inbox: ${inboxTopic} (gen: ${currentGen})`);
 
     this.inboxChannel = supabase.channel(inboxTopic, {
       config: { broadcast: { self: false } }
     })
-    .on('broadcast', { event: 'COMMAND' }, (payload) => this.handleBroadcastCommand(payload))
+    .on('broadcast', { event: 'COMMAND' }, (payload) => {
+      if (currentGen !== this.connectionGeneration || this.manualDisconnectRequested) {
+        console.log(`[ConnectManager] Ignoring stale callback from connection generation ${currentGen}`);
+        return;
+      }
+      this.handleBroadcastCommand(payload);
+    })
     .subscribe((status) => {
+      if (currentGen !== this.connectionGeneration) {
+        console.log(`[ConnectManager] Ignoring stale callback from connection generation ${currentGen}`);
+        return;
+      }
       if (status === 'SUBSCRIBED') {
          if (this.currentState === 'CONNECTING' || this.currentState === 'RECOVERING') {
            this.transitionState('SUBSCRIBING');
          }
       } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+         this.inboxChannel = null;
+         if (this.manualDisconnectRequested) {
+           console.log('[ConnectManager] Reconnect cancelled: manual disconnect');
+           return;
+         }
          console.warn('[ConnectManager] Inbox channel disconnected, scheduling single-flight reconnect...');
          this.transitionState('OFFLINE');
-         this.inboxChannel = null;
          this.scheduleReconnect();
       }
     });
   }
 
   public subscribeSession(sessionId: string) {
+    if (this.manualDisconnectRequested) {
+      console.log('[ConnectManager] Reconnect cancelled: manual disconnect');
+      return;
+    }
     if (this.sessionChannel && this.sessionId === sessionId && (this.currentState === 'CONNECTED' || this.currentState === 'SUBSCRIBING' || this.currentState === 'READY')) {
        return; // Already connected to this session
     }
@@ -225,13 +279,24 @@ export class ConnectManager {
       try { supabase.removeChannel(existing); } catch (e) {}
     }
 
-    console.log(`[ConnectManager] Subscribing to session: ${sessionTopic}`);
+    const currentGen = this.connectionGeneration;
+    console.log(`[ConnectManager] Subscribing to session: ${sessionTopic} (gen: ${currentGen})`);
 
     this.sessionChannel = supabase.channel(sessionTopic, {
       config: { broadcast: { self: false } }
     })
-    .on('broadcast', { event: 'COMMAND' }, (payload) => this.handleBroadcastCommand(payload))
+    .on('broadcast', { event: 'COMMAND' }, (payload) => {
+      if (currentGen !== this.connectionGeneration || this.manualDisconnectRequested) {
+        console.log(`[ConnectManager] Ignoring stale callback from connection generation ${currentGen}`);
+        return;
+      }
+      this.handleBroadcastCommand(payload);
+    })
     .on('broadcast', { event: 'STATE_UPDATE' }, (payload) => {
+      if (currentGen !== this.connectionGeneration || this.manualDisconnectRequested) {
+        console.log(`[ConnectManager] Ignoring stale callback from connection generation ${currentGen}`);
+        return;
+      }
       if (payload && payload.payload) {
         import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
           PlaybackStateSync.getInstance().handleRemoteStateUpdate(payload.payload);
@@ -239,12 +304,20 @@ export class ConnectManager {
       }
     })
     .subscribe((status) => {
+      if (currentGen !== this.connectionGeneration) {
+        console.log(`[ConnectManager] Ignoring stale callback from connection generation ${currentGen}`);
+        return;
+      }
       if (status === 'SUBSCRIBED') {
          this.transitionState('CONNECTED');
          this.initiateRecovery();
       } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-         console.warn('[ConnectManager] Session channel disconnected, scheduling resync...');
          this.sessionChannel = null;
+         if (this.manualDisconnectRequested) {
+           console.log('[ConnectManager] Reconnect cancelled: manual disconnect');
+           return;
+         }
+         console.warn('[ConnectManager] Session channel disconnected, scheduling resync...');
          if (this.currentState !== 'RECOVERING' && this.currentState !== 'CONNECTING') {
            this.transitionState('RECOVERING');
          }
@@ -416,33 +489,79 @@ export class ConnectManager {
     }
   }
 
-  public disconnectFromDevice() {
-    console.log('[ConnectManager] Disconnecting from remote device');
-    const store = usePlayerStore.getState();
-    const targetId = store.connectedDeviceId;
+  public async manualDisconnect(): Promise<void> {
+    console.log('[ConnectManager] Manual disconnect requested');
+    this.manualDisconnectRequested = true;
 
-    usePlayerStore.setState({
-      deviceConnectionState: 'DISCONNECTING',
-    });
+    this.connectionGeneration++;
+    console.log('[ConnectManager] Old connection generation invalidated');
 
-    if (targetId) {
-      import('./LocalPeerConnection').then(({ LocalPeerConnection }) => {
-        LocalPeerConnection.getInstance().cleanup(targetId);
-      }).catch(() => {});
+    this.transitionState('DISCONNECTING');
 
-      // Notify TransportRouter so TransportScorer marks LAN unavailable
-      // and ConnectivityRouter immediately falls back to CLOUD_RELAY.
-      import('./TransportRouter').then(({ TransportRouter }) => {
-        TransportRouter.getInstance().onLanChannelLost(targetId);
-      }).catch(() => {});
+    // 1. Cancel all reconnect and recovery timers
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.recoveryTimer) {
+      clearTimeout(this.recoveryTimer);
+      this.recoveryTimer = null;
     }
 
-    // Clear local snapshot so browser refresh doesn't restore a stale session
-    import('./SessionReconciler').then(({ SessionReconciler }) => {
-      SessionReconciler.getInstance().clearLocalSnapshot();
-    }).catch(() => {});
+    // 2. Clear single-flight command queue and pending resolvers
+    try {
+      const { SingleFlightCommandQueue } = await import('./SingleFlightCommandQueue');
+      SingleFlightCommandQueue.getInstance().clear();
+    } catch {}
 
-    // Reset local store to independent mode without interrupting remote playback
+    for (const [id, resolver] of this.pendingCommandResolvers.entries()) {
+      clearTimeout(resolver.timeout);
+      resolver.resolve({ success: false, reason: 'manual_disconnect' });
+    }
+    this.pendingCommandResolvers.clear();
+    this.recoveryQueue = [];
+
+    // 3. Release device lease if this device currently owns it
+    console.log('[ConnectManager] Releasing device lease');
+    try {
+      const { DeviceLeaseManager } = await import('./DeviceLeaseManager');
+      await DeviceLeaseManager.getInstance().releaseLease(this.sessionId || undefined);
+    } catch (e) {
+      console.warn('[ConnectManager] Error releasing device lease:', e);
+    }
+
+    // 4. Unsubscribe inbox channel
+    console.log('[ConnectManager] Unsubscribing inbox');
+    if (this.inboxChannel) {
+      try { supabase.removeChannel(this.inboxChannel); } catch (e) {}
+      this.inboxChannel = null;
+    }
+
+    // 5. Unsubscribe session channel
+    console.log('[ConnectManager] Unsubscribing session');
+    this.unsubscribeSession();
+
+    // 6. Cleanup local peer connections if any
+    const store = usePlayerStore.getState();
+    const targetId = store.connectedDeviceId;
+    if (targetId) {
+      try {
+        const { LocalPeerConnection } = await import('./LocalPeerConnection');
+        LocalPeerConnection.getInstance().cleanup(targetId);
+      } catch {}
+      try {
+        const { TransportRouter } = await import('./TransportRouter');
+        TransportRouter.getInstance().onLanChannelLost(targetId);
+      } catch {}
+    }
+
+    // 7. Clear local session snapshot
+    try {
+      const { SessionReconciler } = await import('./SessionReconciler');
+      SessionReconciler.getInstance().clearLocalSnapshot();
+    } catch {}
+
+    // 8. Reset local store state without stopping remote playback on target renderer
     usePlayerStore.setState({
       connectedDeviceId: null,
       activeDeviceId: null,
@@ -450,6 +569,23 @@ export class ConnectManager {
       isActiveDevice: true,
       deviceConnectionState: 'AVAILABLE',
     });
+
+    // 9. Reset CommandBus state
+    CommandBus.getInstance().reset();
+
+    // 10. Transition to DISCONNECTED
+    this.transitionState('DISCONNECTED');
+  }
+
+  public disconnectFromDevice() {
+    usePlayerStore.setState({
+      connectedDeviceId: null,
+      activeDeviceId: null,
+      remoteDeviceName: null,
+      isActiveDevice: true,
+      deviceConnectionState: 'AVAILABLE',
+    });
+    this.manualDisconnect();
   }
 
   public async dispatchPlaybackCommand(type: ConnectCommand['type'], payload: any = {}): Promise<{ success: boolean; reason?: string }> {
