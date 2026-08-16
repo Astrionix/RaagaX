@@ -25,10 +25,9 @@ export function SearchView() {
   const [realAlbumResults, setRealAlbumResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isOfflineSearch, setIsOfflineSearch] = useState(false);
+  const [filterType, setFilterType] = useState<'all' | 'songs' | 'albums'>('all');
 
   useEffect(() => {
-    let isCancelled = false;
-    const timer = setTimeout(async () => {
       if (!searchQuery.trim()) {
         setRealSearchResults([]);
         setRealAlbumResults([]);
@@ -252,8 +251,42 @@ export function SearchView() {
             )}
           </div>
 
+          {/* Category Filter Chips: All | Songs | Albums */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+            <button
+              onClick={() => setFilterType('all')}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                filterType === 'all'
+                  ? 'bg-white text-black shadow-md'
+                  : 'bg-white/10 text-white/70 hover:text-white hover:bg-white/15'
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setFilterType('songs')}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
+                filterType === 'songs'
+                  ? 'bg-white text-black shadow-md'
+                  : 'bg-white/10 text-white/70 hover:text-white hover:bg-white/15'
+              }`}
+            >
+              <Music className="w-3.5 h-3.5" /> Songs ({realSearchResults.length})
+            </button>
+            <button
+              onClick={() => setFilterType('albums')}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
+                filterType === 'albums'
+                  ? 'bg-white text-black shadow-md'
+                  : 'bg-white/10 text-white/70 hover:text-white hover:bg-white/15'
+              }`}
+            >
+              <Disc3 className="w-3.5 h-3.5" /> Albums ({realAlbumResults.length})
+            </button>
+          </div>
+
           {/* Albums Section */}
-          {realAlbumResults.length > 0 && (
+          {filterType !== 'songs' && realAlbumResults.length > 0 && (
             <div className="space-y-3">
               <h4 className="text-sm font-bold text-white flex items-center gap-2">
                 <Disc3 className="w-4 h-4 text-[#EF233C]" /> Albums
@@ -283,46 +316,48 @@ export function SearchView() {
           )}
 
           {/* Songs Section */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-bold text-white flex items-center gap-2">
-              <Music className="w-4 h-4 text-[#EF233C]" /> Songs ({realSearchResults.length})
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {realSearchResults.map((song) => {
-              const isLiked = likedSongIds.includes(song.id);
-              const isDownloaded = downloadedSongIds.includes(song.id);
-              return (
-                <div
-                  key={song.id}
-                  className="p-3 rounded-2xl bg-[#1C1C1E] border border-white/10 flex items-center gap-3 group"
-                >
-                  {/* Album Art */}
-                  <img
-                    src={song.coverUrl}
-                    alt={song.title}
-                    onClick={() => playSong(song, realSearchResults)}
-                    className="w-11 h-11 rounded-xl object-cover shadow-sm flex-shrink-0 cursor-pointer"
-                  />
-
-                  {/* Title + Artist — takes all remaining space, truncates */}
+          {filterType !== 'albums' && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <Music className="w-4 h-4 text-[#EF233C]" /> Songs ({realSearchResults.length})
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {realSearchResults.map((song) => {
+                const isLiked = likedSongIds.includes(song.id);
+                const isDownloaded = downloadedSongIds.includes(song.id);
+                return (
                   <div
-                    className="flex-1 min-w-0 cursor-pointer"
-                    onClick={() => playSong(song, realSearchResults)}
+                    key={song.id}
+                    className="p-3 rounded-2xl bg-[#1C1C1E] border border-white/10 flex items-center gap-3 group"
                   >
-                    <h4 className="text-xs font-bold text-white group-hover:text-[#EF233C] transition-colors truncate">
-                      {song.title}
-                    </h4>
-                    <p className="text-[11px] text-slate-400 truncate mt-0.5">{song.artist}</p>
-                  </div>
+                    {/* Album Art */}
+                    <img
+                      src={song.coverUrl}
+                      alt={song.title}
+                      onClick={() => playSong(song, realSearchResults)}
+                      className="w-11 h-11 rounded-xl object-cover shadow-sm flex-shrink-0 cursor-pointer"
+                    />
 
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <SongActionMenu song={song} />
+                    {/* Title + Artist — takes all remaining space, truncates */}
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => playSong(song, realSearchResults)}
+                    >
+                      <h4 className="text-xs font-bold text-white group-hover:text-[#EF233C] transition-colors truncate">
+                        {song.title}
+                      </h4>
+                      <p className="text-[11px] text-slate-400 truncate mt-0.5">{song.artist}</p>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <SongActionMenu song={song} />
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>
