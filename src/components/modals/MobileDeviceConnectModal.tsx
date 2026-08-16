@@ -58,8 +58,6 @@ export function MobileDeviceConnectModal() {
     }
   }, [isDeviceModalOpen]);
 
-  if (!isDeviceModalOpen) return null;
-
   const filteredDevices = useMemo(() => {
     if (!Array.isArray(devices)) return [];
     if (!searchQuery.trim()) return devices.filter(Boolean);
@@ -72,6 +70,8 @@ export function MobileDeviceConnectModal() {
       )
     );
   }, [devices, searchQuery]);
+
+  if (!isDeviceModalOpen) return null;
 
   const currentlyPlayingDevice = filteredDevices.find(d => d?.reachabilityState === 'CURRENTLY_PLAYING') || filteredDevices.find(d => d?.deviceId === (activeDeviceId || deviceId)) || filteredDevices[0] || null;
   const nearbyDevices = filteredDevices.filter(d => d && d.deviceId !== currentlyPlayingDevice?.deviceId && d.isNearby && !d.isAudioOutput && d.reachabilityState !== 'OFFLINE');
