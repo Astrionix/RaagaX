@@ -28,6 +28,8 @@ export function SearchView() {
   const [filterType, setFilterType] = useState<'all' | 'songs' | 'albums'>('all');
 
   useEffect(() => {
+    let isCancelled = false;
+    const timer = setTimeout(async () => {
       if (!searchQuery.trim()) {
         setRealSearchResults([]);
         setRealAlbumResults([]);
