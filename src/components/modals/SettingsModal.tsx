@@ -199,6 +199,30 @@ export function SettingsModal() {
             </div>
           </div>
 
+          {/* Developer Diagnostics */}
+          <div className="space-y-3 border-t border-white/5 pt-4">
+            <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+              <Sliders className="w-3.5 h-3.5 text-[#EF233C]" /> Advanced & Diagnostics
+            </label>
+            <button
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  const url = new URL(window.location.href);
+                  if (url.searchParams.get('diagnostics') === '1') {
+                    url.searchParams.delete('diagnostics');
+                  } else {
+                    url.searchParams.set('diagnostics', '1');
+                  }
+                  window.history.replaceState({}, '', url.toString());
+                  window.location.reload();
+                }
+              }}
+              className="w-full py-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 text-xs font-bold flex items-center justify-center gap-2 border border-purple-500/20 transition-all"
+            >
+              <Sliders className="w-3.5 h-3.5" /> Toggle Playback & Connect Diagnostics Overlay
+            </button>
+          </div>
+
           {/* Account */}
           <div className="space-y-3 border-t border-white/5 pt-4">
             <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-2">

@@ -64,6 +64,22 @@ export function AudioPlayerController() {
     }
   }, []);
 
+  // On cold startup: restore crash-safe playback snapshot
+  useEffect(() => {
+    try {
+      import('@/lib/playback/PlaybackRecoveryEngine').then(({ PlaybackRecoveryEngine }) => {
+        const snapshot = PlaybackRecoveryEngine.getInstance().restoreSnapshot();
+        if (snapshot && !usePlayerStore.getState().currentSong) {
+          usePlayerStore.setState({
+            currentSong: snapshot.song,
+            currentTime: snapshot.positionMs / 1000,
+            isPlaying: false, // restore in paused state so it doesn't blast audio unexpectedly
+          });
+        }
+      });
+    } catch {}
+  }, []);
+
   // Native Android: hook into ExoPlayer queueEnded & trackChanged events.
   // NOTE: We do NOT trigger playNext() on trackChanged — ExoPlayer auto-advances
   // natively via the full playlist set by setQueue(). We only sync the UI state.
