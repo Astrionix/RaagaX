@@ -23,6 +23,7 @@ import { KeyboardShortcutsModal } from '@/components/modals/KeyboardShortcutsMod
 import { MobileDeviceConnectModal } from '@/components/modals/MobileDeviceConnectModal';
 import { OfflineStorageSetupModal } from '@/components/modals/OfflineStorageSetupModal';
 import { PermissionOnboardingModal } from '@/components/onboarding/PermissionOnboardingModal';
+import { LanguageOnboardingModal } from '@/components/onboarding/LanguageOnboardingModal';
 
 import { CreatePlaylistModal } from '@/components/modals/CreatePlaylistModal';
 import { NotificationCenterModal } from '@/components/modals/NotificationCenterModal';
@@ -261,6 +262,9 @@ export default function Page() {
       </ErrorBoundary>
       <ErrorBoundary name="PermissionOnboardingModal">
         <PermissionOnboardingModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="LanguageOnboardingModal">
+        <LanguageOnboardingModal />
       </ErrorBoundary>
       <ErrorBoundary name="NotificationCenterModal">
         <NotificationCenterModal />

@@ -83,6 +83,8 @@ export function HomeView() {
     setActiveTab,
     likedSongs = [],
     preferredLanguage,
+    selectedLanguages = ['Telugu'],
+    toggleOnboarding,
     setSelectedArtistId,
     setSelectedPlaylistId,
     remoteDeviceName,
@@ -199,7 +201,7 @@ export function HomeView() {
 
         {/* 1.5 Quick Language Selector Strip */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-2 pb-0.5">
-          {['Telugu', 'Hindi', 'Tamil', 'Kannada', 'Malayalam', 'English', 'Punjabi', 'Bengali', 'Marathi'].map((lang) => {
+          {selectedLanguages.map((lang) => {
             const isPrimary = currentLang.toLowerCase() === lang.toLowerCase();
             return (
               <button
@@ -207,17 +209,25 @@ export function HomeView() {
                 onClick={() => {
                   usePlayerStore.getState().setPreferredLanguage(lang);
                 }}
-                className={`px-3.5 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 flex-shrink-0 cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 flex-shrink-0 cursor-pointer ${
                   isPrimary
                     ? 'bg-[#FA233B] text-white shadow-lg shadow-red-500/30'
                     : 'bg-white/5 hover:bg-white/15 text-slate-300 border border-white/10'
                 }`}
               >
                 <span>{lang}</span>
-                {isPrimary && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                {isPrimary && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
               </button>
             );
           })}
+          
+          <button
+            onClick={() => toggleOnboarding(true)}
+            className="px-3 py-1.5 rounded-full text-xs font-bold text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1 flex-shrink-0 transition-colors cursor-pointer"
+            title="Manage music languages & interests"
+          >
+            <span>+ Languages</span>
+          </button>
         </div>
       </section>
 

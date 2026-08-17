@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   User,
+  Globe,
   Play,
   Volume2,
   ListMusic,
@@ -39,7 +40,8 @@ import {
   Music2,
   VolumeX,
   Repeat,
-  Shuffle
+  Shuffle,
+  Compass
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
@@ -52,6 +54,7 @@ import { BrandShowcaseView } from '@/components/brand/BrandShowcaseView';
 
 export type SettingsSectionId =
   | 'account'
+  | 'languages'
   | 'playback'
   | 'audio-quality'
   | 'queue'
@@ -77,6 +80,7 @@ interface SectionDef {
 
 const SECTIONS: SectionDef[] = [
   { id: 'account', label: 'Account', icon: User, description: 'Profile, credentials, and subscription status' },
+  { id: 'languages', label: 'Music Languages', icon: Globe, description: 'Manage Telugu, Hindi, Tamil, and regional preferences' },
   { id: 'playback', label: 'Playback', icon: Play, description: 'Autoplay, crossfade, and playback restoration' },
   { id: 'audio-quality', label: 'Audio Quality', icon: Volume2, description: 'Streaming bitrates and download formats' },
   { id: 'queue', label: 'Queue', icon: ListMusic, description: 'Queue persistence, repeat, and completion modes' },
@@ -389,6 +393,109 @@ export function SettingsView() {
                     </span>
                   }
                 />
+              </div>
+            </div>
+          )}
+
+          {/* 1.5 MUSIC LANGUAGES & REGIONAL PREFERENCES */}
+          {activeSection === 'languages' && (
+            <div className="space-y-6">
+              {/* Header Box */}
+              <div className="p-5 rounded-3xl bg-gradient-to-br from-[#FA233B]/15 via-purple-600/10 to-slate-900 border border-[#FA233B]/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black uppercase tracking-wider text-[#FA233B] bg-[#FA233B]/10 px-2 py-0.5 rounded-md border border-[#FA233B]/20">
+                      Regional Music DNA
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      {(selectedLanguages || []).length} active language{(selectedLanguages || []).length === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  <h4 className="text-base font-black text-white">Your Music Languages</h4>
+                  <p className="text-xs text-slate-300 max-w-md">
+                    Home recommendations, trending shelves, and search rank songs according to your selections.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => usePlayerStore.getState().toggleOnboarding(true)}
+                  className="px-4 py-2 rounded-2xl bg-[#FA233B] hover:bg-[#d91e32] text-white text-xs font-bold transition-all shadow-lg flex items-center gap-2 flex-shrink-0 cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Setup Wizard</span>
+                </button>
+              </div>
+
+              {/* Language Grid */}
+              <div className="p-5 rounded-3xl bg-white/[0.03] border border-white/10 space-y-4">
+                <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400">
+                  Select Active Languages
+                </h4>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {[
+                    { id: 'Telugu', native: 'తెలుగు' },
+                    { id: 'Hindi', native: 'हिन्दी' },
+                    { id: 'Tamil', native: 'தமிழ்' },
+                    { id: 'Kannada', native: 'ಕನ್ನಡ' },
+                    { id: 'Malayalam', native: 'മലയാളം' },
+                    { id: 'English', native: 'Global' },
+                    { id: 'Punjabi', native: 'ਪੰਜਾਬੀ' },
+                    { id: 'Bengali', native: 'বাংলা' },
+                    { id: 'Marathi', native: 'मराठी' },
+                    { id: 'Gujarati', native: 'ગુજરાતી' },
+                    { id: 'Bhojpuri', native: 'भोजपुरी' },
+                  ].map(({ id, native }) => {
+                    const isSelected = (selectedLanguages || []).includes(id);
+
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => {
+                          const currentList = selectedLanguages || ['Telugu'];
+                          if (isSelected && currentList.length === 1) {
+                            showToast('Please select at least 1 language');
+                            return;
+                          }
+                          const updated = isSelected 
+                            ? currentList.filter(l => l !== id)
+                            : [...currentList, id];
+                          setSelectedLanguages(updated);
+                          showToast(`Languages updated: ${updated.join(', ')}`);
+                        }}
+                        className={`p-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer group ${
+                          isSelected
+                            ? 'bg-gradient-to-br from-[#FA233B]/20 to-purple-800/10 border-[#FA233B]/60 text-white shadow-md'
+                            : 'bg-white/[0.03] hover:bg-white/[0.07] border-white/10 text-slate-300'
+                        }`}
+                      >
+                        <div>
+                          <span className="text-[10px] text-slate-400 block font-semibold">{native}</span>
+                          <span className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-slate-200'}`}>
+                            {id}
+                          </span>
+                        </div>
+
+                        <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${
+                          isSelected 
+                            ? 'bg-[#FA233B] text-white shadow-sm' 
+                            : 'border border-white/20 group-hover:border-white/40'
+                        }`}>
+                          {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Safe Guarantee Note */}
+              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                <span>
+                  <strong>Safe Preference:</strong> Changing languages updates recommendations immediately. Your existing playlists, downloads, favorites, and history will never be deleted.
+                </span>
               </div>
             </div>
           )}

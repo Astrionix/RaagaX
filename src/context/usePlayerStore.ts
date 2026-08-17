@@ -73,6 +73,9 @@ interface PlayerState {
   toggleEqualizer: (open?: boolean) => void;
   isCarModeOpen: boolean;
   toggleCarMode: (open?: boolean) => void;
+  isOnboardingOpen: boolean;
+  toggleOnboarding: (open?: boolean) => void;
+  completeOnboarding: (languages: string[], interests: string[]) => void;
 
   toastMessage: string | null;
   setToastMessage: (msg: string | null) => void;
@@ -86,13 +89,15 @@ interface PlayerState {
   sleepTimerMode: 'duration' | 'end_of_song' | 'end_of_queue' | null;
 
   contextMenuSong: Song | null;
-  // 3-Tier Language Preference System
+  // 3-Tier Language & Interests Preference System
   preferredLanguage: string; // GLOBAL_LANGUAGE (Explicit User Selection)
   selectedLanguages: string[]; // MULTI_LANGUAGE (Active Music Languages)
+  musicInterests: string[]; // User Selected Music Interests (e.g. New Releases, Trending, Devotional, etc.)
   sessionLanguage: string; // SESSION_LANGUAGE (Current Playback Queue Language)
   interestLanguages: Record<string, number>; // INTEREST_LANGUAGES (Inferred Soft Signals)
   setPreferredLanguage: (lang: string) => void;
   setSelectedLanguages: (langs: string[]) => void;
+  setMusicInterests: (interests: string[]) => void;
   setSessionLanguage: (lang: string) => void;
   recordLanguageInterest: (lang: string, delta?: number) => void;
 
@@ -347,6 +352,65 @@ export const usePlayerStore = create<PlayerState>()(
   toggleEqualizer: (open) => set((s) => ({ isEqualizerOpen: open !== undefined ? open : !s.isEqualizerOpen })),
   isCarModeOpen: false,
   toggleCarMode: (open) => set((s) => ({ isCarModeOpen: open !== undefined ? open : !s.isCarModeOpen })),
+  isOnboardingOpen: typeof window !== 'undefined' ? localStorage.getItem('raagax_onboarding_completed') !== 'true' : false,
+  toggleOnboarding: (open) => set((s) => ({ isOnboardingOpen: open !== undefined ? open : !s.isOnboardingOpen })),
+  
+  musicInterests: (typeof window !== 'undefined' && JSON.parse(localStorage.getItem('raagax_music_interests') || '["New Releases", "Trending Hits"]')) || ['New Releases', 'Trending Hits'],
+  setMusicInterests: (interests: string[]) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('raagax_music_interests', JSON.stringify(interests));
+    }
+    set({ musicInterests: interests });
+  },
+
+  completeOnboarding: (languages: string[], interests: string[]) => {
+    const validLangs = languages.length > 0 ? languages : ['Telugu'];
+    const validInterests = interests.length > 0 ? interests : ['New Releases', 'Trending Hits'];
+    
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('raagax_onboarding_completed', 'true');
+      localStorage.setItem('raagax_selected_languages', JSON.stringify(validLangs));
+      localStorage.setItem('raagax_preferred_language', validLangs[0]);
+      localStorage.setItem('raagax_music_interests', JSON.stringify(validInterests));
+    }
+
+    const prevInterests = get().interestLanguages || {};
+    const newInterests: Record<string, number> = { ...prevInterests };
+    validLangs.forEach(l => { newInterests[l] = 0.95; });
+
+    set({
+      isOnboardingOpen: false,
+      selectedLanguages: validLangs,
+      preferredLanguage: validLangs[0],
+      sessionLanguage: validLangs[0],
+      musicInterests: validInterests,
+      interestLanguages: newInterests
+    });
+
+    // Sync to user lifecycle & Supabase profile if authenticated
+    import('@/lib/lifecycle/UserLifecycleManager').then(({ UserLifecycleManager }) => {
+      UserLifecycleManager.getInstance().setSelectedLanguages(validLangs);
+    }).catch(() => {});
+
+    import('@/lib/lifecycle/ListeningDnaEngine').then(({ ListeningDnaEngine }) => {
+      ListeningDnaEngine.getInstance().setInitialLanguages(validLangs);
+    }).catch(() => {});
+
+    import('@/lib/supabase').then(({ supabase }) => {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user?.id) {
+          Promise.resolve(
+            supabase.from('profiles').update({
+              preferred_languages: validLangs,
+              music_interests: validInterests,
+              updated_at: new Date().toISOString()
+            }).eq('id', session.user.id)
+          ).catch(() => {});
+        }
+      }).catch(() => {});
+    }).catch(() => {});
+  },
+
   toastMessage: null,
 
   setToastMessage: (msg) => set({ toastMessage: msg }),
