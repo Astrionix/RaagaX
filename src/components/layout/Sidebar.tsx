@@ -113,13 +113,13 @@ export function Sidebar() {
           </button>
 
           <button
-            onClick={() => setActiveTab('browse')}
+            onClick={() => setActiveTab('downloads')}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold transition-all ${
-              activeTab === 'browse' ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+              activeTab === 'downloads' ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30' : 'text-slate-400 hover:bg-white/5 hover:text-white'
             }`}
           >
-            <Compass className="w-4 h-4" />
-            <span>Browse</span>
+            <Download className="w-4 h-4" />
+            <span>Downloads</span>
           </button>
 
           <button

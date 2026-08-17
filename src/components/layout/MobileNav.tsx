@@ -1,28 +1,18 @@
 'use client';
 
 import React from 'react';
-import { Home, Compass, Search, Library, User } from 'lucide-react';
+import { Home, Search, Library, Download, User } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { ActiveTab } from '@/types/music';
 
-/**
- * RaagaX Floating Liquid Glass Bottom Navigation Bar
- * 
- * Features:
- * - Floating pill shape with 24px continuous corner radius
- * - Translucent obsidian glass (Tier 01 Frosted Glass) with 1px light highlight
- * - Active red indicator pill and kinetic slide animation
- * - Safe area awareness for Android gesture bar and iOS home indicator
- * - Ambient glass reflection and micro-elevation
- */
 export function MobileNav() {
   const { activeTab, setActiveTab } = usePlayerStore();
 
   const navItems = [
     { id: 'home' as const, label: 'Home', icon: Home },
-    { id: 'browse' as const, label: 'Browse', icon: Compass },
     { id: 'search' as const, label: 'Search', icon: Search },
     { id: 'library' as const, label: 'Library', icon: Library },
+    { id: 'downloads' as const, label: 'Downloads', icon: Download },
     { id: 'profile' as const, label: 'Profile', icon: User },
   ];
 
