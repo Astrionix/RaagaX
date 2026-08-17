@@ -452,7 +452,11 @@ public class RaagaXPlaybackService extends Service {
         stopSelf();
     }
 
-    // ── Legacy single-track API (kept for compatibility) ─────────────────────
+    // ── Single-track API ─────────────────────────────────────────────────────
+
+    public void playTrack(String trackId, String title, String artist, String artworkUrl, String uri) {
+        playUrl(uri, title, artist);
+    }
 
     public void playUrl(String url, String title, String artist) {
         runOnMainThread(() -> {
