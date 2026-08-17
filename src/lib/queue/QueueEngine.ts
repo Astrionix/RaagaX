@@ -88,6 +88,14 @@ export class QueueEngine {
     QueuePersistence.getInstance().saveSnapshot(this.getSnapshot());
   }
 
+  private normalizeRepeat(mode?: string | null): RepeatMode {
+    if (!mode) return 'OFF';
+    const m = mode.toUpperCase();
+    if (m === 'ONE' || m === 'TRACK') return 'ONE';
+    if (m === 'ALL' || m === 'CONTEXT') return 'ALL';
+    return 'OFF';
+  }
+
   public isAutoplayEnabled() { return this.autoplayEnabled; }
   public toggleAutoplay() { 
     this.autoplayEnabled = !this.autoplayEnabled; 
@@ -95,10 +103,10 @@ export class QueueEngine {
   }
 
   public setRepeatMode(mode: RepeatMode) {
-    this.repeatMode = mode;
+    this.repeatMode = this.normalizeRepeat(mode);
     this.mutate();
   }
-  public getRepeatMode() { return this.repeatMode; }
+  public getRepeatMode(): RepeatMode { return this.normalizeRepeat(this.repeatMode); }
 
   public async toggleShuffle() {
     if (this.shuffleMode === 'OFF') {
@@ -228,7 +236,8 @@ export class QueueEngine {
   public getNextItem(isNaturalEnd: boolean = false): QueueItem | null {
     if (this.items.length === 0) return null;
 
-    if (isNaturalEnd && this.repeatMode === 'TRACK') {
+    const normRepeat = this.normalizeRepeat(this.repeatMode);
+    if (isNaturalEnd && normRepeat === 'ONE') {
       return this.getCurrentItem();
     }
 
@@ -238,7 +247,7 @@ export class QueueEngine {
       return this.items[this.currentIndex];
     }
 
-    if (this.repeatMode === 'CONTEXT' && this.items.length > 0) {
+    if (normRepeat === 'ALL' && this.items.length > 0) {
       this.currentIndex = 0;
       this.mutate();
       return this.items[0];
@@ -259,13 +268,14 @@ export class QueueEngine {
   public getPreviousItem(): QueueItem | null {
     if (this.items.length === 0) return null;
 
+    const normRepeat = this.normalizeRepeat(this.repeatMode);
     if (this.currentIndex - 1 >= 0) {
       this.currentIndex--;
       this.mutate();
       return this.items[this.currentIndex];
     }
 
-    if (this.repeatMode === 'CONTEXT' && this.items.length > 0) {
+    if (normRepeat === 'ALL' && this.items.length > 0) {
       this.currentIndex = this.items.length - 1;
       this.mutate();
       return this.items[this.currentIndex];

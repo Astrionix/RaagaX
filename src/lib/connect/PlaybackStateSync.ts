@@ -7,6 +7,7 @@ import { RaagaXNativePlayer } from '../playback/native/RaagaXNativePlayer';
 import { PlaybackService } from '../playback/PlaybackService';
 import { SeekLock } from '../playback/SeekLock';
 import { ClockSynchronizer } from './ClockSynchronizer';
+import { QueueManager } from '../queue/QueueManager';
 
 export interface RemotePlaybackState {
   activeDeviceId: string;
@@ -391,7 +392,7 @@ export class PlaybackStateSync {
     });
 
     // 3. Keep local QueueManager aligned with remote repeat and shuffle modes
-    import('@/lib/queue/QueueManager').then(({ QueueManager }) => {
+    try {
       const manager = QueueManager.getInstance();
       if (remoteState.repeatMode && manager.getRepeatMode() !== remoteState.repeatMode) {
         manager.setRepeatMode(remoteState.repeatMode as any);
@@ -399,7 +400,7 @@ export class PlaybackStateSync {
       if (remoteState.shuffleMode && manager.getShuffleMode() !== remoteState.shuffleMode) {
         manager.setShuffleMode(remoteState.shuffleMode as any);
       }
-    }).catch(() => {});
+    } catch {}
   }
 
   /**

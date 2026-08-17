@@ -264,6 +264,20 @@ public class RaagaXCapacitorPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void setRepeatMode(PluginCall call) {
+        String mode = call.getString("repeatMode", "OFF");
+        RaagaXPlaybackService service = getService();
+        if (service != null) {
+            service.setRepeatMode(mode);
+        } else {
+            Intent intent = new Intent("SET_REPEAT");
+            intent.putExtra("repeatMode", mode);
+            sendCommandToService(intent);
+        }
+        call.resolve(new JSObject().put("success", true));
+    }
+
+    @PluginMethod
     public void getPlaybackState(PluginCall call) {
         RaagaXPlaybackService service = getService();
         if (service != null) {

@@ -206,15 +206,24 @@ export function PlayerBar() {
           <button onClick={playNext} className="p-1.5 text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition-all active:scale-90">
             <SkipForward className="w-4 h-4 fill-current" />
           </button>
-          <button
-            onClick={cycleRepeatMode}
-            className={`p-1.5 rounded-lg transition-all ${
-              repeatMode !== 'off' ? 'text-[#fa233b] bg-[#fa233b]/10' : 'text-slate-400 hover:text-white hover:bg-white/5'
-            }`}
-            title={`Repeat: ${repeatMode}`}
-          >
-            {repeatMode === 'one' ? <Repeat1 className="w-4 h-4" /> : <Repeat className="w-4 h-4" />}
-          </button>
+          {(() => {
+            const normRepeat = ((repeatMode || 'OFF') as string).toUpperCase() === 'ONE' || ((repeatMode || 'OFF') as string).toUpperCase() === 'TRACK'
+              ? 'ONE'
+              : ((repeatMode || 'OFF') as string).toUpperCase() === 'ALL' || ((repeatMode || 'OFF') as string).toUpperCase() === 'CONTEXT'
+                ? 'ALL'
+                : 'OFF';
+            return (
+              <button
+                onClick={cycleRepeatMode}
+                className={`p-1.5 rounded-lg transition-all ${
+                  normRepeat === 'ALL' || normRepeat === 'ONE' ? 'text-[#fa233b] bg-[#fa233b]/10 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+                title={`Repeat: ${normRepeat === 'ONE' ? 'Repeat ONE' : normRepeat === 'ALL' ? 'Repeat ALL' : 'Repeat OFF'}`}
+              >
+                {normRepeat === 'ONE' ? <Repeat1 className="w-4 h-4" /> : <Repeat className="w-4 h-4" />}
+              </button>
+            );
+          })()}
         </div>
 
         {/* Timeline Bar */}

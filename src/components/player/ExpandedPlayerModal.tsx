@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  X, ChevronDown, Heart, Download, Play, Pause, SkipBack, SkipForward, 
-  Disc3, Mic2, Music, Tv, RefreshCw, ExternalLink, Shuffle, Repeat, Repeat1, 
-  ListMusic, Settings2, MonitorSmartphone, Check, MoreHorizontal, Share2, 
+import {
+  X, ChevronDown, Heart, Download, Play, Pause, SkipBack, SkipForward,
+  Disc3, Mic2, Music, Tv, RefreshCw, ExternalLink, Shuffle, Repeat, Repeat1,
+  ListMusic, Settings2, MonitorSmartphone, Check, MoreHorizontal, Share2,
   User, Disc, ListPlus, Radio, Sparkles, FolderPlus, Ban, Plus, Moon,
   Clock, Volume2, ShieldCheck, Loader2, Sliders, Car
 } from 'lucide-react';
@@ -22,10 +22,10 @@ export function ExpandedPlayerModal() {
   const { playlists, addSongToPlaylist } = usePlaylistStore();
   const [showPlaylists, setShowPlaylists] = useState(false);
   const [viewMode, setViewMode] = useState<'art' | 'lyrics'>('art');
-  const { 
-    status: lyricsStatus, 
-    type: lyricsType, 
-    lines: lyricsLines, 
+  const {
+    status: lyricsStatus,
+    type: lyricsType,
+    lines: lyricsLines,
     currentLineIndex: lyricsIndex,
     scriptMode,
     setScriptMode,
@@ -81,6 +81,12 @@ export function ExpandedPlayerModal() {
     toggleCarMode,
     cloudDownloadedSongIds = [],
   } = usePlayerStore();
+
+  const normRepeat = ((repeatMode || 'OFF') as string).toUpperCase() === 'ONE' || ((repeatMode || 'OFF') as string).toUpperCase() === 'TRACK'
+    ? 'ONE'
+    : ((repeatMode || 'OFF') as string).toUpperCase() === 'ALL' || ((repeatMode || 'OFF') as string).toUpperCase() === 'CONTEXT'
+      ? 'ALL'
+      : 'OFF';
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -274,8 +280,8 @@ export function ExpandedPlayerModal() {
   const activeDeviceObj = onlineDevices.find((d) => d.id === activeDeviceId);
   const localDeviceObj = onlineDevices.find((d) => d.id === deviceId);
   const localDeviceName = localDeviceObj?.name || 'This Device';
-  const activeName = !isActiveDevice 
-    ? (remoteDeviceName || activeDeviceObj?.name || 'Remote Device') 
+  const activeName = !isActiveDevice
+    ? (remoteDeviceName || activeDeviceObj?.name || 'Remote Device')
     : localDeviceName;
 
   return (
@@ -299,7 +305,7 @@ export function ExpandedPlayerModal() {
       {/* TOP NAVIGATION BAR */}
       <div className="relative z-50 flex items-center justify-between w-full pt-1 pb-2 sm:pb-3 max-w-5xl mx-auto flex-shrink-0">
         {/* Left: Minimize Player */}
-        <button 
+        <button
           onClick={handleCloseModal}
           className="p-2.5 -ml-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-all active:scale-95"
           title="Minimize player"
@@ -308,7 +314,7 @@ export function ExpandedPlayerModal() {
         </button>
 
         {/* Center: Playing From */}
-        <div 
+        <div
           onClick={() => {
             const albumTarget = currentSong.albumId || currentSong.album;
             if (albumTarget) {
@@ -317,9 +323,8 @@ export function ExpandedPlayerModal() {
               handleCloseModal();
             }
           }}
-          className={`text-center min-w-0 px-3 max-w-[55%] ${
-            (currentSong.albumId || currentSong.album) ? 'cursor-pointer hover:opacity-80 transition-opacity' : 'pointer-events-none'
-          }`}
+          className={`text-center min-w-0 px-3 max-w-[55%] ${(currentSong.albumId || currentSong.album) ? 'cursor-pointer hover:opacity-80 transition-opacity' : 'pointer-events-none'
+            }`}
           title={currentSong.album ? `Go to album: ${currentSong.album}` : undefined}
         >
           <p className="text-[10px] text-white/50 font-black uppercase tracking-widest mb-0.5">
@@ -330,19 +335,22 @@ export function ExpandedPlayerModal() {
           </h3>
         </div>
 
-        {/* Right: Connect Device + More Options */}
+        {/* Right: Repeat Mode + More Options */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          {/* Prominent Connect Device Button */}
+          {/* Quick Repeat Button in Header */}
           <button
-            onClick={toggleDeviceModal}
-            className={`p-2.5 rounded-full transition-all flex items-center gap-1.5 active:scale-95 ${
-              !isActiveDevice 
-                ? 'bg-[#fa233b] text-white shadow-lg shadow-[#fa233b]/40 animate-pulse' 
-                : 'text-white/80 hover:text-white hover:bg-white/10'
-            }`}
-            title="Connect to Device"
+            onClick={cycleRepeatMode}
+            className={`p-2.5 rounded-full transition-all flex items-center justify-center active:scale-95 ${normRepeat === 'ALL' || normRepeat === 'ONE'
+                ? 'text-white bg-[#fa233b] shadow-lg shadow-[#fa233b]/40 ring-1 ring-[#fa233b]/60'
+                : 'text-white/70 hover:text-white hover:bg-white/10'
+              }`}
+            title={`Repeat: ${normRepeat === 'ONE' ? 'Repeat ONE' : normRepeat === 'ALL' ? 'Repeat ALL' : 'Repeat OFF'}`}
           >
-            <MonitorSmartphone className="w-5 h-5 sm:w-6 sm:h-6" />
+            {normRepeat === 'ONE' ? (
+              <Repeat1 className="w-5 h-5 sm:w-6 sm:h-6" />
+            ) : (
+              <Repeat className="w-5 h-5 sm:w-6 sm:h-6" />
+            )}
           </button>
 
           {/* Context Dropdown Menu Trigger */}
@@ -360,11 +368,11 @@ export function ExpandedPlayerModal() {
 
             {/* Context Dropdown Popover */}
             {isMenuOpen && (
-              <div 
+              <div
                 className="absolute right-0 top-full mt-2 w-64 bg-[#12131a]/98 backdrop-blur-3xl border border-white/15 rounded-2xl p-2 shadow-[0_25px_70px_rgba(0,0,0,0.95)] z-[999] text-xs text-white select-none animate-in fade-in zoom-in-95 duration-150"
                 onClick={(e) => e.stopPropagation()}
               >
-                <button 
+                <button
                   onClick={() => {
                     toggleLikeSong(currentSong.id);
                     setToastMessage(isLiked ? 'Removed from Liked Songs' : 'Saved to your Liked Songs');
@@ -378,7 +386,7 @@ export function ExpandedPlayerModal() {
                   </div>
                 </button>
 
-                <button 
+                <button
                   onClick={() => {
                     addToQueue(currentSong);
                     setToastMessage(`Added "${currentSong.title}" to queue`);
@@ -393,7 +401,7 @@ export function ExpandedPlayerModal() {
                 </button>
 
                 <div>
-                  <button 
+                  <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowPlaylists(!showPlaylists);
@@ -444,7 +452,7 @@ export function ExpandedPlayerModal() {
 
                 <div className="h-px bg-white/10 my-1" />
 
-                <button 
+                <button
                   onClick={() => {
                     const artistTarget = currentSong.artistId || currentSong.artist;
                     if (artistTarget) setSelectedArtistId(artistTarget);
@@ -461,7 +469,7 @@ export function ExpandedPlayerModal() {
                   <span className="text-white/40 text-xs">▸</span>
                 </button>
 
-                <button 
+                <button
                   onClick={() => {
                     const albumTarget = currentSong.albumId || currentSong.album;
                     if (albumTarget) setSelectedAlbumId(albumTarget);
@@ -481,7 +489,7 @@ export function ExpandedPlayerModal() {
                 <div className="h-px bg-white/10 my-1" />
 
                 {/* Sleep Timer Option */}
-                <button 
+                <button
                   onClick={() => {
                     toggleSleepTimerModal();
                     setIsMenuOpen(false);
@@ -496,7 +504,7 @@ export function ExpandedPlayerModal() {
                 </button>
 
                 {/* Equalizer Option */}
-                <button 
+                <button
                   onClick={() => {
                     toggleEqualizer(true);
                     setIsMenuOpen(false);
@@ -511,7 +519,7 @@ export function ExpandedPlayerModal() {
                 </button>
 
                 {/* Car Driving Mode Option */}
-                <button 
+                <button
                   onClick={() => {
                     toggleCarMode(true);
                     setIsMenuOpen(false);
@@ -526,7 +534,7 @@ export function ExpandedPlayerModal() {
                 </button>
 
                 {/* Share Option */}
-                <button 
+                <button
                   onClick={() => {
                     const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/#song=${currentSong.id}` : '';
                     if (typeof navigator !== 'undefined' && navigator.share) {
@@ -534,7 +542,7 @@ export function ExpandedPlayerModal() {
                         title: currentSong.title,
                         text: `Listen to "${currentSong.title}" by ${currentSong.artist} on RaagaX`,
                         url: shareUrl || window.location.href,
-                      }).catch(() => {});
+                      }).catch(() => { });
                     } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
                       navigator.clipboard.writeText(shareUrl || window.location.href);
                       setToastMessage('Song link copied to clipboard!');
@@ -550,7 +558,7 @@ export function ExpandedPlayerModal() {
                   <span className="text-white/40 text-xs">↗</span>
                 </button>
 
-                <button 
+                <button
                   onClick={() => {
                     playNext();
                     setToastMessage(`Won't recommend "${currentSong.title}" again`);
@@ -572,10 +580,10 @@ export function ExpandedPlayerModal() {
 
       {/* CENTER VIEW: ALBUM ART OR LIVE SYNCED LYRICS */}
       <div className="relative z-0 flex-1 min-h-0 flex flex-col justify-between w-full max-w-4xl mx-auto py-1 sm:py-3">
-        
+
         {viewMode === 'art' ? (
           /* Album Artwork Screen */
-          <div 
+          <div
             onClick={() => setViewMode('lyrics')}
             onTouchStart={handleArtTouchStart}
             onTouchMove={handleArtTouchMove}
@@ -615,46 +623,43 @@ export function ExpandedPlayerModal() {
                 <div className="flex items-center p-0.5 rounded-lg border border-white/10 bg-white/5 text-[11px] font-bold">
                   <button
                     onClick={() => setScriptMode('native')}
-                    className={`px-2.5 py-1 rounded-md transition-all ${
-                      scriptMode === 'native' 
-                        ? 'bg-white/20 text-white shadow-sm font-black' 
+                    className={`px-2.5 py-1 rounded-md transition-all ${scriptMode === 'native'
+                        ? 'bg-white/20 text-white shadow-sm font-black'
                         : 'text-white/50 hover:text-white'
-                    }`}
+                      }`}
                   >
                     ● Native
                   </button>
                   <button
                     onClick={() => setScriptMode('transliteration')}
-                    className={`px-2.5 py-1 rounded-md transition-all ${
-                      scriptMode === 'transliteration' 
-                        ? 'bg-white/20 text-white shadow-sm font-black' 
+                    className={`px-2.5 py-1 rounded-md transition-all ${scriptMode === 'transliteration'
+                        ? 'bg-white/20 text-white shadow-sm font-black'
                         : 'text-white/50 hover:text-white'
-                    }`}
+                      }`}
                   >
                     ● Romanized
                   </button>
                   <button
                     onClick={() => setScriptMode('dual' as any)}
-                    className={`px-2.5 py-1 rounded-md transition-all ${
-                      (scriptMode as any) === 'dual' 
-                        ? 'bg-white/20 text-white shadow-sm font-black' 
+                    className={`px-2.5 py-1 rounded-md transition-all ${(scriptMode as any) === 'dual'
+                        ? 'bg-white/20 text-white shadow-sm font-black'
                         : 'text-white/50 hover:text-white'
-                    }`}
+                      }`}
                   >
                     ● Dual
                   </button>
                 </div>
               )}
 
-              <button 
+              <button
                 onClick={() => setViewMode('art')}
                 className="text-xs font-bold text-white/80 hover:text-white px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-all cursor-pointer"
               >
                 Show Album Art
               </button>
             </div>
-            
-            <div 
+
+            <div
               ref={modalLyricsScrollRef}
               className="flex-1 overflow-y-auto scrollbar-hide py-20 px-3 sm:px-4 space-y-6 sm:space-y-8 flex flex-col items-start"
             >
@@ -668,7 +673,7 @@ export function ExpandedPlayerModal() {
                 <div className="w-full text-center py-16 text-white/60 flex flex-col items-center gap-3">
                   <p className="text-lg font-bold text-white mb-1">Lyrics unavailable</p>
                   <p className="text-xs">No synchronized lyrics found for this song.</p>
-                  <button 
+                  <button
                     onClick={() => {
                       if (currentSong?.id) {
                         import('@/lib/lyrics/LyricsEngine').then(({ LyricsEngine }) => {
@@ -686,8 +691,8 @@ export function ExpandedPlayerModal() {
                   const isActive = idx === lyricsIndex;
                   const isPassed = idx < lyricsIndex;
                   const isDual = (scriptMode as any) === 'dual';
-                  const mainContent = (scriptMode === 'transliteration' && line.romanizedText) 
-                    ? line.romanizedText 
+                  const mainContent = (scriptMode === 'transliteration' && line.romanizedText)
+                    ? line.romanizedText
                     : (line.nativeText || line.text);
                   const subContent = isDual ? (line.romanizedText || line.englishText) : null;
 
@@ -702,17 +707,17 @@ export function ExpandedPlayerModal() {
                           usePlayerStore.getState().setSeekTarget(sec);
                           import('@/lib/lyrics/LyricsEngine').then(({ LyricsEngine }) => {
                             LyricsEngine.getInstance().seek(line.startMs);
-                          }).catch(() => {});
+                          }).catch(() => { });
                           import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
                             ConnectManager.getInstance().dispatchPlaybackCommand('SEEK', { positionMs: line.startMs });
-                          }).catch(() => {});
+                          }).catch(() => { });
                         }
                       }}
                       className={`w-full text-left transition-all duration-300 transform origin-left cursor-pointer select-none leading-snug py-1
-                        ${isActive 
-                          ? 'text-2xl sm:text-4xl font-black text-[#fa233b] drop-shadow-[0_0_25px_rgba(250,35,59,0.85)] scale-[1.02]' 
-                          : isPassed 
-                            ? 'text-lg sm:text-2xl font-bold text-white/35 opacity-40 hover:opacity-75' 
+                        ${isActive
+                          ? 'text-2xl sm:text-4xl font-black text-[#fa233b] drop-shadow-[0_0_25px_rgba(250,35,59,0.85)] scale-[1.02]'
+                          : isPassed
+                            ? 'text-lg sm:text-2xl font-bold text-white/35 opacity-40 hover:opacity-75'
                             : 'text-lg sm:text-2xl font-bold text-white/65 hover:text-white/95 opacity-70'}
                       `}
                     >
@@ -732,7 +737,7 @@ export function ExpandedPlayerModal() {
 
         {/* BOTTOM PLAYER CONTROLS SECTION */}
         <div className="flex-shrink-0 flex flex-col gap-3 sm:gap-5 w-full">
-          
+
           {/* SONG TITLE & ARTIST ROW + ANIMATED HEART */}
           <div className="flex items-center justify-between gap-4 max-w-4xl mx-auto w-full px-1">
             <div className="min-w-0 flex-1">
@@ -740,7 +745,7 @@ export function ExpandedPlayerModal() {
                 {currentSong.title}
               </h1>
               <div className="flex items-center gap-2 mt-1">
-                <p 
+                <p
                   onClick={() => {
                     const artistTarget = currentSong.artistId || currentSong.artist;
                     if (artistTarget) {
@@ -759,7 +764,7 @@ export function ExpandedPlayerModal() {
                 </span>
               </div>
             </div>
-            
+
             <button
               onClick={() => {
                 toggleLikeSong(currentSong.id);
@@ -774,7 +779,7 @@ export function ExpandedPlayerModal() {
 
           {/* PROGRESS / SEEK BAR (INTERACTIVE SCRUBBER) */}
           <div className="max-w-4xl mx-auto w-full space-y-1 px-1">
-            <SeekBar 
+            <SeekBar
               height="h-1.5"
               thumbSize="w-3.5 h-3.5"
               activeColor="bg-[#fa233b]"
@@ -787,13 +792,12 @@ export function ExpandedPlayerModal() {
 
           {/* MAIN 5-BUTTON PLAYBACK CONTROLS ROW */}
           <div className="flex items-center justify-between sm:justify-center gap-2 sm:gap-8 max-w-4xl mx-auto w-full px-1">
-            
+
             {/* 1. Shuffle Button */}
             <button
               onClick={toggleShuffle}
-              className={`p-2.5 transition-all relative hover:scale-110 active:scale-95 ${
-                shuffleMode !== 'OFF' ? 'text-[#fa233b]' : 'text-white/60 hover:text-white'
-              }`}
+              className={`p-2.5 transition-all relative hover:scale-110 active:scale-95 ${shuffleMode !== 'OFF' ? 'text-[#fa233b]' : 'text-white/60 hover:text-white'
+                }`}
               title={`Shuffle: ${shuffleMode}`}
             >
               {shuffleMode === 'SMART' ? (
@@ -848,35 +852,39 @@ export function ExpandedPlayerModal() {
             {/* 5. Repeat Button */}
             <button
               onClick={cycleRepeatMode}
-              className={`p-2.5 transition-all relative hover:scale-110 active:scale-95 ${
-                repeatMode !== 'off' ? 'text-[#fa233b]' : 'text-white/60 hover:text-white'
-              }`}
-              title={`Repeat: ${repeatMode}`}
+              className={`p-2.5 transition-all relative hover:scale-110 active:scale-95 ${normRepeat === 'ALL' || normRepeat === 'ONE' ? 'text-[#fa233b]' : 'text-white/60 hover:text-white'
+                }`}
+              title={`Repeat: ${normRepeat === 'ONE' ? 'Repeat ONE' : normRepeat === 'ALL' ? 'Repeat ALL' : 'Repeat OFF'}`}
             >
-              {repeatMode === 'one' ? <Repeat1 className="w-5 h-5 sm:w-6 sm:h-6" /> : <Repeat className="w-5 h-5 sm:w-6 sm:h-6" />}
-              {repeatMode !== 'off' && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-[#fa233b]" />}
+              {normRepeat === 'ONE' ? (
+                <Repeat1 className="w-5 h-5 sm:w-6 sm:h-6" />
+              ) : (
+                <Repeat className="w-5 h-5 sm:w-6 sm:h-6" />
+              )}
+              {(normRepeat === 'ALL' || normRepeat === 'ONE') && (
+                <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-[#fa233b]" />
+              )}
             </button>
           </div>
 
           {/* PLAYER ACTION TOOLBAR ROW */}
           <div className="flex items-center justify-between w-full max-w-4xl mx-auto px-1 pb-1 gap-2">
-            
+
             {/* Left: Synced Lyrics Toggle Button */}
             <button
               onClick={() => setViewMode(v => v === 'lyrics' ? 'art' : 'lyrics')}
-              className={`px-3.5 py-2 rounded-2xl font-black text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer flex-shrink-0 ${
-                viewMode === 'lyrics'
+              className={`px-3.5 py-2 rounded-2xl font-black text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer flex-shrink-0 ${viewMode === 'lyrics'
                   ? 'bg-[#fa233b] text-white shadow-[#fa233b]/30'
                   : 'bg-white/10 hover:bg-white/20 text-white/90'
-              }`}
+                }`}
             >
-              <Mic2 className={`w-4 h-4 ${viewMode === 'lyrics' ? 'text-white' : 'text-[#fa233b]'}`} /> 
+              <Mic2 className={`w-4 h-4 ${viewMode === 'lyrics' ? 'text-white' : 'text-[#fa233b]'}`} />
               <span>{viewMode === 'lyrics' ? 'Album Art' : 'Lyrics'}</span>
             </button>
 
             {/* Middle: Integrated Volume Slider */}
             <div className="hidden sm:flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-2xl">
-              <button 
+              <button
                 onClick={toggleMute}
                 className="text-white/60 hover:text-white transition-colors"
                 title={isMuted ? "Unmute" : "Mute"}
@@ -901,7 +909,7 @@ export function ExpandedPlayerModal() {
 
             {/* Right Action Utilities: Download, Sleep Timer, Equalizer, Queue */}
             <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-              
+
               {/* Offline Download Button (4-State) */}
               <button
                 onClick={async () => {
@@ -913,38 +921,35 @@ export function ExpandedPlayerModal() {
                     setToastMessage(isCloudRecorded ? `Restoring "${currentSong.title}" to device...` : `Saving "${currentSong.title}" for offline playback...`);
                   }
                 }}
-                className={`p-2.5 rounded-2xl border transition-all active:scale-95 ${
-                  isDownloaded 
-                    ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10 shadow-sm' 
+                className={`p-2.5 rounded-2xl border transition-all active:scale-95 ${isDownloaded
+                    ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10 shadow-sm'
                     : isCloudRecorded
                       ? 'border-sky-500/50 text-sky-400 bg-sky-500/10 shadow-sm hover:scale-105'
                       : 'border-white/10 bg-white/5 text-white/70 hover:text-white hover:border-[#fa233b]'
-                }`}
+                  }`}
                 title={
-                  isDownloaded 
-                    ? "Downloaded ✓ (Tap to remove)" 
-                    : isCloudRecorded 
-                      ? "Download Again ↓ (Restore to device)" 
+                  isDownloaded
+                    ? "Downloaded ✓ (Tap to remove)"
+                    : isCloudRecorded
+                      ? "Download Again ↓ (Restore to device)"
                       : "Save for Offline Listening"
                 }
               >
-                <Download className={`w-4 h-4 ${
-                  isDownloaded 
-                    ? 'text-emerald-400' 
-                    : isCloudRecorded 
-                      ? 'text-sky-400 animate-pulse' 
+                <Download className={`w-4 h-4 ${isDownloaded
+                    ? 'text-emerald-400'
+                    : isCloudRecorded
+                      ? 'text-sky-400 animate-pulse'
                       : 'text-white/70 hover:text-white'
-                }`} />
+                  }`} />
               </button>
 
               {/* 2. Sleep Timer Button (Inactive: icon / Active: glowing live countdown 🌙 27:45) */}
               <button
                 onClick={toggleSleepTimerModal}
-                className={`px-3 py-2.5 rounded-2xl border transition-all flex items-center gap-1.5 active:scale-95 ${
-                  liveTimerStr 
-                    ? 'border-[#fa233b]/60 text-[#fa233b] bg-[#fa233b]/15 shadow-[0_0_15px_rgba(250,35,59,0.3)]' 
+                className={`px-3 py-2.5 rounded-2xl border transition-all flex items-center gap-1.5 active:scale-95 ${liveTimerStr
+                    ? 'border-[#fa233b]/60 text-[#fa233b] bg-[#fa233b]/15 shadow-[0_0_15px_rgba(250,35,59,0.3)]'
                     : 'border-white/10 bg-white/5 text-white/70 hover:text-white hover:border-white/30'
-                }`}
+                  }`}
                 title={liveTimerStr ? `Sleep Timer: ${liveTimerStr} remaining` : "Set Sleep Timer"}
               >
                 <Moon className={`w-4 h-4 ${liveTimerStr ? 'text-[#fa233b] animate-pulse' : ''}`} />
@@ -965,7 +970,7 @@ export function ExpandedPlayerModal() {
       </div>
 
       {/* RAAGAX CONNECT ACTIVE DEVICE BOTTOM BAR */}
-      <div 
+      <div
         onClick={toggleDeviceModal}
         className="relative z-10 -mx-4 sm:-mx-6 md:-mx-8 -mb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-[#fa233b] text-white px-5 py-2.5 pb-[calc(0.6rem+env(safe-area-inset-bottom))] flex items-center justify-between font-black text-xs cursor-pointer hover:bg-[#d91533] transition-colors shadow-[0_-5px_20px_rgba(250,35,59,0.3)] mt-2"
       >

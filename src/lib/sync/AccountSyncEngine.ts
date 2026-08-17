@@ -102,7 +102,7 @@ export class AccountSyncEngine {
       if (existing) {
         await supabase.removeChannel(existing);
       }
-    } catch {}
+    } catch { }
 
     let debounceTimer: NodeJS.Timeout | null = null;
     const triggerReconcile = () => {
@@ -178,8 +178,8 @@ export class AccountSyncEngine {
                 usePlayerStore.setState({ likedSongs: [resolved[0], ...currentSongs] });
               }
             }
-          }).catch(() => {});
-        }).catch(() => {});
+          }).catch(() => { });
+        }).catch(() => { });
       } else if (eventType === 'DELETE') {
         const songId = payload.old?.song_id;
         if (songId) {
@@ -326,7 +326,7 @@ export class AccountSyncEngine {
     if (this.channel) {
       try {
         supabase.removeChannel(this.channel);
-      } catch {}
+      } catch { }
       this.channel = null;
     }
   }
@@ -354,107 +354,107 @@ export class AccountSyncEngine {
         const { usePlaylistStore } = await import('@/context/usePlaylistStore');
         const { OfflineCatalog } = await import('@/lib/offline/OfflineCatalog');
 
-      // 1. Reconcile Liked Songs
-      const { data: likedData, error: likedError } = await supabase
-        .from('liked_songs')
-        .select('song_id')
-        .eq('user_id', userId);
-
-      if (!likedError && likedData) {
-        const songIds = likedData.map((row: any) => row.song_id);
-        await localDb.setUserStore(userId, 'liked_songs', songIds);
-        usePlayerStore.setState({ likedSongIds: songIds });
-
-        // Resolve full song metadata for liked songs cache
-        import('@/lib/discovery/SongResolver').then(({ SongResolver }) => {
-          SongResolver.resolveSongs(songIds).then((resolved) => {
-            if (resolved && resolved.length > 0) {
-              usePlayerStore.setState({ likedSongs: resolved });
-            }
-          }).catch(() => {});
-        }).catch(() => {});
-      }
-
-      // 2. Reconcile Playlists
-      try {
-        await usePlaylistStore.getState().fetchPlaylists();
-      } catch (plErr) {
-        console.warn('[AccountSyncEngine] Failed to reconcile playlists:', plErr);
-      }
-
-      // 3. Reconcile User Favorites (Artists & Albums)
-      try {
-        const { data: favData, error: favError } = await supabase
-          .from('user_favorites')
-          .select('item_id, item_type')
+        // 1. Reconcile Liked Songs
+        const { data: likedData, error: likedError } = await supabase
+          .from('liked_songs')
+          .select('song_id')
           .eq('user_id', userId);
 
-        if (!favError && favData) {
-          const favArtists = favData.filter((f: any) => f.item_type === 'artist').map((f: any) => f.item_id);
-          const favAlbums = favData.filter((f: any) => f.item_type === 'album').map((f: any) => f.item_id);
-          usePlayerStore.setState({
-            favoriteArtistIds: favArtists,
-            favoriteAlbumIds: favAlbums
-          });
+        if (!likedError && likedData) {
+          const songIds = likedData.map((row: any) => row.song_id);
+          await localDb.setUserStore(userId, 'liked_songs', songIds);
+          usePlayerStore.setState({ likedSongIds: songIds });
+
+          // Resolve full song metadata for liked songs cache
+          import('@/lib/discovery/SongResolver').then(({ SongResolver }) => {
+            SongResolver.resolveSongs(songIds).then((resolved) => {
+              if (resolved && resolved.length > 0) {
+                usePlayerStore.setState({ likedSongs: resolved });
+              }
+            }).catch(() => { });
+          }).catch(() => { });
         }
-      } catch (favErr) {
-        console.warn('[AccountSyncEngine] Failed to reconcile favorites:', favErr);
-      }
 
-      // 4. Reconcile Recently Played (listening_events)
-      try {
-        const { data: historyData, error: historyError } = await supabase
-          .from('listening_events')
-          .select('song_id')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(50);
-
-        if (!historyError && historyData && historyData.length > 0) {
-          const cloudHistory = Array.from(new Set(historyData.map((d: any) => d.song_id).filter(Boolean)));
-          const currentHistory = usePlayerStore.getState().historySongIds || [];
-          const mergedHistory = Array.from(new Set([...cloudHistory, ...currentHistory])).slice(0, 50);
-          usePlayerStore.setState({ historySongIds: mergedHistory });
-        }
-      } catch (historyErr) {
-        console.warn('[AccountSyncEngine] Failed to reconcile history:', historyErr);
-      }
-
-      // 4. Reconcile Cloud Download Records (User's Cloud Download List)
-      if (this.hasUserDownloadsTable) {
+        // 2. Reconcile Playlists
         try {
-          const { data: downloadData, error: downloadError } = await supabase
-            .from('user_downloads')
-            .select('*')
+          await usePlaylistStore.getState().fetchPlaylists();
+        } catch (plErr) {
+          console.warn('[AccountSyncEngine] Failed to reconcile playlists:', plErr);
+        }
+
+        // 3. Reconcile User Favorites (Artists & Albums)
+        try {
+          const { data: favData, error: favError } = await supabase
+            .from('user_favorites')
+            .select('item_id, item_type')
             .eq('user_id', userId);
 
-          if (downloadError) {
-            if (downloadError.code === '42P01' || downloadError.message?.includes('does not exist')) {
-              this.hasUserDownloadsTable = false;
-            }
-          } else if (downloadData) {
-            const records: CloudDownloadRecord[] = downloadData.map((row: any) => ({
-              song_id: row.song_id,
-              user_id: row.user_id,
-              downloaded_at: row.downloaded_at || row.created_at,
-              song_title: row.song_title,
-              song_artist: row.song_artist,
-              song_cover: row.song_cover,
-              song_duration: row.song_duration,
-              song_version: row.song_version,
-            }));
-
-            await localDb.setUserStore(userId, 'user_downloads', records);
-            const cloudIds = records.map((r) => r.song_id);
+          if (!favError && favData) {
+            const favArtists = favData.filter((f: any) => f.item_type === 'artist').map((f: any) => f.item_id);
+            const favAlbums = favData.filter((f: any) => f.item_type === 'album').map((f: any) => f.item_id);
             usePlayerStore.setState({
-              cloudDownloadedSongIds: cloudIds,
-              cloudDownloadRecords: records,
+              favoriteArtistIds: favArtists,
+              favoriteAlbumIds: favAlbums
             });
           }
-        } catch (e) {
-          this.hasUserDownloadsTable = false;
+        } catch (favErr) {
+          console.warn('[AccountSyncEngine] Failed to reconcile favorites:', favErr);
         }
-      }
+
+        // 4. Reconcile Recently Played (listening_events)
+        try {
+          const { data: historyData, error: historyError } = await supabase
+            .from('listening_events')
+            .select('song_id')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(50);
+
+          if (!historyError && historyData && historyData.length > 0) {
+            const cloudHistory = Array.from(new Set(historyData.map((d: any) => d.song_id).filter(Boolean)));
+            const currentHistory = usePlayerStore.getState().historySongIds || [];
+            const mergedHistory = Array.from(new Set([...cloudHistory, ...currentHistory])).slice(0, 50);
+            usePlayerStore.setState({ historySongIds: mergedHistory });
+          }
+        } catch (historyErr) {
+          console.warn('[AccountSyncEngine] Failed to reconcile history:', historyErr);
+        }
+
+        // 4. Reconcile Cloud Download Records (User's Cloud Download List)
+        if (this.hasUserDownloadsTable) {
+          try {
+            const { data: downloadData, error: downloadError } = await supabase
+              .from('user_downloads')
+              .select('*')
+              .eq('user_id', userId);
+
+            if (downloadError) {
+              if (downloadError.code === '42P01' || downloadError.message?.includes('does not exist')) {
+                this.hasUserDownloadsTable = false;
+              }
+            } else if (downloadData) {
+              const records: CloudDownloadRecord[] = downloadData.map((row: any) => ({
+                song_id: row.song_id,
+                user_id: row.user_id,
+                downloaded_at: row.downloaded_at || row.created_at,
+                song_title: row.song_title,
+                song_artist: row.song_artist,
+                song_cover: row.song_cover,
+                song_duration: row.song_duration,
+                song_version: row.song_version,
+              }));
+
+              await localDb.setUserStore(userId, 'user_downloads', records);
+              const cloudIds = records.map((r) => r.song_id);
+              usePlayerStore.setState({
+                cloudDownloadedSongIds: cloudIds,
+                cloudDownloadRecords: records,
+              });
+            }
+          } catch (e) {
+            this.hasUserDownloadsTable = false;
+          }
+        }
 
         // 5. Authoritative Local Device Storage Check
         // IMPORTANT RULE: Only mark as locally downloaded if the actual audio file is present in IndexedDB on THIS device!
@@ -509,7 +509,7 @@ export class AccountSyncEngine {
         if (data?.session?.user?.id && this.isUUID(data.session.user.id)) {
           effectiveUserId = data.session.user.id;
         }
-      } catch {}
+      } catch { }
     }
 
     const localDb = LocalDatabase.getInstance();
@@ -565,7 +565,7 @@ export class AccountSyncEngine {
         if (data?.session?.user?.id && this.isUUID(data.session.user.id)) {
           effectiveUserId = data.session.user.id;
         }
-      } catch {}
+      } catch { }
     }
 
     const localDb = LocalDatabase.getInstance();
@@ -753,7 +753,7 @@ export class AccountSyncEngine {
   public async recordCloudDownload(userId: string, song: Song): Promise<void> {
     const localDb = LocalDatabase.getInstance();
     const records = (await localDb.getUserStore<CloudDownloadRecord[]>(userId, 'user_downloads')) || [];
-    
+
     const newRecord: CloudDownloadRecord = {
       song_id: song.id,
       user_id: userId,
@@ -776,7 +776,7 @@ export class AccountSyncEngine {
         cloudDownloadedSongIds: cloudIds,
         cloudDownloadRecords: updated,
       });
-    } catch {}
+    } catch { }
 
     if (this.hasUserDownloadsTable && this.isOnline && this.isUUID(userId)) {
       try {
@@ -792,7 +792,7 @@ export class AccountSyncEngine {
             song_version: '1.0',
             downloaded_at: newRecord.downloaded_at,
           }, { onConflict: 'user_id,song_id' });
-          
+
         if (error) {
           if (error.code === '42P01' || error.message?.includes('does not exist')) {
             this.hasUserDownloadsTable = false;
@@ -831,7 +831,7 @@ export class AccountSyncEngine {
         cloudDownloadedSongIds: cloudIds,
         cloudDownloadRecords: updated,
       });
-    } catch {}
+    } catch { }
 
     if (this.hasUserDownloadsTable && this.isOnline && this.isUUID(userId)) {
       try {

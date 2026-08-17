@@ -104,7 +104,7 @@ export interface RadioStation {
   audioQuality?: string;
 }
 
-export type RepeatMode = 'off' | 'all' | 'one';
+export type RepeatMode = 'OFF' | 'ALL' | 'ONE' | 'off' | 'all' | 'one';
 
 
 export interface AIDJState {

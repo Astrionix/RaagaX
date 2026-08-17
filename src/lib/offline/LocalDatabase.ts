@@ -13,7 +13,7 @@ export class LocalDatabase {
   private static instance: LocalDatabase;
   private dbPromise: Promise<IDBPDatabase<any>> | null = null;
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): LocalDatabase {
     if (!LocalDatabase.instance) {

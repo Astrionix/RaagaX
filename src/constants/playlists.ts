@@ -324,7 +324,7 @@ export function getCuratedPlaylists(language?: string): CuratedPlaylist[] {
   if (!language) return LANGUAGE_PLAYLIST_MAP['Telugu'];
 
   const normalized = language.charAt(0).toUpperCase() + language.slice(1).toLowerCase();
-  
+
   if (LANGUAGE_PLAYLIST_MAP[normalized]) {
     return LANGUAGE_PLAYLIST_MAP[normalized];
   }

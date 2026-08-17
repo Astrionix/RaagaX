@@ -290,6 +290,7 @@ public class RaagaXPlaybackService extends Service {
         else if ("RESUME".equals(action))    { resume(); }
         else if ("SEEK".equals(action))      { seekTo(intent.getLongExtra("positionMs", 0)); }
         else if ("SET_VOLUME".equals(action)){ setVolume(intent.getFloatExtra("volume", 1.0f)); }
+        else if ("SET_REPEAT".equals(action)){ setRepeatMode(intent.getStringExtra("repeatMode")); }
         else if ("STOP".equals(action)) {
             runOnMainThread(() -> {
                 if (player != null) {
@@ -610,6 +611,18 @@ public class RaagaXPlaybackService extends Service {
 
     public void resume()           { runOnMainThread(() -> { if (player != null) player.play(); }); }
     public void pause()            { runOnMainThread(() -> { if (player != null) player.pause(); }); }
+    public void setRepeatMode(String mode) {
+        runOnMainThread(() -> {
+            if (player == null) return;
+            if ("ONE".equalsIgnoreCase(mode) || "TRACK".equalsIgnoreCase(mode)) {
+                player.setRepeatMode(Player.REPEAT_MODE_ONE);
+            } else if ("ALL".equalsIgnoreCase(mode) || "CONTEXT".equalsIgnoreCase(mode)) {
+                player.setRepeatMode(Player.REPEAT_MODE_ALL);
+            } else {
+                player.setRepeatMode(Player.REPEAT_MODE_OFF);
+            }
+        });
+    }
     public void seekTo(long posMs) {
         runOnMainThread(() -> {
             if (player == null) return;

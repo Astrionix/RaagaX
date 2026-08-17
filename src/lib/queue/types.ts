@@ -55,7 +55,7 @@ export interface QueueHistoryEntry {
   playedPercentage: number;
 }
 
-export type RepeatMode = 'OFF' | 'TRACK' | 'CONTEXT';
+export type RepeatMode = 'OFF' | 'ALL' | 'ONE' | 'TRACK' | 'CONTEXT' | 'off' | 'all' | 'one';
 export type ShuffleMode = 'OFF' | 'STANDARD' | 'SMART';
 
 export interface ShuffleState {

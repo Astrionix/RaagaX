@@ -7,7 +7,7 @@ interface AuthState {
   session: Session | null;
   isLoading: boolean;
   isAuthModalOpen: boolean;
-  
+
   // Actions
   initializeAuth: () => Promise<void>;
   setAuthModalOpen: (isOpen: boolean) => void;
@@ -26,26 +26,26 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       // Get initial session safely
       const { data: { session }, error } = await supabase.auth.getSession();
-      
+
       if (error) {
         console.warn('Session refresh error (clearing stale session):', error.message);
         if (error.message?.includes('Refresh Token') || error.message?.includes('invalid_grant')) {
-          await supabase.auth.signOut().catch(() => {});
+          await supabase.auth.signOut().catch(() => { });
         }
       }
-      
-      set({ 
-        session: error ? null : session, 
+
+      set({
+        session: error ? null : session,
         user: error ? null : (session?.user || null),
-        isLoading: false 
+        isLoading: false
       });
 
       // Listen for auth changes
       supabase.auth.onAuthStateChange((event, newSession) => {
         if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
-          set({ 
-            session: newSession, 
-            user: newSession?.user || null 
+          set({
+            session: newSession,
+            user: newSession?.user || null
           });
         } else if (event === 'SIGNED_OUT') {
           set({ session: null, user: null });
@@ -61,19 +61,19 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const { PlaybackService } = await import('@/lib/playback/PlaybackService');
       PlaybackService.getInstance().pause();
-    } catch {}
+    } catch { }
 
     try {
       const { usePlayerStore } = await import('@/context/usePlayerStore');
       usePlayerStore.getState().setIsPlaying(false, true);
-    } catch {}
+    } catch { }
 
     try {
       const { LocalDatabase } = await import('@/lib/localDatabase');
       await LocalDatabase.getInstance().clearPlaybackSession();
-    } catch {}
+    } catch { }
 
-    await supabase.auth.signOut().catch(() => {});
+    await supabase.auth.signOut().catch(() => { });
     set({ user: null, session: null });
     // Clear cross-device sync local storage fallbacks and queue caches on account switch
     if (typeof window !== 'undefined') {

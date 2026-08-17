@@ -124,6 +124,13 @@ export const RaagaXNativePlayer = {
     await plugin.setVolume({ volume });
   },
 
+  async setRepeatMode(mode: 'OFF' | 'ALL' | 'ONE' | 'off' | 'all' | 'one' | string): Promise<void> {
+    const plugin = getPlugin();
+    if (!plugin) return;
+    const normalized = (mode || 'OFF').toUpperCase();
+    await plugin.setRepeatMode({ repeatMode: normalized });
+  },
+
   async getPlaybackState(): Promise<NativePlaybackState | null> {
     const plugin = getPlugin();
     if (!plugin) return null;

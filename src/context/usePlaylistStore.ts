@@ -155,7 +155,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
           const { data: { session } } = await supabase.auth.getSession();
           authUserId = session?.user?.id || 'guest';
           authUserName = session?.user?.user_metadata?.full_name || 'You';
-        } catch {}
+        } catch { }
 
         const inviteCode = id.slice(0, 8);
         const newPl: UserPlaylist = {
