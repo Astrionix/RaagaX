@@ -9,6 +9,7 @@ import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { BulkDownloadConfirmModal } from '@/components/modals/BulkDownloadConfirmModal';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 export function PlaylistDetailView() {
   const { 
@@ -125,7 +126,7 @@ export function PlaylistDetailView() {
       } else {
         const prefLang = usePlayerStore.getState().preferredLanguage || 'Telugu';
         try {
-          const res = await fetch(`/api/playlist/details?playlistId=${encodeURIComponent(selectedPlaylistId)}&lang=${encodeURIComponent(prefLang)}`);
+          const res = await fetch(getApiUrl(`/api/playlist/details?playlistId=${encodeURIComponent(selectedPlaylistId)}&lang=${encodeURIComponent(prefLang)}`));
           const json = await res.json();
           if (json && json.success && json.playlist && isMounted) {
             setPlaylist(json.playlist);

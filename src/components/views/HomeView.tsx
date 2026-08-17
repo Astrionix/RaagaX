@@ -16,29 +16,112 @@ import useSWR from 'swr';
 import { getApiUrl } from '@/lib/config/apiConfig';
 
 const homeFetcher = async (url: string, preferredLanguage: string) => {
-  const { supabase } = await import('@/lib/supabase');
-  const { UserLifecycleManager } = await import('@/lib/lifecycle/UserLifecycleManager');
-  const { data: { session } } = await supabase.auth.getSession();
-  const phase = UserLifecycleManager.getInstance().getData().phase;
+  const { RaagaDB, STORES } = await import('@/lib/storage/IndexedDB');
+  const db = RaagaDB.getInstance();
+  const cacheKey = `home_${preferredLanguage}`;
 
-  const userName = session?.user?.user_metadata?.full_name ? encodeURIComponent(session.user.user_metadata.full_name.split(' ')[0]) : '';
-  const fullUrl = session?.user?.id
-    ? `${url}&userId=${session.user.id}&name=${userName}&phase=${phase}`
-    : `${url}&phase=${phase}`;
+  try {
+    const { supabase } = await import('@/lib/supabase');
+    const { UserLifecycleManager } = await import('@/lib/lifecycle/UserLifecycleManager');
+    const { data: { session } } = await supabase.auth.getSession();
+    const phase = UserLifecycleManager.getInstance().getData().phase;
 
-  const res = await fetch(getApiUrl(fullUrl)).catch(() => null);
+    const userName = session?.user?.user_metadata?.full_name ? encodeURIComponent(session.user.user_metadata.full_name.split(' ')[0]) : '';
+    const fullUrl = session?.user?.id
+      ? `${url}&userId=${session.user.id}&name=${userName}&phase=${phase}`
+      : `${url}&phase=${phase}`;
 
-  if (!res || !res.ok) throw new Error('Failed to fetch home');
-  const data: HomePayload = await res.json();
+    const res = await fetch(getApiUrl(fullUrl), { signal: AbortSignal.timeout(5000) }).catch(() => null);
 
-  // Filter out any "This Week's Releases" or "new_releases" sections if present
-  if (data?.sections) {
-    data.sections = data.sections.filter(
-      (s: HomeSection) => s.id !== 'this_week_releases' && s.id !== 'new_releases' && !s.title?.toLowerCase().includes('this week')
-    );
+    if (res && res.ok) {
+      const data: HomePayload = await res.json();
+      if (data?.sections) {
+        data.sections = data.sections.filter(
+          (s: HomeSection) => s.id !== 'this_week_releases' && s.id !== 'new_releases' && !s.title?.toLowerCase().includes('this week')
+        );
+      }
+      // Cache successful response in IndexedDB
+      if (data?.sections && data.sections.length > 0) {
+        await db.put(STORES.BROWSE_CACHE, { id: cacheKey, data, updatedAt: Date.now() }).catch(() => {});
+      }
+      return data;
+    }
+  } catch (e) {
+    console.warn('[HomeView] Online home fetch failed, falling back to local cache:', e);
   }
 
-  return data;
+  // Offline Fallback 1: Return last cached Home payload from IndexedDB
+  try {
+    const cached = await db.get<any>(STORES.BROWSE_CACHE, cacheKey);
+    if (cached && cached.data?.sections && cached.data.sections.length > 0) {
+      return cached.data;
+    }
+  } catch {}
+
+  // Offline Fallback 2: Generate local offline home sections
+  try {
+    const { AlbumCatalogEngine } = await import('@/lib/albumCatalog');
+    const { OfflineCatalog } = await import('@/lib/offline/OfflineCatalog');
+    const seedAlbums = AlbumCatalogEngine.getAlbumsForLanguage(preferredLanguage);
+    const downloadedTracks = await OfflineCatalog.getInstance().getAllTracks();
+
+    const sections: HomeSection[] = [];
+
+    if (downloadedTracks && downloadedTracks.length > 0) {
+      sections.push({
+        id: 'home_offline_downloads',
+        type: 'carousel',
+        title: 'Downloaded Tracks',
+        items: downloadedTracks.slice(0, 20).map(t => ({
+          id: t.trackId,
+          title: t.title,
+          subtitle: t.artist,
+          imageUrl: t.artworkUrl || '/app-icon.png',
+          type: 'song',
+          rawItem: {
+            id: t.trackId,
+            title: t.title,
+            artist: t.artist,
+            artistId: t.artist || 'local',
+            album: t.album || 'Downloaded',
+            albumId: t.album || 'local',
+            coverUrl: t.artworkUrl || '/app-icon.png',
+            duration: t.durationMs ? Math.round(t.durationMs / 1000) : 0,
+            audioUrl: (t as any).audioUrl || null,
+            category: 'latest_telugu',
+            genre: 'Offline',
+            releaseYear: new Date(t.downloadedAt || Date.now()).getFullYear(),
+            plays: 0,
+            likes: 0,
+            source: 'local',
+          } as unknown as Song,
+        })),
+      });
+    }
+
+    if (seedAlbums && seedAlbums.length > 0) {
+      sections.push({
+        id: 'home_local_albums',
+        type: 'carousel',
+        title: `Popular ${preferredLanguage} Albums`,
+        items: seedAlbums.map(a => ({
+          id: a.id,
+          title: a.title,
+          subtitle: `${a.artist} • ${a.releaseYear}`,
+          imageUrl: a.coverUrl || '/app-icon.png',
+          type: 'album',
+          rawItem: a,
+        })),
+      });
+    }
+
+    return {
+      greeting: 'Good day',
+      sections,
+    };
+  } catch {}
+
+  return { greeting: 'Good day', sections: [] };
 };
 
 function songsToShelfItems(songs: Song[]): ShelfItem[] {

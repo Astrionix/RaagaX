@@ -59,15 +59,14 @@ try {
     apiMoved = true;
   }
 
-  // Step 2: Clean previous export and .next-export directory if exists
+  // Step 2: Clean previous export and .next directory if exists
   if (fs.existsSync(outDir)) {
     console.log('[EXPORT] Cleaning previous out/ directory...');
     try { fs.rmSync(outDir, { recursive: true, force: true }); } catch {}
   }
-  const nextBuildDir = path.join(rootDir, '.next-export');
-  if (fs.existsSync(nextBuildDir)) {
-    console.log('[EXPORT] Cleaning previous .next-export/ build directory...');
-    try { fs.rmSync(nextBuildDir, { recursive: true, force: true }); } catch {}
+  const nextDir = path.join(rootDir, '.next');
+  if (fs.existsSync(nextDir)) {
+    try { fs.rmSync(nextDir, { recursive: true, force: true }); } catch {}
   }
 
   // Step 3: Run Next.js build in static export mode
