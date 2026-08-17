@@ -16,7 +16,8 @@ import {
   Settings,
   Disc3,
   WifiOff,
-  Bell
+  Bell,
+  BarChart3
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
@@ -42,7 +43,7 @@ export function Sidebar() {
     setSelectedPlaylistId,
     selectedPlaylistId,
     setCreatePlaylistModalOpen,
-    toggleSettingsModal
+    toggleSettingsModal,
   } = usePlayerStore();
   
   const { user, signOut, setAuthModalOpen } = useAuthStore();
@@ -55,15 +56,6 @@ export function Sidebar() {
     }
   }, [user, fetchPlaylists]);
 
-  // Valid JioSaavn curated playlists
-  const staticPlaylists = [
-    { id: '150750109', name: 'Favourites Mix', desc: 'RaagaX Mix', icon: Heart },
-    { id: '169673226', name: 'Chill Hits', desc: 'RaagaX Chill' },
-    { id: '767984632', name: 'Workout', desc: 'RaagaX Fitness' },
-    { id: '1170578801', name: "90's Hits", desc: "RaagaX 90's" },
-    { id: '384435110', name: 'Love Songs', desc: 'Romance' },
-  ];
-
   return (
     <aside className="hidden md:flex fixed left-0 top-0 bottom-20 z-30 w-64 p-4 pb-6 flex-col justify-between select-none bg-[var(--sidebar-bg)] backdrop-blur-3xl border-r border-[var(--border-subtle)] text-[var(--text-primary)] text-xs transition-colors duration-200">
       <div className="space-y-5 overflow-y-auto no-scrollbar pr-1">
@@ -74,8 +66,13 @@ export function Sidebar() {
             <RaagaXWordmark size="md" subEdition="Studio Edition" />
           </div>
           <button
+            onClick={() => {
+              import('@/context/useNotificationStore').then(({ useNotificationStore }) => {
+                useNotificationStore.getState().toggleOpen();
+              });
+            }}
             aria-label="Notifications"
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors relative"
+            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors relative cursor-pointer"
             title="Notifications"
           >
             <Bell className="w-4 h-4" />
@@ -166,6 +163,16 @@ export function Sidebar() {
             <Download className="w-4 h-4 text-cyan-400" />
             <span>Downloads</span>
           </button>
+
+          <button 
+            onClick={() => setActiveTab('insights')} 
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all ${
+              activeTab === 'insights' ? 'bg-white/10 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4 text-amber-400" />
+            <span>Music Insights</span>
+          </button>
           
           <button 
             onClick={() => setOfflineMode(!isOfflineMode)} 
@@ -194,47 +201,36 @@ export function Sidebar() {
             </button>
           </div>
 
-          {/* User Custom Playlists */}
-          {userPlaylists.map((pl) => (
-            <button
-              key={pl.id}
-              onClick={() => {
-                setSelectedPlaylistId(pl.id);
-                setActiveTab('playlist');
-              }}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all ${
-                selectedPlaylistId === pl.id && activeTab === 'playlist' ? 'bg-white/10 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
-              }`}
+          {/* User Custom Playlists Only */}
+          {userPlaylists.length > 0 ? (
+            userPlaylists.map((pl) => (
+              <button
+                key={pl.id}
+                onClick={() => {
+                  setSelectedPlaylistId(pl.id);
+                  setActiveTab('playlist');
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all ${
+                  selectedPlaylistId === pl.id && activeTab === 'playlist' ? 'bg-white/10 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                <div className="w-6 h-6 rounded-lg bg-[#fa233b]/15 text-[#fa233b] flex items-center justify-center flex-shrink-0">
+                  <Music className="w-3.5 h-3.5" />
+                </div>
+                <div className="truncate min-w-0">
+                  <p className="truncate leading-tight text-xs font-medium">{pl.title}</p>
+                </div>
+              </button>
+            ))
+          ) : (
+            <div
+              onClick={() => setCreatePlaylistModalOpen(true)}
+              className="px-3 py-3 rounded-xl bg-white/[0.02] border border-dashed border-white/10 hover:border-[#fa233b]/40 text-slate-500 hover:text-slate-300 text-center cursor-pointer transition-all group"
             >
-              <div className="w-6 h-6 rounded-lg bg-[#fa233b]/15 text-[#fa233b] flex items-center justify-center flex-shrink-0">
-                <Music className="w-3.5 h-3.5" />
-              </div>
-              <div className="truncate min-w-0">
-                <p className="truncate leading-tight text-xs font-medium">{pl.title}</p>
-              </div>
-            </button>
-          ))}
-
-          {/* Global Curated Playlists */}
-          {staticPlaylists.map((pl) => (
-            <button
-              key={pl.id}
-              onClick={() => {
-                setSelectedPlaylistId(pl.id);
-                setActiveTab('playlist');
-              }}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all ${
-                selectedPlaylistId === pl.id && activeTab === 'playlist' ? 'bg-white/10 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
-              }`}
-            >
-              <div className="w-6 h-6 rounded-lg bg-white/5 text-slate-400 flex items-center justify-center flex-shrink-0">
-                {pl.icon ? <pl.icon className="w-3.5 h-3.5 text-red-400" /> : <Music className="w-3.5 h-3.5" />}
-              </div>
-              <div className="truncate min-w-0">
-                <p className="truncate leading-tight text-xs font-medium">{pl.name}</p>
-              </div>
-            </button>
-          ))}
+              <Plus className="w-3.5 h-3.5 mx-auto mb-1 text-slate-500 group-hover:text-[#fa233b] transition-colors" />
+              <span className="text-[11px] font-medium block">Create a playlist</span>
+            </div>
+          )}
         </div>
       </div>
 

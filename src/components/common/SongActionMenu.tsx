@@ -10,7 +10,7 @@ export function SongActionMenu({ song }: { song: Song }) {
   const [showPlaylists, setShowPlaylists] = useState(false);
   const [copied, setCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { playSong, addToQueue, toggleLikeSong, likedSongIds, downloadedSongIds, cloudDownloadedSongIds = [] } = usePlayerStore();
+  const { playSong, addToQueue, playNextInQueue, toggleLikeSong, likedSongIds, downloadedSongIds, cloudDownloadedSongIds = [] } = usePlayerStore();
   const { playlists, addSongToPlaylist } = usePlaylistStore();
   const { tasks, pauseDownload, resumeDownload, cancelDownload, saveForOffline, removeDownload, exportSong } = useDownloadStore();
 
@@ -82,13 +82,24 @@ export function SongActionMenu({ song }: { song: Song }) {
             <>
               {/* Play Next */}
               <button 
+                onClick={() => handleAction(() => playNextInQueue(song))}
+                className="w-full text-left px-2.5 py-2.5 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/5 text-[#EF233C] group-hover:bg-[#EF233C] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
+                  <Play className="w-4 h-4 ml-0.5" />
+                </div>
+                <span className="font-medium text-slate-200 group-hover:text-white flex-1 ml-3.5 text-sm">Play Next</span>
+              </button>
+
+              {/* Add to Queue */}
+              <button 
                 onClick={() => handleAction(() => addToQueue(song))}
                 className="w-full text-left px-2.5 py-2.5 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
               >
                 <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/5 text-[#EF233C] group-hover:bg-[#EF233C] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
                   <ListPlus className="w-4 h-4" />
                 </div>
-                <span className="font-medium text-slate-200 group-hover:text-white flex-1 ml-3.5 text-sm">Play Next</span>
+                <span className="font-medium text-slate-200 group-hover:text-white flex-1 ml-3.5 text-sm">Add to Queue</span>
               </button>
 
               {/* Add to Playlist */}

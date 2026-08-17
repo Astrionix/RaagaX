@@ -44,6 +44,7 @@ import {
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
 import { useThemeStore } from '@/context/useThemeStore';
+import { useDownloadStore } from '@/context/useDownloadStore';
 import { LocalDatabase } from '@/lib/offline/LocalDatabase';
 import { AccountSyncEngine } from '@/lib/sync/AccountSyncEngine';
 import { AudioQuality } from '@/lib/playback/types';
@@ -112,11 +113,20 @@ export function SettingsView() {
     setGaplessEnabled,
     toggleAutoplay,
     preferredLanguage,
+    selectedLanguages,
+    setSelectedLanguages,
     onlineDevices,
     deviceId,
     isActiveDevice,
     exportBackupJson
   } = usePlayerStore();
+
+  const {
+    offlineSettings,
+    setOfflineSettings,
+    wifiOnly,
+    setWifiOnly
+  } = useDownloadStore();
 
   const { user } = useAuthStore();
 
@@ -158,6 +168,9 @@ export function SettingsView() {
   const [privShowLikes, setPrivShowLikes] = useState(false);
   const [privShowFollowedArtists, setPrivShowFollowedArtists] = useState(true);
   const [privPrivateSession, setPrivPrivateSession] = useState(false);
+  const [privPauseHistory, setPrivPauseHistory] = useState(() => 
+    typeof window !== 'undefined' ? localStorage.getItem('raagax_privacy_history_paused') === 'true' : false
+  );
 
   // Content state
   const [contentExplicit, setContentExplicit] = useState(true);
@@ -410,6 +423,18 @@ export function SettingsView() {
                 }
               />
               <SettingRow
+                title="Pro Audio Equalizer & Spatial Audio"
+                description="Tune 10 frequency bands, enhance sub-bass, and activate 3D headphone virtualizer."
+                control={
+                  <button
+                    onClick={() => usePlayerStore.getState().toggleEqualizer(true)}
+                    className="px-3.5 py-1.5 rounded-xl bg-[#FA233B] hover:bg-[#d91e32] text-white text-xs font-bold transition-all shadow-md cursor-pointer"
+                  >
+                    Open Equalizer
+                  </button>
+                }
+              />
+              <SettingRow
                 title="Gapless playback"
                 description="Eliminate silence between songs for continuous listening on albums and live sets."
                 control={
@@ -516,6 +541,102 @@ export function SettingsView() {
                     <option value="HIGH">High (320 kbps Studio Master)</option>
                     <option value="LOSSLESS">Lossless (FLAC Original)</option>
                   </select>
+                }
+              />
+              <SettingRow
+                title="Download songs added to my playlists"
+                description="Automatically downloads any track you add to your custom playlists for offline playback."
+                control={
+                  <ToggleSwitch
+                    checked={offlineSettings.autoDownloadPlaylists}
+                    onChange={() => {
+                      const next = !offlineSettings.autoDownloadPlaylists;
+                      setOfflineSettings({ autoDownloadPlaylists: next });
+                      showToast(next ? 'Automatic playlist downloads enabled' : 'Automatic playlist downloads disabled');
+                    }}
+                  />
+                }
+              />
+              <SettingRow
+                title="Download songs added to Favorites"
+                description="Automatically downloads any song you like (❤️) for offline listening."
+                control={
+                  <ToggleSwitch
+                    checked={offlineSettings.autoDownloadFavorites}
+                    onChange={() => {
+                      const next = !offlineSettings.autoDownloadFavorites;
+                      setOfflineSettings({ autoDownloadFavorites: next });
+                      showToast(next ? 'Automatic favorites downloads enabled' : 'Automatic favorites downloads disabled');
+                    }}
+                  />
+                }
+              />
+              <SettingRow
+                title="Download newly added songs to followed playlists"
+                description="Automatically downloads new tracks added to community or curated playlists you follow."
+                control={
+                  <ToggleSwitch
+                    checked={offlineSettings.autoDownloadFollowedPlaylists}
+                    onChange={() => {
+                      const next = !offlineSettings.autoDownloadFollowedPlaylists;
+                      setOfflineSettings({ autoDownloadFollowedPlaylists: next });
+                      showToast(next ? 'Followed playlists auto-download enabled' : 'Followed playlists auto-download disabled');
+                    }}
+                  />
+                }
+              />
+              <SettingRow
+                title="Maximum Automatic Downloads"
+                description="Cap the maximum number of tracks saved automatically by smart rules to preserve device space."
+                control={
+                  <select
+                    value={offlineSettings.maxAutoDownloadsCount || 0}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      setOfflineSettings({ maxAutoDownloadsCount: val });
+                      showToast(val === 0 ? 'Automatic downloads limit: Unlimited' : `Auto downloads limit: ${val} songs`);
+                    }}
+                    className="bg-[#171922] border border-white/10 text-white text-xs rounded-xl px-3 py-2 outline-none focus:border-[#F51B3D]"
+                  >
+                    <option value={0}>Unlimited</option>
+                    <option value={50}>50 Songs</option>
+                    <option value={100}>100 Songs</option>
+                    <option value={250}>250 Songs</option>
+                    <option value={500}>500 Songs</option>
+                  </select>
+                }
+              />
+              <SettingRow
+                title="Download Only When Storage Is Sufficient"
+                description="Minimum free device storage required before executing any automatic background download."
+                control={
+                  <select
+                    value={offlineSettings.minStorageThresholdGB || 2}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      setOfflineSettings({ minStorageThresholdGB: val });
+                      showToast(`Minimum free storage threshold: ${val} GB`);
+                    }}
+                    className="bg-[#171922] border border-white/10 text-white text-xs rounded-xl px-3 py-2 outline-none focus:border-[#F51B3D]"
+                  >
+                    <option value={1}>1 GB Minimum Free Space</option>
+                    <option value={2}>2 GB Minimum Free Space (Recommended)</option>
+                    <option value={5}>5 GB Minimum Free Space</option>
+                    <option value={10}>10 GB Minimum Free Space</option>
+                  </select>
+                }
+              />
+              <SettingRow
+                title="Wi-Fi Only Downloads"
+                description="Prevent automatic and manual downloads over metered cellular mobile data."
+                control={
+                  <ToggleSwitch
+                    checked={wifiOnly}
+                    onChange={() => {
+                      setWifiOnly(!wifiOnly);
+                      showToast(wifiOnly ? 'Wi-Fi only downloads disabled' : 'Wi-Fi only downloads enabled');
+                    }}
+                  />
                 }
               />
             </div>
@@ -768,9 +889,46 @@ export function SettingsView() {
           {/* 7. RECOMMENDATIONS */}
           {activeSection === 'recommendations' && (
             <div className="space-y-5">
-              <div className="p-4 rounded-xl bg-gradient-to-r from-[#F51B3D]/10 to-transparent border border-[#F51B3D]/20 text-xs text-slate-300 leading-relaxed">
-                <span className="font-semibold text-white">Language Neutrality Guarantee:</span>{' '}
-                Your selected languages help RaagaX personalize your initial experience. Your actual listening behavior becomes more important over time. No single language is given permanent preference.
+              {/* MUSIC LANGUAGES MULTI-SELECT */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-3">
+                <div>
+                  <h4 className="text-sm font-bold text-white">Music Languages</h4>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Select regional languages to prioritize in Home, Search, and Recommendations.
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                  {['Telugu', 'Hindi', 'Tamil', 'Kannada', 'Malayalam', 'Bengali', 'Marathi', 'Punjabi', 'English'].map(lang => {
+                    const isSelected = (selectedLanguages || []).includes(lang);
+                    return (
+                      <button
+                        key={lang}
+                        type="button"
+                        onClick={() => {
+                          const currentList = selectedLanguages || ['Telugu'];
+                          const updated = isSelected 
+                            ? (currentList.length > 1 ? currentList.filter(l => l !== lang) : currentList)
+                            : [...currentList, lang];
+                          setSelectedLanguages(updated);
+                          showToast(`Languages updated: ${updated.join(', ')}`);
+                        }}
+                        className={`p-3 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                          isSelected 
+                            ? 'bg-[#FA233B]/15 border-[#FA233B]/40 text-white font-bold shadow-sm' 
+                            : 'bg-white/5 border-white/5 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <span className="text-xs">{lang}</span>
+                        <div className={`w-4 h-4 rounded flex items-center justify-center text-[10px] ${
+                          isSelected ? 'bg-[#FA233B] text-white font-black' : 'border border-white/20'
+                        }`}>
+                          {isSelected ? '✓' : ''}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <SettingRow
@@ -864,10 +1022,56 @@ export function SettingsView() {
                 control={<ToggleSwitch checked={privShowLikes} onChange={() => setPrivShowLikes(!privShowLikes)} />}
               />
               <SettingRow
-                title="Private session"
-                description="Listen temporarily without logging events into your recommendation DNA."
-                control={<ToggleSwitch checked={privPrivateSession} onChange={() => setPrivPrivateSession(!privPrivateSession)} />}
+                title="Pause listening history"
+                description="Temporarily stop recording newly played songs into your history and analytics."
+                control={
+                  <ToggleSwitch 
+                    checked={privPauseHistory} 
+                    onChange={() => {
+                      const next = !privPauseHistory;
+                      setPrivPauseHistory(next);
+                      if (typeof window !== 'undefined') {
+                        localStorage.setItem('raagax_privacy_history_paused', String(next));
+                      }
+                      showToast(next ? 'Listening history paused' : 'Listening history resumed');
+                    }} 
+                  />
+                }
               />
+
+              <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3 mt-4">
+                <div>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">Listening History & Insights Data</h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Manage or reset your locally tracked playback events and taste insights.</p>
+                </div>
+                <div className="flex flex-wrap gap-2.5 pt-1">
+                  <button
+                    onClick={async () => {
+                      if (window.confirm("Clear all your listening history? This cannot be undone.")) {
+                        const { ListeningAnalyticsEngine } = await import('@/lib/analytics/ListeningAnalyticsEngine');
+                        await ListeningAnalyticsEngine.getInstance().clearListeningHistory();
+                        showToast("Listening history cleared");
+                      }
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs font-bold transition-all cursor-pointer"
+                  >
+                    Clear Listening History
+                  </button>
+
+                  <button
+                    onClick={async () => {
+                      if (window.confirm("Delete all music insights and taste DNA? This resets your analytics profile.")) {
+                        const { ListeningAnalyticsEngine } = await import('@/lib/analytics/ListeningAnalyticsEngine');
+                        await ListeningAnalyticsEngine.getInstance().deleteMusicInsights();
+                        showToast("Music insights and DNA reset");
+                      }
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-bold transition-all cursor-pointer"
+                  >
+                    Delete Music Insights
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

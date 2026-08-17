@@ -3,17 +3,21 @@
 import React, { useEffect, useState } from 'react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
-import { useThemeStore } from '@/context/useThemeStore';
 import { HomePayload, HomeSection, ShelfItem } from '@/types/home';
-import { RealMusicEngine } from '@/lib/realMusicEngine';
 import { CarouselShelf } from '@/components/home/CarouselShelf';
 import { ChartListShelf } from '@/components/home/ChartListShelf';
 import { SkeletonGrid } from '@/components/ui/SkeletonLoader';
-import { Play, Pause, Clock, Sparkles, Disc, Shuffle, Download, Heart, History, Flame, Bell, Laptop, Smartphone, Headphones } from 'lucide-react';
+import { 
+  Play, Pause, Clock, Sparkles, Disc, Shuffle, Download, Heart, 
+  Flame, Radio, Headphones, ListMusic, User, Compass, ChevronRight 
+} from 'lucide-react';
 import { ArtistDiscoveryShelves } from '@/components/home/ArtistDiscoveryShelves';
 import { Song } from '@/types/music';
 import useSWR from 'swr';
 import { getApiUrl } from '@/lib/config/apiConfig';
+import { usePlaylistStore } from '@/context/usePlaylistStore';
+import { getCuratedPlaylists } from '@/constants/playlists';
+import { RecommendationEngine, PersonalizedHomeFeed } from '@/lib/recommendation/RecommendationEngine';
 
 const homeFetcher = async (url: string, preferredLanguage: string) => {
   const { RaagaDB, STORES } = await import('@/lib/storage/IndexedDB');
@@ -40,7 +44,6 @@ const homeFetcher = async (url: string, preferredLanguage: string) => {
           (s: HomeSection) => s.id !== 'this_week_releases' && s.id !== 'new_releases' && !s.title?.toLowerCase().includes('this week')
         );
       }
-      // Cache successful response in IndexedDB
       if (data?.sections && data.sections.length > 0) {
         await db.put(STORES.BROWSE_CACHE, { id: cacheKey, data, updatedAt: Date.now() }).catch(() => {});
       }
@@ -50,7 +53,7 @@ const homeFetcher = async (url: string, preferredLanguage: string) => {
     console.warn('[HomeView] Online home fetch failed, falling back to local cache:', e);
   }
 
-  // Offline Fallback 1: Return last cached Home payload from IndexedDB
+  // Offline Fallback
   try {
     const cached = await db.get<any>(STORES.BROWSE_CACHE, cacheKey);
     if (cached && cached.data?.sections && cached.data.sections.length > 0) {
@@ -58,91 +61,17 @@ const homeFetcher = async (url: string, preferredLanguage: string) => {
     }
   } catch {}
 
-  // Offline Fallback 2: Generate local offline home sections
-  try {
-    const { AlbumCatalogEngine } = await import('@/lib/albumCatalog');
-    const { OfflineCatalog } = await import('@/lib/offline/OfflineCatalog');
-    const seedAlbums = AlbumCatalogEngine.getAlbumsForLanguage(preferredLanguage);
-    const downloadedTracks = await OfflineCatalog.getInstance().getAllTracks();
-
-    const sections: HomeSection[] = [];
-
-    if (downloadedTracks && downloadedTracks.length > 0) {
-      sections.push({
-        id: 'home_offline_downloads',
-        type: 'carousel',
-        title: 'Downloaded Tracks',
-        items: downloadedTracks.slice(0, 20).map(t => ({
-          id: t.trackId,
-          title: t.title,
-          subtitle: t.artist,
-          imageUrl: t.artworkUrl || '/app-icon.png',
-          type: 'song',
-          rawItem: {
-            id: t.trackId,
-            title: t.title,
-            artist: t.artist,
-            artistId: t.artist || 'local',
-            album: t.album || 'Downloaded',
-            albumId: t.album || 'local',
-            coverUrl: t.artworkUrl || '/app-icon.png',
-            duration: t.durationMs ? Math.round(t.durationMs / 1000) : 0,
-            audioUrl: (t as any).audioUrl || null,
-            category: 'latest_telugu',
-            genre: 'Offline',
-            releaseYear: new Date(t.downloadedAt || Date.now()).getFullYear(),
-            plays: 0,
-            likes: 0,
-            source: 'local',
-          } as unknown as Song,
-        })),
-      });
-    }
-
-    if (seedAlbums && seedAlbums.length > 0) {
-      sections.push({
-        id: 'home_local_albums',
-        type: 'carousel',
-        title: `Popular ${preferredLanguage} Albums`,
-        items: seedAlbums.map(a => ({
-          id: a.id,
-          title: a.title,
-          subtitle: `${a.artist} • ${a.releaseYear}`,
-          imageUrl: a.coverUrl || '/app-icon.png',
-          type: 'album',
-          rawItem: a,
-        })),
-      });
-    }
-
-    return {
-      greeting: 'Good day',
-      sections,
-    };
-  } catch {}
-
   return { greeting: 'Good day', sections: [] };
 };
 
 function songsToShelfItems(songs: Song[]): ShelfItem[] {
-  return songs.map(s => ({
+  return songs.map((s) => ({
     id: s.id,
     title: s.title,
     subtitle: s.artist,
     imageUrl: s.coverUrl,
     type: 'song',
-    rawItem: s
-  }));
-}
-
-function albumsToShelfItems(albums: any[]): ShelfItem[] {
-  return albums.map(a => ({
-    id: a.id,
-    title: a.title,
-    subtitle: `${a.year ? a.year + ' • ' : ''}${a.artist || 'Album'}`,
-    imageUrl: a.coverUrl,
-    type: 'album',
-    rawItem: a
+    rawItem: s,
   }));
 }
 
@@ -150,25 +79,23 @@ export function HomeView() {
   const {
     currentSong,
     isPlaying,
-    currentTime,
     togglePlayPause,
     setActiveTab,
     likedSongs = [],
     preferredLanguage,
-    activeDeviceId,
-    onlineDevices,
-    toggleDeviceModal,
+    setSelectedArtistId,
+    setSelectedPlaylistId,
     remoteDeviceName,
   } = usePlayerStore();
 
   const { user } = useAuthStore();
-  const activeUserId = user?.id;
+  const activeUserId = user?.id || 'guest';
 
   const currentLang = preferredLanguage
     ? (preferredLanguage.charAt(0).toUpperCase() + preferredLanguage.slice(1).toLowerCase())
     : 'Telugu';
 
-  const { data: payload, error, isLoading } = useSWR(
+  const { data: payload, isLoading } = useSWR(
     `/api/home?lang=${encodeURIComponent(currentLang)}`,
     (url) => homeFetcher(url, currentLang),
     {
@@ -177,71 +104,35 @@ export function HomeView() {
     }
   );
 
-  const [recentlyPlayed, setRecentlyPlayed] = useState<Song[]>([]);
-  const [recommended, setRecommended] = useState<Song[]>([]);
-  const [recommendedAlbums, setRecommendedAlbums] = useState<any[]>([]);
+  const [feed, setFeed] = useState<PersonalizedHomeFeed | null>(null);
   const [isMounted, setIsMounted] = useState(false);
+
+  const { playlists: userPlaylists = [], fetchPlaylists } = usePlaylistStore();
+
+  useEffect(() => {
+    fetchPlaylists();
+  }, [fetchPlaylists, activeUserId]);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
+  // Load Personalized Recommendation Feed
   useEffect(() => {
-    const load = async () => {
+    let isCancelled = false;
+    const loadPersonalized = async () => {
       try {
-        const { QueueHistory } = await import('@/lib/queue/QueueHistory');
-        const historyInstance = QueueHistory.getInstance();
-        await historyInstance.ensureLoaded();
-        let entries = historyInstance.getRecentlyPlayed(30);
-
-        const seen = new Set<string>();
-        const songs: Song[] = [];
-
-        for (let i = entries.length - 1; i >= 0; i--) {
-          const s = entries[i].song;
-          if (s && !seen.has(s.id)) {
-            seen.add(s.id);
-            songs.push(s);
-          }
+        const data = await RecommendationEngine.getInstance().getPersonalizedHomeFeed(activeUserId, currentLang);
+        if (!isCancelled) {
+          setFeed(data);
         }
-
-        if (songs.length < 4) {
-          for (const s of likedSongs) {
-            if (s && !seen.has(s.id)) {
-              seen.add(s.id);
-              songs.push(s);
-            }
-          }
-        }
-
-        setRecentlyPlayed(songs.slice(0, 10));
-      } catch (e) {
-        console.warn('[HomeView] Could not load recently played:', e);
+      } catch (err) {
+        console.warn('[HomeView] Failed to generate personalized feed:', err);
       }
     };
-    load();
-  }, [currentSong?.id, likedSongs]);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const { UserLifecycleManager } = await import('@/lib/lifecycle/UserLifecycleManager');
-        const { RecommendationEngine } = await import('@/lib/recommendation/RecommendationEngine');
-        const { AlbumRecommendationEngine } = await import('@/lib/recommendation/AlbumRecommendationEngine');
-
-        const selectedLangs = UserLifecycleManager.getInstance().getData().selectedLanguages ?? (preferredLanguage ? [preferredLanguage] : []);
-        const uid = activeUserId || 'guest';
-        const recSongs = await RecommendationEngine.getInstance().getRecommendations(uid, selectedLangs);
-        setRecommended(recSongs);
-
-        const recAlbums = await AlbumRecommendationEngine.getInstance().getRecommendedAlbums(uid, selectedLangs);
-        setRecommendedAlbums(recAlbums);
-      } catch (e) {
-        console.warn('[HomeView] Could not load recommendations:', e);
-      }
-    };
-    load();
-  }, [preferredLanguage, activeUserId, payload?.sections?.length]);
+    loadPersonalized();
+    return () => { isCancelled = true; };
+  }, [currentLang, activeUserId, currentSong?.id, likedSongs.length]);
 
   const hours = new Date().getHours();
   const greeting = !isMounted
@@ -253,18 +144,15 @@ export function HomeView() {
           : hours < 21
             ? 'Good evening'
             : 'Good night');
-  const displayName = user?.user_metadata?.full_name?.split(' ')[0] || 'Ram';
+  const displayName = user?.user_metadata?.full_name?.split(' ')[0] || 'Listener';
 
   const coverUrl = currentSong?.coverUrl && !currentSong.coverUrl.includes('/null/')
     ? currentSong.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500')
     : '/app-icon.png';
 
   return (
-    <div className="space-y-4 pb-20 md:pb-10 select-none relative">
-
-      {/* ======================================================== */}
-      {/* 0. CONTINUOUS ATMOSPHERIC BLUR LAYER                      */}
-      {/* ======================================================== */}
+    <div className="space-y-6 pb-24 md:pb-10 select-none relative">
+      {/* 0. Continuous Atmospheric Glow */}
       {isMounted && currentSong ? (
         <div
           className="fixed top-0 left-0 right-0 h-[420px] pointer-events-none opacity-25 blur-[90px] -z-10 transition-all duration-1000"
@@ -277,12 +165,8 @@ export function HomeView() {
         />
       ) : null}
 
-      {/* ======================================================== */}
-      {/* 1. TOP HEADER & CONTEXTUAL GREETING                       */}
-      {/* ======================================================== */}
+      {/* 1. Header & Greeting */}
       <section className="pt-0 flex flex-col gap-2.5">
-
-        {/* Dynamic Island Style Playback Status Capsule (Level 2 Floating Lens) */}
         {isMounted && currentSong ? (
           <div
             onClick={() => usePlayerStore.getState().togglePlayerExpanded()}
@@ -304,57 +188,74 @@ export function HomeView() {
           </div>
         ) : null}
 
-        {/* Contextual Greeting */}
         <div>
-          <h2 suppressHydrationWarning className="text-xl sm:text-2xl font-black text-white tracking-tight leading-none">
-            {greeting}, {displayName}
+          <h2 suppressHydrationWarning className="text-xl sm:text-3xl font-black text-white tracking-tight leading-none">
+            {feed?.greeting || greeting}, {displayName} 👋
           </h2>
-          <p className="text-xs text-slate-400 font-medium mt-0.5">What do you want to hear today?</p>
+          <p className="text-xs text-slate-400 font-medium mt-1">
+            Curated in <span className="text-white font-bold">{currentLang}</span> based on your regional preferences
+          </p>
         </div>
 
-        {/* Smart Natural Language Search Bar (Level 1 Soft Lens) */}
-        <div
-          onClick={() => setActiveTab('search')}
-          className="md:hidden flex items-center justify-between px-3.5 py-2.5 rounded-2xl lens-soft border border-white/15 hover:border-[#E50914]/50 text-[#94A3B8] cursor-pointer transition-all active:scale-[0.99] shadow-lg group"
-        >
-          <div className="flex items-center gap-2.5">
-            <Sparkles className="w-4 h-4 text-[#E50914] group-hover:scale-110 transition-transform" />
-            <span className="text-xs font-medium text-slate-300">✦ Search songs, lyrics, or ask AI DJ...</span>
-          </div>
-          <div className="w-6 h-6 rounded-full bg-white/5 group-hover:bg-[#E50914]/20 flex items-center justify-center text-slate-400 group-hover:text-white text-xs transition-colors">
-            🎙
-          </div>
+        {/* 1.5 Quick Language Selector Strip */}
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-2 pb-0.5">
+          {['Telugu', 'Hindi', 'Tamil', 'Kannada', 'Malayalam', 'English', 'Punjabi', 'Bengali', 'Marathi'].map((lang) => {
+            const isPrimary = currentLang.toLowerCase() === lang.toLowerCase();
+            return (
+              <button
+                key={lang}
+                onClick={() => {
+                  usePlayerStore.getState().setPreferredLanguage(lang);
+                }}
+                className={`px-3.5 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 flex-shrink-0 cursor-pointer ${
+                  isPrimary
+                    ? 'bg-[#FA233B] text-white shadow-lg shadow-red-500/30'
+                    : 'bg-white/5 hover:bg-white/15 text-slate-300 border border-white/10'
+                }`}
+              >
+                <span>{lang}</span>
+                {isPrimary && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+              </button>
+            );
+          })}
         </div>
       </section>
 
-      {/* ======================================================== */}
-      {/* 2. HERO "CONTINUE LISTENING" (Level 3 Crystal Lens)      */}
-      {/* ======================================================== */}
-      {isMounted && currentSong ? (
+      {/* RaagaX 2026 Wrapped Special Banner */}
+      <section 
+        onClick={() => usePlayerStore.getState().toggleWrappedModal(true)}
+        className="relative rounded-3xl overflow-hidden p-4 sm:p-5 flex items-center justify-between gap-4 cursor-pointer group bg-gradient-to-r from-[#FA233B]/20 via-purple-600/20 to-amber-500/20 border border-[#FA233B]/30 shadow-2xl hover:scale-[1.01] transition-all"
+      >
+        <div className="flex items-center gap-3.5 min-w-0 z-10">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#FA233B] to-purple-600 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+            <Sparkles className="w-6 h-6 animate-pulse" />
+          </div>
+          <div className="min-w-0">
+            <span className="text-[9px] font-mono font-black text-[#FA233B] uppercase tracking-widest block">
+              2026 WRAPPED IS HERE
+            </span>
+            <h3 className="text-sm sm:text-base font-black text-white truncate">
+              Your Year in Music & Personal Recap
+            </h3>
+            <p className="text-[11px] text-slate-300 truncate">Tap to explore your top songs, artists & listening story</p>
+          </div>
+        </div>
+
+        <button className="px-4 py-2 rounded-full bg-[#FA233B] text-white font-bold text-xs flex items-center gap-1 flex-shrink-0 shadow-lg shadow-red-500/30 group-hover:scale-105 transition-transform">
+          <span>View Story</span>
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </section>
+
+      {/* 2. Continue Listening Hero */}
+      {isMounted && currentSong && (
         <section
           onClick={() => togglePlayPause()}
           className="relative rounded-3xl overflow-hidden lens-crystal p-4 sm:p-5 flex items-center justify-between gap-4 cursor-pointer group border border-white/20 shadow-[0_24px_60px_rgba(0,0,0,0.85)]"
         >
-          {/* Specular Top Rim Reflection */}
-          <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-white/40 to-transparent pointer-events-none" />
-
-          {/* Chromatic Backlight from Album Art */}
-          <div
-            className="absolute -right-8 -bottom-8 w-44 h-44 rounded-full pointer-events-none opacity-30 blur-2xl transition-opacity duration-700"
-            style={{
-              backgroundImage: `url(${coverUrl})`,
-              backgroundSize: 'cover',
-            }}
-          />
-
           <div className="flex items-center gap-4 min-w-0 z-10">
             <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden shadow-2xl flex-shrink-0 bg-black/60 border border-white/20 group-hover:scale-105 transition-transform duration-300">
-              <img
-                src={coverUrl}
-                alt={currentSong.title || ''}
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+              <img src={coverUrl} alt={currentSong.title || ''} className="w-full h-full object-cover" />
             </div>
 
             <div className="min-w-0">
@@ -364,9 +265,7 @@ export function HomeView() {
               <h3 className="text-base sm:text-lg font-extrabold text-white truncate leading-tight group-hover:text-[#FF1E27] transition-colors">
                 {currentSong.title}
               </h3>
-              <p className="text-xs text-[#94A3B8] truncate mt-1">
-                {currentSong.artist}
-              </p>
+              <p className="text-xs text-[#94A3B8] truncate mt-1">{currentSong.artist}</p>
             </div>
           </div>
 
@@ -375,7 +274,7 @@ export function HomeView() {
               e.stopPropagation();
               togglePlayPause();
             }}
-            className="flex items-center gap-2 px-5 py-3 rounded-full bg-[#E50914] hover:bg-[#FF1E27] text-white font-bold text-xs shrink-0 z-10 shadow-[0_6px_25px_rgba(229,9,20,0.55)] transition-transform active:scale-95"
+            className="flex items-center gap-2 px-5 py-3 rounded-full bg-[#E50914] hover:bg-[#FF1E27] text-white font-bold text-xs shrink-0 z-10 shadow-[0_6px_25px_rgba(229,9,20,0.55)] transition-transform active:scale-95 cursor-pointer"
           >
             {isPlaying ? (
               <>
@@ -390,140 +289,211 @@ export function HomeView() {
             )}
           </button>
         </section>
-      ) : null}
+      )}
 
-      {/* ======================================================== */}
-      {/* 3. SMART QUICK ACCESS MATRIX (Level 2 Floating Lens)      */}
-      {/* ======================================================== */}
-      <section className="space-y-2">
-        <div className="flex items-center justify-between px-1">
-          <span className="text-[11px] font-mono font-bold text-slate-400 uppercase tracking-wider">Quick Access</span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2.5">
-          {/* Primary: Shuffle Mix */}
-          <button
-            onClick={() => {
-              if (recentlyPlayed.length > 0) {
-                usePlayerStore.getState().playSong(recentlyPlayed[0]);
-                usePlayerStore.getState().toggleShuffle();
-              }
-            }}
-            className="flex items-center gap-3 p-3.5 rounded-2xl lens-floating border border-white/18 text-left transition-all hover:scale-[1.02] active:scale-95 shadow-md group"
-          >
-            <div className="w-9 h-9 rounded-xl bg-[#E50914]/20 border border-[#E50914]/40 flex items-center justify-center text-[#FF1E27] group-hover:scale-105 transition-transform">
-              <Shuffle className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-xs font-extrabold text-white">Shuffle Mix</div>
-              <div className="text-[10px] text-slate-400">Personalized radio</div>
-            </div>
-          </button>
-
-          {/* Secondary: Offline Downloads */}
-          <button
-            onClick={() => setActiveTab('downloads')}
-            className="flex items-center gap-3 p-3.5 rounded-2xl lens-floating border border-white/15 text-left transition-all hover:scale-[1.02] active:scale-95 shadow-md"
-          >
-            <div className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
-              <Download className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-white">Downloads</div>
-              <div className="text-[10px] text-slate-400">Sandboxed offline</div>
-            </div>
-          </button>
-
-          {/* Liked Songs */}
-          <button
-            onClick={() => setActiveTab('favorites')}
-            className="flex items-center gap-3 p-3.5 rounded-2xl lens-floating border border-white/15 text-left transition-all hover:scale-[1.02] active:scale-95 shadow-md"
-          >
-            <div className="w-9 h-9 rounded-xl bg-[#E50914]/15 border border-[#E50914]/30 flex items-center justify-center text-[#E50914]">
-              <Heart className="w-4 h-4 fill-[#E50914]" />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-white">Liked Songs</div>
-              <div className="text-[10px] text-slate-400">{likedSongs.length} favorites</div>
-            </div>
-          </button>
-
-          {/* History */}
-          <button
-            onClick={() => setActiveTab('library')}
-            className="flex items-center gap-3 p-3.5 rounded-2xl lens-floating border border-white/15 text-left transition-all hover:scale-[1.02] active:scale-95 shadow-md"
-          >
-            <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
-              <Clock className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-white">Listening History</div>
-              <div className="text-[10px] text-slate-400">Recently played</div>
-            </div>
-          </button>
-        </div>
-      </section>
-
-      {/* ======================================================== */}
-      {/* 4. SMART PERSONALIZED INSIGHT CARD (Level 1 Soft Lens)   */}
-      {/* ======================================================== */}
-      <section className="p-3.5 px-4 rounded-2xl lens-soft border border-white/15 flex items-center justify-between gap-3 shadow-md">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-7 h-7 rounded-lg bg-[#E50914]/15 flex items-center justify-center text-[#FF1E27] flex-shrink-0">
-            ✦
-          </div>
-          <p className="text-xs text-slate-300 font-medium truncate">
-            Your evening Telugu melodies are up <span className="text-[#FF1E27] font-bold">24% this week</span>.
-          </p>
-        </div>
+      {/* 3. Smart Quick Access Matrix */}
+      <section className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <button
-          onClick={() => setActiveTab('profile')}
-          className="text-[11px] font-bold text-[#FF1E27] hover:underline flex-shrink-0"
+          onClick={() => {
+            if (feed?.recentlyPlayed && feed.recentlyPlayed.length > 0) {
+              usePlayerStore.getState().playSong(feed.recentlyPlayed[0], feed.recentlyPlayed);
+              usePlayerStore.getState().toggleShuffle();
+            }
+          }}
+          className="flex items-center gap-3 p-3 rounded-2xl lens-floating border border-white/15 text-left transition-all hover:scale-[1.02] active:scale-95 shadow-md cursor-pointer"
         >
-          View DNA →
+          <div className="w-9 h-9 rounded-xl bg-[#E50914]/20 border border-[#E50914]/40 flex items-center justify-center text-[#FF1E27]">
+            <Shuffle className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-xs font-extrabold text-white">Shuffle Mix</div>
+            <div className="text-[10px] text-slate-400">Personalized radio</div>
+          </div>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('downloads')}
+          className="flex items-center gap-3 p-3 rounded-2xl lens-floating border border-white/15 text-left transition-all hover:scale-[1.02] active:scale-95 shadow-md cursor-pointer"
+        >
+          <div className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+            <Download className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-white">Downloads</div>
+            <div className="text-[10px] text-slate-400">Available offline</div>
+          </div>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('favorites')}
+          className="flex items-center gap-3 p-3 rounded-2xl lens-floating border border-white/15 text-left transition-all hover:scale-[1.02] active:scale-95 shadow-md cursor-pointer"
+        >
+          <div className="w-9 h-9 rounded-xl bg-[#E50914]/15 border border-[#E50914]/30 flex items-center justify-center text-[#E50914]">
+            <Heart className="w-4 h-4 fill-[#E50914]" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-white">Favorites</div>
+            <div className="text-[10px] text-slate-400">{likedSongs.length} tracks</div>
+          </div>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('library')}
+          className="flex items-center gap-3 p-3 rounded-2xl lens-floating border border-white/15 text-left transition-all hover:scale-[1.02] active:scale-95 shadow-md cursor-pointer"
+        >
+          <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <Clock className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-white">History</div>
+            <div className="text-[10px] text-slate-400">Recently played</div>
+          </div>
         </button>
       </section>
 
-      {/* ======================================================== */}
-      {/* 5. RECENTLY PLAYED & MADE FOR YOU SHELVES                */}
-      {/* ======================================================== */}
-      {recentlyPlayed.length > 0 && (
+      {/* 4. Made For You / Daily Mixes */}
+      {feed?.dailyMixes && feed.dailyMixes.length > 0 && (
+        <section className="space-y-3">
+          <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-[#E50914]" /> Made For You • Daily Mixes
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {feed.dailyMixes.map((mix) => (
+              <div
+                key={mix.id}
+                onClick={() => {
+                  if (mix.songs.length > 0) {
+                    usePlayerStore.getState().playSong(mix.songs[0], mix.songs);
+                  }
+                }}
+                className="p-4 rounded-3xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 hover:border-white/20 transition-all flex items-center gap-3.5 cursor-pointer group shadow-lg"
+              >
+                <img
+                  src={mix.coverUrl}
+                  alt={mix.title}
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+                  className="w-14 h-14 rounded-2xl object-cover shadow-md flex-shrink-0 group-hover:scale-105 transition-transform"
+                />
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-sm font-bold text-white truncate group-hover:text-[#E50914] transition-colors">
+                    {mix.title}
+                  </h4>
+                  <p className="text-xs text-slate-400 truncate mt-0.5">{mix.description}</p>
+                </div>
+                <button className="w-8 h-8 rounded-full bg-[#E50914] text-white flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* 5. Because You Listened To... */}
+      {feed?.becauseYouListenedTo && feed.becauseYouListenedTo.items.length > 0 && (
+        <CarouselShelf
+          title={`Because You Listened to ${feed.becauseYouListenedTo.seedSongOrArtist}`}
+          icon={<Radio className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-rose-400 flex-shrink-0" />}
+          items={songsToShelfItems(feed.becauseYouListenedTo.items)}
+          showPlayAll={true}
+        />
+      )}
+
+      {/* 6. Recently Played */}
+      {feed?.recentlyPlayed && feed.recentlyPlayed.length > 0 && (
         <CarouselShelf
           title="Recently Played"
           icon={<Clock className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-cyan-400 flex-shrink-0" />}
-          items={songsToShelfItems(recentlyPlayed)}
+          items={songsToShelfItems(feed.recentlyPlayed)}
           showPlayAll={true}
         />
       )}
 
-      {recommended.length > 0 && (
+      {/* 7. Your Top Artists */}
+      {feed?.topArtists && feed.topArtists.length > 0 && (
+        <section className="space-y-3">
+          <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+            <User className="w-4 h-4 text-[#E50914]" /> Your Top Artists
+          </h3>
+          <div className="flex overflow-x-auto gap-4 pb-2 no-scrollbar">
+            {feed.topArtists.map((artist) => (
+              <div
+                key={artist.id}
+                onClick={() => {
+                  setSelectedArtistId(artist.id);
+                  setActiveTab('artist');
+                }}
+                className="w-24 sm:w-28 flex-shrink-0 text-center cursor-pointer group"
+              >
+                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden mb-2 border-2 border-white/10 group-hover:border-[#E50914] transition-all shadow-md mx-auto">
+                  <img
+                    src={artist.coverUrl}
+                    alt={artist.name}
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                  />
+                </div>
+                <h4 className="text-xs font-bold text-white truncate group-hover:text-[#E50914] transition-colors">
+                  {artist.name}
+                </h4>
+                <p className="text-[10px] text-slate-400">{artist.playCount} plays</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* 8. Trending in [Language] */}
+      {feed?.trendingSongs && feed.trendingSongs.length > 0 && (
         <CarouselShelf
-          title="Made For You"
-          icon={<Sparkles className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-[#E50914] flex-shrink-0" />}
-          items={songsToShelfItems(recommended)}
+          title={`Trending in ${currentLang}`}
+          icon={<Flame className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-[#E50914] flex-shrink-0" />}
+          items={songsToShelfItems(feed.trendingSongs)}
           showPlayAll={true}
         />
       )}
 
-      {recommendedAlbums.length > 0 && (
+      {/* 9. New Releases in [Language] */}
+      {feed?.newReleases && feed.newReleases.length > 0 && (
         <CarouselShelf
-          title="Suggested Albums For You"
-          icon={<Disc className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-amber-400 flex-shrink-0" />}
-          items={albumsToShelfItems(recommendedAlbums)}
-          showPlayAll={false}
+          title={`New ${currentLang} Releases`}
+          icon={<Compass className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-emerald-400 flex-shrink-0" />}
+          items={songsToShelfItems(feed.newReleases)}
+          showPlayAll={true}
         />
       )}
 
-      {/* Artist Discovery Shelves */}
+      {/* 10. Playlists & Studio Mixes */}
+      <CarouselShelf
+        title="Playlists & Studio Mixes"
+        icon={<ListMusic className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-purple-400 flex-shrink-0" />}
+        items={[
+          ...userPlaylists.map((pl) => ({
+            id: pl.id,
+            title: pl.title,
+            subtitle: `${pl.songs?.length || pl.songIds?.length || 0} tracks • By You`,
+            imageUrl: pl.coverUrl || pl.songs?.[0]?.coverUrl || '/app-icon.png',
+            type: 'playlist' as const,
+            rawItem: pl,
+          })),
+          ...getCuratedPlaylists(preferredLanguage).map((pl) => ({
+            id: pl.id,
+            title: pl.name,
+            subtitle: `${pl.badge ? pl.badge + ' • ' : ''}${pl.desc}`,
+            imageUrl: pl.coverUrl,
+            type: 'playlist' as const,
+            rawItem: pl,
+          })),
+        ]}
+        showPlayAll={false}
+      />
+
+      {/* 11. Artist Discovery Shelves */}
       <ArtistDiscoveryShelves />
 
-      {/* Dynamic Backend Sections */}
+      {/* 12. Dynamic Backend Sections */}
       {isLoading || !payload ? (
         <div className="space-y-8 pt-4">
-          <div className="space-y-3">
-            <div className="h-4 bg-white/10 rounded w-44 animate-pulse" />
-            <SkeletonGrid count={6} />
-          </div>
           <div className="space-y-3">
             <div className="h-4 bg-white/10 rounded w-44 animate-pulse" />
             <SkeletonGrid count={6} />
@@ -545,7 +515,6 @@ export function HomeView() {
           })}
         </div>
       )}
-
     </div>
   );
 }

@@ -82,7 +82,7 @@ export class PlaybackSourceResolver {
           validAudioUrl = realSongs[0].audioUrl.replace('http://', 'https://');
           song.audioUrl = validAudioUrl;
           if (realSongs[0].coverUrl) {
-            song.coverUrl = realSongs[0].coverUrl.replace('http://', 'https://');
+            song.coverUrl = realSongs[0].coverUrl.replace('http://', 'https://').replace(/150x150|50x50|300x300/g, '500x500');
           }
         }
       } catch (err) {

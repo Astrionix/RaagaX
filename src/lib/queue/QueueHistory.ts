@@ -88,4 +88,9 @@ export class QueueHistory {
       entry.trackId === trackId && (now - entry.startedAt) < withinMs
     );
   }
+
+  public async clear(): Promise<void> {
+    this.history = [];
+    await QueuePersistence.getInstance().saveHistory([]);
+  }
 }

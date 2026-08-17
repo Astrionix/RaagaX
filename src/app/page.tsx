@@ -25,6 +25,10 @@ import { OfflineStorageSetupModal } from '@/components/modals/OfflineStorageSetu
 import { PermissionOnboardingModal } from '@/components/onboarding/PermissionOnboardingModal';
 
 import { CreatePlaylistModal } from '@/components/modals/CreatePlaylistModal';
+import { NotificationCenterModal } from '@/components/modals/NotificationCenterModal';
+import { WrappedModal } from '@/components/modals/WrappedModal';
+import { EqualizerModal } from '@/components/modals/EqualizerModal';
+import { CarModeModal } from '@/components/modals/CarModeModal';
 
 import { Toast } from '@/components/ui/Toast';
 
@@ -40,6 +44,7 @@ import { ProfileView } from '@/components/views/ProfileView';
 import { DownloadsView } from '@/components/views/DownloadsView';
 import { FavoritesView } from '@/components/views/FavoritesView';
 import { SettingsView } from '@/components/views/SettingsView';
+import { InsightsView } from '@/components/views/InsightsView';
 import { SplashScreen } from '@/components/modals/SplashScreen';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 
@@ -47,7 +52,17 @@ import { useDownloadStore } from '@/context/useDownloadStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
 
 export default function Page() {
-  const { activeTab, selectedArtistId, rightPanelMode } = usePlayerStore();
+  const { 
+    activeTab, 
+    selectedArtistId, 
+    rightPanelMode,
+    isWrappedModalOpen,
+    toggleWrappedModal,
+    isEqualizerOpen,
+    toggleEqualizer,
+    isCarModeOpen,
+    toggleCarMode
+  } = usePlayerStore();
   const { isSetupModalOpen, setSetupModalOpen } = useDownloadStore();
 
   // Android Predictive Back Gesture & Navigation Hierarchy
@@ -144,6 +159,25 @@ export default function Page() {
         onComplete={() => setSetupModalOpen(false)} 
       />
 
+      {/* RaagaX 2026 Wrapped Experience */}
+      <WrappedModal
+        isOpen={isWrappedModalOpen}
+        onClose={() => toggleWrappedModal(false)}
+        year={2026}
+      />
+
+      {/* Pro Audio Equalizer & Spatial Audio */}
+      <EqualizerModal
+        isOpen={isEqualizerOpen}
+        onClose={() => toggleEqualizer(false)}
+      />
+
+      {/* Car / Driving Mode */}
+      <CarModeModal
+        isOpen={isCarModeOpen}
+        onClose={() => toggleCarMode(false)}
+      />
+
       {/* Sidebar Navigation (Desktop Pane 1) */}
       <Sidebar />
 
@@ -157,7 +191,7 @@ export default function Page() {
 
           {/* View Switcher Container */}
           <main className="flex-1 pt-14 md:pt-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))] md:pb-8 px-3.5 sm:px-8">
-            {((activeTab as string) === 'home' || (activeTab as string) === 'browse') && <HomeView />}
+            {activeTab === 'home' && <HomeView />}
             {activeTab === 'search' && <SearchView />}
             {activeTab === 'library' && <LibraryView />}
             {activeTab === 'radio' && <RadioView />}
@@ -167,6 +201,7 @@ export default function Page() {
             {activeTab === 'profile' && <ProfileView />}
             {activeTab === 'downloads' && <DownloadsView />}
             {activeTab === 'favorites' && <FavoritesView />}
+            {activeTab === 'insights' && <InsightsView />}
             {activeTab === 'settings' && <SettingsView />}
           </main>
 
@@ -226,6 +261,9 @@ export default function Page() {
       </ErrorBoundary>
       <ErrorBoundary name="PermissionOnboardingModal">
         <PermissionOnboardingModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="NotificationCenterModal">
+        <NotificationCenterModal />
       </ErrorBoundary>
     </div>
   );

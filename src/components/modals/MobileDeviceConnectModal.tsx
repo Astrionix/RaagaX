@@ -3,10 +3,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   X, Smartphone, Monitor, Check, Laptop, Tv, 
-  Radio, Loader2, AlertCircle, RefreshCw, Volume2,
-  Speaker, Headphones, ArrowLeft, Wifi, Sparkles, ShieldCheck,
-  Music, Sliders, Play, Pause, SkipForward, SkipBack, Zap,
-  Search, CheckCircle2, CircleDashed
+  Loader2, AlertCircle, RefreshCw, Volume2,
+  Speaker, Headphones, ArrowLeft, Wifi, ShieldCheck,
+  Play, Pause, SkipForward, SkipBack, Search, CheckCircle2
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { DeviceDiscoveryEngine } from '@/lib/connect/discovery/DeviceDiscoveryEngine';
@@ -19,8 +18,6 @@ export function MobileDeviceConnectModal() {
     deviceId, 
     activeDeviceId, 
     connectedDeviceId,
-    transferPlayback,
-    isActiveDevice,
     currentSong,
     isPlaying,
     currentTime,
@@ -35,6 +32,8 @@ export function MobileDeviceConnectModal() {
   const [devices, setDevices] = useState<VerifiedDevice[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [transferringId, setTransferringId] = useState<string | null>(null);
+  const [handoverTarget, setHandoverTarget] = useState<string | null>(null);
+  const [handoverStep, setHandoverStep] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
 
@@ -54,7 +53,7 @@ export function MobileDeviceConnectModal() {
         } catch {}
       };
     } catch (err) {
-      console.warn('[MobileDeviceConnectModal] Error initializing discovery engine:', err);
+      console.warn('[MobileDeviceConnectModal] Discovery engine error:', err);
     }
   }, [isDeviceModalOpen]);
 
@@ -73,6 +72,7 @@ export function MobileDeviceConnectModal() {
 
   if (!isDeviceModalOpen) return null;
 
+  const isRemotePlaying = Boolean(activeDeviceId && activeDeviceId !== deviceId);
   const currentlyPlayingDevice = filteredDevices.find(d => d?.reachabilityState === 'CURRENTLY_PLAYING') || filteredDevices.find(d => d?.deviceId === (activeDeviceId || deviceId)) || filteredDevices[0] || null;
   const nearbyDevices = filteredDevices.filter(d => d && d.deviceId !== currentlyPlayingDevice?.deviceId && d.isNearby && !d.isAudioOutput && d.reachabilityState !== 'OFFLINE');
   const audioOutputs = filteredDevices.filter(d => d && d.isAudioOutput);
@@ -84,31 +84,48 @@ export function MobileDeviceConnectModal() {
     try {
       DeviceDiscoveryEngine.getInstance().refreshDiscovery();
     } catch {}
-    setTimeout(() => {
-      setIsScanning(false);
-    }, 1000);
+    setTimeout(() => setIsScanning(false), 800);
   };
 
   const handleTransfer = async (targetId: string, targetName: string) => {
     if (!targetId || targetId === activeDeviceId) return;
     setErrorMessage(null);
     setTransferringId(targetId);
+    setHandoverTarget(targetName);
+    setHandoverStep(1);
 
     try {
       import('@/lib/haptics/HapticEngine').then(m => m.haptics.mediumImpact()).catch(() => {});
-      if (typeof transferPlayback === 'function') {
-        await transferPlayback(targetId);
-      } else {
-        const { TransferManager } = await import('@/lib/connect/TransferManager');
-        await TransferManager.getInstance().initiateTransfer(targetId);
-      }
+
+      const { TransferManager } = await import('@/lib/connect/TransferManager');
+      setHandoverStep(3);
+      await TransferManager.getInstance().initiateTransfer(targetId);
+      setHandoverStep(5);
+
       setTimeout(() => {
         setTransferringId(null);
+        setHandoverTarget(null);
+        setHandoverStep(0);
         toggleDeviceModal();
-      }, 600);
+      }, 500);
     } catch (err: any) {
       setTransferringId(null);
-      setErrorMessage(`Couldn't switch to ${targetName || 'device'}. Your current device is still playing.`);
+      setHandoverTarget(null);
+      setHandoverStep(0);
+      setErrorMessage(`Couldn't switch to ${targetName || 'device'}. Current playback continued.`);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    setErrorMessage(null);
+    try {
+      if (deviceId) {
+        const { TransferManager } = await import('@/lib/connect/TransferManager');
+        await TransferManager.getInstance().initiateTransfer(deviceId);
+      }
+      toggleDeviceModal();
+    } catch {
+      setErrorMessage('Could not disconnect from remote device.');
     }
   };
 
@@ -137,19 +154,12 @@ export function MobileDeviceConnectModal() {
 
   return (
     <div className="fixed inset-0 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
-      {/* Dark Ambient Backdrop */}
       <div 
         className="absolute inset-0 bg-black/85 backdrop-blur-xl transition-opacity"
         onClick={toggleDeviceModal}
       />
 
-      {/* Main Connect Liquid Lens Modal Container */}
-      <div className="relative w-full max-w-lg lens-crystal border-t sm:border border-white/18 rounded-t-[32px] sm:rounded-[32px] shadow-[0_30px_90px_rgba(0,0,0,0.95)] flex flex-col max-h-[90dvh] overflow-hidden text-white z-10 animate-in slide-in-from-bottom-8 duration-200">
-        
-        {/* Specular Top Rim */}
-        <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-white/40 to-transparent pointer-events-none" />
-
-        {/* Top Pull Handle */}
+      <div className="relative w-full max-w-lg lens-crystal border-t sm:border border-white/15 rounded-t-[32px] sm:rounded-[32px] shadow-[0_30px_90px_rgba(0,0,0,0.95)] flex flex-col max-h-[90dvh] overflow-hidden text-white z-10 animate-in slide-in-from-bottom-8 duration-200">
         <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mt-3 sm:hidden" />
 
         {/* HEADER */}
@@ -163,16 +173,14 @@ export function MobileDeviceConnectModal() {
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
-              <h3 className="text-base font-black text-white tracking-tight flex items-center gap-2">
-                Connect to Device
-              </h3>
-              <p className="text-xs text-white/60 font-medium">Choose where you want to listen</p>
+              <h3 className="text-base font-black text-white tracking-tight">Connect to Device</h3>
+              <p className="text-xs text-slate-400 font-medium">Choose where you want to listen</p>
             </div>
           </div>
           
           <button 
             onClick={handleScan}
-            className={`p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-white/80 hover:text-white transition-all ${isScanning ? 'animate-spin text-[#E50914]' : ''}`}
+            className={`p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-white/80 hover:text-white transition-all ${isScanning ? 'animate-spin text-[#FA233B]' : ''}`}
             title="Scan for nearby devices"
           >
             <RefreshCw className="w-4 h-4" />
@@ -185,10 +193,10 @@ export function MobileDeviceConnectModal() {
             <Search className="w-4 h-4 text-white/40 absolute left-3.5 pointer-events-none" />
             <input 
               type="text"
-              placeholder="Search devices by name or platform..."
+              placeholder="Search devices..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-2xl text-xs text-white placeholder-white/40 focus:outline-none focus:border-[#EF233C]/50 transition-colors"
+              className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-2xl text-xs text-white placeholder-white/40 focus:outline-none focus:border-[#FA233B]/50 transition-colors"
             />
             {searchQuery && (
               <button 
@@ -209,26 +217,70 @@ export function MobileDeviceConnectModal() {
           </div>
         )}
 
-        {/* SCROLLABLE DEVICE LIST */}
+        {/* Handover Real-Time Progress Card */}
+        {handoverTarget && (
+          <div className="mx-6 mt-3 p-4 rounded-3xl bg-gradient-to-br from-[#FA233B]/20 via-purple-600/20 to-slate-900 border border-[#FA233B]/40 shadow-2xl space-y-3 animate-in zoom-in-95">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-white flex items-center gap-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#FA233B]" />
+                Connecting to {handoverTarget}...
+              </span>
+              <span className="text-[10px] font-mono font-bold text-[#FA233B] uppercase">
+                {handoverStep === 5 ? 'Ready' : 'Handing Over'}
+              </span>
+            </div>
+
+            <div className="space-y-1.5 pt-1">
+              <div className="text-[10px] font-mono text-slate-400 uppercase tracking-wider font-bold">
+                Preparing playback
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className={`flex items-center gap-1.5 font-bold ${handoverStep >= 1 ? 'text-emerald-400' : 'text-slate-500'}`}>
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Song</span>
+                </div>
+                <div className={`flex items-center gap-1.5 font-bold ${handoverStep >= 2 ? 'text-emerald-400' : 'text-slate-500'}`}>
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Position</span>
+                </div>
+                <div className={`flex items-center gap-1.5 font-bold ${handoverStep >= 3 ? 'text-emerald-400' : 'text-slate-500'}`}>
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Queue</span>
+                </div>
+                <div className={`flex items-center gap-1.5 font-bold ${handoverStep >= 4 ? 'text-emerald-400' : 'text-slate-500'}`}>
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Playback state</span>
+                </div>
+              </div>
+            </div>
+
+            {handoverStep === 5 && (
+              <div className="pt-1 text-center text-xs font-black text-emerald-400 flex items-center justify-center gap-1.5 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4" /> Connected
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* DEVICE LIST */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
-          
-          {/* SECTION 1: NOW PLAYING */}
+          {/* 1. CURRENT PLAYBACK */}
           {currentlyPlayingDevice && (
             <div>
               <div className="flex items-center justify-between mb-2 px-1">
-                <span className="text-[11px] font-mono font-bold text-[#E50914] uppercase tracking-wider flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#E50914] animate-pulse" />
-                  CURRENT PLAYBACK
+                <span className="text-[11px] font-mono font-bold text-[#FA233B] uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[#FA233B] animate-pulse" />
+                  {isRemotePlaying ? 'REMOTE PLAYBACK' : 'THIS DEVICE'}
                 </span>
                 <span className="text-[10px] font-mono text-slate-400">
                   {currentlyPlayingDevice.deviceId === deviceId ? 'Authoritative Renderer' : 'Remote Controlled'}
                 </span>
               </div>
 
-              <div className="p-4 rounded-3xl lens-floating border border-white/20 space-y-3.5 shadow-xl">
+              <div className="p-4 rounded-3xl bg-white/[0.03] border border-white/15 space-y-3.5 shadow-xl">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#E50914] to-[#B80610] flex items-center justify-center text-white shadow-lg shadow-[#E50914]/30 flex-shrink-0">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#FA233B] to-purple-800 flex items-center justify-center text-white shadow-lg flex-shrink-0">
                       <CurrentIcon className="w-6 h-6" />
                     </div>
                     <div className="min-w-0">
@@ -236,60 +288,57 @@ export function MobileDeviceConnectModal() {
                         <h4 className="text-sm font-extrabold text-white leading-tight truncate">
                           {currentlyPlayingDevice?.name || 'This Device'}
                         </h4>
-                        <Check className="w-4 h-4 text-[#E50914] flex-shrink-0" />
+                        <Check className="w-4 h-4 text-[#FA233B] flex-shrink-0" />
                       </div>
                       <p className="text-xs text-slate-300 font-medium mt-0.5 truncate flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#E50914]" />
-                        <span>{isPlaying ? 'Playing Lossless Stream' : 'Ready'}</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        <span>Connected to Wi-Fi</span>
                       </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Live Track & Remote Controls */}
+                {/* Track Details & Controls */}
                 {currentSong && (
                   <div className="pt-3 border-t border-white/10 space-y-3">
                     <div className="flex items-center justify-between text-xs">
                       <span className="truncate max-w-[240px] font-bold text-white flex items-center gap-1.5">
-                        <span className="text-[#E50914]">♪</span> {currentSong.title || 'Unknown Title'} · {currentSong.artist || 'Unknown Artist'}
+                        <span className="text-[#FA233B]">♪</span> {currentSong.title} · {currentSong.artist}
                       </span>
                       <span className="text-[11px] text-slate-400 font-mono font-bold">
                         {formatTime(safeCurrentTime)} / {formatTime(safeDuration)}
                       </span>
                     </div>
 
-                    {/* Progress Bar */}
                     <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
                       <div 
-                        className="h-full bg-[#E50914] rounded-full transition-all duration-300"
+                        className="h-full bg-[#FA233B] rounded-full transition-all duration-300"
                         style={{ width: `${progressPercent}%` }}
                       />
                     </div>
 
-                    {/* Remote Playback Controls */}
                     <div className="flex items-center justify-between pt-1">
                       <div className="flex items-center gap-2">
                         <button 
                           onClick={() => playPrev()}
-                          className="p-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-colors"
+                          className="p-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer"
                         >
                           <SkipBack className="w-4 h-4" />
                         </button>
                         <button 
                           onClick={() => togglePlayPause()}
-                          className="w-8 h-8 rounded-full bg-[#E50914] hover:bg-[#FF1E27] text-white flex items-center justify-center shadow-md transition-transform active:scale-95"
+                          className="w-8 h-8 rounded-full bg-[#FA233B] hover:bg-[#d91e32] text-white flex items-center justify-center shadow-md transition-transform active:scale-95 cursor-pointer"
                         >
                           {isPlaying ? <Pause className="w-3.5 h-3.5 fill-white" /> : <Play className="w-3.5 h-3.5 fill-white ml-0.5" />}
                         </button>
                         <button 
                           onClick={() => playNext()}
-                          className="p-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-colors"
+                          className="p-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer"
                         >
                           <SkipForward className="w-4 h-4" />
                         </button>
                       </div>
 
-                      {/* Volume Slider */}
                       <div className="flex items-center gap-2 max-w-[140px] flex-1 justify-end">
                         <Volume2 className="w-3.5 h-3.5 text-slate-400" />
                         <input 
@@ -299,7 +348,7 @@ export function MobileDeviceConnectModal() {
                           step="0.05"
                           value={safeVolume}
                           onChange={(e) => setVolume(parseFloat(e.target.value))}
-                          className="w-20 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-[#E50914]"
+                          className="w-20 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-[#FA233B]"
                         />
                       </div>
                     </div>
@@ -309,15 +358,15 @@ export function MobileDeviceConnectModal() {
             </div>
           )}
 
-          {/* SECTION 2: NEARBY RAAGAX DEVICES (SAME WI-FI) */}
+          {/* 2. AVAILABLE NEARBY DEVICES */}
           {nearbyDevices.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2 px-1">
                 <span className="text-[11px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Wifi className="w-3.5 h-3.5 text-[#E50914]" />
-                  NEARBY ON SAME WI-FI
+                  <Wifi className="w-3.5 h-3.5 text-[#FA233B]" />
+                  AVAILABLE DEVICES
                 </span>
-                <span className="text-[10px] font-mono text-emerald-400 font-bold">Fast LAN Direct</span>
+                <span className="text-[10px] font-mono text-emerald-400 font-bold">Same Wi-Fi</span>
               </div>
 
               <div className="space-y-2">
@@ -329,33 +378,28 @@ export function MobileDeviceConnectModal() {
                     <div 
                       key={device.deviceId}
                       onClick={() => !isBusy && handleTransfer(device.deviceId, device.name || 'Nearby Device')}
-                      className="p-3.5 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 flex items-center justify-between transition-all cursor-pointer group active:scale-[0.99]"
+                      className="p-3.5 rounded-2xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 hover:border-white/20 flex items-center justify-between transition-all cursor-pointer group"
                     >
                       <div className="flex items-center gap-3.5 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white/80 group-hover:text-white group-hover:bg-[#E50914]/20 group-hover:text-[#E50914] transition-all flex-shrink-0">
+                        <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white/80 group-hover:text-white group-hover:bg-[#FA233B]/20 group-hover:text-[#FA233B] transition-all flex-shrink-0">
                           <DeviceIcon className="w-5 h-5" />
                         </div>
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h4 className="text-xs font-bold text-white truncate group-hover:text-[#EF233C] transition-colors">
-                              {device.name || 'Nearby Device'}
-                            </h4>
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-300 font-mono border border-emerald-500/20">
-                              Verified
-                            </span>
-                          </div>
+                          <h4 className="text-xs font-bold text-white truncate group-hover:text-[#FA233B] transition-colors">
+                            {device.name || 'Nearby Device'}
+                          </h4>
                           <p className="text-[10px] text-slate-400 font-medium mt-0.5 flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                            <span>Same Wi-Fi · Lossless Ready</span>
+                            <span>Connected to Wi-Fi</span>
                           </p>
                         </div>
                       </div>
 
                       <button
                         disabled={isBusy}
-                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#E50914] hover:bg-[#FF1E27] text-white shadow-md transition-all group-hover:scale-105 active:scale-95 flex-shrink-0"
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#FA233B] hover:bg-[#d91e32] text-white shadow-md transition-all group-hover:scale-105 active:scale-95 flex-shrink-0 cursor-pointer"
                       >
-                        {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Play Here'}
+                        {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Connect'}
                       </button>
                     </div>
                   );
@@ -364,15 +408,14 @@ export function MobileDeviceConnectModal() {
             </div>
           )}
 
-          {/* SECTION 3: OTHER ONLINE RAAGAX DEVICES (CLOUD) */}
+          {/* 3. OTHER ONLINE RAAGAX DEVICES */}
           {otherDevices.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2 px-1">
-                <span className="text-[11px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Radio className="w-3.5 h-3.5 text-blue-400" />
-                  YOUR RAAGAX DEVICES
+                <span className="text-[11px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+                  OTHER RAAGAX DEVICES
                 </span>
-                <span className="text-[10px] font-mono text-blue-400">Cloud Relay</span>
+                <span className="text-[10px] font-mono text-blue-400">Account Linked</span>
               </div>
 
               <div className="space-y-2">
@@ -384,28 +427,28 @@ export function MobileDeviceConnectModal() {
                     <div 
                       key={device.deviceId}
                       onClick={() => !isBusy && handleTransfer(device.deviceId, device.name || 'RaagaX Device')}
-                      className="p-3.5 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 flex items-center justify-between transition-all cursor-pointer group active:scale-[0.99]"
+                      className="p-3.5 rounded-2xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 hover:border-white/20 flex items-center justify-between transition-all cursor-pointer group"
                     >
                       <div className="flex items-center gap-3.5 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white/80 group-hover:text-white group-hover:bg-[#E50914]/20 group-hover:text-[#E50914] transition-all flex-shrink-0">
+                        <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white/80 group-hover:text-white group-hover:bg-[#FA233B]/20 group-hover:text-[#FA233B] transition-all flex-shrink-0">
                           <DeviceIcon className="w-5 h-5" />
                         </div>
                         <div className="min-w-0">
-                          <h4 className="text-xs font-bold text-white truncate group-hover:text-[#EF233C] transition-colors">
+                          <h4 className="text-xs font-bold text-white truncate group-hover:text-[#FA233B] transition-colors">
                             {device.name || 'RaagaX Device'}
                           </h4>
                           <p className="text-[10px] text-slate-400 font-medium mt-0.5 flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                            <span>Online · Ready</span>
+                            <span>Online</span>
                           </p>
                         </div>
                       </div>
 
                       <button
                         disabled={isBusy}
-                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-[#E50914] text-white transition-all group-hover:scale-105 active:scale-95 flex-shrink-0"
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-[#FA233B] text-white transition-all group-hover:scale-105 active:scale-95 flex-shrink-0 cursor-pointer"
                       >
-                        {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Play Here'}
+                        {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Connect'}
                       </button>
                     </div>
                   );
@@ -414,7 +457,7 @@ export function MobileDeviceConnectModal() {
             </div>
           )}
 
-          {/* SECTION 4: CONNECTED AUDIO OUTPUTS */}
+          {/* 4. AUDIO OUTPUTS */}
           {audioOutputs.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2 px-1">
@@ -426,35 +469,33 @@ export function MobileDeviceConnectModal() {
               </div>
 
               <div className="space-y-2">
-                {audioOutputs.map((device) => {
-                  return (
-                    <div 
-                      key={device.deviceId}
-                      className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-300 flex items-center justify-center flex-shrink-0">
-                          <Headphones className="w-5 h-5" />
-                        </div>
-                        <div className="min-w-0">
-                          <h4 className="text-xs font-bold text-white truncate">
-                            {device.name || 'Audio Output'}
-                          </h4>
-                          <p className="text-[10px] text-purple-300 font-medium mt-0.5">
-                            Audio Output Device
-                          </p>
-                        </div>
+                {audioOutputs.map((device) => (
+                  <div 
+                    key={device.deviceId}
+                    className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-300 flex items-center justify-center flex-shrink-0">
+                        <Headphones className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-bold text-white truncate">
+                          {device.name || 'Audio Output'}
+                        </h4>
+                        <p className="text-[10px] text-purple-300 font-medium mt-0.5">
+                          Audio Output Device
+                        </p>
                       </div>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
-          {/* SECTION 5: OFFLINE DEVICES */}
+          {/* 5. OFFLINE DEVICES */}
           {offlineDevices.length > 0 && (
-            <div className="opacity-60">
+            <div className="opacity-50">
               <div className="flex items-center justify-between mb-2 px-1">
                 <span className="text-[11px] font-mono font-bold text-slate-500 uppercase tracking-wider">
                   OFFLINE DEVICES
@@ -464,7 +505,6 @@ export function MobileDeviceConnectModal() {
               <div className="space-y-2">
                 {offlineDevices.map((device) => {
                   const DeviceIcon = getDeviceIcon(device.platform, device.isAudioOutput);
-
                   return (
                     <div 
                       key={device.deviceId}
@@ -489,16 +529,27 @@ export function MobileDeviceConnectModal() {
               </div>
             </div>
           )}
-
         </div>
 
-        {/* FOOTER GUARANTEE */}
+        {/* DISCONNECT ACTION */}
+        {isRemotePlaying && (
+          <div className="px-6 py-3 bg-black/40 border-t border-white/10 flex items-center justify-between">
+            <span className="text-xs text-slate-300">Playing on remote device</span>
+            <button
+              onClick={handleDisconnect}
+              className="px-4 py-1.5 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/30 text-xs font-bold transition-all cursor-pointer"
+            >
+              Disconnect
+            </button>
+          </div>
+        )}
+
+        {/* FOOTER */}
         <div className="p-3.5 border-t border-white/10 text-[11px] text-slate-400 text-center bg-black/40 flex items-center justify-center gap-1.5">
-          <ShieldCheck className="w-3.5 h-3.5 text-[#E50914]" />
-          <span>Synchronized: Song, Exact Position, Queue, Repeat & Remote Volume</span>
+          <ShieldCheck className="w-3.5 h-3.5 text-[#FA233B]" />
+          <span>Synchronized: Song, Position, Queue & Playback State</span>
         </div>
       </div>
     </div>
   );
 }
-

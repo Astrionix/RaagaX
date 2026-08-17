@@ -20,6 +20,8 @@ export function QueueModal() {
     removeFromQueue, 
     clearQueue,
     moveQueueItem,
+    deduplicateQueue,
+    saveQueueAsPlaylist,
     isAutoplayEnabled, 
     toggleAutoplay,
     likedSongIds,
@@ -99,6 +101,20 @@ export function QueueModal() {
 
           {/* Right: Actions */}
           <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+            {queue.length > 0 && (
+              <button
+                onClick={async () => {
+                  const success = await saveQueueAsPlaylist();
+                  setToastMessage(success ? 'Saved active queue as new playlist' : 'Failed to save playlist');
+                }}
+                className="text-xs font-semibold px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-white/80 hover:text-white transition-all active:scale-95 cursor-pointer border border-white/10 whitespace-nowrap flex items-center gap-1.5"
+                title="Save active queue as a new playlist"
+              >
+                <FolderPlus className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden sm:inline">Save</span>
+              </button>
+            )}
+
             {upNextTracks.length > 0 && (
               <button
                 onClick={() => {

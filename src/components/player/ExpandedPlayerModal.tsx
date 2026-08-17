@@ -6,7 +6,7 @@ import {
   Disc3, Mic2, Music, Tv, RefreshCw, ExternalLink, Shuffle, Repeat, Repeat1, 
   ListMusic, Settings2, MonitorSmartphone, Check, MoreHorizontal, Share2, 
   User, Disc, ListPlus, Radio, Sparkles, FolderPlus, Ban, Plus, Moon,
-  Clock, Volume2, ShieldCheck, Loader2
+  Clock, Volume2, ShieldCheck, Loader2, Sliders, Car
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
@@ -76,6 +76,8 @@ export function ExpandedPlayerModal() {
     setSelectedArtistId,
     setSelectedAlbumId,
     setCreatePlaylistModalOpen,
+    toggleEqualizer,
+    toggleCarMode,
     cloudDownloadedSongIds = [],
   } = usePlayerStore();
 
@@ -492,6 +494,36 @@ export function ExpandedPlayerModal() {
                   {liveTimerStr && <span className="text-[10px] text-indigo-400 font-mono font-bold">{liveTimerStr}</span>}
                 </button>
 
+                {/* Equalizer Option */}
+                <button 
+                  onClick={() => {
+                    toggleEqualizer(true);
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <Sliders className="w-4 h-4 text-[#FA233B]" />
+                    <span className="font-bold">Equalizer & Spatial</span>
+                  </div>
+                  <span className="text-white/40 text-xs">▸</span>
+                </button>
+
+                {/* Car Driving Mode Option */}
+                <button 
+                  onClick={() => {
+                    toggleCarMode(true);
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <Car className="w-4 h-4 text-amber-400" />
+                    <span className="font-bold">Car Driving Mode</span>
+                  </div>
+                  <span className="text-white/40 text-xs">▸</span>
+                </button>
+
                 {/* Share Option */}
                 <button 
                   onClick={() => {
@@ -694,20 +726,25 @@ export function ExpandedPlayerModal() {
               <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-snug truncate">
                 {currentSong.title}
               </h1>
-              <p 
-                onClick={() => {
-                  const artistTarget = currentSong.artistId || currentSong.artist;
-                  if (artistTarget) {
-                    setSelectedArtistId(artistTarget);
-                    setActiveTab('artist');
-                    handleCloseModal();
-                  }
-                }}
-                className="text-sm font-semibold text-white/60 truncate mt-0.5 cursor-pointer hover:text-white hover:underline transition-colors inline-block"
-                title={`Go to artist: ${currentSong.artist}`}
-              >
-                {currentSong.artist}
-              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <p 
+                  onClick={() => {
+                    const artistTarget = currentSong.artistId || currentSong.artist;
+                    if (artistTarget) {
+                      setSelectedArtistId(artistTarget);
+                      setActiveTab('artist');
+                      handleCloseModal();
+                    }
+                  }}
+                  className="text-sm font-semibold text-white/75 truncate cursor-pointer hover:text-white hover:underline transition-colors inline-block"
+                  title={`Go to artist: ${currentSong.artist}`}
+                >
+                  {currentSong.artist}
+                </p>
+                <span className="text-[10px] font-black tracking-wider px-2 py-0.5 rounded-full bg-white/10 text-white/90 border border-white/15 uppercase flex-shrink-0">
+                  {isDownloaded ? 'Offline • 320K' : 'Lossless • 320K'}
+                </span>
+              </div>
             </div>
             
             <button

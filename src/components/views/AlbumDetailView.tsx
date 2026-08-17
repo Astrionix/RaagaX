@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Play, Heart, ArrowLeft, Shuffle, Music, Clock, Disc } from 'lucide-react';
+import { Play, Heart, ArrowLeft, Shuffle, Music, Clock, Disc, ListPlus, Download } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { AlbumCatalogEngine, AlbumItem } from '@/lib/albumCatalog';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { BulkDownloadConfirmModal } from '@/components/modals/BulkDownloadConfirmModal';
-import { Download } from 'lucide-react';
 
 export function AlbumDetailView() {
   const { 
@@ -14,6 +13,8 @@ export function AlbumDetailView() {
     setSelectedAlbumId, 
     setActiveTab, 
     playSong, 
+    playNextSequence,
+    setToastMessage,
     setRemoteState,
     likedSongIds, 
     toggleLikeSong, 
@@ -157,12 +158,24 @@ export function AlbumDetailView() {
             </div>
 
             {/* Action Bar */}
-            <div className="flex items-center justify-center sm:justify-start gap-3 pt-3">
+            <div className="flex items-center justify-center sm:justify-start gap-3 pt-3 flex-wrap">
               <button 
                 onClick={handlePlayAll}
                 className="px-6 py-3 rounded-full bg-[#fa233b] hover:bg-[#ff3b53] text-white font-black text-xs uppercase tracking-wider flex items-center gap-2 hover:scale-105 transition-transform shadow-xl shadow-red-500/30 cursor-pointer"
               >
                 <Play className="w-4 h-4 fill-white" /> Play Album
+              </button>
+              <button 
+                onClick={() => {
+                  if (album && album.tracks && album.tracks.length > 0) {
+                    playNextSequence(album.tracks);
+                    setToastMessage(`Queued ${album.tracks.length} songs from "${album.title}" to play next`);
+                  }
+                }}
+                className="px-5 py-3 rounded-full font-bold text-xs flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white border border-white/15 transition-all hover:scale-105 cursor-pointer"
+                title="Play all tracks in this album immediately after current song"
+              >
+                <ListPlus className="w-4 h-4 text-slate-300" /> Play Next
               </button>
               <button 
                 onClick={handleShufflePlay}

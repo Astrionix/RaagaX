@@ -417,16 +417,41 @@ export function AudioPlayerController() {
     }
   }, [currentTime, duration, isPlaying, queueIndex, queue]);
 
-  // Handle Sleep Timer
+  // ── Chameleon Theme: Extract vibrant palette from active track ──
+  useEffect(() => {
+    if (currentSong?.coverUrl) {
+      import('@/lib/theme/ArtworkColorExtractor').then(({ ArtworkColorExtractor }) => {
+        ArtworkColorExtractor.getInstance()
+          .extractPalette(currentSong.coverUrl)
+          .then(palette => ArtworkColorExtractor.getInstance().applyToDocument(palette));
+      }).catch(() => {});
+    }
+  }, [currentSong?.coverUrl]);
+
+  // ── Handle Sleep Timer with Gentle 30s Exponential Audio Fade-Out ──
   useEffect(() => {
     const interval = setInterval(() => {
-      const { sleepTimerEndsAt, sleepTimerMode, isPlaying, setIsPlaying, setSleepTimer, setToastMessage } = usePlayerStore.getState();
+      const { sleepTimerEndsAt, sleepTimerMode, isPlaying, setIsPlaying, setSleepTimer, setToastMessage, volume } = usePlayerStore.getState();
       if (!isPlaying) return;
 
-      if (sleepTimerMode === 'duration' && sleepTimerEndsAt && Date.now() >= sleepTimerEndsAt) {
-        setIsPlaying(false);
-        setSleepTimer(null);
-        setToastMessage('Sleep Timer Ended — Playback has been paused');
+      if (sleepTimerMode === 'duration' && sleepTimerEndsAt) {
+        const msRemaining = sleepTimerEndsAt - Date.now();
+        
+        // 30-Second gentle exponential audio fade ramp
+        if (msRemaining <= 30000 && msRemaining > 0) {
+          const fadeProgress = msRemaining / 30000;
+          const targetVol = Math.max(0.05, Math.min(1, (volume ?? 0.8) * Math.pow(fadeProgress, 1.5)));
+          if (audioRefA.current) audioRefA.current.volume = targetVol;
+          if (audioRefB.current) audioRefB.current.volume = targetVol;
+        }
+
+        if (msRemaining <= 0) {
+          setIsPlaying(false);
+          setSleepTimer(null);
+          if (audioRefA.current) audioRefA.current.volume = volume ?? 0.8;
+          if (audioRefB.current) audioRefB.current.volume = volume ?? 0.8;
+          setToastMessage('Sleep Timer Ended — Playback paused with gentle fade');
+        }
       }
     }, 1000);
     return () => clearInterval(interval);

@@ -96,7 +96,7 @@ export class RealMusicEngine {
     if (!url || url.includes('/null/') || url.includes('null/null') || url.endsWith('/null')) {
       return '/app-icon.png';
     }
-    return url;
+    return url.replace(/150x150|50x50|300x300/g, '500x500');
   }
 
   public async searchRealAlbums(query: string, limit = 15): Promise<any[]> {
@@ -251,15 +251,18 @@ export class RealMusicEngine {
       let coverUrl = '/app-icon.png';
 
       if (typeof rawImages === 'string') {
-        coverUrl = rawImages.replace('http://', 'https://');
+        coverUrl = rawImages.replace('http://', 'https://').replace(/150x150|50x50|300x300/g, '500x500');
       } else if (Array.isArray(rawImages) && rawImages.length > 0) {
         const hi = rawImages.find((i: any) => i?.quality === '500x500' || i?.quality === '500X500') || rawImages[rawImages.length - 1];
         const rawUrl = hi?.url || hi?.link || (typeof hi === 'string' ? hi : '');
         if (rawUrl) {
-          coverUrl = rawUrl.replace('http://', 'https://');
+          coverUrl = rawUrl.replace('http://', 'https://').replace(/150x150|50x50|300x300/g, '500x500');
         } else if (typeof rawImages[0] === 'string') {
-          coverUrl = rawImages[rawImages.length - 1].replace('http://', 'https://');
+          coverUrl = rawImages[rawImages.length - 1].replace('http://', 'https://').replace(/150x150|50x50|300x300/g, '500x500');
         }
+      }
+      if (!coverUrl || coverUrl.includes('/null/') || coverUrl.endsWith('/null')) {
+        coverUrl = '/app-icon.png';
       }
 
       let audioUrl = '';

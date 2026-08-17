@@ -36,17 +36,18 @@ export function mapTrackToSong(track: any, idx: number = 0): Song {
       : decode(track.artist || track.subtitle || 'Unknown Artist');
 
   let coverUrl = '/app-icon.png';
-  if (Array.isArray(track.image) && track.image.length > 0) {
+  const rawImage = track.image || track.images || track.artwork || track.cover || track.album?.image || track.album?.images;
+  if (Array.isArray(rawImage) && rawImage.length > 0) {
     const hi =
-      track.image.find((i: any) => i?.quality === '500x500' || i?.quality === '500X500') ||
-      track.image[track.image.length - 1] ||
-      track.image[0];
+      rawImage.find((i: any) => i?.quality === '500x500' || i?.quality === '500X500') ||
+      rawImage[rawImage.length - 1] ||
+      rawImage[0];
     const rawUrl = hi?.url || hi?.link || (typeof hi === 'string' ? hi : '');
-    if (rawUrl) coverUrl = rawUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500');
-  } else if (typeof track.image === 'string' && track.image) {
-    coverUrl = track.image.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500');
+    if (rawUrl) coverUrl = rawUrl.replace('http://', 'https://').replace(/150x150|50x50|300x300/g, '500x500');
+  } else if (typeof rawImage === 'string' && rawImage) {
+    coverUrl = rawImage.replace('http://', 'https://').replace(/150x150|50x50|300x300/g, '500x500');
   }
-  if (!coverUrl) coverUrl = '/app-icon.png';
+  if (!coverUrl || coverUrl.includes('/null/') || coverUrl.endsWith('/null')) coverUrl = '/app-icon.png';
 
   let audioUrl = '';
   if (Array.isArray(track.downloadUrl) && track.downloadUrl.length > 0) {

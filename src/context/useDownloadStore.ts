@@ -76,6 +76,11 @@ interface DownloadStore {
     audioQuality: 'High' | 'Standard' | 'Lossless';
     autoDeleteTemp: boolean;
     smartDownloads: boolean;
+    autoDownloadPlaylists: boolean;
+    autoDownloadFavorites: boolean;
+    autoDownloadFollowedPlaylists: boolean;
+    maxAutoDownloadsCount: number; // 0 = unlimited
+    minStorageThresholdGB: number; // minimum free device storage in GB required
   };
   setOfflineSettings: (settings: Partial<DownloadStore['offlineSettings']>) => void;
   setMaxConcurrent: (count: number) => void;
@@ -100,6 +105,11 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     audioQuality: 'High',
     autoDeleteTemp: false,
     smartDownloads: false,
+    autoDownloadPlaylists: false,
+    autoDownloadFavorites: false,
+    autoDownloadFollowedPlaylists: false,
+    maxAutoDownloadsCount: 0,
+    minStorageThresholdGB: 2,
   },
 
   setOfflineStorageEnabled: (enabled) => { set({ isOfflineStorageEnabled: enabled }); get()._persistTasks(); },
@@ -605,9 +615,28 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
         } catch (e) {
           console.warn('[useDownloadStore] Cloud download record sync deferred:', e);
         }
+
+        // Offline Lyrics Pre-caching: Download and store lyrics in IndexedDB alongside the audio
+        try {
+          const { LyricsResolver } = await import('@/lib/lyrics/LyricsResolver');
+          await LyricsResolver.getInstance().fetchLyrics(task.song.id, {
+            title: task.song.title,
+            artist: task.song.artist,
+            album: task.song.album,
+            durationMs: (task.song.duration || 0) * 1000,
+          });
+        } catch (e) {
+          console.warn('[useDownloadStore] Offline lyrics pre-caching deferred:', e);
+        }
       }
 
       setStatus(nextTaskId, 'completed');
+
+      // Dispatch smart-batched notification to Activity Center
+      try {
+        const { useNotificationStore } = await import('@/context/useNotificationStore');
+        useNotificationStore.getState().notifyDownloadCompleted(task.song.title, task.song.id, task.song.coverUrl);
+      } catch (e) {}
       
       setTimeout(() => {
         set((s) => {

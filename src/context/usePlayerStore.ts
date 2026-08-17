@@ -11,6 +11,7 @@ import { RaagaXNativePlayer } from '@/lib/playback/native/RaagaXNativePlayer';
 import { ConnectManager } from '@/lib/connect/ConnectManager';
 import { PlaybackWatchdog } from '@/lib/playback/PlaybackWatchdog';
 import { isKidsOrNurseryTrack } from '@/lib/jioSaavnProvider';
+import { SongCoverEngine } from '@/lib/playback/SongCoverEngine';
 
 import { AudioQuality, AudioQualityState } from '@/lib/playback/types';
 
@@ -66,6 +67,12 @@ interface PlayerState {
   isSleepTimerModalOpen: boolean;
   isDeviceModalOpen: boolean;
   createPlaylistModalOpen: boolean;
+  isWrappedModalOpen: boolean;
+  toggleWrappedModal: (open?: boolean) => void;
+  isEqualizerOpen: boolean;
+  toggleEqualizer: (open?: boolean) => void;
+  isCarModeOpen: boolean;
+  toggleCarMode: (open?: boolean) => void;
 
   toastMessage: string | null;
   setToastMessage: (msg: string | null) => void;
@@ -81,9 +88,11 @@ interface PlayerState {
   contextMenuSong: Song | null;
   // 3-Tier Language Preference System
   preferredLanguage: string; // GLOBAL_LANGUAGE (Explicit User Selection)
+  selectedLanguages: string[]; // MULTI_LANGUAGE (Active Music Languages)
   sessionLanguage: string; // SESSION_LANGUAGE (Current Playback Queue Language)
   interestLanguages: Record<string, number>; // INTEREST_LANGUAGES (Inferred Soft Signals)
   setPreferredLanguage: (lang: string) => void;
+  setSelectedLanguages: (langs: string[]) => void;
   setSessionLanguage: (lang: string) => void;
   recordLanguageInterest: (lang: string, delta?: number) => void;
 
@@ -167,10 +176,13 @@ interface PlayerState {
   addToQueue: (song: Song) => void;
   playNextInQueue: (song: Song) => void;
   playLastInQueue: (song: Song) => void;
+  playNextSequence: (songs: Song[]) => void;
   removeFromQueue: (songId: string) => void;
   reorderQueue: (newQueue: Song[]) => void;
   clearQueue: () => void;
   moveQueueItem: (fromUpNextIndex: number, toUpNextIndex: number) => void;
+  deduplicateQueue: () => void;
+  saveQueueAsPlaylist: (title?: string) => Promise<boolean>;
 
   toggleLikeSong: (songId: string) => void;
   setLikedSongIds: (songIds: string[]) => void;
@@ -329,6 +341,12 @@ export const usePlayerStore = create<PlayerState>()(
   isSleepTimerModalOpen: false,
   isDeviceModalOpen: false,
   createPlaylistModalOpen: false,
+  isWrappedModalOpen: false,
+  toggleWrappedModal: (open) => set((s) => ({ isWrappedModalOpen: open !== undefined ? open : !s.isWrappedModalOpen })),
+  isEqualizerOpen: false,
+  toggleEqualizer: (open) => set((s) => ({ isEqualizerOpen: open !== undefined ? open : !s.isEqualizerOpen })),
+  isCarModeOpen: false,
+  toggleCarMode: (open) => set((s) => ({ isCarModeOpen: open !== undefined ? open : !s.isCarModeOpen })),
   toastMessage: null,
 
   setToastMessage: (msg) => set({ toastMessage: msg }),
@@ -358,6 +376,7 @@ export const usePlayerStore = create<PlayerState>()(
   setNetworkMode: (mode) => set({ networkMode: mode }),
   
   preferredLanguage: (typeof window !== 'undefined' && localStorage.getItem('raagax_preferred_language')) || 'Telugu',
+  selectedLanguages: (typeof window !== 'undefined' && JSON.parse(localStorage.getItem('raagax_selected_languages') || '["Telugu"]')) || ['Telugu'],
   sessionLanguage: (typeof window !== 'undefined' && localStorage.getItem('raagax_preferred_language')) || 'Telugu',
   interestLanguages: {
     Telugu: 0.90,
@@ -375,6 +394,30 @@ export const usePlayerStore = create<PlayerState>()(
     });
     import('@/lib/lifecycle/UserLifecycleManager').then(({ UserLifecycleManager }) => {
       UserLifecycleManager.getInstance().setSelectedLanguages([lang]);
+    });
+  },
+  setSelectedLanguages: (langs: string[]) => {
+    const valid = langs.length > 0 ? langs : ['Telugu'];
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('raagax_selected_languages', JSON.stringify(valid));
+      localStorage.setItem('raagax_preferred_language', valid[0]);
+    }
+    const prevInterests = get().interestLanguages || {};
+    const newInterests: Record<string, number> = { ...prevInterests };
+    valid.forEach(l => { newInterests[l] = 0.90; });
+    
+    set({
+      selectedLanguages: valid,
+      preferredLanguage: valid[0],
+      sessionLanguage: valid[0],
+      interestLanguages: newInterests
+    });
+
+    import('@/lib/lifecycle/UserLifecycleManager').then(({ UserLifecycleManager }) => {
+      UserLifecycleManager.getInstance().setSelectedLanguages(valid);
+    });
+    import('@/lib/lifecycle/ListeningDnaEngine').then(({ ListeningDnaEngine }) => {
+      ListeningDnaEngine.getInstance().setInitialLanguages(valid);
     });
   },
   setSessionLanguage: (lang: string) => set({ sessionLanguage: lang }),
@@ -410,12 +453,48 @@ export const usePlayerStore = create<PlayerState>()(
   onlineDevices: [],
   rightPanelMode: 'queue',
 
+  setOnlineDevices: (devices) => set({ onlineDevices: devices }),
+
   connectToDevice: async (targetDeviceId: string) => {
     return ConnectManager.getInstance().connectToDevice(targetDeviceId);
   },
 
   disconnectDevice: () => {
     ConnectManager.getInstance().disconnectFromDevice();
+  },
+
+  transferPlayback: async (targetDeviceId: string) => {
+    const { currentSong } = get();
+    if (!currentSong) return;
+
+    set({ isTransferring: true, transferringDeviceId: targetDeviceId });
+
+    try {
+      const { TransferManager } = await import('@/lib/connect/TransferManager');
+      const success = await TransferManager.getInstance().initiateTransfer(targetDeviceId);
+
+      if (success) {
+        const { DeviceDiscoveryEngine } = await import('@/lib/connect/discovery/DeviceDiscoveryEngine');
+        const devices = DeviceDiscoveryEngine.getInstance().getRankedDevices();
+        const targetDev = devices.find((d) => d.deviceId === targetDeviceId);
+        
+        PlaybackService.getInstance().pause();
+        set({
+          connectedDeviceId: targetDeviceId,
+          activeDeviceId: targetDeviceId,
+          remoteDeviceName: targetDev?.name || 'Remote Device',
+          isActiveDevice: false,
+          isTransferring: false,
+          transferringDeviceId: null,
+          deviceConnectionState: 'CONNECTED',
+        });
+      } else {
+        set({ isTransferring: false, transferringDeviceId: null });
+      }
+    } catch (err) {
+      console.error('[usePlayerStore] transferPlayback error:', err);
+      set({ isTransferring: false, transferringDeviceId: null });
+    }
   },
 
   getPlaybackSnapshot: () => {
@@ -468,23 +547,7 @@ export const usePlayerStore = create<PlayerState>()(
   },
 
   setRightPanelMode: (mode) => set({ rightPanelMode: mode }),
-  setOnlineDevices: (devices) => set({ onlineDevices: devices }),
   setRemoteState: (newState) => set((state) => ({ ...state, ...newState })),
-  
-  transferPlayback: async (targetDeviceId) => {
-    if (get().isTransferring && get().transferringDeviceId === targetDeviceId) {
-      console.warn('[usePlayerStore] Transfer already in progress to target device, ignoring duplicate request.');
-      return;
-    }
-    set({ isTransferring: true, transferringDeviceId: targetDeviceId });
-    try {
-      const { TransferManager } = await import('@/lib/connect/TransferManager');
-      await TransferManager.getInstance().initiateTransfer(targetDeviceId);
-    } catch (e) {
-      console.error('[usePlayerStore] transferPlayback error:', e);
-      set({ isTransferring: false, transferringDeviceId: null });
-    }
-  },
 
   restoreLocalSession: async () => {
     const manager = QueueManager.getInstance();
@@ -641,7 +704,13 @@ export const usePlayerStore = create<PlayerState>()(
     const manager = QueueManager.getInstance();
     const snapshot = manager.getSnapshot();
     const currentItem = manager.getCurrentItem();
-    const targetSong = song || (currentItem ? currentItem.song : null);
+    let targetSong = song || (currentItem ? currentItem.song : null);
+    if (targetSong) {
+      targetSong = {
+        ...targetSong,
+        coverUrl: SongCoverEngine.getInstance().formatRawCoverUrl(targetSong.coverUrl),
+      };
+    }
     const finalQueue = updatedQueue || snapshot.items.map((i: any) => i.song);
     const finalIndex = queueIndex !== undefined ? queueIndex : snapshot.currentIndex;
 
@@ -656,19 +725,38 @@ export const usePlayerStore = create<PlayerState>()(
     });
 
     if (targetSong) {
+      const activeSongRef = targetSong;
       import('@/lib/playback/MediaSessionManager').then(({ MediaSessionManager }) => {
         MediaSessionManager.getInstance().updateMetadata({
-          title: targetSong.title,
-          artist: targetSong.artist || 'RaagaX',
-          album: targetSong.album || 'RaagaX Music',
-          artwork: targetSong.coverUrl ? [{ src: targetSong.coverUrl, sizes: '512x512', type: 'image/png' }] : [],
+          title: activeSongRef.title,
+          artist: activeSongRef.artist || 'RaagaX',
+          album: activeSongRef.album || 'RaagaX Music',
+          artwork: activeSongRef.coverUrl ? [{ src: activeSongRef.coverUrl, sizes: '512x512', type: 'image/png' }] : [],
         });
         MediaSessionManager.getInstance().setPlaybackState('playing');
         MediaSessionManager.getInstance().setPositionState({
-          duration: targetSong.duration || 0,
+          duration: activeSongRef.duration || 0,
           position: 0,
         });
       });
+
+      // Background Real Artwork Verification & Resolution
+      SongCoverEngine.getInstance().ensureActiveSongCover(activeSongRef).then((enhanced) => {
+        if (enhanced.coverUrl && enhanced.coverUrl !== activeSongRef.coverUrl && enhanced.coverUrl !== '/app-icon.png') {
+          const current = get().currentSong;
+          if (current?.id === enhanced.id) {
+            set({ currentSong: { ...current, coverUrl: enhanced.coverUrl } });
+            import('@/lib/playback/MediaSessionManager').then(({ MediaSessionManager }) => {
+              MediaSessionManager.getInstance().updateMetadata({
+                title: enhanced.title,
+                artist: enhanced.artist || 'RaagaX',
+                album: enhanced.album || 'RaagaX Music',
+                artwork: [{ src: enhanced.coverUrl, sizes: '512x512', type: 'image/png' }],
+              });
+            });
+          }
+        }
+      }).catch(() => {});
     }
   },
 
@@ -683,25 +771,28 @@ export const usePlayerStore = create<PlayerState>()(
     lastPlayCallTimestamp = now;
     lastPlaySongId = song.id || '';
 
-    console.log(`[PLAY CALLED] songId=${song.id} title="${song.title}" artist="${song.artist}" source=${context?.type || 'USER_CLICK'}`);
+    // Upgrade coverUrl immediately to 500x500 HD
+    const activePlaySong: Song = {
+      ...song,
+      coverUrl: SongCoverEngine.getInstance().formatRawCoverUrl(song.coverUrl),
+    };
+
+    console.log(`[PLAY CALLED] songId=${activePlaySong.id} title="${activePlaySong.title}" artist="${activePlaySong.artist}" cover="${activePlaySong.coverUrl}" source=${context?.type || 'USER_CLICK'}`);
     get().logCurrentTelemetry('skip');
     
     // 3-Tier Language System: Session Language Resolution
-    // If the user explicitly plays a song (e.g. from search, an album, or playlist),
-    // establish SESSION_LANGUAGE to that song's language for the current playback session.
-    // GLOBAL_LANGUAGE (preferredLanguage) remains untouched.
-    const songLang = LanguageEligibilityEngine.getInstance().detectSongLanguage(song);
+    const songLang = LanguageEligibilityEngine.getInstance().detectSongLanguage(activePlaySong);
     get().recordLanguageInterest(songLang, 0.20);
 
     // Check if newQueue was passed (e.g. from an album or playlist)
     const manager = QueueManager.getInstance();
     if (newQueue && newQueue.length > 0) {
-       const index = newQueue.findIndex((s: Song) => s.id === song.id);
+       const index = newQueue.findIndex((s: Song) => s.id === activePlaySong.id);
        const boundedQueue = index !== -1 ? newQueue.slice(index) : newQueue;
        manager.replaceQueue(boundedQueue, 0, (context?.type as any) || 'PLAYLIST', context);
     } else {
        // Play now immediately overrides next
-       manager.playNow(song);
+       manager.playNow(activePlaySong);
     }
 
     const snapshot = manager.getSnapshot();
@@ -709,8 +800,8 @@ export const usePlayerStore = create<PlayerState>()(
     const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
 
     // Atomically commit playing state, queue & queueIndex + update local Recently Played history
-    const existingHistory = get().historySongIds.filter(id => id !== song.id);
-    const updatedHistory = [song.id, ...existingHistory].slice(0, 50);
+    const existingHistory = get().historySongIds.filter(id => id !== activePlaySong.id);
+    const updatedHistory = [activePlaySong.id, ...existingHistory].slice(0, 50);
 
     set({ 
       isPlaying: true, 
@@ -718,12 +809,30 @@ export const usePlayerStore = create<PlayerState>()(
       trackSource: 'USER_SELECTED',
       sessionLanguage: songLang,
       currentTime: 0, 
-      currentSong: song, 
+      currentSong: activePlaySong, 
       queue: syncedQueue, 
       queueIndex: syncedIndex,
       historySongIds: updatedHistory
     });
-    persistSessionHelper({ ...get(), currentSong: song, currentTime: 0, queue: syncedQueue, queueIndex: syncedIndex, historySongIds: updatedHistory });
+    persistSessionHelper({ ...get(), currentSong: activePlaySong, currentTime: 0, queue: syncedQueue, queueIndex: syncedIndex, historySongIds: updatedHistory });
+
+    // Background Real Artwork Verification & Resolution
+    SongCoverEngine.getInstance().ensureActiveSongCover(activePlaySong).then((enhanced) => {
+      if (enhanced.coverUrl && enhanced.coverUrl !== activePlaySong.coverUrl && enhanced.coverUrl !== '/app-icon.png') {
+        const current = get().currentSong;
+        if (current?.id === enhanced.id) {
+          set({ currentSong: { ...current, coverUrl: enhanced.coverUrl } });
+          import('@/lib/playback/MediaSessionManager').then(({ MediaSessionManager }) => {
+            MediaSessionManager.getInstance().updateMetadata({
+              title: enhanced.title,
+              artist: enhanced.artist || 'RaagaX',
+              album: enhanced.album || 'RaagaX Music',
+              artwork: [{ src: enhanced.coverUrl, sizes: '512x512', type: 'image/png' }],
+            });
+          });
+        }
+      }
+    }).catch(() => {});
 
     // Track playback activity to Supabase listening_events & user_events for cross-device Recently Played
     import('@/context/useAuthStore').then(({ useAuthStore }) => {
@@ -1272,6 +1381,71 @@ export const usePlayerStore = create<PlayerState>()(
     PlaybackService.getInstance().loadQueueContext(newQueue, queueIndex);
   },
 
+  playNextSequence: (songs: Song[]) => {
+    if (!songs || songs.length === 0) return;
+    const { queue, queueIndex } = get();
+    const pastAndCurrent = queue.slice(0, queueIndex + 1);
+    const remaining = queue.slice(queueIndex + 1);
+    const newQueue = [...pastAndCurrent, ...songs, ...remaining];
+
+    const manager = QueueManager.getInstance();
+    manager.replaceQueue(newQueue, queueIndex, 'USER');
+    set({ queue: newQueue });
+
+    PlaybackService.getInstance().loadQueueContext(newQueue, queueIndex);
+  },
+
+  deduplicateQueue: () => {
+    const { queue, queueIndex } = get();
+    if (!queue || queue.length <= 1) return;
+
+    const current = queue[queueIndex];
+    const seen = new Set<string>();
+    if (current?.id) seen.add(current.id);
+
+    const past = queue.slice(0, queueIndex);
+    const upNext = queue.slice(queueIndex + 1);
+
+    const filteredUpNext = upNext.filter((s) => {
+      if (!s?.id || seen.has(s.id)) return false;
+      seen.add(s.id);
+      return true;
+    });
+
+    const newQueue = [...past, ...(current ? [current] : []), ...filteredUpNext];
+    const manager = QueueManager.getInstance();
+    manager.replaceQueue(newQueue, queueIndex, 'USER');
+    set({ queue: newQueue });
+
+    PlaybackService.getInstance().loadQueueContext(newQueue, queueIndex);
+  },
+
+  saveQueueAsPlaylist: async (title?: string): Promise<boolean> => {
+    const { queue, currentSong } = get();
+    if (!queue || queue.length === 0) return false;
+
+    try {
+      const { usePlaylistStore } = await import('@/context/usePlaylistStore');
+      const playlistStore = usePlaylistStore.getState();
+
+      const playlistName = title || (currentSong ? `Queue (${currentSong.title})` : `Queue (${new Date().toLocaleDateString()})`);
+      const newPlaylist = await playlistStore.createPlaylist(playlistName, 'Created from active playback queue', 'private');
+
+      if (newPlaylist) {
+        for (const song of queue) {
+          if (song && song.id) {
+            await playlistStore.addSongToPlaylist(newPlaylist.id, song);
+          }
+        }
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('[usePlayerStore] saveQueueAsPlaylist error:', e);
+      return false;
+    }
+  },
+
   autoRefillQueue: async () => {},
 
   syncCloudLibrary: async () => {
@@ -1334,6 +1508,25 @@ export const usePlayerStore = create<PlayerState>()(
     if (!isLiked && targetSong) {
       const songLang = LanguageEligibilityEngine.getInstance().detectSongLanguage(targetSong);
       get().recordLanguageInterest(songLang, 0.35);
+    }
+
+    // Smart Download Rules Hook for Favorites
+    if (!isLiked) {
+      import('@/lib/offline/SmartDownloadEngine').then(async ({ SmartDownloadEngine }) => {
+        try {
+          let songToDownload = targetSong;
+          if (!songToDownload) {
+            const { SongResolver } = await import('@/lib/discovery/SongResolver');
+            const resolved = await SongResolver.resolveSongs([songId]);
+            if (resolved.length > 0) songToDownload = resolved[0];
+          }
+          if (songToDownload) {
+            await SmartDownloadEngine.getInstance().evaluateAndDownload(songToDownload, { trigger: 'FAVORITE_ADD' });
+          }
+        } catch (favErr) {
+          console.warn('[SmartDownloadEngine] Error evaluating favorite download rule:', favErr);
+        }
+      });
     }
 
     // Delegate solely to authoritative AccountSyncEngine & UserBehaviorTracker

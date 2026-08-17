@@ -58,6 +58,20 @@ export function Header() {
               <span>Offline</span>
             </div>
           )}
+
+          <button
+            onClick={() => {
+              import('@/context/useNotificationStore').then(({ useNotificationStore }) => {
+                useNotificationStore.getState().toggleOpen();
+              });
+            }}
+            aria-label="Notifications"
+            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors relative cursor-pointer"
+            title="Notifications"
+          >
+            <Bell className="w-4 h-4" />
+            <span className="absolute top-1 right-1 w-2 h-2 bg-[#E50914] rounded-full" />
+          </button>
         </div>
       </header>
 
