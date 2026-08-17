@@ -363,7 +363,7 @@ export function SearchView() {
                   : 'bg-white/10 text-white/70 hover:text-white hover:bg-white/15'
               }`}
             >
-              <Music className="w-3.5 h-3.5" /> Songs ({searchResults.songs.length})
+              <Music className="w-3.5 h-3.5" /> Songs
             </button>
             <button
               onClick={() => setFilterType('artists')}
@@ -373,7 +373,7 @@ export function SearchView() {
                   : 'bg-white/10 text-white/70 hover:text-white hover:bg-white/15'
               }`}
             >
-              <User className="w-3.5 h-3.5" /> Artists ({searchResults.artists.length})
+              <User className="w-3.5 h-3.5" /> Artists
             </button>
             <button
               onClick={() => setFilterType('albums')}
@@ -383,7 +383,7 @@ export function SearchView() {
                   : 'bg-white/10 text-white/70 hover:text-white hover:bg-white/15'
               }`}
             >
-              <Disc3 className="w-3.5 h-3.5" /> Albums ({searchResults.albums.length})
+              <Disc3 className="w-3.5 h-3.5" /> Albums
             </button>
             <button
               onClick={() => setFilterType('playlists')}
@@ -393,7 +393,7 @@ export function SearchView() {
                   : 'bg-white/10 text-white/70 hover:text-white hover:bg-white/15'
               }`}
             >
-              <ListMusic className="w-3.5 h-3.5" /> Playlists ({searchResults.playlists.length})
+              <ListMusic className="w-3.5 h-3.5" /> Playlists
             </button>
             {downloadedOnlyResults.length > 0 && (
               <button
@@ -404,7 +404,7 @@ export function SearchView() {
                     : 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30'
                 }`}
               >
-                <CheckCircle2 className="w-3.5 h-3.5" /> Downloaded ({downloadedOnlyResults.length})
+                <CheckCircle2 className="w-3.5 h-3.5" /> Downloaded
               </button>
             )}
           </div>
@@ -593,7 +593,7 @@ export function SearchView() {
             <div className="space-y-3">
               <h4 className="text-sm font-bold text-white flex items-center justify-between">
                 <span className="flex items-center gap-2">
-                  <Music className="w-4 h-4 text-[#EF233C]" /> Songs ({filterType === 'downloaded' ? downloadedOnlyResults.length : searchResults.songs.length})
+                  <Music className="w-4 h-4 text-[#EF233C]" /> Songs
                 </span>
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">

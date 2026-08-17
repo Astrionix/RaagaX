@@ -237,13 +237,13 @@ export function LibraryView() {
   const currentCuratedPlaylists = getCuratedPlaylists(selectedPlaylistLang || preferredLanguage);
 
   const libraryNavItems = [
-    { id: 'liked', label: 'Liked Songs', icon: Heart, count: likedSongIds.length, color: 'text-[#F51B3D]', bg: 'bg-[#F51B3D]/10' },
-    { id: 'downloads', label: 'Downloaded', icon: Download, count: downloadedSongIds.length, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-    { id: 'playlists', label: 'Playlists', icon: ListMusic, count: userPlaylists.length + currentCuratedPlaylists.length, color: 'text-purple-400', bg: 'bg-purple-500/10' },
-    { id: 'languages', label: 'Languages', icon: Globe, count: selectedLanguages.length, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-    { id: 'history', label: 'Recently Played', icon: Clock, count: historySongIds.length, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-    { id: 'artists', label: 'Artists', icon: User, count: favoriteArtistIds.length > 0 ? favoriteArtistIds.length : 6, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-    { id: 'albums', label: 'Albums', icon: Disc, count: favoriteAlbumIds.length, color: 'text-rose-400', bg: 'bg-rose-500/10' },
+    { id: 'liked', label: 'Liked Songs', subtitle: 'Your favorite tracks', icon: Heart, color: 'text-[#F51B3D]', bg: 'bg-[#F51B3D]/10' },
+    { id: 'downloads', label: 'Downloaded', subtitle: 'Offline protected tracks', icon: Download, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+    { id: 'playlists', label: 'Playlists', subtitle: 'Custom & curated collections', icon: ListMusic, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+    { id: 'languages', label: 'Languages', subtitle: 'Preferred regional streams', icon: Globe, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+    { id: 'history', label: 'Recently Played', subtitle: 'Listening history', icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+    { id: 'artists', label: 'Artists', subtitle: 'Followed artist catalog', icon: User, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+    { id: 'albums', label: 'Albums', subtitle: 'Saved audio releases', icon: Disc, color: 'text-rose-400', bg: 'bg-rose-500/10' },
   ];
 
   const handlePlayAll = (songs: Song[], shuffle = false) => {
@@ -324,10 +324,10 @@ export function LibraryView() {
         {/* Apple Music Style Sub-Navigation */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
           {[
-            { id: 'songs', label: `Downloaded Songs (${downloadedSongs.length})`, icon: Music },
-            { id: 'albums', label: `Albums (${downloadedAlbums.length})`, icon: Disc },
-            { id: 'playlists', label: `Playlists (${downloadedPlaylists.length})`, icon: ListMusic },
-            { id: 'storage', label: `Storage (${formatBytes(storageInfo?.raagaXUsed || 0)})`, icon: HardDrive },
+            { id: 'songs', label: 'Downloaded Songs', icon: Music },
+            { id: 'albums', label: 'Albums', icon: Disc },
+            { id: 'playlists', label: 'Playlists', icon: ListMusic },
+            { id: 'storage', label: 'Storage', icon: HardDrive },
           ].map((sub) => {
             const Icon = sub.icon;
             const isSelected = downloadSubTab === sub.id;
@@ -918,7 +918,7 @@ export function LibraryView() {
           <div>
             <h1 className="text-2xl font-black text-white tracking-tight">{activeItem?.label}</h1>
             <p className="text-xs text-[#8E92A4]">
-              {tab === 'downloads' ? `${downloadedSongIds.length} offline tracks in private sandbox` : `${activeItem?.count} items in your cloud library`}
+              {activeItem?.subtitle || 'In your cloud library'}
             </p>
           </div>
         </div>
@@ -1006,7 +1006,7 @@ export function LibraryView() {
                   <h3 className="text-sm font-bold text-white group-hover:text-[#F51B3D] transition-colors">
                     {item.label}
                   </h3>
-                  <p className="text-xs text-[#8E92A4] mt-0.5">{item.count} items</p>
+                  <p className="text-xs text-[#8E92A4] mt-0.5">{item.subtitle}</p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
@@ -1021,7 +1021,7 @@ export function LibraryView() {
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <Download className="w-3.5 h-3.5 text-emerald-400" />
-              Recently Downloaded ({downloadedSongs.length})
+              Recently Downloaded
             </h3>
             <button
               onClick={() => setTab('downloads')}

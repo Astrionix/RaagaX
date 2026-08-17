@@ -101,9 +101,10 @@ export function HomeView() {
   const { user } = useAuthStore();
   const activeUserId = user?.id || 'guest';
 
-  const currentLang = preferredLanguage
-    ? (preferredLanguage.charAt(0).toUpperCase() + preferredLanguage.slice(1).toLowerCase())
-    : (selectedLanguages?.[0] || 'Hindi');
+  const [isMounted, setIsMounted] = useState(false);
+
+  const displayLang = isMounted ? (preferredLanguage || selectedLanguages?.[0] || '') : '';
+  const currentLang = displayLang || 'Hindi';
 
   const { data: payload, isLoading } = useSWR(
     `/api/home?lang=${encodeURIComponent(currentLang)}`,
@@ -115,10 +116,7 @@ export function HomeView() {
     }
   );
 
-  const [feed, setFeed] = useState<PersonalizedHomeFeed | null>(() => {
-    return RecommendationEngine.getInstance().getCachedHomeFeedSnapshot(activeUserId, currentLang);
-  });
-  const [isMounted, setIsMounted] = useState(false);
+  const [feed, setFeed] = useState<PersonalizedHomeFeed | null>(null);
 
   const { playlists: userPlaylists = [], fetchPlaylists } = usePlaylistStore();
 
@@ -475,7 +473,7 @@ export function HomeView() {
       {/* 8. Trending in [Language] */}
       {homeFeedControls.showTrending !== false && feed?.trendingSongs && feed.trendingSongs.length > 0 && (
         <CarouselShelf
-          title={`Trending in ${currentLang}`}
+          title={displayLang ? `Trending in ${displayLang}` : 'Trending Hits'}
           icon={<Flame className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-[#E50914] flex-shrink-0" />}
           items={songsToShelfItems(feed.trendingSongs)}
           showPlayAll={true}
@@ -485,7 +483,7 @@ export function HomeView() {
       {/* 9. New Releases in [Language] */}
       {homeFeedControls.showNewReleases !== false && feed?.newReleases && feed.newReleases.length > 0 && (
         <CarouselShelf
-          title={`New ${currentLang} Releases`}
+          title={displayLang ? `New ${displayLang} Releases` : 'New Releases'}
           icon={<Compass className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-emerald-400 flex-shrink-0" />}
           items={songsToShelfItems(feed.newReleases)}
           showPlayAll={true}

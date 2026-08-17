@@ -154,7 +154,7 @@ export function FavoritesView() {
         </div>
         <div>
           <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight">Your Favorites</h1>
-          <p className="text-xs text-[#8E92A4] mt-0.5">{likedSongIds.length} Liked Songs in your Cloud Library</p>
+          <p className="text-xs text-[#8E92A4] mt-0.5">Liked songs and artists in your cloud library</p>
         </div>
       </div>
 
@@ -162,8 +162,8 @@ export function FavoritesView() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
         <div className="flex items-center gap-2">
           {[
-            { id: 'songs', label: `Songs (${likedSongIds.length})`, icon: Music },
-            { id: 'artists', label: `Artists (${favoriteArtists.length})`, icon: User },
+            { id: 'songs', label: 'Songs', icon: Music },
+            { id: 'artists', label: 'Artists', icon: User },
           ].map((t) => {
             const Icon = t.icon;
             const isActive = activeSubTab === t.id;

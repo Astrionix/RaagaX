@@ -428,7 +428,7 @@ export function DownloadsView() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-2">
-              <Download className="w-4 h-4 text-[#fa233b]" /> Download Queue ({activeTasks.length})
+              <Download className="w-4 h-4 text-[#fa233b]" /> Download Queue
             </h3>
             <div className="flex gap-2">
               <button onClick={pauseAll} className="text-[10px] uppercase font-bold text-slate-400 hover:text-white px-2.5 py-1 rounded bg-white/5 hover:bg-white/10">Pause All</button>
@@ -509,7 +509,7 @@ export function DownloadsView() {
               }`}
             >
               <HardDrive className="w-3.5 h-3.5" />
-              <span>On This Device ({offlineSongs.length})</span>
+              <span>On This Device</span>
             </button>
             <button
               onClick={() => setActiveSubTab('cloud')}
@@ -520,7 +520,7 @@ export function DownloadsView() {
               }`}
             >
               <Cloud className="w-3.5 h-3.5" />
-              <span>Cloud History ({cloudDownloadRecords.length})</span>
+              <span>Cloud History</span>
             </button>
           </div>
 
