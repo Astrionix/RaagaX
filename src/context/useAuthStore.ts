@@ -73,7 +73,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       await LocalDatabase.getInstance().clearPlaybackSession();
     } catch {}
 
-    await supabase.auth.signOut();
+    await supabase.auth.signOut().catch(() => {});
     set({ user: null, session: null });
     // Clear cross-device sync local storage fallbacks and queue caches on account switch
     if (typeof window !== 'undefined') {
@@ -81,7 +81,6 @@ export const useAuthStore = create<AuthState>((set) => ({
       localStorage.removeItem('raagax_active_queue_snapshot');
       localStorage.removeItem('raagax_fallback_session');
       localStorage.removeItem('raagax_latest_playback_session');
-      window.location.reload(); // Refresh to reset all states globally
     }
   }
 }));

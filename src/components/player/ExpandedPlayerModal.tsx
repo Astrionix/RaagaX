@@ -951,15 +951,6 @@ export function ExpandedPlayerModal() {
                 {liveTimerStr && <span className="font-mono text-xs font-black text-white">{liveTimerStr}</span>}
               </button>
 
-              {/* Equalizer & Audio Settings Button */}
-              <button
-                onClick={toggleSettingsModal}
-                className="p-2.5 rounded-2xl border border-white/10 bg-white/5 text-white/70 hover:text-white hover:border-white/30 transition-all active:scale-95"
-                title="Equalizer & Audio Quality"
-              >
-                <Settings2 className="w-4 h-4" />
-              </button>
-
               {/* Queue Button */}
               <button
                 onClick={toggleQueue}

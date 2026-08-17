@@ -5,6 +5,7 @@ import { LanguageEligibilityEngine } from '@/lib/language/LanguageEligibilityEng
 import { QueueHistory } from '@/lib/queue/QueueHistory';
 import { UserBehaviorTracker, UserEventType } from '@/lib/analytics/UserBehaviorTracker';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { SongUniquenessEngine } from '@/lib/music/SongUniquenessEngine';
 
 export interface PersonalizedHomeFeed {
   greeting: string;
@@ -150,12 +151,12 @@ export class RecommendationEngine {
     if (topRecent) {
       const seedArtist = topRecent.artist.split(/[,&/]/)[0].trim();
       try {
-        const similarSongs = await musicEngine.searchRealSongs(`${seedArtist} ${lang}`, 12);
-        const filteredSimilar = similarSongs.filter((s) => s.id !== topRecent.id);
-        if (filteredSimilar.length > 0) {
+        const similarSongs = await musicEngine.searchRealSongs(`${seedArtist} ${lang}`, 25);
+        const uniqueSimilar = SongUniquenessEngine.deduplicate(similarSongs, [topRecent]);
+        if (uniqueSimilar.length > 0) {
           becauseYouListenedTo = {
             seedSongOrArtist: seedArtist,
-            items: filteredSimilar.slice(0, 10),
+            items: uniqueSimilar.slice(0, 10),
           };
         }
       } catch {}

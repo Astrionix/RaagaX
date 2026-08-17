@@ -5,6 +5,7 @@
  */
 
 import { Song } from '@/types/music';
+import { SongUniquenessEngine } from '@/lib/music/SongUniquenessEngine';
 
 // Language code mapping used for filtering
 export const LANGUAGE_CODES: Record<string, string> = {
@@ -119,26 +120,8 @@ export function isKidsOrNurseryTrack(track: { title?: string; artist?: string; a
 }
 
 function deduplicateSongs(songs: Song[]): Song[] {
-  const seenIds = new Set<string>();
-  const seenTitles = new Set<string>();
-  const unique: Song[] = [];
-  for (const song of songs) {
-    if (!song.id || seenIds.has(song.id)) continue;
-    if (isKidsOrNurseryTrack(song)) continue;
-    const clean = song.title
-      .toLowerCase()
-      .replace(/\(from[^)]*\)/gi, '')
-      .replace(/\([^)]*\)/g, '')
-      .replace(/\b(remix|lofi|slowed|reverb|cover|instrumental|version|feat)\b/gi, '')
-      .replace(/[^a-z0-9]/g, '')
-      .trim();
-    const key = clean.length >= 3 ? clean : song.title.toLowerCase().trim();
-    if (seenTitles.has(key)) continue;
-    seenIds.add(song.id);
-    seenTitles.add(key);
-    unique.push(song);
-  }
-  return unique;
+  const filtered = songs.filter((s) => !isKidsOrNurseryTrack(s));
+  return SongUniquenessEngine.deduplicate(filtered);
 }
 
 /**

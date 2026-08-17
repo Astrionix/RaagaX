@@ -19,10 +19,14 @@ import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { getCuratedPlaylists } from '@/constants/playlists';
 import { RecommendationEngine, PersonalizedHomeFeed } from '@/lib/recommendation/RecommendationEngine';
 
+import { HomeFeedGenerator } from '@/lib/home/HomeFeedGenerator';
+
 const homeFetcher = async (url: string, preferredLanguage: string) => {
   const { RaagaDB, STORES } = await import('@/lib/storage/IndexedDB');
   const db = RaagaDB.getInstance();
   const cacheKey = `home_${preferredLanguage}`;
+
+  const defaultSections = HomeFeedGenerator.getHomeSectionsForLanguage(preferredLanguage);
 
   try {
     const { supabase } = await import('@/lib/supabase');
@@ -46,14 +50,14 @@ const homeFetcher = async (url: string, preferredLanguage: string) => {
       }
       if (data?.sections && data.sections.length > 0) {
         await db.put(STORES.BROWSE_CACHE, { id: cacheKey, data, updatedAt: Date.now() }).catch(() => {});
+        return data;
       }
-      return data;
     }
   } catch (e) {
-    console.warn('[HomeView] Online home fetch failed, falling back to local cache:', e);
+    console.warn('[HomeView] Online home fetch failed, falling back to local cache/generator:', e);
   }
 
-  // Offline Fallback
+  // Offline / Local Cached Fallback
   try {
     const cached = await db.get<any>(STORES.BROWSE_CACHE, cacheKey);
     if (cached && cached.data?.sections && cached.data.sections.length > 0) {
@@ -61,7 +65,7 @@ const homeFetcher = async (url: string, preferredLanguage: string) => {
     }
   } catch {}
 
-  return { greeting: 'Good day', sections: [] };
+  return { greeting: 'Welcome to RaagaX 🎵', sections: defaultSections };
 };
 
 function songsToShelfItems(songs: Song[]): ShelfItem[] {

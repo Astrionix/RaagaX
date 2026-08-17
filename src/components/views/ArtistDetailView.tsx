@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import { Play, Heart, Download, Music, ArrowLeft, Disc, Users, ShieldCheck, Check } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { getApiUrl } from '@/lib/config/apiConfig';
+import { ArtistAvatar } from '@/components/common/ArtistAvatar';
 
 const fetcher = (url: string) => fetch(getApiUrl(url)).then(res => res.json()).catch(() => null);
 
@@ -136,9 +137,13 @@ export function ArtistDetailView() {
       {/* Artist Hero Banner */}
       <section className="relative rounded-2xl bg-gradient-to-r from-slate-950 via-[#121622] to-slate-900 p-6 sm:p-10 overflow-hidden shadow-2xl border border-white/10 flex flex-col md:flex-row items-center md:items-end justify-between gap-6">
         <div className="flex flex-col md:flex-row items-center gap-6 z-10 text-center md:text-left">
-          <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden shadow-2xl border-4 border-white/20 flex-shrink-0">
-            <img src={artist.imageUrl || artist.image?.find?.((i: any) => i.quality === '500x500')?.url || artist.image?.[artist.image?.length - 1]?.url || '/app-icon.png'} alt={artist.name} onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }} className="w-full h-full object-cover bg-slate-800" />
-          </div>
+          <ArtistAvatar
+            name={artist.name}
+            id={artist.id}
+            imageUrl={artist.imageUrl || artist.image?.find?.((i: any) => i.quality === '500x500')?.url || artist.image?.[artist.image?.length - 1]?.url}
+            language={preferredLanguage}
+            className="w-32 h-32 md:w-40 md:h-40 shadow-2xl border-4 border-white/20 flex-shrink-0"
+          />
 
           <div className="space-y-2">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#fa233b]/20 border border-[#fa233b]/40 text-[10px] font-bold uppercase text-[#fa233b]">

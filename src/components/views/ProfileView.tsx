@@ -45,16 +45,22 @@ export function ProfileView() {
     playSong
   } = usePlayerStore();
 
-  const { user } = useAuthStore();
+  const { user, isLoading: isAuthLoading, setAuthModalOpen } = useAuthStore();
+  const [isMounted, setIsMounted] = useState(false);
   const [analytics, setAnalytics] = useState<AnalyticsSnapshot | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<TimeFilterPeriod>('all');
   const [selectedLangName, setSelectedLangName] = useState<string | null>(null);
   const [recentPlayedSongs, setRecentPlayedSongs] = useState<Song[]>([]);
   const [activeTabSub, setActiveTabSub] = useState<'journey' | 'settings'>('journey');
 
-  const userName = user?.user_metadata?.full_name || 'Ram Reddy';
-  const userEmail = user?.email || 'ramreddy25@icloud.com';
-  const initials = userName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() || 'RR';
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const isGuest = isMounted && !user;
+  const userName = user ? (user.user_metadata?.full_name || user.email?.split('@')[0] || 'RaagaX Listener') : 'Guest User';
+  const userEmail = user ? (user.email || '') : 'Not signed in';
+  const initials = user ? (userName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() || 'U') : 'GU';
 
   useEffect(() => {
     const load = async () => {
@@ -93,29 +99,59 @@ export function ProfileView() {
         {/* Subtle Crimson Ambient Refraction */}
         <div className="absolute -top-12 -right-12 w-48 h-48 bg-[#E50914]/20 rounded-full blur-3xl pointer-events-none" />
         
-        <div className="flex items-center gap-5 z-10">
-          <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-full bg-gradient-to-br from-[#FF1E27] to-[#E50914] text-white font-black text-2xl sm:text-3xl flex items-center justify-center shadow-lg shadow-red-500/35 flex-shrink-0 border-2 border-white/25">
-            {initials}
-          </div>
-          <div className="space-y-1 min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white truncate tracking-tight">{userName}</h1>
-            <p className="text-xs font-semibold text-slate-400 truncate">{userEmail}</p>
-            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#E50914]/18 text-[#FF1E27] text-[10px] font-black uppercase tracking-wider border border-[#E50914]/35 shadow-sm">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#FF1E27] animate-pulse" />
-                RAAGAX • LOSSLESS PRO
-              </span>
-              <span className="text-[10px] text-slate-400 font-mono">Verified Audiophile</span>
+        {!isMounted || isAuthLoading ? (
+          /* Neutral Loading / Hydration Skeleton */
+          <div className="flex items-center gap-5 z-10 animate-pulse w-full max-w-md">
+            <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-full bg-white/10 flex-shrink-0" />
+            <div className="space-y-2 flex-1">
+              <div className="h-6 bg-white/10 rounded-lg w-40" />
+              <div className="h-3.5 bg-white/5 rounded-lg w-28" />
+              <div className="h-4 bg-white/5 rounded-full w-32 mt-1" />
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-center gap-5 z-10">
+            {user ? (
+              <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-full bg-gradient-to-br from-[#FF1E27] to-[#E50914] text-white font-black text-2xl sm:text-3xl flex items-center justify-center shadow-lg shadow-red-500/35 flex-shrink-0 border-2 border-white/25">
+                {initials}
+              </div>
+            ) : (
+              <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-full bg-white/10 text-slate-300 flex items-center justify-center shadow-lg flex-shrink-0 border-2 border-white/15">
+                <User className="w-9 h-9 text-slate-300" />
+              </div>
+            )}
+            
+            <div className="space-y-1 min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-white truncate tracking-tight">{userName}</h1>
+              <p className="text-xs font-semibold text-slate-400 truncate">{userEmail}</p>
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                {user ? (
+                  <>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#E50914]/18 text-[#FF1E27] text-[10px] font-black uppercase tracking-wider border border-[#E50914]/35 shadow-sm">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#FF1E27] animate-pulse" />
+                      RAAGAX • LOSSLESS PRO
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">Verified Audiophile</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-white/10 text-slate-300 text-[10px] font-black uppercase tracking-wider border border-white/15 shadow-sm">
+                      RAAGAX • GUEST
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">Local Session</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Mode Switcher & Auth Action */}
         <div className="flex flex-wrap items-center gap-2 z-10 self-start sm:self-center">
           <div className="flex items-center gap-1 p-1 rounded-2xl glass-frosted border border-white/10">
             <button
               onClick={() => setActiveTabSub('journey')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                 activeTabSub === 'journey'
                   ? 'bg-[#E50914] text-white shadow-md shadow-red-500/30'
                   : 'text-slate-400 hover:text-white'
@@ -126,7 +162,7 @@ export function ProfileView() {
             </button>
             <button
               onClick={() => setActiveTabSub('settings')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                 activeTabSub === 'settings'
                   ? 'bg-white/20 text-white shadow-md'
                   : 'text-slate-400 hover:text-white'
@@ -140,15 +176,15 @@ export function ProfileView() {
           {user ? (
             <button
               onClick={() => useAuthStore.getState().signOut()}
-              className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-red-400 bg-white/5 hover:bg-red-500/10 border border-white/10 transition-colors flex items-center gap-1.5"
+              className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-red-400 bg-white/5 hover:bg-red-500/10 border border-white/10 transition-colors flex items-center gap-1.5 cursor-pointer"
               title="Sign Out of RaagaX"
             >
               <span>Sign Out</span>
             </button>
           ) : (
             <button
-              onClick={() => useAuthStore.getState().setAuthModalOpen(true)}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-[#FF1E27] to-[#E50914] hover:opacity-90 shadow-md shadow-red-500/30 transition-all flex items-center gap-1.5"
+              onClick={() => setAuthModalOpen(true)}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-[#FF1E27] to-[#E50914] hover:opacity-90 shadow-md shadow-red-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <span>Sign In</span>
             </button>

@@ -8,6 +8,7 @@
 import { Song } from '@/types/music';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { getApiBaseUrl } from '@/lib/config/apiConfig';
+import { SongUniquenessEngine } from '@/lib/music/SongUniquenessEngine';
 
 const getLocalApiBase = () => {
   return `${getApiBaseUrl().replace(/\/+$/, '')}/api`;
@@ -329,31 +330,6 @@ export class RealMusicEngine {
       };
     });
 
-    return this.deduplicate(raw);
-  }
-
-  private deduplicate(songs: Song[]): Song[] {
-    const seenIds = new Set<string>();
-    const seenComposites = new Set<string>();
-    const unique: Song[] = [];
-    for (const song of songs) {
-      if (!song.id || seenIds.has(song.id)) continue;
-      
-      const cleanTitle = song.title
-        .toLowerCase()
-        .replace(/[^a-z0-9]/gi, '')
-        .trim();
-      const firstArtist = (song.artist || '').split(',')[0].toLowerCase().replace(/[^a-z0-9]/gi, '').trim();
-      const compositeKey = `${cleanTitle}:::${firstArtist}`;
-
-      if (compositeKey.length > 5 && seenComposites.has(compositeKey)) continue;
-
-      seenIds.add(song.id);
-      if (compositeKey.length > 5) {
-        seenComposites.add(compositeKey);
-      }
-      unique.push(song);
-    }
-    return unique;
+    return SongUniquenessEngine.deduplicate(raw);
   }
 }

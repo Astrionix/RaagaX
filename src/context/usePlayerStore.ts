@@ -12,6 +12,7 @@ import { ConnectManager } from '@/lib/connect/ConnectManager';
 import { PlaybackWatchdog } from '@/lib/playback/PlaybackWatchdog';
 import { isKidsOrNurseryTrack } from '@/lib/jioSaavnProvider';
 import { SongCoverEngine } from '@/lib/playback/SongCoverEngine';
+import { SongUniquenessEngine } from '@/lib/music/SongUniquenessEngine';
 
 import { AudioQuality, AudioQualityState } from '@/lib/playback/types';
 
@@ -1532,17 +1533,10 @@ export const usePlayerStore = create<PlayerState>()(
     if (!queue || queue.length <= 1) return;
 
     const current = queue[queueIndex];
-    const seen = new Set<string>();
-    if (current?.id) seen.add(current.id);
-
     const past = queue.slice(0, queueIndex);
     const upNext = queue.slice(queueIndex + 1);
 
-    const filteredUpNext = upNext.filter((s) => {
-      if (!s?.id || seen.has(s.id)) return false;
-      seen.add(s.id);
-      return true;
-    });
+    const filteredUpNext = SongUniquenessEngine.deduplicate(upNext, current ? [current] : []);
 
     const newQueue = [...past, ...(current ? [current] : []), ...filteredUpNext];
     const manager = QueueManager.getInstance();

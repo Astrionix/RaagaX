@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 export interface OptimizedImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'src'> {
   src?: string | null;
@@ -13,14 +13,10 @@ export interface OptimizedImageProps extends Omit<React.ImgHTMLAttributes<HTMLIm
 /**
  * OptimizedImage
  * High-performance artwork image component for RaagaX:
- * - Smart sizing:
- *     • 'thumb': 150x150 for lists & mini-player
- *     • 'card':  250x250 for carousel cards & shelves
- *     • 'full':  500x500 for full-screen expanded player modal
- * - Progressive loading with smooth CSS crossfade
- * - Prevents layout shifts with fixed container
- * - Asynchronous image decoding + native lazy loading
- * - Robust error handling with graceful fallback to app-icon
+ * - Smart sizing (JioSaavn CDN compatible: 500x500 / 150x150)
+ * - Instant rendering from memory / disk cache
+ * - Zero flash / fast load
+ * - Fallback recovery on error
  */
 export function OptimizedImage({
   src,
@@ -33,6 +29,7 @@ export function OptimizedImage({
 }: OptimizedImageProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
 
   // Normalize and transform artwork resolution based on target size
   const resolveArtworkUrl = (rawUrl?: string | null): string => {
@@ -43,14 +40,11 @@ export function OptimizedImage({
     let url = rawUrl.replace('http://', 'https://');
 
     if (size === 'thumb') {
-      // 150x150 resolution for small lists & track rows
-      url = url.replace(/500x500|250x250|50x50/g, '150x150');
-    } else if (size === 'card') {
-      // 250x250 or 150x150 for carousel cards
-      url = url.replace(/500x500|50x50/g, '250x250');
-    } else if (size === 'full') {
-      // 500x500 for expanded player modal
-      url = url.replace(/150x150|250x250|50x50/g, '500x500');
+      // 150x150 for track rows, mini player
+      url = url.replace(/500x500|50x50/g, '150x150');
+    } else {
+      // 500x500 high-res for cards, shelves, expanded modal (Never 250x250 which 404s on JioSaavn CDN)
+      url = url.replace(/50x50|150x150/g, '500x500');
     }
 
     return url;
@@ -58,25 +52,41 @@ export function OptimizedImage({
 
   const finalSrc = hasError ? fallbackSrc : resolveArtworkUrl(src);
 
+  // Immediate check if image is already completed in browser cache
+  useEffect(() => {
+    if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
+      setIsLoaded(true);
+    }
+  }, [finalSrc]);
+
+  // Reset error and loaded state when source changes
+  useEffect(() => {
+    setHasError(false);
+    setIsLoaded(false);
+  }, [src]);
+
   return (
-    <div className={`relative overflow-hidden bg-slate-800/60 ${className}`}>
-      {/* Subtle skeleton shimmer placeholder while loading */}
-      {!isLoaded && (
-        <div className="absolute inset-0 bg-white/[0.04] animate-pulse pointer-events-none" />
+    <div className={`relative overflow-hidden bg-slate-800/80 ${className}`}>
+      {/* Skeleton placeholder while loading */}
+      {!isLoaded && !hasError && (
+        <div className="absolute inset-0 bg-white/[0.06] animate-pulse pointer-events-none" />
       )}
 
       <img
+        ref={imgRef}
         src={finalSrc}
         alt={alt}
         loading="lazy"
         decoding="async"
         onLoad={() => setIsLoaded(true)}
         onError={() => {
-          setHasError(true);
-          setIsLoaded(true);
+          if (!hasError) {
+            setHasError(true);
+            setIsLoaded(true);
+          }
         }}
-        className={`w-full h-full object-cover transition-opacity duration-300 ${
-          isLoaded ? 'opacity-100' : 'opacity-0'
+        className={`w-full h-full object-cover transition-opacity duration-200 ${
+          isLoaded || hasError ? 'opacity-100' : 'opacity-0'
         }`}
         style={style}
         {...props}

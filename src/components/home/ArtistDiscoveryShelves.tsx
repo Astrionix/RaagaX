@@ -8,11 +8,15 @@ import { getApiUrl } from '@/lib/config/apiConfig';
 
 const LANGUAGES_TO_FETCH = ['Telugu', 'Hindi', 'English', 'Tamil', 'Kannada', 'Malayalam'];
 
+import { HomeFeedGenerator } from '@/lib/home/HomeFeedGenerator';
+
+import { ArtistAvatar } from '@/components/common/ArtistAvatar';
+
 const fetcher = (url: string) => fetch(getApiUrl(url)).then(r => r.json()).catch(() => null);
 
 export function ArtistDiscoveryShelves() {
   const { preferredLanguage } = usePlayerStore();
-  const [activeLanguages, setActiveLanguages] = useState<string[]>([preferredLanguage]);
+  const [activeLanguages, setActiveLanguages] = useState<string[]>([preferredLanguage || 'Telugu']);
 
   useEffect(() => {
     import('@/lib/lifecycle/UserLifecycleManager').then(({ UserLifecycleManager }) => {
@@ -20,13 +24,13 @@ export function ArtistDiscoveryShelves() {
       if (langs && langs.length > 0) {
         setActiveLanguages(langs);
       } else {
-        setActiveLanguages([preferredLanguage]);
+        setActiveLanguages([preferredLanguage || 'Telugu']);
       }
     });
   }, [preferredLanguage]);
 
   return (
-    <div className="space-y-10 pt-6">
+    <div className="space-y-6 pt-2">
       {activeLanguages.map((lang) => (
         <ArtistLanguageShelf key={lang} language={lang} />
       ))}
@@ -36,27 +40,16 @@ export function ArtistDiscoveryShelves() {
 
 function ArtistLanguageShelf({ language }: { language: string }) {
   const { setActiveTab, setSelectedArtistId } = usePlayerStore();
-  const { data, error, isLoading } = useSWR(`/api/home/artists?lang=${language}&limit=8`, fetcher, {
+  const fallbackArtists = HomeFeedGenerator.getArtistsForLanguage(language, 8);
+
+  const { data } = useSWR(`/api/home/artists?lang=${language}&limit=8`, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 300000, // 5 min
+    fallbackData: { success: true, data: fallbackArtists }
   });
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="h-6 w-48 bg-white/10 rounded animate-pulse" />
-        <div className="flex gap-4 overflow-hidden">
-          {[1,2,3,4,5].map(i => (
-            <div key={i} className="w-[140px] h-[140px] rounded-full bg-white/5 animate-pulse flex-shrink-0" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !data?.success || !data.data || data.data.length === 0) return null;
-
-  const artists = data.data;
+  const artists = data?.data && data.data.length > 0 ? data.data : fallbackArtists;
+  if (!artists || artists.length === 0) return null;
 
   return (
     <section className="mb-4 sm:mb-6">
@@ -64,7 +57,13 @@ function ArtistLanguageShelf({ language }: { language: string }) {
         <h2 className="text-[20px] sm:text-xl font-semibold leading-[26px] text-white tracking-tight truncate whitespace-nowrap">
           {language} Artists You May Like
         </h2>
-        <button className="text-[11px] sm:text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1 transition-colors uppercase tracking-wider flex-shrink-0 ml-2">
+        <button 
+          onClick={() => {
+            setSelectedArtistId(null);
+            setActiveTab('artist');
+          }}
+          className="text-[11px] sm:text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1 transition-colors uppercase tracking-wider flex-shrink-0 ml-2 cursor-pointer"
+        >
           See All <ChevronRight className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -79,16 +78,13 @@ function ArtistLanguageShelf({ language }: { language: string }) {
             }}
             className="group flex flex-col items-center gap-3 w-[120px] sm:w-[140px] flex-shrink-0 snap-start cursor-pointer transition-transform hover:scale-105"
           >
-            <div className="relative w-full aspect-square rounded-full overflow-hidden shadow-lg border border-white/5 group-hover:border-white/20 group-hover:shadow-xl transition-all">
-              <img 
-                src={artist.imageUrl} 
-                alt={artist.name}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src = '/app-icon.png';
-                }}
-              />
-            </div>
+            <ArtistAvatar
+              name={artist.name}
+              id={artist.id}
+              imageUrl={artist.imageUrl}
+              language={language}
+              className="w-[120px] h-[120px] sm:w-[140px] sm:h-[140px] shadow-lg border border-white/5 group-hover:border-white/25 group-hover:shadow-[0_0_25px_rgba(250,35,59,0.25)] transition-all"
+            />
             <div className="text-center px-1">
               <h3 className="text-sm font-bold text-white truncate w-[110px] sm:w-[130px] group-hover:text-[#fa233b] transition-colors">{artist.name}</h3>
               <p className="text-[10px] text-slate-400 mt-0.5 capitalize">Artist</p>

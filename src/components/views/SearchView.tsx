@@ -19,6 +19,7 @@ import {
   UnifiedArtistResult, 
   UnifiedPlaylistResult 
 } from '@/lib/search/UnifiedSearchEngine';
+import { ArtistAvatar } from '@/components/common/ArtistAvatar';
 
 export function SearchView() {
   const {
@@ -416,14 +417,21 @@ export function SearchView() {
                 Top Result
               </div>
               <div className="flex items-center gap-4 sm:gap-5">
-                <img
-                  src={searchResults.topResult.coverUrl}
-                  alt={searchResults.topResult.title}
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                  className={`w-20 h-20 sm:w-24 sm:h-24 object-cover shadow-2xl flex-shrink-0 border border-white/10 ${
-                    searchResults.topResult.type === 'artist' ? 'rounded-full' : 'rounded-2xl'
-                  }`}
-                />
+                {searchResults.topResult.type === 'artist' ? (
+                  <ArtistAvatar
+                    name={searchResults.topResult.title}
+                    id={searchResults.topResult.item?.id}
+                    imageUrl={searchResults.topResult.coverUrl}
+                    className="w-20 h-20 sm:w-24 sm:h-24 shadow-2xl flex-shrink-0 border border-white/10"
+                  />
+                ) : (
+                  <img
+                    src={searchResults.topResult.coverUrl}
+                    alt={searchResults.topResult.title}
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+                    className="w-20 h-20 sm:w-24 sm:h-24 object-cover shadow-2xl flex-shrink-0 border border-white/10 rounded-2xl"
+                  />
+                )}
                 <div className="min-w-0 flex-1">
                   <h3 className="text-lg sm:text-2xl font-black text-white truncate group-hover:text-[#EF233C] transition-colors">
                     {searchResults.topResult.title}
@@ -492,14 +500,12 @@ export function SearchView() {
                     }}
                     className="w-24 sm:w-28 flex-shrink-0 text-center cursor-pointer group"
                   >
-                    <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden mb-2 border-2 border-white/10 group-hover:border-[#EF233C] transition-all shadow-md mx-auto">
-                      <img
-                        src={artist.coverUrl}
-                        alt={artist.name}
-                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                      />
-                    </div>
+                    <ArtistAvatar
+                      name={artist.name}
+                      id={artist.id}
+                      imageUrl={artist.coverUrl}
+                      className="w-24 h-24 sm:w-28 sm:h-28 rounded-full mb-2 border-2 border-white/10 group-hover:border-[#EF233C] transition-all shadow-md mx-auto"
+                    />
                     <h4 className="text-xs font-bold text-white truncate group-hover:text-[#EF233C] transition-colors">
                       {artist.name}
                     </h4>
