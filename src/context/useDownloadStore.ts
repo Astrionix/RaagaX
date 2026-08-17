@@ -8,6 +8,7 @@ import { OfflineCatalog } from '@/lib/offline/OfflineCatalog';
 import { AtomicDownloader } from '@/lib/offline/AtomicDownloader';
 import { DownloadMode, DownloadQuality, StorageEstimateInfo, TrackDownloadState } from '@/lib/offline/types';
 import { exportSongToDevice } from '@/lib/downloadHelper';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 export type DownloadStatus = 'queued' | 'downloading' | 'verifying' | 'paused' | 'completed' | 'error' | 'cancelled';
 
@@ -528,9 +529,9 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     
     let targetUrl = task.song.audioUrl;
     if (!targetUrl || targetUrl.includes('pixabay.com')) {
-      targetUrl = `/api/download?id=${encodeURIComponent(task.song.id)}&name=${encodeURIComponent(filename)}`;
+      targetUrl = getApiUrl(`/api/download?id=${encodeURIComponent(task.song.id)}&name=${encodeURIComponent(filename)}`);
     } else {
-      targetUrl = `/api/download?url=${encodeURIComponent(targetUrl)}&name=${encodeURIComponent(filename)}`;
+      targetUrl = getApiUrl(`/api/download?url=${encodeURIComponent(targetUrl)}&name=${encodeURIComponent(filename)}`);
     }
 
     downloader.download({

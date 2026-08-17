@@ -4,10 +4,11 @@ import React, { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { ChevronRight } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 const LANGUAGES_TO_FETCH = ['Telugu', 'Hindi', 'English', 'Tamil', 'Kannada', 'Malayalam'];
 
-const fetcher = (url: string) => fetch(url).then(r => r.json());
+const fetcher = (url: string) => fetch(getApiUrl(url)).then(r => r.json()).catch(() => null);
 
 export function ArtistDiscoveryShelves() {
   const { preferredLanguage } = usePlayerStore();

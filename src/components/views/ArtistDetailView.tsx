@@ -4,8 +4,9 @@ import React, { useMemo } from 'react';
 import useSWR from 'swr';
 import { Play, Heart, Download, Music, ArrowLeft, Disc, Users, ShieldCheck, Check } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
-const fetcher = (url: string) => fetch(url).then(res => res.json());
+const fetcher = (url: string) => fetch(getApiUrl(url)).then(res => res.json()).catch(() => null);
 
 export function ArtistDetailView() {
   const { 

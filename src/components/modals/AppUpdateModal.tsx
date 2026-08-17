@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Download, RefreshCw, X } from 'lucide-react';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 const CURRENT_APP_VERSION = '1.0.0'; // Change this when building a new APK
 
@@ -23,7 +24,7 @@ export function AppUpdateModal() {
     
     // Check once on mount
     if (isAndroid || isStandalone) {
-      fetch('/api/app-update')
+      fetch(getApiUrl('/api/app-update'))
         .then(res => res.json())
         .then(data => {
           if (data && data.latestVersion && data.latestVersion > CURRENT_APP_VERSION) {

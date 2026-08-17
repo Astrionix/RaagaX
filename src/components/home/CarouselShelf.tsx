@@ -3,6 +3,7 @@ import { ShelfItem } from '@/types/home';
 import { Play, ChevronRight, ChevronDown, X, Shuffle, MoreHorizontal } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 export interface PaginationConfig {
   enabled: boolean;
@@ -58,7 +59,7 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
     try {
       const prefLang = usePlayerStore.getState().preferredLanguage || 'Telugu';
       const res = await fetch(
-        `/api/browse/section?playlistId=${pagination.source.id}&lang=${encodeURIComponent(prefLang)}&offset=${nextOffset}&limit=20`
+        getApiUrl(`/api/browse/section?playlistId=${pagination.source.id}&lang=${encodeURIComponent(prefLang)}&offset=${nextOffset}&limit=20`)
       );
       
       if (!res.ok) throw new Error('Network response was not ok');

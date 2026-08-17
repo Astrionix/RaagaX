@@ -1,4 +1,5 @@
 import { Song } from '@/types/music';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 export const OFFLINE_AUDIO_CACHE_NAME = 'raagax-offline-audio-v1';
 
@@ -16,7 +17,7 @@ export async function downloadSongFile(
 
   const sanitizeName = (str: string) => str.replace(/[/\\?%*:|"<>]/g, '').trim();
   const filename = `${sanitizeName(song.title)} - ${sanitizeName(song.artist || 'Artist')}.mp3`;
-  const downloadProxyUrl = `/api/download?url=${encodeURIComponent(song.audioUrl)}&name=${encodeURIComponent(filename)}`;
+  const downloadProxyUrl = getApiUrl(`/api/download?url=${encodeURIComponent(song.audioUrl)}&name=${encodeURIComponent(filename)}`);
 
   // True PWA Offline Caching Strategy
   if (typeof window !== 'undefined' && 'caches' in window) {
@@ -116,9 +117,9 @@ export async function exportSongToDevice(song: Song): Promise<boolean> {
   
   let targetUrl = song.audioUrl;
   if (!targetUrl || targetUrl.includes('pixabay.com')) {
-    targetUrl = `/api/download?id=${encodeURIComponent(song.id)}&name=${encodeURIComponent(filename)}`;
+    targetUrl = getApiUrl(`/api/download?id=${encodeURIComponent(song.id)}&name=${encodeURIComponent(filename)}`);
   } else {
-    targetUrl = `/api/download?url=${encodeURIComponent(targetUrl)}&name=${encodeURIComponent(filename)}`;
+    targetUrl = getApiUrl(`/api/download?url=${encodeURIComponent(targetUrl)}&name=${encodeURIComponent(filename)}`);
   }
 
   try {

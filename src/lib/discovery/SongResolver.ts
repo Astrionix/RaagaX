@@ -2,6 +2,7 @@ import { ProviderCandidate } from './ProviderRegistry';
 import { Song } from '@/types/music';
 import { supabase } from '@/lib/supabase'; // Using the client initialized with SERVICE_ROLE
 import { InternetDateScraper } from './InternetDateScraper';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 export class SongResolver {
   /**
@@ -255,7 +256,7 @@ export class SongResolver {
 
       // Query /api/songs for missing IDs (JioSaavn provider)
       if (missingIds.length > 0 && typeof window !== 'undefined') {
-        const url = `${window.location.origin}/api/songs?ids=${encodeURIComponent(missingIds.join(','))}`;
+        const url = getApiUrl(`/api/songs?ids=${encodeURIComponent(missingIds.join(','))}`);
         const res = await fetch(url);
         if (res.ok) {
           const json = await res.json();

@@ -1,3 +1,5 @@
+import { getApiUrl } from '@/lib/config/apiConfig';
+
 export class ClockSynchronizer {
   private static instance: ClockSynchronizer;
   private serverTimeOffsetMs: number = 0;
@@ -23,7 +25,7 @@ export class ClockSynchronizer {
   public async synchronize(endpoint: string = '/api/time'): Promise<void> {
     try {
       const t0 = Date.now();
-      const response = await fetch(endpoint, { method: 'GET', cache: 'no-store' });
+      const response = await fetch(getApiUrl(endpoint), { method: 'GET', cache: 'no-store' });
       
       if (!response.ok) throw new Error('Time sync failed');
       

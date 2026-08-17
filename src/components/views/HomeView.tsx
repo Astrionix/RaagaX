@@ -13,6 +13,7 @@ import { Play, Pause, Clock, Sparkles, Disc, Shuffle, Download, Heart, History, 
 import { ArtistDiscoveryShelves } from '@/components/home/ArtistDiscoveryShelves';
 import { Song } from '@/types/music';
 import useSWR from 'swr';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 const homeFetcher = async (url: string, preferredLanguage: string) => {
   const { supabase } = await import('@/lib/supabase');
@@ -25,7 +26,7 @@ const homeFetcher = async (url: string, preferredLanguage: string) => {
     ? `${url}&userId=${session.user.id}&name=${userName}&phase=${phase}`
     : `${url}&phase=${phase}`;
 
-  const res = await fetch(fullUrl).catch(() => null);
+  const res = await fetch(getApiUrl(fullUrl)).catch(() => null);
 
   if (!res || !res.ok) throw new Error('Failed to fetch home');
   const data: HomePayload = await res.json();

@@ -8,18 +8,22 @@
 
 export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
-    const origin = window.location.origin;
-    const isCapacitor = Boolean(
-      (window as any).Capacitor ||
-      origin.startsWith('capacitor:') ||
-      origin.startsWith('file:') ||
-      (origin.includes('localhost') && !(window as any).__NEXT_DEV__)
-    );
+    const origin = window.location.origin || '';
 
     // In web dev environment (e.g. localhost:3000 running Next.js dev server), use local origin
-    if (origin.includes('localhost:3000') || origin.includes('localhost:3001')) {
+    if (origin.includes('localhost:3000') || origin.includes('localhost:3001') || origin.includes('127.0.0.1:3000')) {
       return origin;
     }
+
+    const isCapacitor = Boolean(
+      (window as any).Capacitor ||
+      (window as any).androidBridge ||
+      origin.startsWith('capacitor:') ||
+      origin.startsWith('file:') ||
+      origin === 'https://localhost' ||
+      origin === 'http://localhost' ||
+      (origin.includes('localhost') && !(window as any).__NEXT_DEV__)
+    );
 
     // In Capacitor Android/iOS WebView where origin is https://localhost
     if (isCapacitor) {

@@ -18,6 +18,7 @@ import { QueueManager } from '@/lib/queue/QueueManager';
 const QUEUE_REFILL_THRESHOLD = 3;
 
 import { PlaybackService } from '@/lib/playback/PlaybackService';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 export function AudioPlayerController() {
   const audioRefA = useRef<HTMLAudioElement | null>(null);
@@ -289,7 +290,7 @@ export function AudioPlayerController() {
       .map(s => s.artist)
       .filter(Boolean) as string[];
 
-    fetch(`/api/queue-refill`, {
+    fetch(getApiUrl('/api/queue-refill'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 

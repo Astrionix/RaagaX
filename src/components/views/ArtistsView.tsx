@@ -4,8 +4,9 @@ import React from 'react';
 import useSWR from 'swr';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { Users, ShieldCheck } from 'lucide-react';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
-const fetcher = (url: string) => fetch(url).then(r => r.json());
+const fetcher = (url: string) => fetch(getApiUrl(url)).then(r => r.json()).catch(() => null);
 
 export function ArtistsView() {
   const { preferredLanguage, setActiveTab, setSelectedArtistId } = usePlayerStore();

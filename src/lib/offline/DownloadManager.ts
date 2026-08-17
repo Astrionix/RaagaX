@@ -6,6 +6,7 @@ import { AtomicDownloader } from './AtomicDownloader';
 import { DownloadTask, OfflineTrack, DownloadQuality, DownloadMode } from './types';
 import { NetworkManager } from './NetworkManager';
 import { Song } from '@/types/music';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 export class DownloadManager {
   private static instance: DownloadManager;
@@ -191,9 +192,9 @@ export class DownloadManager {
 
       let targetUrl = song?.audioUrl;
       if (!targetUrl || targetUrl.includes('pixabay.com')) {
-        targetUrl = `/api/download?id=${encodeURIComponent(task.trackId)}&name=${encodeURIComponent(filename)}`;
+        targetUrl = getApiUrl(`/api/download?id=${encodeURIComponent(task.trackId)}&name=${encodeURIComponent(filename)}`);
       } else {
-        targetUrl = `/api/download?url=${encodeURIComponent(targetUrl)}&name=${encodeURIComponent(filename)}`;
+        targetUrl = getApiUrl(`/api/download?url=${encodeURIComponent(targetUrl)}&name=${encodeURIComponent(filename)}`);
       }
 
       // Step 1: Execute atomic chunked download with validation

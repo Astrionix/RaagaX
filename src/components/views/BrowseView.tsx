@@ -10,15 +10,18 @@ import { SkeletonGrid } from '@/components/ui/SkeletonLoader';
 
 import useSWR from 'swr';
 import { RefreshCw } from 'lucide-react';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 const fetcherWithCache = async (url: string) => {
-  const urlObj = new URL(url, window.location.origin);
+  const fullUrl = getApiUrl(url);
+  const urlObj = new URL(fullUrl);
   const lang = urlObj.searchParams.get('lang') || 'Telugu';
   const db = RaagaDB.getInstance();
   const cacheKey = `browse_${lang}`;
 
   try {
-    const res = await fetch(url);
+    const res = await fetch(fullUrl);
+    if (!res.ok) throw new Error('Browse fetch failed');
     const data = await res.json();
     
     // Store in IndexedDB for instant loads next time (only if populated with items)
@@ -36,12 +39,12 @@ const fetcherWithCache = async (url: string) => {
   }
 };
 
-const fetcher = (url: string) => fetch(url).then(res => res.json());
+const fetcher = (url: string) => fetch(getApiUrl(url)).then(res => res.json()).catch(() => null);
 
 export function BrowseView() {
   const { preferredLanguage, setPreferredLanguage, searchQuery, setSearchQuery } = usePlayerStore();
   
-  const { data, error, isLoading } = useSWR(`/api/browse?lang=${preferredLanguage}`, fetcherWithCache, {
+  const { data, error, isLoading, mutate } = useSWR(`/api/browse?lang=${preferredLanguage}`, fetcherWithCache, {
     keepPreviousData: true,
     revalidateOnFocus: false,
     refreshInterval: (latestData) => {
@@ -73,8 +76,15 @@ export function BrowseView() {
       <div className="space-y-8 mt-8">
         
         {error && !data && (
-          <div className="w-full text-center py-20 text-red-400">
-            Failed to load catalog. Please try again.
+          <div className="w-full text-center py-16 text-slate-400 space-y-3">
+            <p className="text-sm">Unable to load online catalog. Please check your internet connection.</p>
+            <button
+              onClick={() => mutate()}
+              className="px-4 py-2 bg-[#fa233b] hover:bg-[#fa233b]/80 text-white text-xs font-bold rounded-full transition-all inline-flex items-center gap-1.5 active:scale-95 shadow-md"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Retry</span>
+            </button>
           </div>
         )}
 
