@@ -420,6 +420,16 @@ export function HomeView() {
         </section>
       )}
 
+      {/* 4.5 Recommended For You */}
+      {homeFeedControls.showRecommended !== false && feed?.madeForYou && feed.madeForYou.length > 0 && (
+        <CarouselShelf
+          title={displayLang ? `Recommended in ${displayLang}` : 'Recommended For You'}
+          icon={<Sparkles className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-amber-400 flex-shrink-0" />}
+          items={songsToShelfItems(feed.madeForYou)}
+          showPlayAll={true}
+        />
+      )}
+
       {/* 5. Because You Listened To... */}
       {homeFeedControls.showRecommended !== false && feed?.becauseYouListenedTo && feed.becauseYouListenedTo.items.length > 0 && (
         <CarouselShelf
