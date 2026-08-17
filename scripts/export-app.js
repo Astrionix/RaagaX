@@ -54,9 +54,14 @@ try {
     if (fs.existsSync(backupApiDir)) {
       try { fs.rmSync(backupApiDir, { recursive: true, force: true }); } catch {}
     }
-    copyDir(apiDir, backupApiDir);
-    removeDirFiles(apiDir);
-    apiMoved = true;
+    try {
+      fs.renameSync(apiDir, backupApiDir);
+      apiMoved = true;
+    } catch {
+      copyDir(apiDir, backupApiDir);
+      try { fs.rmSync(apiDir, { recursive: true, force: true }); } catch {}
+      apiMoved = true;
+    }
   }
 
   // Step 2: Clean previous export and .next directory if exists
@@ -87,6 +92,12 @@ try {
     throw new Error(`[EXPORT ERROR] out/index.html was not generated at: ${indexPath}`);
   }
 
+  // Step 4b: Clean up any symlink directories in out/ (e.g. out/404) that break Gradle asset merge
+  const symlink404 = path.join(outDir, '404');
+  if (fs.existsSync(symlink404)) {
+    try { fs.rmSync(symlink404, { recursive: true, force: true }); } catch {}
+  }
+
   console.log(`[EXPORT SUCCESS] RaagaX static app shell successfully exported to: ${outDir}`);
 } catch (err) {
   console.error('[EXPORT ERROR] Failed to export static app shell:', err);
@@ -95,8 +106,15 @@ try {
   // Step 5: Always restore server API routes
   if (apiMoved && fs.existsSync(backupApiDir)) {
     try {
-      copyDir(backupApiDir, apiDir);
-      try { fs.rmSync(backupApiDir, { recursive: true, force: true }); } catch {}
+      if (fs.existsSync(apiDir)) {
+        try { fs.rmSync(apiDir, { recursive: true, force: true }); } catch {}
+      }
+      try {
+        fs.renameSync(backupApiDir, apiDir);
+      } catch {
+        copyDir(backupApiDir, apiDir);
+        try { fs.rmSync(backupApiDir, { recursive: true, force: true }); } catch {}
+      }
       console.log('[EXPORT] Restored server API routes to src/app/api.');
     } catch (restoreErr) {
       console.error('[EXPORT CRITICAL] Failed to restore src/app/api from backup:', restoreErr);
