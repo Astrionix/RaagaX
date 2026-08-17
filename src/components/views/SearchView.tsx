@@ -188,9 +188,9 @@ export function SearchView() {
 
       {!searchQuery && (
         <>
-          {/* Browse Categories Tile Grid */}
+          {/* Explore Categories Tile Grid */}
           <div className="space-y-3">
-            <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">Browse Categories</h3>
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">Explore Categories</h3>
             <div className="grid grid-cols-2 gap-3">
               {categories.map((cat) => (
                 <button
@@ -207,7 +207,7 @@ export function SearchView() {
                         setSelectedPlaylistId(`spotify:${targetSource.id}`);
                         setActiveTab('playlist');
                       } else {
-                        setActiveTab('browse');
+                        setActiveTab('home');
                       }
                     }
                   }}

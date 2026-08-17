@@ -39,10 +39,17 @@ public class MusicRepository {
     }
 
     public SearchResult search(String query, boolean isOnline, int limit) {
+        return search(query, null, isOnline, limit);
+    }
+
+    public SearchResult search(String query, String language, boolean isOnline, int limit) {
         SearchResult result = new SearchResult(query);
         // 1. Search Room local tracks first
         List<TrackEntity> localTracks = database.trackDao().searchLocalTracks(query, limit);
         for (TrackEntity entity : localTracks) {
+            if (language != null && entity.language != null && !entity.language.equalsIgnoreCase(language)) {
+                continue;
+            }
             MusicTrack track = entityToModel(entity);
             DownloadEntity dl = database.downloadDao().getDownloadByTrackId(entity.id);
             if (dl != null && "COMPLETED".equals(dl.downloadState)) {
@@ -55,7 +62,7 @@ public class MusicRepository {
         // 2. If online, fetch live provider results and merge
         if (isOnline) {
             try {
-                SearchResult onlineResult = provider.search(query, limit);
+                SearchResult onlineResult = provider.search(query, language, limit);
                 for (MusicTrack track : onlineResult.tracks) {
                     // Check if already in local list
                     boolean exists = false;
@@ -165,6 +172,34 @@ public class MusicRepository {
         entity.streamUrl = track.streamUrl;
         entity.isLiked = track.isLiked;
         database.trackDao().insertOrUpdate(entity);
+    }
+
+    public List<MusicTrack> getLatestSongs(String language, boolean isOnline, int limit) {
+        if (isOnline) {
+            try {
+                List<MusicTrack> songs = provider.getLatestSongs(language, limit);
+                for (MusicTrack song : songs) {
+                    saveTrack(song);
+                }
+                return songs;
+            } catch (Exception ignored) {}
+        }
+        // Fallback to local Room database tracks matching language
+        List<TrackEntity> locals = database.trackDao().searchLocalTracks(language != null ? language : "", limit);
+        List<MusicTrack> tracks = new ArrayList<>();
+        for (TrackEntity e : locals) {
+            tracks.add(entityToModel(e));
+        }
+        return tracks;
+    }
+
+    public List<MusicAlbum> getTrendingAlbums(String language, boolean isOnline, int limit) {
+        if (isOnline) {
+            try {
+                return provider.getTrendingAlbums(language, limit);
+            } catch (Exception ignored) {}
+        }
+        return new ArrayList<>();
     }
 
     private MusicTrack entityToModel(TrackEntity entity) {

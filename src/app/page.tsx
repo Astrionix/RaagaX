@@ -29,7 +29,6 @@ import { CreatePlaylistModal } from '@/components/modals/CreatePlaylistModal';
 import { Toast } from '@/components/ui/Toast';
 
 import { HomeView } from '@/components/views/HomeView';
-import { BrowseView } from '@/components/views/BrowseView';
 import { SearchView } from '@/components/views/SearchView';
 import { LibraryView } from '@/components/views/LibraryView';
 import { PlaylistDetailView } from '@/components/views/PlaylistDetailView';
@@ -158,8 +157,7 @@ export default function Page() {
 
           {/* View Switcher Container */}
           <main className="flex-1 pt-14 md:pt-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))] md:pb-8 px-3.5 sm:px-8">
-            {activeTab === 'home' && <HomeView />}
-            {activeTab === 'browse' && <BrowseView />}
+            {((activeTab as string) === 'home' || (activeTab as string) === 'browse') && <HomeView />}
             {activeTab === 'search' && <SearchView />}
             {activeTab === 'library' && <LibraryView />}
             {activeTab === 'radio' && <RadioView />}

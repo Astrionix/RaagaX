@@ -221,12 +221,12 @@ export function QueueModal() {
                 </div>
                 <button
                   onClick={() => {
-                    setActiveTab('browse');
+                    setActiveTab('home');
                     toggleQueue();
                   }}
                   className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition-all active:scale-95"
                 >
-                  Explore Trending Hits ↗
+                  Explore Trending Hits on Home ↗
                 </button>
               </div>
             ) : (

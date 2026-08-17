@@ -13,6 +13,9 @@ export const LANGUAGE_CODES: Record<string, string> = {
   Tamil: 'tamil',
   Hindi: 'hindi',
   Malayalam: 'malayalam',
+  Punjabi: 'punjabi',
+  Marathi: 'marathi',
+  Bengali: 'bengali',
   English: 'english',
 };
 
@@ -183,18 +186,21 @@ export class JioSaavnProvider {
    * Search songs. Tries local proxy first, then external provider.
    * Never throws — returns [] on all failures.
    */
-  async searchSongs(query: string, limit = 10): Promise<Song[]> {
+  async searchSongs(query: string, limit = 10, language?: string): Promise<Song[]> {
     const encoded = encodeURIComponent(query.trim() || 'popular songs');
+    const langCode = language ? (LANGUAGE_CODES[language] || language.toLowerCase()) : '';
+    const langParam = langCode ? `&language=${encodeURIComponent(langCode)}` : '';
     const urls = [
-      `${this.localBase}/api/search/songs?query=${encoded}&limit=${limit}`,
-      `${this.externalBase}/api/search/songs?query=${encoded}&limit=${limit}`,
+      `${this.localBase}/api/search/songs?query=${encoded}&limit=${limit}${langParam}`,
+      `${this.externalBase}/api/search/songs?query=${encoded}&limit=${limit}${langParam}`,
     ];
 
     for (const url of urls) {
       const results = await safeFetch(url, 6000);
       if (results) {
-        console.log(`[PROVIDER] searchSongs OK query="${query}" url=${url}`);
-        return deduplicateSongs(results.map(mapTrackToSong));
+        console.log(`[PROVIDER] searchSongs OK query="${query}" lang="${language || 'all'}" url=${url}`);
+        const mapped = deduplicateSongs(results.map(mapTrackToSong));
+        return language ? this.filterByLanguage(mapped, language) : mapped;
       }
     }
 
