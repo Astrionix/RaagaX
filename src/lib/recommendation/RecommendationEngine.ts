@@ -4,6 +4,7 @@ import { RealMusicEngine } from '@/lib/realMusicEngine';
 import { LanguageEligibilityEngine } from '@/lib/language/LanguageEligibilityEngine';
 import { QueueHistory } from '@/lib/queue/QueueHistory';
 import { UserBehaviorTracker, UserEventType } from '@/lib/analytics/UserBehaviorTracker';
+import { usePlayerStore } from '@/context/usePlayerStore';
 
 export interface PersonalizedHomeFeed {
   greeting: string;
@@ -86,9 +87,10 @@ export class RecommendationEngine {
    */
   public async getPersonalizedHomeFeed(
     userId: string,
-    preferredLanguage: string = 'Telugu'
+    preferredLanguage: string = ''
   ): Promise<PersonalizedHomeFeed> {
-    const lang = preferredLanguage || 'Telugu';
+    const storeLangs = usePlayerStore.getState().selectedLanguages;
+    const lang = preferredLanguage || (storeLangs && storeLangs.length > 0 ? storeLangs[0] : 'Hindi');
     const musicEngine = RealMusicEngine.getInstance();
 
     // 1. Greeting

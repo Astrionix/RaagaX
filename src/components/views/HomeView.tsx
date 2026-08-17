@@ -83,7 +83,7 @@ export function HomeView() {
     setActiveTab,
     likedSongs = [],
     preferredLanguage,
-    selectedLanguages = ['Telugu'],
+    selectedLanguages = [],
     homeFeedControls = {
       showNewReleases: true,
       showTrending: true,
@@ -103,7 +103,7 @@ export function HomeView() {
 
   const currentLang = preferredLanguage
     ? (preferredLanguage.charAt(0).toUpperCase() + preferredLanguage.slice(1).toLowerCase())
-    : 'Telugu';
+    : (selectedLanguages?.[0] || 'Hindi');
 
   const { data: payload, isLoading } = useSWR(
     `/api/home?lang=${encodeURIComponent(currentLang)}`,
@@ -209,7 +209,7 @@ export function HomeView() {
 
         {/* 1.5 Quick Language Selector Strip */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-2 pb-0.5">
-          {selectedLanguages.map((lang) => {
+          {(selectedLanguages.length > 0 ? selectedLanguages : ['Hindi', 'Telugu', 'Tamil', 'Kannada', 'Malayalam', 'English', 'Punjabi']).map((lang) => {
             const isPrimary = currentLang.toLowerCase() === lang.toLowerCase();
             return (
               <button

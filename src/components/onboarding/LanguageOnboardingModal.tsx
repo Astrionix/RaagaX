@@ -51,9 +51,7 @@ export function LanguageOnboardingModal() {
   } = usePlayerStore();
 
   const [step, setStep] = useState<1 | 2>(1);
-  const [selectedLangs, setSelectedLangs] = useState<string[]>(() => 
-    storeLanguages.length > 0 ? storeLanguages : ['Telugu']
-  );
+  const [selectedLangs, setSelectedLangs] = useState<string[]>(() => storeLanguages);
   const [selectedInterests, setSelectedInterests] = useState<string[]>(() =>
     storeInterests.length > 0 ? storeInterests : ['New Releases', 'Trending Hits', 'Movie Soundtracks']
   );

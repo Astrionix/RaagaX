@@ -117,7 +117,7 @@ export function SettingsView() {
     setGaplessEnabled,
     toggleAutoplay,
     preferredLanguage,
-    selectedLanguages = ['Telugu'],
+    selectedLanguages = [],
     setSelectedLanguages,
     musicInterests = [],
     setMusicInterests,

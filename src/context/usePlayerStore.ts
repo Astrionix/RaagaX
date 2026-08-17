@@ -299,14 +299,14 @@ const getInitialSession = () => {
 const initialSession = getInitialSession();
 
 const getInitialSelectedLanguages = (): string[] => {
-  if (typeof window === 'undefined') return ['Telugu'];
+  if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem('raagax_selected_languages');
-    if (!raw) return ['Telugu'];
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : ['Telugu'];
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
-    return ['Telugu'];
+    return [];
   }
 };
 
@@ -481,7 +481,7 @@ export const usePlayerStore = create<PlayerState>()(
     mode: 'auto',
     prompt: '',
     currentMood: 'energetic',
-    insightText: 'RaagaX AI suggests Telugu Mass Beats for your evening peak focus.',
+    insightText: 'RaagaX AI suggests personalized music tailored to your vibe.',
   },
   searchQuery: '',
   activeGenreFilter: 'all',
@@ -494,12 +494,10 @@ export const usePlayerStore = create<PlayerState>()(
   networkMode: 'online',
   setNetworkMode: (mode) => set({ networkMode: mode }),
   
-  preferredLanguage: (typeof window !== 'undefined' && localStorage.getItem('raagax_preferred_language')) || 'Telugu',
+  preferredLanguage: (typeof window !== 'undefined' && localStorage.getItem('raagax_preferred_language')) || '',
   selectedLanguages: getInitialSelectedLanguages(),
-  sessionLanguage: (typeof window !== 'undefined' && localStorage.getItem('raagax_preferred_language')) || 'Telugu',
-  interestLanguages: {
-    Telugu: 0.90,
-  },
+  sessionLanguage: (typeof window !== 'undefined' && localStorage.getItem('raagax_preferred_language')) || '',
+  interestLanguages: {},
   setPreferredLanguage: (lang: string) => {
     if (typeof window !== 'undefined') localStorage.setItem('raagax_preferred_language', lang);
     const prevInterests = get().interestLanguages || {};
@@ -516,10 +514,14 @@ export const usePlayerStore = create<PlayerState>()(
     });
   },
   setSelectedLanguages: (langs: string[]) => {
-    const valid = langs.length > 0 ? langs : ['Telugu'];
+    const valid = langs;
     if (typeof window !== 'undefined') {
       localStorage.setItem('raagax_selected_languages', JSON.stringify(valid));
-      localStorage.setItem('raagax_preferred_language', valid[0]);
+      if (valid.length > 0) {
+        localStorage.setItem('raagax_preferred_language', valid[0]);
+      } else {
+        localStorage.removeItem('raagax_preferred_language');
+      }
     }
     const prevInterests = get().interestLanguages || {};
     const newInterests: Record<string, number> = { ...prevInterests };
@@ -527,8 +529,8 @@ export const usePlayerStore = create<PlayerState>()(
     
     set({
       selectedLanguages: valid,
-      preferredLanguage: valid[0],
-      sessionLanguage: valid[0],
+      preferredLanguage: valid[0] || '',
+      sessionLanguage: valid[0] || '',
       interestLanguages: newInterests
     });
 
