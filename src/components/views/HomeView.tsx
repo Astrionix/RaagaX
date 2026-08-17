@@ -20,17 +20,17 @@ import { getCuratedPlaylists } from '@/constants/playlists';
 import { RecommendationEngine, PersonalizedHomeFeed } from '@/lib/recommendation/RecommendationEngine';
 import { HomeFeedGenerator } from '@/lib/home/HomeFeedGenerator';
 import { RecapBanner } from '@/components/home/RecapBanner';
+import { RaagaDB, STORES } from '@/lib/storage/IndexedDB';
+import { supabase } from '@/lib/supabase';
+import { UserLifecycleManager } from '@/lib/lifecycle/UserLifecycleManager';
 
 const homeFetcher = async (url: string, preferredLanguage: string) => {
-  const { RaagaDB, STORES } = await import('@/lib/storage/IndexedDB');
   const db = RaagaDB.getInstance();
   const cacheKey = `home_${preferredLanguage}`;
 
   const defaultSections = HomeFeedGenerator.getHomeSectionsForLanguage(preferredLanguage);
 
   try {
-    const { supabase } = await import('@/lib/supabase');
-    const { UserLifecycleManager } = await import('@/lib/lifecycle/UserLifecycleManager');
     const { data: { session } } = await supabase.auth.getSession();
     const phase = UserLifecycleManager.getInstance().getData().phase;
 

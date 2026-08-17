@@ -17,7 +17,11 @@ import { SeekLock } from '@/lib/playback/SeekLock';
 import { QueueManager } from '@/lib/queue/QueueManager';
 const QUEUE_REFILL_THRESHOLD = 3;
 
+import { PlaybackRecoveryEngine } from '@/lib/playback/PlaybackRecoveryEngine';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
+import { AdaptiveQueueController } from '@/lib/queue/AdaptiveQueueController';
+import { PlaybackSourceResolver } from '@/lib/playbackSourceResolver';
+import { ArtworkColorExtractor } from '@/lib/theme/ArtworkColorExtractor';
 import { getApiUrl } from '@/lib/config/apiConfig';
 
 export function AudioPlayerController() {
@@ -67,16 +71,14 @@ export function AudioPlayerController() {
   // On cold startup: restore crash-safe playback snapshot
   useEffect(() => {
     try {
-      import('@/lib/playback/PlaybackRecoveryEngine').then(({ PlaybackRecoveryEngine }) => {
-        const snapshot = PlaybackRecoveryEngine.getInstance().restoreSnapshot();
-        if (snapshot && !usePlayerStore.getState().currentSong) {
-          usePlayerStore.setState({
-            currentSong: snapshot.song,
-            currentTime: snapshot.positionMs / 1000,
-            isPlaying: false, // restore in paused state so it doesn't blast audio unexpectedly
-          });
-        }
-      });
+      const snapshot = PlaybackRecoveryEngine.getInstance().restoreSnapshot();
+      if (snapshot && !usePlayerStore.getState().currentSong) {
+        usePlayerStore.setState({
+          currentSong: snapshot.song,
+          currentTime: snapshot.positionMs / 1000,
+          isPlaying: false, // restore in paused state so it doesn't blast audio unexpectedly
+        });
+      }
     } catch {}
   }, []);
 
@@ -360,9 +362,9 @@ export function AudioPlayerController() {
     LyricsEngine.getInstance().loadTrack(currentSong.id);
 
     // Trigger asynchronous adaptive dynamic zone update (+2 through +6)
-    import('@/lib/queue/AdaptiveQueueController').then(({ AdaptiveQueueController }) => {
+    try {
       AdaptiveQueueController.getInstance().regenerateDynamicZone();
-    });
+    } catch {}
 
     if (RaagaXNativePlayer.isNative()) {
       // Native ExoPlayer is autonomous and driven by setQueue / loadQueueContext in PlaybackService.
@@ -400,19 +402,17 @@ export function AudioPlayerController() {
       const nextSong = queue[nextIndex];
       if (nextSong && nextSong.id) {
         console.log('[GAPLESS_ENGINE] Pre-buffering next track audio stream:', nextSong.title);
-        import('@/lib/playbackSourceResolver').then(({ PlaybackSourceResolver }) => {
-          PlaybackSourceResolver.getInstance().resolvePlayableSource(nextSong).then(source => {
-            if (source?.url && typeof window !== 'undefined') {
-              // Silently pre-buffer into standby audio element for 0ms gapless transition
-              const standby = PlaybackService.getInstance().getStandbyAudio();
-              if (standby) {
-                standby.preload = 'auto';
-                standby.src = source.url;
-                standby.load();
-              }
+        PlaybackSourceResolver.getInstance().resolvePlayableSource(nextSong).then(source => {
+          if (source?.url && typeof window !== 'undefined') {
+            // Silently pre-buffer into standby audio element for 0ms gapless transition
+            const standby = PlaybackService.getInstance().getStandbyAudio();
+            if (standby) {
+              standby.preload = 'auto';
+              standby.src = source.url;
+              standby.load();
             }
-          }).catch(() => {});
-        });
+          }
+        }).catch(() => {});
       }
     }
   }, [currentTime, duration, isPlaying, queueIndex, queue]);
@@ -420,11 +420,10 @@ export function AudioPlayerController() {
   // ── Chameleon Theme: Extract vibrant palette from active track ──
   useEffect(() => {
     if (currentSong?.coverUrl) {
-      import('@/lib/theme/ArtworkColorExtractor').then(({ ArtworkColorExtractor }) => {
-        ArtworkColorExtractor.getInstance()
-          .extractPalette(currentSong.coverUrl)
-          .then(palette => ArtworkColorExtractor.getInstance().applyToDocument(palette));
-      }).catch(() => {});
+      ArtworkColorExtractor.getInstance()
+        .extractPalette(currentSong.coverUrl)
+        .then(palette => ArtworkColorExtractor.getInstance().applyToDocument(palette))
+        .catch(() => {});
     }
   }, [currentSong?.coverUrl]);
 

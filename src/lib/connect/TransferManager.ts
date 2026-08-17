@@ -379,9 +379,15 @@ export class TransferManager {
       // Step 3: DESTINATION_PREPARING — Pre-buffer stream and restore queue & position
       console.log(`[TransferReceiver] DESTINATION_PREPARING: transactionId=${transitionId}`);
 
-      const queueToRestore = payload.queue && payload.queue.length > 0 ? payload.queue : (payload.songData ? [payload.songData] : []);
-      const queueIndexToRestore = payload.queueIndex !== undefined ? payload.queueIndex : 0;
-      const targetPosSeconds = (payload.positionMs || 0) / 1000;
+      const rawQueue = payload.queue && payload.queue.length > 0 ? payload.queue : (payload.songData ? [payload.songData] : []);
+      const { SongUniquenessEngine } = await import('@/lib/music/SongUniquenessEngine');
+      const queueToRestore = SongUniquenessEngine.deduplicate(rawQueue);
+      const queueIndexToRestore = Math.min(payload.queueIndex !== undefined ? payload.queueIndex : 0, Math.max(0, queueToRestore.length - 1));
+
+      // Real-time position extrapolation
+      const elapsedMs = payload.isPlaying ? Math.max(0, Date.now() - (payload.timestamp || Date.now())) : 0;
+      const targetPosMs = (payload.positionMs || 0) + elapsedMs;
+      const targetPosSeconds = targetPosMs / 1000;
 
       if (payload.songData) {
         usePlayerStore.setState({
@@ -408,11 +414,11 @@ export class TransferManager {
         const { RaagaXNativePlayer } = await import('../playback/native/RaagaXNativePlayer');
 
         if (RaagaXNativePlayer.isNative() && queueToRestore.length > 0) {
-          await PlaybackService.getInstance().loadQueueContext(queueToRestore, queueIndexToRestore, false, payload.positionMs || 0);
+          await PlaybackService.getInstance().loadQueueContext(queueToRestore, queueIndexToRestore, false, targetPosMs);
         } else {
           const service = PlaybackService.getInstance();
           await service.playTrack(payload.songData, false);
-          if (payload.positionMs > 0) {
+          if (targetPosMs > 0) {
             service.seek(targetPosSeconds, true);
           }
           const activeAudio = service.getActiveAudio();

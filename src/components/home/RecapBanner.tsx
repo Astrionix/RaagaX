@@ -91,11 +91,13 @@ export function RecapBanner() {
         </div>
       </div>
 
-      <RecapStoryModal
-        recap={activeRecap}
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-      />
+      {isModalOpen && (
+        <RecapStoryModal
+          recap={activeRecap}
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+        />
+      )}
     </>
   );
 }

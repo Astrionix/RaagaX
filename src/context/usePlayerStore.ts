@@ -13,6 +13,8 @@ import { PlaybackWatchdog } from '@/lib/playback/PlaybackWatchdog';
 import { isKidsOrNurseryTrack } from '@/lib/jioSaavnProvider';
 import { SongCoverEngine } from '@/lib/playback/SongCoverEngine';
 import { SongUniquenessEngine } from '@/lib/music/SongUniquenessEngine';
+import { PlaybackStateSync } from '@/lib/connect/PlaybackStateSync';
+import { TransferManager } from '@/lib/connect/TransferManager';
 
 import { AudioQuality, AudioQualityState } from '@/lib/playback/types';
 
@@ -1055,9 +1057,9 @@ export const usePlayerStore = create<PlayerState>()(
       } else {
         service.playTrack(firstSong, true);
       }
-      import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+      try {
         PlaybackStateSync.getInstance().broadcastState(true);
-      });
+      } catch {}
     } else {
       ConnectManager.getInstance().dispatchPlaybackCommand('PLAY', {
         trackId: firstSong.id,
@@ -1073,13 +1075,13 @@ export const usePlayerStore = create<PlayerState>()(
     if (get().isTransferring) {
       const isNowPlaying = !get().isPlaying;
       set({ isPlaying: isNowPlaying, playbackIntent: isNowPlaying ? 'PLAYING' : 'PAUSED' });
-      import('@/lib/connect/TransferManager').then(({ TransferManager }) => {
+      try {
         TransferManager.getInstance().recordPendingIntent({
           action: isNowPlaying ? 'PLAY' : 'PAUSE',
           positionMs: get().currentTime * 1000,
           timestamp: Date.now()
         });
-      });
+      } catch {}
       return;
     }
     const isNowPlaying = !get().isPlaying;
@@ -1104,9 +1106,9 @@ export const usePlayerStore = create<PlayerState>()(
       } else {
         PlaybackService.getInstance().play();
       }
-      import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+      try {
         PlaybackStateSync.getInstance().broadcastState(true);
-      });
+      } catch {}
       return;
     }
 
@@ -1120,13 +1122,13 @@ export const usePlayerStore = create<PlayerState>()(
   setIsPlaying: async (playing, fromRemote = false) => {
     if (get().isTransferring && !fromRemote) {
       set({ isPlaying: playing, playbackIntent: playing ? 'PLAYING' : 'PAUSED' });
-      import('@/lib/connect/TransferManager').then(({ TransferManager }) => {
+      try {
         TransferManager.getInstance().recordPendingIntent({
           action: playing ? 'PLAY' : 'PAUSE',
           positionMs: get().currentTime * 1000,
           timestamp: Date.now()
         });
-      });
+      } catch {}
       return;
     }
     const oldIsPlaying = get().isPlaying;
@@ -1150,9 +1152,9 @@ export const usePlayerStore = create<PlayerState>()(
       } else {
         PlaybackService.getInstance().play();
       }
-      import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+      try {
         PlaybackStateSync.getInstance().broadcastState(true);
-      });
+      } catch {}
       return;
     }
 
@@ -1172,13 +1174,13 @@ export const usePlayerStore = create<PlayerState>()(
     set({ currentTime: time });
 
     if (get().isTransferring && !fromRemote) {
-      import('@/lib/connect/TransferManager').then(({ TransferManager }) => {
+      try {
         TransferManager.getInstance().recordPendingIntent({
           action: 'SEEK',
           positionMs: time * 1000,
           timestamp: Date.now()
         });
-      });
+      } catch {}
       return;
     }
 
@@ -1196,13 +1198,13 @@ export const usePlayerStore = create<PlayerState>()(
     const safeVol = Math.max(0, Math.min(1, vol));
     set({ volume: safeVol });
     if (get().isActiveDevice) {
-      import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+      try {
         PlaybackStateSync.getInstance().broadcastState(true);
-      });
+      } catch {}
     } else {
-      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+      try {
         ConnectManager.getInstance().dispatchPlaybackCommand('SET_VOLUME', { volume: safeVol });
-      });
+      } catch {}
     }
     persistSessionHelper(get());
   },
@@ -1224,12 +1226,12 @@ export const usePlayerStore = create<PlayerState>()(
           currentTime: 0 
         });
       }
-      import('@/lib/connect/TransferManager').then(({ TransferManager }) => {
+      try {
         TransferManager.getInstance().recordPendingIntent({
           action: 'NEXT',
           timestamp: Date.now()
         });
-      });
+      } catch {}
       return;
     }
     if (!PlaybackWatchdog.getInstance().acquireTransitionLock()) return;
@@ -1313,12 +1315,12 @@ export const usePlayerStore = create<PlayerState>()(
           currentTime: 0
         });
       }
-      import('@/lib/connect/TransferManager').then(({ TransferManager }) => {
+      try {
         TransferManager.getInstance().recordPendingIntent({
           action: 'PREV',
           timestamp: Date.now()
         });
-      });
+      } catch {}
       return;
     }
     const oldSong = get().currentSong;
@@ -1402,15 +1404,15 @@ export const usePlayerStore = create<PlayerState>()(
 
     if (get().isActiveDevice) {
       PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
-      import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+      try {
         PlaybackStateSync.getInstance().broadcastState(true);
-      });
+      } catch {}
     } else {
-      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+      try {
         ConnectManager.getInstance().dispatchPlaybackCommand('SET_SHUFFLE', {
           shuffleMode: snapshot.shuffleMode || 'STANDARD',
         });
-      });
+      } catch {}
     }
   },
   setRepeatMode: (mode) => {
@@ -1419,15 +1421,15 @@ export const usePlayerStore = create<PlayerState>()(
     persistSessionHelper(get());
 
     if (get().isActiveDevice) {
-      import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+      try {
         PlaybackStateSync.getInstance().broadcastState(true);
-      });
+      } catch {}
     } else {
-      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+      try {
         ConnectManager.getInstance().dispatchPlaybackCommand('SET_REPEAT', {
           repeatMode: mode,
         });
-      });
+      } catch {}
     }
   },
   cycleRepeatMode: () => {

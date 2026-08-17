@@ -112,22 +112,24 @@ export default function Page() {
 
     // Listen to native Android back button event via Capacitor App plugin if available
     let isMounted = true;
-    try {
-      import('@capacitor/app').then(async ({ App }) => {
-        if (!isMounted) return;
-        const handle = await App.addListener('backButton', ({ canGoBack }) => {
-          const handled = handleBackNavigation();
-          if (!handled) {
-            App.exitApp();
+    if (typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()) {
+      try {
+        import('@capacitor/app').then(async ({ App }) => {
+          if (!isMounted) return;
+          const handle = await App.addListener('backButton', ({ canGoBack }) => {
+            const handled = handleBackNavigation();
+            if (!handled) {
+              App.exitApp();
+            }
+          });
+          if (!isMounted) {
+            handle?.remove?.();
+          } else {
+            appBackButtonListener = handle;
           }
-        });
-        if (!isMounted) {
-          handle?.remove?.();
-        } else {
-          appBackButtonListener = handle;
-        }
-      }).catch(() => {});
-    } catch {}
+        }).catch(() => {});
+      } catch {}
+    }
 
     window.addEventListener('popstate', handlePopState);
     return () => {

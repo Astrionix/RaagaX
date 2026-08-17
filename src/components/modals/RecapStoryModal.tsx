@@ -39,14 +39,12 @@ export function RecapStoryModal({ recap, isOpen, onClose }: RecapStoryModalProps
   }, [isOpen, recap?.id]);
 
   const handleNext = useCallback(() => {
-    setCurrentSlide((prev) => {
-      if (prev >= TOTAL_SLIDES - 1) {
-        onClose();
-        return prev;
-      }
-      return prev + 1;
-    });
-  }, [TOTAL_SLIDES, onClose]);
+    if (currentSlide >= TOTAL_SLIDES - 1) {
+      onClose();
+    } else {
+      setCurrentSlide((prev) => prev + 1);
+    }
+  }, [currentSlide, TOTAL_SLIDES, onClose]);
 
   const handlePrev = useCallback(() => {
     setCurrentSlide((prev) => Math.max(prev - 1, 0));

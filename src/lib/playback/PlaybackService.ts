@@ -10,6 +10,7 @@ import { PlaybackSourceResolver } from '@/lib/playbackSourceResolver';
 import { RaagaXNativePlayer } from './native/RaagaXNativePlayer';
 import { Song } from '@/types/music';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { AdaptiveQueueController } from '../queue/AdaptiveQueueController';
 
 export class PlaybackService {
   private static instance: PlaybackService;
@@ -549,23 +550,18 @@ export class PlaybackService {
       } else {
         // Queue completed. Check autoplay policy.
         if (manager.isAutoplayEnabled()) {
-          const { AdaptiveQueueController } = await import('../queue/AdaptiveQueueController');
           const autoplaySongs = await AdaptiveQueueController.getInstance().fetchAutoplayForCompletedQueue();
           if (autoplaySongs && autoplaySongs.length > 0) {
             manager.replaceQueue(autoplaySongs, 0, 'AUTOPLAY');
             const autoplayFirst = manager.getCurrentItem();
             if (autoplayFirst && autoplayFirst.song) {
-              import('../../context/usePlayerStore').then(({ usePlayerStore }) => {
-                usePlayerStore.getState().commitPlaybackTransition(autoplayFirst.song, 0, autoplaySongs);
-              }).catch(() => {});
+              usePlayerStore.getState().commitPlaybackTransition(autoplayFirst.song, 0, autoplaySongs);
               return await this.playTrack(autoplayFirst.song, true);
             }
           }
         }
 
-        import('../../context/usePlayerStore').then(({ usePlayerStore }) => {
-          usePlayerStore.getState().setIsPlaying(false, true);
-        }).catch(() => {});
+        usePlayerStore.getState().setIsPlaying(false, true);
         MediaSessionManager.getInstance().setPlaybackState('paused');
         return false;
       }
@@ -647,16 +643,16 @@ export class PlaybackService {
       return;
     }
 
-    const active = this.getActiveAudio();
-    if (active) {
-      if (typeof active.pause === 'function') {
-        active.pause();
+    [this.audioA, this.audioB].forEach(audio => {
+      if (audio && !audio.paused) {
+        try { audio.pause(); } catch {}
       }
-      const store = usePlayerStore.getState();
-      store.setIsPlaying(false, true);
-      MediaSessionManager.getInstance().setPlaybackState('paused');
-      AudioFocusManager.getInstance().releaseFocus();
-    }
+    });
+
+    const store = usePlayerStore.getState();
+    store.setIsPlaying(false, true);
+    MediaSessionManager.getInstance().setPlaybackState('paused');
+    AudioFocusManager.getInstance().releaseFocus();
   }
 
   public seek(timeSeconds: number, fromRemote: boolean = false) {
