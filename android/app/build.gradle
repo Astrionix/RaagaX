@@ -39,6 +39,18 @@ dependencies {
     implementation "androidx.media3:media3-session:1.2.1"
     implementation "androidx.media3:media3-ui:1.2.1"
     implementation "androidx.media:media:1.6.0"
+    
+    // Room Database
+    implementation "androidx.room:room-runtime:2.6.1"
+    annotationProcessor "androidx.room:room-compiler:2.6.1"
+    
+    // WorkManager Background Jobs
+    implementation "androidx.work:work-runtime:2.9.0"
+    
+    // Networking & JSON
+    implementation "com.squareup.okhttp3:okhttp:4.12.0"
+    implementation "com.google.code.gson:gson:2.10.1"
+
     implementation project(':capacitor-android')
     implementation project(':capacitor-cordova-android-plugins')
 }
