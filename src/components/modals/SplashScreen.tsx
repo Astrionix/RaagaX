@@ -284,60 +284,6 @@ export function SplashScreen({ onComplete, enableAudio = true }: SplashScreenPro
                   className="transition-all duration-400"
                 />
 
-                {/* Symbol Vector Mark with Glass Specular Highlights */}
-                <div className="relative">
-                  <svg 
-                    className={`w-14 h-14 sm:w-16 sm:h-16 transition-transform duration-300 drop-shadow-[0_4px_20px_rgba(229,9,20,0.45)]`}
-                    viewBox="0 0 100 100" 
-                    fill="none" 
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <defs>
-                      <linearGradient id="splashRhythmGlassGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.95" />
-                        <stop offset="50%" stopColor="#E2E8F0" stopOpacity="0.8" />
-                        <stop offset="100%" stopColor="#94A3B8" stopOpacity="0.6" />
-                      </linearGradient>
-                    </defs>
-
-                    {/* Geometric Stem */}
-                    <rect x="20" y="20" width="14" height="60" rx="7" fill={isDark ? "url(#splashRhythmGlassGrad)" : "#0F172A"} />
-
-                    {/* Resonant Loop / Acoustic Arc */}
-                    <path 
-                      d="M 34 20 C 58 20 74 32 74 46 C 74 60 58 64 34 64" 
-                      stroke={isDark ? "url(#splashRhythmGlassGrad)" : "#0F172A"} 
-                      strokeWidth="14" 
-                      strokeLinecap="round" 
-                      fill="none" 
-                    />
-
-                    {/* Playhead Motion Kick (RaagaX Crimson) */}
-                    <path 
-                      d="M 44 48 L 74 80" 
-                      stroke="#E50914" 
-                      strokeWidth="14" 
-                      strokeLinecap="round" 
-                    />
-
-                    {/* Embedded Kinetic Play Beacon */}
-                    <polygon 
-                      points="37,39 37,53 49,46" 
-                      fill="#E50914" 
-                      className="transition-all duration-300"
-                    />
-                  </svg>
-
-                  {/* Traveling Glass Highlight Beam: R ✦ */}
-                  <div 
-                    className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden rounded-2xl"
-                    style={{
-                      background: 'linear-gradient(105deg, transparent 20%, rgba(255,255,255,0.4) 50%, transparent 80%)',
-                      animation: 'splashGlassSweep 1.2s ease-out',
-                    }}
-                  />
-                </div>
-
                 {/* 3. Negative-Space Play Triad Geometry (Emerges at 0.95s) */}
                 <path 
                   d="M50 31L66 42L50 53V31Z" 

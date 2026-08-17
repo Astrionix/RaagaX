@@ -30,6 +30,7 @@ export interface PersonalizedHomeFeed {
 
 export class RecommendationEngine {
   private static instance: RecommendationEngine;
+  private feedCacheMap = new Map<string, PersonalizedHomeFeed>();
 
   private constructor() {}
 
@@ -38,6 +39,24 @@ export class RecommendationEngine {
       RecommendationEngine.instance = new RecommendationEngine();
     }
     return RecommendationEngine.instance;
+  }
+
+  public getCachedHomeFeedSnapshot(userId: string, lang: string = ''): PersonalizedHomeFeed | null {
+    const key = `${userId}_${lang.toLowerCase()}`;
+    if (this.feedCacheMap.has(key)) {
+      return this.feedCacheMap.get(key)!;
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(`raagax_feed_${key}`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          this.feedCacheMap.set(key, parsed);
+          return parsed;
+        }
+      } catch {}
+    }
+    return null;
   }
 
   /**
@@ -209,7 +228,7 @@ export class RecommendationEngine {
       },
     ];
 
-    return {
+    const result: PersonalizedHomeFeed = {
       greeting,
       continueListening,
       recentlyPlayed,
@@ -221,6 +240,16 @@ export class RecommendationEngine {
       newReleases,
       dailyMixes,
     };
+
+    const key = `${userId}_${lang.toLowerCase()}`;
+    this.feedCacheMap.set(key, result);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`raagax_feed_${key}`, JSON.stringify(result));
+      } catch {}
+    }
+
+    return result;
   }
 
   public async getRecommendations(

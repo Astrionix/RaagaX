@@ -16,6 +16,7 @@ import { AudioSettingsDrawer } from './AudioSettingsDrawer';
 import { useLyricsStore } from '@/context/useLyricsStore';
 import { SeekBar } from './SeekBar';
 import { PlaybackEngine } from '@/lib/playback/PlaybackEngine';
+import { OptimizedImage } from '@/components/common/OptimizedImage';
 
 export function ExpandedPlayerModal() {
   const { playlists, addSongToPlaylist } = usePlaylistStore();
@@ -593,10 +594,10 @@ export function ExpandedPlayerModal() {
                 flexShrink: 0,
               }}
             >
-              <img
-                src={(currentSong.coverUrl && !currentSong.coverUrl.includes('/null/') && !currentSong.coverUrl.includes('null/null')) ? currentSong.coverUrl : '/app-icon.png'}
+              <OptimizedImage
+                src={currentSong.coverUrl}
                 alt={currentSong.title}
-                onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+                size="full"
                 className={`w-full h-full object-cover transition-all duration-700 ${isPlaying ? 'scale-[1.03]' : 'scale-100'}`}
               />
             </div>
@@ -664,9 +665,21 @@ export function ExpandedPlayerModal() {
                 </div>
               )}
               {lyricsStatus === 'unavailable' || lyricsLines.length === 0 ? (
-                <div className="w-full text-center py-16 text-white/60">
+                <div className="w-full text-center py-16 text-white/60 flex flex-col items-center gap-3">
                   <p className="text-lg font-bold text-white mb-1">Lyrics unavailable</p>
                   <p className="text-xs">No synchronized lyrics found for this song.</p>
+                  <button 
+                    onClick={() => {
+                      if (currentSong?.id) {
+                        import('@/lib/lyrics/LyricsEngine').then(({ LyricsEngine }) => {
+                          LyricsEngine.getInstance().loadTrack(currentSong.id);
+                        });
+                      }
+                    }}
+                    className="px-4 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition-all active:scale-95 cursor-pointer"
+                  >
+                    Retry
+                  </button>
                 </div>
               ) : (
                 lyricsLines.map((line, idx) => {

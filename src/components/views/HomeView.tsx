@@ -110,11 +110,14 @@ export function HomeView() {
     (url) => homeFetcher(url, currentLang),
     {
       revalidateOnFocus: false,
-      dedupingInterval: 10000,
+      dedupingInterval: 30000,
+      keepPreviousData: true,
     }
   );
 
-  const [feed, setFeed] = useState<PersonalizedHomeFeed | null>(null);
+  const [feed, setFeed] = useState<PersonalizedHomeFeed | null>(() => {
+    return RecommendationEngine.getInstance().getCachedHomeFeedSnapshot(activeUserId, currentLang);
+  });
   const [isMounted, setIsMounted] = useState(false);
 
   const { playlists: userPlaylists = [], fetchPlaylists } = usePlaylistStore();
@@ -125,9 +128,12 @@ export function HomeView() {
 
   useEffect(() => {
     setIsMounted(true);
-  }, []);
+    // Instant hydrate from cached snapshot if state was empty
+    const cached = RecommendationEngine.getInstance().getCachedHomeFeedSnapshot(activeUserId, currentLang);
+    if (cached) setFeed(cached);
+  }, [activeUserId, currentLang]);
 
-  // Load Personalized Recommendation Feed
+  // Load / Revalidate Personalized Recommendation Feed in Background
   useEffect(() => {
     let isCancelled = false;
     const loadPersonalized = async () => {
@@ -161,7 +167,7 @@ export function HomeView() {
     : '/app-icon.png';
 
   return (
-    <div className="space-y-6 pb-24 md:pb-10 select-none relative">
+    <div className="space-y-4 sm:space-y-6 pb-4 md:pb-6 select-none relative">
       {/* 0. Continuous Atmospheric Glow */}
       {isMounted && currentSong ? (
         <div
@@ -202,18 +208,23 @@ export function HomeView() {
           <h2 suppressHydrationWarning className="text-xl sm:text-3xl font-black text-white tracking-tight leading-none">
             {feed?.greeting || greeting}, {displayName} 👋
           </h2>
-          <p className="text-xs text-slate-400 font-medium mt-1">
-            Curated in <span className="text-white font-bold">{currentLang}</span> based on your regional preferences
+          <p suppressHydrationWarning className="text-xs text-slate-400 font-medium mt-1">
+            Curated {isMounted && currentLang ? (
+              <>in <span suppressHydrationWarning className="text-white font-bold">{currentLang}</span> based on your preferences</>
+            ) : (
+              <>for your personal taste</>
+            )}
           </p>
         </div>
 
         {/* 1.5 Quick Language Selector Strip */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-2 pb-0.5">
-          {(selectedLanguages.length > 0 ? selectedLanguages : ['Hindi', 'Telugu', 'Tamil', 'Kannada', 'Malayalam', 'English', 'Punjabi']).map((lang) => {
-            const isPrimary = currentLang.toLowerCase() === lang.toLowerCase();
+        <div suppressHydrationWarning className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-2 pb-0.5">
+          {(isMounted && selectedLanguages.length > 0 ? selectedLanguages : ['Hindi', 'Telugu', 'Tamil', 'Kannada', 'Malayalam', 'English', 'Punjabi']).map((lang) => {
+            const isPrimary = isMounted && currentLang.toLowerCase() === lang.toLowerCase();
             return (
               <button
                 key={lang}
+                suppressHydrationWarning
                 onClick={() => {
                   usePlayerStore.getState().setPreferredLanguage(lang);
                 }}
@@ -512,14 +523,14 @@ export function HomeView() {
       {homeFeedControls.showPopularAlbums !== false && <ArtistDiscoveryShelves />}
 
       {/* 12. Dynamic Backend Sections */}
-      {isLoading || !payload ? (
+      {!payload && isLoading ? (
         <div className="space-y-8 pt-4">
           <div className="space-y-3">
             <div className="h-4 bg-white/10 rounded w-44 animate-pulse" />
             <SkeletonGrid count={6} />
           </div>
         </div>
-      ) : (
+      ) : payload?.sections ? (
         <div className="space-y-8">
           {payload.sections.map((section: HomeSection) => {
             if (section.type === 'list_chart') {
@@ -534,7 +545,7 @@ export function HomeView() {
             );
           })}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

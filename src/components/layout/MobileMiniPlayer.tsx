@@ -4,6 +4,7 @@ import React, { useRef, useState } from 'react';
 import { Play, Pause, SkipForward, SkipBack, Heart, MoreVertical, Disc3, Headphones } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SeekBar } from '@/components/player/SeekBar';
+import { OptimizedImage } from '@/components/common/OptimizedImage';
 
 /**
  * RaagaX Floating Liquid Glass Mini-Player (Tier 02 Deep Glass)
@@ -147,12 +148,10 @@ export function MobileMiniPlayer() {
             className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer py-0.5"
           >
             <div className="relative flex-shrink-0 w-11 h-11 rounded-xl overflow-hidden shadow-lg bg-black/50 border border-white/10">
-              <img
+              <OptimizedImage
                 src={coverUrl}
                 alt={currentSong.title}
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src = '/app-icon.png';
-                }}
+                size="thumb"
                 className="w-full h-full object-cover"
               />
               {/* Playing Soundwave Pill Overlay */}

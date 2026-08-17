@@ -3,6 +3,7 @@ import { ShelfItem } from '@/types/home';
 import { Play, ChevronRight, ChevronDown, X, Shuffle, MoreHorizontal } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
+import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { getApiUrl } from '@/lib/config/apiConfig';
 
 export interface PaginationConfig {
@@ -278,8 +279,8 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
   const sentinelIndex = Math.max(0, shelfItems.length - 5);
 
   return (
-    <section className="mb-4 sm:mb-6">
-      <div className="flex items-center justify-between mb-2.5 px-0">
+    <section className="mb-2.5 sm:mb-4">
+      <div className="flex items-center justify-between mb-2 px-0">
         <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
           {icon}
           <h2 className="text-[20px] sm:text-xl font-semibold leading-[26px] text-white tracking-tight cursor-pointer truncate whitespace-nowrap">
@@ -315,7 +316,7 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
         )}
       </div>
       
-      <div className="flex gap-3 sm:gap-4 overflow-x-auto no-scrollbar pb-3 sm:pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="flex gap-3 sm:gap-4 overflow-x-auto no-scrollbar pb-1.5 sm:pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
         {visibleItems.map((item, index) => {
           const isSentinel = pagination?.enabled && index === sentinelIndex;
           
@@ -327,10 +328,10 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
               className="group premium-card p-3 sm:p-3.5 rounded-2xl cursor-pointer w-[140px] sm:w-[172px] flex-shrink-0"
             >
               <div className="relative w-full aspect-square mb-2.5 sm:mb-3 shadow-[0_8px_24px_rgba(0,0,0,0.4)] rounded-xl overflow-hidden bg-slate-800/80">
-                <img
-                  src={item.imageUrl ? item.imageUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500') : '/app-icon.png'}
+                <OptimizedImage
+                  src={item.imageUrl}
                   alt={item.title}
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+                  size="card"
                   className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-108 ${
                     item.type === 'artist' ? 'rounded-full' : 'rounded-xl'
                   }`}

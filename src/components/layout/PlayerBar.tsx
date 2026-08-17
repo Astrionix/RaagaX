@@ -23,6 +23,7 @@ import {
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { DeviceSelector } from '@/components/providers/DeviceSyncProvider';
 import { SeekBar } from '@/components/player/SeekBar';
+import { OptimizedImage } from '@/components/common/OptimizedImage';
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) {
@@ -32,6 +33,20 @@ function formatTime(seconds: number): string {
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
+
+const PlayerBarTimeline = React.memo(function PlayerBarTimeline({ songDuration }: { songDuration?: number }) {
+  const currentTime = usePlayerStore((s) => s.currentTime);
+  const duration = usePlayerStore((s) => s.duration);
+  const finalDuration = Number.isFinite(duration) && duration > 0 ? duration : (Number.isFinite(songDuration) && (songDuration || 0) > 0 ? songDuration! : -1);
+
+  return (
+    <div className="w-full flex items-center gap-3 max-w-md">
+      <span className="text-[10px] font-mono text-slate-400 font-bold min-w-[32px] text-right">{formatTime(currentTime)}</span>
+      <SeekBar className="w-full flex-1" height="h-1" thumbSize="w-3 h-3" />
+      <span className="text-[10px] font-mono text-slate-400 font-bold min-w-[32px]">{formatTime(finalDuration)}</span>
+    </div>
+  );
+});
 
 export function PlayerBar() {
   const [mounted, setMounted] = React.useState(false);
@@ -43,8 +58,6 @@ export function PlayerBar() {
   const {
     currentSong,
     isPlaying,
-    currentTime,
-    duration,
     volume,
     isMuted,
     shuffleMode,
@@ -54,7 +67,6 @@ export function PlayerBar() {
     togglePlayPause,
     playNext,
     playPrev,
-    setCurrentTime,
     setVolume,
     toggleMute,
     toggleShuffle,
@@ -113,7 +125,12 @@ export function PlayerBar() {
               onClick={togglePlayerExpanded}
               className="relative w-12 h-12 rounded-xl overflow-hidden shadow-[0_4px_16px_rgba(0,0,0,0.5)] border border-white/10 cursor-pointer group flex-shrink-0"
             >
-              <img src={(currentSong.coverUrl && !currentSong.coverUrl.includes('/null/') && !currentSong.coverUrl.includes('null/null')) ? currentSong.coverUrl : '/app-icon.png'} alt={currentSong.title} onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+              <OptimizedImage
+                src={currentSong.coverUrl}
+                alt={currentSong.title}
+                size="thumb"
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+              />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <Maximize2 className="w-4 h-4 text-white" />
               </div>
@@ -201,13 +218,7 @@ export function PlayerBar() {
         </div>
 
         {/* Timeline Bar */}
-        {currentSong && (
-          <div className="w-full flex items-center gap-3 max-w-md">
-            <span className="text-[10px] font-mono text-slate-400 font-bold min-w-[32px] text-right">{formatTime(currentTime)}</span>
-            <SeekBar className="w-full flex-1" height="h-1" thumbSize="w-3 h-3" />
-            <span className="text-[10px] font-mono text-slate-400 font-bold min-w-[32px]">{formatTime(Number.isFinite(duration) && duration > 0 ? duration : (Number.isFinite(currentSong?.duration) && currentSong.duration > 0 ? currentSong.duration : -1))}</span>
-          </div>
-        )}
+        {currentSong && <PlayerBarTimeline songDuration={currentSong.duration} />}
       </div>
 
       {/* Right Tools Bar */}
