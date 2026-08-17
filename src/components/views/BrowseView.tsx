@@ -5,6 +5,7 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { CarouselShelf } from '@/components/home/CarouselShelf';
 import { Compass, TrendingUp, Sparkles, Film, Disc, RefreshCw, WifiOff, Users, Music } from 'lucide-react';
 import { ShelfItem } from '@/types/home';
+import { Song } from '@/types/music';
 import { RaagaDB, STORES } from '@/lib/storage/IndexedDB';
 import { SkeletonGrid } from '@/components/ui/SkeletonLoader';
 import { OfflineCatalog } from '@/lib/offline/OfflineCatalog';
@@ -32,12 +33,19 @@ async function getOfflineBrowseFallback(lang: string) {
           id: t.trackId,
           title: t.title,
           artist: t.artist,
-          album: t.album,
+          artistId: t.artist || 'local_artist',
+          album: t.album || 'Downloaded',
+          albumId: t.album || 'local_album',
           coverUrl: t.artworkUrl || '/app-icon.png',
           duration: t.durationMs ? Math.round(t.durationMs / 1000) : 0,
-          audioUrl: t.audioUrl || '',
+          audioUrl: (t as any).audioUrl || null,
+          category: 'latest_telugu',
+          genre: 'Offline',
+          releaseYear: new Date(t.downloadedAt || Date.now()).getFullYear(),
+          plays: 0,
+          likes: 0,
           source: 'local',
-        },
+        } as unknown as Song,
       }));
 
       sections.push({
