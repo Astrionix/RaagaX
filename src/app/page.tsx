@@ -46,6 +46,7 @@ import { DownloadsView } from '@/components/views/DownloadsView';
 import { FavoritesView } from '@/components/views/FavoritesView';
 import { SettingsView } from '@/components/views/SettingsView';
 import { InsightsView } from '@/components/views/InsightsView';
+import { RecapHistoryView } from '@/components/views/RecapHistoryView';
 import { SplashScreen } from '@/components/modals/SplashScreen';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 
@@ -203,6 +204,7 @@ export default function Page() {
             {activeTab === 'downloads' && <DownloadsView />}
             {activeTab === 'favorites' && <FavoritesView />}
             {activeTab === 'insights' && <InsightsView />}
+            {activeTab === 'recaps' && <RecapHistoryView />}
             {activeTab === 'settings' && <SettingsView />}
           </main>
 

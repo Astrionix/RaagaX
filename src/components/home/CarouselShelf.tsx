@@ -157,18 +157,16 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
       const originalHtml = btn.innerHTML;
       btn.innerHTML = '<svg class="animate-spin w-4 h-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
       
-      const { RealMusicEngine } = await import('@/lib/realMusicEngine');
-      const engine = RealMusicEngine.getInstance();
+      const { PlaylistDetailResolver } = await import('@/lib/playlist/PlaylistDetailResolver');
+      const resolver = PlaylistDetailResolver.getInstance();
       
       let songs: any[] = [];
       if (item.type === 'playlist' || item.type === 'mix') {
-        const details = await engine.getPlaylistDetails(item.id);
+        const details = await resolver.resolve(item.id);
         songs = details?.songs || [];
       } else if (item.type === 'album') {
-        const details = await engine.getPlaylistDetails('album:' + item.id);
+        const details = await resolver.resolve('album:' + item.id);
         songs = details?.songs || [];
-      } else if (item.type === 'artist') {
-        songs = [];
       }
 
       if (songs.length > 0) {
@@ -195,15 +193,15 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
           playSong(rawSongs[0] as any, rawSongs as any[]);
         }
       } else {
-        const { RealMusicEngine } = await import('@/lib/realMusicEngine');
-        const engine = RealMusicEngine.getInstance();
+        const { PlaylistDetailResolver } = await import('@/lib/playlist/PlaylistDetailResolver');
+        const resolver = PlaylistDetailResolver.getInstance();
         let songs: any[] = [];
         
         if (shelfItems[0].type === 'playlist' || shelfItems[0].type === 'mix') {
-          const details = await engine.getPlaylistDetails(shelfItems[0].id);
+          const details = await resolver.resolve(shelfItems[0].id);
           songs = details?.songs || [];
         } else if (shelfItems[0].type === 'album') {
-          const details = await engine.getPlaylistDetails('album:' + shelfItems[0].id);
+          const details = await resolver.resolve('album:' + shelfItems[0].id);
           songs = details?.songs || [];
         }
 

@@ -18,8 +18,8 @@ import { getApiUrl } from '@/lib/config/apiConfig';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { getCuratedPlaylists } from '@/constants/playlists';
 import { RecommendationEngine, PersonalizedHomeFeed } from '@/lib/recommendation/RecommendationEngine';
-
 import { HomeFeedGenerator } from '@/lib/home/HomeFeedGenerator';
+import { RecapBanner } from '@/components/home/RecapBanner';
 
 const homeFetcher = async (url: string, preferredLanguage: string) => {
   const { RaagaDB, STORES } = await import('@/lib/storage/IndexedDB');
@@ -381,6 +381,9 @@ export function HomeView() {
           </div>
         </button>
       </section>
+
+      {/* 3.5 Recurring Music Recap Banner */}
+      <RecapBanner />
 
       {/* 4. Made For You / Daily Mixes */}
       {homeFeedControls.showRecommended !== false && feed?.dailyMixes && feed.dailyMixes.length > 0 && (

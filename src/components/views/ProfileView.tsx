@@ -161,6 +161,13 @@ export function ProfileView() {
               <span>Journey</span>
             </button>
             <button
+              onClick={() => setActiveTab('recaps')}
+              className="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 text-slate-400 hover:text-white hover:bg-white/10 cursor-pointer"
+            >
+              <Flame className="w-3.5 h-3.5 text-[#fa233b]" />
+              <span>Recaps</span>
+            </button>
+            <button
               onClick={() => setActiveTabSub('settings')}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                 activeTabSub === 'settings'

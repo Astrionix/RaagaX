@@ -111,15 +111,17 @@ public class RaagaXCapacitorPlugin extends Plugin {
 
         try {
             int len = tracks.length();
-            String[] urls    = new String[len];
-            String[] titles  = new String[len];
-            String[] artists = new String[len];
+            String[] urls     = new String[len];
+            String[] titles   = new String[len];
+            String[] artists  = new String[len];
+            String[] artworks = new String[len];
 
             for (int i = 0; i < len; i++) {
                 org.json.JSONObject obj = tracks.getJSONObject(i);
-                urls[i]    = obj.optString("url", "");
-                titles[i]  = obj.optString("title", "RaagaX");
-                artists[i] = obj.optString("artist", "");
+                urls[i]     = obj.optString("url", "");
+                titles[i]   = obj.optString("title", "RaagaX");
+                artists[i]  = obj.optString("artist", "");
+                artworks[i] = obj.optString("artworkUrl", obj.optString("coverUrl", ""));
             }
 
             boolean autoPlay = call.getBoolean("autoPlay", true);
@@ -129,6 +131,7 @@ public class RaagaXCapacitorPlugin extends Plugin {
             intent.putExtra("urls",             urls);
             intent.putExtra("titles",           titles);
             intent.putExtra("artists",          artists);
+            intent.putExtra("artworks",         artworks);
             intent.putExtra("startIndex",       startIndex);
             intent.putExtra("startPositionMs",  startPositionMs);
             intent.putExtra("autoPlay",         autoPlay);

@@ -29,6 +29,8 @@ export function PlaylistDetailView() {
     likedSongIds, 
     toggleLikeSong, 
     downloadedSongIds, 
+    preferredLanguage,
+    selectedLanguages,
   } = usePlayerStore();
 
   const { user } = useAuthStore();
@@ -120,33 +122,20 @@ export function PlaylistDetailView() {
           setIsLoading(false);
         }
       } else {
-        // Fallback for curated editorial playlists
-        const { getCuratedPlaylists } = await import('@/constants/playlists');
-        const curated = getCuratedPlaylists('Telugu').find(p => p.id === selectedPlaylistId);
-        if (curated) {
-          const realEngine = RealMusicEngine.getInstance();
-          const songs = await realEngine.searchRealSongs(`${curated.name} Telugu`, 25).catch(() => []);
-          if (isMounted) {
-            setPlaylist({
-              id: curated.id,
-              title: curated.name,
-              description: curated.desc,
-              coverUrl: curated.coverUrl,
-              songs,
-              isUserOwned: false,
-              isCollaborative: false,
-            });
-            setIsLoading(false);
-          }
-        } else {
-          if (isMounted) { setPlaylist(null); setIsLoading(false); }
+        // Fallback for dynamic catalog / JioSaavn / curated editorial playlists
+        const { PlaylistDetailResolver } = await import('@/lib/playlist/PlaylistDetailResolver');
+        const lang = preferredLanguage || selectedLanguages?.[0] || 'Telugu';
+        const resolved = await PlaylistDetailResolver.getInstance().resolve(selectedPlaylistId, lang);
+        if (isMounted) {
+          setPlaylist(resolved);
+          setIsLoading(false);
         }
       }
     };
 
     fetchPlaylist();
     return () => { isMounted = false; };
-  }, [selectedPlaylistId, playlists, activeUserId]);
+  }, [selectedPlaylistId, playlists, activeUserId, preferredLanguage, selectedLanguages]);
 
   // Sorted Songs calculation
   const sortedSongs: Song[] = useMemo(() => {

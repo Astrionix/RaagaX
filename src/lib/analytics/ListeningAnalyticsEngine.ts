@@ -186,6 +186,16 @@ export class ListeningAnalyticsEngine {
     userId: string = 'guest',
     timeRange: InsightsTimeRange = 'all'
   ): Promise<AnalyticsSnapshot> {
+    const now = Date.now();
+    const cutoffTime = this.getCutoffTimestamp(timeRange, now);
+    return this.getAnalyticsForRange(cutoffTime, now + 86400000, userId);
+  }
+
+  public async getAnalyticsForRange(
+    startTime: number,
+    endTime: number,
+    userId: string = 'guest'
+  ): Promise<AnalyticsSnapshot> {
     // Check if tracking is paused in privacy settings
     if (typeof window !== 'undefined' && localStorage.getItem('raagax_privacy_history_paused') === 'true') {
       return this.generateEmptySnapshot();
@@ -195,12 +205,11 @@ export class ListeningAnalyticsEngine {
     const historyEntries = await QueueHistory.getInstance().ensureLoaded();
     const now = Date.now();
 
-    // Filter by requested timeRange window
-    const cutoffTime = this.getCutoffTimestamp(timeRange, now);
+    // Filter by requested timeRange window [startTime, endTime]
     const validEntries = historyEntries.filter(e => {
       if (!e.song || !e.song.id) return false;
       const started = e.startedAt || now;
-      return started >= cutoffTime;
+      return started >= startTime && started <= endTime;
     });
 
     // 2. Fetch offline downloads to enrich catalog stats

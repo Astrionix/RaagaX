@@ -683,6 +683,12 @@ export const usePlayerStore = create<PlayerState>()(
   setRemoteState: (newState) => set((state) => ({ ...state, ...newState })),
 
   restoreLocalSession: async () => {
+    // Prevent duplicate concurrent restorations
+    const state = get();
+    if (state.currentSong && state.isPlaying) {
+      return;
+    }
+
     const manager = QueueManager.getInstance();
     const { RaagaXNativePlayer } = await import('@/lib/playback/native/RaagaXNativePlayer');
     const { QueueHistory } = await import('@/lib/queue/QueueHistory');

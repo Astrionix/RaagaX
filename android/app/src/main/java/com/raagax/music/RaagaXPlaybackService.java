@@ -6,9 +6,17 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
+import android.util.LruCache;
+
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.OptIn;
@@ -48,8 +56,11 @@ public class RaagaXPlaybackService extends Service {
 
     private ExoPlayer player;
     private androidx.media3.session.MediaSession mediaSession;
-    private String    currentTitle  = "RaagaX";
-    private String    currentArtist = "";
+    private String    currentTitle       = "RaagaX";
+    private String    currentArtist      = "";
+    private String    currentArtworkUrl  = "";
+    private Bitmap    currentArtworkBitmap = null;
+    private final LruCache<String, Bitmap> artworkCache = new LruCache<>(20);
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -92,13 +103,17 @@ public class RaagaXPlaybackService extends Service {
                 if (mediaItem != null && mediaItem.mediaMetadata != null) {
                     currentTitle  = mediaItem.mediaMetadata.title  != null ? mediaItem.mediaMetadata.title.toString()  : "RaagaX";
                     currentArtist = mediaItem.mediaMetadata.artist != null ? mediaItem.mediaMetadata.artist.toString() : "";
+                    Uri artUri = mediaItem.mediaMetadata.artworkUri;
+                    String artUrl = artUri != null ? artUri.toString() : "";
+                    loadArtworkAsync(artUrl);
                     updateNotification();
 
                     Intent i = new Intent("com.raagax.music.TRACK_CHANGED");
-                    i.putExtra("title",  currentTitle);
-                    i.putExtra("artist", currentArtist);
-                    i.putExtra("index",  player.getCurrentMediaItemIndex());
-                    i.putExtra("reason", reason);
+                    i.putExtra("title",      currentTitle);
+                    i.putExtra("artist",     currentArtist);
+                    i.putExtra("artworkUrl", artUrl);
+                    i.putExtra("index",      player.getCurrentMediaItemIndex());
+                    i.putExtra("reason",     reason);
                     if (mediaItem.localConfiguration != null) {
                         i.putExtra("url", mediaItem.localConfiguration.uri.toString());
                     }
@@ -151,6 +166,46 @@ public class RaagaXPlaybackService extends Service {
         });
     }
 
+    private void loadArtworkAsync(String url) {
+        if (url == null || url.isEmpty()) {
+            currentArtworkBitmap = null;
+            currentArtworkUrl = "";
+            updateNotification();
+            return;
+        }
+        if (url.equals(currentArtworkUrl) && currentArtworkBitmap != null) {
+            return;
+        }
+        currentArtworkUrl = url;
+        Bitmap cached = artworkCache.get(url);
+        if (cached != null) {
+            currentArtworkBitmap = cached;
+            updateNotification();
+            return;
+        }
+        new Thread(() -> {
+            try {
+                URL u = new URL(url);
+                HttpURLConnection conn = (HttpURLConnection) u.openConnection();
+                conn.setConnectTimeout(4000);
+                conn.setReadTimeout(4000);
+                conn.setDoInput(true);
+                conn.connect();
+                InputStream in = conn.getInputStream();
+                Bitmap b = BitmapFactory.decodeStream(in);
+                if (b != null) {
+                    artworkCache.put(url, b);
+                    if (url.equals(currentArtworkUrl)) {
+                        currentArtworkBitmap = b;
+                        runOnMainThread(this::updateNotification);
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Failed to load artwork: " + e.getMessage());
+            }
+        }).start();
+    }
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         // ✅ Call startForeground() IMMEDIATELY — satisfies Android 12+ 5-second rule
@@ -181,12 +236,13 @@ public class RaagaXPlaybackService extends Service {
             String[] urls        = intent.getStringArrayExtra("urls");
             String[] titles      = intent.getStringArrayExtra("titles");
             String[] artists     = intent.getStringArrayExtra("artists");
+            String[] artworks    = intent.getStringArrayExtra("artworks");
             int startIndex       = intent.getIntExtra("startIndex", 0);
             long startPositionMs = intent.getLongExtra("startPositionMs", 0L);
             boolean autoPlay     = intent.getBooleanExtra("autoPlay", true);
             Log.d(TAG, "[SET_QUEUE_INTENT] tracks=" + (urls != null ? urls.length : 0) + " | startIndex=" + startIndex + " | startPos=" + startPositionMs + "ms | autoPlay=" + autoPlay);
             if (urls != null && urls.length > 0) {
-                setQueue(urls, titles, artists, startIndex, startPositionMs, autoPlay);
+                setQueue(urls, titles, artists, artworks, startIndex, startPositionMs, autoPlay);
             }
 
         } else if ("PLAY".equals(action)) {
@@ -320,7 +376,7 @@ public class RaagaXPlaybackService extends Service {
      * tracks and starts playing from startIndex. ExoPlayer then auto-advances
      * through all items natively without WebView involvement.
      */
-    public void setQueue(String[] urls, String[] titles, String[] artists, int startIndex, long startPositionMs, boolean autoPlay) {
+    public void setQueue(String[] urls, String[] titles, String[] artists, String[] artworks, int startIndex, long startPositionMs, boolean autoPlay) {
         runOnMainThread(() -> {
             if (player == null || urls == null || urls.length == 0) return;
 
@@ -330,13 +386,21 @@ public class RaagaXPlaybackService extends Service {
                 if (u == null || u.isEmpty()) continue;
                 String t = (titles  != null && i < titles.length  && titles[i]  != null) ? titles[i]  : "RaagaX";
                 String a = (artists != null && i < artists.length && artists[i] != null) ? artists[i] : "";
+                String art = (artworks != null && i < artworks.length && artworks[i] != null) ? artworks[i] : "";
+
+                MediaMetadata.Builder metaBuilder = new MediaMetadata.Builder()
+                        .setTitle(t)
+                        .setArtist(a);
+
+                if (!art.isEmpty()) {
+                    try {
+                        metaBuilder.setArtworkUri(Uri.parse(art));
+                    } catch (Exception ignored) {}
+                }
 
                 items.add(new MediaItem.Builder()
                         .setUri(u)
-                        .setMediaMetadata(new MediaMetadata.Builder()
-                                .setTitle(t)
-                                .setArtist(a)
-                                .build())
+                        .setMediaMetadata(metaBuilder.build())
                         .build());
             }
 
@@ -355,18 +419,25 @@ public class RaagaXPlaybackService extends Service {
                 player.setPlayWhenReady(false);
                 player.pause();
             }
+            if (artworks != null && safeIndex < artworks.length) {
+                loadArtworkAsync(artworks[safeIndex]);
+            }
             saveNativeQueueToPrefs(urls, titles, artists, safeIndex);
             updateNotification();
             Log.d(TAG, "setQueue: " + items.size() + " items, startIndex=" + safeIndex + ", startPos=" + safePositionMs + "ms, autoPlay=" + autoPlay);
         });
     }
 
+    public void setQueue(String[] urls, String[] titles, String[] artists, int startIndex, long startPositionMs, boolean autoPlay) {
+        setQueue(urls, titles, artists, null, startIndex, startPositionMs, autoPlay);
+    }
+
     public void setQueue(String[] urls, String[] titles, String[] artists, int startIndex, boolean autoPlay) {
-        setQueue(urls, titles, artists, startIndex, 0L, autoPlay);
+        setQueue(urls, titles, artists, null, startIndex, 0L, autoPlay);
     }
 
     public void setQueue(String[] urls, String[] titles, String[] artists, int startIndex) {
-        setQueue(urls, titles, artists, startIndex, 0L, true);
+        setQueue(urls, titles, artists, null, startIndex, 0L, true);
     }
 
     private void saveNativeQueueToPrefs(String[] urls, String[] titles, String[] artists, int startIndex) {
@@ -635,21 +706,29 @@ public class RaagaXPlaybackService extends Service {
 
         boolean isPlaying = player != null && player.isPlaying();
 
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle(currentTitle)
                 .setContentText(currentArtist)
                 .setContentIntent(pi)
-                .setOngoing(true)
+                .setOngoing(isPlaying)
                 .setSilent(true)
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .addAction(android.R.drawable.ic_media_previous, "Previous", prevPending)
-                .addAction(isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play,
-                        isPlaying ? "Pause" : "Play", playPausePending)
-                .addAction(android.R.drawable.ic_media_next, "Next", nextPending)
-                .setStyle(new androidx.media.app.NotificationCompat.MediaStyle()
-                        .setShowActionsInCompactView(0, 1, 2))
-                .build();
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
+
+        if (currentArtworkBitmap != null) {
+            builder.setLargeIcon(currentArtworkBitmap);
+        }
+
+        builder.addAction(android.R.drawable.ic_media_previous, "Previous", prevPending)
+               .addAction(isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play,
+                       isPlaying ? "Pause" : "Play", playPausePending)
+               .addAction(android.R.drawable.ic_media_next, "Next", nextPending);
+
+        androidx.media.app.NotificationCompat.MediaStyle mediaStyle = new androidx.media.app.NotificationCompat.MediaStyle()
+                .setShowActionsInCompactView(0, 1, 2);
+
+        builder.setStyle(mediaStyle);
+        return builder.build();
     }
 
     private void updateNotification() {
