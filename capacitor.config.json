@@ -4,7 +4,6 @@
   "webDir": "out",
   "server": {
     "androidScheme": "https",
-    "url": "https://raaga-x-chi.vercel.app",
     "cleartext": true
   },
   "plugins": {

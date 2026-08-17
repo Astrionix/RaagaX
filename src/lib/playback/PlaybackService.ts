@@ -306,8 +306,16 @@ export class PlaybackService {
         if (!finalSrc) {
           console.warn(`[PLAYBACK PIPELINE] No playable source for native playback: "${song.title}"`);
           const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+          const isDeviceOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+          const isStoreOffline = store.networkMode === 'offline' || store.networkMode === 'offline_forced';
+          const isOffline = isDeviceOffline || isStoreOffline;
+
           if (typeof store.setToastMessage === 'function') {
-            store.setToastMessage(`"${song.title}" is currently unavailable.`);
+            if (isOffline) {
+              store.setToastMessage(`This song isn't downloaded. Connect to the internet to play it.`);
+            } else {
+              store.setToastMessage(`"${song.title}" is currently unavailable.`);
+            }
           }
           store.setIsPlaying(false, true);
           return false;
@@ -392,7 +400,7 @@ export class PlaybackService {
         if (isOffline && (!resolvedSource || resolvedSource.type !== 'offline')) {
           console.warn(`[PLAYBACK PIPELINE] Track "${song.title}" is unavailable offline.`);
           if (typeof store.setToastMessage === 'function') {
-            store.setToastMessage(`"${song.title}" is not available offline — skipped`);
+            store.setToastMessage(`This song isn't downloaded. Connect to the internet to play it.`);
           }
           const downloadedIds = store.downloadedSongIds || [];
           const manager = QueueManager.getInstance();

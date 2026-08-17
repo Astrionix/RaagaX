@@ -7,11 +7,11 @@
 
 import { Song } from '@/types/music';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { getApiBaseUrl } from '@/lib/config/apiConfig';
 
-const LOCAL_API_BASE =
-  typeof window !== 'undefined' && window.location?.origin
-    ? `${window.location.origin}/api`
-    : 'http://localhost:3001/api';
+const getLocalApiBase = () => {
+  return `${getApiBaseUrl().replace(/\/+$/, '')}/api`;
+};
 
 function decode(s: string): string {
   return (s || '')
@@ -53,7 +53,7 @@ export class RealMusicEngine {
    */
   public async searchRealSongs(query: string, limit = 15): Promise<Song[]> {
     const q = query.trim() || 'Trending Telugu Songs';
-    const url = `${LOCAL_API_BASE}/search/songs?query=${encodeURIComponent(q)}&limit=${limit}`;
+    const url = `${getLocalApiBase()}/search/songs?query=${encodeURIComponent(q)}&limit=${limit}`;
 
     // Fresh controller per request
     const ctrl = new AbortController();
@@ -102,7 +102,7 @@ export class RealMusicEngine {
   public async searchRealAlbums(query: string, limit = 15): Promise<any[]> {
     const q = query.trim();
     if (!q) return [];
-    const url = `${LOCAL_API_BASE}/search/albums?query=${encodeURIComponent(q)}&limit=${limit}`;
+    const url = `${getLocalApiBase()}/search/albums?query=${encodeURIComponent(q)}&limit=${limit}`;
 
     const ctrl = new AbortController();
     const tid = setTimeout(() => ctrl.abort(), 7000);
@@ -138,7 +138,7 @@ export class RealMusicEngine {
       fetchId = id.replace('album:', '');
     }
 
-    let url = isAlbum ? `${LOCAL_API_BASE}/albums?id=${fetchId}` : `${LOCAL_API_BASE}/playlists?id=${fetchId}`;
+    let url = isAlbum ? `${getLocalApiBase()}/albums?id=${fetchId}` : `${getLocalApiBase()}/playlists?id=${fetchId}`;
 
     try {
       let res = await fetch(url);
@@ -148,7 +148,7 @@ export class RealMusicEngine {
       // Fallback to Albums if Playlist fails (for legacy IDs)
       if (!res.ok || !collection) {
         if (!isAlbum) {
-          url = `${LOCAL_API_BASE}/albums?id=${fetchId}`;
+          url = `${getLocalApiBase()}/albums?id=${fetchId}`;
           res = await fetch(url);
           if (res.ok) {
             data = await res.json();

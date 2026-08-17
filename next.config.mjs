@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
+const isStaticExport = process.env.STATIC_EXPORT === 'true';
+
 const nextConfig = {
+  ...(isStaticExport ? { output: 'export', trailingSlash: true } : {}),
   reactStrictMode: true,
   eslint: {
     ignoreDuringBuilds: true,
@@ -8,6 +11,7 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
+    unoptimized: isStaticExport,
     remotePatterns: [
       { protocol: 'https', hostname: 'c.saavncdn.com' },
       { protocol: 'https', hostname: 'images.unsplash.com' },

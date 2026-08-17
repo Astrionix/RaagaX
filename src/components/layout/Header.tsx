@@ -8,18 +8,27 @@ import {
   LogIn,
   Search,
   Bell,
+  WifiOff,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
 import { useThemeStore } from '@/context/useThemeStore';
 import { RaagaXLogo } from '@/components/brand/RaagaXLogo';
 import { RaagaXWordmark } from '@/components/brand/RaagaXWordmark';
+import { NetworkManager } from '@/lib/offline/NetworkManager';
 
 export function Header() {
   const [mounted, setMounted] = React.useState(false);
+  const [isOnline, setIsOnline] = React.useState<boolean>(() => {
+    return typeof navigator !== 'undefined' ? navigator.onLine : true;
+  });
 
   React.useEffect(() => {
     setMounted(true);
+    const unsub = NetworkManager.getInstance().subscribe((mode) => {
+      setIsOnline(mode === 'online');
+    });
+    return () => unsub();
   }, []);
 
   const {
@@ -43,7 +52,12 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-1.5">
-          {/* Header cleaned up for Android/Mobile - settings & profile are accessed via bottom navigation */}
+          {mounted && !isOnline && (
+            <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-bold tracking-wide animate-pulse">
+              <WifiOff className="w-3 h-3" />
+              <span>Offline</span>
+            </div>
+          )}
         </div>
       </header>
 
