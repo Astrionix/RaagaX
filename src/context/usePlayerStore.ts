@@ -288,13 +288,59 @@ function throttlePersistSession(state: any, force = false) {
 // Initial sync session hydration for zero-flicker startup (only if valid/under 4 hours old)
 const getInitialSession = () => {
   if (typeof window === 'undefined') return null;
-  const session = LocalDatabase.getInstance().getSyncPlaybackSession();
-  if (session && session.timestamp && (Date.now() - session.timestamp < 4 * 60 * 60 * 1000)) {
-    return session;
-  }
+  try {
+    const session = LocalDatabase.getInstance().getSyncPlaybackSession();
+    if (session && session.timestamp && (Date.now() - session.timestamp < 4 * 60 * 60 * 1000)) {
+      return session;
+    }
+  } catch {}
   return null;
 };
 const initialSession = getInitialSession();
+
+const getInitialSelectedLanguages = (): string[] => {
+  if (typeof window === 'undefined') return ['Telugu'];
+  try {
+    const raw = localStorage.getItem('raagax_selected_languages');
+    if (!raw) return ['Telugu'];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : ['Telugu'];
+  } catch {
+    return ['Telugu'];
+  }
+};
+
+const getInitialMusicInterests = (): string[] => {
+  if (typeof window === 'undefined') return ['New Releases', 'Trending Hits'];
+  try {
+    const raw = localStorage.getItem('raagax_music_interests');
+    if (!raw) return ['New Releases', 'Trending Hits'];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : ['New Releases', 'Trending Hits'];
+  } catch {
+    return ['New Releases', 'Trending Hits'];
+  }
+};
+
+const getInitialFeedControls = () => {
+  const defaults = {
+    showNewReleases: true,
+    showTrending: true,
+    showRecommended: true,
+    showPopularArtists: true,
+    showPopularAlbums: true,
+    showPlaylists: true,
+  };
+  if (typeof window === 'undefined') return defaults;
+  try {
+    const raw = localStorage.getItem('raagax_home_feed_controls');
+    if (!raw) return defaults;
+    const parsed = JSON.parse(raw);
+    return typeof parsed === 'object' && parsed !== null ? { ...defaults, ...parsed } : defaults;
+  } catch {
+    return defaults;
+  }
+};
 
 let lastPlayCallTimestamp = 0;
 let lastPlaySongId = '';
@@ -364,7 +410,7 @@ export const usePlayerStore = create<PlayerState>()(
   isOnboardingOpen: typeof window !== 'undefined' ? localStorage.getItem('raagax_onboarding_completed') !== 'true' : false,
   toggleOnboarding: (open) => set((s) => ({ isOnboardingOpen: open !== undefined ? open : !s.isOnboardingOpen })),
   
-  musicInterests: (typeof window !== 'undefined' && JSON.parse(localStorage.getItem('raagax_music_interests') || '["New Releases", "Trending Hits"]')) || ['New Releases', 'Trending Hits'],
+  musicInterests: getInitialMusicInterests(),
   setMusicInterests: (interests: string[]) => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('raagax_music_interests', JSON.stringify(interests));
@@ -449,7 +495,7 @@ export const usePlayerStore = create<PlayerState>()(
   setNetworkMode: (mode) => set({ networkMode: mode }),
   
   preferredLanguage: (typeof window !== 'undefined' && localStorage.getItem('raagax_preferred_language')) || 'Telugu',
-  selectedLanguages: (typeof window !== 'undefined' && JSON.parse(localStorage.getItem('raagax_selected_languages') || '["Telugu"]')) || ['Telugu'],
+  selectedLanguages: getInitialSelectedLanguages(),
   sessionLanguage: (typeof window !== 'undefined' && localStorage.getItem('raagax_preferred_language')) || 'Telugu',
   interestLanguages: {
     Telugu: 0.90,
@@ -493,17 +539,10 @@ export const usePlayerStore = create<PlayerState>()(
       ListeningDnaEngine.getInstance().setInitialLanguages(valid);
     });
   },
-  homeFeedControls: (typeof window !== 'undefined' && JSON.parse(localStorage.getItem('raagax_home_feed_controls') || '{"showNewReleases":true,"showTrending":true,"showRecommended":true,"showPopularArtists":true,"showPopularAlbums":true,"showPlaylists":true}')) || {
-    showNewReleases: true,
-    showTrending: true,
-    showRecommended: true,
-    showPopularArtists: true,
-    showPopularAlbums: true,
-    showPlaylists: true,
-  },
+  homeFeedControls: getInitialFeedControls(),
   setHomeFeedControl: (key, value) => {
     set((state) => {
-      const updated = { ...state.homeFeedControls, [key]: value };
+      const updated = { ...(state.homeFeedControls || getInitialFeedControls()), [key]: value };
       if (typeof window !== 'undefined') {
         localStorage.setItem('raagax_home_feed_controls', JSON.stringify(updated));
       }
