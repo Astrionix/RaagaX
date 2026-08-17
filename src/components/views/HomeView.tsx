@@ -84,6 +84,14 @@ export function HomeView() {
     likedSongs = [],
     preferredLanguage,
     selectedLanguages = ['Telugu'],
+    homeFeedControls = {
+      showNewReleases: true,
+      showTrending: true,
+      showRecommended: true,
+      showPopularArtists: true,
+      showPopularAlbums: true,
+      showPlaylists: true,
+    },
     toggleOnboarding,
     setSelectedArtistId,
     setSelectedPlaylistId,
@@ -362,7 +370,7 @@ export function HomeView() {
       </section>
 
       {/* 4. Made For You / Daily Mixes */}
-      {feed?.dailyMixes && feed.dailyMixes.length > 0 && (
+      {homeFeedControls.showRecommended !== false && feed?.dailyMixes && feed.dailyMixes.length > 0 && (
         <section className="space-y-3">
           <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-[#E50914]" /> Made For You • Daily Mixes
@@ -400,7 +408,7 @@ export function HomeView() {
       )}
 
       {/* 5. Because You Listened To... */}
-      {feed?.becauseYouListenedTo && feed.becauseYouListenedTo.items.length > 0 && (
+      {homeFeedControls.showRecommended !== false && feed?.becauseYouListenedTo && feed.becauseYouListenedTo.items.length > 0 && (
         <CarouselShelf
           title={`Because You Listened to ${feed.becauseYouListenedTo.seedSongOrArtist}`}
           icon={<Radio className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-rose-400 flex-shrink-0" />}
@@ -420,7 +428,7 @@ export function HomeView() {
       )}
 
       {/* 7. Your Top Artists */}
-      {feed?.topArtists && feed.topArtists.length > 0 && (
+      {homeFeedControls.showPopularArtists !== false && feed?.topArtists && feed.topArtists.length > 0 && (
         <section className="space-y-3">
           <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
             <User className="w-4 h-4 text-[#E50914]" /> Your Top Artists
@@ -454,7 +462,7 @@ export function HomeView() {
       )}
 
       {/* 8. Trending in [Language] */}
-      {feed?.trendingSongs && feed.trendingSongs.length > 0 && (
+      {homeFeedControls.showTrending !== false && feed?.trendingSongs && feed.trendingSongs.length > 0 && (
         <CarouselShelf
           title={`Trending in ${currentLang}`}
           icon={<Flame className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-[#E50914] flex-shrink-0" />}
@@ -464,7 +472,7 @@ export function HomeView() {
       )}
 
       {/* 9. New Releases in [Language] */}
-      {feed?.newReleases && feed.newReleases.length > 0 && (
+      {homeFeedControls.showNewReleases !== false && feed?.newReleases && feed.newReleases.length > 0 && (
         <CarouselShelf
           title={`New ${currentLang} Releases`}
           icon={<Compass className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-emerald-400 flex-shrink-0" />}
@@ -474,32 +482,34 @@ export function HomeView() {
       )}
 
       {/* 10. Playlists & Studio Mixes */}
-      <CarouselShelf
-        title="Playlists & Studio Mixes"
-        icon={<ListMusic className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-purple-400 flex-shrink-0" />}
-        items={[
-          ...userPlaylists.map((pl) => ({
-            id: pl.id,
-            title: pl.title,
-            subtitle: `${pl.songs?.length || pl.songIds?.length || 0} tracks • By You`,
-            imageUrl: pl.coverUrl || pl.songs?.[0]?.coverUrl || '/app-icon.png',
-            type: 'playlist' as const,
-            rawItem: pl,
-          })),
-          ...getCuratedPlaylists(preferredLanguage).map((pl) => ({
-            id: pl.id,
-            title: pl.name,
-            subtitle: `${pl.badge ? pl.badge + ' • ' : ''}${pl.desc}`,
-            imageUrl: pl.coverUrl,
-            type: 'playlist' as const,
-            rawItem: pl,
-          })),
-        ]}
-        showPlayAll={false}
-      />
+      {homeFeedControls.showPlaylists !== false && (
+        <CarouselShelf
+          title="Playlists & Studio Mixes"
+          icon={<ListMusic className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-purple-400 flex-shrink-0" />}
+          items={[
+            ...userPlaylists.map((pl) => ({
+              id: pl.id,
+              title: pl.title,
+              subtitle: `${pl.songs?.length || pl.songIds?.length || 0} tracks • By You`,
+              imageUrl: pl.coverUrl || pl.songs?.[0]?.coverUrl || '/app-icon.png',
+              type: 'playlist' as const,
+              rawItem: pl,
+            })),
+            ...getCuratedPlaylists(preferredLanguage).map((pl) => ({
+              id: pl.id,
+              title: pl.name,
+              subtitle: `${pl.badge ? pl.badge + ' • ' : ''}${pl.desc}`,
+              imageUrl: pl.coverUrl,
+              type: 'playlist' as const,
+              rawItem: pl,
+            })),
+          ]}
+          showPlayAll={false}
+        />
+      )}
 
-      {/* 11. Artist Discovery Shelves */}
-      <ArtistDiscoveryShelves />
+      {/* 11. Artist Discovery Shelves / Albums */}
+      {homeFeedControls.showPopularAlbums !== false && <ArtistDiscoveryShelves />}
 
       {/* 12. Dynamic Backend Sections */}
       {isLoading || !payload ? (

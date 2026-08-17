@@ -95,9 +95,18 @@ interface PlayerState {
   musicInterests: string[]; // User Selected Music Interests (e.g. New Releases, Trending, Devotional, etc.)
   sessionLanguage: string; // SESSION_LANGUAGE (Current Playback Queue Language)
   interestLanguages: Record<string, number>; // INTEREST_LANGUAGES (Inferred Soft Signals)
+  homeFeedControls: {
+    showNewReleases: boolean;
+    showTrending: boolean;
+    showRecommended: boolean;
+    showPopularArtists: boolean;
+    showPopularAlbums: boolean;
+    showPlaylists: boolean;
+  };
   setPreferredLanguage: (lang: string) => void;
   setSelectedLanguages: (langs: string[]) => void;
   setMusicInterests: (interests: string[]) => void;
+  setHomeFeedControl: (key: 'showNewReleases' | 'showTrending' | 'showRecommended' | 'showPopularArtists' | 'showPopularAlbums' | 'showPlaylists', value: boolean) => void;
   setSessionLanguage: (lang: string) => void;
   recordLanguageInterest: (lang: string, delta?: number) => void;
 
@@ -484,6 +493,24 @@ export const usePlayerStore = create<PlayerState>()(
       ListeningDnaEngine.getInstance().setInitialLanguages(valid);
     });
   },
+  homeFeedControls: (typeof window !== 'undefined' && JSON.parse(localStorage.getItem('raagax_home_feed_controls') || '{"showNewReleases":true,"showTrending":true,"showRecommended":true,"showPopularArtists":true,"showPopularAlbums":true,"showPlaylists":true}')) || {
+    showNewReleases: true,
+    showTrending: true,
+    showRecommended: true,
+    showPopularArtists: true,
+    showPopularAlbums: true,
+    showPlaylists: true,
+  },
+  setHomeFeedControl: (key, value) => {
+    set((state) => {
+      const updated = { ...state.homeFeedControls, [key]: value };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('raagax_home_feed_controls', JSON.stringify(updated));
+      }
+      return { homeFeedControls: updated };
+    });
+  },
+
   setSessionLanguage: (lang: string) => set({ sessionLanguage: lang }),
   recordLanguageInterest: (lang: string, delta: number = 0.15) => {
     const current = { ...(get().interestLanguages || {}) };

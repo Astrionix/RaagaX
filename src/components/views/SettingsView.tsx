@@ -119,6 +119,10 @@ export function SettingsView() {
     preferredLanguage,
     selectedLanguages,
     setSelectedLanguages,
+    musicInterests = [],
+    setMusicInterests,
+    homeFeedControls,
+    setHomeFeedControl,
     onlineDevices,
     deviceId,
     isActiveDevice,
@@ -487,6 +491,156 @@ export function SettingsView() {
                       </button>
                     );
                   })}
+                </div>
+              </div>
+
+              {/* Music Interests & Preferences */}
+              <div className="p-5 rounded-3xl bg-white/[0.03] border border-white/10 space-y-4">
+                <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400">
+                  Music Interests & Genres
+                </h4>
+
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: 'New Releases', label: 'New Releases', icon: '🚀' },
+                    { id: 'Trending Hits', label: 'Trending Hits', icon: '🔥' },
+                    { id: 'Movie Soundtracks', label: 'Movie Soundtracks', icon: '🎬' },
+                    { id: 'Devotional & Spiritual', label: 'Devotional & Spiritual', icon: '🙏' },
+                    { id: 'Indie & Pop', label: 'Indie & Pop', icon: '🎸' },
+                    { id: 'Classical & Melodies', label: 'Classical & Melodies', icon: '🎻' },
+                    { id: 'Lo-Fi & Chill', label: 'Lo-Fi & Chill', icon: '☕' },
+                    { id: 'Party & Dance', label: 'Party & Dance', icon: '💃' },
+                    { id: 'Mass Beats & Energy', label: 'Mass Beats & Energy', icon: '⚡' },
+                    { id: 'Acoustic Vibes', label: 'Acoustic Vibes', icon: '🌙' },
+                  ].map((interest) => {
+                    const isSelected = (musicInterests || []).includes(interest.id);
+                    return (
+                      <button
+                        key={interest.id}
+                        type="button"
+                        onClick={() => {
+                          const currentList = musicInterests || [];
+                          if (isSelected && currentList.length === 1) {
+                            showToast('Please keep at least 1 interest');
+                            return;
+                          }
+                          const updated = isSelected 
+                            ? currentList.filter(i => i !== interest.id)
+                            : [...currentList, interest.id];
+                          setMusicInterests(updated);
+                          showToast(`Interests updated`);
+                        }}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#FA233B] text-white border-[#FA233B] shadow-md'
+                            : 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10'
+                        }`}
+                      >
+                        <span>{interest.icon}</span>
+                        <span>{interest.label}</span>
+                        {isSelected && <Check className="w-3.5 h-3.5 ml-0.5 stroke-[3]" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Feed Controls: Enable / Disable Shelves */}
+              <div className="p-5 rounded-3xl bg-white/[0.03] border border-white/10 space-y-4">
+                <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400">
+                  Home Feed Display Options
+                </h4>
+
+                <div className="space-y-4">
+                  <SettingRow
+                    title="Show New Releases"
+                    description="Display the newest singles, albums, and fresh drops in your chosen languages."
+                    control={
+                      <ToggleSwitch
+                        checked={homeFeedControls.showNewReleases}
+                        onChange={() => {
+                          const next = !homeFeedControls.showNewReleases;
+                          setHomeFeedControl('showNewReleases', next);
+                          showToast(`New Releases ${next ? 'shown' : 'hidden'} on Home`);
+                        }}
+                      />
+                    }
+                  />
+
+                  <SettingRow
+                    title="Show Trending"
+                    description="Display viral, trending, and chart-topping songs for your languages."
+                    control={
+                      <ToggleSwitch
+                        checked={homeFeedControls.showTrending}
+                        onChange={() => {
+                          const next = !homeFeedControls.showTrending;
+                          setHomeFeedControl('showTrending', next);
+                          showToast(`Trending ${next ? 'shown' : 'hidden'} on Home`);
+                        }}
+                      />
+                    }
+                  />
+
+                  <SettingRow
+                    title="Show Recommended For You"
+                    description="Display personalized recommendations and curated Daily Mixes based on listening taste."
+                    control={
+                      <ToggleSwitch
+                        checked={homeFeedControls.showRecommended}
+                        onChange={() => {
+                          const next = !homeFeedControls.showRecommended;
+                          setHomeFeedControl('showRecommended', next);
+                          showToast(`Recommendations ${next ? 'shown' : 'hidden'} on Home`);
+                        }}
+                      />
+                    }
+                  />
+
+                  <SettingRow
+                    title="Show Popular Artists"
+                    description="Display featured and top-streamed artists for your selected regions."
+                    control={
+                      <ToggleSwitch
+                        checked={homeFeedControls.showPopularArtists}
+                        onChange={() => {
+                          const next = !homeFeedControls.showPopularArtists;
+                          setHomeFeedControl('showPopularArtists', next);
+                          showToast(`Popular Artists ${next ? 'shown' : 'hidden'} on Home`);
+                        }}
+                      />
+                    }
+                  />
+
+                  <SettingRow
+                    title="Show Popular Albums"
+                    description="Display blockbuster movie albums and trending soundtrack collections."
+                    control={
+                      <ToggleSwitch
+                        checked={homeFeedControls.showPopularAlbums}
+                        onChange={() => {
+                          const next = !homeFeedControls.showPopularAlbums;
+                          setHomeFeedControl('showPopularAlbums', next);
+                          showToast(`Albums ${next ? 'shown' : 'hidden'} on Home`);
+                        }}
+                      />
+                    }
+                  />
+
+                  <SettingRow
+                    title="Show Playlists & Studio Mixes"
+                    description="Display curated editorial and community playlists."
+                    control={
+                      <ToggleSwitch
+                        checked={homeFeedControls.showPlaylists}
+                        onChange={() => {
+                          const next = !homeFeedControls.showPlaylists;
+                          setHomeFeedControl('showPlaylists', next);
+                          showToast(`Playlists ${next ? 'shown' : 'hidden'} on Home`);
+                        }}
+                      />
+                    }
+                  />
                 </div>
               </div>
 
