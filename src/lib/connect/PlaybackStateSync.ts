@@ -316,18 +316,21 @@ export class PlaybackStateSync {
    * Applies zero-jump reconciliation: small drifts are smoothed, large drifts snap.
    */
   public adoptRemoteState(remoteState: RemotePlaybackState, revision?: number) {
-    // 1. HARD RULE: Controller MUST NOT output audio locally
-    if (RaagaXNativePlayer.isNative()) {
-      RaagaXNativePlayer.pause().catch(() => {});
-    } else {
-      const active = PlaybackService.getInstance().getActiveAudio();
-      if (active && !active.paused) {
-        active.pause();
-      }
-    }
-
     const store = usePlayerStore.getState();
     const now = Date.now();
+
+    // 1. Controller MUST NOT output audio locally ONLY when following a remote device
+    const isFollowing = !store.isActiveDevice || (store.connectedDeviceId === remoteState.activeDeviceId && remoteState.activeDeviceId !== store.deviceId);
+    if (isFollowing && remoteState.activeDeviceId !== store.deviceId) {
+      if (RaagaXNativePlayer.isNative()) {
+        RaagaXNativePlayer.pause().catch(() => {});
+      } else {
+        const active = PlaybackService.getInstance().getActiveAudio();
+        if (active && !active.paused) {
+          active.pause();
+        }
+      }
+    }
 
     // ── Zero-Jump Position Reconciliation ────────────────────────────────────
     // Predict what position we'd expect based on the anchor we have

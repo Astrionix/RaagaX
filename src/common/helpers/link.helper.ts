@@ -20,12 +20,28 @@ export const createDownloadLinks = (encryptedMediaUrl: string) => {
     decipher.start({ iv: crypto.util.createBuffer(iv) })
     decipher.update(crypto.util.createBuffer(encrypted))
     decipher.finish()
-    const decryptedLink = decipher.output.getBytes()
+    const rawDecrypted = decipher.output.getBytes()
+    const decryptedLink = rawDecrypted.replace(/^http:\/\//, 'https://')
 
-    return qualities.map((quality) => ({
-      quality: quality.bitrate,
-      url: decryptedLink.replace('_96', quality.id)
-    }))
+    const bitrateRegex = /_(?:12|48|96|160|320|preview)(?=\.[a-z0-9]+$|$)/i
+
+    return qualities.map((quality) => {
+      let finalUrl = decryptedLink
+      if (bitrateRegex.test(decryptedLink)) {
+        finalUrl = decryptedLink.replace(bitrateRegex, quality.id)
+      } else {
+        const extIndex = decryptedLink.lastIndexOf('.')
+        if (extIndex !== -1) {
+          finalUrl = `${decryptedLink.slice(0, extIndex)}${quality.id}${decryptedLink.slice(extIndex)}`
+        } else {
+          finalUrl = `${decryptedLink}${quality.id}`
+        }
+      }
+      return {
+        quality: quality.bitrate,
+        url: finalUrl
+      }
+    })
   } catch (error) {
     console.error('Failed to decrypt media url:', error);
     return []

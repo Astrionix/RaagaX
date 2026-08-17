@@ -251,10 +251,12 @@ export class DownloadStorage {
 
   public async deleteMedia(trackId: string): Promise<void> {
     if (this.objectUrlCache.has(trackId)) {
-      try {
-        URL.revokeObjectURL(this.objectUrlCache.get(trackId)!);
-      } catch {}
+      const url = this.objectUrlCache.get(trackId)!;
       this.objectUrlCache.delete(trackId);
+      // Safe deferred revocation to allow active audio element to finish or transition cleanly
+      setTimeout(() => {
+        try { URL.revokeObjectURL(url); } catch {}
+      }, 5000);
     }
     try {
       const db = await this.getDB();

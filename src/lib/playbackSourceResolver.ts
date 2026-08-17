@@ -91,14 +91,34 @@ export class PlaybackSourceResolver {
     }
 
     if (validAudioUrl && !validAudioUrl.includes('pixabay.com')) {
+      const candidates = this.buildBitrateCandidates(validAudioUrl);
       return {
         type: 'remote',
-        url: validAudioUrl,
+        url: candidates[0] || validAudioUrl,
+        candidates,
         videoId: song.id,
       };
     }
 
     return null;
+  }
+
+  private buildBitrateCandidates(primaryUrl: string): string[] {
+    if (!primaryUrl) return [];
+    const normalized = primaryUrl.replace(/^http:\/\//, 'https://');
+    const candidates: string[] = [normalized];
+    
+    const bitrateRegex = /_(?:12|48|96|160|320|preview)(?=\.[a-z0-9]+$|$)/i;
+    if (bitrateRegex.test(normalized)) {
+      const desiredQualities = ['_320', '_160', '_96', '_48'];
+      for (const q of desiredQualities) {
+        const altUrl = normalized.replace(bitrateRegex, q);
+        if (!candidates.includes(altUrl)) {
+          candidates.push(altUrl);
+        }
+      }
+    }
+    return candidates;
   }
 }
 

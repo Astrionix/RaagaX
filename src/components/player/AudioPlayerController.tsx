@@ -15,7 +15,6 @@ import { LyricsEngine } from '@/lib/lyrics/LyricsEngine';
 import { RaagaXNativePlayer } from '@/lib/playback/native/RaagaXNativePlayer';
 import { SeekLock } from '@/lib/playback/SeekLock';
 import { QueueManager } from '@/lib/queue/QueueManager';
-const FALLBACK_AUDIO_URL = 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3';
 const QUEUE_REFILL_THRESHOLD = 3;
 
 import { PlaybackService } from '@/lib/playback/PlaybackService';
@@ -315,15 +314,12 @@ export function AudioPlayerController() {
       .finally(() => { isRefilling.current = false; });
   }, [queueIndex, queue, currentSong, isAutoplayEnabled, addToQueue, historySongIds, likedSongIds]);
 
-  // Handle Play/Pause State Synchronization
-  const lastPlaybackIntentRef = useRef<string>('IDLE');
+  // Handle Play/Pause State Synchronization with Lyrics & Native bridges
   useEffect(() => {
     const shouldRenderAudio = activeRenderer === 'audio' && isActiveDevice;
-    const store = usePlayerStore.getState();
-    const canPlay = isPlaying && store.playbackIntent === 'PLAYING';
+    const canPlay = isPlaying && shouldRenderAudio;
 
     if (RaagaXNativePlayer.isNative()) {
-      // Native path: route to ExoPlayer foreground service
       if (!shouldRenderAudio) {
         RaagaXNativePlayer.pause();
         LyricsEngine.getInstance().setPlaying(false);
@@ -339,25 +335,9 @@ export function AudioPlayerController() {
       return;
     }
 
-    // Web path: HTMLAudioElement
-    const activeAudio = PlaybackService.getInstance().getActiveAudio();
-    if (!activeAudio) return;
-
-    if (!shouldRenderAudio) {
-      if (!activeAudio.paused) {
-        activeAudio.pause();
-      }
-      LyricsEngine.getInstance().setPlaying(false);
-    } else {
-      if (canPlay && activeAudio.paused && activeAudio.readyState >= 2) {
-        // Resume existing playback smoothly without reloading or seeking to 0
-        activeAudio.play().catch(() => {});
-        LyricsEngine.getInstance().setPlaying(true);
-      } else if (!canPlay && !activeAudio.paused) {
-        activeAudio.pause();
-        LyricsEngine.getInstance().setPlaying(false);
-      }
-    }
+    // Web path: PlaybackService is the single authority over the HTMLAudioElement.
+    // React controller strictly syncs non-audio side-effects (e.g. LyricsEngine).
+    LyricsEngine.getInstance().setPlaying(canPlay);
   }, [isPlaying, isActiveDevice, activeRenderer]);
 
   const songStartTimeRef = useRef<number>(Date.now());

@@ -62,8 +62,16 @@ export class OfflineCatalog {
   public async getTrack(trackId: string): Promise<OfflineTrack | null> {
     try {
       const db = await this.getDB();
-      const track = await db.get('catalog', trackId);
-      return track || null;
+      let track = await db.get('catalog', trackId);
+      if (track) return track;
+
+      // Canonical namespace fallback: check stripped id (e.g. saavn-123 -> 123)
+      const cleanId = trackId.replace(/^(?:saavn|yt|custom|spotify)-/i, '');
+      if (cleanId !== trackId) {
+        track = await db.get('catalog', cleanId);
+        if (track) return track;
+      }
+      return null;
     } catch (e) {
       return null;
     }

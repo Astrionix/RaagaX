@@ -90,6 +90,7 @@ export type PlaybackSource =
   | {
       type: 'remote';
       url: string;
+      candidates?: string[];
       videoId?: string; // used for YouTube fallback
       quality?: DownloadQuality;
     }
