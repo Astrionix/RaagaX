@@ -9,6 +9,7 @@ import {
   Search,
   Bell,
   WifiOff,
+  MonitorSmartphone,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
@@ -37,7 +38,12 @@ export function Header() {
     searchQuery,
     setSearchQuery,
     toggleSettingsModal,
+    toggleDeviceModal,
+    activeDeviceId,
+    deviceId,
   } = usePlayerStore();
+
+  const isConnectedRemote = Boolean(activeDeviceId && activeDeviceId !== deviceId);
 
   const { user, setAuthModalOpen } = useAuthStore();
   const { resolvedTheme } = useThemeStore();
@@ -59,6 +65,23 @@ export function Header() {
             </div>
           )}
 
+          {/* Connect to My Device Button */}
+          <button
+            onClick={toggleDeviceModal}
+            aria-label="Connect to My Device"
+            className={`p-1.5 rounded-xl border transition-all flex items-center gap-1 cursor-pointer ${
+              isConnectedRemote
+                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-white/10 border-white/5 bg-white/5'
+            }`}
+            title="Connect to My Device"
+          >
+            <MonitorSmartphone className="w-4 h-4" />
+            {isConnectedRemote && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            )}
+          </button>
+
           <button
             onClick={() => {
               import('@/context/useNotificationStore').then(({ useNotificationStore }) => {
@@ -74,8 +97,6 @@ export function Header() {
           </button>
         </div>
       </header>
-
-
     </>
   );
 }

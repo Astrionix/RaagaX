@@ -111,6 +111,18 @@ interface DownloadStore {
   setOfflineSettings: (settings: Partial<DownloadStore['offlineSettings']>) => void;
   setMaxConcurrent: (count: number) => void;
 
+  getSongDownloadStatus: (songId: string) => DownloadStatus;
+  getSongDownloadInfo: (songId: string) => {
+    status: DownloadStatus;
+    progress: number;
+    downloadedBytes: number;
+    totalBytes: number;
+    speedBytesPerSec?: number;
+    etaSeconds?: number;
+    error?: string;
+    localPath?: string;
+  };
+
   _processQueue: () => void;
   _persistTasks: () => void;
   syncDownloadedIds: () => Promise<void>;
@@ -316,6 +328,60 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     } catch (e) {
       console.warn('[DownloadManager] syncNativeQueueState error:', e);
     }
+  },
+  getSongDownloadStatus: (songId: string) => {
+    if (!songId) return 'NOT_DOWNLOADED';
+    const state = get();
+    const task = state.tasks[songId];
+    if (task) {
+      if (task.status === 'COMPLETED') return 'COMPLETED';
+      if (task.status === 'DOWNLOADING') return 'DOWNLOADING';
+      if (task.status === 'QUEUED') return 'QUEUED';
+      if (task.status === 'VERIFYING') return 'DOWNLOADING';
+      if (task.status === 'PAUSED') return 'PAUSED';
+      if (task.status === 'FAILED') return 'FAILED';
+    }
+    if (usePlayerStore.getState().downloadedSongIds.includes(songId) || !!state.nativeDownloadedTracks[songId]) {
+      return 'COMPLETED';
+    }
+    return 'NOT_DOWNLOADED';
+  },
+
+  getSongDownloadInfo: (songId: string) => {
+    const state = get();
+    const task = state.tasks[songId];
+    const isDownloaded = usePlayerStore.getState().downloadedSongIds.includes(songId) || !!state.nativeDownloadedTracks[songId];
+    const nativeTrack = state.nativeDownloadedTracks[songId];
+    
+    if (task) {
+      return {
+        status: task.status,
+        progress: task.progress,
+        downloadedBytes: task.downloadedBytes,
+        totalBytes: task.totalBytes,
+        speedBytesPerSec: task.speedBytesPerSec,
+        etaSeconds: task.etaSeconds,
+        error: task.error,
+        localPath: nativeTrack?.localPath,
+      };
+    }
+
+    if (isDownloaded) {
+      return {
+        status: 'COMPLETED',
+        progress: 100,
+        downloadedBytes: nativeTrack?.fileSize || 0,
+        totalBytes: nativeTrack?.fileSize || 0,
+        localPath: nativeTrack?.localPath,
+      };
+    }
+
+    return {
+      status: 'NOT_DOWNLOADED',
+      progress: 0,
+      downloadedBytes: 0,
+      totalBytes: 0,
+    };
   },
 
   hydrate: async () => {

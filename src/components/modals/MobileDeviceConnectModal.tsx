@@ -70,7 +70,13 @@ export function MobileDeviceConnectModal() {
     );
   }, [devices, searchQuery]);
 
-  if (!isDeviceModalOpen) return null;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || !isDeviceModalOpen) return null;
 
   const isRemotePlaying = Boolean(activeDeviceId && activeDeviceId !== deviceId);
   const currentlyPlayingDevice = filteredDevices.find(d => d?.reachabilityState === 'CURRENTLY_PLAYING') || filteredDevices.find(d => d?.deviceId === (activeDeviceId || deviceId)) || filteredDevices[0] || null;

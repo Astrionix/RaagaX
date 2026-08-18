@@ -17,6 +17,7 @@ import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 import { Song } from '@/types/music';
 import { getCuratedPlaylists, LANGUAGE_PLAYLIST_MAP } from '@/constants/playlists';
+import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 
 export function LibraryView() {
   const [tab, setTab] = useState<string>('menu');
@@ -452,6 +453,7 @@ export function LibraryView() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                      <DownloadStatusIndicator song={song} size="sm" showPercentage />
                       <SongActionMenu song={song} />
                     </div>
                   </div>

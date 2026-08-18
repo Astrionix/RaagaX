@@ -42,6 +42,8 @@ export const MUSIC_INTERESTS = [
 ];
 
 export function LanguageOnboardingModal() {
+  const [mounted, setMounted] = useState(false);
+
   const { 
     isOnboardingOpen, 
     completeOnboarding,
@@ -56,7 +58,11 @@ export function LanguageOnboardingModal() {
     storeInterests.length > 0 ? storeInterests : ['New Releases', 'Trending Hits', 'Movie Soundtracks']
   );
 
-  if (!isOnboardingOpen) return null;
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || !isOnboardingOpen) return null;
 
   const toggleLang = (id: string) => {
     import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact()).catch(() => {});

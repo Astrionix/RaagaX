@@ -80,7 +80,13 @@ export function CreatePlaylistModal() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [createPlaylistModalOpen, isValid, isCreating, handleCreate, setCreatePlaylistModalOpen]);
 
-  if (!createPlaylistModalOpen) return null;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || !createPlaylistModalOpen) return null;
 
   return (
     <div 

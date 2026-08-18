@@ -7,8 +7,13 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 export function CastModal() {
   const { isCastModalOpen, toggleCastModal } = usePlayerStore();
   const [selectedDevice, setSelectedDevice] = useState('This Device (Web Browser)');
+  const [mounted, setMounted] = useState(false);
 
-  if (!isCastModalOpen) return null;
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || !isCastModalOpen) return null;
 
   const devices = [
     { name: 'This Device (Web Browser)', type: 'Web Browser', icon: Laptop, isLocal: true },

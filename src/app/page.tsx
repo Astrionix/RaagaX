@@ -147,6 +147,11 @@ export default function Page() {
     };
   }, []);
 
+  // Initialize and Hydrate Global Download Store & Offline Physical Media Sync
+  React.useEffect(() => {
+    useDownloadStore.getState().hydrate();
+  }, []);
+
   return (
     <div className="min-h-screen w-full max-w-[100vw] overflow-x-hidden bg-[var(--bg-primary)] text-[var(--text-primary)] flex selection:bg-[#EF233C] selection:text-white transition-colors duration-300">
       {/* Audio Engine Controller */}

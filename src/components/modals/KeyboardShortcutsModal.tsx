@@ -74,7 +74,13 @@ export function KeyboardShortcutsModal() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [togglePlayPause, playNext, playPrev, toggleMute, toggleShuffle, cycleRepeatMode, toggleLyrics, toggleQueue, setVolume, setCurrentTime]);
 
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || !isOpen) return null;
 
   const shortcuts = [
     { key: 'Space', desc: 'Play / Pause Audio' },

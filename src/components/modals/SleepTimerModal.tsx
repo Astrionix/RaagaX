@@ -28,10 +28,17 @@ export function SleepTimerModal() {
   const [selectedPreset, setSelectedPreset] = useState<number | 'custom' | 'end_of_song' | 'end_of_queue' | null>(15);
   const [selectedCondition, setSelectedCondition] = useState<'duration' | 'end_of_song' | 'end_of_queue'>('duration');
   const [isEditingActive, setIsEditingActive] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Live countdown remaining calculation
   const [remainingSec, setRemainingSec] = useState<number>(0);
   const [totalSec, setTotalSec] = useState<number>(0);
+
+  if (!mounted || !isSleepTimerModalOpen) return null;
 
   useEffect(() => {
     if (!sleepTimerEndsAt) {

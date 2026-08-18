@@ -6,6 +6,7 @@ import { OfflineCatalog } from '@/lib/offline/OfflineCatalog';
 import { SongResolver } from '@/lib/discovery/SongResolver';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 import { Song } from '@/types/music';
+import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 
 export function FavoritesView() {
   const [activeSubTab, setActiveSubTab] = useState<'songs' | 'artists'>('songs');
@@ -243,6 +244,7 @@ export function FavoritesView() {
                   </div>
 
                   <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                    <DownloadStatusIndicator song={song} size="sm" showPercentage />
                     <button
                       onClick={() => toggleLikeSong(song.id)}
                       aria-label="Unlike song"

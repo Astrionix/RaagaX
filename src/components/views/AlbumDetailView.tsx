@@ -7,6 +7,7 @@ import { useDownloadStore } from '@/context/useDownloadStore';
 import { AlbumCatalogEngine, AlbumItem } from '@/lib/albumCatalog';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { BulkDownloadConfirmModal } from '@/components/modals/BulkDownloadConfirmModal';
+import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 
 export function AlbumDetailView() {
   const { 
@@ -286,6 +287,8 @@ export function AlbumDetailView() {
               </div>
 
               <div className="flex items-center gap-3 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                <DownloadStatusIndicator song={track} size="sm" showPercentage />
+
                 <button
                   onClick={() => toggleLikeSong(track.id)}
                   className="p-1.5 text-slate-400 hover:text-white transition-colors"

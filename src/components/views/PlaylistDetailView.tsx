@@ -14,6 +14,7 @@ import { usePlaylistStore, UserPlaylist } from '@/context/usePlaylistStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { BulkDownloadConfirmModal } from '@/components/modals/BulkDownloadConfirmModal';
 import { useAuthStore } from '@/context/useAuthStore';
+import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 
 type SortOption = 'default' | 'title' | 'artist' | 'album' | 'duration' | 'recently_added';
 
@@ -661,11 +662,7 @@ export function PlaylistDetailView() {
                   </div>
 
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    {isSongDownloaded && (
-                      <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 uppercase">
-                        Offline
-                      </span>
-                    )}
+                    <DownloadStatusIndicator song={song} size="sm" showPercentage />
 
                     {!isSelectionMode && (
                       <>

@@ -7,8 +7,13 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 export function BackupRestoreModal() {
   const { isBackupOpen, toggleBackupModal, exportBackupJson, importBackupJson } = usePlayerStore();
   const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
 
-  if (!isBackupOpen) return null;
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || !isBackupOpen) return null;
 
   const handleExport = () => {
     const jsonStr = exportBackupJson();

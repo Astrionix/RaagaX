@@ -20,6 +20,7 @@ import {
   UnifiedPlaylistResult 
 } from '@/lib/search/UnifiedSearchEngine';
 import { ArtistAvatar } from '@/components/common/ArtistAvatar';
+import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 
 export function SearchView() {
   const {
@@ -441,12 +442,15 @@ export function SearchView() {
                   </p>
                   <div className="mt-3 flex items-center gap-2">
                     {searchResults.topResult.type === 'song' ? (
-                      <button
-                        onClick={() => playSong(searchResults.topResult!.item, searchResults.songs)}
-                        className="px-4 py-1.5 rounded-full bg-[#EF233C] text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-red-500/30 hover:scale-105 transition-all cursor-pointer"
-                      >
-                        <Play className="w-3.5 h-3.5 fill-white" /> Play
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => playSong(searchResults.topResult!.item, searchResults.songs)}
+                          className="px-4 py-1.5 rounded-full bg-[#EF233C] text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-red-500/30 hover:scale-105 transition-all cursor-pointer"
+                        >
+                          <Play className="w-3.5 h-3.5 fill-white" /> Play
+                        </button>
+                        <DownloadStatusIndicator song={searchResults.topResult!.item} size="md" showPercentage />
+                      </div>
                     ) : searchResults.topResult.type === 'artist' ? (
                       <button
                         onClick={() => {
@@ -666,8 +670,9 @@ export function SearchView() {
                         </div>
                       </div>
 
-                      {/* Action Menu */}
-                      <div className="flex items-center gap-1 flex-shrink-0">
+                      {/* Action Menu & Download Status */}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <DownloadStatusIndicator song={song} size="sm" showPercentage />
                         <SongActionMenu song={song} />
                       </div>
                     </div>

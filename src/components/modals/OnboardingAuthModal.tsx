@@ -95,6 +95,12 @@ export function OnboardingAuthModal() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Prevent background scrolling when open
   useEffect(() => {
     if (isAuthModalOpen) {
@@ -112,7 +118,7 @@ export function OnboardingAuthModal() {
     }
   }, [user, isAuthModalOpen, setAuthModalOpen]);
 
-  if (!isAuthModalOpen) return null;
+  if (!mounted || !isAuthModalOpen) return null;
 
   const handleLogin = async () => {
     setErrorMsg('');

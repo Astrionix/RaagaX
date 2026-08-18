@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { Play, Pause, SkipForward, SkipBack, Heart, MoreVertical, Disc3, Headphones } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, Heart, MoreVertical, Disc3, Headphones, MonitorSmartphone } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SeekBar } from '@/components/player/SeekBar';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
@@ -199,19 +199,22 @@ export function MobileMiniPlayer() {
               />
             </button>
 
-            {/* Audio Output Device Sheet Trigger */}
+            {/* Audio Output Device Sheet Trigger (Connect to My Device) */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 usePlayerStore.getState().toggleDeviceModal();
               }}
-              aria-label="Output audio device"
-              className={`p-2 rounded-full transition-all active:scale-90 ${
-                !isActiveDevice ? 'text-[#E50914] animate-pulse' : 'text-[#94A3B8] hover:text-white'
+              aria-label="Connect to My Device"
+              className={`p-2 rounded-full transition-all active:scale-90 flex items-center justify-center relative cursor-pointer ${
+                !isActiveDevice ? 'text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 shadow-sm' : 'text-[#94A3B8] hover:text-white'
               }`}
-              title={remoteDeviceName ? `Playing on: ${remoteDeviceName}` : 'Switch Audio Device'}
+              title={remoteDeviceName ? `Connected: ${remoteDeviceName}` : 'Connect to My Device (Cast & Sync)'}
             >
-              <Headphones className="w-4 h-4" />
+              <MonitorSmartphone className="w-4 h-4" />
+              {!isActiveDevice && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 absolute top-1 right-1 animate-ping" />
+              )}
             </button>
 
             {/* Play/Pause Button */}

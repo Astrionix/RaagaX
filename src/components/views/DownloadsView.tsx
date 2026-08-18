@@ -27,7 +27,8 @@ import {
   Layers,
   Database,
   Info,
-  Sparkles
+  Sparkles,
+  MonitorSmartphone,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
@@ -149,25 +150,59 @@ export function DownloadsView() {
   const downloadingTasks = activeTasks.filter(t => ['downloading', 'verifying', 'paused', 'failed', 'error'].includes(t.status?.toLowerCase()));
   const queuedTasks = activeTasks.filter(t => t.status?.toLowerCase() === 'queued');
 
-  // Convert offline catalog tracks to Song objects
+  const nativeDownloadedTracks = useDownloadStore((s) => s.nativeDownloadedTracks);
+
+  // Convert offline catalog and native tracks to Song objects
   const offlineSongs: Song[] = useMemo(() => {
-    return offlineCatalogTracks.map((track) => ({
-      id: track.trackId,
-      title: track.title,
-      artist: track.artist,
-      artistId: `art-${track.trackId}`,
-      album: track.album || 'Downloaded Offline',
-      albumId: `alb-${track.trackId}`,
-      duration: track.duration || Math.round(track.durationMs / 1000) || 180,
-      coverUrl: track.artworkUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&h=300&fit=crop',
-      audioUrl: '', // PlaybackSourceResolver supplies the local Blob URL
-      genre: 'OFFLINE',
-      category: 'melody',
-      releaseYear: new Date().getFullYear(),
-      plays: track.playCount || 1,
-      likes: 1,
-    }));
-  }, [offlineCatalogTracks]);
+    const songMap: Record<string, Song> = {};
+
+    // 1. Native verified downloads
+    Object.values(nativeDownloadedTracks).forEach((t) => {
+      if (t && (t.songId || t.id)) {
+        const id = t.songId || t.id;
+        songMap[id] = {
+          id,
+          title: t.title || id,
+          artist: t.artist || '',
+          artistId: `art-${id}`,
+          album: t.album || 'Music/RaagaX',
+          albumId: `alb-${id}`,
+          duration: 180,
+          coverUrl: t.artworkUrl || t.coverUrl || '/app-icon.png',
+          audioUrl: '',
+          genre: 'OFFLINE',
+          category: 'melody',
+          releaseYear: new Date().getFullYear(),
+          plays: 1,
+          likes: 1,
+        };
+      }
+    });
+
+    // 2. Offline Catalog tracks (Web / PWA)
+    offlineCatalogTracks.forEach((track) => {
+      if (track && track.trackId && !songMap[track.trackId]) {
+        songMap[track.trackId] = {
+          id: track.trackId,
+          title: track.title,
+          artist: track.artist,
+          artistId: `art-${track.trackId}`,
+          album: track.album || 'Downloaded Offline',
+          albumId: `alb-${track.trackId}`,
+          duration: track.duration || Math.round(track.durationMs / 1000) || 180,
+          coverUrl: track.artworkUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&h=300&fit=crop',
+          audioUrl: '',
+          genre: 'OFFLINE',
+          category: 'melody',
+          releaseYear: new Date().getFullYear(),
+          plays: track.playCount || 1,
+          likes: 1,
+        };
+      }
+    });
+
+    return Object.values(songMap);
+  }, [offlineCatalogTracks, nativeDownloadedTracks]);
 
   const filteredOfflineSongs = useMemo(() => {
     if (!localSearch.trim()) return offlineSongs;
@@ -299,6 +334,14 @@ export function DownloadsView() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => usePlayerStore.getState().toggleDeviceModal()}
+              className="px-3 py-1 rounded-full bg-[#fa233b]/10 hover:bg-[#fa233b]/20 text-[#fa233b] border border-[#fa233b]/20 text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer hover:scale-105"
+              title="Connect to My Device (Cast & Sync)"
+            >
+              <MonitorSmartphone className="w-3.5 h-3.5" />
+              <span>Connect Device</span>
+            </button>
             <span className="text-[10px] font-semibold text-slate-400 px-2.5 py-1 rounded-full bg-white/5 border border-white/5">
               {storageInfo?.isNative ? '📱 Android Native Storage' : '💻 Browser / Desktop Storage Quota'}
             </span>
@@ -808,6 +851,12 @@ export function DownloadsView() {
                   </div>
                 ))}
               </div>
+            </div>
+          ) : activeTasks.length > 0 ? (
+            <div className="py-8 text-center text-slate-400 space-y-2 bg-[#161618] rounded-2xl border border-white/10">
+              <Download className="w-8 h-8 text-[#fa233b] mx-auto animate-pulse opacity-80" />
+              <p className="text-xs font-bold text-slate-300">Downloading your tracks...</p>
+              <p className="text-[11px] text-slate-500">Your songs will appear here automatically as soon as the download completes.</p>
             </div>
           ) : (
             <div className="py-12 text-center text-slate-500 space-y-3 bg-[#161618] rounded-2xl border border-white/10">

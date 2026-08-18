@@ -6,6 +6,7 @@ import { Play, Heart, Download, Music, ArrowLeft, Disc, Users, ShieldCheck, Chec
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { getApiUrl } from '@/lib/config/apiConfig';
 import { ArtistAvatar } from '@/components/common/ArtistAvatar';
+import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 
 const fetcher = (url: string) => fetch(getApiUrl(url)).then(res => res.json()).catch(() => null);
 
@@ -206,11 +207,9 @@ export function ArtistDetailView() {
                   </div>
 
                   <div className="flex items-center gap-2 ml-4">
+                    <DownloadStatusIndicator song={song} size="sm" showPercentage />
                     <button onClick={() => toggleLikeSong(song.id)} title="Like Song">
                       <Heart className={`w-4 h-4 ${isLiked ? 'text-[#fa233b] fill-[#fa233b]' : 'text-slate-400 hover:text-[#fa233b]'}`} />
-                    </button>
-                    <button onClick={() => toggleDownloadSong(song.id)} title="Download Offline">
-                      <Download className={`w-4 h-4 ${isDownloaded ? 'text-emerald-500' : 'text-slate-400 hover:text-emerald-500'}`} />
                     </button>
                     <button
                       onClick={() => playSong(song, artistSongs)}

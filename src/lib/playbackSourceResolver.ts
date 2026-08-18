@@ -34,11 +34,14 @@ export class PlaybackSourceResolver {
         const { useDownloadStore } = await import('@/context/useDownloadStore');
         const nativeTrack = useDownloadStore.getState().nativeDownloadedTracks[song.id];
         if (nativeTrack?.localPath) {
-          const fileUri = nativeTrack.localPath.startsWith('file://') ? nativeTrack.localPath : `file://${nativeTrack.localPath}`;
-          console.log(`[PlaybackSourceResolver] Playing verified native offline MP3: "${nativeTrack.localPath}"`);
+          const { Capacitor } = await import('@capacitor/core');
+          const playableUrl = Capacitor.isNativePlatform()
+            ? Capacitor.convertFileSrc(nativeTrack.localPath)
+            : (nativeTrack.localPath.startsWith('file://') ? nativeTrack.localPath : `file://${nativeTrack.localPath}`);
+          console.log(`[PlaybackSourceResolver] Playing verified native offline MP3: "${nativeTrack.localPath}" -> "${playableUrl}"`);
           return {
             type: 'offline',
-            url: fileUri,
+            url: playableUrl,
             mediaId: song.id,
             localId: song.id,
             isLocalBlob: false,

@@ -18,7 +18,13 @@ export function ContextMenuModal() {
     setSelectedAlbumId,
   } = usePlayerStore();
 
-  if (!contextMenuSong) return null;
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || !contextMenuSong) return null;
 
   const isLiked = likedSongIds.includes(contextMenuSong.id);
   const isDownloaded = downloadedSongIds.includes(contextMenuSong.id);

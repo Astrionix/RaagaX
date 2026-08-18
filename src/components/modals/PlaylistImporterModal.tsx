@@ -9,8 +9,13 @@ export function PlaylistImporterModal() {
   const [url, setUrl] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  if (!isImporterOpen) return null;
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || !isImporterOpen) return null;
 
   const handleImport = () => {
     if (!url.trim()) return;

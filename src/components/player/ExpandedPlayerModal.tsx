@@ -6,7 +6,7 @@ import {
   Disc3, Mic2, Music, Tv, RefreshCw, ExternalLink, Shuffle, Repeat, Repeat1,
   ListMusic, Settings2, MonitorSmartphone, Check, MoreHorizontal, Share2,
   User, Disc, ListPlus, Radio, Sparkles, FolderPlus, Ban, Plus, Moon,
-  Clock, Volume2, ShieldCheck, Loader2, Sliders, Car
+  Clock, Volume2, ShieldCheck, Loader2, Sliders, Car, Cast
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
@@ -262,7 +262,12 @@ export function ExpandedPlayerModal() {
     touchStartX.current = null;
   };
 
-  if (!isPlayerExpanded || !currentSong) return null;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || !isPlayerExpanded || !currentSong) return null;
 
   const isLiked = likedSongIds.includes(currentSong.id);
   const isDownloaded = downloadedSongIds.includes(currentSong.id);
@@ -335,21 +340,24 @@ export function ExpandedPlayerModal() {
           </h3>
         </div>
 
-        {/* Right: Repeat Mode + More Options */}
+        {/* Right: Cast / Connect Device + More Options */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          {/* Quick Repeat Button in Header */}
+          {/* Cast / Connect to My Device Button in Header */}
           <button
-            onClick={cycleRepeatMode}
-            className={`p-2.5 rounded-full transition-all flex items-center justify-center active:scale-95 ${normRepeat === 'ALL' || normRepeat === 'ONE'
-                ? 'text-white bg-[#fa233b] shadow-lg shadow-[#fa233b]/40 ring-1 ring-[#fa233b]/60'
-                : 'text-white/70 hover:text-white hover:bg-white/10'
-              }`}
-            title={`Repeat: ${normRepeat === 'ONE' ? 'Repeat ONE' : normRepeat === 'ALL' ? 'Repeat ALL' : 'Repeat OFF'}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleDeviceModal();
+            }}
+            className={`p-2.5 rounded-full transition-all flex items-center justify-center active:scale-95 cursor-pointer relative ${
+              !isActiveDevice
+                ? 'text-white bg-emerald-500 shadow-lg shadow-emerald-500/40 ring-1 ring-emerald-400'
+                : 'text-white/80 hover:text-white hover:bg-white/10'
+            }`}
+            title={remoteDeviceName ? `Connected: ${remoteDeviceName}` : 'Cast to Device / Connect to My Device'}
           >
-            {normRepeat === 'ONE' ? (
-              <Repeat1 className="w-5 h-5 sm:w-6 sm:h-6" />
-            ) : (
-              <Repeat className="w-5 h-5 sm:w-6 sm:h-6" />
+            <Cast className="w-5 h-5 sm:w-6 sm:h-6" />
+            {!isActiveDevice && (
+              <span className="w-2 h-2 rounded-full bg-white absolute top-1 right-1 animate-ping" />
             )}
           </button>
 

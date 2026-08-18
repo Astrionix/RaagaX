@@ -48,7 +48,13 @@ export function QueueModal() {
     return () => document.removeEventListener('click', handleGlobalClick);
   }, [activeMenuSongId]);
 
-  if (!isQueueOpen) return null;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || !isQueueOpen) return null;
 
   const upNextTracks = queue.slice(queueIndex + 1);
   const isCurrentLiked = currentSong ? likedSongIds.includes(currentSong.id) : false;

@@ -19,8 +19,13 @@ export function SettingsModal() {
   } = usePlayerStore();
 
   const { theme, resolvedTheme, setTheme } = useThemeStore();
+  const [mounted, setMounted] = React.useState(false);
 
-  if (!isSettingsModalOpen) return null;
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || !isSettingsModalOpen) return null;
 
   const qualityPresets = [
     { label: 'Low', value: 'LOW' },

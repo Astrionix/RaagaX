@@ -54,8 +54,13 @@ export function NotificationCenterModal() {
     clearAll 
   } = useNotificationStore();
   const { setActiveTab } = usePlayerStore();
+  const [mounted, setMounted] = React.useState(false);
 
-  if (!isOpen) return null;
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || !isOpen) return null;
 
   const now = Date.now();
   const oneDayMs = 24 * 60 * 60 * 1000;

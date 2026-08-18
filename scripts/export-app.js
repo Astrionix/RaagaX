@@ -20,12 +20,17 @@ console.log('[EXPORT] Starting RaagaX local app-shell static export...');
 let apiMoved = false;
 
 function copyDir(src, dest) {
+  if (typeof fs.cpSync === 'function') {
+    fs.cpSync(src, dest, { recursive: true, force: true });
+    return;
+  }
   fs.mkdirSync(dest, { recursive: true });
-  const entries = fs.readdirSync(src, { withFileTypes: true });
+  const entries = fs.readdirSync(src);
   for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
-    if (entry.isDirectory()) {
+    const srcPath = path.join(src, entry);
+    const destPath = path.join(dest, entry);
+    const stat = fs.statSync(srcPath);
+    if (stat.isDirectory()) {
       copyDir(srcPath, destPath);
     } else {
       fs.copyFileSync(srcPath, destPath);
