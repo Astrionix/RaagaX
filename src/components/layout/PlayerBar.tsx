@@ -258,6 +258,14 @@ export function PlayerBar() {
         <button onClick={toggleSleepTimerModal} className="p-2 text-slate-400 hover:text-[#fa233b] hover:bg-white/5 rounded-xl" title="Sleep Timer">
           <Moon className="w-4 h-4" />
         </button>
+
+        <button
+          onClick={togglePlayerExpanded}
+          className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors active:scale-95 cursor-pointer ml-0.5"
+          title="Expand Player (F)"
+        >
+          <Maximize2 className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );

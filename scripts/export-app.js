@@ -79,6 +79,11 @@ try {
     try { fs.rmSync(nextDir, { recursive: true, force: true }); } catch {}
   }
 
+  // Small delay for Windows file handles to release
+  try {
+    execSync('timeout /t 1 /nobreak', { stdio: 'ignore' });
+  } catch {}
+
   // Step 3: Run Next.js build in static export mode
   console.log('[EXPORT] Running next build (STATIC_EXPORT=true)...');
   execSync('npx next build', {

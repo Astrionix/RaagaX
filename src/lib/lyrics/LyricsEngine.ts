@@ -50,7 +50,7 @@ export class LyricsEngine {
     if (store.isActiveDevice) {
       try {
         const active = PlaybackService.getInstance().getActiveAudio();
-        if (active && !isNaN(active.currentTime) && active.currentTime >= 0) {
+        if (active && !isNaN(active.currentTime) && active.currentTime > 0) {
           return active.currentTime * 1000;
         }
       } catch {}
@@ -58,7 +58,7 @@ export class LyricsEngine {
       try {
         const engine = PlaybackEngine.getInstance();
         const mediaMs = engine.getMediaPositionMs();
-        if (mediaMs >= 0) return mediaMs;
+        if (mediaMs > 0) return mediaMs;
       } catch {}
     } else {
       // Tier 2: Remote Connect Controller — Interpolate from remote anchor timestamp

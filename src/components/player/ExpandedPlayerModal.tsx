@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   X, ChevronDown, Heart, Download, Play, Pause, SkipBack, SkipForward,
   Disc3, Mic2, Music, Tv, RefreshCw, ExternalLink, Shuffle, Repeat, Repeat1,
   ListMusic, Settings2, MonitorSmartphone, Check, MoreHorizontal, Share2,
   User, Disc, ListPlus, Radio, Sparkles, FolderPlus, Ban, Plus, Moon,
-  Clock, Volume2, ShieldCheck, Loader2, Sliders, Car, Cast
+  Clock, Volume2, VolumeX, ShieldCheck, Loader2, Sliders, Car, Cast,
+  Maximize2, Minimize2, Trash2, Layers
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
@@ -19,12 +20,18 @@ import { PlaybackEngine } from '@/lib/playback/PlaybackEngine';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { Spatial3DArtwork } from './Spatial3DArtwork';
 import { AudioReactiveWaveform } from './AudioReactiveWaveform';
+import { RecommendationEngine } from '@/lib/recommendation/RecommendationEngine';
+import { haptics } from '@/lib/haptics/HapticEngine';
 
 export function ExpandedPlayerModal() {
   const { playlists, addSongToPlaylist } = usePlaylistStore();
   const { tasks } = useDownloadStore();
   const [showPlaylists, setShowPlaylists] = useState(false);
   const [viewMode, setViewMode] = useState<'art' | 'lyrics'>('art');
+  const [visualMode, setVisualMode] = useState<'immersive' | 'standard'>('immersive');
+  const [isQueuePanelOpen, setIsQueuePanelOpen] = useState(false);
+  const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
+
   const {
     status: lyricsStatus,
     type: lyricsType,
@@ -53,6 +60,7 @@ export function ExpandedPlayerModal() {
     togglePlayPause,
     playNext,
     playPrev,
+    playSong,
     likedSongIds,
     toggleLikeSong,
     downloadedSongIds,
@@ -66,6 +74,8 @@ export function ExpandedPlayerModal() {
     queue,
     queueIndex,
     addToQueue,
+    removeFromQueue,
+    clearQueue,
     setActiveTab,
     setToastMessage,
     isActiveDevice,
@@ -96,60 +106,131 @@ export function ExpandedPlayerModal() {
   const [visualTime, setVisualTime] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
 
-  // Artwork Gesture Tracking
-  const artTouchStartX = useRef<number | null>(null);
-  const artTouchStartY = useRef<number | null>(null);
-  const [artSwipeOffset, setArtSwipeOffset] = useState({ x: 0, y: 0 });
+  // Sync browser fullscreen state
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsBrowserFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
-  const handleArtTouchStart = (e: React.TouchEvent) => {
-    artTouchStartX.current = e.touches[0].clientX;
-    artTouchStartY.current = e.touches[0].clientY;
-  };
-
-  const handleArtTouchMove = (e: React.TouchEvent) => {
-    if (artTouchStartX.current === null || artTouchStartY.current === null) return;
-    const diffX = e.touches[0].clientX - artTouchStartX.current;
-    const diffY = e.touches[0].clientY - artTouchStartY.current;
-    setArtSwipeOffset({
-      x: Math.max(-50, Math.min(50, diffX * 0.4)),
-      y: Math.max(-30, Math.min(60, diffY * 0.4)),
-    });
-  };
-
-  const handleArtTouchEnd = (e: React.TouchEvent) => {
-    if (artTouchStartX.current === null || artTouchStartY.current === null) return;
-    const diffX = e.changedTouches[0].clientX - artTouchStartX.current;
-    const diffY = e.changedTouches[0].clientY - artTouchStartY.current;
-
-    setArtSwipeOffset({ x: 0, y: 0 });
-
-    // Swipe Down -> Minimize Player
-    if (diffY > 60 && Math.abs(diffY) > Math.abs(diffX)) {
-      togglePlayerExpanded();
-      artTouchStartX.current = null;
-      artTouchStartY.current = null;
-      return;
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (!document.fullscreenElement) {
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
+      }
+    } catch (err) {
+      console.warn('[ExpandedPlayerModal] Fullscreen API unavailable, using app full-screen modal:', err);
     }
+  }, []);
 
-    // Swipe Left -> Next Track
-    if (diffX < -60 && Math.abs(diffX) > Math.abs(diffY)) {
-      playNext();
-      artTouchStartX.current = null;
-      artTouchStartY.current = null;
-      return;
-    }
+  // Desktop Keyboard Shortcuts
+  useEffect(() => {
+    if (!isPlayerExpanded) return;
 
-    // Swipe Right -> Previous Track
-    if (diffX > 60 && Math.abs(diffX) > Math.abs(diffY)) {
-      playPrev();
-      artTouchStartX.current = null;
-      artTouchStartY.current = null;
-      return;
-    }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if inside text inputs
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable ||
+        target.tagName === 'SELECT'
+      ) {
+        return;
+      }
 
-    artTouchStartX.current = null;
-    artTouchStartY.current = null;
-  };
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault();
+          togglePlayPause();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          {
+            const targetTime = Math.max(0, currentTime - 5);
+            setCurrentTime(targetTime, true);
+            usePlayerStore.setState({ seekTarget: targetTime });
+          }
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          {
+            const effectiveDur = duration || currentSong?.duration || 240;
+            const targetTime = Math.min(effectiveDur, currentTime + 5);
+            setCurrentTime(targetTime, true);
+            usePlayerStore.setState({ seekTarget: targetTime });
+          }
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setVolume(Math.min(1, volume + 0.05));
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          setVolume(Math.max(0, volume - 0.05));
+          break;
+        case 'KeyM':
+          e.preventDefault();
+          toggleMute();
+          break;
+        case 'KeyN':
+          e.preventDefault();
+          playNext();
+          break;
+        case 'KeyP':
+          e.preventDefault();
+          playPrev();
+          break;
+        case 'KeyF':
+          e.preventDefault();
+          toggleFullscreen();
+          break;
+        case 'KeyL':
+          e.preventDefault();
+          setViewMode(v => v === 'lyrics' ? 'art' : 'lyrics');
+          break;
+        case 'KeyQ':
+          e.preventDefault();
+          setIsQueuePanelOpen(q => !q);
+          break;
+        case 'Escape':
+          e.preventDefault();
+          if (document.fullscreenElement) {
+            document.exitFullscreen().catch(() => {});
+          } else {
+            togglePlayerExpanded();
+          }
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    isPlayerExpanded,
+    currentTime,
+    duration,
+    currentSong,
+    volume,
+    togglePlayPause,
+    setCurrentTime,
+    setVolume,
+    toggleMute,
+    playNext,
+    playPrev,
+    toggleFullscreen,
+    togglePlayerExpanded,
+  ]);
 
   // Pre-load lyrics for current track
   useEffect(() => {
@@ -238,31 +319,10 @@ export function ExpandedPlayerModal() {
   }, [isMenuOpen]);
 
   const handleCloseModal = () => {
-    togglePlayerExpanded();
-  };
-
-  const touchStartY = useRef<number | null>(null);
-  const touchStartX = useRef<number | null>(null);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartY.current = e.touches[0].clientY;
-    touchStartX.current = e.touches[0].clientX;
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartY.current === null || touchStartX.current === null) return;
-    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
-    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
-
-    if (deltaY > 100 && Math.abs(deltaY) > Math.abs(deltaX)) {
-      togglePlayerExpanded();
-    } else if (Math.abs(deltaX) > 80 && Math.abs(deltaX) > Math.abs(deltaY)) {
-      if (deltaX < 0) playNext();
-      else playPrev();
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
     }
-
-    touchStartY.current = null;
-    touchStartX.current = null;
+    togglePlayerExpanded();
   };
 
   const [mounted, setMounted] = useState(false);
@@ -287,7 +347,7 @@ export function ExpandedPlayerModal() {
 
   const activeDeviceObj = onlineDevices.find((d) => d.id === activeDeviceId);
   const localDeviceObj = onlineDevices.find((d) => d.id === deviceId);
-  const localDeviceName = localDeviceObj?.name || 'This Device';
+  const localDeviceName = localDeviceObj?.name || 'This Computer';
   const downloadTask = currentSong ? tasks[currentSong.id] : null;
   const isDownloading = downloadTask && (downloadTask.status === 'DOWNLOADING' || downloadTask.status === 'QUEUED');
   const downloadPct = downloadTask?.progress || 0;
@@ -298,11 +358,9 @@ export function ExpandedPlayerModal() {
 
   return (
     <div
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      className="fixed inset-0 z-[100] w-full h-[100dvh] bg-[#06070a]/92 backdrop-blur-[60px] p-4 sm:p-6 md:p-8 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex flex-col text-white select-none animate-in slide-in-from-bottom duration-300 overflow-hidden"
+      className="fixed inset-0 z-[100] w-full h-[100dvh] bg-[#06070a]/95 backdrop-blur-[60px] p-4 sm:p-6 md:p-8 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex flex-col text-white select-none animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
     >
-      {/* Dynamic Chameleon Ambient Lighting & Atmosphere */}
+      {/* Dynamic Chameleon Ambient Background Lighting */}
       <div
         className="absolute inset-0 opacity-40 pointer-events-none blur-[140px] scale-[1.35] transition-all duration-1000 saturate-[200%]"
         style={{
@@ -317,18 +375,24 @@ export function ExpandedPlayerModal() {
           backgroundPosition: 'center',
         }}
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/25 to-black/85 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/30 to-black/90 pointer-events-none" />
 
-      {/* TOP NAVIGATION BAR */}
-      <div className="relative z-50 flex items-center justify-between w-full pt-1 pb-2 sm:pb-3 max-w-5xl mx-auto flex-shrink-0">
-        {/* Left: Minimize Player */}
-        <button
-          onClick={handleCloseModal}
-          className="p-2.5 -ml-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-all active:scale-95"
-          title="Minimize player"
-        >
-          <ChevronDown className="w-7 h-7 sm:w-8 sm:h-8" />
-        </button>
+      {/* TOP BAR / DESKTOP FULL-SCREEN HEADER */}
+      <div className="relative z-50 flex items-center justify-between w-full pt-1 pb-2 sm:pb-3 max-w-6xl mx-auto flex-shrink-0">
+        
+        {/* Left: Minimize or Brand */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleCloseModal}
+            className="p-2 -ml-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-all active:scale-95 cursor-pointer"
+            title="Minimize Player (Esc)"
+          >
+            <ChevronDown className="w-6 h-6 sm:w-7 sm:h-7" />
+          </button>
+          <span className="hidden sm:inline-block font-black text-sm tracking-wider text-white/40 uppercase">
+            RaagaX Full Screen
+          </span>
+        </div>
 
         {/* Center: Playing From */}
         <div
@@ -340,8 +404,7 @@ export function ExpandedPlayerModal() {
               handleCloseModal();
             }
           }}
-          className={`text-center min-w-0 px-3 max-w-[55%] ${(currentSong.albumId || currentSong.album) ? 'cursor-pointer hover:opacity-80 transition-opacity' : 'pointer-events-none'
-            }`}
+          className={`text-center min-w-0 px-3 max-w-[55%] ${(currentSong.albumId || currentSong.album) ? 'cursor-pointer hover:opacity-80 transition-opacity' : 'pointer-events-none'}`}
           title={currentSong.album ? `Go to album: ${currentSong.album}` : undefined}
         >
           <p className="text-[10px] text-white/50 font-black uppercase tracking-widest mb-0.5">
@@ -352,41 +415,65 @@ export function ExpandedPlayerModal() {
           </h3>
         </div>
 
-        {/* Right: Cast / Connect Device + More Options */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {/* Cast / Connect to My Device Button in Header */}
+        {/* Right Tools: Visual Mode + Fullscreen Toggle + More */}
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+          
+          {/* Visual Mode Toggle (Immersive vs Standard/Split) */}
+          <button
+            onClick={() => setVisualMode(m => m === 'immersive' ? 'standard' : 'immersive')}
+            className={`hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold transition-all cursor-pointer ${
+              visualMode === 'immersive'
+                ? 'border-cyan-500/40 text-cyan-400 bg-cyan-500/10'
+                : 'border-white/15 text-white/80 hover:text-white bg-white/5'
+            }`}
+            title="Switch Visual Mode"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span className="capitalize">{visualMode}</span>
+          </button>
+
+          {/* Browser Fullscreen Button */}
+          <button
+            onClick={toggleFullscreen}
+            className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors active:scale-95 cursor-pointer"
+            title={isBrowserFullscreen ? "Exit Browser Full Screen (F)" : "Expand Browser Full Screen (F)"}
+          >
+            {isBrowserFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+          </button>
+
+          {/* Cast / Connect Button */}
           <button
             onClick={(e) => {
               e.stopPropagation();
               toggleDeviceModal();
             }}
-            className={`p-2.5 rounded-full transition-all flex items-center justify-center active:scale-95 cursor-pointer relative ${
+            className={`p-2 rounded-full transition-all flex items-center justify-center active:scale-95 cursor-pointer relative ${
               !isActiveDevice
                 ? 'text-white bg-emerald-500 shadow-lg shadow-emerald-500/40 ring-1 ring-emerald-400'
                 : 'text-white/80 hover:text-white hover:bg-white/10'
             }`}
-            title={remoteDeviceName ? `Connected: ${remoteDeviceName}` : 'Cast to Device / Connect to My Device'}
+            title={remoteDeviceName ? `Connected: ${remoteDeviceName}` : 'Cast to Device / Connect'}
           >
-            <Cast className="w-5 h-5 sm:w-6 sm:h-6" />
+            <Cast className="w-5 h-5" />
             {!isActiveDevice && (
               <span className="w-2 h-2 rounded-full bg-white absolute top-1 right-1 animate-ping" />
             )}
           </button>
 
-          {/* Context Dropdown Menu Trigger */}
+          {/* Context Dropdown Trigger */}
           <div className="relative inline-block" ref={menuRef}>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 setIsMenuOpen(!isMenuOpen);
               }}
-              className="p-2.5 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors active:scale-95"
+              className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors active:scale-95 cursor-pointer"
               title="More options"
             >
-              <MoreHorizontal className="w-6 h-6 sm:w-7 sm:h-7" />
+              <MoreHorizontal className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
 
-            {/* Context Dropdown Popover */}
+            {/* Menu Popover */}
             {isMenuOpen && (
               <div
                 className="absolute right-0 top-full mt-2 w-64 bg-[#12131a]/98 backdrop-blur-3xl border border-white/15 rounded-2xl p-2 shadow-[0_25px_70px_rgba(0,0,0,0.95)] z-[999] text-xs text-white select-none animate-in fade-in zoom-in-95 duration-150"
@@ -508,7 +595,7 @@ export function ExpandedPlayerModal() {
 
                 <div className="h-px bg-white/10 my-1" />
 
-                {/* Sleep Timer Option */}
+                {/* Sleep Timer */}
                 <button
                   onClick={() => {
                     toggleSleepTimerModal();
@@ -523,7 +610,7 @@ export function ExpandedPlayerModal() {
                   {liveTimerStr && <span className="text-[10px] text-indigo-400 font-mono font-bold">{liveTimerStr}</span>}
                 </button>
 
-                {/* Equalizer Option */}
+                {/* Equalizer */}
                 <button
                   onClick={() => {
                     toggleEqualizer(true);
@@ -536,46 +623,6 @@ export function ExpandedPlayerModal() {
                     <span className="font-bold">Equalizer & Spatial</span>
                   </div>
                   <span className="text-white/40 text-xs">▸</span>
-                </button>
-
-                {/* Car Driving Mode Option */}
-                <button
-                  onClick={() => {
-                    toggleCarMode(true);
-                    setIsMenuOpen(false);
-                  }}
-                  className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <Car className="w-4 h-4 text-amber-400" />
-                    <span className="font-bold">Car Driving Mode</span>
-                  </div>
-                  <span className="text-white/40 text-xs">▸</span>
-                </button>
-
-                {/* Share Option */}
-                <button
-                  onClick={() => {
-                    const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/#song=${currentSong.id}` : '';
-                    if (typeof navigator !== 'undefined' && navigator.share) {
-                      navigator.share({
-                        title: currentSong.title,
-                        text: `Listen to "${currentSong.title}" by ${currentSong.artist} on RaagaX`,
-                        url: shareUrl || window.location.href,
-                      }).catch(() => { });
-                    } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                      navigator.clipboard.writeText(shareUrl || window.location.href);
-                      setToastMessage('Song link copied to clipboard!');
-                    }
-                    setIsMenuOpen(false);
-                  }}
-                  className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <Share2 className="w-4 h-4 text-white/60" />
-                    <span className="font-bold">Share</span>
-                  </div>
-                  <span className="text-white/40 text-xs">↗</span>
                 </button>
 
                 <button
@@ -594,406 +641,382 @@ export function ExpandedPlayerModal() {
               </div>
             )}
           </div>
+
+          {/* Close X */}
+          <button
+            onClick={handleCloseModal}
+            className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-all active:scale-95 cursor-pointer ml-1"
+            title="Close"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
+      {/* MAIN VIEWPORT: IMMERSIVE OR SPLIT */}
+      <div className="relative z-0 flex-1 min-h-0 flex flex-col md:flex-row items-center justify-between w-full max-w-6xl mx-auto py-1 sm:py-2 gap-4 md:gap-8">
 
-      {/* CENTER VIEW: ALBUM ART OR LIVE SYNCED LYRICS */}
-      <div className="relative z-0 flex-1 min-h-0 flex flex-col justify-between w-full max-w-4xl mx-auto py-1 sm:py-3">
+        {/* LEFT / CENTER STAGE: 3D ARTWORK & DETAILS */}
+        <div className={`flex-1 min-h-0 w-full flex flex-col justify-between items-center transition-all duration-300 ${
+          isQueuePanelOpen || (visualMode === 'standard' && viewMode === 'lyrics') ? 'md:max-w-[50%]' : 'max-w-4xl mx-auto'
+        }`}>
 
-        {viewMode === 'art' ? (
-          /* 3D Spatial Album Artwork Screen & Audio-Reactive Waveform */
-          <div className="flex-1 min-h-0 flex flex-col items-center justify-center w-full py-1 select-none overflow-visible">
-            <Spatial3DArtwork
-              currentSong={currentSong}
-              isPlaying={isPlaying}
-              onSwipeLeft={playNext}
-              onSwipeRight={playPrev}
-              onTap={() => setViewMode('lyrics')}
-              onLongPress={() => setIsMenuOpen(true)}
-              isLiked={isLiked}
-              isDownloaded={isDownloaded}
-              isDownloading={Boolean(isDownloading)}
-              downloadProgress={downloadPct}
-              className="w-full flex-1 flex items-center justify-center"
-            />
+          {viewMode === 'art' ? (
+            <div className="flex-1 min-h-0 flex flex-col items-center justify-center w-full py-2 select-none">
+              <Spatial3DArtwork
+                currentSong={currentSong}
+                isPlaying={isPlaying}
+                onSwipeLeft={playNext}
+                onSwipeRight={playPrev}
+                onTap={() => setViewMode('lyrics')}
+                onLongPress={() => setIsMenuOpen(true)}
+                isLiked={isLiked}
+                isDownloaded={isDownloaded}
+                isDownloading={Boolean(isDownloading)}
+                downloadProgress={downloadPct}
+                className="w-full flex-1 flex items-center justify-center max-h-[420px]"
+              />
 
-            {/* Audio-Reactive Waveform Centerpiece */}
-            <div className="w-full max-w-[300px] sm:max-w-[360px] mt-1 mb-1">
-              <AudioReactiveWaveform isPlaying={isPlaying} barCount={32} />
+              {/* Audio-Reactive Waveform */}
+              <div className="w-full max-w-[280px] sm:max-w-[340px] mt-1 mb-1">
+                <AudioReactiveWaveform isPlaying={isPlaying} barCount={32} />
+              </div>
             </div>
-          </div>
-        ) : (
-          /* Fullscreen Synced Lyrics Live Mode */
-          <div className="flex-1 min-h-0 w-full max-w-2xl mx-auto flex flex-col relative overflow-hidden py-1 sm:py-3 animate-in fade-in duration-200">
-            <div className="flex items-center justify-between px-3 pb-2 mb-1 border-b border-white/10 relative">
-              <div className="flex items-center gap-2 text-xs font-black text-white/90">
-                <Mic2 className="w-4 h-4 text-[#fa233b]" /> Live Synced Lyrics
+          ) : (
+            <div className="flex-1 min-h-0 w-full max-w-2xl mx-auto flex flex-col relative overflow-hidden py-1 sm:py-2">
+              <div className="flex items-center justify-between px-3 pb-2 mb-1 border-b border-white/10">
+                <div className="flex items-center gap-2 text-xs font-black text-white/90">
+                  <Mic2 className="w-4 h-4 text-[#fa233b]" /> Live Synced Lyrics
+                </div>
+
+                {hasTransliteration && (
+                  <div className="flex items-center p-0.5 rounded-lg border border-white/10 bg-white/5 text-[11px] font-bold">
+                    <button
+                      onClick={() => setScriptMode('native')}
+                      className={`px-2.5 py-1 rounded-md transition-all ${scriptMode === 'native' ? 'bg-white/20 text-white font-black' : 'text-white/50 hover:text-white'}`}
+                    >
+                      Native
+                    </button>
+                    <button
+                      onClick={() => setScriptMode('transliteration')}
+                      className={`px-2.5 py-1 rounded-md transition-all ${scriptMode === 'transliteration' ? 'bg-white/20 text-white font-black' : 'text-white/50 hover:text-white'}`}
+                    >
+                      Romanized
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => setViewMode('art')}
+                  className="text-xs font-bold text-white/80 hover:text-white px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-all cursor-pointer"
+                >
+                  Show Art
+                </button>
               </div>
 
-              {/* Script Mode Switcher: Native | Transliteration | Dual */}
-              {hasTransliteration && (
-                <div className="flex items-center p-0.5 rounded-lg border border-white/10 bg-white/5 text-[11px] font-bold">
-                  <button
-                    onClick={() => setScriptMode('native')}
-                    className={`px-2.5 py-1 rounded-md transition-all ${scriptMode === 'native'
-                        ? 'bg-white/20 text-white shadow-sm font-black'
-                        : 'text-white/50 hover:text-white'
-                      }`}
+              <div
+                ref={modalLyricsScrollRef}
+                className="flex-1 overflow-y-auto scrollbar-hide py-16 px-3 sm:px-4 space-y-6 flex flex-col items-start"
+              >
+                {lyricsStatus === 'loading' && (
+                  <div className="w-full flex flex-col items-center justify-center py-16 text-white/60 gap-3">
+                    <Loader2 className="w-6 h-6 text-[#fa233b] animate-spin" />
+                    <p className="text-sm font-semibold">Syncing lyrics...</p>
+                  </div>
+                )}
+                {lyricsStatus === 'unavailable' || lyricsLines.length === 0 ? (
+                  <div className="w-full text-center py-16 text-white/60 flex flex-col items-center gap-2">
+                    <p className="text-base font-bold text-white">Lyrics unavailable</p>
+                    <p className="text-xs">No synchronized lyrics found for this song.</p>
+                  </div>
+                ) : (
+                  lyricsLines.map((line, idx) => {
+                    const isActive = idx === lyricsIndex;
+                    const isPassed = idx < lyricsIndex;
+                    const mainContent = (scriptMode === 'transliteration' && line.romanizedText)
+                      ? line.romanizedText
+                      : (line.nativeText || line.text);
+
+                    return (
+                      <div
+                        key={line.id}
+                        id={`modal-lyric-line-${idx}`}
+                        onClick={() => {
+                          if (line.startMs !== undefined && line.startMs >= 0) {
+                            const sec = line.startMs / 1000;
+                            usePlayerStore.getState().setCurrentTime(sec, true);
+                            import('@/lib/lyrics/LyricsEngine').then(({ LyricsEngine }) => {
+                              LyricsEngine.getInstance().seek(line.startMs);
+                            }).catch(() => {});
+                          }
+                        }}
+                        className={`w-full text-left transition-all duration-300 transform origin-left cursor-pointer select-none py-1 ${
+                          isActive
+                            ? 'text-2xl sm:text-3xl font-black text-[#fa233b] drop-shadow-[0_0_20px_rgba(250,35,59,0.8)] scale-[1.02]'
+                            : isPassed
+                            ? 'text-base sm:text-xl font-bold text-white/35 opacity-40 hover:opacity-75'
+                            : 'text-base sm:text-xl font-bold text-white/65 hover:text-white opacity-70'
+                        }`}
+                      >
+                        <div className="tracking-tight break-words">{mainContent}</div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* CONTROLS SECTION */}
+          <div className="flex-shrink-0 flex flex-col gap-3 sm:gap-4 w-full mt-auto">
+
+            {/* SONG INFO + LIKE */}
+            <div className="flex items-center justify-between gap-4 w-full px-1">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-snug truncate">
+                  {currentSong.title}
+                </h1>
+                <div className="flex items-center gap-2 mt-1">
+                  <p
+                    onClick={() => {
+                      const artistTarget = currentSong.artistId || currentSong.artist;
+                      if (artistTarget) {
+                        setSelectedArtistId(artistTarget);
+                        setActiveTab('artist');
+                        handleCloseModal();
+                      }
+                    }}
+                    className="text-sm font-semibold text-white/75 truncate cursor-pointer hover:text-white hover:underline transition-colors"
                   >
-                    ● Native
-                  </button>
-                  <button
-                    onClick={() => setScriptMode('transliteration')}
-                    className={`px-2.5 py-1 rounded-md transition-all ${scriptMode === 'transliteration'
-                        ? 'bg-white/20 text-white shadow-sm font-black'
-                        : 'text-white/50 hover:text-white'
-                      }`}
-                  >
-                    ● Romanized
-                  </button>
-                  <button
-                    onClick={() => setScriptMode('dual' as any)}
-                    className={`px-2.5 py-1 rounded-md transition-all ${(scriptMode as any) === 'dual'
-                        ? 'bg-white/20 text-white shadow-sm font-black'
-                        : 'text-white/50 hover:text-white'
-                      }`}
-                  >
-                    ● Dual
-                  </button>
+                    {currentSong.artist}
+                  </p>
+                  <span className="text-[10px] font-black tracking-wider px-2 py-0.5 rounded-full bg-white/10 text-white/90 border border-white/15 uppercase flex-shrink-0">
+                    {isDownloaded ? 'Offline • 320K' : 'Lossless • 24-bit'}
+                  </span>
                 </div>
-              )}
+              </div>
 
               <button
-                onClick={() => setViewMode('art')}
-                className="text-xs font-bold text-white/80 hover:text-white px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-all cursor-pointer"
+                onClick={() => {
+                  toggleLikeSong(currentSong.id);
+                  setToastMessage(isLiked ? 'Removed from Liked Songs' : 'Saved to Liked Songs');
+                }}
+                className="p-2 rounded-full hover:bg-white/10 transition-transform active:scale-125 flex-shrink-0 cursor-pointer"
+                title={isLiked ? "Remove from Liked Songs" : "Save to Liked Songs"}
               >
-                Show Album Art
+                <Heart className={`w-7 h-7 transition-colors duration-200 ${isLiked ? 'fill-[#fa233b] text-[#fa233b]' : 'text-white/70 hover:text-white'}`} />
               </button>
             </div>
 
-            <div
-              ref={modalLyricsScrollRef}
-              className="flex-1 overflow-y-auto scrollbar-hide py-20 px-3 sm:px-4 space-y-6 sm:space-y-8 flex flex-col items-start"
-            >
-              {lyricsStatus === 'loading' && (
-                <div className="w-full flex flex-col items-center justify-center py-16 text-white/60 gap-3">
-                  <Loader2 className="w-6 h-6 text-[#fa233b] animate-spin" />
-                  <p className="text-sm font-semibold">Syncing lyrics...</p>
-                </div>
-              )}
-              {lyricsStatus === 'unavailable' || lyricsLines.length === 0 ? (
-                <div className="w-full text-center py-16 text-white/60 flex flex-col items-center gap-3">
-                  <p className="text-lg font-bold text-white mb-1">Lyrics unavailable</p>
-                  <p className="text-xs">No synchronized lyrics found for this song.</p>
-                  <button
-                    onClick={() => {
-                      if (currentSong?.id) {
-                        import('@/lib/lyrics/LyricsEngine').then(({ LyricsEngine }) => {
-                          LyricsEngine.getInstance().loadTrack(currentSong.id);
-                        });
-                      }
-                    }}
-                    className="px-4 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition-all active:scale-95 cursor-pointer"
-                  >
-                    Retry
-                  </button>
-                </div>
-              ) : (
-                lyricsLines.map((line, idx) => {
-                  const isActive = idx === lyricsIndex;
-                  const isPassed = idx < lyricsIndex;
-                  const isDual = (scriptMode as any) === 'dual';
-                  const mainContent = (scriptMode === 'transliteration' && line.romanizedText)
-                    ? line.romanizedText
-                    : (line.nativeText || line.text);
-                  const subContent = isDual ? (line.romanizedText || line.englishText) : null;
+            {/* TIMELINE */}
+            <div className="w-full space-y-1 px-1">
+              <SeekBar height="h-1.5" thumbSize="w-3.5 h-3.5" activeColor="bg-[#fa233b]" />
+              <div className="flex items-center justify-between text-[11px] font-mono text-white/50 font-bold px-0.5">
+                <span>{formatTime(currentTime)}</span>
+                <span>{formatTime(Number.isFinite(duration) && duration > 0 ? duration : (Number.isFinite(currentSong?.duration) && currentSong.duration > 0 ? currentSong.duration : -1))}</span>
+              </div>
+            </div>
 
-                  return (
-                    <div
-                      key={line.id}
-                      id={`modal-lyric-line-${idx}`}
-                      onClick={() => {
-                        if (line.startMs !== undefined && line.startMs >= 0) {
-                          const sec = line.startMs / 1000;
-                          usePlayerStore.getState().setCurrentTime(sec, true);
-                          usePlayerStore.getState().setSeekTarget(sec);
-                          import('@/lib/lyrics/LyricsEngine').then(({ LyricsEngine }) => {
-                            LyricsEngine.getInstance().seek(line.startMs);
-                          }).catch(() => { });
-                          import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-                            ConnectManager.getInstance().dispatchPlaybackCommand('SEEK', { positionMs: line.startMs });
-                          }).catch(() => { });
-                        }
-                      }}
-                      className={`w-full text-left transition-all duration-300 transform origin-left cursor-pointer select-none leading-snug py-1
-                        ${isActive
-                          ? 'text-2xl sm:text-4xl font-black text-[#fa233b] drop-shadow-[0_0_25px_rgba(250,35,59,0.85)] scale-[1.02]'
-                          : isPassed
-                            ? 'text-lg sm:text-2xl font-bold text-white/35 opacity-40 hover:opacity-75'
-                            : 'text-lg sm:text-2xl font-bold text-white/65 hover:text-white/95 opacity-70'}
-                      `}
-                    >
-                      <div className="tracking-tight break-words">{mainContent}</div>
-                      {subContent && (
-                        <div className={`text-sm sm:text-base font-medium mt-1 tracking-normal ${isActive ? 'text-white/80' : 'text-white/40'}`}>
-                          {subContent}
+            {/* MAIN 5 CONTROLS */}
+            <div className="flex items-center justify-between sm:justify-center gap-2 sm:gap-6 w-full px-1">
+              <button
+                onClick={toggleShuffle}
+                className={`p-2.5 transition-all hover:scale-110 active:scale-95 cursor-pointer ${shuffleMode !== 'OFF' ? 'text-[#fa233b]' : 'text-white/60 hover:text-white'}`}
+                title={`Shuffle: ${shuffleMode}`}
+              >
+                <Shuffle className="w-5 h-5 sm:w-6 sm:h-6" />
+              </button>
+
+              <button
+                onClick={playPrev}
+                className="p-2 text-white/80 hover:text-white hover:scale-110 active:scale-95 transition-all cursor-pointer"
+                title="Previous Track (P)"
+              >
+                <SkipBack className="w-7 h-7 sm:w-8 sm:h-8 fill-current" />
+              </button>
+
+              <button
+                onClick={togglePlayPause}
+                className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-tr from-[#fa233b] to-[#ff4d6d] text-white hover:scale-105 active:scale-95 flex items-center justify-center shadow-[0_0_30px_rgba(250,35,59,0.5)] transition-all cursor-pointer"
+                title={isPlaying ? "Pause (Space)" : "Play (Space)"}
+              >
+                {isPlaying ? <Pause className="w-7 h-7 fill-white text-white" /> : <Play className="w-7 h-7 fill-white text-white ml-0.5" />}
+              </button>
+
+              <button
+                onClick={playNext}
+                className="p-2 text-white/80 hover:text-white hover:scale-110 active:scale-95 transition-all cursor-pointer"
+                title="Next Track (N)"
+              >
+                <SkipForward className="w-7 h-7 sm:w-8 sm:h-8 fill-current" />
+              </button>
+
+              <button
+                onClick={cycleRepeatMode}
+                className={`p-2.5 transition-all hover:scale-110 active:scale-95 cursor-pointer ${normRepeat === 'ALL' || normRepeat === 'ONE' ? 'text-[#fa233b]' : 'text-white/60 hover:text-white'}`}
+                title={`Repeat: ${normRepeat}`}
+              >
+                {normRepeat === 'ONE' ? <Repeat1 className="w-5 h-5 sm:w-6 sm:h-6" /> : <Repeat className="w-5 h-5 sm:w-6 sm:h-6" />}
+              </button>
+            </div>
+
+            {/* QUICK ACTIONS BAR */}
+            <div className="flex items-center justify-between w-full px-1 pb-1 gap-2">
+              <button
+                onClick={() => setViewMode(v => v === 'lyrics' ? 'art' : 'lyrics')}
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer ${
+                  viewMode === 'lyrics' ? 'bg-[#fa233b] text-white' : 'bg-white/10 hover:bg-white/20 text-white/90'
+                }`}
+                title="Lyrics (L)"
+              >
+                <Mic2 className="w-3.5 h-3.5" />
+                <span>Lyrics</span>
+              </button>
+
+              <div className="hidden sm:flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl">
+                <button onClick={toggleMute} className="text-white/60 hover:text-white" title="Mute (M)">
+                  {isMuted || volume === 0 ? <VolumeX className="w-3.5 h-3.5 text-[#fa233b]" /> : <Volume2 className="w-3.5 h-3.5" />}
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={isMuted ? 0 : volume}
+                  onChange={(e) => setVolume(parseFloat(e.target.value))}
+                  className="w-16 h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-[#fa233b]"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <button
+                  onClick={async () => {
+                    if (isDownloaded) {
+                      await useDownloadStore.getState().removeDownload(currentSong.id);
+                      setToastMessage(`Removed "${currentSong.title}" from offline storage`);
+                    } else {
+                      await useDownloadStore.getState().saveForOffline(currentSong);
+                      setToastMessage(`Saving "${currentSong.title}" for offline playback...`);
+                    }
+                  }}
+                  className={`p-2 rounded-xl border transition-all active:scale-95 cursor-pointer ${
+                    isDownloaded
+                      ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10'
+                      : 'border-white/10 bg-white/5 text-white/70 hover:text-white'
+                  }`}
+                  title={isDownloaded ? "Downloaded ✓" : "Download Offline"}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  onClick={() => setIsQueuePanelOpen(q => !q)}
+                  className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer ${
+                    isQueuePanelOpen
+                      ? 'border-[#fa233b] text-[#fa233b] bg-[#fa233b]/10'
+                      : 'border-white/10 bg-white/5 text-white/80 hover:text-white'
+                  }`}
+                  title="Up Next Queue (Q)"
+                >
+                  <ListMusic className="w-3.5 h-3.5" />
+                  <span>Queue {queue.length > 1 ? `(${queue.length})` : ''}</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* RIGHT SIDE PANEL: SLIDE-OUT UP NEXT QUEUE (DESKTOP) */}
+        {isQueuePanelOpen && (
+          <div className="hidden md:flex flex-col w-[340px] lg:w-[380px] h-[520px] bg-[#12131a]/95 backdrop-blur-2xl border border-white/10 rounded-3xl p-4 shadow-2xl animate-in slide-in-from-right-4 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-2">
+              <div className="flex items-center gap-2">
+                <ListMusic className="w-4 h-4 text-[#fa233b]" />
+                <h3 className="text-sm font-bold text-white">Up Next</h3>
+                <span className="text-[10px] text-white/40 font-mono">({queue.length} songs)</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => usePlayerStore.setState(state => ({ queue: state.currentSong ? [state.currentSong] : [] }))}
+                  className="p-1 text-white/40 hover:text-red-400 rounded-lg transition-colors cursor-pointer"
+                  title="Clear Queue"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setIsQueuePanelOpen(false)}
+                  className="p-1 text-white/40 hover:text-white rounded-lg transition-colors cursor-pointer"
+                  title="Close Queue"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 scrollbar-hide">
+              {queue.map((track, idx) => {
+                const isCurrent = idx === queueIndex;
+                return (
+                  <div
+                    key={`${track.id}-${idx}`}
+                    onClick={() => playSong(track, queue)}
+                    className={`flex items-center gap-2.5 p-2 rounded-2xl cursor-pointer transition-all ${
+                      isCurrent
+                        ? 'bg-[#fa233b]/15 border border-[#fa233b]/30 text-white'
+                        : 'hover:bg-white/5 text-white/70 hover:text-white'
+                    }`}
+                  >
+                    <div className="relative w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 bg-white/5">
+                      <OptimizedImage
+                        src={track.coverUrl || '/app-icon.png'}
+                        alt={track.title}
+                        width={40}
+                        height={40}
+                        className="w-full h-full object-cover"
+                      />
+                      {isCurrent && isPlaying && (
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                          <Disc3 className="w-4 h-4 text-[#fa233b] animate-spin" />
                         </div>
                       )}
                     </div>
-                  );
-                })
-              )}
+                    <div className="min-w-0 flex-1">
+                      <h4 className={`text-xs font-bold truncate ${isCurrent ? 'text-[#fa233b]' : 'text-white'}`}>
+                        {track.title}
+                      </h4>
+                      <p className="text-[10px] text-white/40 truncate">{track.artist}</p>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        usePlayerStore.setState(state => ({
+                          queue: state.queue.filter((_, i) => i !== idx),
+                        }));
+                      }}
+                      className="p-1 text-white/30 hover:text-white rounded-lg transition-opacity"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
 
-        {/* BOTTOM PLAYER CONTROLS SECTION */}
-        <div className="flex-shrink-0 flex flex-col gap-3 sm:gap-5 w-full">
-
-          {/* SONG TITLE & ARTIST ROW + ANIMATED HEART */}
-          <div className="flex items-center justify-between gap-4 max-w-4xl mx-auto w-full px-1">
-            <div className="min-w-0 flex-1">
-              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-snug truncate">
-                {currentSong.title}
-              </h1>
-              <div className="flex items-center gap-2 mt-1">
-                <p
-                  onClick={() => {
-                    const artistTarget = currentSong.artistId || currentSong.artist;
-                    if (artistTarget) {
-                      setSelectedArtistId(artistTarget);
-                      setActiveTab('artist');
-                      handleCloseModal();
-                    }
-                  }}
-                  className="text-sm font-semibold text-white/75 truncate cursor-pointer hover:text-white hover:underline transition-colors inline-block"
-                  title={`Go to artist: ${currentSong.artist}`}
-                >
-                  {currentSong.artist}
-                </p>
-                <span className="text-[10px] font-black tracking-wider px-2 py-0.5 rounded-full bg-white/10 text-white/90 border border-white/15 uppercase flex-shrink-0">
-                  {isDownloaded ? 'Offline • 320K' : 'Lossless • 320K'}
-                </span>
-              </div>
-            </div>
-
-            <button
-              onClick={() => {
-                toggleLikeSong(currentSong.id);
-                setToastMessage(isLiked ? 'Removed from Liked Songs' : 'Saved to your Liked Songs');
-              }}
-              className="p-2.5 rounded-full hover:bg-white/10 transition-transform active:scale-125 flex-shrink-0"
-              title={isLiked ? "Remove from Liked Songs" : "Save to your Liked Songs"}
-            >
-              <Heart className={`w-7 h-7 sm:w-8 sm:h-8 transition-colors duration-200 ${isLiked ? 'fill-[#fa233b] text-[#fa233b]' : 'text-white/70 hover:text-white'}`} />
-            </button>
-          </div>
-
-          {/* PROGRESS / SEEK BAR (INTERACTIVE SCRUBBER) */}
-          <div className="max-w-4xl mx-auto w-full space-y-1 px-1">
-            <SeekBar
-              height="h-1.5"
-              thumbSize="w-3.5 h-3.5"
-              activeColor="bg-[#fa233b]"
-            />
-            <div className="flex items-center justify-between text-[11px] font-mono text-white/50 font-bold px-0.5">
-              <span>{formatTime(currentTime)}</span>
-              <span>{formatTime(Number.isFinite(duration) && duration > 0 ? duration : (Number.isFinite(currentSong?.duration) && currentSong.duration > 0 ? currentSong.duration : -1))}</span>
-            </div>
-          </div>
-
-          {/* MAIN 5-BUTTON PLAYBACK CONTROLS ROW */}
-          <div className="flex items-center justify-between sm:justify-center gap-2 sm:gap-8 max-w-4xl mx-auto w-full px-1">
-
-            {/* 1. Shuffle Button */}
-            <button
-              onClick={toggleShuffle}
-              className={`p-2.5 transition-all relative hover:scale-110 active:scale-95 ${shuffleMode !== 'OFF' ? 'text-[#fa233b]' : 'text-white/60 hover:text-white'
-                }`}
-              title={`Shuffle: ${shuffleMode}`}
-            >
-              {shuffleMode === 'SMART' ? (
-                <div className="relative">
-                  <Shuffle className="w-5 h-5 sm:w-6 sm:h-6" />
-                  <Sparkles className="w-3 h-3 absolute -top-1 -right-1 text-yellow-400" />
-                </div>
-              ) : (
-                <Shuffle className="w-5 h-5 sm:w-6 sm:h-6" />
-              )}
-              {shuffleMode !== 'OFF' && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-[#fa233b]" />}
-            </button>
-
-            {/* 2. Previous Button */}
-            <button
-              onClick={() => {
-                if (visualTime > 5) {
-                  setCurrentTime(0, true);
-                  usePlayerStore.setState({ seekTarget: 0 });
-                } else {
-                  playPrev();
-                }
-              }}
-              className="p-2 text-white/80 hover:text-white hover:scale-110 active:scale-95 transition-all"
-              title="Previous Track"
-            >
-              <SkipBack className="w-7 h-7 sm:w-8 sm:h-8 fill-current" />
-            </button>
-
-            {/* 3. Large Circular Glowing PLAY / PAUSE Button */}
-            <button
-              onClick={togglePlayPause}
-              className={`w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-gradient-to-tr from-[#fa233b] to-[#ff4d6d] text-white hover:scale-105 active:scale-95 flex items-center justify-center shadow-[0_0_30px_rgba(250,35,59,0.5)] transition-all cursor-pointer`}
-              title={isPlaying ? "Pause" : "Play"}
-            >
-              {isPlaying ? (
-                <Pause className="w-8 h-8 fill-white text-white" />
-              ) : (
-                <Play className="w-8 h-8 fill-white text-white ml-1" />
-              )}
-            </button>
-
-            {/* 4. Next Button */}
-            <button
-              onClick={playNext}
-              className="p-2 text-white/80 hover:text-white hover:scale-110 active:scale-95 transition-all"
-              title="Next Track"
-            >
-              <SkipForward className="w-7 h-7 sm:w-8 sm:h-8 fill-current" />
-            </button>
-
-            {/* 5. Repeat Button */}
-            <button
-              onClick={cycleRepeatMode}
-              className={`p-2.5 transition-all relative hover:scale-110 active:scale-95 ${normRepeat === 'ALL' || normRepeat === 'ONE' ? 'text-[#fa233b]' : 'text-white/60 hover:text-white'
-                }`}
-              title={`Repeat: ${normRepeat === 'ONE' ? 'Repeat ONE' : normRepeat === 'ALL' ? 'Repeat ALL' : 'Repeat OFF'}`}
-            >
-              {normRepeat === 'ONE' ? (
-                <Repeat1 className="w-5 h-5 sm:w-6 sm:h-6" />
-              ) : (
-                <Repeat className="w-5 h-5 sm:w-6 sm:h-6" />
-              )}
-              {(normRepeat === 'ALL' || normRepeat === 'ONE') && (
-                <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-[#fa233b]" />
-              )}
-            </button>
-          </div>
-
-          {/* PLAYER ACTION TOOLBAR ROW */}
-          <div className="flex items-center justify-between w-full max-w-4xl mx-auto px-1 pb-1 gap-2">
-
-            {/* Left: Synced Lyrics Toggle Button */}
-            <button
-              onClick={() => setViewMode(v => v === 'lyrics' ? 'art' : 'lyrics')}
-              className={`px-3.5 py-2 rounded-2xl font-black text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer flex-shrink-0 ${viewMode === 'lyrics'
-                  ? 'bg-[#fa233b] text-white shadow-[#fa233b]/30'
-                  : 'bg-white/10 hover:bg-white/20 text-white/90'
-                }`}
-            >
-              <Mic2 className={`w-4 h-4 ${viewMode === 'lyrics' ? 'text-white' : 'text-[#fa233b]'}`} />
-              <span>{viewMode === 'lyrics' ? 'Album Art' : 'Lyrics'}</span>
-            </button>
-
-            {/* Middle: Integrated Volume Slider */}
-            <div className="hidden sm:flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-2xl">
-              <button
-                onClick={toggleMute}
-                className="text-white/60 hover:text-white transition-colors"
-                title={isMuted ? "Unmute" : "Mute"}
-              >
-                {isMuted || volume === 0 ? (
-                  <Volume2 className="w-3.5 h-3.5 text-[#fa233b]" />
-                ) : (
-                  <Volume2 className="w-3.5 h-3.5" />
-                )}
-              </button>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={isMuted ? 0 : volume}
-                onChange={(e) => setVolume(parseFloat(e.target.value))}
-                className="w-20 h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-[#fa233b]"
-                title={`Volume: ${Math.round((isMuted ? 0 : volume) * 100)}%`}
-              />
-            </div>
-
-            {/* Right Action Utilities: Download, Sleep Timer, Equalizer, Queue */}
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-
-              {/* Offline Download Button (4-State) */}
-              <button
-                onClick={async () => {
-                  if (isDownloaded) {
-                    await useDownloadStore.getState().removeDownload(currentSong.id);
-                    setToastMessage(`Removed "${currentSong.title}" from offline storage`);
-                  } else {
-                    await useDownloadStore.getState().saveForOffline(currentSong);
-                    setToastMessage(isCloudRecorded ? `Restoring "${currentSong.title}" to device...` : `Saving "${currentSong.title}" for offline playback...`);
-                  }
-                }}
-                className={`p-2.5 rounded-2xl border transition-all active:scale-95 ${isDownloaded
-                    ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10 shadow-sm'
-                    : isCloudRecorded
-                      ? 'border-sky-500/50 text-sky-400 bg-sky-500/10 shadow-sm hover:scale-105'
-                      : 'border-white/10 bg-white/5 text-white/70 hover:text-white hover:border-[#fa233b]'
-                  }`}
-                title={
-                  isDownloaded
-                    ? "Downloaded ✓ (Tap to remove)"
-                    : isCloudRecorded
-                      ? "Download Again ↓ (Restore to device)"
-                      : "Save for Offline Listening"
-                }
-              >
-                <Download className={`w-4 h-4 ${isDownloaded
-                    ? 'text-emerald-400'
-                    : isCloudRecorded
-                      ? 'text-sky-400 animate-pulse'
-                      : 'text-white/70 hover:text-white'
-                  }`} />
-              </button>
-
-              {/* 2. Sleep Timer Button (Inactive: icon / Active: glowing live countdown 🌙 27:45) */}
-              <button
-                onClick={toggleSleepTimerModal}
-                className={`px-3 py-2.5 rounded-2xl border transition-all flex items-center gap-1.5 active:scale-95 ${liveTimerStr
-                    ? 'border-[#fa233b]/60 text-[#fa233b] bg-[#fa233b]/15 shadow-[0_0_15px_rgba(250,35,59,0.3)]'
-                    : 'border-white/10 bg-white/5 text-white/70 hover:text-white hover:border-white/30'
-                  }`}
-                title={liveTimerStr ? `Sleep Timer: ${liveTimerStr} remaining` : "Set Sleep Timer"}
-              >
-                <Moon className={`w-4 h-4 ${liveTimerStr ? 'text-[#fa233b] animate-pulse' : ''}`} />
-                {liveTimerStr && <span className="font-mono text-xs font-black text-white">{liveTimerStr}</span>}
-              </button>
-
-              {/* Queue Button */}
-              <button
-                onClick={toggleQueue}
-                className="p-2.5 rounded-2xl border border-white/10 bg-white/5 text-white/70 hover:text-white hover:border-white/30 transition-all active:scale-95"
-                title="Current Queue"
-              >
-                <ListMusic className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
 
-      {/* RAAGAX CONNECT ACTIVE DEVICE BOTTOM BAR */}
+      {/* BOTTOM RAAGAX CONNECT BAR */}
       <div
         onClick={toggleDeviceModal}
-        className="relative z-10 -mx-4 sm:-mx-6 md:-mx-8 -mb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-[#fa233b] text-white px-5 py-2.5 pb-[calc(0.6rem+env(safe-area-inset-bottom))] flex items-center justify-between font-black text-xs cursor-pointer hover:bg-[#d91533] transition-colors shadow-[0_-5px_20px_rgba(250,35,59,0.3)] mt-2"
+        className="relative z-10 -mx-4 sm:-mx-6 md:-mx-8 -mb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-[#fa233b] text-white px-5 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] flex items-center justify-between font-black text-xs cursor-pointer hover:bg-[#d91533] transition-colors shadow-[0_-5px_20px_rgba(250,35,59,0.3)] mt-2"
       >
-        <div className="flex items-center gap-2.5 max-w-xl truncate">
-          <MonitorSmartphone className="w-4 h-4 animate-pulse flex-shrink-0" />
-          <span className="truncate">
-            Playing on {activeName}
-          </span>
+        <div className="flex items-center gap-2 max-w-xl truncate">
+          <MonitorSmartphone className="w-3.5 h-3.5 animate-pulse flex-shrink-0" />
+          <span className="truncate">Playing on {activeName}</span>
         </div>
-        <span className="text-[11px] font-black uppercase tracking-wider opacity-90 flex-shrink-0">
+        <span className="text-[10px] font-black uppercase tracking-wider opacity-90 flex-shrink-0">
           RaagaX Connect ↗
         </span>
       </div>
