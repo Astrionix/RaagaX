@@ -277,7 +277,7 @@ export function LibraryView() {
   const libraryNavItems = [
     { id: 'liked', label: 'Liked Songs', subtitle: 'Your favorite tracks', icon: Heart, color: 'text-[#F51B3D]', bg: 'bg-[#F51B3D]/10' },
     { id: 'downloads', label: 'Downloaded', subtitle: 'Offline protected tracks', icon: Download, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-    { id: 'playlists', label: 'Playlists', subtitle: 'Custom & curated collections', icon: ListMusic, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+    { id: 'playlists', label: 'Playlists', subtitle: 'Your personal & collaborative playlists', icon: ListMusic, color: 'text-purple-400', bg: 'bg-purple-500/10' },
     { id: 'languages', label: 'Languages', subtitle: 'Preferred regional streams', icon: Globe, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
     { id: 'history', label: 'Recently Played', subtitle: 'Listening history', icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/10' },
     { id: 'artists', label: 'Artists', subtitle: 'Followed artist catalog', icon: User, color: 'text-blue-400', bg: 'bg-blue-500/10' },
@@ -671,154 +671,92 @@ export function LibraryView() {
         break;
       case 'playlists':
         content = (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-[#8E92A4]">
-                {userPlaylists.length + currentCuratedPlaylists.length} Total Playlists
+          <div className="space-y-4">
+            {/* Action & Filter Toolbar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1 pb-1">
+              <span className="text-xs font-bold text-[var(--text-secondary)] font-mono">
+                {userPlaylists.length} {userPlaylists.length === 1 ? 'Playlist' : 'Playlists'}
               </span>
-              <button
-                onClick={() => setCreatePlaylistModalOpen(true)}
-                className="px-3.5 py-1.5 rounded-full bg-[#FA233B] text-white text-xs font-bold shadow-md shadow-[#FA233B]/20 hover:scale-105 active:scale-95 transition-all"
-              >
-                + New Playlist
-              </button>
-            </div>
 
-            {/* Curated Studio Mixes */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#FA233B]" />
-                  RaagaX Curated Studio Mixes
-                </h3>
-              </div>
-
-              {/* Language Selector Pills */}
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-                {['Telugu', 'Hindi', 'Tamil', 'Kannada', 'Malayalam', 'English'].map((lang) => {
-                  const isSelected = (selectedPlaylistLang || preferredLanguage || 'Telugu').toLowerCase() === lang.toLowerCase();
-                  return (
-                    <button
-                      key={lang}
-                      onClick={() => setSelectedPlaylistLang(lang)}
-                      className={`px-3 py-1 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                        isSelected
-                          ? 'bg-[#FA233B] text-white shadow-sm shadow-[#FA233B]/30'
-                          : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/5'
-                      }`}
-                    >
-                      {lang}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {currentCuratedPlaylists.map((pl) => (
-                  <div
-                    key={pl.id}
-                    onClick={() => {
-                      setSelectedPlaylistId(pl.id);
-                      setActiveTab('playlist');
-                    }}
-                    className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-red-500/30 hover:bg-white/5 transition-all flex items-center gap-3.5 cursor-pointer group shadow-sm"
-                  >
-                    <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-slate-800 flex-shrink-0 shadow">
-                      <img
-                        src={pl.coverUrl}
-                        alt={pl.name}
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = '/app-icon.png';
-                        }}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                      />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="text-xs font-bold text-white group-hover:text-[#FA233B] transition-colors truncate">
-                          {pl.name}
-                        </h4>
-                        {pl.badge && (
-                          <span className="text-[9px] font-mono font-extrabold px-1.5 py-0.2 rounded bg-red-500/20 text-[#FA233B] border border-red-500/30">
-                            {pl.badge}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-[#8E92A4] truncate mt-0.5">
-                        {pl.desc}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* User Custom Playlists */}
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <ListMusic className="w-3.5 h-3.5 text-purple-400" />
-                  Your Playlists ({userPlaylists.length})
-                </h3>
-
+              <div className="flex items-center gap-2">
                 {/* Playlist Sort Dropdown */}
                 {userPlaylists.length > 1 && (
-                  <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-2.5 py-1 rounded-xl text-xs">
-                    <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                  <div className="flex items-center gap-1.5 bg-[var(--bg-surface)] border border-[var(--border-subtle)] px-3 py-1.5 rounded-xl text-xs shadow-sm">
+                    <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
                     <select
                       value={playlistSortBy}
                       onChange={(e) => setPlaylistSortBy(e.target.value as any)}
-                      className="bg-transparent text-white text-xs font-bold outline-none cursor-pointer"
+                      className="bg-transparent text-[var(--text-primary)] text-xs font-bold outline-none cursor-pointer"
                     >
-                      <option value="updated" className="bg-[#12131a]">Recently Updated</option>
-                      <option value="name" className="bg-[#12131a]">Name (A-Z)</option>
-                      <option value="count" className="bg-[#12131a]">Song Count</option>
+                      <option value="updated" className="bg-[var(--bg-elevated)] text-[var(--text-primary)]">Recently Updated</option>
+                      <option value="name" className="bg-[var(--bg-elevated)] text-[var(--text-primary)]">Name (A-Z)</option>
+                      <option value="count" className="bg-[var(--bg-elevated)] text-[var(--text-primary)]">Song Count</option>
                     </select>
                   </div>
                 )}
-              </div>
 
-              {userPlaylists.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {[...userPlaylists].sort((a, b) => {
-                    if (playlistSortBy === 'name') return a.title.localeCompare(b.title);
-                    if (playlistSortBy === 'count') return (b.songs?.length || 0) - (a.songs?.length || 0);
-                    return 0;
-                  }).map((pl) => (
+                <button
+                  onClick={() => setCreatePlaylistModalOpen(true)}
+                  className="px-4 py-2 rounded-full bg-[#FA233B] hover:bg-[#D90429] text-white text-xs font-bold shadow-md shadow-[#FA233B]/25 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  + New Playlist
+                </button>
+              </div>
+            </div>
+
+            {userPlaylists.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {[...userPlaylists].sort((a, b) => {
+                  if (playlistSortBy === 'name') return a.title.localeCompare(b.title);
+                  if (playlistSortBy === 'count') return (b.songs?.length || 0) - (a.songs?.length || 0);
+                  return 0;
+                }).map((pl) => {
+                  const songCount = pl.songs?.length || 0;
+                  return (
                     <div
                       key={pl.id}
                       onClick={() => {
                         setSelectedPlaylistId(pl.id);
                         setActiveTab('playlist');
                       }}
-                      className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 hover:bg-white/5 transition-all flex items-center gap-3.5 cursor-pointer group"
+                      className="p-3.5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-purple-500/40 hover:bg-[var(--bg-surface)] transition-all flex items-center justify-between gap-3.5 cursor-pointer group shadow-sm"
                     >
-                      <div className="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center flex-shrink-0">
-                        <ListMusic className="w-5 h-5" />
+                      <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                        <div className="w-12 h-12 rounded-xl bg-purple-500/15 text-purple-400 flex items-center justify-center flex-shrink-0 border border-purple-500/25 shadow-sm">
+                          <ListMusic className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-sm font-bold text-[var(--text-primary)] group-hover:text-purple-400 transition-colors truncate">
+                            {pl.title}
+                          </h4>
+                          <p className="text-xs text-[var(--text-secondary)] truncate mt-0.5 font-medium">
+                            {songCount} {songCount === 1 ? 'track' : 'tracks'} • {pl.visibility === 'public' ? 'Public' : 'Private'}
+                          </p>
+                        </div>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <h4 className="text-xs font-bold text-white group-hover:text-purple-400 transition-colors truncate">
-                          {pl.title}
-                        </h4>
-                        <p className="text-[11px] text-[#8E92A4] truncate mt-0.5">
-                          {pl.songs?.length || 0} tracks
-                        </p>
-                      </div>
+
+                      <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-purple-400 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
                     </div>
-                  ))}
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-10 rounded-3xl bg-[var(--bg-surface)] border border-dashed border-[var(--border-subtle)] text-center space-y-3">
+                <div className="w-14 h-14 rounded-2xl bg-purple-500/10 text-purple-400 flex items-center justify-center mx-auto shadow-inner">
+                  <ListMusic className="w-7 h-7" />
                 </div>
-              ) : (
-                <div className="p-6 rounded-2xl bg-white/[0.01] border border-dashed border-white/10 text-center space-y-2">
-                  <p className="text-xs text-slate-400">You haven't created any playlists yet.</p>
-                  <button
-                    onClick={() => setCreatePlaylistModalOpen(true)}
-                    className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold transition-all inline-flex items-center gap-1.5"
-                  >
-                    + Create First Playlist
-                  </button>
+                <div>
+                  <p className="text-sm font-bold text-[var(--text-primary)]">No playlists created yet</p>
+                  <p className="text-xs text-[var(--text-secondary)] mt-1">Create playlists for your favorite artists, moods, or road trips.</p>
                 </div>
-              )}
-            </div>
+                <button
+                  onClick={() => setCreatePlaylistModalOpen(true)}
+                  className="px-5 py-2.5 rounded-xl bg-[#FA233B] hover:bg-[#D90429] text-white text-xs font-bold transition-all inline-flex items-center gap-1.5 shadow-md shadow-red-500/25 cursor-pointer"
+                >
+                  + Create Your First Playlist
+                </button>
+              </div>
+            )}
           </div>
         );
         break;

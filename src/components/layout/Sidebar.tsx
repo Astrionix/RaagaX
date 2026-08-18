@@ -108,7 +108,7 @@ export function Sidebar() {
           <button
             onClick={() => setActiveTab('home')}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold transition-all ${
-              activeTab === 'home' ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+              activeTab === 'home' ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
             }`}
           >
             <Home className="w-4 h-4" />
@@ -116,19 +116,9 @@ export function Sidebar() {
           </button>
 
           <button
-            onClick={() => setActiveTab('downloads')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold transition-all ${
-              activeTab === 'downloads' ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30' : 'text-slate-400 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <Download className="w-4 h-4" />
-            <span>Downloads</span>
-          </button>
-
-          <button
             onClick={() => setActiveTab('search')}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold transition-all ${
-              activeTab === 'search' ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+              activeTab === 'search' ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
             }`}
           >
             <Search className="w-4 h-4" />
@@ -143,7 +133,7 @@ export function Sidebar() {
           <button 
             onClick={() => setActiveTab('favorites')} 
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all ${
-              activeTab === 'favorites' ? 'bg-white/10 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+              activeTab === 'favorites' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] font-bold shadow-sm' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
             }`}
           >
             <Heart className="w-4 h-4 text-red-400" />
@@ -153,7 +143,7 @@ export function Sidebar() {
           <button 
             onClick={() => setActiveTab('artist')} 
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all ${
-              activeTab === 'artist' ? 'bg-white/10 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+              activeTab === 'artist' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] font-bold shadow-sm' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
             }`}
           >
             <User className="w-4 h-4 text-blue-400" />
@@ -163,7 +153,7 @@ export function Sidebar() {
           <button 
             onClick={() => setActiveTab('downloads')} 
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all ${
-              activeTab === 'downloads' ? 'bg-white/10 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+              activeTab === 'downloads' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] font-bold shadow-sm' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
             }`}
           >
             <Download className="w-4 h-4 text-cyan-400" />
@@ -173,7 +163,7 @@ export function Sidebar() {
           <button 
             onClick={() => setActiveTab('insights')} 
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all ${
-              activeTab === 'insights' ? 'bg-white/10 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+              activeTab === 'insights' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] font-bold shadow-sm' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
             }`}
           >
             <BarChart3 className="w-4 h-4 text-amber-400" />

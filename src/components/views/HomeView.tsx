@@ -23,6 +23,9 @@ import { RecapBanner } from '@/components/home/RecapBanner';
 import { RaagaDB, STORES } from '@/lib/storage/IndexedDB';
 import { supabase } from '@/lib/supabase';
 import { UserLifecycleManager } from '@/lib/lifecycle/UserLifecycleManager';
+import { NewReleasesEngine } from '@/lib/catalog/NewReleasesEngine';
+import { StrictNewReleasesShelf } from '@/components/home/StrictNewReleasesShelf';
+import { MoreLikeWhatYouHeardShelf } from '@/components/home/MoreLikeWhatYouHeardShelf';
 
 const homeFetcher = async (url: string, preferredLanguage: string) => {
   const db = RaagaDB.getInstance();
@@ -39,14 +42,11 @@ const homeFetcher = async (url: string, preferredLanguage: string) => {
       ? `${url}&userId=${session.user.id}&name=${userName}&phase=${phase}`
       : `${url}&phase=${phase}`;
 
-    const res = await fetch(getApiUrl(fullUrl), { signal: AbortSignal.timeout(5000) }).catch(() => null);
-
-    if (res && res.ok) {
+    const res = await fetch(getApiUrl(fullUrl));
+    if (res.ok) {
       const data: HomePayload = await res.json();
       if (data?.sections) {
-        data.sections = data.sections.filter(
-          (s: HomeSection) => s.id !== 'this_week_releases' && s.id !== 'new_releases' && !s.title?.toLowerCase().includes('this week')
-        );
+        data.sections = data.sections.filter(s => !s.title?.toLowerCase().includes('trending'));
       }
       if (data?.sections && data.sections.length > 0) {
         await db.put(STORES.BROWSE_CACHE, { id: cacheKey, data, updatedAt: Date.now() }).catch(() => {});
@@ -78,6 +78,17 @@ function songsToShelfItems(songs: Song[]): ShelfItem[] {
     rawItem: s,
   }));
 }
+
+function newReleasesToShelfItems(songs: Song[]): ShelfItem[] {
+  return songs.map((s) => ({
+    id: s.id,
+    title: s.title,
+    subtitle: NewReleasesEngine.getReleaseDateBadge(s),
+    imageUrl: s.coverUrl,
+    type: 'song',
+    rawItem: s,
+  }));
+};
 
 export function HomeView() {
   const {
@@ -385,6 +396,15 @@ export function HomeView() {
       {/* 3.5 Recurring Music Recap Banner */}
       <RecapBanner />
 
+      {/* 3.6 MORE LIKE WHAT YOU HEARD — Dynamic Personalized Recommendations */}
+      {feed?.moreLikeWhatYouHeard && feed.moreLikeWhatYouHeard.items.length > 0 && (
+        <MoreLikeWhatYouHeardShelf
+          initialSongs={feed.moreLikeWhatYouHeard.items}
+          seedSongTitle={feed.moreLikeWhatYouHeard.seedSongTitle}
+          seedSong={feed.moreLikeWhatYouHeard.seedSong}
+        />
+      )}
+
       {/* 4. Recently Played */}
       {feed?.recentlyPlayed && feed.recentlyPlayed.length > 0 && (
         <CarouselShelf
@@ -429,23 +449,12 @@ export function HomeView() {
         </section>
       )}
 
-      {/* 8. Trending in [Language] */}
-      {homeFeedControls.showTrending !== false && feed?.trendingSongs && feed.trendingSongs.length > 0 && (
-        <CarouselShelf
-          title={displayLang ? `Trending in ${displayLang}` : 'Trending Hits'}
-          icon={<Flame className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-[#E50914] flex-shrink-0" />}
-          items={songsToShelfItems(feed.trendingSongs)}
-          showPlayAll={true}
-        />
-      )}
 
-      {/* 9. New Releases in [Language] */}
-      {homeFeedControls.showNewReleases !== false && feed?.newReleases && feed.newReleases.length > 0 && (
-        <CarouselShelf
-          title={displayLang ? `New ${displayLang} Releases` : 'New Releases'}
-          icon={<Compass className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-emerald-400 flex-shrink-0" />}
-          items={songsToShelfItems(feed.newReleases)}
-          showPlayAll={true}
+      {/* 9. NEW RELEASES — Strict Language + Date Added Ordering (added_at DESC) */}
+      {homeFeedControls.showNewReleases !== false && (
+        <StrictNewReleasesShelf
+          initialSongs={feed?.newReleases || []}
+          defaultLanguage={preferredLanguage || 'All'}
         />
       )}
 

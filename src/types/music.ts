@@ -29,9 +29,13 @@ export interface Song {
   };
   genre: string;
   language?: string;
+  language_code?: string; // Verified language code: 'te', 'hi', 'ta', 'kn', 'ml', 'pa', 'bn', 'en', etc.
+  languageCode?: string;
   category: 'latest_telugu' | '90s_telugu' | 'love' | 'mass' | 'melody' | 'folk' | 'devotional' | 'global_trending' | 'radio';
   releaseYear: number;
   releaseDate?: string;
+  added_at?: string; // Immutable ISO timestamp when first discovered/added to RaagaX
+  addedAt?: string;
   plays: number;
   likes: number;
   downloads?: number;

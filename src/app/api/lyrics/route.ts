@@ -47,7 +47,96 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // 1. Try JioSaavn official lyrics endpoint if trackId is available
+  const cleanTitle = cleanString(title);
+  const cleanArtist = artist.split(/[,&/]/)[0].trim();
+
+  // 1. PRIORITIZE LRCLIB SYNCED LYRICS (Gives exact millisecond timestamps)
+  try {
+    const lrclibQueries = [
+      // Exact track + artist + duration
+      durationSec > 0 
+        ? `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTitle || title)}&artist_name=${encodeURIComponent(cleanArtist)}&duration=${durationSec}`
+        : null,
+      // Exact track + artist
+      `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTitle || title)}&artist_name=${encodeURIComponent(cleanArtist)}`,
+      // Raw track + artist
+      `https://lrclib.net/api/get?track_name=${encodeURIComponent(title)}&artist_name=${encodeURIComponent(cleanArtist)}`,
+      // Search by clean title and artist
+      `https://lrclib.net/api/search?q=${encodeURIComponent(`${cleanTitle || title} ${cleanArtist}`)}`,
+      // Search by title only
+      `https://lrclib.net/api/search?q=${encodeURIComponent(cleanTitle || title)}`
+    ].filter(Boolean) as string[];
+
+    let plainFallbackText = '';
+
+    for (const queryUrl of lrclibQueries) {
+      try {
+        const res = await fetch(queryUrl, {
+          headers: {
+            'User-Agent': 'RaagaX-MusicApp/2.0.0 (https://raagax.com)',
+            'Accept': 'application/json',
+          },
+          signal: AbortSignal.timeout(3500),
+        }).catch(() => null);
+
+        if (res && res.ok) {
+          const data = await res.json();
+
+          if (Array.isArray(data)) {
+            // Find first item with synced lyrics
+            const syncedItem = data.find((item: any) => item?.syncedLyrics && item.syncedLyrics.trim().length > 10);
+            if (syncedItem) {
+              return NextResponse.json(
+                {
+                  status: 'ready',
+                  rawText: syncedItem.syncedLyrics,
+                  source: 'LRCLIB (Synced)',
+                  synced: true,
+                },
+                { headers: corsHeaders }
+              );
+            }
+            if (!plainFallbackText) {
+              const plainItem = data.find((item: any) => item?.plainLyrics && item.plainLyrics.trim().length > 10);
+              if (plainItem) plainFallbackText = plainItem.plainLyrics;
+            }
+          } else if (data) {
+            if (data.syncedLyrics && data.syncedLyrics.trim().length > 10) {
+              return NextResponse.json(
+                {
+                  status: 'ready',
+                  rawText: data.syncedLyrics,
+                  source: 'LRCLIB (Synced)',
+                  synced: true,
+                },
+                { headers: corsHeaders }
+              );
+            }
+            if (!plainFallbackText && data.plainLyrics) {
+              plainFallbackText = data.plainLyrics;
+            }
+          }
+        }
+      } catch {}
+    }
+
+    // If we have plain fallback from LRCLIB, hold it
+    if (plainFallbackText && plainFallbackText.trim().length > 10) {
+      return NextResponse.json(
+        {
+          status: 'ready',
+          rawText: plainFallbackText,
+          source: 'LRCLIB',
+          synced: false,
+        },
+        { headers: corsHeaders }
+      );
+    }
+  } catch (e) {
+    console.warn('[Lyrics API] LRCLIB lookup error:', e);
+  }
+
+  // 2. FALLBACK: JioSaavn official lyrics endpoint if trackId is available
   if (trackId && !trackId.startsWith('song-') && !trackId.startsWith('local-')) {
     try {
       const saavnLyricsUrl = `https://www.jiosaavn.com/api.php?__call=lyrics.getLyrics&ctx=web6dot0&api_version=4&_format=json&lyrics_id=${encodeURIComponent(trackId)}`;
@@ -81,72 +170,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 2. Try LRCLIB for synced & plain lyrics
-  try {
-    const cleanTitle = cleanString(title);
-    const cleanArtist = artist.split(/[,&/]/)[0].trim();
-
-    const lrclibQueries = [
-      // Exact track + artist + duration
-      durationSec > 0 
-        ? `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTitle || title)}&artist_name=${encodeURIComponent(cleanArtist)}&duration=${durationSec}`
-        : null,
-      // Exact track + artist
-      `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTitle || title)}&artist_name=${encodeURIComponent(cleanArtist)}`,
-      // Raw track + artist
-      `https://lrclib.net/api/get?track_name=${encodeURIComponent(title)}&artist_name=${encodeURIComponent(cleanArtist)}`,
-      // Search fallback
-      `https://lrclib.net/api/search?q=${encodeURIComponent(`${cleanTitle || title} ${cleanArtist}`)}`,
-      // Search by title only
-      `https://lrclib.net/api/search?q=${encodeURIComponent(cleanTitle || title)}`
-    ].filter(Boolean) as string[];
-
-    for (const queryUrl of lrclibQueries) {
-      try {
-        const res = await fetch(queryUrl, {
-          headers: {
-            'User-Agent': 'RaagaX-MusicApp/2.0.0 (https://raagax.com)',
-            'Accept': 'application/json',
-          },
-          signal: AbortSignal.timeout(3000),
-        }).catch(() => null);
-
-        if (res && res.ok) {
-          const data = await res.json();
-          let rawText = '';
-          let isSynced = false;
-
-          if (Array.isArray(data)) {
-            // Pick best match from search results
-            const best = data.find((item: any) => item.syncedLyrics) || data.find((item: any) => item.plainLyrics);
-            if (best) {
-              rawText = best.syncedLyrics || best.plainLyrics || '';
-              isSynced = Boolean(best.syncedLyrics);
-            }
-          } else if (data) {
-            rawText = data.syncedLyrics || data.plainLyrics || '';
-            isSynced = Boolean(data.syncedLyrics);
-          }
-
-          if (rawText && rawText.trim().length > 10) {
-            return NextResponse.json(
-              {
-                status: 'ready',
-                rawText,
-                source: 'LRCLIB',
-                synced: isSynced,
-              },
-              { headers: corsHeaders }
-            );
-          }
-        }
-      } catch {}
-    }
-  } catch (e) {
-    console.warn('[Lyrics API] LRCLIB lookup error:', e);
-  }
-
-  // Graceful unavailable response with CORS headers
+  // Graceful unavailable response
   return NextResponse.json(
     {
       status: 'unavailable',

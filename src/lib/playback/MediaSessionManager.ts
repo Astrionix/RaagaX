@@ -1,3 +1,5 @@
+import { Song } from '@/types/music';
+
 export interface MediaActionHandlers {
   onPlay?: () => void;
   onPause?: () => void;
@@ -6,10 +8,13 @@ export interface MediaActionHandlers {
   onSeek?: (time: number) => void;
   onSeekBackward?: (offsetSeconds?: number) => void;
   onSeekForward?: (offsetSeconds?: number) => void;
+  onStop?: () => void;
 }
 
 export class MediaSessionManager {
   private static instance: MediaSessionManager;
+  private lastPositionUpdate = 0;
+  private lastPositionValue = -1;
 
   private constructor() {}
 
@@ -20,60 +25,136 @@ export class MediaSessionManager {
     return MediaSessionManager.instance;
   }
 
+  /**
+   * Constructs high-resolution responsive artwork matrix for Android lock screen,
+   * notification shade, Android Auto, and Bluetooth metadata.
+   */
+  public generateArtwork(coverUrl?: string): MediaImage[] {
+    const rawUrl = coverUrl && !coverUrl.includes('/null/') && !coverUrl.includes('null/null')
+      ? coverUrl.replace('http://', 'https://')
+      : '/app-icon.png';
+
+    const clean500 = rawUrl.replace(/150x150|50x50/g, '500x500');
+    const clean150 = rawUrl.replace(/500x500|50x50/g, '150x150');
+
+    return [
+      { src: clean150, sizes: '96x96', type: 'image/jpeg' },
+      { src: clean150, sizes: '128x128', type: 'image/jpeg' },
+      { src: clean150, sizes: '192x192', type: 'image/jpeg' },
+      { src: clean500, sizes: '256x256', type: 'image/jpeg' },
+      { src: clean500, sizes: '384x384', type: 'image/jpeg' },
+      { src: clean500, sizes: '512x512', type: 'image/jpeg' },
+    ];
+  }
+
+  /**
+   * Formats and publishes authoritative track metadata to Android MediaSession.
+   */
+  public updateSongMetadata(song: Song, options?: { isOffline?: boolean; downloadText?: string }): void {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+
+    try {
+      let displayTitle = song.title || 'Unknown Title';
+      if (options?.isOffline) {
+        displayTitle = `✓ ${displayTitle}`;
+      } else if (options?.downloadText) {
+        displayTitle = `${displayTitle} (${options.downloadText})`;
+      }
+
+      const metadataInit: MediaMetadataInit = {
+        title: displayTitle,
+        artist: song.artist || 'RaagaX Artist',
+        album: song.album || 'RaagaX Music',
+        artwork: this.generateArtwork(song.coverUrl),
+      };
+
+      if (typeof MediaMetadata !== 'undefined') {
+        navigator.mediaSession.metadata = new MediaMetadata(metadataInit);
+      } else {
+        navigator.mediaSession.metadata = metadataInit as any;
+      }
+    } catch (e) {
+      console.warn('[MediaSessionManager] Failed to update track metadata:', e);
+    }
+  }
+
   public updateMetadata(metadata: MediaMetadataInit): void {
     if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
-      if (typeof MediaMetadata !== 'undefined') {
-        navigator.mediaSession.metadata = new MediaMetadata(metadata);
-      } else {
-        navigator.mediaSession.metadata = metadata as any;
+      try {
+        if (typeof MediaMetadata !== 'undefined') {
+          navigator.mediaSession.metadata = new MediaMetadata(metadata);
+        } else {
+          navigator.mediaSession.metadata = metadata as any;
+        }
+      } catch (e) {
+        console.warn('[MediaSessionManager] updateMetadata warning:', e);
       }
     }
   }
 
   public setPlaybackState(state: 'playing' | 'paused' | 'none'): void {
     if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
-      navigator.mediaSession.playbackState = state;
-    }
-  }
-
-  public setPositionState(state: { duration: number; playbackRate?: number; position: number }): void {
-    if (typeof navigator !== 'undefined' && 'mediaSession' in navigator && typeof navigator.mediaSession.setPositionState === 'function') {
       try {
-        if (!isNaN(state.duration) && state.duration > 0 && !isNaN(state.position) && state.position >= 0) {
-          navigator.mediaSession.setPositionState({
-            duration: state.duration,
-            playbackRate: state.playbackRate ?? 1,
-            position: Math.min(state.position, state.duration)
-          });
-        }
+        navigator.mediaSession.playbackState = state;
       } catch (e) {
-        console.warn('[MediaSessionManager] setPositionState warning:', e);
+        console.warn('[MediaSessionManager] setPlaybackState error:', e);
       }
     }
   }
 
-  public setActionHandlers(handlers: MediaActionHandlers): void {
-    if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
-      const trySet = (action: MediaSessionAction, fn?: (details: any) => void) => {
-        try {
-          if (fn) {
-            navigator.mediaSession.setActionHandler(action, fn);
-          } else {
-            navigator.mediaSession.setActionHandler(action, null);
-          }
-        } catch (e) {
-          // Unsupported action on some browser engines
-        }
-      };
-
-      trySet('play', handlers.onPlay);
-      trySet('pause', handlers.onPause);
-      trySet('nexttrack', handlers.onNext);
-      trySet('previoustrack', handlers.onPrev);
-      trySet('seekto', handlers.onSeek ? (d) => handlers.onSeek!(d.seekTime || 0) : undefined);
-      trySet('seekbackward', handlers.onSeekBackward ? (d) => handlers.onSeekBackward!(d.seekOffset || 10) : undefined);
-      trySet('seekforward', handlers.onSeekForward ? (d) => handlers.onSeekForward!(d.seekOffset || 10) : undefined);
+  /**
+   * Throttled position updater to keep Android notification progress bar synced smoothly.
+   */
+  public setPositionState(state: { duration: number; playbackRate?: number; position: number }): void {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator) || typeof navigator.mediaSession.setPositionState !== 'function') {
+      return;
     }
+
+    try {
+      const now = Date.now();
+      // Throttle updates to at most once per 400ms unless seeking
+      if (Math.abs(state.position - this.lastPositionValue) < 0.5 && now - this.lastPositionUpdate < 400) {
+        return;
+      }
+
+      if (!isNaN(state.duration) && state.duration > 0 && !isNaN(state.position) && state.position >= 0) {
+        this.lastPositionUpdate = now;
+        this.lastPositionValue = state.position;
+
+        navigator.mediaSession.setPositionState({
+          duration: Math.max(1, state.duration),
+          playbackRate: state.playbackRate ?? 1.0,
+          position: Math.min(state.position, state.duration),
+        });
+      }
+    } catch (e) {
+      // Ignored for platform quirks
+    }
+  }
+
+  public setActionHandlers(handlers: MediaActionHandlers): void {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+
+    const trySet = (action: MediaSessionAction, fn?: (details: any) => void) => {
+      try {
+        if (fn) {
+          navigator.mediaSession.setActionHandler(action, fn);
+        } else {
+          navigator.mediaSession.setActionHandler(action, null);
+        }
+      } catch (e) {
+        // Unsupported action on some platform engines
+      }
+    };
+
+    trySet('play', handlers.onPlay);
+    trySet('pause', handlers.onPause);
+    trySet('nexttrack', handlers.onNext);
+    trySet('previoustrack', handlers.onPrev);
+    trySet('seekto', handlers.onSeek ? (d) => handlers.onSeek!(d.seekTime || 0) : undefined);
+    trySet('seekbackward', handlers.onSeekBackward ? (d) => handlers.onSeekBackward!(d.seekOffset || 10) : undefined);
+    trySet('seekforward', handlers.onSeekForward ? (d) => handlers.onSeekForward!(d.seekOffset || 10) : undefined);
+    trySet('stop', handlers.onStop);
   }
 
   public destroy(): void {
@@ -86,6 +167,9 @@ export class MediaSessionManager {
         navigator.mediaSession.setActionHandler('nexttrack', null);
         navigator.mediaSession.setActionHandler('previoustrack', null);
         navigator.mediaSession.setActionHandler('seekto', null);
+        navigator.mediaSession.setActionHandler('seekbackward', null);
+        navigator.mediaSession.setActionHandler('seekforward', null);
+        navigator.mediaSession.setActionHandler('stop', null);
       } catch (e) {
         console.warn('[MediaSessionManager] Cleanup warning:', e);
       }

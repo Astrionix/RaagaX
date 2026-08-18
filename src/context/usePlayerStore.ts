@@ -69,6 +69,12 @@ interface PlayerState {
   isCastModalOpen: boolean;
   isSleepTimerModalOpen: boolean;
   isDeviceModalOpen: boolean;
+  isLockScreenOpen: boolean;
+  toggleLockScreen: (open?: boolean) => void;
+  isNotificationShadeOpen: boolean;
+  toggleNotificationShade: (open?: boolean) => void;
+  isSystemSurfacesOpen: boolean;
+  toggleSystemSurfaces: (open?: boolean) => void;
   createPlaylistModalOpen: boolean;
   isWrappedModalOpen: boolean;
   toggleWrappedModal: (open?: boolean) => void;
@@ -403,6 +409,12 @@ export const usePlayerStore = create<PlayerState>()(
       isCastModalOpen: false,
       isSleepTimerModalOpen: false,
       isDeviceModalOpen: false,
+      isLockScreenOpen: false,
+      toggleLockScreen: (open) => set((s) => ({ isLockScreenOpen: open !== undefined ? open : !s.isLockScreenOpen })),
+      isNotificationShadeOpen: false,
+      toggleNotificationShade: (open) => set((s) => ({ isNotificationShadeOpen: open !== undefined ? open : !s.isNotificationShadeOpen })),
+      isSystemSurfacesOpen: false,
+      toggleSystemSurfaces: (open) => set((s) => ({ isSystemSurfacesOpen: open !== undefined ? open : !s.isSystemSurfacesOpen })),
       createPlaylistModalOpen: false,
       isWrappedModalOpen: false,
       toggleWrappedModal: (open) => set((s) => ({ isWrappedModalOpen: open !== undefined ? open : !s.isWrappedModalOpen })),

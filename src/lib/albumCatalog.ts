@@ -1,5 +1,6 @@
 import { Song } from '@/types/music';
 import { RealMusicEngine } from '@/lib/realMusicEngine';
+import { imagePreloader } from '@/lib/cache/ImagePreloadEngine';
 
 export interface AlbumItem {
   id: string;
@@ -69,6 +70,8 @@ export class AlbumCatalogEngine {
   public static getAlbumsForLanguage(lang: string): AlbumItem[] {
     const language = lang || 'Telugu';
     if (this.cache[language] && this.cache[language].length > 0) {
+      // Background preload in browser memory
+      imagePreloader.preloadBatch(this.cache[language].map(a => a.coverUrl));
       return this.cache[language];
     }
 
@@ -101,6 +104,8 @@ export class AlbumCatalogEngine {
     });
 
     this.cache[language] = albums;
+    // Instant preloading of artwork
+    imagePreloader.preloadBatch(albums.map(a => a.coverUrl));
     return albums;
   }
 
@@ -115,68 +120,41 @@ export class AlbumCatalogEngine {
     }
 
     try {
-      // Fetch up to 75 regional album search results from JioSaavn
-      const realResults = await RealMusicEngine.getInstance().searchRealAlbums(`${language}`, 75);
+      // Fetch regional album search results from JioSaavn
+      const realResults = await RealMusicEngine.getInstance().searchRealAlbums(`${language}`, 50);
       
       const seenTitles = new Set<string>();
       const seenIds = new Set<string>();
       const albums: AlbumItem[] = [];
 
-      // Process candidates in parallel for 50 unique albums
-      const detailsList = await Promise.all(
-        realResults.slice(0, 70).map(async (item) => {
-          if (!item.id) return null;
-          try {
-            const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${item.id}`);
-            return { item, details };
-          } catch {
-            return null;
-          }
-        })
-      );
-
-      for (const entry of detailsList) {
-        if (!entry || !entry.item || !entry.details) continue;
-        const { item, details } = entry;
+      for (const item of realResults) {
+        if (!item || !item.id) continue;
         if (seenIds.has(item.id)) continue;
 
-        const cleanTitle = (item.title || item.name || details.title || '').trim();
+        const cleanTitle = (item.title || item.name || '').trim();
         if (!cleanTitle || seenTitles.has(cleanTitle.toLowerCase())) continue;
-
-        const tracks = details.songs || [];
-        // Strictly reject singles (1-track releases)
-        if (tracks.length < 2) continue;
 
         seenTitles.add(cleanTitle.toLowerCase());
         seenIds.add(item.id);
 
-        const totalDuration = tracks.reduce((sum, t) => sum + (t.duration || 210), 0);
-
-        // Extract the most accurate release date from the first available track
-        let exactReleaseDate = `${item.releaseYear || 2024}-01-01`;
-        if (tracks.length > 0) {
-          const trackWithDate = tracks.find((t: any) => t.releaseDate && t.releaseDate.length >= 4);
-          if (trackWithDate && trackWithDate.releaseDate) {
-            exactReleaseDate = String(trackWithDate.releaseDate);
-          }
-        }
+        const coverUrl = imagePreloader.optimizeUrl(item.coverUrl || item.image || '', 500);
 
         albums.push({
           id: item.id,
           title: cleanTitle,
           artist: item.artist || item.primaryArtists || 'Various Artists',
           artistId: item.artist,
-          coverUrl: details?.coverUrl || item.coverUrl || '',
-          releaseDate: exactReleaseDate,
-          releaseYear: item.releaseYear || parseInt(exactReleaseDate.split('-')[0]) || 2024,
-          trackCount: Math.max(tracks.length, 4),
-          durationSec: totalDuration || 1200,
+          coverUrl,
+          releaseDate: `${item.releaseYear || item.year || 2024}-01-01`,
+          releaseYear: item.releaseYear || item.year || 2024,
+          trackCount: Math.max(item.songCount || 6, 4),
+          durationSec: 1200,
           language,
-          albumType: tracks.length > 6 ? 'album' : 'ep',
-          freshnessScore: 100 - albums.length * 2, // fallback
+          albumType: 'album',
+          freshnessScore: 100 - albums.length * 2,
           trendingScore: 98 - albums.length * 2,
           topScore: 100 - albums.length * 2,
-          tracks
+          tracks: []
         });
 
         if (albums.length >= 50) break;
@@ -184,6 +162,8 @@ export class AlbumCatalogEngine {
 
       if (albums.length > 0) {
         this.cache[language] = albums;
+        // Instant background preload for all 50 covers into browser memory cache
+        imagePreloader.preloadBatch(albums.map(a => a.coverUrl));
         return albums;
       }
     } catch (e) {

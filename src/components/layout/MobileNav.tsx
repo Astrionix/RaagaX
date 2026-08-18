@@ -41,14 +41,14 @@ export function MobileNav() {
               }}
               className={`relative flex-1 flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
                 isActive 
-                  ? 'text-white scale-105' 
-                  : 'text-[#94A3B8] hover:text-white active:scale-95'
+                  ? 'scale-105' 
+                  : 'text-slate-400 hover:text-[var(--text-primary)] active:scale-95'
               }`}
             >
               {/* Soft Active Red Lens Droplet */}
               {isActive && (
                 <span 
-                  className="absolute inset-0 rounded-2xl bg-[#E50914]/18 border border-[#E50914]/25 shadow-[0_2px_12px_rgba(229,9,20,0.25)] pointer-events-none animate-in fade-in zoom-in-95 duration-200" 
+                  className="absolute inset-0 rounded-2xl bg-[#E50914]/15 border border-[#E50914]/30 shadow-[0_2px_12px_rgba(229,9,20,0.2)] pointer-events-none animate-in fade-in zoom-in-95 duration-200" 
                 />
               )}
 
@@ -60,7 +60,7 @@ export function MobileNav() {
               
               <span 
                 className={`text-[9.5px] font-sans font-bold tracking-tight mt-0.5 relative z-10 transition-all ${
-                  isActive ? 'text-white' : 'text-[#64748B]'
+                  isActive ? 'text-[#E50914]' : 'text-slate-400'
                 }`}
               >
                 {item.label}

@@ -12,6 +12,10 @@ import { AudioPlayerController } from '@/components/player/AudioPlayerController
 import { LyricsPanel } from '@/components/lyrics/LyricsPanel';
 import { QueueModal } from '@/components/player/QueueModal';
 import { ExpandedPlayerModal } from '@/components/player/ExpandedPlayerModal';
+import { DynamicIslandPlayer } from '@/components/player/DynamicIslandPlayer';
+import { LockScreenPlayerModal } from '@/components/player/LockScreenPlayerModal';
+import { NotificationBarPlayerModal } from '@/components/player/NotificationBarPlayerModal';
+import { SystemSurfacesModal } from '@/components/player/SystemSurfacesModal';
 import { PlaylistImporterModal } from '@/components/modals/PlaylistImporterModal';
 import { BackupRestoreModal } from '@/components/modals/BackupRestoreModal';
 import { SleepTimerModal } from '@/components/modals/SleepTimerModal';
@@ -63,7 +67,13 @@ export default function Page() {
     isEqualizerOpen,
     toggleEqualizer,
     isCarModeOpen,
-    toggleCarMode
+    toggleCarMode,
+    isLockScreenOpen,
+    toggleLockScreen,
+    isNotificationShadeOpen,
+    toggleNotificationShade,
+    isSystemSurfacesOpen,
+    toggleSystemSurfaces
   } = usePlayerStore();
   const { isSetupModalOpen, setSetupModalOpen } = useDownloadStore();
 
@@ -221,7 +231,7 @@ export default function Page() {
         </div>
 
         {/* Right Queue Column */}
-        <div className="queue-panel hidden xl:block w-[360px] min-w-[360px] h-full pt-6 pb-8 overflow-y-auto overflow-x-hidden border-l border-white/5 bg-[#07090E]">
+        <div className="queue-panel hidden xl:block w-[360px] min-w-[360px] h-full pt-6 pb-8 overflow-y-auto overflow-x-hidden border-l border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
           {rightPanelMode === 'devices' ? <RightDeviceConnectPanel /> : <RightQueuePanel />}
         </div>
       </div>
@@ -278,6 +288,23 @@ export default function Page() {
       <ErrorBoundary name="NotificationCenterModal">
         <NotificationCenterModal />
       </ErrorBoundary>
+      
+      {/* ── Native Android Connected Surfaces ── */}
+      <DynamicIslandPlayer />
+      <LockScreenPlayerModal
+        isOpen={isLockScreenOpen}
+        onClose={() => toggleLockScreen(false)}
+      />
+      <NotificationBarPlayerModal
+        isOpen={isNotificationShadeOpen}
+        onClose={() => toggleNotificationShade(false)}
+      />
+      <SystemSurfacesModal
+        isOpen={isSystemSurfacesOpen}
+        onClose={() => toggleSystemSurfaces(false)}
+        onOpenLockScreen={() => toggleLockScreen(true)}
+        onOpenNotificationShade={() => toggleNotificationShade(true)}
+      />
     </div>
   );
 }

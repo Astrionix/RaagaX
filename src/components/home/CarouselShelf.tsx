@@ -18,13 +18,14 @@ export interface PaginationConfig {
 
 interface CarouselShelfProps {
   title: string;
+  subtitle?: string;
   items: ShelfItem[];
   icon?: React.ReactNode;
   showPlayAll?: boolean;
   pagination?: PaginationConfig;
 }
 
-export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: CarouselShelfProps) {
+export function CarouselShelf({ title, subtitle, items, icon, showPlayAll, pagination }: CarouselShelfProps) {
   const { setActiveTab, setSelectedPlaylistId, setSelectedArtistId, setSelectedAlbumId, playSong, currentSong, isPlaying } = usePlayerStore();
   
   // UI State
@@ -281,9 +282,16 @@ export function CarouselShelf({ title, items, icon, showPlayAll, pagination }: C
       <div className="flex items-center justify-between mb-2 px-0">
         <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
           {icon}
-          <h2 className="text-[20px] sm:text-xl font-semibold leading-[26px] text-white tracking-tight cursor-pointer truncate whitespace-nowrap">
-            {title}
-          </h2>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[20px] sm:text-xl font-semibold leading-[26px] text-white tracking-tight cursor-pointer truncate whitespace-nowrap">
+              {title}
+            </h2>
+            {subtitle && (
+              <p className="text-[11px] font-medium text-slate-400 -mt-0.5 truncate">
+                {subtitle}
+              </p>
+            )}
+          </div>
           {showPlayAll && shelfItems.length > 0 && (
             <div className="flex items-center gap-1.5 ml-1 flex-shrink-0">
               <button 

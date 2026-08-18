@@ -99,6 +99,37 @@ apiApp.get('/charts', async (c) => {
   }
 });
 
+// ─── Browse New Releases API (JioSaavn getNewReleases) ──────────────────────
+apiApp.get('/browse/new-releases', async (c) => {
+  const language = (c.req.query('language') || 'Telugu').toLowerCase();
+  const page = parseInt(c.req.query('page') || '1') || 1;
+  const limit = Math.min(parseInt(c.req.query('limit') || '30') || 30, 50);
+
+  try {
+    const { apiFetch } = await import('#common/helpers');
+    
+    const { data, ok } = await apiFetch<any>({
+      endpoint: 'content.getAlbums' as any,
+      params: {
+        language,
+        n: limit,
+        p: page,
+      },
+    });
+
+    const albumList = data?.data || [];
+    return c.json({
+      success: ok,
+      language,
+      page,
+      count: albumList.length,
+      data: albumList,
+    });
+  } catch (err: any) {
+    return c.json({ success: false, error: err?.message || 'Failed to fetch new releases', data: [] }, 500);
+  }
+});
+
 // ─── Queue Refill API ─────────────────────────────────────────────────────────
 
 apiApp.post('/queue-refill', async (c) => {

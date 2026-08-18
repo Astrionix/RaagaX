@@ -85,7 +85,7 @@ export class LyricsResolver {
       if (!rawText) return null;
 
       const langHint = (metadata as any)?.language || (metadata as any)?.genre;
-      const parsed = LyricsParser.parse(rawText, langHint);
+      const parsed = LyricsParser.parse(rawText, langHint, metadata.durationMs);
 
       const lyricsData: LyricsData = {
         trackId,

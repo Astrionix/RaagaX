@@ -6,11 +6,17 @@ import { QueueHistory } from '@/lib/queue/QueueHistory';
 import { UserBehaviorTracker, UserEventType } from '@/lib/analytics/UserBehaviorTracker';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SongUniquenessEngine } from '@/lib/music/SongUniquenessEngine';
+import { NewReleasesEngine } from '@/lib/catalog/NewReleasesEngine';
 
 export interface PersonalizedHomeFeed {
   greeting: string;
   continueListening: Song[];
   recentlyPlayed: Song[];
+  moreLikeWhatYouHeard: {
+    seedSongTitle?: string;
+    seedSong?: Song;
+    items: Song[];
+  } | null;
   madeForYou: Song[];
   becauseYouListenedTo: {
     seedSongOrArtist: string;
@@ -29,9 +35,14 @@ export interface PersonalizedHomeFeed {
   }>;
 }
 
+const MIN_RECOMMENDATION_HISTORY = 5;
+const NOT_INTERESTED_STORAGE_KEY = 'raagax_not_interested_songs_v1';
+
 export class RecommendationEngine {
   private static instance: RecommendationEngine;
   private feedCacheMap = new Map<string, PersonalizedHomeFeed>();
+  private notInterestedSet = new Set<string>();
+  private notInterestedLoaded = false;
 
   private constructor() {}
 
@@ -40,6 +51,44 @@ export class RecommendationEngine {
       RecommendationEngine.instance = new RecommendationEngine();
     }
     return RecommendationEngine.instance;
+  }
+
+  private loadNotInterested(): void {
+    if (this.notInterestedLoaded) return;
+    this.notInterestedLoaded = true;
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(NOT_INTERESTED_STORAGE_KEY);
+        if (raw) {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) {
+            list.forEach((id: string) => this.notInterestedSet.add(id));
+          }
+        }
+      } catch (e) {}
+    }
+  }
+
+  public markNotInterested(songId: string, reason = 'user_action'): void {
+    if (!songId) return;
+    this.loadNotInterested();
+    this.notInterestedSet.add(songId);
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(
+          NOT_INTERESTED_STORAGE_KEY,
+          JSON.stringify(Array.from(this.notInterestedSet))
+        );
+      } catch (e) {}
+    }
+
+    this.feedCacheMap.clear();
+  }
+
+  public getNotInterestedSet(): Set<string> {
+    this.loadNotInterested();
+    return this.notInterestedSet;
   }
 
   public getCachedHomeFeedSnapshot(userId: string, lang: string = ''): PersonalizedHomeFeed | null {
@@ -103,15 +152,98 @@ export class RecommendationEngine {
   }
 
   /**
+   * Generates dynamic contextual recommendations specifically for a seed song (e.g. currentSong).
+   * Caches per seedSong.id and userId for instantaneous reuse.
+   */
+  public async getContextualRecommendations(
+    seedSong: Song,
+    userId = 'user',
+    limit = 25
+  ): Promise<Song[]> {
+    if (!seedSong || !seedSong.id) return [];
+    this.loadNotInterested();
+
+    const cacheKey = `raagax_context_recs_${userId}_${seedSong.id}`;
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const filtered = parsed.filter((s: Song) => s.id !== seedSong.id && !this.notInterestedSet.has(s.id));
+            if (filtered.length >= 4) return filtered.slice(0, limit);
+          }
+        }
+      } catch {}
+    }
+
+    const musicEngine = RealMusicEngine.getInstance();
+    const primaryArtist = seedSong.artist ? seedSong.artist.split(/[,&/]/)[0].trim() : '';
+    const songLang = seedSong.language || 'Telugu';
+
+    const queries: string[] = [
+      primaryArtist ? `${primaryArtist} ${songLang} hits` : null,
+      seedSong.title ? `similar to ${seedSong.title}` : null,
+      seedSong.album ? `${seedSong.album} songs` : null,
+      primaryArtist ? `${primaryArtist} best songs` : null,
+    ].filter(Boolean) as string[];
+
+    try {
+      const results = await Promise.all(
+        queries.map(q => musicEngine.searchRealSongs(q, 15).catch(() => []))
+      );
+
+      const candidatePool: Song[] = [];
+      results.forEach(res => candidatePool.push(...res));
+
+      // Strictly exclude seedSong.id and Not Interested songs
+      const excludedIds = new Set<string>([
+        seedSong.id,
+        ...Array.from(this.notInterestedSet),
+      ]);
+
+      const deduplicated = SongUniquenessEngine.deduplicate(candidatePool, [seedSong]);
+      const filtered = deduplicated.filter(s => !excludedIds.has(s.id));
+
+      // Apply artist diversity (max 2 tracks per artist)
+      const artistCounts = new Map<string, number>();
+      const ranked: Song[] = [];
+
+      for (const s of filtered) {
+        const artKey = (s.artist || 'unknown').split(/[,&/]/)[0].trim().toLowerCase();
+        const count = artistCounts.get(artKey) || 0;
+        if (count < 2) {
+          ranked.push(s);
+          artistCounts.set(artKey, count + 1);
+        }
+        if (ranked.length >= limit) break;
+      }
+
+      if (ranked.length > 0 && typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(ranked));
+        } catch {}
+      }
+
+      return ranked;
+    } catch (err) {
+      console.warn('[RecommendationEngine] getContextualRecommendations error:', err);
+      return [];
+    }
+  }
+
+  /**
    * Builds full dynamic personalized Home feed based on listening history & language
    */
   public async getPersonalizedHomeFeed(
     userId: string,
     preferredLanguage: string = ''
   ): Promise<PersonalizedHomeFeed> {
+    this.loadNotInterested();
     const storeLangs = usePlayerStore.getState().selectedLanguages;
     const lang = preferredLanguage || (storeLangs && storeLangs.length > 0 ? storeLangs[0] : 'Hindi');
     const musicEngine = RealMusicEngine.getInstance();
+    const currentPlayingSong = usePlayerStore.getState().currentSong;
 
     // 1. Greeting
     const hour = new Date().getHours();
@@ -133,7 +265,7 @@ export class RecommendationEngine {
       const seen = new Set<string>();
       for (let i = historyEntries.length - 1; i >= 0; i--) {
         const s = historyEntries[i].song;
-        if (s && !seen.has(s.id)) {
+        if (s && !seen.has(s.id) && !this.notInterestedSet.has(s.id)) {
           seen.add(s.id);
           recentHistorySongs.push(s);
         }
@@ -144,25 +276,41 @@ export class RecommendationEngine {
     const continueListening = recentHistorySongs.slice(0, 6);
     const recentlyPlayed = recentHistorySongs.slice(0, 15);
 
-    // 4. Determine seed artist / track for "Because You Listened To..."
+    // 4. "MORE LIKE WHAT YOU HEARD" — Dynamic Personalized Recommendation Shelf
+    let moreLikeWhatYouHeard: PersonalizedHomeFeed['moreLikeWhatYouHeard'] = null;
+    const activeSeedSong = currentPlayingSong || recentHistorySongs[0];
+
+    if (activeSeedSong) {
+      const contextualList = await this.getContextualRecommendations(activeSeedSong, userId, 15);
+      if (contextualList.length >= 3) {
+        moreLikeWhatYouHeard = {
+          seedSongTitle: activeSeedSong.title,
+          seedSong: activeSeedSong,
+          items: contextualList,
+        };
+      }
+    }
+
+    // 5. Seed artist / track for "Because You Listened To..."
     let becauseYouListenedTo: PersonalizedHomeFeed['becauseYouListenedTo'] = null;
     const topRecent = recentHistorySongs[0];
 
     if (topRecent) {
       const seedArtist = topRecent.artist.split(/[,&/]/)[0].trim();
       try {
-        const similarSongs = await musicEngine.searchRealSongs(`${seedArtist} ${lang}`, 25);
+        const similarSongs = await musicEngine.searchRealSongs(`${seedArtist} ${lang}`, 20);
         const uniqueSimilar = SongUniquenessEngine.deduplicate(similarSongs, [topRecent]);
-        if (uniqueSimilar.length > 0) {
+        const cleanList = uniqueSimilar.filter(s => !this.notInterestedSet.has(s.id));
+        if (cleanList.length > 0) {
           becauseYouListenedTo = {
             seedSongOrArtist: seedArtist,
-            items: uniqueSimilar.slice(0, 10),
+            items: cleanList.slice(0, 10),
           };
         }
       } catch {}
     }
 
-    // 5. Compute Top Artists & Top Songs from History & Affinity
+    // 6. Compute Top Artists & Top Songs from History & Affinity
     const artistPlayCounts: Record<string, { count: number; coverUrl: string; id: string }> = {};
     const songPlayCounts: Record<string, { count: number; song: Song }> = {};
 
@@ -192,19 +340,22 @@ export class RecommendationEngine {
 
     const topSongs = Object.values(songPlayCounts)
       .map((entry) => entry.song)
+      .filter(s => !this.notInterestedSet.has(s.id))
       .slice(0, 10);
 
-    // 6. Fetch Trending & New Releases for the active language
+    // 7. Fetch Trending for active language & Strict Language New Releases
     const [trendingSongs, newReleases] = await Promise.all([
       musicEngine.getRealTrendingSongs(15, lang).catch(() => []),
-      musicEngine.getNewReleases(15, lang).catch(() => []),
+      NewReleasesEngine.getInstance().getNewReleasesForLanguage(lang, 15).catch(() => []),
     ]);
 
-    // 7. Made For You (Algorithmic blended recommendations)
+    // 8. Made For You (Algorithmic blended recommendations)
     const madeForYouPool = await this.getRecommendations(userId, [lang]);
-    const madeForYou = madeForYouPool.length > 0 ? madeForYouPool : trendingSongs.slice(0, 10);
+    const madeForYou = madeForYouPool.length > 0
+      ? madeForYouPool.filter(s => !this.notInterestedSet.has(s.id))
+      : trendingSongs.slice(0, 10);
 
-    // 8. Generate Daily Mixes
+    // 9. Generate Daily Mixes
     const dailyMixes = [
       {
         id: `daily-mix-1-${lang.toLowerCase()}`,
@@ -233,6 +384,7 @@ export class RecommendationEngine {
       greeting,
       continueListening,
       recentlyPlayed,
+      moreLikeWhatYouHeard,
       madeForYou,
       becauseYouListenedTo,
       topArtists,
@@ -253,60 +405,19 @@ export class RecommendationEngine {
     return result;
   }
 
-  public async getRecommendations(
-    userId: string,
-    languages: string[] | string = ['Telugu', 'Tamil', 'Hindi', 'Kannada', 'Malayalam', 'English']
-  ): Promise<Song[]> {
-    const localDb = LocalDatabase.getInstance();
-    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
-    const now = Date.now();
-    const langList =
-      typeof languages === 'string'
-        ? [languages]
-        : languages.length > 0
-        ? languages
-        : ['Telugu', 'Tamil', 'Hindi', 'Kannada', 'Malayalam', 'English'];
-    const targetCategory = `personalized_${langList.sort().join('_').toLowerCase()}`;
-
-    // 1. Check local 3-day snapshot
-    const cached = await localDb.getUserStore<any>(userId, 'recommendation_snapshot');
-    if (cached && cached.expiresAt > now && cached.items && cached.items.length > 0 && cached.category === targetCategory) {
-      return cached.items;
-    }
-
-    // 2. Fetch fresh candidates across language & affinity
+  public async getRecommendations(userId: string, languages: string[] = ['Telugu']): Promise<Song[]> {
+    this.loadNotInterested();
     try {
-      const musicEngine = RealMusicEngine.getInstance();
-      const candidatePromises = langList.map((l) => {
-        const queries = [`${l} Hits`, `Latest ${l} Songs`, `${l} Melodies`, `Trending ${l} Songs`];
-        const query = queries[Math.floor(Math.random() * queries.length)];
-        return musicEngine.searchRealSongs(query, 20).catch(() => []);
-      });
+      const { CandidateGenerator } = await import('./CandidateGenerator');
+      const { Ranker } = await import('./Ranker');
+      const currentTrack = usePlayerStore.getState().currentSong;
+      const targetLang = languages[0] || 'Telugu';
 
-      const candidateLists = await Promise.all(candidatePromises);
-      const rawCandidates = candidateLists.flat();
-
-      const eligibleCandidates = await LanguageEligibilityEngine.getInstance().filterCandidates(
-        userId,
-        rawCandidates,
-        'PERSONALIZED_RECOMMENDATION',
-        undefined,
-        langList
-      );
-
-      const shuffled = eligibleCandidates.sort(() => 0.5 - Math.random()).slice(0, 15);
-
-      const snapshot = {
-        category: targetCategory,
-        items: shuffled,
-        generatedAt: now,
-        expiresAt: now + THREE_DAYS_MS,
-      };
-
-      await localDb.setUserStore(userId, 'recommendation_snapshot', snapshot);
-      return shuffled;
-    } catch (e) {
-      console.warn('[RecommendationEngine] Candidate generation error:', e);
+      const candidates = await CandidateGenerator.generateCandidates(currentTrack, [], targetLang, 30, userId);
+      const ranked = Ranker.rankCandidates(candidates, [], 15);
+      return ranked.filter(s => !this.notInterestedSet.has(s.id));
+    } catch (err) {
+      console.warn('[RecommendationEngine] Failed to generate algorithm recommendations:', err);
       return [];
     }
   }

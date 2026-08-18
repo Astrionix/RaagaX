@@ -221,7 +221,7 @@ export function FavoritesView() {
               {resolvedLikedSongs.map((song, idx) => (
                 <div
                   key={`${song.id}-${idx}`}
-                  className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 hover:bg-white/5 transition-all flex items-center justify-between group"
+                  className="p-3 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] transition-all flex items-center justify-between group shadow-sm"
                 >
                   <div
                     className="flex items-center gap-3.5 cursor-pointer min-w-0 flex-1"
@@ -236,10 +236,10 @@ export function FavoritesView() {
                       className="w-11 h-11 rounded-xl object-cover shadow-sm flex-shrink-0 bg-slate-800"
                     />
                     <div className="min-w-0 flex-1 pr-2">
-                      <h4 className="text-xs font-bold text-white group-hover:text-[#FA233B] transition-colors truncate">
+                      <h4 className="text-xs font-bold text-[var(--text-primary)] group-hover:text-[#FA233B] transition-colors truncate">
                         {song.title}
                       </h4>
-                      <p className="text-[11px] text-[#8E92A4] truncate mt-0.5">{song.artist}</p>
+                      <p className="text-[11px] text-[var(--text-secondary)] truncate mt-0.5">{song.artist}</p>
                     </div>
                   </div>
 

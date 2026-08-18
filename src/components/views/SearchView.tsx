@@ -299,15 +299,15 @@ export function SearchView() {
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <Flame className="w-4 h-4 text-[#EF233C]" /> Trending Searches
             </h3>
-            <div className="divide-y divide-white/5 bg-[#1C1C1E] rounded-2xl border border-white/10 overflow-hidden">
+            <div className="divide-y divide-[var(--border-subtle)] bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-subtle)] overflow-hidden shadow-sm">
               {trendingSearches.map((item) => (
                 <button
                   key={item.term}
                   onClick={() => setSearchQuery(item.term)}
-                  className="w-full py-3.5 px-4 flex items-center gap-4 hover:bg-white/5 transition-colors text-left cursor-pointer"
+                  className="w-full py-3.5 px-4 flex items-center gap-4 hover:bg-[var(--bg-surface)] transition-colors text-left cursor-pointer group"
                 >
                   <span className="text-sm font-black text-[#EF233C] min-w-[16px]">{item.rank}</span>
-                  <span className="text-sm font-bold text-slate-200 capitalize">{item.term}</span>
+                  <span className="text-sm font-bold text-[var(--text-primary)] capitalize group-hover:text-[#EF233C] transition-colors">{item.term}</span>
                 </button>
               ))}
             </div>

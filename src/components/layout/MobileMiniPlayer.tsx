@@ -165,10 +165,10 @@ export function MobileMiniPlayer() {
             </div>
 
             <div className="min-w-0 flex-1">
-              <h4 className="text-[13px] font-bold text-white truncate leading-snug">
+              <h4 className="text-[13px] font-bold text-[var(--text-primary)] truncate leading-snug">
                 {currentSong.title}
               </h4>
-              <p className="text-[11px] text-[#94A3B8] truncate leading-snug flex items-center gap-1.5 mt-0.5">
+              <p className="text-[11px] text-[var(--text-secondary)] truncate leading-snug flex items-center gap-1.5 mt-0.5">
                 {!isActiveDevice ? (
                   <span className="text-[#E50914] font-medium flex items-center gap-1">
                     <Disc3 className="w-3 h-3 animate-spin" />

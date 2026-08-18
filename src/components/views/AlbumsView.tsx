@@ -171,7 +171,7 @@ export function AlbumsView() {
               <div 
                 key={album.id}
                 onClick={() => handleOpenAlbum(album)}
-                className="group relative bg-[#12141c]/60 p-3 rounded-2xl border border-white/5 hover:border-white/20 transition-all hover:scale-[1.02] cursor-pointer shadow-lg w-[145px] sm:w-auto flex-shrink-0 snap-start"
+                className="group relative bg-[var(--bg-card)] p-3 rounded-2xl border border-white/5 hover:border-white/20 transition-all hover:scale-[1.02] cursor-pointer shadow-lg w-[145px] sm:w-auto flex-shrink-0 snap-start"
               >
                 <div className="relative aspect-square rounded-xl overflow-hidden mb-2.5">
                   <img 
@@ -210,18 +210,20 @@ export function AlbumsView() {
           </div>
 
           <div className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5 sm:gap-4 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
-            {recentlyReleased.map((album) => (
+            {recentlyReleased.map((album, i) => (
               <div 
                 key={album.id}
                 onClick={() => handleOpenAlbum(album)}
-                className="group relative bg-[#12141c]/60 p-3 rounded-2xl border border-white/5 hover:border-white/20 transition-all hover:scale-[1.02] cursor-pointer shadow-lg w-[145px] sm:w-auto flex-shrink-0 snap-start"
+                className="group relative bg-[var(--bg-card)] p-3 rounded-2xl border border-white/5 hover:border-white/20 transition-all hover:scale-[1.02] cursor-pointer shadow-lg w-[145px] sm:w-auto flex-shrink-0 snap-start"
               >
-                <div className="relative aspect-square rounded-xl overflow-hidden mb-2.5">
+                <div className="relative aspect-square rounded-xl overflow-hidden mb-2.5 bg-slate-800/80">
                   <img 
-                    src={album.coverUrl ? album.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500') : '/app-icon.png'} 
+                    src={album.coverUrl || '/app-icon.png'} 
                     alt={album.title} 
+                    loading={i < 8 ? "eager" : "lazy"}
+                    decoding="async"
                     onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 bg-slate-800" 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 bg-slate-800" 
                   />
                   <button
                     onClick={(e) => handlePlayAlbum(e, album)}
@@ -253,18 +255,20 @@ export function AlbumsView() {
           </div>
 
           <div className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5 sm:gap-4 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
-            {trending.map((album) => (
+            {trending.map((album, i) => (
               <div 
                 key={album.id}
                 onClick={() => handleOpenAlbum(album)}
-                className="group relative bg-[#12141c]/60 p-3 rounded-2xl border border-white/5 hover:border-white/20 transition-all hover:scale-[1.02] cursor-pointer shadow-lg w-[145px] sm:w-auto flex-shrink-0 snap-start"
+                className="group relative bg-[var(--bg-card)] p-3 rounded-2xl border border-white/5 hover:border-white/20 transition-all hover:scale-[1.02] cursor-pointer shadow-lg w-[145px] sm:w-auto flex-shrink-0 snap-start"
               >
-                <div className="relative aspect-square rounded-xl overflow-hidden mb-2.5">
+                <div className="relative aspect-square rounded-xl overflow-hidden mb-2.5 bg-slate-800/80">
                   <img 
-                    src={album.coverUrl ? album.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500') : '/app-icon.png'} 
+                    src={album.coverUrl || '/app-icon.png'} 
                     alt={album.title} 
+                    loading={i < 6 ? "eager" : "lazy"}
+                    decoding="async"
                     onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 bg-slate-800" 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 bg-slate-800" 
                   />
                   <button
                     onClick={(e) => handlePlayAlbum(e, album)}
@@ -301,14 +305,16 @@ export function AlbumsView() {
               <div 
                 key={album.id}
                 onClick={() => handleOpenAlbum(album)}
-                className="group relative bg-[#12141c]/60 p-3 rounded-2xl border border-white/5 hover:border-white/20 transition-all hover:scale-[1.02] cursor-pointer shadow-lg"
+                className="group relative bg-[var(--bg-card)] p-3 rounded-2xl border border-white/5 hover:border-white/20 transition-all hover:scale-[1.02] cursor-pointer shadow-lg"
               >
-                <div className="relative aspect-square rounded-xl overflow-hidden mb-2.5">
+                <div className="relative aspect-square rounded-xl overflow-hidden mb-2.5 bg-slate-800/80">
                   <img 
-                    src={album.coverUrl ? album.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500') : '/app-icon.png'} 
+                    src={album.coverUrl || '/app-icon.png'} 
                     alt={album.title} 
+                    loading={idx < 12 ? "eager" : "lazy"}
+                    decoding="async"
                     onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 bg-slate-800" 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 bg-slate-800" 
                   />
                   
                   {/* Rank Badge */}

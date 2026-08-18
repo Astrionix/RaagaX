@@ -31,6 +31,13 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
+        {/* Instant CDN Preconnects for 0ms artwork and stream resolution */}
+        <link rel="preconnect" href="https://c.saavncdn.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://c.saavncdn.com" />
+        <link rel="preconnect" href="https://aac.saavncdn.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://aac.saavncdn.com" />
+        <link rel="preconnect" href="https://i.scdn.co" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://i.scdn.co" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -48,7 +55,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="antialiased bg-[#07090E] text-white selection:bg-red-500 selection:text-white transition-colors duration-200">
+      <body className="antialiased bg-[var(--bg-primary)] text-[var(--text-primary)] selection:bg-red-500 selection:text-white transition-colors duration-200">
         <ThemeProvider>
           <DeviceSyncProvider>
             {children}

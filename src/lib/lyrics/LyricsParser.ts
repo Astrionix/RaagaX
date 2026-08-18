@@ -5,8 +5,9 @@ export class LyricsParser {
   /**
    * Parses a raw lyrics string (LRC or plain text) into structured LyricsLine objects.
    * Automatically derives nativeText and romanizedText using the Romanizer registry.
+   * If plain lyrics are provided with song duration, automatically calculates synced pacing.
    */
-  public static parse(raw: string, languageHint?: string): { type: LyricsType, lines: LyricsLine[] } {
+  public static parse(raw: string, languageHint?: string, durationMs?: number): { type: LyricsType, lines: LyricsLine[] } {
     if (!raw || !raw.trim()) {
       return { type: 'plain', lines: [] };
     }
@@ -50,12 +51,10 @@ export class LyricsParser {
           nativeText: line,
           romanizedText: romanized !== line ? romanized : undefined
         });
-      } else {
-        // We encountered a plain line in the middle of an LRC file (like metadata [ar:Artist]).
       }
     }
 
-    // Sort synced lines by timestamp (LRCs can sometimes have tags out of order)
+    // Sort synced lines by timestamp
     if (isSynced) {
       parsedLines.sort((a, b) => a.startMs - b.startMs);
       
@@ -64,10 +63,22 @@ export class LyricsParser {
         parsedLines[i].endMs = parsedLines[i + 1].startMs;
       }
       
-      // For the last line, we assume it lasts a long time (e.g., to the end of the song)
       if (parsedLines.length > 0) {
         parsedLines[parsedLines.length - 1].endMs = Number.MAX_SAFE_INTEGER;
       }
+    } else if (durationMs && durationMs > 10000 && parsedLines.length > 0) {
+      // Smart Auto-Pacing for plain text lyrics: pace evenly with song duration
+      const introMs = Math.min(10000, durationMs * 0.07);
+      const outroMs = Math.min(8000, durationMs * 0.05);
+      const activeDurationMs = Math.max(1000, durationMs - introMs - outroMs);
+      const lineInterval = activeDurationMs / parsedLines.length;
+
+      for (let i = 0; i < parsedLines.length; i++) {
+        const startMs = Math.round(introMs + (i * lineInterval));
+        parsedLines[i].startMs = startMs;
+        parsedLines[i].endMs = i < parsedLines.length - 1 ? Math.round(introMs + ((i + 1) * lineInterval)) : Number.MAX_SAFE_INTEGER;
+      }
+      isSynced = true;
     }
 
     return {

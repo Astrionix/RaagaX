@@ -307,8 +307,11 @@ export class RealMusicEngine {
         coverUrl,
         audioUrl,
         genre: track.language ? `${track.language.toUpperCase()} HITS` : 'MELODY HITS',
+        language: track.language ? track.language.charAt(0).toUpperCase() + track.language.slice(1) : 'Telugu',
+        language_code: track.language ? (track.language.toLowerCase() === 'telugu' ? 'te' : track.language.toLowerCase() === 'hindi' ? 'hi' : track.language.toLowerCase() === 'tamil' ? 'ta' : track.language.slice(0, 2).toLowerCase()) : 'te',
         category: 'latest_telugu' as const,
-        releaseYear: parseInt(track.year) || 2024,
+        releaseYear: parseInt(track.year || (track.releaseDate ? track.releaseDate.slice(0, 4) : '2026')) || 2026,
+        releaseDate: track.releaseDate || track.release_date || (track.year ? `${track.year}-01-01` : undefined),
         plays: playCount,
         likes: Math.floor(playCount * 0.15),
         downloads: Math.floor(playCount * 0.08),
@@ -328,6 +331,17 @@ export class RealMusicEngine {
           label: track.label || 'Sony / Aditya Music',
         },
       };
+    }).filter((song: Song) => {
+      if (!song.title) return false;
+      const titleLower = song.title.toLowerCase();
+      if (/testing|sample trailer|test track|test audio|dummy|sound check|preview only/i.test(titleLower)) {
+        return false;
+      }
+      // Genuine songs duration between 30s and 15 mins (900s)
+      if (song.duration && (song.duration > 900 || song.duration < 30)) {
+        return false;
+      }
+      return true;
     });
 
     return SongUniquenessEngine.deduplicate(raw);

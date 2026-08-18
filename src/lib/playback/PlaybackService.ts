@@ -874,17 +874,32 @@ export class PlaybackService {
   }
 
   private updateMediaSessionMetadata(song: Song) {
-    const mediaSession = MediaSessionManager.getInstance();
-    mediaSession.updateMetadata({
-      title: song.title,
-      artist: song.artist,
-      album: song.album || 'RaagaX',
-      artwork: [
-        { src: song.coverUrl || '', sizes: '96x96', type: 'image/jpeg' },
-        { src: song.coverUrl || '', sizes: '256x256', type: 'image/jpeg' },
-        { src: song.coverUrl || '', sizes: '512x512', type: 'image/jpeg' },
-      ]
-    });
-    mediaSession.setPlaybackState('playing');
+    try {
+      const store = usePlayerStore.getState();
+      const isDownloaded = store.downloadedSongIds?.includes(song.id);
+      
+      let downloadText: string | undefined;
+      try {
+        const downloadStore = require('@/context/useDownloadStore').useDownloadStore.getState();
+        const downloadTask = downloadStore.tasks?.[song.id];
+        if (downloadTask && (downloadTask.status === 'DOWNLOADING' || downloadTask.status === 'QUEUED')) {
+          downloadText = `Downloading • ${downloadTask.progress || 0}%`;
+        }
+      } catch {}
+
+      const mediaSession = MediaSessionManager.getInstance();
+      mediaSession.updateSongMetadata(song, {
+        isOffline: isDownloaded,
+        downloadText,
+      });
+      mediaSession.setPlaybackState('playing');
+      mediaSession.setPositionState({
+        duration: song.duration || 0,
+        position: 0,
+        playbackRate: 1,
+      });
+    } catch (e) {
+      console.warn('[PlaybackService] updateMediaSessionMetadata warning:', e);
+    }
   }
 }

@@ -84,7 +84,7 @@ export function PlayerBar() {
 
   if (!mounted) {
     return (
-      <div className="hidden md:flex fixed bottom-0 left-0 right-0 z-40 h-20 bg-[#090a0f]/90 backdrop-blur-3xl border-t border-white/10 px-6 items-center justify-between text-white select-none shadow-[0_-10px_35px_rgba(0,0,0,0.6)]">
+      <div className="hidden md:flex fixed bottom-0 left-0 right-0 z-40 h-20 bg-[var(--playerbar-bg)] backdrop-blur-3xl border-t border-[var(--border-subtle)] px-6 items-center justify-between text-[var(--text-primary)] select-none shadow-[0_-10px_35px_rgba(0,0,0,0.15)] transition-colors duration-200">
         <div className="flex items-center gap-3.5 w-72 flex-shrink-0">
           <div className="flex items-center gap-2.5 text-slate-400 text-xs font-bold">
             <Disc3 className="w-4 h-4 text-[#fa233b] animate-spin" style={{ animationDuration: '8s' }} /> Select a track to play
@@ -92,16 +92,16 @@ export function PlayerBar() {
         </div>
         <div className="flex flex-col items-center justify-center gap-1.5 max-w-xl w-full mx-4">
           <div className="flex items-center gap-4">
-            <button className="p-1.5 text-slate-400 hover:text-white rounded-lg">
+            <button className="p-1.5 text-slate-400 hover:text-[var(--text-primary)] rounded-lg">
               <Shuffle className="w-4 h-4" />
             </button>
-            <button className="p-1.5 text-slate-300 rounded-lg">
+            <button className="p-1.5 text-slate-400 rounded-lg">
               <SkipBack className="w-4 h-4 fill-current" />
             </button>
             <button className="w-10 h-10 rounded-full red-glow-btn text-white flex items-center justify-center">
               <Play className="w-4 h-4 fill-white ml-0.5" />
             </button>
-            <button className="p-1.5 text-slate-300 rounded-lg">
+            <button className="p-1.5 text-slate-400 rounded-lg">
               <SkipForward className="w-4 h-4 fill-current" />
             </button>
             <button className="p-1.5 text-slate-400 rounded-lg">
@@ -116,7 +116,7 @@ export function PlayerBar() {
 
 
   return (
-    <div className="hidden md:flex fixed bottom-0 left-0 right-0 z-40 h-20 bg-[#090a0f]/90 backdrop-blur-3xl border-t border-white/10 px-6 items-center justify-between text-white select-none shadow-[0_-10px_35px_rgba(0,0,0,0.6)]">
+    <div className="hidden md:flex fixed bottom-0 left-0 right-0 z-40 h-20 bg-[var(--playerbar-bg)] backdrop-blur-3xl border-t border-[var(--border-subtle)] px-6 items-center justify-between text-[var(--text-primary)] select-none shadow-[0_-10px_35px_rgba(0,0,0,0.15)] transition-colors duration-200">
       {/* Left: Active Song Info */}
       <div className="flex items-center gap-3.5 w-72 flex-shrink-0">
         {currentSong ? (

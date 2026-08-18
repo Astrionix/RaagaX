@@ -17,9 +17,12 @@ import { useLyricsStore } from '@/context/useLyricsStore';
 import { SeekBar } from './SeekBar';
 import { PlaybackEngine } from '@/lib/playback/PlaybackEngine';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
+import { Spatial3DArtwork } from './Spatial3DArtwork';
+import { AudioReactiveWaveform } from './AudioReactiveWaveform';
 
 export function ExpandedPlayerModal() {
   const { playlists, addSongToPlaylist } = usePlaylistStore();
+  const { tasks } = useDownloadStore();
   const [showPlaylists, setShowPlaylists] = useState(false);
   const [viewMode, setViewMode] = useState<'art' | 'lyrics'>('art');
   const {
@@ -285,6 +288,10 @@ export function ExpandedPlayerModal() {
   const activeDeviceObj = onlineDevices.find((d) => d.id === activeDeviceId);
   const localDeviceObj = onlineDevices.find((d) => d.id === deviceId);
   const localDeviceName = localDeviceObj?.name || 'This Device';
+  const downloadTask = currentSong ? tasks[currentSong.id] : null;
+  const isDownloading = downloadTask && (downloadTask.status === 'DOWNLOADING' || downloadTask.status === 'QUEUED');
+  const downloadPct = downloadTask?.progress || 0;
+
   const activeName = !isActiveDevice
     ? (remoteDeviceName || activeDeviceObj?.name || 'Remote Device')
     : localDeviceName;
@@ -293,19 +300,24 @@ export function ExpandedPlayerModal() {
     <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="fixed inset-0 z-[100] w-full h-[100dvh] bg-[#06070a]/90 backdrop-blur-[50px] p-4 sm:p-6 md:p-8 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex flex-col text-white select-none animate-in slide-in-from-bottom duration-300 overflow-hidden"
+      className="fixed inset-0 z-[100] w-full h-[100dvh] bg-[#06070a]/92 backdrop-blur-[60px] p-4 sm:p-6 md:p-8 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex flex-col text-white select-none animate-in slide-in-from-bottom duration-300 overflow-hidden"
     >
-      {/* Rhythm Glass Dynamic Atmospheric Illumination */}
+      {/* Dynamic Chameleon Ambient Lighting & Atmosphere */}
       <div
-        className="absolute inset-0 opacity-45 pointer-events-none blur-[120px] scale-[1.3] transition-all duration-1000 saturate-[220%]"
+        className="absolute inset-0 opacity-40 pointer-events-none blur-[140px] scale-[1.35] transition-all duration-1000 saturate-[200%]"
+        style={{
+          backgroundImage: `radial-gradient(circle at 50% 35%, var(--chameleon-primary, #fa233b) 0%, var(--chameleon-secondary, #8b5cf6) 45%, var(--chameleon-dark, #06070a) 80%)`,
+        }}
+      />
+      <div
+        className="absolute inset-0 opacity-30 pointer-events-none blur-[110px] scale-[1.2] transition-all duration-1000"
         style={{
           backgroundImage: `url(${currentSong.coverUrl || '/app-icon.png'})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
       />
-      {/* Specular Highlight Sheen */}
-      <div className="absolute inset-0 bg-gradient-to-b from-white/[0.07] via-transparent to-black/40 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/25 to-black/85 pointer-events-none" />
 
       {/* TOP NAVIGATION BAR */}
       <div className="relative z-50 flex items-center justify-between w-full pt-1 pb-2 sm:pb-3 max-w-5xl mx-auto flex-shrink-0">
@@ -590,32 +602,25 @@ export function ExpandedPlayerModal() {
       <div className="relative z-0 flex-1 min-h-0 flex flex-col justify-between w-full max-w-4xl mx-auto py-1 sm:py-3">
 
         {viewMode === 'art' ? (
-          /* Album Artwork Screen */
-          <div
-            onClick={() => setViewMode('lyrics')}
-            onTouchStart={handleArtTouchStart}
-            onTouchMove={handleArtTouchMove}
-            onTouchEnd={handleArtTouchEnd}
-            className="flex-1 min-h-0 flex flex-col items-center justify-center w-full py-2 overflow-hidden cursor-pointer group select-none transition-transform duration-150 ease-out"
-            style={{
-              transform: `translate(${artSwipeOffset.x}px, ${artSwipeOffset.y}px)`,
-            }}
-            title="Tap for lyrics • Swipe left/right for next/prev • Swipe down to minimize"
-          >
-            <div
-              className="relative rounded-[24px] sm:rounded-[28px] overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.85)] border border-white/10 group-hover:scale-[1.02] transition-all duration-300"
-              style={{
-                width: 'min(38vh, 84vw, 360px)',
-                height: 'min(38vh, 84vw, 360px)',
-                flexShrink: 0,
-              }}
-            >
-              <OptimizedImage
-                src={currentSong.coverUrl}
-                alt={currentSong.title}
-                size="full"
-                className={`w-full h-full object-cover transition-all duration-700 ${isPlaying ? 'scale-[1.03]' : 'scale-100'}`}
-              />
+          /* 3D Spatial Album Artwork Screen & Audio-Reactive Waveform */
+          <div className="flex-1 min-h-0 flex flex-col items-center justify-center w-full py-1 select-none overflow-visible">
+            <Spatial3DArtwork
+              currentSong={currentSong}
+              isPlaying={isPlaying}
+              onSwipeLeft={playNext}
+              onSwipeRight={playPrev}
+              onTap={() => setViewMode('lyrics')}
+              onLongPress={() => setIsMenuOpen(true)}
+              isLiked={isLiked}
+              isDownloaded={isDownloaded}
+              isDownloading={Boolean(isDownloading)}
+              downloadProgress={downloadPct}
+              className="w-full flex-1 flex items-center justify-center"
+            />
+
+            {/* Audio-Reactive Waveform Centerpiece */}
+            <div className="w-full max-w-[300px] sm:max-w-[360px] mt-1 mb-1">
+              <AudioReactiveWaveform isPlaying={isPlaying} barCount={32} />
             </div>
           </div>
         ) : (

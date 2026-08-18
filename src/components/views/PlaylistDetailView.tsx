@@ -3,35 +3,34 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { 
   Play, Heart, Download, Music, ArrowLeft, Shuffle, Trash2, ListPlus, 
-  Users, UserPlus, Share2, Copy, Check, Lock, Globe, Sparkles, Plus,
-  ArrowUpDown, CheckSquare, Square, X, CheckCheck, Pause, Loader2
+  Share2, Copy, Check, Lock, Globe, Sparkles, Plus,
+  ArrowUpDown, CheckSquare, Square, X, CheckCheck, Pause, Loader2,
+  MoreVertical, Edit3, MoveUp, MoveDown, CheckCircle2, PauseCircle,
+  Clock, HardDrive, RefreshCw
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
-import { RealMusicEngine } from '@/lib/realMusicEngine';
 import { Song } from '@/types/music';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { usePlaylistStore, UserPlaylist } from '@/context/usePlaylistStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
-import { BulkDownloadConfirmModal } from '@/components/modals/BulkDownloadConfirmModal';
 import { useAuthStore } from '@/context/useAuthStore';
-import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
+import { AddSongsModal } from '@/components/modals/AddSongsModal';
 
-type SortOption = 'default' | 'title' | 'artist' | 'album' | 'duration' | 'recently_added';
+type SortOption = 'newest' | 'oldest' | 'az' | 'za' | 'duration';
 
 export function PlaylistDetailView() {
   const { 
     selectedPlaylistId, 
     setSelectedPlaylistId, 
+    setSelectedAlbumId,
     setActiveTab, 
     playSong, 
-    playNextSequence,
     setToastMessage,
     setRemoteState,
     likedSongIds, 
     toggleLikeSong, 
-    downloadedSongIds, 
+    downloadedSongIds,
     preferredLanguage,
-    selectedLanguages,
   } = usePlayerStore();
 
   const { user } = useAuthStore();
@@ -39,685 +38,835 @@ export function PlaylistDetailView() {
 
   const { 
     playlists, 
-    generateInviteLink, 
-    clonePlaylistToLibrary,
     removeSongFromPlaylist,
-    deletePlaylist
+    reorderSongs,
+    savePlaylistOrder,
+    updatePlaylist,
+    clearPlaylist,
+    deletePlaylist,
+    clonePlaylistToLibrary,
+    generateInviteLink
   } = usePlaylistStore();
 
   const {
-    playlistDownloadProgress,
+    tasks,
+    saveForOffline,
+    removeDownload,
     pauseAll,
     resumeAll,
     cancelAll
   } = useDownloadStore();
 
-  const [playlist, setPlaylist] = useState<any | null>(null);
+  const [playlist, setPlaylist] = useState<UserPlaylist | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [showDownloadModal, setShowDownloadModal] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
+  const [showAddSongsModal, setShowAddSongsModal] = useState(false);
+  const [showDownloadConfirmModal, setShowDownloadConfirmModal] = useState(false);
+  const [showEditMetadataModal, setShowEditMetadataModal] = useState(false);
+  const [showPlaylistMenu, setShowPlaylistMenu] = useState(false);
+  
+  // Sort and Edit Order modes
+  const [sortBy, setSortBy] = useState<SortOption>('newest');
+  const [isEditOrderMode, setIsEditOrderMode] = useState(false);
 
-  // Sorting & Multi-select states
-  const [sortBy, setSortBy] = useState<SortOption>('default');
-  const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [selectedSongIds, setSelectedSongIds] = useState<string[]>([]);
+  // Edit metadata form state
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editCoverUrl, setEditCoverUrl] = useState('');
+  const [editVisibility, setEditVisibility] = useState<'public' | 'private'>('private');
+  const [isSavingMetadata, setIsSavingMetadata] = useState(false);
 
+  // Fetch / Sync playlist from store OR resolve curated / editorial playlist
   useEffect(() => {
     if (!selectedPlaylistId) return;
+
+    // 1. If it's an album ID, redirect to Album View
+    if (selectedPlaylistId.startsWith('album:')) {
+      setSelectedAlbumId(selectedPlaylistId.replace('album:', ''));
+      setActiveTab('album');
+      return;
+    }
     
     let isMounted = true;
     setIsLoading(true);
-    
-    const fetchPlaylist = async () => {
-      // 1. Check local store first
-      const localPl = playlists.find(p => p.id === selectedPlaylistId);
-      if (localPl) {
-        if (isMounted) {
-          setPlaylist({
-            ...localPl,
-            isUserOwned: localPl.ownerId === activeUserId || localPl.creator === 'You',
-          });
-          setIsLoading(false);
-        }
-        return;
-      }
 
-      // 2. Check if UUID or remote
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(selectedPlaylistId);
-
-      if (isUUID) {
-        const { supabase } = await import('@/lib/supabase');
-        const { data: plData } = await supabase.from('playlists').select('*').eq('id', selectedPlaylistId).single();
-        if (!plData) {
-          if (isMounted) { setPlaylist(null); setIsLoading(false); }
-          return;
-        }
-
-        const { data: mappings } = await supabase
-          .from('playlist_songs')
-          .select('song_id, position')
-          .eq('playlist_id', selectedPlaylistId)
-          .order('position', { ascending: true });
-
-        const songIds = (mappings || []).map((m: any) => m.song_id).filter(Boolean);
-
-        let mappedSongs: Song[] = [];
-        if (songIds.length > 0) {
-          const { SongResolver } = await import('@/lib/discovery/SongResolver');
-          mappedSongs = await SongResolver.resolveSongs(songIds);
-        }
-
-        if (isMounted) {
-          setPlaylist({
-            id: plData.id,
-            title: plData.name || plData.title || 'Untitled Playlist',
-            description: plData.description || '',
-            coverUrl: plData.cover_url || mappedSongs[0]?.coverUrl || '/app-icon.png',
-            songs: mappedSongs,
-            ownerId: plData.owner_id,
-            ownerName: plData.owner_name || 'Friend',
-            isCollaborative: Boolean(plData.is_collaborative),
-            isUserOwned: plData.owner_id === activeUserId,
-            collaborators: [
-              {
-                userId: plData.owner_id,
-                name: plData.owner_name || 'Owner',
-                role: 'owner',
-                joinedAt: Date.now(),
-              }
-            ]
-          });
-          setIsLoading(false);
-        }
-      } else {
-        // Fallback for dynamic catalog / JioSaavn / curated editorial playlists
-        const { PlaylistDetailResolver } = await import('@/lib/playlist/PlaylistDetailResolver');
-        const lang = preferredLanguage || selectedLanguages?.[0] || 'Telugu';
-        const resolved = await PlaylistDetailResolver.getInstance().resolve(selectedPlaylistId, lang);
-        if (isMounted) {
-          setPlaylist(resolved);
-          setIsLoading(false);
-        }
-      }
-    };
-
-    fetchPlaylist();
-    return () => { isMounted = false; };
-  }, [selectedPlaylistId, playlists, activeUserId, preferredLanguage, selectedLanguages]);
-
-  // Sorted Songs calculation
-  const sortedSongs: Song[] = useMemo(() => {
-    if (!playlist?.songs) return [];
-    const copy = [...playlist.songs];
-
-    switch (sortBy) {
-      case 'title':
-        return copy.sort((a, b) => a.title.localeCompare(b.title));
-      case 'artist':
-        return copy.sort((a, b) => a.artist.localeCompare(b.artist));
-      case 'album':
-        return copy.sort((a, b) => (a.album || '').localeCompare(b.album || ''));
-      case 'duration':
-        return copy.sort((a, b) => (b.duration || 0) - (a.duration || 0));
-      case 'recently_added':
-        return copy.reverse();
-      default:
-        return copy;
+    // 2. Check if it is a user playlist
+    const target = playlists.find(p => p.id === selectedPlaylistId);
+    if (target) {
+      setPlaylist(target);
+      setEditTitle(target.title);
+      setEditDescription(target.description || '');
+      setEditCoverUrl(target.coverUrl || '');
+      setEditVisibility((target.visibility || 'private') as any);
+      setIsLoading(false);
+      return;
     }
-  }, [playlist?.songs, sortBy]);
+
+    // 3. Resolve curated / editorial / external playlist from catalog
+    import('@/lib/playlist/PlaylistDetailResolver').then(async ({ PlaylistDetailResolver }) => {
+      try {
+        const resolved = await PlaylistDetailResolver.getInstance().resolve(selectedPlaylistId, preferredLanguage);
+        if (isMounted && resolved) {
+          setPlaylist({
+            id: resolved.id,
+            title: resolved.title,
+            description: resolved.description || '',
+            coverUrl: resolved.coverUrl || '',
+            visibility: 'public',
+            ownerId: 'curated',
+            ownerName: resolved.ownerName || 'RaagaX Curators',
+            creator: 'RaagaX Curators',
+            songIds: resolved.songs.map(s => s.id),
+            songs: resolved.songs,
+          });
+          setEditTitle(resolved.title);
+          setEditDescription(resolved.description || '');
+          setEditCoverUrl(resolved.coverUrl || '');
+          setEditVisibility('public');
+        } else if (isMounted) {
+          setPlaylist(null);
+        }
+      } catch (err) {
+        console.error('[PlaylistDetailView] Failed to resolve curated playlist:', err);
+        if (isMounted) setPlaylist(null);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedPlaylistId, playlists, preferredLanguage, setSelectedAlbumId, setActiveTab]);
+
+  // Total duration calculation
+  const totalDurationSeconds = useMemo(() => {
+    if (!playlist || !playlist.songs) return 0;
+    return playlist.songs.reduce((sum, s) => sum + (s.duration || 180), 0);
+  }, [playlist]);
+
+  const formattedDuration = useMemo(() => {
+    const hours = Math.floor(totalDurationSeconds / 3600);
+    const minutes = Math.floor((totalDurationSeconds % 3600) / 60);
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m`;
+  }, [totalDurationSeconds]);
+
+  // Download counts and sizes
+  const downloadedSongsInPlaylist = useMemo(() => {
+    if (!playlist || !playlist.songs) return [];
+    return playlist.songs.filter(s => downloadedSongIds.includes(s.id));
+  }, [playlist, downloadedSongIds]);
+
+  const pendingDownloadsCount = useMemo(() => {
+    if (!playlist || !playlist.songs) return 0;
+    return playlist.songs.length - downloadedSongsInPlaylist.length;
+  }, [playlist, downloadedSongsInPlaylist]);
+
+  const isUserOwned = useMemo(() => {
+    if (!playlist) return false;
+    return playlist.ownerId !== 'curated' && (playlist.ownerId === activeUserId || playlist.ownerId === 'guest' || !playlist.ownerId);
+  }, [playlist, activeUserId]);
+
+  const handleSaveToLibrary = async () => {
+    if (!playlist) return;
+    const cloned = await clonePlaylistToLibrary(playlist.id);
+    if (cloned) {
+      setToastMessage(`Saved "${playlist.title}" to Your Playlists!`);
+      setSelectedPlaylistId(cloned.id);
+    }
+  };
+
+  const displaySongs = useMemo(() => {
+    if (!playlist || !playlist.songs) return [];
+    if (isEditOrderMode) return playlist.songs;
+
+    const list = [...playlist.songs];
+    switch (sortBy) {
+      case 'newest':
+        // Default insertion order / newest first
+        return list;
+      case 'oldest':
+        return list.reverse();
+      case 'az':
+        return list.sort((a, b) => a.title.localeCompare(b.title));
+      case 'za':
+        return list.sort((a, b) => b.title.localeCompare(a.title));
+      case 'duration':
+        return list.sort((a, b) => (b.duration || 0) - (a.duration || 0));
+      default:
+        return list;
+    }
+  }, [playlist, sortBy, isEditOrderMode]);
+
+  // Play All & Shuffle Play
+  const handlePlay = (shuffle = false) => {
+    if (!playlist || !playlist.songs || playlist.songs.length === 0) {
+      setToastMessage('Playlist is empty. Add songs first!');
+      return;
+    }
+    const tracklist = shuffle ? [...playlist.songs].sort(() => Math.random() - 0.5) : playlist.songs;
+    setRemoteState({ shuffleMode: shuffle ? 'STANDARD' : 'OFF' });
+    playSong(tracklist[0], tracklist);
+  };
+
+  // Intelligent Bulk Download
+  const handleDownloadAll = async () => {
+    if (!playlist || !playlist.songs || playlist.songs.length === 0) return;
+    
+    if (pendingDownloadsCount === 0) {
+      setToastMessage('All songs in this playlist are already available offline! ✓');
+      return;
+    }
+
+    setShowDownloadConfirmModal(true);
+  };
+
+  const executeBulkDownload = async () => {
+    if (!playlist || !playlist.songs) return;
+    setShowDownloadConfirmModal(false);
+
+    const songsToDownload = playlist.songs.filter(s => !downloadedSongIds.includes(s.id));
+    setToastMessage(`Starting download of ${songsToDownload.length} remaining tracks...`);
+
+    for (const song of songsToDownload) {
+      await saveForOffline(song);
+    }
+  };
+
+  const handleRemoveAllDownloads = async () => {
+    if (!playlist || !playlist.songs) return;
+    setShowPlaylistMenu(false);
+    
+    const confirm = window.confirm(`Remove local downloads for ${downloadedSongsInPlaylist.length} songs in "${playlist.title}"? Songs will remain in your playlist.`);
+    if (confirm) {
+      for (const s of downloadedSongsInPlaylist) {
+        await removeDownload(s.id);
+      }
+      setToastMessage(`Removed ${downloadedSongsInPlaylist.length} downloads from local storage`);
+    }
+  };
+
+  // Reordering controls
+  const handleMoveSong = async (index: number, direction: 'up' | 'down') => {
+    if (!playlist) return;
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= playlist.songs.length) return;
+    await reorderSongs(playlist.id, index, targetIndex);
+  };
+
+  // Save metadata
+  const handleSaveMetadata = async () => {
+    if (!playlist || !editTitle.trim()) return;
+    setIsSavingMetadata(true);
+
+    try {
+      await updatePlaylist(playlist.id, {
+        title: editTitle.trim(),
+        description: editDescription.trim(),
+        coverUrl: editCoverUrl.trim(),
+        visibility: editVisibility,
+      });
+      setToastMessage('Playlist updated');
+      setShowEditMetadataModal(false);
+    } catch (e) {
+      console.error('[PlaylistDetailView] Failed to update playlist metadata:', e);
+    } finally {
+      setIsSavingMetadata(false);
+    }
+  };
+
+  // Delete playlist
+  const handleDeletePlaylist = async () => {
+    if (!playlist) return;
+    setShowPlaylistMenu(false);
+    const confirm = window.confirm(`Are you sure you want to delete "${playlist.title}"? (Underlying songs & downloads will NOT be deleted).`);
+    if (confirm) {
+      await deletePlaylist(playlist.id);
+      setToastMessage(`Deleted playlist "${playlist.title}"`);
+      setActiveTab('library');
+    }
+  };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-[50vh] text-white">
-        <div className="w-10 h-10 border-4 border-[#fa233b] border-t-transparent rounded-full animate-spin" />
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-400">
+        <Loader2 className="w-8 h-8 animate-spin text-[#fa233b] mb-3" />
+        <p className="text-xs font-medium">Loading playlist...</p>
       </div>
     );
   }
 
   if (!playlist) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center text-white px-4">
-        <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4 text-[#EF233C]">
-          <Music className="w-8 h-8 opacity-70" />
-        </div>
-        <h2 className="text-xl sm:text-2xl font-black tracking-tight">Playlist Not Available</h2>
-        <p className="text-xs sm:text-sm text-slate-400 max-w-sm mt-1 mb-6">
-          This playlist is currently unavailable or has been removed.
-        </p>
-        <button 
-          onClick={() => {
-            setSelectedPlaylistId(null);
-            setActiveTab('home');
-          }}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#EF233C] hover:bg-[#ff3b53] text-white rounded-full font-bold text-xs shadow-lg transition-transform active:scale-95 cursor-pointer"
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6 text-slate-400">
+        <Music className="w-12 h-12 mb-3 opacity-40 text-slate-500" />
+        <h3 className="text-base font-bold text-white">Playlist Not Found</h3>
+        <p className="text-xs text-slate-400 mt-1 mb-4">This playlist may have been deleted or is unavailable.</p>
+        <button
+          onClick={() => setActiveTab('library')}
+          className="px-4 py-2 rounded-xl bg-[#fa233b] text-white text-xs font-bold shadow-md hover:bg-[#d91e32]"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Home
+          Return to Library
         </button>
       </div>
     );
   }
 
-  const handlePlayAll = () => {
-    if (sortedSongs.length === 0) return;
-    setRemoteState({ shuffleMode: 'OFF' });
-    playSong(sortedSongs[0], sortedSongs);
-  };
-
-  const handleShufflePlay = () => {
-    if (sortedSongs.length === 0) return;
-    usePlayerStore.getState().shufflePlay(sortedSongs, {
-      contextType: 'PLAYLIST',
-      contextUri: `raagax:playlist:${playlist.id}`,
-      title: playlist.title,
-    });
-  };
-
-  const handleShareOrInvite = async () => {
-    const link = generateInviteLink(playlist.id);
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: playlist.title,
-          text: `Join my collaborative playlist "${playlist.title}" on RaagaX!`,
-          url: link,
-        });
-        return;
-      } catch {}
-    }
-
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopiedLink(true);
-      setToastMessage('Invite link copied to clipboard!');
-      setTimeout(() => setCopiedLink(false), 2500);
-    } catch {
-      setToastMessage(link);
-    }
-  };
-
-  const handleClonePlaylist = async () => {
-    const cloned = await clonePlaylistToLibrary(playlist.id);
-    if (cloned) {
-      setToastMessage(`Saved a copy of "${playlist.title}" to your Library`);
-      setSelectedPlaylistId(cloned.id);
-    }
-  };
-
-  // Multi-Selection helpers
-  const toggleSelectSong = (songId: string) => {
-    setSelectedSongIds(prev => 
-      prev.includes(songId) ? prev.filter(id => id !== songId) : [...prev, songId]
-    );
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedSongIds.length === sortedSongs.length) {
-      setSelectedSongIds([]);
-    } else {
-      setSelectedSongIds(sortedSongs.map(s => s.id));
-    }
-  };
-
-  const getSelectedSongs = () => {
-    return sortedSongs.filter(s => selectedSongIds.includes(s.id));
-  };
-
-  // Bulk Actions
-  const handleBulkDownload = () => {
-    const selected = getSelectedSongs();
-    if (selected.length === 0) return;
-    useDownloadStore.getState().downloadPlaylist(selected);
-    setToastMessage(`Queued ${selected.length} songs for offline download`);
-    setIsSelectionMode(false);
-    setSelectedSongIds([]);
-  };
-
-  const handleBulkQueue = () => {
-    const selected = getSelectedSongs();
-    if (selected.length === 0) return;
-    playNextSequence(selected);
-    setToastMessage(`Queued ${selected.length} songs to play next`);
-    setIsSelectionMode(false);
-    setSelectedSongIds([]);
-  };
-
-  const handleBulkFavorite = () => {
-    const selected = getSelectedSongs();
-    selected.forEach(s => {
-      if (!likedSongIds.includes(s.id)) {
-        toggleLikeSong(s.id);
-      }
-    });
-    setToastMessage(`Added ${selected.length} songs to Liked Songs`);
-    setIsSelectionMode(false);
-    setSelectedSongIds([]);
-  };
-
-  const handleBulkRemove = async () => {
-    if (!playlist.isUserOwned) return;
-    const confirm = window.confirm(`Remove ${selectedSongIds.length} songs from "${playlist.title}"?`);
-    if (confirm) {
-      for (const songId of selectedSongIds) {
-        await removeSongFromPlaylist(playlist.id, songId);
-      }
-      setToastMessage(`Removed ${selectedSongIds.length} songs`);
-      setIsSelectionMode(false);
-      setSelectedSongIds([]);
-    }
-  };
-
   return (
-    <div className="space-y-8 pb-24 md:pb-12 text-white select-none relative">
-      {/* Back Button */}
-      <button
-        onClick={() => {
-          setSelectedPlaylistId(null);
-          setActiveTab('home');
-        }}
-        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer"
-      >
-        <ArrowLeft className="w-4 h-4" /> Back to Home
-      </button>
+    <div className="space-y-6 pb-12 text-white select-none animate-in fade-in duration-200">
+      {/* Top Back Navigation Bar */}
+      <div className="flex items-center justify-between pt-1">
+        <button
+          onClick={() => setActiveTab('library')}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all text-xs font-bold cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Playlists</span>
+        </button>
 
-      {/* Playlist Hero Banner */}
-      <section className="relative rounded-3xl bg-gradient-to-r from-slate-900 via-[#1a1423] to-slate-950 p-6 sm:p-8 overflow-hidden shadow-2xl border border-white/10 flex flex-col md:flex-row items-center md:items-end justify-between gap-6">
-        <div className="flex flex-col md:flex-row items-center gap-6 z-10 text-center md:text-left">
-          <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden shadow-2xl border border-white/20 flex-shrink-0 bg-black/50">
-            <img 
-              src={playlist.coverUrl || '/app-icon.png'} 
-              alt={playlist.title} 
-              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-              className="w-full h-full object-cover" 
-            />
-          </div>
+        {/* 3-Dot Playlist Action Menu */}
+        <div className="relative">
+          <button
+            onClick={() => setShowPlaylistMenu(!showPlaylistMenu)}
+            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer"
+            title="Playlist Actions"
+          >
+            <MoreVertical className="w-4 h-4" />
+          </button>
 
-          <div className="space-y-2.5">
-            <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-800/40 text-[10px] font-bold uppercase text-emerald-400">
-                Playlist
-              </span>
-
-              {playlist.isCollaborative && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-[10px] font-bold uppercase text-purple-300">
-                  <Users className="w-3 h-3" /> Collaborative
-                </span>
-              )}
-
-              {playlist.visibility === 'public' ? (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-500/20 border border-blue-500/40 text-[10px] font-bold uppercase text-blue-300">
-                  <Globe className="w-3 h-3" /> Public
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-500/20 border border-slate-500/40 text-[10px] font-bold uppercase text-slate-300">
-                  <Lock className="w-3 h-3" /> Private
-                </span>
-              )}
-            </div>
-
-            <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-white">{playlist.title}</h1>
-            
-            <p className="text-xs text-slate-300 font-medium">
-              <Music className="w-3.5 h-3.5 inline mr-1.5 text-slate-400" />
-              {playlist.songs?.length || 0} Tracks • By {playlist.creator || playlist.ownerName || 'You'}
-            </p>
-
-            {/* Collaborators Avatar Stack */}
-            {playlist.collaborators && playlist.collaborators.length > 0 && (
-              <div className="flex items-center justify-center md:justify-start gap-2 pt-1">
-                <div className="flex -space-x-2">
-                  {playlist.collaborators.map((c: any, i: number) => (
-                    <div
-                      key={c.userId || i}
-                      title={`${c.name} (${c.role})`}
-                      className="w-7 h-7 rounded-full bg-gradient-to-tr from-[#FA233B] to-purple-600 border-2 border-slate-900 flex items-center justify-center text-[10px] font-black text-white"
-                    >
-                      {c.name?.charAt(0).toUpperCase() || 'U'}
-                    </div>
-                  ))}
-                </div>
-                <span className="text-[11px] text-slate-400 font-medium">
-                  {playlist.collaborators.length} collaborator{playlist.collaborators.length > 1 ? 's' : ''}
-                </span>
-              </div>
-            )}
-
-            {/* Action Buttons Row */}
-            <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5 pt-3">
+          {showPlaylistMenu && (
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className="absolute right-0 top-full mt-2 w-56 bg-[#14151a]/95 border border-white/10 rounded-2xl shadow-2xl p-1.5 z-50 text-xs backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-150 space-y-0.5"
+            >
               <button
-                onClick={handlePlayAll}
-                className="px-5 py-2.5 rounded-full bg-[#EF233C] text-white font-black text-xs uppercase tracking-wider flex items-center gap-2 hover:scale-105 transition-transform shadow-lg shadow-red-500/30 cursor-pointer"
+                onClick={() => { setShowPlaylistMenu(false); handlePlay(false); }}
+                className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-xl flex items-center gap-2.5 text-slate-200 hover:text-white transition-colors"
               >
-                <Play className="w-4 h-4 fill-white" /> Play
+                <Play className="w-3.5 h-3.5 fill-current text-[#fa233b]" /> Play
               </button>
+
+              <button
+                onClick={() => { setShowPlaylistMenu(false); handlePlay(true); }}
+                className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-xl flex items-center gap-2.5 text-slate-200 hover:text-white transition-colors"
+              >
+                <Shuffle className="w-3.5 h-3.5 text-slate-300" /> Shuffle Play
+              </button>
+
+              <button
+                onClick={() => { setShowPlaylistMenu(false); setShowAddSongsModal(true); }}
+                className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-xl flex items-center gap-2.5 text-slate-200 hover:text-white transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5 text-purple-400" /> Add Songs
+              </button>
+
+              <button
+                onClick={() => { setShowPlaylistMenu(false); handleDownloadAll(); }}
+                className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-xl flex items-center gap-2.5 text-slate-200 hover:text-white transition-colors"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" /> Download All
+              </button>
+
+              {downloadedSongsInPlaylist.length > 0 && (
+                <button
+                  onClick={handleRemoveAllDownloads}
+                  className="w-full text-left px-3 py-2 hover:bg-red-500/10 rounded-xl flex items-center gap-2.5 text-slate-300 hover:text-red-400 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Remove All Downloads
+                </button>
+              )}
+
+              <div className="border-t border-white/5 my-1" />
+
+              {!isUserOwned ? (
+                <button
+                  onClick={() => { setShowPlaylistMenu(false); handleSaveToLibrary(); }}
+                  className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-xl flex items-center gap-2.5 text-slate-200 hover:text-white transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5 text-purple-400" /> Save to Your Library
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => { setShowPlaylistMenu(false); setIsEditOrderMode(!isEditOrderMode); }}
+                    className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 transition-colors ${
+                      isEditOrderMode ? 'bg-[#fa233b]/20 text-[#fa233b] font-bold' : 'hover:bg-white/10 text-slate-200 hover:text-white'
+                    }`}
+                  >
+                    <ArrowUpDown className="w-3.5 h-3.5" /> {isEditOrderMode ? 'Done Reordering' : 'Edit Order'}
+                  </button>
+
+                  <button
+                    onClick={() => { setShowPlaylistMenu(false); setShowEditMetadataModal(true); }}
+                    className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-xl flex items-center gap-2.5 text-slate-200 hover:text-white transition-colors"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-blue-400" /> Edit Playlist Details
+                  </button>
+                </>
+              )}
 
               <button
                 onClick={() => {
-                  if (playlist && playlist.songs?.length > 0) {
-                    playNextSequence(sortedSongs);
-                    setToastMessage(`Queued ${sortedSongs.length} songs from "${playlist.title}" to play next`);
+                  setShowPlaylistMenu(false);
+                  if (navigator.clipboard) {
+                    navigator.clipboard.writeText(generateInviteLink(playlist.id));
+                    setToastMessage('Playlist link copied to clipboard');
                   }
                 }}
-                className="px-4 py-2.5 rounded-full font-bold text-xs flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all hover:scale-105 cursor-pointer"
+                className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-xl flex items-center gap-2.5 text-slate-200 hover:text-white transition-colors"
               >
-                <ListPlus className="w-3.5 h-3.5 text-slate-300" /> Play Next
+                <Share2 className="w-3.5 h-3.5 text-cyan-400" /> Share Playlist
               </button>
 
-              <button
-                onClick={handleShufflePlay}
-                className="px-4 py-2.5 rounded-full font-bold text-xs flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all hover:scale-105 cursor-pointer"
-              >
-                <Shuffle className="w-3.5 h-3.5 text-slate-300" /> Shuffle
-              </button>
+              {isUserOwned && (
+                <>
+                  <div className="border-t border-white/5 my-1" />
 
-              <button
-                onClick={() => setShowDownloadModal(true)}
-                className="px-4 py-2.5 rounded-full font-bold text-xs flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all hover:scale-105 cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5 text-slate-300" /> Download
-              </button>
+                  <button
+                    onClick={() => {
+                      setShowPlaylistMenu(false);
+                      const confirm = window.confirm(`Clear all ${playlist.songs.length} songs from "${playlist.title}"?`);
+                      if (confirm) clearPlaylist(playlist.id);
+                    }}
+                    className="w-full text-left px-3 py-2 hover:bg-red-500/10 text-slate-400 hover:text-red-400 rounded-xl flex items-center gap-2.5 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Clear All Songs
+                  </button>
 
-              {/* Share / Invite Collaborators */}
-              <button
-                onClick={handleShareOrInvite}
-                className="px-4 py-2.5 rounded-full font-bold text-xs flex items-center gap-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 transition-all hover:scale-105 cursor-pointer"
-              >
-                {copiedLink ? <Check className="w-3.5 h-3.5" /> : <UserPlus className="w-3.5 h-3.5" />}
-                <span>{copiedLink ? 'Copied' : 'Invite'}</span>
-              </button>
-
-              {/* Clone to Library if shared */}
-              {!playlist.isUserOwned && (
-                <button
-                  onClick={handleClonePlaylist}
-                  className="px-4 py-2.5 rounded-full font-bold text-xs flex items-center gap-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 transition-all hover:scale-105 cursor-pointer"
-                  title="Copy this playlist into your personal library"
-                >
-                  <Copy className="w-3.5 h-3.5" /> Save to Library
-                </button>
-              )}
-
-              {playlist.isUserOwned && (
-                <button
-                  onClick={async () => {
-                    const confirm = window.confirm("Are you sure you want to delete this playlist?");
-                    if (confirm) {
-                      await deletePlaylist(playlist.id);
-                      setActiveTab('home');
-                      setSelectedPlaylistId(null);
-                    }
-                  }}
-                  className="px-4 py-2.5 rounded-full font-bold text-xs flex items-center gap-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all hover:scale-105 cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5" /> Delete
-                </button>
+                  <button
+                    onClick={handleDeletePlaylist}
+                    className="w-full text-left px-3 py-2 hover:bg-red-500/15 text-red-400 font-bold rounded-xl flex items-center gap-2.5 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Delete Playlist
+                  </button>
+                </>
               )}
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* Cinematic Hero Header */}
+      <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6 p-6 rounded-3xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] relative overflow-hidden shadow-xl">
+        {/* Dynamic Cover Ambient Glow */}
+        {playlist.coverUrl && (
+          <div 
+            className="absolute inset-0 opacity-15 blur-3xl scale-125 pointer-events-none bg-cover bg-center"
+            style={{ backgroundImage: `url(${playlist.coverUrl})` }}
+          />
+        )}
+
+        {/* Large Cover Art */}
+        <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden shadow-2xl bg-slate-900 border border-white/10 flex-shrink-0 group">
+          {playlist.coverUrl ? (
+            <img 
+              src={playlist.coverUrl} 
+              alt={playlist.title}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-purple-900/40 to-slate-900 text-purple-400">
+              <Music className="w-12 h-12 mb-1 opacity-60" />
+              <span className="text-[10px] font-mono text-purple-300">RaagaX Playlist</span>
+            </div>
+          )}
+
+          <button
+            onClick={() => setShowEditMetadataModal(true)}
+            className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/60 hover:bg-black/80 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+            title="Change Artwork"
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Playlist Info & Metadata */}
+        <div className="min-w-0 flex-1 text-center sm:text-left space-y-2 relative z-10">
+          <div className="flex items-center justify-center sm:justify-start gap-2">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/10 text-slate-300 border border-white/10">
+              {playlist.visibility === 'public' ? 'Public Playlist' : 'Private Playlist'}
+            </span>
+            {downloadedSongsInPlaylist.length === playlist.songs.length && playlist.songs.length > 0 && (
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                <Check className="w-3 h-3 stroke-[3]" /> Downloaded
+              </span>
+            )}
+          </div>
+
+          <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight break-words">
+            {playlist.title}
+          </h1>
+
+          {playlist.description && (
+            <p className="text-xs sm:text-sm text-[var(--text-secondary)] line-clamp-2 max-w-xl">
+              {playlist.description}
+            </p>
+          )}
+
+          {/* Useful Metadata Summary */}
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-xs text-[var(--text-secondary)] font-medium pt-1">
+            <span>{playlist.songs?.length || 0} {playlist.songs?.length === 1 ? 'song' : 'songs'}</span>
+            <span>•</span>
+            <span>{formattedDuration}</span>
+            {downloadedSongsInPlaylist.length > 0 && (
+              <>
+                <span>•</span>
+                <span className="text-emerald-400 font-mono">
+                  {downloadedSongsInPlaylist.length} downloaded
+                </span>
+              </>
+            )}
           </div>
         </div>
-      </section>
+      </div>
 
-      {/* Playlist Download Progress Banner (Requirement #8) */}
-      {playlistDownloadProgress && playlistDownloadProgress.status === 'DOWNLOADING' && (
-        <div className="p-4 rounded-2xl bg-gradient-to-r from-[#fa233b]/20 via-purple-500/15 to-transparent border border-[#fa233b]/30 shadow-xl backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#fa233b] animate-ping" />
-                <span className="text-xs font-black text-white uppercase tracking-wider">
-                  Downloading Playlist: {playlistDownloadProgress.completedSongs} / {playlistDownloadProgress.totalSongs} songs ({playlistDownloadProgress.overallProgress}%)
-                </span>
+      {/* Action Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+        {/* Primary Play Actions */}
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => handlePlay(false)}
+            className="px-6 py-3 rounded-full bg-[#fa233b] hover:bg-[#d91e32] active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-red-500/25 transition-all cursor-pointer"
+          >
+            <Play className="w-4 h-4 fill-white" />
+            Play
+          </button>
+
+          <button
+            onClick={() => handlePlay(true)}
+            className="px-4 py-3 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center gap-2 border border-white/10 shadow-md transition-all cursor-pointer"
+          >
+            <Shuffle className="w-4 h-4 text-slate-300" />
+            Shuffle
+          </button>
+
+          {isUserOwned ? (
+            <button
+              onClick={() => setShowAddSongsModal(true)}
+              className="px-4 py-3 rounded-full bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 hover:text-white border border-purple-500/30 text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              Add Songs
+            </button>
+          ) : (
+            <button
+              onClick={handleSaveToLibrary}
+              className="px-4 py-3 rounded-full bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 hover:text-white border border-purple-500/30 text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              Save to Library
+            </button>
+          )}
+
+          <button
+            onClick={handleDownloadAll}
+            className="px-4 py-3 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer"
+            title="Download All Songs"
+          >
+            <Download className="w-4 h-4 text-emerald-400" />
+            Download All
+          </button>
+        </div>
+
+        {/* Sorting Dropdown & Order Toggle */}
+        <div className="flex items-center gap-2">
+          {!isEditOrderMode ? (
+            <div className="flex items-center gap-1.5 bg-[var(--bg-surface)] border border-[var(--border-subtle)] px-3 py-2 rounded-2xl text-xs shadow-sm">
+              <span className="text-slate-400 font-medium">Sort:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="bg-transparent text-[var(--text-primary)] text-xs font-bold outline-none cursor-pointer"
+              >
+                <option value="newest" className="bg-[var(--bg-elevated)] text-[var(--text-primary)]">Newest Added</option>
+                <option value="oldest" className="bg-[var(--bg-elevated)] text-[var(--text-primary)]">Oldest Added</option>
+                <option value="az" className="bg-[var(--bg-elevated)] text-[var(--text-primary)]">A → Z</option>
+                <option value="za" className="bg-[var(--bg-elevated)] text-[var(--text-primary)]">Z → A</option>
+                <option value="duration" className="bg-[var(--bg-elevated)] text-[var(--text-primary)]">Duration</option>
+              </select>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsEditOrderMode(false)}
+              className="px-4 py-2 rounded-2xl bg-[#fa233b] text-white text-xs font-bold shadow transition-all cursor-pointer"
+            >
+              Done Reordering
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Tracklist Table / Items */}
+      {displaySongs.length > 0 ? (
+        <div className="space-y-2 pt-2">
+          {displaySongs.map((song, index) => {
+            const isDownloaded = downloadedSongIds.includes(song.id);
+            const task = tasks[song.id];
+            const isDownloading = task && (task.status === 'DOWNLOADING' || task.status === 'QUEUED' || task.status === 'VERIFYING');
+
+            return (
+              <div
+                key={`${song.id}-${index}`}
+                className="p-3 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-white/20 hover:bg-[var(--bg-surface)] transition-all flex items-center justify-between gap-3 group"
+              >
+                {/* Track Number / Drag handles in edit order mode */}
+                <div className="w-8 text-center flex-shrink-0">
+                  {isEditOrderMode ? (
+                    <div className="flex flex-col items-center gap-1">
+                      <button
+                        onClick={() => handleMoveSong(index, 'up')}
+                        disabled={index === 0}
+                        className="p-1 text-slate-400 hover:text-white disabled:opacity-20 cursor-pointer"
+                      >
+                        <MoveUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleMoveSong(index, 'down')}
+                        disabled={index === displaySongs.length - 1}
+                        className="p-1 text-slate-400 hover:text-white disabled:opacity-20 cursor-pointer"
+                      >
+                        <MoveDown className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-xs font-mono text-slate-500 font-bold group-hover:hidden">
+                      {index + 1}
+                    </span>
+                  )}
+                  {!isEditOrderMode && (
+                    <button
+                      onClick={() => playSong(song, playlist.songs)}
+                      className="hidden group-hover:inline-flex p-1 text-[#fa233b] hover:scale-110 transition-transform cursor-pointer"
+                    >
+                      <Play className="w-4 h-4 fill-current" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Cover & Title */}
+                <div
+                  className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
+                  onClick={() => playSong(song, playlist.songs)}
+                >
+                  <img
+                    src={song.coverUrl || '/app-icon.png'}
+                    alt={song.title}
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+                    className="w-11 h-11 rounded-xl object-cover bg-slate-800 flex-shrink-0 shadow-sm"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-xs sm:text-sm font-bold text-[var(--text-primary)] group-hover:text-[#fa233b] transition-colors truncate">
+                      {song.title}
+                    </h4>
+                    <p className="text-[11px] text-[var(--text-secondary)] truncate mt-0.5">
+                      {song.artist}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Download State Indicator */}
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  {isDownloaded ? (
+                    <span title="Downloaded Offline" className="text-emerald-400 p-1">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </span>
+                  ) : isDownloading ? (
+                    <span title={`Downloading... ${task?.progress || 0}%`} className="text-amber-400 font-mono text-[10px] flex items-center gap-1">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> {task?.progress}%
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => saveForOffline(song)}
+                      className="p-1.5 text-slate-500 hover:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      title="Download song"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+
+                  {/* Duration */}
+                  <span className="text-[11px] font-mono text-slate-400 hidden sm:inline-block">
+                    {Math.floor((song.duration || 180) / 60)}:{((song.duration || 180) % 60).toString().padStart(2, '0')}
+                  </span>
+
+                  {/* Song 3-dot Menu */}
+                  <SongActionMenu 
+                    song={song} 
+                    playlistId={playlist.id}
+                    onRemoveFromPlaylist={() => removeSongFromPlaylist(playlist.id, song.id)}
+                  />
+                </div>
               </div>
-              <p className="text-[11px] text-slate-300 truncate max-w-md">
-                Current: <span className="text-white font-bold">{playlistDownloadProgress.currentSongTitle || 'Preparing track...'}</span>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="p-12 rounded-3xl bg-[var(--bg-surface)] border border-dashed border-[var(--border-subtle)] text-center space-y-3">
+          <div className="w-14 h-14 rounded-2xl bg-purple-500/10 text-purple-400 flex items-center justify-center mx-auto shadow-inner">
+            <Music className="w-7 h-7" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-[var(--text-primary)]">This playlist is empty</p>
+            <p className="text-xs text-[var(--text-secondary)] mt-1">Add your favorite tracks to start listening.</p>
+          </div>
+          <button
+            onClick={() => setShowAddSongsModal(true)}
+            className="px-5 py-2.5 rounded-xl bg-[#fa233b] hover:bg-[#d91e32] text-white text-xs font-bold transition-all inline-flex items-center gap-1.5 shadow-md shadow-red-500/25 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" /> Add Songs to Playlist
+          </button>
+        </div>
+      )}
+
+      {/* Add Songs Searchable Modal */}
+      {showAddSongsModal && (
+        <AddSongsModal
+          isOpen={showAddSongsModal}
+          onClose={() => setShowAddSongsModal(false)}
+          playlist={playlist}
+        />
+      )}
+
+      {/* Intelligent Download All Confirmation Modal */}
+      {showDownloadConfirmModal && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200"
+          onClick={() => setShowDownloadConfirmModal(false)}
+        >
+          <div 
+            className="bg-[#12131A] border border-white/12 rounded-3xl p-6 w-full max-w-md shadow-2xl text-white space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center">
+              <Download className="w-6 h-6" />
+            </div>
+
+            <div>
+              <h3 className="text-lg font-black text-white">Download All Songs</h3>
+              <p className="text-xs text-slate-300 mt-1">
+                {downloadedSongsInPlaylist.length > 0 && (
+                  <span className="text-emerald-400 font-bold block mb-1">
+                    ✓ {downloadedSongsInPlaylist.length} songs already available offline
+                  </span>
+                )}
+                Download remaining <span className="text-white font-bold">{pendingDownloadsCount} songs</span> in "{playlist.title}" for offline playback?
               </p>
             </div>
 
-            <div className="flex items-center gap-2 self-end sm:self-center">
+            <div className="flex items-center justify-end gap-3 pt-2">
               <button
-                onClick={() => pauseAll()}
-                className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                onClick={() => setShowDownloadConfirmModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white"
               >
-                <Pause className="w-3.5 h-3.5" /> Pause All
+                Cancel
               </button>
               <button
-                onClick={() => cancelAll()}
-                className="px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                onClick={executeBulkDownload}
+                className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/25 cursor-pointer"
               >
-                <X className="w-3.5 h-3.5" /> Cancel
+                Download {pendingDownloadsCount} Songs
               </button>
             </div>
-          </div>
-
-          {/* Progress Bar */}
-          <div className="w-full bg-white/10 rounded-full h-1.5 mt-3 overflow-hidden">
-            <div 
-              className="bg-gradient-to-r from-[#fa233b] to-purple-500 h-full rounded-full transition-all duration-300"
-              style={{ width: `${Math.max(5, playlistDownloadProgress.overallProgress)}%` }}
-            />
           </div>
         </div>
       )}
 
-      {/* Playlist Songs Table Header with Sort & Select Controls */}
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-2">
-          <div className="flex items-center gap-3">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Tracks</h3>
-            <span className="text-xs text-slate-400 font-mono">{sortedSongs.length} songs</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Sort Dropdown */}
-            <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl text-xs">
-              <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="bg-transparent text-white text-xs font-bold outline-none cursor-pointer"
+      {/* Edit Playlist Details Modal */}
+      {showEditMetadataModal && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200"
+          onClick={() => !isSavingMetadata && setShowEditMetadataModal(false)}
+        >
+          <div 
+            className="bg-[#12131A] border border-white/12 rounded-3xl p-6 w-full max-w-md shadow-2xl text-white space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-black text-white">Edit Playlist Details</h3>
+              <button 
+                onClick={() => setShowEditMetadataModal(false)}
+                className="p-1.5 text-slate-400 hover:text-white"
               >
-                <option value="default" className="bg-[#12131a]">Default Order</option>
-                <option value="title" className="bg-[#12131a]">Title (A-Z)</option>
-                <option value="artist" className="bg-[#12131a]">Artist</option>
-                <option value="album" className="bg-[#12131a]">Album</option>
-                <option value="duration" className="bg-[#12131a]">Duration</option>
-                <option value="recently_added" className="bg-[#12131a]">Recently Added</option>
-              </select>
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            {/* Multi-Select Toggle */}
-            <button
-              onClick={() => {
-                setIsSelectionMode(!isSelectionMode);
-                setSelectedSongIds([]);
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                isSelectionMode 
-                  ? 'bg-[#FA233B] text-white shadow' 
-                  : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10'
-              }`}
-            >
-              {isSelectionMode ? <X className="w-3.5 h-3.5" /> : <CheckSquare className="w-3.5 h-3.5" />}
-              <span>{isSelectionMode ? 'Cancel' : 'Select'}</span>
-            </button>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block mb-1">Name</label>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full bg-[#08090E] border border-white/15 focus:border-[#fa233b] rounded-2xl px-4 py-2.5 text-white text-xs font-medium focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block mb-1">Description</label>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows={2}
+                  className="w-full bg-[#08090E] border border-white/15 focus:border-[#fa233b] rounded-2xl px-4 py-2 text-white text-xs font-medium focus:outline-none resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block mb-1">Artwork Image URL</label>
+                <input
+                  type="text"
+                  value={editCoverUrl}
+                  onChange={(e) => setEditCoverUrl(e.target.value)}
+                  placeholder="https://..."
+                  className="w-full bg-[#08090E] border border-white/15 focus:border-[#fa233b] rounded-2xl px-4 py-2.5 text-white text-xs font-medium focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block mb-1">Visibility</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditVisibility('private')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
+                      editVisibility === 'private' ? 'bg-[#fa233b]/15 border-[#fa233b] text-white' : 'bg-white/5 border-white/10 text-slate-400'
+                    }`}
+                  >
+                    Private
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditVisibility('public')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
+                      editVisibility === 'public' ? 'bg-[#fa233b]/15 border-[#fa233b] text-white' : 'bg-white/5 border-white/10 text-slate-400'
+                    }`}
+                  >
+                    Public
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
+              <button
+                onClick={() => setShowEditMetadataModal(false)}
+                disabled={isSavingMetadata}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveMetadata}
+                disabled={!editTitle.trim() || isSavingMetadata}
+                className="px-5 py-2.5 rounded-xl bg-[#fa233b] hover:bg-[#d91e32] text-white font-bold text-xs shadow-md shadow-red-500/25 cursor-pointer disabled:opacity-40"
+              >
+                {isSavingMetadata ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
           </div>
         </div>
-
-        {/* Multi-Select Bulk Actions Bar */}
-        {isSelectionMode && (
-          <div className="p-3 rounded-2xl bg-white/[0.06] border border-white/15 backdrop-blur-xl flex flex-wrap items-center justify-between gap-3 shadow-xl animate-in slide-in-from-top-2 duration-200">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={toggleSelectAll}
-                className="text-xs font-bold text-white hover:text-[#FA233B] flex items-center gap-1.5 cursor-pointer"
-              >
-                {selectedSongIds.length === sortedSongs.length ? (
-                  <CheckSquare className="w-4 h-4 text-[#FA233B]" />
-                ) : (
-                  <Square className="w-4 h-4 text-slate-400" />
-                )}
-                <span>Select All</span>
-              </button>
-              <span className="text-xs text-slate-400 font-mono">
-                {selectedSongIds.length} of {sortedSongs.length} selected
-              </span>
-            </div>
-
-            {selectedSongIds.length > 0 && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleBulkDownload}
-                  className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-500/30 transition-colors cursor-pointer"
-                  title="Download selected"
-                >
-                  <Download className="w-3.5 h-3.5" /> Download
-                </button>
-
-                <button
-                  onClick={handleBulkQueue}
-                  className="px-3 py-1.5 rounded-xl bg-white/10 text-white border border-white/15 text-xs font-bold flex items-center gap-1.5 hover:bg-white/20 transition-colors cursor-pointer"
-                  title="Queue selected"
-                >
-                  <ListPlus className="w-3.5 h-3.5" /> Play Next
-                </button>
-
-                <button
-                  onClick={handleBulkFavorite}
-                  className="px-3 py-1.5 rounded-xl bg-[#FA233B]/20 text-[#FA233B] border border-[#FA233B]/30 text-xs font-bold flex items-center gap-1.5 hover:bg-[#FA233B]/30 transition-colors cursor-pointer"
-                  title="Favorite selected"
-                >
-                  <Heart className="w-3.5 h-3.5" /> Like
-                </button>
-
-                {playlist.isUserOwned && (
-                  <button
-                    onClick={handleBulkRemove}
-                    className="px-3 py-1.5 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold flex items-center gap-1.5 hover:bg-rose-500/30 transition-colors cursor-pointer"
-                    title="Remove selected from playlist"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" /> Remove
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Tracks List */}
-        {sortedSongs.length > 0 ? (
-          <div className="space-y-1.5">
-            {sortedSongs.map((song: Song, index: number) => {
-              const isSongLiked = likedSongIds.includes(song.id);
-              const isSongDownloaded = downloadedSongIds.includes(song.id);
-              const isSelected = selectedSongIds.includes(song.id);
-
-              return (
-                <div
-                  key={song.id || index}
-                  onClick={() => {
-                    if (isSelectionMode) {
-                      toggleSelectSong(song.id);
-                    } else {
-                      playSong(song, sortedSongs);
-                    }
-                  }}
-                  className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3.5 group cursor-pointer ${
-                    isSelected
-                      ? 'bg-[#FA233B]/10 border-[#FA233B]/40 shadow-sm'
-                      : 'bg-white/[0.03] hover:bg-white/[0.08] border-white/5 hover:border-white/15'
-                  }`}
-                >
-                  <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                    {isSelectionMode ? (
-                      <div className="w-5 flex items-center justify-center flex-shrink-0">
-                        {isSelected ? (
-                          <CheckSquare className="w-4 h-4 text-[#FA233B]" />
-                        ) : (
-                          <Square className="w-4 h-4 text-slate-500" />
-                        )}
-                      </div>
-                    ) : (
-                      <>
-                        <span className="w-5 text-center text-xs text-slate-500 font-mono font-bold flex-shrink-0 group-hover:hidden">
-                          {index + 1}
-                        </span>
-                        <button className="w-5 text-center text-[#FA233B] hidden group-hover:flex items-center justify-center flex-shrink-0">
-                          <Play className="w-3.5 h-3.5 fill-[#FA233B]" />
-                        </button>
-                      </>
-                    )}
-
-                    <img
-                      src={song.coverUrl || '/app-icon.png'}
-                      alt={song.title}
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                      className="w-10 h-10 rounded-xl object-cover shadow flex-shrink-0"
-                    />
-
-                    <div className="min-w-0 flex-1">
-                      <h4 className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-[#FA233B] transition-colors">
-                        {song.title}
-                      </h4>
-                      <p className="text-[11px] text-slate-400 truncate mt-0.5">{song.artist}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <DownloadStatusIndicator song={song} size="sm" showPercentage />
-
-                    {!isSelectionMode && (
-                      <>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleLikeSong(song.id);
-                          }}
-                          className="p-2 text-slate-400 hover:text-white rounded-lg transition-colors"
-                          title={isSongLiked ? "Remove from Liked" : "Add to Liked"}
-                        >
-                          <Heart className={`w-4 h-4 ${isSongLiked ? 'fill-[#FA233B] text-[#FA233B]' : ''}`} />
-                        </button>
-
-                        {playlist.isUserOwned && (
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              await removeSongFromPlaylist(playlist.id, song.id);
-                              setToastMessage(`Removed "${song.title}" from playlist`);
-                            }}
-                            className="opacity-0 group-hover:opacity-100 p-2 text-slate-500 hover:text-rose-400 rounded-lg transition-opacity"
-                            title="Remove track"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-
-                        <SongActionMenu song={song} />
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="p-12 text-center text-slate-400 rounded-3xl bg-white/[0.02] border border-white/5">
-            <Music className="w-8 h-8 mx-auto mb-2 opacity-40" />
-            <p className="text-xs font-bold text-slate-300">Playlist is empty</p>
-            <p className="text-[11px] text-slate-500 mt-1">Add tracks from search or your library</p>
-          </div>
-        )}
-      </section>
-
-      {/* Bulk Download Modal */}
-      {showDownloadModal && (
-        <BulkDownloadConfirmModal
-          isOpen={showDownloadModal}
-          onClose={() => setShowDownloadModal(false)}
-          songs={playlist.songs || []}
-          title={playlist.title || 'Playlist'}
-          subtitle={`${playlist.songs?.length || 0} tracks • By ${playlist.creator || playlist.ownerName || 'You'}`}
-          coverUrl={playlist.coverUrl || '/app-icon.png'}
-        />
       )}
     </div>
   );

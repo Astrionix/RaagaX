@@ -1,4 +1,5 @@
 import { PlaybackEngine } from '@/lib/playback/PlaybackEngine';
+import { PlaybackService } from '@/lib/playback/PlaybackService';
 import { useLyricsStore } from '@/context/useLyricsStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { LyricsResolver } from './LyricsResolver';
@@ -45,23 +46,22 @@ export class LyricsEngine {
   public getEffectivePositionMs(): number {
     const store = usePlayerStore.getState();
 
-    // Tier 1: Web audio element with sub-millisecond precision via PlaybackEngine (Local Player)
+    // Tier 1: Web audio element direct time from PlaybackService / PlaybackEngine
     if (store.isActiveDevice) {
       try {
-        const engine = PlaybackEngine.getInstance();
-        const mediaMs = engine.getMediaPositionMs();
-        if (mediaMs > 0) return mediaMs;
-      } catch {}
-
-      try {
-        const { PlaybackService } = require('@/lib/playback/PlaybackService');
         const active = PlaybackService.getInstance().getActiveAudio();
-        if (active && !isNaN(active.currentTime) && active.currentTime > 0) {
+        if (active && !isNaN(active.currentTime) && active.currentTime >= 0) {
           return active.currentTime * 1000;
         }
       } catch {}
+
+      try {
+        const engine = PlaybackEngine.getInstance();
+        const mediaMs = engine.getMediaPositionMs();
+        if (mediaMs >= 0) return mediaMs;
+      } catch {}
     } else {
-      // Tier 2: Remote Connect Controller — Interpolate from remote anchor timestamp for 0ms lag
+      // Tier 2: Remote Connect Controller — Interpolate from remote anchor timestamp
       if (store.remoteAnchorPositionMs !== undefined && store.remoteAnchorTimeMs) {
         const elapsed = Date.now() - store.remoteAnchorTimeMs;
         const liveRemoteMs = store.remoteAnchorPositionMs + (store.isPlaying ? elapsed : 0);
@@ -69,10 +69,10 @@ export class LyricsEngine {
       }
     }
 
-    // Tier 3: Universal centralized usePlayerStore (ExoPlayer Native, Offline fallback)
+    // Tier 3: Universal centralized usePlayerStore
     try {
       const storeTime = store.currentTime;
-      if (storeTime !== undefined && !isNaN(storeTime) && storeTime > 0) {
+      if (storeTime !== undefined && !isNaN(storeTime) && storeTime >= 0) {
         return storeTime * 1000;
       }
     } catch {}

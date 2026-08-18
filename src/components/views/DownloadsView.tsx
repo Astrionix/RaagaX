@@ -272,7 +272,7 @@ export function DownloadsView() {
             className={`flex items-center gap-2.5 px-4 py-2 rounded-full border text-xs font-bold transition-all ${
               isOfflineMode 
                 ? 'bg-[#fa233b] border-[#fa233b] text-white shadow-lg shadow-red-500/20' 
-                : 'bg-[#161618] border-white/10 text-slate-300 hover:border-white/20'
+                : 'bg-[var(--bg-secondary)] border-white/10 text-slate-300 hover:border-white/20'
             }`}
           >
             <div className={`w-2 h-2 rounded-full ${isOfflineMode ? 'bg-white animate-pulse' : 'bg-slate-500'}`} />
@@ -282,7 +282,7 @@ export function DownloadsView() {
       </div>
 
       {/* Concept 1: Dynamic Device Storage & Quota Card */}
-      <div className="p-5 rounded-2xl bg-[#161618] border border-white/10 space-y-5 shadow-xl">
+      <div className="p-5 rounded-2xl bg-[var(--bg-secondary)] border border-white/10 space-y-5 shadow-xl">
         {/* Device Registered Name Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
           <div className="flex items-center gap-3">
@@ -296,7 +296,7 @@ export function DownloadsView() {
                   value={customDeviceInput}
                   onChange={(e) => setCustomDeviceInput(e.target.value)}
                   placeholder="e.g. TNT Gaming PC or Galaxy S23"
-                  className="bg-[#202024] border border-white/20 text-white font-bold text-sm rounded-lg px-2.5 py-1 focus:outline-none focus:border-red-500"
+                  className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] font-bold text-sm rounded-lg px-2.5 py-1 focus:outline-none focus:border-red-500"
                   autoFocus
                 />
                 <button 
@@ -471,11 +471,11 @@ export function DownloadsView() {
             <select
               value={offlineSettings.audioQuality}
               onChange={(e) => setOfflineSettings({ audioQuality: e.target.value as any })}
-              className="bg-[#202024] border border-white/10 text-white text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-red-500"
+              className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-red-500 font-bold cursor-pointer transition-colors shadow-sm"
             >
-              <option value="Standard">Standard (128 kbps)</option>
-              <option value="High">High (320 kbps)</option>
-              <option value="Lossless">Lossless (Hi-Fi)</option>
+              <option value="Standard" className="bg-[var(--bg-elevated)] text-[var(--text-primary)]">Standard (128 kbps)</option>
+              <option value="High" className="bg-[var(--bg-elevated)] text-[var(--text-primary)]">High (320 kbps)</option>
+              <option value="Lossless" className="bg-[var(--bg-elevated)] text-[var(--text-primary)]">Lossless (Hi-Fi)</option>
             </select>
           </div>
         </div>
@@ -565,7 +565,7 @@ export function DownloadsView() {
               const etaText = formatEta(task.etaSeconds);
 
               return (
-                <div key={task.song.id} className="p-4 rounded-2xl bg-[#161618] border border-white/10 space-y-3 shadow-lg">
+                <div key={task.song.id} className="p-4 rounded-2xl bg-[var(--bg-secondary)] border border-white/10 space-y-3 shadow-lg">
                   <div className="flex items-center gap-3.5">
                     <img 
                       src={task.song.coverUrl} 
@@ -700,7 +700,7 @@ export function DownloadsView() {
                   Queued ({queuedTasks.length})
                 </h4>
                 {queuedTasks.map((task, index) => (
-                  <div key={task.song.id} className="p-3 rounded-2xl bg-[#161618]/80 border border-white/5 flex items-center justify-between gap-3">
+                  <div key={task.song.id} className="p-3 rounded-2xl bg-[var(--bg-secondary)]/80 border border-white/5 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
                       <div className="min-w-0">
@@ -791,7 +791,7 @@ export function DownloadsView() {
                   placeholder={activeSubTab === 'device' ? "Search downloaded songs..." : "Search cloud history..."}
                   value={localSearch}
                   onChange={(e) => setLocalSearch(e.target.value)}
-                  className="w-full bg-[#161618] border border-white/10 rounded-xl py-1.5 pl-8 pr-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500"
+                  className="w-full bg-[var(--bg-secondary)] border border-white/10 rounded-xl py-1.5 pl-8 pr-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500"
                 />
               </div>
             )}
@@ -805,7 +805,7 @@ export function DownloadsView() {
                 <span>{filteredOfflineSongs.length} downloaded songs • {formatBytes(raagaXDownloads)}</span>
               </div>
 
-              <div className="divide-y divide-white/5 bg-[#161618] rounded-2xl border border-white/10 overflow-hidden shadow-lg">
+              <div className="divide-y divide-white/5 bg-[var(--bg-secondary)] rounded-2xl border border-white/10 overflow-hidden shadow-lg">
                 {filteredOfflineSongs.map((song) => (
                   <div key={song.id} className="p-3.5 flex items-center justify-between hover:bg-white/5 transition-colors group">
                     <div className="flex items-center gap-3.5 cursor-pointer min-w-0 flex-1" onClick={() => handlePlayDownloadedSong(song)}>
@@ -853,13 +853,13 @@ export function DownloadsView() {
               </div>
             </div>
           ) : activeTasks.length > 0 ? (
-            <div className="py-8 text-center text-slate-400 space-y-2 bg-[#161618] rounded-2xl border border-white/10">
+            <div className="py-8 text-center text-slate-400 space-y-2 bg-[var(--bg-secondary)] rounded-2xl border border-white/10">
               <Download className="w-8 h-8 text-[#fa233b] mx-auto animate-pulse opacity-80" />
               <p className="text-xs font-bold text-slate-300">Downloading your tracks...</p>
               <p className="text-[11px] text-slate-500">Your songs will appear here automatically as soon as the download completes.</p>
             </div>
           ) : (
-            <div className="py-12 text-center text-slate-500 space-y-3 bg-[#161618] rounded-2xl border border-white/10">
+            <div className="py-12 text-center text-slate-500 space-y-3 bg-[var(--bg-secondary)] rounded-2xl border border-white/10">
               <HardDrive className="w-10 h-10 text-slate-600 mx-auto opacity-60" />
               <div>
                 <p className="text-sm font-bold text-slate-400">No songs currently stored on this device</p>
@@ -879,7 +879,7 @@ export function DownloadsView() {
                 <span>{cloudDownloadRecords.length} songs recorded in Cloud History • 1-click restore across devices</span>
               </div>
 
-              <div className="divide-y divide-white/5 bg-[#161618] rounded-2xl border border-white/10 overflow-hidden shadow-lg">
+              <div className="divide-y divide-white/5 bg-[var(--bg-secondary)] rounded-2xl border border-white/10 overflow-hidden shadow-lg">
                 {cloudDownloadRecords
                   .filter(r => !localSearch.trim() || (r.song_title?.toLowerCase().includes(localSearch.toLowerCase()) || r.song_artist?.toLowerCase().includes(localSearch.toLowerCase())))
                   .map((record) => {
@@ -954,7 +954,7 @@ export function DownloadsView() {
               </div>
             </div>
           ) : (
-            <div className="py-12 text-center text-slate-500 space-y-3 bg-[#161618] rounded-2xl border border-white/10">
+            <div className="py-12 text-center text-slate-500 space-y-3 bg-[var(--bg-secondary)] rounded-2xl border border-white/10">
               <Cloud className="w-10 h-10 text-slate-600 mx-auto opacity-60" />
               <div>
                 <p className="text-sm font-bold text-slate-400">No cloud download history found</p>
