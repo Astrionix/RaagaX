@@ -7,6 +7,7 @@ import { NetworkManager } from '@/lib/offline/NetworkManager';
 import { QualityManager } from '@/lib/playback/QualityManager';
 import { RealMusicEngine } from '@/lib/realMusicEngine';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { PlayableUrlCache } from '@/lib/playback/PlayableUrlCache';
 
 export class PlaybackSourceResolver {
   private static instance: PlaybackSourceResolver;
@@ -25,7 +26,7 @@ export class PlaybackSourceResolver {
 
     const networkMode = NetworkManager.getInstance().getMode();
     const isOfflineForced = networkMode === 'offline_forced';
-    const isOffline = networkMode === 'offline' || isOfflineForced || (typeof navigator !== 'undefined' && !navigator.onLine);
+    const isOffline = networkMode === 'offline' || isOfflineForced || (typeof navigator !== 'undefined' && navigator.onLine === false);
 
     // ── 1. Check Native Android Physical Music/RaagaX Storage First ────────
     try {
@@ -71,6 +72,8 @@ export class PlaybackSourceResolver {
         // Record offline listening history & play count locally
         catalog.updatePlayStats(song.id).catch(() => {});
 
+        PlayableUrlCache.getInstance().set(song.id, localUrl, [localUrl], 'offline', undefined, true);
+
         return {
           type: 'offline',
           url: localUrl,
@@ -81,19 +84,32 @@ export class PlaybackSourceResolver {
       }
     }
 
-    // ── 2. If Offline Mode is Active and Track is Not Downloaded ─────────────
+    // ── 3. Check High-Speed In-Memory & Persistent URL Cache (0ms) ───────────
+    const cached = PlayableUrlCache.getInstance().get(song.id);
+    if (cached && cached.url && (!isOffline || cached.type === 'offline')) {
+      return {
+        type: cached.type,
+        url: cached.url,
+        candidates: cached.candidates,
+        videoId: song.id,
+        mediaId: song.id,
+        isLocalBlob: cached.isLocalBlob,
+      };
+    }
+
+    // ── 4. If Offline Mode is Active and Track is Not Downloaded ─────────────
     if (isOffline) {
       console.warn(`[PlaybackSourceResolver] Song unavailable offline: "${song.title}"`);
       return null;
     }
 
-    // ── 3. Quality Negotiation for Online Streaming ──────────────────────────
+    // ── 5. Quality Negotiation for Online Streaming ──────────────────────────
     try {
       const qualityDecision = await QualityManager.getInstance().getTargetQuality();
       usePlayerStore.getState().setDeliveredQuality(qualityDecision.target);
     } catch {}
 
-    // ── 4. Direct Valid HTTPS Stream Check & Dynamic JioSaavn Lookup ──────────
+    // ── 6. Direct Valid HTTPS Stream Check & Dynamic Lookup ──────────────────
     let validAudioUrl = song.audioUrl ? song.audioUrl.replace('http://', 'https://') : '';
     const isPixabay = validAudioUrl.includes('pixabay.com');
 
@@ -117,9 +133,14 @@ export class PlaybackSourceResolver {
 
     if (validAudioUrl && !validAudioUrl.includes('pixabay.com')) {
       const candidates = this.buildBitrateCandidates(validAudioUrl);
+      const selectedUrl = candidates[0] || validAudioUrl;
+
+      // Cache resolved stream URL for instantaneous sub-millisecond future hits
+      PlayableUrlCache.getInstance().set(song.id, selectedUrl, candidates, 'remote');
+
       return {
         type: 'remote',
-        url: candidates[0] || validAudioUrl,
+        url: selectedUrl,
         candidates,
         videoId: song.id,
       };

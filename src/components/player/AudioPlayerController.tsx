@@ -21,6 +21,7 @@ import { PlaybackRecoveryEngine } from '@/lib/playback/PlaybackRecoveryEngine';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
 import { AdaptiveQueueController } from '@/lib/queue/AdaptiveQueueController';
 import { PlaybackSourceResolver } from '@/lib/playbackSourceResolver';
+import { PreloadManager } from '@/lib/playback/PreloadManager';
 import { ArtworkColorExtractor } from '@/lib/theme/ArtworkColorExtractor';
 import { getApiUrl } from '@/lib/config/apiConfig';
 
@@ -387,32 +388,25 @@ export function AudioPlayerController() {
     }
   }, [volume, isMuted]);
 
-  // ── Gapless Playback Engine: Silent Pre-Caching Next Track ──────────────
+  // ── Ultra-Fast Playback Engine: Proactive Background Pre-Caching Next Track ──────────────
   const prebufferedIndexRef = useRef<number>(-1);
   useEffect(() => {
     const effectiveDuration = duration > 0 ? duration : (currentSong?.duration || 0);
-    if (!isPlaying || effectiveDuration <= 0) return;
+    if (!isPlaying) return;
 
-    // When current track reaches 75% progress, silently pre-resolve and pre-buffer next track
-    const progress = currentTime / effectiveDuration;
+    // Start preloading shortly after current track starts (after 2s or 5% progress)
+    const progress = effectiveDuration > 0 ? currentTime / effectiveDuration : 0;
     const nextIndex = queueIndex + 1;
 
-    if (progress >= 0.75 && nextIndex < queue.length && prebufferedIndexRef.current !== nextIndex) {
+    const isEarlyTrigger = currentTime >= 2 || progress >= 0.05 || effectiveDuration < 60;
+
+    if (isEarlyTrigger && nextIndex < queue.length && prebufferedIndexRef.current !== nextIndex) {
       prebufferedIndexRef.current = nextIndex;
       const nextSong = queue[nextIndex];
       if (nextSong && nextSong.id) {
-        console.log('[GAPLESS_ENGINE] Pre-buffering next track audio stream:', nextSong.title);
-        PlaybackSourceResolver.getInstance().resolvePlayableSource(nextSong).then(source => {
-          if (source?.url && typeof window !== 'undefined') {
-            // Silently pre-buffer into standby audio element for 0ms gapless transition
-            const standby = PlaybackService.getInstance().getStandbyAudio();
-            if (standby) {
-              standby.preload = 'auto';
-              standby.src = source.url;
-              standby.load();
-            }
-          }
-        }).catch(() => {});
+        console.log('[PRELOAD_ENGINE] Proactively pre-buffering next track:', nextSong.title);
+        const standby = PlaybackService.getInstance().getStandbyAudio();
+        PreloadManager.getInstance().prepareNextTrack(nextSong, standby).catch(() => {});
       }
     }
   }, [currentTime, duration, isPlaying, queueIndex, queue]);

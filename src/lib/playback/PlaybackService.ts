@@ -11,6 +11,8 @@ import { RaagaXNativePlayer } from './native/RaagaXNativePlayer';
 import { Song } from '@/types/music';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { AdaptiveQueueController } from '../queue/AdaptiveQueueController';
+import { PlaybackTelemetry, PlaybackSourceType } from './PlaybackTelemetry';
+import { PlayableUrlCache } from './PlayableUrlCache';
 
 export class PlaybackService {
   private static instance: PlaybackService;
@@ -289,6 +291,9 @@ export class PlaybackService {
 
     console.log(`[PLAYBACK PIPELINE] PLAY_REQUEST gen=${currentGen} title="${song.title}" artist="${song.artist}"`);
 
+    const playRequestedAt = performance.now();
+    let resolvedSourceType: PlaybackSourceType = 'NETWORK_STREAM';
+
     try {
       // ── Native Android Path: single-song fallback only ───────────────────────
       if (RaagaXNativePlayer.isNative()) {
@@ -297,6 +302,7 @@ export class PlaybackService {
           const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
           if (source?.url) {
             finalSrc = source.url;
+            resolvedSourceType = source.type === 'offline' ? 'LOCAL_DOWNLOAD' : 'NETWORK_STREAM';
           }
         } catch (e) {
           console.warn('[PlaybackService] Native source resolution failed:', e);
@@ -332,6 +338,15 @@ export class PlaybackService {
           artworkUrl: song.coverUrl ?? '',
         });
 
+        const timeToFirstAudioMs = Math.round(performance.now() - playRequestedAt);
+        PlaybackTelemetry.getInstance().recordMetric({
+          sessionId: String(currentGen),
+          trackId: song.id,
+          sourceType: resolvedSourceType,
+          timeToFirstAudioMs,
+          success: true,
+        });
+
         // Preload upcoming tracks into native ExoPlayer queue
         this.preloadNativeNextTrack();
         return true;
@@ -356,16 +371,21 @@ export class PlaybackService {
       const store = usePlayerStore.getState();
       if (!store.isActiveDevice) return false;
 
-      // Check if standby audio is already preloaded with this song (only when crossfade/gapless is enabled)
+      // Check if standby audio is already preloaded with this song (Instant Handoff <300ms)
       const preloader = PreloadManager.getInstance();
       const preloadedId = preloader.getPreloadedTrackId();
-      const transitionMode = TransitionManager.getInstance().getMode();
-      const isPreloadedInStandby = transitionMode !== 'NONE' && !!(standbyAudio && standbyAudio.src && (preloadedId === song.id || (song.audioUrl && standbyAudio.src.includes(song.audioUrl))));
+      const isPreloadedInStandby = !!(
+        standbyAudio &&
+        standbyAudio.src &&
+        (preloadedId === song.id || standbyAudio.dataset.trackId === song.id || (song.audioUrl && standbyAudio.src.includes(song.audioUrl))) &&
+        standbyAudio.readyState >= 2
+      );
 
       let targetAudio = activeAudio;
 
       if (isPreloadedInStandby && standbyAudio) {
-        // Swap to standby audio element seamlessly
+        // Swap to standby audio element seamlessly with zero re-initialization
+        resolvedSourceType = 'PRELOADED_STANDBY';
         targetAudio = standbyAudio;
         this.activeTag = this.activeTag === 'A' ? 'B' : 'A';
         
@@ -373,6 +393,7 @@ export class PlaybackService {
         activeAudio.pause();
         try { activeAudio.currentTime = 0; } catch {}
         preloader.reset();
+        console.log(`[PLAYBACK PIPELINE] INSTANT_PRELOAD_HANDOFF for: "${song.title}"`);
       } else {
         // Stop standby audio element if running
         if (standbyAudio) {
@@ -392,6 +413,12 @@ export class PlaybackService {
           }
         } catch (e) {
           console.warn('[PLAYBACK PIPELINE] Source resolution failed:', e);
+        }
+
+        if (resolvedSource?.type === 'offline') {
+          resolvedSourceType = 'LOCAL_DOWNLOAD';
+        } else if (PlayableUrlCache.getInstance().get(song.id)) {
+          resolvedSourceType = 'URL_CACHE_HIT';
         }
 
         const isDeviceOffline = typeof navigator !== 'undefined' && !navigator.onLine;
@@ -456,12 +483,10 @@ export class PlaybackService {
       }
 
       // Reset store position to 0 — but respect any pending seek target
-      // (user may have dragged seekbar before this playTrack completed)
       const pendingSeek = usePlayerStore.getState().seekTarget;
       if (pendingSeek === null) {
         store.setCurrentTime(0, true);
       }
-      // If there's a pending seek, apply it now to the audio element
       if (pendingSeek !== null) {
         try { targetAudio.currentTime = pendingSeek; } catch {}
         store.setCurrentTime(pendingSeek, true);
@@ -486,7 +511,16 @@ export class PlaybackService {
             console.warn(`[PLAYBACK PIPELINE] Discarding stale play completion for gen ${currentGen}`);
             return false;
           }
-          console.log(`[PLAYBACK PIPELINE] PLAYING gen=${currentGen} title="${song.title}"`);
+          const timeToFirstAudioMs = Math.round(performance.now() - playRequestedAt);
+          PlaybackTelemetry.getInstance().recordMetric({
+            sessionId: String(currentGen),
+            trackId: song.id,
+            sourceType: resolvedSourceType,
+            timeToFirstAudioMs,
+            success: true,
+          });
+
+          console.log(`[PLAYBACK PIPELINE] PLAYING gen=${currentGen} title="${song.title}" latency=${timeToFirstAudioMs}ms source=${resolvedSourceType}`);
           store.setIsPlaying(true, true);
           AudioFocusManager.getInstance().requestFocus();
           
@@ -511,6 +545,16 @@ export class PlaybackService {
               await targetAudio.play();
               if (this.playbackGeneration !== currentGen) return false;
               store.setIsPlaying(true, true);
+
+              const timeToFirstAudioMs = Math.round(performance.now() - playRequestedAt);
+              PlaybackTelemetry.getInstance().recordMetric({
+                sessionId: String(currentGen),
+                trackId: song.id,
+                sourceType: resolvedSourceType,
+                timeToFirstAudioMs,
+                success: true,
+              });
+
               this.triggerNextPreload();
               return true;
             } catch (retryErr: any) {
@@ -530,6 +574,28 @@ export class PlaybackService {
       return true;
     } finally {
       this.isTransitioning = false;
+    }
+  }
+
+  public triggerNextPreload() {
+    if (typeof window === 'undefined') return;
+
+    if (RaagaXNativePlayer.isNative()) {
+      this.preloadNativeNextTrack();
+      return;
+    }
+
+    const standby = this.getStandbyAudio();
+    const manager = QueueManager.getInstance();
+    const nextItem = manager.peekNext();
+
+    if (nextItem && nextItem.song) {
+      PreloadManager.getInstance().prepareNextTrack(nextItem.song, standby).catch(() => {});
+    }
+
+    const snapshot = manager.getSnapshot();
+    if (snapshot.currentIndex > 0 && snapshot.items[snapshot.currentIndex - 1]?.song) {
+      PreloadManager.getInstance().preparePreviousTrack(snapshot.items[snapshot.currentIndex - 1].song).catch(() => {});
     }
   }
 
@@ -814,16 +880,6 @@ export class PlaybackService {
       store.setToastMessage(`"${store.currentSong.title}" is currently unavailable.`);
     }
     store.setIsPlaying(false, true);
-  }
-
-  private triggerNextPreload() {
-    const standby = this.getStandbyAudio();
-    if (!standby) return;
-
-    const nextItem = QueueManager.getInstance().peekNext();
-    if (nextItem && nextItem.song) {
-      PreloadManager.getInstance().preloadTrack(nextItem.song, standby);
-    }
   }
 
   public async preloadNativeNextTrack() {

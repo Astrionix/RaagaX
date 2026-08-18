@@ -12,7 +12,6 @@ import { AudioPlayerController } from '@/components/player/AudioPlayerController
 import { LyricsPanel } from '@/components/lyrics/LyricsPanel';
 import { QueueModal } from '@/components/player/QueueModal';
 import { ExpandedPlayerModal } from '@/components/player/ExpandedPlayerModal';
-import { DynamicIslandPlayer } from '@/components/player/DynamicIslandPlayer';
 import { LockScreenPlayerModal } from '@/components/player/LockScreenPlayerModal';
 import { NotificationBarPlayerModal } from '@/components/player/NotificationBarPlayerModal';
 import { SystemSurfacesModal } from '@/components/player/SystemSurfacesModal';
@@ -20,6 +19,7 @@ import { PlaylistImporterModal } from '@/components/modals/PlaylistImporterModal
 import { BackupRestoreModal } from '@/components/modals/BackupRestoreModal';
 import { SleepTimerModal } from '@/components/modals/SleepTimerModal';
 import { CastModal } from '@/components/modals/CastModal';
+import { PlaybackDebugPanel } from '@/components/player/PlaybackDebugPanel';
 import { SettingsModal } from '@/components/modals/SettingsModal';
 import { ContextMenuModal } from '@/components/modals/ContextMenuModal';
 import { OnboardingAuthModal } from '@/components/modals/OnboardingAuthModal';
@@ -290,7 +290,6 @@ export default function Page() {
       </ErrorBoundary>
       
       {/* ── Native Android Connected Surfaces ── */}
-      <DynamicIslandPlayer />
       <LockScreenPlayerModal
         isOpen={isLockScreenOpen}
         onClose={() => toggleLockScreen(false)}
@@ -305,6 +304,9 @@ export default function Page() {
         onOpenLockScreen={() => toggleLockScreen(true)}
         onOpenNotificationShade={() => toggleNotificationShade(true)}
       />
+
+      {/* Real-Time Ultra-Fast Playback Diagnostics Panel */}
+      <PlaybackDebugPanel />
     </div>
   );
 }

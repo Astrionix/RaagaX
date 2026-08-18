@@ -1,14 +1,17 @@
 import { QueueManager } from '../queue/QueueManager';
 import { PlaybackEngine } from './PlaybackEngine';
 import { PlaybackSourceResolver } from '@/lib/playbackSourceResolver';
+import { PlayableUrlCache } from './PlayableUrlCache';
+import { Song } from '@/types/music';
 
-export type PreloadStatus = 'IDLE' | 'LOADING' | 'READY' | 'FAILED';
+export type PreloadStatus = 'IDLE' | 'RESOLVING' | 'BUFFERING' | 'READY' | 'FAILED';
 
 export interface PreloadToken {
   queueItemId: string | null;
   trackId: string | null;
   sourceUrl: string | null;
   state: PreloadStatus;
+  preloadedAt?: number;
 }
 
 export class PreloadManager {
@@ -17,6 +20,8 @@ export class PreloadManager {
   private currentQueueItemId: string | null = null;
   private currentSourceUrl: string | null = null;
   private status: PreloadStatus = 'IDLE';
+  private preloadedAt: number = 0;
+  private activeAbortController: AbortController | null = null;
 
   private constructor() {}
 
@@ -32,7 +37,11 @@ export class PreloadManager {
   }
 
   public getPreloadedTrackId(): string | null {
-    return this.status === 'READY' ? this.currentPreloadId : null;
+    return (this.status === 'READY' || this.status === 'BUFFERING') ? this.currentPreloadId : null;
+  }
+
+  public isTrackReady(songId: string): boolean {
+    return this.status === 'READY' && this.currentPreloadId === songId;
   }
 
   public getPreloadToken(): PreloadToken {
@@ -41,81 +50,167 @@ export class PreloadManager {
       trackId: this.currentPreloadId,
       sourceUrl: this.currentSourceUrl,
       state: this.status,
+      preloadedAt: this.preloadedAt,
     };
   }
 
-  public async preloadTrack(song: import('@/types/music').Song, standbyElement: HTMLAudioElement, force: boolean = false) {
-    if (!song || !standbyElement) return;
-    if (!force && (this.status === 'LOADING' || (this.status === 'READY' && this.currentPreloadId === song.id))) {
-      return;
+  /**
+   * prepareNextTrack — Pre-resolves audio source, pre-buffers audio bytes into standby element,
+   * and keeps it fully ready for 0ms instantaneous handoff when user taps Next or track ends.
+   */
+  public async prepareNextTrack(song: Song, standbyElement: HTMLAudioElement | null, force: boolean = false): Promise<boolean> {
+    if (!song || !song.id) return false;
+
+    // Skip if already preloaded and ready
+    if (!force && this.status === 'READY' && this.currentPreloadId === song.id && standbyElement?.src) {
+      return true;
     }
 
-    this.status = 'LOADING';
-    this.currentPreloadId = song.id;
+    // Cancel any previous in-flight preload
+    if (this.activeAbortController) {
+      this.activeAbortController.abort();
+    }
+    this.activeAbortController = new AbortController();
+    const currentTrackId = song.id;
+
+    this.status = 'RESOLVING';
+    this.currentPreloadId = currentTrackId;
 
     try {
+      // 1. Resolve source URL (checks local offline files and PlayableUrlCache first)
       const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+      
+      if (this.currentPreloadId !== currentTrackId) {
+        return false; // Superseded
+      }
+
       let finalSrc = song.audioUrl || '';
-      if (source && source.type === 'remote' && source.url) {
+      if (source && source.url) {
         finalSrc = source.url;
         song.audioUrl = finalSrc;
       }
 
       if (!finalSrc) {
         this.status = 'FAILED';
-        return;
+        return false;
       }
 
       this.currentSourceUrl = finalSrc;
 
-      if (standbyElement.src !== finalSrc) {
-        standbyElement.src = finalSrc;
-        standbyElement.preload = 'auto';
-        standbyElement.load();
-      }
+      // 2. If standby audio element exists, pre-buffer audio bytes
+      if (standbyElement) {
+        this.status = 'BUFFERING';
 
-      const handleCanPlay = () => {
-        if (this.currentPreloadId === song.id) {
-          this.status = 'READY';
+        if (standbyElement.src !== finalSrc) {
+          standbyElement.preload = 'auto';
+          standbyElement.src = finalSrc;
+          standbyElement.load();
         }
-        standbyElement.removeEventListener('canplay', handleCanPlay);
-        standbyElement.removeEventListener('canplaythrough', handleCanPlay);
-      };
 
-      standbyElement.addEventListener('canplay', handleCanPlay);
-      standbyElement.addEventListener('canplaythrough', handleCanPlay);
-      
-      // Fallback: If metadata is already loaded or readyState >= 2
-      if (standbyElement.readyState >= 2) {
-        this.status = 'READY';
+        // Check if readyState already satisfies startup threshold
+        if (standbyElement.readyState >= 2) {
+          this.status = 'READY';
+          this.preloadedAt = Date.now();
+          return true;
+        }
+
+        return new Promise<boolean>((resolve) => {
+          const cleanup = () => {
+            standbyElement.removeEventListener('canplay', handleReady);
+            standbyElement.removeEventListener('loadeddata', handleReady);
+            standbyElement.removeEventListener('error', handleError);
+          };
+
+          const handleReady = () => {
+            if (this.currentPreloadId === currentTrackId) {
+              this.status = 'READY';
+              this.preloadedAt = Date.now();
+              console.log(`[PreloadManager] Next track PRELOAD_READY: "${song.title}" (${finalSrc.substring(0, 45)}...)`);
+            }
+            cleanup();
+            resolve(true);
+          };
+
+          const handleError = () => {
+            if (this.currentPreloadId === currentTrackId) {
+              this.status = 'FAILED';
+            }
+            cleanup();
+            resolve(false);
+          };
+
+          standbyElement.addEventListener('canplay', handleReady, { once: true });
+          standbyElement.addEventListener('loadeddata', handleReady, { once: true });
+          standbyElement.addEventListener('error', handleError, { once: true });
+
+          // Safe timeout for preloading (do not hang forever)
+          setTimeout(() => {
+            if (standbyElement.readyState >= 1 && this.currentPreloadId === currentTrackId) {
+              this.status = 'READY';
+              this.preloadedAt = Date.now();
+            }
+            cleanup();
+            resolve(this.status === 'READY');
+          }, 3500);
+        });
       }
+
+      this.status = 'READY';
+      this.preloadedAt = Date.now();
+      return true;
     } catch (e) {
-      console.error('[PreloadManager] Preload failed for song:', song.title, e);
-      this.status = 'FAILED';
+      console.warn('[PreloadManager] Preload preparation failed for song:', song.title, e);
+      if (this.currentPreloadId === currentTrackId) {
+        this.status = 'FAILED';
+      }
+      return false;
     }
   }
 
-  public async evaluatePreload(standbyElement: HTMLAudioElement) {
+  /**
+   * preparePreviousTrack — Priority 2: Pre-resolve audio URL into memory cache for previous track
+   */
+  public async preparePreviousTrack(song: Song): Promise<void> {
+    if (!song || !song.id) return;
+    const cached = PlayableUrlCache.getInstance().get(song.id);
+    if (cached) return;
+
+    try {
+      await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+    } catch {
+      // Non-critical background operation
+    }
+  }
+
+  /**
+   * evaluatePreload — Evaluates the queue and triggers preload for upcoming tracks
+   */
+  public async evaluatePreload(standbyElement: HTMLAudioElement | null) {
     const nextItem = QueueManager.getInstance().peekNext();
     if (!nextItem || !nextItem.song) return;
 
     this.currentQueueItemId = nextItem.queueItemId;
 
     if (
-      this.status === 'LOADING' ||
+      this.status === 'BUFFERING' ||
       (this.status === 'READY' && this.currentPreloadId === nextItem.song.id && standbyElement && standbyElement.src)
     ) {
       return;
     }
 
     // Start preloading standby element immediately
-    await this.preloadTrack(nextItem.song, standbyElement);
+    await this.prepareNextTrack(nextItem.song, standbyElement);
   }
 
   public reset() {
+    if (this.activeAbortController) {
+      this.activeAbortController.abort();
+      this.activeAbortController = null;
+    }
     this.status = 'IDLE';
     this.currentPreloadId = null;
     this.currentQueueItemId = null;
     this.currentSourceUrl = null;
+    this.preloadedAt = 0;
   }
 }

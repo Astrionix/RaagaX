@@ -47,7 +47,6 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
 import { useThemeStore } from '@/context/useThemeStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
-import { useDynamicIslandCapabilityStore } from '@/context/useDynamicIslandCapabilityStore';
 import { LocalDatabase } from '@/lib/offline/LocalDatabase';
 import { AccountSyncEngine } from '@/lib/sync/AccountSyncEngine';
 import { AudioQuality } from '@/lib/playback/types';
@@ -143,13 +142,6 @@ export function SettingsView() {
     wifiOnly,
     setWifiOnly
   } = useDownloadStore();
-
-  const { 
-    capability: diCap, 
-    userEnabled: diEnabled, 
-    setUserEnabled: setDiEnabled, 
-    requestPermission: requestDiPermission 
-  } = useDynamicIslandCapabilityStore();
 
   const { user } = useAuthStore();
 
@@ -1265,53 +1257,6 @@ export function SettingsView() {
           {/* 8. NOTIFICATIONS & SYSTEM SURFACES */}
           {activeSection === 'notifications' && (
             <div className="space-y-5">
-              {/* Dynamic Island / Live Activity Card */}
-              <div className="p-4 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5 pr-3">
-                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                      <Smartphone className="w-4 h-4 text-[#fa233b]" /> Dynamic Island & Live Activity
-                    </h4>
-                    <p className="text-xs text-[var(--text-secondary)]">
-                      Interactive playback pill and active download status on supported mobile hardware and live activity cutouts.
-                    </p>
-                  </div>
-                  <ToggleSwitch
-                    checked={diEnabled && diCap.isHardwareSupported}
-                    disabled={!diCap.isHardwareSupported}
-                    onChange={() => {
-                      const next = !diEnabled;
-                      setDiEnabled(next);
-                      showToast(next ? 'Dynamic Island enabled' : 'Dynamic Island disabled');
-                    }}
-                  />
-                </div>
-
-                {/* Capability Status Banner */}
-                <div className="pt-2 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${
-                      diCap.isAvailable ? 'bg-emerald-400 animate-pulse' : diCap.isHardwareSupported ? 'bg-amber-400' : 'bg-slate-500'
-                    }`} />
-                    <span className="text-[var(--text-secondary)] font-medium">
-                      {diCap.statusMessage}
-                    </span>
-                  </div>
-
-                  {diCap.isHardwareSupported && diCap.permissionState !== 'granted' && (
-                    <button
-                      onClick={async () => {
-                        const granted = await requestDiPermission();
-                        showToast(granted ? 'Permission granted! Dynamic Island activated' : 'Notification permission was denied');
-                      }}
-                      className="px-3 py-1.5 rounded-xl bg-[#fa233b] hover:bg-[#d91e32] text-white text-xs font-bold transition-all self-start sm:self-auto cursor-pointer shadow-sm"
-                    >
-                      Enable Permission
-                    </button>
-                  )}
-                </div>
-              </div>
-
               <SettingRow
                 title="New releases"
                 description="Notify when new singles or albums drop in your preferred genres."
