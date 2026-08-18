@@ -529,6 +529,38 @@ export function MobileDeviceConnectModal() {
               </div>
             </div>
           )}
+
+          {/* Empty / Searching State if no external devices found */}
+          {nearbyDevices.length === 0 && otherDevices.length === 0 && (
+            <div className="p-6 rounded-3xl bg-white/[0.02] border border-white/5 text-center space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-slate-400 mx-auto">
+                <Wifi className="w-6 h-6 animate-pulse text-[#FA233B]" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-white">Looking for nearby RaagaX devices...</h4>
+                <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
+                  To connect your Desktop or other devices:
+                </p>
+                <div className="mt-3 text-[11px] text-slate-400 space-y-1 text-left max-w-xs mx-auto bg-black/30 p-3 rounded-xl border border-white/5">
+                  <p className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span>Open RaagaX on your computer</span>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span>Ensure both are on the same Wi-Fi network</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleScan}
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold text-white transition-all inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin text-[#FA233B]' : ''}`} />
+                <span>{isScanning ? 'Scanning...' : 'Scan Again'}</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* DISCONNECT ACTION */}

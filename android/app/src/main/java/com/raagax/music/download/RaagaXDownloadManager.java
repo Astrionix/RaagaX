@@ -22,8 +22,20 @@ import java.util.concurrent.Executors;
 
 /**
  * RaagaXDownloadManager — Centralized singleton for Android downloads.
- * Controls download queue, duplicate prevention, physical file verification,
- * storage validation, background WorkManager jobs, and external file reconciliation.
+ *
+ * Queue Architecture:
+ *   addDownload(songId)
+ *       ↓
+ *   persist QUEUED in Room DB
+ *       ↓
+ *   WorkManager.enqueueUniqueWork()
+ *       ↓
+ *   DownloadWorker.doWork() → DOWNLOADING broadcasts → COMPLETED
+ *       ↓
+ *   processQueue() picks next QUEUED item automatically
+ *
+ * On startup: recoverStuckDownloads() re-enqueues any tasks that were
+ * DOWNLOADING when the app was killed, so they resume safely.
  */
 public class RaagaXDownloadManager {
     private static final String TAG = "RaagaXDownloadManager";
@@ -51,6 +63,8 @@ public class RaagaXDownloadManager {
         this.database = RaagaXDatabase.getInstance(context);
         this.workManager = WorkManager.getInstance(context);
         this.executor = Executors.newSingleThreadExecutor();
+        // Recover any downloads that were stuck DOWNLOADING on previous app session
+        executor.execute(this::recoverStuckDownloads);
     }
 
     public void setWifiOnly(boolean wifiOnly) {
@@ -87,11 +101,22 @@ public class RaagaXDownloadManager {
 
     /**
      * Enqueue a single song download with duplicate and storage checks.
+     *
+     * Flow:
+     *   [DownloadManager] addDownload(songId)
+     *   [DownloadManager] job persisted
+     *   [DownloadManager] WorkManager enqueued download_<songId>
+     *   [DownloadWorker] started → DOWNLOADING broadcasts → COMPLETED
      */
     public void enqueueDownload(DownloadRequestItem request, Callback<Boolean> callback) {
         executor.execute(() -> {
             try {
+                Log.d(TAG, "[DOWNLOAD] Button clicked");
+                Log.d(TAG, "[DOWNLOAD] Song ID = " + request.songId);
+                Log.d(TAG, "[DOWNLOAD] Source URL = " + (request.streamUrl != null ? request.streamUrl : "(dynamic resolve)"));
+
                 if (request.songId == null || request.songId.isEmpty()) {
+                    Log.e(TAG, "[DOWNLOAD] FAILED reason=Invalid song ID");
                     if (callback != null) callback.onResult(false, "Invalid song ID");
                     return;
                 }
@@ -100,11 +125,12 @@ public class RaagaXDownloadManager {
                 DownloadEntity existing = database.downloadDao().getDownloadByTrackId(request.songId);
                 if (existing != null && "COMPLETED".equals(existing.downloadState)) {
                     if (StorageHelper.verifyFileExists(existing.localPath)) {
-                        Log.d(TAG, "Song " + request.songId + " is already downloaded and verified on disk at " + existing.localPath);
+                        Log.d(TAG, "[DOWNLOAD] Song " + request.songId + " already downloaded at " + existing.localPath);
                         if (callback != null) callback.onResult(true, null);
                         return;
                     } else {
-                        // Stale record: physical file was deleted externally, remove and re-download
+                        // Stale record: physical file deleted externally — remove and re-download
+                        Log.d(TAG, "[DOWNLOAD] Stale record for " + request.songId + ", removing and re-downloading");
                         database.downloadDao().deleteDownload(request.songId);
                     }
                 }
@@ -113,12 +139,15 @@ public class RaagaXDownloadManager {
                 long available = StorageHelper.getAvailableStorageBytes(context);
                 if (available < 15L * 1024 * 1024) {
                     String error = "Not enough storage. Required: 15 MB, Available: " + (available / (1024 * 1024)) + " MB";
+                    Log.e(TAG, "[DOWNLOAD] FAILED reason=" + error);
                     if (callback != null) callback.onResult(false, error);
                     return;
                 }
 
-                // 3. Insert or update record in database
+                // 3. Insert or update record in database as QUEUED
                 String downloadId = "dl_" + System.currentTimeMillis() + "_" + request.songId;
+                Log.d(TAG, "[DOWNLOAD] Job created (id=" + downloadId + ")");
+
                 DownloadEntity entity = new DownloadEntity(downloadId, request.songId, "QUEUED");
                 entity.title = request.title;
                 entity.artist = request.artist;
@@ -129,6 +158,8 @@ public class RaagaXDownloadManager {
                 entity.source = request.source != null ? request.source : "jiosaavn";
                 entity.fileName = StorageHelper.generateSafeFileName(request.title, request.artist);
                 database.downloadDao().insertOrUpdate(entity);
+
+                Log.d(TAG, "[DOWNLOAD] Job persisted to Room database");
 
                 // 4. Build WorkManager Request
                 Data inputData = new Data.Builder()
@@ -151,15 +182,19 @@ public class RaagaXDownloadManager {
                         .addTag("all_downloads")
                         .build();
 
+                Log.d(TAG, "[DOWNLOAD] Queue processor started");
                 workManager.enqueueUniqueWork(
                         "download_" + request.songId,
                         ExistingWorkPolicy.REPLACE,
                         workRequest
                 );
 
+                List<DownloadEntity> active = database.downloadDao().getActiveDownloads();
+                Log.d(TAG, "[DOWNLOAD] Active jobs = " + active.size());
+
                 if (callback != null) callback.onResult(true, null);
             } catch (Exception e) {
-                Log.e(TAG, "Error enqueuing download: " + e.getMessage(), e);
+                Log.e(TAG, "[DOWNLOAD] FAILED reason=" + e.getMessage(), e);
                 if (callback != null) callback.onResult(false, e.getMessage());
             }
         });
@@ -167,14 +202,19 @@ public class RaagaXDownloadManager {
 
     /**
      * Enqueue multiple songs for playlist download.
+     * Song 1 → DOWNLOADING immediately (WorkManager scheduler picks it up).
+     * Songs 2..N → QUEUED in WorkManager internal queue.
      */
     public void enqueuePlaylist(List<DownloadRequestItem> items, Callback<Integer> callback) {
         executor.execute(() -> {
             int queuedCount = 0;
+            Log.d(TAG, "[DownloadManager] enqueuePlaylist() items=" + items.size());
+
             for (DownloadRequestItem item : items) {
                 try {
                     DownloadEntity existing = database.downloadDao().getDownloadByTrackId(item.songId);
                     if (existing != null && "COMPLETED".equals(existing.downloadState) && StorageHelper.verifyFileExists(existing.localPath)) {
+                        Log.d(TAG, "[DownloadManager] Playlist item " + item.songId + " already downloaded, skipping");
                         continue; // Skip already downloaded songs
                     }
 
@@ -216,26 +256,103 @@ public class RaagaXDownloadManager {
                             ExistingWorkPolicy.KEEP,
                             workRequest
                     );
+
+                    Log.d(TAG, "[DownloadManager] Playlist item enqueued: " + item.songId + " (position=" + (queuedCount + 1) + ")");
                     queuedCount++;
                 } catch (Exception e) {
-                    Log.e(TAG, "Failed to enqueue playlist item " + item.songId + ": " + e.getMessage());
+                    Log.e(TAG, "[DownloadManager] Failed to enqueue playlist item " + item.songId + ": " + e.getMessage());
                 }
             }
 
+            Log.d(TAG, "[DownloadManager] enqueuePlaylist() complete, queued=" + queuedCount + "/" + items.size());
             if (callback != null) callback.onResult(queuedCount, null);
         });
     }
 
+    /**
+     * Get all currently active (QUEUED, DOWNLOADING, VERIFYING, PAUSED, FAILED) download entries.
+     * Used by the JS layer to reconcile task state after hydration or navigation.
+     */
+    public void getActiveDownloads(Callback<List<DownloadEntity>> callback) {
+        executor.execute(() -> {
+            try {
+                List<DownloadEntity> active = database.downloadDao().getActiveDownloads();
+                Log.d(TAG, "[DownloadManager] getActiveDownloads() returned " + active.size() + " entries");
+                if (callback != null) callback.onResult(active, null);
+            } catch (Exception e) {
+                Log.e(TAG, "[DownloadManager] getActiveDownloads error: " + e.getMessage(), e);
+                if (callback != null) callback.onResult(new ArrayList<>(), e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Called on singleton construction to recover downloads that were stuck
+     * in DOWNLOADING state from a previous app session (crash/kill).
+     * WorkManager uses KEEP policy so genuinely running jobs are not replaced.
+     */
+    private void recoverStuckDownloads() {
+        try {
+            List<DownloadEntity> activeDownloads = database.downloadDao().getActiveDownloads();
+            int recovered = 0;
+
+            for (DownloadEntity entity : activeDownloads) {
+                if ("DOWNLOADING".equals(entity.downloadState) || "VERIFYING".equals(entity.downloadState)) {
+                    Log.d(TAG, "[DownloadManager] Recovering stuck download on startup: " + entity.trackId + " (was " + entity.downloadState + ")");
+
+                    // Reset to QUEUED so the UI shows the correct state
+                    database.downloadDao().updateState(entity.trackId, "QUEUED");
+
+                    // Re-enqueue with KEEP policy — if WorkManager still has it running, this is a no-op
+                    Data inputData = new Data.Builder()
+                            .putString("trackId", entity.trackId)
+                            .putString("streamUrl", "") // DownloadWorker will re-resolve via SaavnMusicProvider
+                            .putString("title", entity.title != null ? entity.title : "")
+                            .putString("artist", entity.artist != null ? entity.artist : "")
+                            .putString("album", entity.album != null ? entity.album : "")
+                            .putString("artworkUrl", entity.artwork != null ? entity.artwork : "")
+                            .putString("quality", entity.quality != null ? entity.quality : "320 kbps")
+                            .build();
+
+                    Constraints constraints = new Constraints.Builder()
+                            .setRequiredNetworkType(wifiOnly ? NetworkType.UNMETERED : NetworkType.CONNECTED)
+                            .build();
+
+                    OneTimeWorkRequest workRequest = new OneTimeWorkRequest.Builder(DownloadWorker.class)
+                            .setInputData(inputData)
+                            .setConstraints(constraints)
+                            .addTag("download_" + entity.trackId)
+                            .addTag("all_downloads")
+                            .build();
+
+                    workManager.enqueueUniqueWork(
+                            "download_" + entity.trackId,
+                            ExistingWorkPolicy.KEEP,
+                            workRequest
+                    );
+                    recovered++;
+                }
+            }
+
+            if (recovered > 0) {
+                Log.d(TAG, "[DownloadManager] Recovered " + recovered + " stuck downloads on startup");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "[DownloadManager] recoverStuckDownloads error: " + e.getMessage(), e);
+        }
+    }
+
     public void pauseDownload(String songId) {
         executor.execute(() -> {
+            Log.d(TAG, "[DownloadManager] pauseDownload(songId=" + songId + ")");
             workManager.cancelUniqueWork("download_" + songId);
             database.downloadDao().updateState(songId, "PAUSED");
-            Log.d(TAG, "Paused download for " + songId);
         });
     }
 
     public void resumeDownload(String songId) {
         executor.execute(() -> {
+            Log.d(TAG, "[DownloadManager] resumeDownload(songId=" + songId + ")");
             DownloadEntity entity = database.downloadDao().getDownloadByTrackId(songId);
             if (entity != null) {
                 DownloadRequestItem item = new DownloadRequestItem(
@@ -254,6 +371,7 @@ public class RaagaXDownloadManager {
 
     public void cancelDownload(String songId) {
         executor.execute(() -> {
+            Log.d(TAG, "[DownloadManager] cancelDownload(songId=" + songId + ")");
             workManager.cancelUniqueWork("download_" + songId);
             database.downloadDao().deleteDownload(songId);
 
@@ -261,25 +379,24 @@ public class RaagaXDownloadManager {
             File targetDir = StorageHelper.getRaagaXMusicDirectory(context);
             File tempRaw = new File(targetDir, ".tmp_raw_" + songId + ".mp3");
             if (tempRaw.exists()) tempRaw.delete();
-
-            Log.d(TAG, "Cancelled download and cleaned temp files for " + songId);
         });
     }
 
     public void pauseAll() {
         executor.execute(() -> {
             List<DownloadEntity> active = database.downloadDao().getActiveDownloads();
+            Log.d(TAG, "[DownloadManager] pauseAll() active=" + active.size());
             for (DownloadEntity entity : active) {
                 workManager.cancelUniqueWork("download_" + entity.trackId);
                 database.downloadDao().updateState(entity.trackId, "PAUSED");
             }
-            Log.d(TAG, "Paused all active downloads (" + active.size() + ")");
         });
     }
 
     public void resumeAll() {
         executor.execute(() -> {
             List<DownloadEntity> paused = database.downloadDao().getAllDownloads();
+            Log.d(TAG, "[DownloadManager] resumeAll()");
             for (DownloadEntity entity : paused) {
                 if ("PAUSED".equals(entity.downloadState) || "FAILED".equals(entity.downloadState)) {
                     DownloadRequestItem item = new DownloadRequestItem(
@@ -299,9 +416,9 @@ public class RaagaXDownloadManager {
 
     public void cancelAll() {
         executor.execute(() -> {
+            Log.d(TAG, "[DownloadManager] cancelAll()");
             workManager.cancelAllWorkByTag("all_downloads");
             database.downloadDao().clearAllDownloads();
-            Log.d(TAG, "Cancelled all downloads and cleared queue");
         });
     }
 
@@ -312,19 +429,20 @@ public class RaagaXDownloadManager {
     public void removeDownload(String songId, Callback<Boolean> callback) {
         executor.execute(() -> {
             try {
+                Log.d(TAG, "[DownloadManager] removeDownload(songId=" + songId + ")");
                 DownloadEntity entity = database.downloadDao().getDownloadByTrackId(songId);
                 if (entity != null && entity.localPath != null) {
                     File file = new File(entity.localPath);
                     if (file.exists()) {
                         boolean deleted = file.delete();
-                        Log.d(TAG, "Deleted physical file at " + entity.localPath + ": " + deleted);
+                        Log.d(TAG, "[DownloadManager] Deleted physical file at " + entity.localPath + ": " + deleted);
                         StorageHelper.scanMediaFile(context, file, null);
                     }
                 }
                 database.downloadDao().deleteDownload(songId);
                 if (callback != null) callback.onResult(true, null);
             } catch (Exception e) {
-                Log.e(TAG, "Error removing download: " + e.getMessage(), e);
+                Log.e(TAG, "[DownloadManager] removeDownload error: " + e.getMessage(), e);
                 if (callback != null) callback.onResult(false, e.getMessage());
             }
         });
@@ -344,14 +462,15 @@ public class RaagaXDownloadManager {
                     if (StorageHelper.verifyFileExists(entity.localPath)) {
                         verifiedList.add(entity);
                     } else {
-                        Log.d(TAG, "Pruning missing/externally deleted download record: " + entity.trackId + " (path: " + entity.localPath + ")");
+                        Log.d(TAG, "[DownloadManager] Pruning missing/externally deleted download record: " + entity.trackId + " (path: " + entity.localPath + ")");
                         database.downloadDao().deleteDownload(entity.trackId);
                     }
                 }
 
+                Log.d(TAG, "[DownloadManager] verifyAndSyncLibrary() verified=" + verifiedList.size() + "/" + allCompleted.size());
                 if (callback != null) callback.onResult(verifiedList, null);
             } catch (Exception e) {
-                Log.e(TAG, "Error verifying library: " + e.getMessage(), e);
+                Log.e(TAG, "[DownloadManager] verifyAndSyncLibrary error: " + e.getMessage(), e);
                 if (callback != null) callback.onResult(new ArrayList<>(), e.getMessage());
             }
         });
@@ -388,7 +507,7 @@ public class RaagaXDownloadManager {
 
                 if (callback != null) callback.onResult(true, null);
             } catch (Exception e) {
-                Log.e(TAG, "Failed to share song file: " + e.getMessage(), e);
+                Log.e(TAG, "[DownloadManager] shareSongFile error: " + e.getMessage(), e);
                 if (callback != null) callback.onResult(false, e.getMessage());
             }
         });

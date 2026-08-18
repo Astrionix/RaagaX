@@ -45,6 +45,7 @@ export function DownloadsView() {
     pauseDownload, 
     resumeDownload, 
     cancelDownload, 
+    retryDownload,
     removeDownload, 
     pauseAll, 
     resumeAll, 
@@ -56,12 +57,29 @@ export function DownloadsView() {
     setOfflineSettings,
     isOfflineMode,
     setOfflineMode,
+    playlistDownloadProgress,
   } = useDownloadStore();
 
   const [activeSubTab, setActiveSubTab] = useState<'device' | 'cloud'>('device');
   const [offlineCatalogTracks, setOfflineCatalogTracks] = useState<OfflineTrack[]>([]);
   const [localSearch, setLocalSearch] = useState('');
   const [storageInfo, setStorageInfo] = useState<StorageEstimateInfo | null>(null);
+
+  const formatSpeed = (bytesPerSec?: number) => {
+    if (!bytesPerSec || bytesPerSec <= 0) return 'Calculating speed...';
+    if (bytesPerSec >= 1024 * 1024) {
+      return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+    }
+    return `${Math.round(bytesPerSec / 1024)} KB/s`;
+  };
+
+  const formatEta = (seconds?: number) => {
+    if (!seconds || seconds <= 0 || !Number.isFinite(seconds)) return null;
+    if (seconds < 60) return `~${Math.round(seconds)}s left`;
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `~${m}:${s.toString().padStart(2, '0')} left`;
+  };
   
   // Custom device name editing
   const [isEditingDeviceName, setIsEditingDeviceName] = useState(false);
@@ -450,75 +468,213 @@ export function DownloadsView() {
         </div>
       </div>
 
+      {/* Playlist Download Progress Banner */}
+      {playlistDownloadProgress && playlistDownloadProgress.status === 'DOWNLOADING' && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-red-600/20 via-purple-600/20 to-slate-900 border border-red-500/30 space-y-3 shadow-xl animate-in fade-in">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#fa233b] animate-pulse" />
+              <h3 className="text-xs font-black text-white uppercase tracking-wider">
+                Downloading Playlist: {playlistDownloadProgress.playlistTitle}
+              </h3>
+            </div>
+            <span className="text-xs font-mono font-bold text-[#fa233b]">
+              {playlistDownloadProgress.completedSongs} / {playlistDownloadProgress.totalSongs} songs
+            </span>
+          </div>
+
+          <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-[#fa233b] to-purple-500 transition-all duration-300 rounded-full"
+              style={{ width: `${playlistDownloadProgress.overallProgress}%` }}
+            />
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] text-slate-300">
+            <span className="truncate max-w-[200px]">Current: <span className="font-bold text-white">{playlistDownloadProgress.currentSongTitle}</span></span>
+            <div className="flex items-center gap-2">
+              <button onClick={pauseAll} className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold text-slate-200">Pause All</button>
+              <button onClick={cancelAll} className="px-2.5 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-xs font-bold text-red-400">Cancel All</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Active & Queued Tasks */}
       {activeTasks.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-2">
-              <Download className="w-4 h-4 text-[#fa233b]" /> Download Queue
+              <Download className="w-4 h-4 text-[#fa233b]" /> Currently Downloading ({downloadingTasks.length})
             </h3>
             <div className="flex gap-2">
-              <button onClick={pauseAll} className="text-[10px] uppercase font-bold text-slate-400 hover:text-white px-2.5 py-1 rounded bg-white/5 hover:bg-white/10">Pause All</button>
-              <button onClick={resumeAll} className="text-[10px] uppercase font-bold text-slate-400 hover:text-white px-2.5 py-1 rounded bg-white/5 hover:bg-white/10">Resume All</button>
-              <button onClick={cancelAll} className="text-[10px] uppercase font-bold text-red-400 hover:text-red-300 px-2.5 py-1 rounded bg-red-400/10 hover:bg-red-400/20">Cancel All</button>
+              <button onClick={pauseAll} className="text-[10px] uppercase font-bold text-slate-400 hover:text-white px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">Pause All</button>
+              <button onClick={resumeAll} className="text-[10px] uppercase font-bold text-slate-400 hover:text-white px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">Resume All</button>
+              <button onClick={cancelAll} className="text-[10px] uppercase font-bold text-red-400 hover:text-red-300 px-2.5 py-1 rounded-lg bg-red-400/10 hover:bg-red-400/20 transition-colors">Cancel All</button>
             </div>
           </div>
 
-          <div className="space-y-2">
-            {downloadingTasks.map((task) => (
-              <div key={task.song.id} className="p-4 rounded-xl bg-[#161618] border border-white/10 flex items-center gap-4">
-                <img src={task.song.coverUrl} alt={task.song.title || 'Artwork'} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <h4 className="text-sm font-bold truncate">{task.song.title}</h4>
-                    <span className="text-[10px] font-mono text-slate-400">
-                      {task.status === 'VERIFYING' ? 'Verifying tags...' : task.status === 'FAILED' ? 'Failed' : task.status === 'PAUSED' ? 'Paused' : `${task.progress}%`}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400 truncate">{task.song.artist}</p>
-                  
-                  <div className="mt-2 flex items-center gap-3">
-                    <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
-                      <div 
-                        className={`h-full rounded-full transition-all duration-300 ${
-                          task.status === 'FAILED' ? 'bg-red-500' : 
-                          task.status === 'PAUSED' ? 'bg-amber-500' : 
-                          task.status === 'VERIFYING' ? 'bg-indigo-500 animate-pulse' : 
-                          'bg-[#fa233b]'
-                        }`} 
-                        style={{ width: `${task.progress}%` }} 
-                      />
+          <div className="space-y-2.5">
+            {downloadingTasks.map((task) => {
+              const isFailed = task.status === 'FAILED';
+              const isPaused = task.status === 'PAUSED';
+              const isVerifying = task.status === 'VERIFYING';
+              const etaText = formatEta(task.etaSeconds);
+
+              return (
+                <div key={task.song.id} className="p-4 rounded-2xl bg-[#161618] border border-white/10 space-y-3 shadow-lg">
+                  <div className="flex items-center gap-3.5">
+                    <img 
+                      src={task.song.coverUrl} 
+                      alt={task.song.title || 'Artwork'} 
+                      className="w-12 h-12 rounded-xl object-cover flex-shrink-0 shadow-md" 
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="text-sm font-bold text-white truncate">{task.song.title}</h4>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-mono font-bold text-slate-400">
+                            {task.quality || '320 kbps'}
+                          </span>
+                          <span className={`text-xs font-mono font-black ${isFailed ? 'text-red-400' : isPaused ? 'text-amber-400' : isVerifying ? 'text-indigo-400 animate-pulse' : 'text-[#fa233b]'}`}>
+                            {isVerifying ? 'Verifying...' : isFailed ? 'Failed' : isPaused ? 'Paused' : `${task.progress}%`}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-400 truncate mt-0.5">{task.song.artist}</p>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1 font-mono">
-                    <span>{formatBytes(task.downloadedBytes)} {task.totalBytes > 0 && `/ ${formatBytes(task.totalBytes)}`}</span>
-                    {task.speedBytesPerSec && task.speedBytesPerSec > 0 && (
-                      <span>{formatBytes(task.speedBytesPerSec)}/s</span>
+
+                  {/* Error banner if failed */}
+                  {isFailed && task.error && (
+                    <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-[11px] text-red-300 flex items-center justify-between gap-2">
+                      <span className="truncate">{task.error}</span>
+                      <button 
+                        onClick={() => retryDownload(task.song.id)} 
+                        className="px-2.5 py-1 rounded-lg bg-red-500 hover:bg-red-400 text-white font-bold text-[10px] flex-shrink-0 transition-all cursor-pointer"
+                      >
+                        Retry Now
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Progress Bar */}
+                  {!isFailed && (
+                    <div className="space-y-1.5">
+                      <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden relative">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-300 ${
+                            isPaused ? 'bg-amber-500' : 
+                            isVerifying ? 'bg-indigo-500 animate-pulse' : 
+                            'bg-gradient-to-r from-[#fa233b] to-red-400'
+                          }`} 
+                          style={{ width: `${Math.max(1, task.progress)}%` }} 
+                        />
+                      </div>
+
+                      {/* Byte Metrics, Live Speed & ETA */}
+                      <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                        <span>
+                          {formatBytes(task.downloadedBytes)} {task.totalBytes > 0 && `/ ${formatBytes(task.totalBytes)}`}
+                        </span>
+                        <div className="flex items-center gap-3">
+                          {task.status === 'DOWNLOADING' && (
+                            <span className="text-emerald-400 font-bold">
+                              {formatSpeed(task.speedBytesPerSec)}
+                            </span>
+                          )}
+                          {etaText && task.status === 'DOWNLOADING' && (
+                            <span className="text-slate-500 font-medium">
+                              {etaText}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* State-aware Action Controls */}
+                  <div className="flex items-center justify-end gap-2 pt-1 border-t border-white/5">
+                    {isFailed ? (
+                      <>
+                        <button 
+                          onClick={() => retryDownload(task.song.id)} 
+                          className="px-3 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          <span>Retry</span>
+                        </button>
+                        <button 
+                          onClick={() => cancelDownload(task.song.id)} 
+                          className="px-3 py-1 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          <span>Remove</span>
+                        </button>
+                      </>
+                    ) : isPaused ? (
+                      <>
+                        <button 
+                          onClick={() => resumeDownload(task.song.id)} 
+                          className="px-3 py-1 rounded-xl bg-[#fa233b] hover:bg-red-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-md cursor-pointer"
+                        >
+                          <Play className="w-3.5 h-3.5 fill-white" />
+                          <span>Resume</span>
+                        </button>
+                        <button 
+                          onClick={() => cancelDownload(task.song.id)} 
+                          className="px-3 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-red-400 text-xs font-bold transition-all cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button 
+                          onClick={() => pauseDownload(task.song.id)} 
+                          className="px-3 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <PauseCircle className="w-3.5 h-3.5" />
+                          <span>Pause</span>
+                        </button>
+                        <button 
+                          onClick={() => cancelDownload(task.song.id)} 
+                          className="px-3 py-1 rounded-xl bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-400 text-xs font-bold transition-all cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
+              );
+            })}
 
-                <div className="flex items-center gap-2">
-                  {task.status === 'PAUSED' || task.status === 'FAILED' ? (
-                     <button onClick={() => resumeDownload(task.song.id)} className="p-2 text-slate-400 hover:text-white" title="Resume"><PlayCircle className="w-5 h-5" /></button>
-                  ) : (
-                     <button onClick={() => pauseDownload(task.song.id)} className="p-2 text-slate-400 hover:text-white" title="Pause"><PauseCircle className="w-5 h-5" /></button>
-                  )}
-                  <button onClick={() => cancelDownload(task.song.id)} className="p-2 text-slate-400 hover:text-red-400" title="Cancel"><XCircle className="w-5 h-5" /></button>
-                </div>
+            {/* Queued Section */}
+            {queuedTasks.length > 0 && (
+              <div className="space-y-2 pt-2">
+                <h4 className="text-[11px] font-black text-slate-500 uppercase tracking-wider px-1">
+                  Queued ({queuedTasks.length})
+                </h4>
+                {queuedTasks.map((task, index) => (
+                  <div key={task.song.id} className="p-3 rounded-2xl bg-[#161618]/80 border border-white/5 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-bold text-slate-300 truncate">{task.song.title}</h4>
+                        <p className="text-[10px] text-slate-500 truncate">{task.song.artist}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <span className="text-[10px] text-slate-500 font-mono font-bold px-2 py-0.5 rounded-full bg-white/5 border border-white/5">
+                        {downloadingTasks.length === 0 && index === 0 ? 'Starting...' : `Queued #${index + 1}`}
+                      </span>
+                      <button onClick={() => cancelDownload(task.song.id)} className="p-1 text-slate-500 hover:text-red-400 cursor-pointer"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-
-            {queuedTasks.map((task) => (
-              <div key={task.song.id} className="p-3 rounded-xl bg-[#1a1a1d] border border-white/5 flex items-center gap-4 opacity-70">
-                <div className="flex-1 min-w-0 flex items-center gap-3">
-                   <h4 className="text-xs font-bold text-slate-300 truncate">{task.song.title}</h4>
-                   <span className="text-[10px] text-slate-500 font-mono">Waiting in queue...</span>
-                </div>
-                <button onClick={() => cancelDownload(task.song.id)} className="p-1.5 text-slate-500 hover:text-red-400"><XCircle className="w-4 h-4" /></button>
-              </div>
-            ))}
+            )}
           </div>
         </div>
       )}

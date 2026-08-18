@@ -12,6 +12,8 @@ import com.raagax.music.data.provider.SaavnMusicProvider;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
+import java.net.SocketTimeoutException;
 import java.util.concurrent.TimeUnit;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -19,13 +21,16 @@ import okhttp3.Response;
 import okhttp3.ResponseBody;
 
 /**
- * DownloadWorker — WorkManager Worker for downloading MP3 files to Music/RaagaX/.
+ * DownloadWorker — WorkManager Worker for downloading high quality MP3 files to Music/RaagaX/.
  * Features:
- * - Resumable HTTP Range chunk streaming
+ * - End-to-end diagnostic tracing
+ * - 15-second first-byte timeout guard
+ * - Rolling average download speed (bytes/sec) & ETA calculations
+ * - Explicit package targeted broadcasts for reliable Android 13/14 delivery
+ * - Resumable HTTP chunk streaming
  * - ID3v2.3 tagging (Title, Artist, Album, APIC Artwork)
  * - Atomic write with temporary file staging
- * - Android MediaScanner indexing
- * - Live progress reporting & Room database state management
+ * - Android MediaScanner indexing for instant File Manager visibility
  */
 public class DownloadWorker extends Worker {
     private static final String TAG = "DownloadWorker";
@@ -36,9 +41,10 @@ public class DownloadWorker extends Worker {
         super(context, workerParams);
         this.database = RaagaXDatabase.getInstance(context);
         this.httpClient = new OkHttpClient.Builder()
-            .connectTimeout(20, TimeUnit.SECONDS)
-            .readTimeout(45, TimeUnit.SECONDS)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
             .followRedirects(true)
+            .retryOnConnectionFailure(true)
             .build();
     }
 
@@ -54,22 +60,33 @@ public class DownloadWorker extends Worker {
         String quality   = getInputData().getString("quality");
         if (quality == null || quality.isEmpty()) quality = "320 kbps";
 
+        Log.d(TAG, "[DOWNLOAD] Worker starting");
+
         if (trackId == null || trackId.isEmpty()) {
+            Log.e(TAG, "[DOWNLOAD] FAILED reason=missing trackId");
             return Result.failure();
         }
 
+        Log.d(TAG, "[DOWNLOAD] Worker started (trackId=" + trackId + ", title=" + title + ", quality=" + quality + ")");
         database.downloadDao().updateProgress(trackId, "DOWNLOADING", 0, 0);
-        broadcastProgress(trackId, "DOWNLOADING", 0, 0, 0);
+        broadcastProgress(trackId, "DOWNLOADING", 0, 0, 0, 0, 0, null);
 
         try {
             Context context = getApplicationContext();
 
-            // 1. Resolve stream URL if missing or dynamic
-            if (streamUrl == null || streamUrl.isEmpty() || streamUrl.contains("pixabay.com")) {
+            // 1. Resolve stream URL if missing, dynamic, or relative proxy
+            if (streamUrl == null || streamUrl.isEmpty()
+                    || streamUrl.contains("pixabay.com")
+                    || streamUrl.startsWith("/")
+                    || streamUrl.contains("localhost")
+                    || streamUrl.contains("127.0.0.1")
+                    || streamUrl.contains("/api/download")
+                    || streamUrl.contains("/api/stream")) {
+                Log.d(TAG, "[DOWNLOAD] Resolving direct audio stream for song ID: " + trackId);
                 try {
                     SaavnMusicProvider provider = new SaavnMusicProvider();
                     MusicTrack track = provider.getTrackDetails(trackId);
-                    if (track != null) {
+                    if (track != null && track.streamUrl != null && !track.streamUrl.isEmpty()) {
                         streamUrl = track.streamUrl;
                         if (title == null || title.isEmpty()) title = track.title;
                         if (artist == null || artist.isEmpty()) artist = track.artist;
@@ -77,25 +94,29 @@ public class DownloadWorker extends Worker {
                         if (artworkUrl == null || artworkUrl.isEmpty()) artworkUrl = track.artworkUrl;
                     }
                 } catch (Exception e) {
-                    Log.w(TAG, "SaavnMusicProvider resolve failed: " + e.getMessage());
+                    Log.w(TAG, "[DOWNLOAD] SaavnMusicProvider resolve error: " + e.getMessage());
                 }
             }
 
             if (streamUrl == null || streamUrl.isEmpty()) {
-                database.downloadDao().markFailed(trackId, "Could not resolve audio stream URL");
-                broadcastProgress(trackId, "FAILED", 0, 0, 0);
+                String error = "Unable to retrieve audio stream from source";
+                Log.e(TAG, "[DOWNLOAD] FAILED trackId=" + trackId + " reason=" + error);
+                database.downloadDao().markFailed(trackId, error);
+                broadcastProgress(trackId, "FAILED", 0, 0, 0, 0, 0, error);
                 return Result.failure();
             }
 
-            // Apply target quality URL rewriting if candidate template exists
+            // Adjust bitrate while preserving original media extension
             streamUrl = adjustBitrateUrl(streamUrl, quality);
+            Log.d(TAG, "[DOWNLOAD] Source URL = " + streamUrl);
 
-            // 2. Storage validation
+            // 2. Storage space validation
             long availableBytes = StorageHelper.getAvailableStorageBytes(context);
-            if (availableBytes < 15L * 1024 * 1024) { // Minimum 15MB free space required
+            if (availableBytes < 15L * 1024 * 1024) { // Minimum 15MB required
                 String error = "Not enough storage. Required: 15 MB, Available: " + (availableBytes / (1024 * 1024)) + " MB";
+                Log.e(TAG, "[DOWNLOAD] FAILED trackId=" + trackId + " reason=" + error);
                 database.downloadDao().markFailed(trackId, error);
-                broadcastProgress(trackId, "FAILED", 0, 0, 0);
+                broadcastProgress(trackId, "FAILED", 0, 0, 0, 0, 0, error);
                 return Result.failure();
             }
 
@@ -104,7 +125,7 @@ public class DownloadWorker extends Worker {
             File finalFile = StorageHelper.getDisambiguatedFile(targetDir, title, artist, trackId);
             File tempRawFile = new File(targetDir, ".tmp_raw_" + trackId + ".mp3");
 
-            // 4. Resumable chunk download
+            // 4. Resumable chunk download with 15-second first byte timeout guard
             long existingBytes = tempRawFile.exists() ? tempRawFile.length() : 0L;
 
             Request.Builder requestBuilder = new Request.Builder()
@@ -113,41 +134,65 @@ public class DownloadWorker extends Worker {
 
             if (existingBytes > 0) {
                 requestBuilder.addHeader("Range", "bytes=" + existingBytes + "-");
-                Log.d(TAG, "Resuming download for " + trackId + " from byte " + existingBytes);
+                Log.d(TAG, "[DOWNLOAD] Resuming download for " + trackId + " from byte " + existingBytes);
             }
 
+            Log.d(TAG, "[DOWNLOAD] Request starting");
             Request request = requestBuilder.build();
+            Log.d(TAG, "[DOWNLOAD] Request sent to " + streamUrl);
+
+            long requestStartTime = System.currentTimeMillis();
+
             try (Response response = httpClient.newCall(request).execute()) {
+                Log.d(TAG, "[DOWNLOAD] Response received");
                 int code = response.code();
+                Log.d(TAG, "[DOWNLOAD] HTTP status = " + code);
+
                 if (code != 200 && code != 206) {
-                    // If range was not satisfiable, restart from byte 0
                     if (code == 416) {
+                        // Range not satisfiable -> clean and restart
                         tempRawFile.delete();
                         existingBytes = 0;
                         request = new Request.Builder().url(streamUrl).build();
                         response.close();
                         Response retryRes = httpClient.newCall(request).execute();
                         if (!retryRes.isSuccessful() || retryRes.body() == null) {
-                            database.downloadDao().markFailed(trackId, "HTTP download failed: " + retryRes.code());
-                            return Result.retry();
+                            String error = "HTTP download failed with code " + retryRes.code();
+                            database.downloadDao().markFailed(trackId, error);
+                            broadcastProgress(trackId, "FAILED", 0, 0, 0, 0, 0, error);
+                            return Result.failure();
                         }
                     } else {
-                        database.downloadDao().markFailed(trackId, "HTTP download failed: " + code);
-                        return Result.retry();
+                        String error = "HTTP error " + code + " from audio server";
+                        Log.e(TAG, "[DOWNLOAD] FAILED trackId=" + trackId + " reason=" + error);
+                        database.downloadDao().markFailed(trackId, error);
+                        broadcastProgress(trackId, "FAILED", 0, 0, 0, 0, 0, error);
+                        return Result.failure();
                     }
                 }
 
                 ResponseBody body = response.body();
                 if (body == null) {
-                    database.downloadDao().markFailed(trackId, "Empty response body");
-                    return Result.retry();
+                    String error = "Empty response body from audio server";
+                    Log.e(TAG, "[DOWNLOAD] FAILED trackId=" + trackId + " reason=" + error);
+                    database.downloadDao().markFailed(trackId, error);
+                    broadcastProgress(trackId, "FAILED", 0, 0, 0, 0, 0, error);
+                    return Result.failure();
                 }
 
-                long totalBytes = body.contentLength();
+                String contentType = response.header("Content-Type", "audio/mpeg");
+                long contentLength = body.contentLength();
+                Log.d(TAG, "[DOWNLOAD] Content-Type = " + contentType);
+                Log.d(TAG, "[DOWNLOAD] Content-Length = " + contentLength);
+
+                long totalBytes = contentLength;
                 if (code == 206) {
                     totalBytes += existingBytes;
                 }
                 long downloadedBytes = existingBytes;
+
+                Log.d(TAG, "[DOWNLOAD] Stream opened");
+                Log.d(TAG, "[DOWNLOAD] File write started: " + tempRawFile.getAbsolutePath());
 
                 try (InputStream inputStream = body.byteStream();
                      FileOutputStream outputStream = new FileOutputStream(tempRawFile, existingBytes > 0)) {
@@ -156,51 +201,90 @@ public class DownloadWorker extends Worker {
                     int read;
                     int lastProgress = 0;
                     long lastBroadcastTime = 0;
+                    boolean firstBytesLogged = false;
+
+                    // Rolling speed calculation window
+                    long windowStartTime = System.currentTimeMillis();
+                    long windowStartBytes = downloadedBytes;
+                    long speedBytesPerSec = 0;
+                    long etaSeconds = 0;
 
                     while ((read = inputStream.read(buffer)) != -1) {
+                        if (!firstBytesLogged) {
+                            Log.d(TAG, "[DOWNLOAD] First bytes received (" + read + " bytes in " + (System.currentTimeMillis() - requestStartTime) + "ms)");
+                            firstBytesLogged = true;
+                        }
+
                         if (isStopped()) {
-                            // WorkManager requested stop / pause
+                            Log.d(TAG, "[DOWNLOAD] Paused by WorkManager / user for trackId=" + trackId);
                             database.downloadDao().updateProgress(trackId, "PAUSED", lastProgress, downloadedBytes);
-                            broadcastProgress(trackId, "PAUSED", lastProgress, downloadedBytes, totalBytes);
+                            broadcastProgress(trackId, "PAUSED", lastProgress, downloadedBytes, totalBytes, 0, 0, null);
                             return Result.failure();
                         }
 
                         outputStream.write(buffer, 0, read);
                         downloadedBytes += read;
 
-                        if (totalBytes > 0) {
-                            int progress = (int) ((downloadedBytes * 100) / totalBytes);
-                            long now = System.currentTimeMillis();
-                            if (progress - lastProgress >= 3 || (now - lastBroadcastTime > 800)) {
-                                lastProgress = progress;
-                                lastBroadcastTime = now;
-                                database.downloadDao().updateProgress(trackId, "DOWNLOADING", progress, downloadedBytes);
-                                broadcastProgress(trackId, "DOWNLOADING", progress, downloadedBytes, totalBytes);
+                        long now = System.currentTimeMillis();
+                        long windowElapsed = now - windowStartTime;
+
+                        // Calculate rolling average speed every 800ms
+                        if (windowElapsed >= 800) {
+                            long bytesInWindow = downloadedBytes - windowStartBytes;
+                            speedBytesPerSec = (bytesInWindow * 1000L) / Math.max(1, windowElapsed);
+                            windowStartTime = now;
+                            windowStartBytes = downloadedBytes;
+
+                            if (speedBytesPerSec > 0 && totalBytes > downloadedBytes) {
+                                etaSeconds = (totalBytes - downloadedBytes) / speedBytesPerSec;
+                            }
+                        }
+
+                        int progress = totalBytes > 0 ? (int) ((downloadedBytes * 100) / totalBytes) : 0;
+
+                        // Broadcast progress update every 3% or every 800ms
+                        if (progress - lastProgress >= 3 || (now - lastBroadcastTime > 800) || progress >= 99) {
+                            lastProgress = progress;
+                            lastBroadcastTime = now;
+                            database.downloadDao().updateProgress(trackId, "DOWNLOADING", progress, downloadedBytes);
+                            broadcastProgress(trackId, "DOWNLOADING", progress, downloadedBytes, totalBytes, speedBytesPerSec, etaSeconds, null);
+
+                            if (progress % 10 == 0 || progress >= 99) {
+                                Log.d(TAG, "[DOWNLOAD] Progress = " + progress + "% (" + downloadedBytes + "/" + totalBytes + " bytes, " + (speedBytesPerSec / 1024) + " KB/s, ETA: " + etaSeconds + "s)");
                             }
                         }
                     }
                     outputStream.flush();
                 }
 
+                Log.d(TAG, "[DOWNLOAD] Bytes received = " + downloadedBytes + " / " + totalBytes);
+
                 // 5. Verify integrity of downloaded stream
+                Log.d(TAG, "[DOWNLOAD] Verifying raw file integrity (rawSize=" + tempRawFile.length() + " bytes)");
                 database.downloadDao().updateProgress(trackId, "VERIFYING", 99, downloadedBytes);
-                broadcastProgress(trackId, "VERIFYING", 99, downloadedBytes, totalBytes);
+                broadcastProgress(trackId, "VERIFYING", 99, downloadedBytes, totalBytes, 0, 0, null);
 
                 if (!tempRawFile.exists() || tempRawFile.length() < 2048) {
                     tempRawFile.delete();
-                    database.downloadDao().markFailed(trackId, "Incomplete/corrupt audio download");
-                    return Result.retry();
+                    String error = "Incomplete audio download (" + tempRawFile.length() + " bytes)";
+                    Log.e(TAG, "[DOWNLOAD] FAILED trackId=" + trackId + " reason=" + error);
+                    database.downloadDao().markFailed(trackId, error);
+                    broadcastProgress(trackId, "FAILED", 0, 0, 0, 0, 0, error);
+                    return Result.failure();
                 }
 
                 // 6. ID3 Tag Injection & Atomic Commit to Music/RaagaX/*.mp3
                 ID3TagWriter.Metadata id3Meta = new ID3TagWriter.Metadata(title, artist, album, artworkUrl);
                 boolean tagged = ID3TagWriter.writeID3v2Tags(tempRawFile, finalFile, id3Meta);
-                
+
                 // Clean up raw temp file
                 tempRawFile.delete();
 
                 if (!tagged || !finalFile.exists() || finalFile.length() == 0) {
-                    database.downloadDao().markFailed(trackId, "ID3 tag encoding & commit failed");
+                    String error = "ID3 tag encoding & commit failed";
+                    Log.e(TAG, "[DOWNLOAD] FAILED trackId=" + trackId + " reason=" + error);
+                    database.downloadDao().markFailed(trackId, error);
+                    broadcastProgress(trackId, "FAILED", 0, 0, 0, 0, 0, error);
                     return Result.failure();
                 }
 
@@ -219,60 +303,87 @@ public class DownloadWorker extends Worker {
                     System.currentTimeMillis()
                 );
 
-                broadcastProgress(trackId, "COMPLETED", 100, finalSize, finalSize);
+                broadcastProgress(trackId, "COMPLETED", 100, finalSize, finalSize, 0, 0, null);
                 broadcastCompleted(trackId, finalFile.getAbsolutePath(), finalFile.getName(), finalSize, quality, title, artist);
 
-                Log.d(TAG, "Successfully downloaded & tagged: " + finalFile.getAbsolutePath() + " (" + finalSize + " bytes)");
+                Log.d(TAG, "[DOWNLOAD] File verified = " + finalSize + " bytes at " + finalFile.getAbsolutePath());
+                Log.d(TAG, "[DOWNLOAD] Download completed successfully for trackId=" + trackId);
                 return Result.success();
             }
+        } catch (InterruptedIOException e) {
+            String error = "Download connection timed out after 15s. Please check network.";
+            Log.e(TAG, "[DOWNLOAD] FAILED trackId=" + trackId + " reason=" + error, e);
+            database.downloadDao().markFailed(trackId, error);
+            broadcastProgress(trackId, "FAILED", 0, 0, 0, 0, 0, error);
+            return Result.failure();
         } catch (Exception e) {
-            Log.e(TAG, "Download worker execution error for track " + trackId + ": " + e.getMessage(), e);
-            database.downloadDao().markFailed(trackId, e.getMessage());
-            broadcastProgress(trackId, "FAILED", 0, 0, 0);
-            return Result.retry();
+            String error = e.getMessage() != null ? e.getMessage() : "Unexpected download failure";
+            Log.e(TAG, "[DOWNLOAD] FAILED trackId=" + trackId + " reason=" + error, e);
+            database.downloadDao().markFailed(trackId, error);
+            broadcastProgress(trackId, "FAILED", 0, 0, 0, 0, 0, error);
+            return Result.failure();
         }
     }
 
+    /**
+     * Adjusts quality while preserving original media extension.
+     */
     private String adjustBitrateUrl(String originalUrl, String quality) {
         if (originalUrl == null) return "";
         String normalized = originalUrl.replace("http://", "https://");
 
-        String targetSuffix = "_320.mp3";
+        String targetQuality = "_320";
         if ("128 kbps".equalsIgnoreCase(quality) || "128".equals(quality)) {
-            targetSuffix = "_128.mp3";
+            targetQuality = "_128";
         } else if ("192 kbps".equalsIgnoreCase(quality) || "160 kbps".equalsIgnoreCase(quality) || "160".equals(quality)) {
-            targetSuffix = "_160.mp3";
-        } else if ("320 kbps".equalsIgnoreCase(quality) || "320".equals(quality) || "Lossless".equalsIgnoreCase(quality)) {
-            targetSuffix = "_320.mp3";
+            targetQuality = "_160";
         }
 
-        if (normalized.matches(".*_(?:12|48|96|128|160|320)\\.(?:mp3|m4a|mp4)$")) {
-            return normalized.replaceAll("_(?:12|48|96|128|160|320)\\.(?:mp3|m4a|mp4)$", targetSuffix);
+        if (normalized.matches(".*_(?:12|48|96|128|160|320)\\.(mp3|m4a|mp4)$")) {
+            String ext = normalized.substring(normalized.lastIndexOf('.'));
+            return normalized.replaceAll("_(?:12|48|96|128|160|320)\\.(mp3|m4a|mp4)$", targetQuality + ext);
         }
         return normalized;
     }
 
-    private void broadcastProgress(String trackId, String state, int progress, long bytesDownloaded, long totalBytes) {
-        Intent intent = new Intent("com.raagax.music.DOWNLOAD_PROGRESS");
-        intent.putExtra("trackId", trackId);
-        intent.putExtra("songId", trackId);
-        intent.putExtra("state", state);
-        intent.putExtra("progress", progress);
-        intent.putExtra("downloadedBytes", bytesDownloaded);
-        intent.putExtra("totalBytes", totalBytes);
-        getApplicationContext().sendBroadcast(intent);
+    private void broadcastProgress(String trackId, String state, int progress, long bytesDownloaded, long totalBytes, long speedBytesPerSec, long etaSeconds, String error) {
+        try {
+            Context ctx = getApplicationContext();
+            Intent intent = new Intent("com.raagax.music.DOWNLOAD_PROGRESS");
+            intent.setPackage(ctx.getPackageName()); // Crucial for Android 13/14 reliable delivery
+            intent.putExtra("trackId", trackId);
+            intent.putExtra("songId", trackId);
+            intent.putExtra("state", state);
+            intent.putExtra("progress", progress);
+            intent.putExtra("downloadedBytes", bytesDownloaded);
+            intent.putExtra("totalBytes", totalBytes);
+            intent.putExtra("speedBytesPerSec", speedBytesPerSec);
+            intent.putExtra("etaSeconds", etaSeconds);
+            if (error != null) {
+                intent.putExtra("error", error);
+            }
+            ctx.sendBroadcast(intent);
+        } catch (Exception e) {
+            Log.w(TAG, "Error broadcasting download progress: " + e.getMessage());
+        }
     }
 
     private void broadcastCompleted(String trackId, String localPath, String fileName, long fileSize, String quality, String title, String artist) {
-        Intent intent = new Intent("com.raagax.music.DOWNLOAD_COMPLETED");
-        intent.putExtra("trackId", trackId);
-        intent.putExtra("songId", trackId);
-        intent.putExtra("localPath", localPath);
-        intent.putExtra("fileName", fileName);
-        intent.putExtra("fileSize", fileSize);
-        intent.putExtra("quality", quality);
-        intent.putExtra("title", title != null ? title : "RaagaX");
-        intent.putExtra("artist", artist != null ? artist : "");
-        getApplicationContext().sendBroadcast(intent);
+        try {
+            Context ctx = getApplicationContext();
+            Intent intent = new Intent("com.raagax.music.DOWNLOAD_COMPLETED");
+            intent.setPackage(ctx.getPackageName()); // Crucial for Android 13/14 delivery
+            intent.putExtra("trackId", trackId);
+            intent.putExtra("songId", trackId);
+            intent.putExtra("localPath", localPath);
+            intent.putExtra("fileName", fileName);
+            intent.putExtra("fileSize", fileSize);
+            intent.putExtra("quality", quality);
+            intent.putExtra("title", title != null ? title : "RaagaX");
+            intent.putExtra("artist", artist != null ? artist : "");
+            ctx.sendBroadcast(intent);
+        } catch (Exception e) {
+            Log.w(TAG, "Error broadcasting download completed: " + e.getMessage());
+        }
     }
 }

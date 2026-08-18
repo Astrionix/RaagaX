@@ -68,6 +68,23 @@ export interface NativeDownloadProgressEvent {
   progress: number;
   downloadedBytes: number;
   totalBytes: number;
+  speedBytesPerSec?: number;
+  etaSeconds?: number;
+  error?: string;
+}
+
+export interface NativeActiveDownload {
+  songId: string;
+  trackId: string;
+  title: string;
+  artist: string;
+  album: string;
+  artworkUrl: string;
+  coverUrl: string;
+  quality: string;
+  downloadState: 'QUEUED' | 'DOWNLOADING' | 'VERIFYING' | 'PAUSED' | 'FAILED';
+  downloadProgress: number;
+  downloadedBytes: number;
 }
 
 export interface NativeDownloadCompletedEvent {
@@ -189,6 +206,23 @@ export const RaagaXNativeDownload = {
       return res?.tracks || [];
     } catch (e) {
       console.error('[RaagaXNativeDownload] getDownloadedTracks error:', e);
+      return [];
+    }
+  },
+
+  /**
+   * Returns all currently active (QUEUED, DOWNLOADING, VERIFYING, PAUSED, FAILED) entries
+   * from the Android Room DB. Used by useDownloadStore.syncNativeQueueState() to reconcile
+   * JS task state after hydration, navigation, or when broadcasts were missed.
+   */
+  async getActiveDownloads(): Promise<NativeActiveDownload[]> {
+    const plugin = getPlugin();
+    if (!plugin) return [];
+    try {
+      const res = await plugin.getActiveDownloads();
+      return res?.downloads || [];
+    } catch (e) {
+      console.error('[RaagaXNativeDownload] getActiveDownloads error:', e);
       return [];
     }
   },

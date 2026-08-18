@@ -11,6 +11,7 @@ import { exportSongToDevice } from '@/lib/downloadHelper';
 import { getApiUrl } from '@/lib/config/apiConfig';
 import { RaagaXNativeDownload, NativeDownloadedTrack } from '@/lib/playback/native/RaagaXNativeDownload';
 
+
 export type DownloadStatus = 
   | 'NOT_DOWNLOADED' 
   | 'QUEUED' 
@@ -30,6 +31,7 @@ export interface DownloadTask {
   downloadedBytes: number;
   totalBytes: number;
   speedBytesPerSec?: number;
+  etaSeconds?: number;
   retryCount: number;
   checksum?: string;
   error?: string;
@@ -68,6 +70,7 @@ interface DownloadStore {
   fetchStorageInfo: () => Promise<StorageEstimateInfo>;
   saveForOffline: (song: Song, quality?: string) => Promise<boolean>;
   queueDownload: (song: Song, mode?: DownloadMode, quality?: string) => void;
+  retryDownload: (songId: string) => void;
   exportSong: (song: Song) => Promise<boolean>;
   pauseDownload: (songId: string) => void;
   resumeDownload: (songId: string) => void;
@@ -83,7 +86,7 @@ interface DownloadStore {
 
   setWifiOnly: (wifiOnly: boolean) => void;
 
-  updateProgress: (songId: string, progress: number, downloadedBytes: number, totalBytes: number, speed?: number) => void;
+  updateProgress: (songId: string, progress: number, downloadedBytes: number, totalBytes: number, speed?: number, eta?: number) => void;
   setStatus: (songId: string, status: DownloadStatus, error?: string) => void;
   
   isOfflineStorageEnabled: boolean;
@@ -112,6 +115,12 @@ interface DownloadStore {
   _persistTasks: () => void;
   syncDownloadedIds: () => Promise<void>;
   verifyPhysicalFiles: () => Promise<void>;
+  /**
+   * syncNativeQueueState — polls Android Room DB for active downloads and reconciles
+   * the JS task map. Fixes tasks that are stuck in QUEUED due to missed broadcasts
+   * (timing races, navigation, or hydration ordering).
+   */
+  syncNativeQueueState: () => Promise<void>;
 }
 
 export const useDownloadStore = create<DownloadStore>((set, get) => ({
@@ -233,6 +242,82 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     await get().verifyPhysicalFiles();
   },
 
+  /**
+   * syncNativeQueueState — polls Android Room DB for all active (non-COMPLETED) downloads
+   * and overlays the real state onto the JS task map.
+   *
+   * This is the definitive fix for Root Causes 1, 2, and 5:
+   *   - Ensures tasks that received no broadcasts (timing race) are corrected.
+   *   - Creates placeholder tasks for songs whose broadcasts arrived before JS listeners.
+   *   - Corrects DOWNLOADING tasks that were wrongly reset to PAUSED on restart.
+   */
+  syncNativeQueueState: async () => {
+    if (!RaagaXNativeDownload.isNative()) return;
+    console.log('[DownloadManager] syncNativeQueueState() — reconciling JS tasks with Android Room DB');
+    try {
+      const activeDownloads = await RaagaXNativeDownload.getActiveDownloads();
+      if (activeDownloads.length === 0) {
+        console.log('[DownloadManager] syncNativeQueueState() — no active downloads in DB');
+        return;
+      }
+
+      set((state) => {
+        const updatedTasks = { ...state.tasks };
+        for (const dl of activeDownloads) {
+          const status = (dl.downloadState || 'QUEUED') as DownloadStatus;
+          const existingTask = updatedTasks[dl.songId];
+
+          if (existingTask) {
+            // Update existing task with real native state (overrides optimistic DOWNLOADING if wrong)
+            updatedTasks[dl.songId] = {
+              ...existingTask,
+              status,
+              progress: dl.downloadProgress || existingTask.progress,
+              song: {
+                ...existingTask.song,
+                title: dl.title || existingTask.song.title,
+                artist: dl.artist || existingTask.song.artist,
+                coverUrl: dl.artworkUrl || existingTask.song.coverUrl,
+              },
+            };
+          } else if (['QUEUED', 'DOWNLOADING', 'VERIFYING', 'PAUSED', 'FAILED'].includes(status)) {
+            // Create missing task from native DB data (broadcast was missed entirely)
+            const minimalSong: Song = {
+              id: dl.songId,
+              title: dl.title || dl.songId,
+              artist: dl.artist || '',
+              album: dl.album || '',
+              audioUrl: '',
+              coverUrl: dl.artworkUrl || '',
+              duration: 0,
+              genre: '',
+              category: 'melody',
+              releaseYear: new Date().getFullYear(),
+              plays: 0,
+              likes: 0,
+              artistId: `art-${dl.songId}`,
+              albumId: `alb-${dl.songId}`,
+            };
+            updatedTasks[dl.songId] = {
+              song: minimalSong,
+              mode: 'offline_sandboxed',
+              quality: dl.quality || '320 kbps',
+              status,
+              progress: dl.downloadProgress || 0,
+              downloadedBytes: dl.downloadedBytes || 0,
+              totalBytes: 0,
+              retryCount: 0,
+            };
+          }
+        }
+        console.log('[DownloadManager] syncNativeQueueState() — reconciled', activeDownloads.length, 'active downloads');
+        return { tasks: updatedTasks };
+      });
+    } catch (e) {
+      console.warn('[DownloadManager] syncNativeQueueState error:', e);
+    }
+  },
+
   hydrate: async () => {
     if (get().isHydrated) return;
     try {
@@ -254,9 +339,9 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
       // Setup Native Download Event Listeners
       if (RaagaXNativeDownload.isNative()) {
         RaagaXNativeDownload.addDownloadProgressListener((ev) => {
-          get().updateProgress(ev.songId, ev.progress, ev.downloadedBytes, ev.totalBytes);
+          get().updateProgress(ev.songId, ev.progress, ev.downloadedBytes, ev.totalBytes, ev.speedBytesPerSec, ev.etaSeconds);
           const stateNormalized: DownloadStatus = ev.state as DownloadStatus;
-          get().setStatus(ev.songId, stateNormalized);
+          get().setStatus(ev.songId, stateNormalized, ev.error);
 
           // Update playlist overall progress if active
           const pl = get().playlistDownloadProgress;
@@ -292,6 +377,16 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
               }
             });
           }
+
+          // Clean up completed task from active queue after brief transition
+          setTimeout(() => {
+            set((s) => {
+              const newTasks = { ...s.tasks };
+              delete newTasks[ev.songId];
+              return { tasks: newTasks };
+            });
+            get()._persistTasks();
+          }, 2000);
         });
       }
 
@@ -301,15 +396,28 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
       const hydratedTasks: Record<string, DownloadTask> = {};
       Object.keys(savedTasks).forEach(id => {
         const task = savedTasks[id];
-        if (task.status === 'DOWNLOADING' || task.status === 'VERIFYING') {
-          task.status = 'PAUSED';
+        // On native Android: WorkManager handles recovery automatically via recoverStuckDownloads()
+        // so we preserve the existing state rather than resetting to PAUSED.
+        // On Web/PWA: browser doesn't persist in-progress downloads, so reset to PAUSED.
+        if (!RaagaXNativeDownload.isNative()) {
+          if (task.status === 'DOWNLOADING' || task.status === 'VERIFYING') {
+            task.status = 'PAUSED';
+          }
         }
         hydratedTasks[id] = task;
       });
 
       set({ tasks: hydratedTasks, isHydrated: true });
       await get().verifyPhysicalFiles();
-      get()._processQueue();
+
+      if (RaagaXNativeDownload.isNative()) {
+        // On native: sync real states from Android Room DB to fix any stuck QUEUED tasks
+        // caused by timing races between WorkManager, BroadcastReceiver, and JS hydration.
+        console.log('[DownloadManager] hydrate() → calling syncNativeQueueState()');
+        await get().syncNativeQueueState();
+      } else {
+        get()._processQueue();
+      }
     } catch (e) {
       set({ isHydrated: true });
     }
@@ -445,6 +553,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
 
     // If native Android, delegate immediately to RaagaXNativeDownload WorkManager
     if (RaagaXNativeDownload.isNative()) {
+      console.log('[DownloadManager] addDownload(' + song.id + ') → delegating to WorkManager');
       RaagaXNativeDownload.downloadTrack({
         songId: song.id,
         title: song.title,
@@ -454,7 +563,18 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
         streamUrl: song.audioUrl || '',
         quality,
         duration: song.duration || 180,
+      }).then(() => {
+        // Optimistically transition QUEUED → DOWNLOADING after WorkManager accepts the job.
+        // The real state will be confirmed by the DOWNLOAD_PROGRESS broadcast from the Worker.
+        // This fixes Root Cause 1: _processQueue() no-op means task never transitions on native.
+        console.log('[DownloadManager] job persisted → transitioning ' + song.id + ' QUEUED → DOWNLOADING (optimistic)');
+        set((s) => {
+          const task = s.tasks[song.id];
+          if (!task || task.status !== 'QUEUED') return s;
+          return { tasks: { ...s.tasks, [song.id]: { ...task, status: 'DOWNLOADING' } } };
+        });
       }).catch(err => {
+        console.error('[DownloadManager] downloadTrack error for ' + song.id + ':', err);
         get().setStatus(song.id, 'FAILED', err.message);
       });
       _persistTasks();
@@ -463,6 +583,18 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
 
     _persistTasks();
     _processQueue();
+  },
+
+  retryDownload: (songId: string) => {
+    const task = get().tasks[songId];
+    if (!task) return;
+    console.log('[DownloadManager] Retrying download for songId:', songId);
+    get().setStatus(songId, 'QUEUED', undefined);
+    if (RaagaXNativeDownload.isNative()) {
+      get().queueDownload(task.song, task.mode, task.quality);
+    } else {
+      get()._processQueue();
+    }
   },
 
   downloadPlaylist: (songs, quality = '320 kbps', playlistTitle = 'Playlist', playlistId = 'pl_custom') => {
@@ -492,6 +624,21 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     if (RaagaXNativeDownload.isNative()) {
       RaagaXNativeDownload.downloadPlaylist(toDownload, quality).then((queuedCount) => {
         usePlayerStore.getState().setToastMessage(`Queued ${queuedCount} songs to download to Music/RaagaX`);
+        // Optimistically set first song to DOWNLOADING, rest remain QUEUED
+        // WorkManager will start them sequentially; broadcasts will confirm real states.
+        set((s) => {
+          const updatedTasks = { ...s.tasks };
+          let firstFound = false;
+          for (const song of toDownload) {
+            if (updatedTasks[song.id] && updatedTasks[song.id].status === 'QUEUED') {
+              if (!firstFound) {
+                updatedTasks[song.id] = { ...updatedTasks[song.id], status: 'DOWNLOADING' };
+                firstFound = true;
+              }
+            }
+          }
+          return { tasks: updatedTasks };
+        });
       }).catch(err => {
         usePlayerStore.getState().setToastMessage(`Playlist download failed: ${err.message}`);
       });
@@ -710,10 +857,29 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     return false;
   },
 
-  updateProgress: (songId, progress, downloadedBytes, totalBytes, speed) => {
+  updateProgress: (songId, progress, downloadedBytes, totalBytes, speed, eta) => {
     set((state) => {
       const task = state.tasks[songId];
-      if (!task) return state;
+      if (!task) {
+        // Root Cause 2 fix: broadcast arrived for a song not in the JS store
+        // (navigation/hydration race). Create a minimal placeholder so progress is tracked.
+        console.warn('[DownloadManager] updateProgress: unknown songId', songId, '— creating placeholder task');
+        const minimalSong: Song = {
+          id: songId, title: songId, artist: '', album: '', audioUrl: '', coverUrl: '',
+          duration: 0, genre: '', category: 'melody', releaseYear: new Date().getFullYear(),
+          plays: 0, likes: 0, artistId: `art-${songId}`, albumId: `alb-${songId}`,
+        };
+        return {
+          tasks: {
+            ...state.tasks,
+            [songId]: {
+              song: minimalSong, mode: 'offline_sandboxed', quality: '320 kbps',
+              status: 'DOWNLOADING', progress, downloadedBytes, totalBytes,
+              speedBytesPerSec: speed, etaSeconds: eta, retryCount: 0,
+            }
+          }
+        };
+      }
       return {
         tasks: { 
           ...state.tasks, 
@@ -722,7 +888,8 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
             progress, 
             downloadedBytes, 
             totalBytes, 
-            speedBytesPerSec: speed !== undefined ? speed : task.speedBytesPerSec 
+            speedBytesPerSec: speed !== undefined ? speed : task.speedBytesPerSec,
+            etaSeconds: eta !== undefined ? eta : task.etaSeconds,
           } 
         }
       };
@@ -732,7 +899,30 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
   setStatus: (songId, status, error) => {
     set((state) => {
       const task = state.tasks[songId];
-      if (!task) return state;
+      if (!task) {
+        // Root Cause 2 fix: broadcast arrived for a song not in the JS store.
+        // Only create placeholders for meaningful mid-download states, not QUEUED
+        // (QUEUED tasks always come with the full Song object via queueDownload).
+        if (status === 'DOWNLOADING' || status === 'VERIFYING' || status === 'COMPLETED' || status === 'FAILED') {
+          console.warn('[DownloadManager] setStatus: unknown songId', songId, '→', status, '— creating placeholder');
+          const minimalSong: Song = {
+            id: songId, title: songId, artist: '', album: '', audioUrl: '', coverUrl: '',
+            duration: 0, genre: '', category: 'melody', releaseYear: new Date().getFullYear(),
+            plays: 0, likes: 0, artistId: `art-${songId}`, albumId: `alb-${songId}`,
+          };
+          return {
+            tasks: {
+              ...state.tasks,
+              [songId]: {
+                song: minimalSong, mode: 'offline_sandboxed', quality: '320 kbps',
+                status, progress: status === 'COMPLETED' ? 100 : 0,
+                downloadedBytes: 0, totalBytes: 0, retryCount: 0, error,
+              }
+            }
+          };
+        }
+        return state;
+      }
       return {
         tasks: { ...state.tasks, [songId]: { ...task, status, error: error || task.error } }
       };

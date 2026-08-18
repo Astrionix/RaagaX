@@ -1048,6 +1048,25 @@ export function SettingsView() {
           {/* 5. DEVICES */}
           {activeSection === 'devices' && (
             <div className="space-y-6">
+              {/* Connect to My Device Banner */}
+              <div className="p-5 rounded-2xl bg-gradient-to-r from-red-600/20 via-purple-600/20 to-slate-900 border border-red-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-[#FA233B] flex items-center justify-center text-white shadow-lg flex-shrink-0">
+                    <Laptop className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white">RaagaX Connect</h4>
+                    <p className="text-xs text-slate-300 mt-0.5">Discover and stream to your Desktop, phone, or Wi-Fi audio devices</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => usePlayerStore.getState().toggleDeviceModal()}
+                  className="px-4 py-2 rounded-xl bg-[#FA233B] hover:bg-[#d91e32] text-white text-xs font-bold shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer flex-shrink-0"
+                >
+                  <span>Connect to My Device</span>
+                </button>
+              </div>
+
               <SettingRow
                 title="Cross-device sync"
                 description="Broadcast playback position and accept remote commands from other devices."

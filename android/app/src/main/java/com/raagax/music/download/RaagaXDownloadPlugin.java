@@ -34,19 +34,38 @@ public class RaagaXDownloadPlugin extends Plugin {
             String action = intent.getAction();
 
             if ("com.raagax.music.DOWNLOAD_PROGRESS".equals(action)) {
+                String trackId = intent.getStringExtra("trackId");
+                String state = intent.getStringExtra("state");
+                int progress = intent.getIntExtra("progress", 0);
+                long downloadedBytes = intent.getLongExtra("downloadedBytes", 0L);
+                long totalBytes = intent.getLongExtra("totalBytes", 0L);
+                long speedBytesPerSec = intent.getLongExtra("speedBytesPerSec", 0L);
+                long etaSeconds = intent.getLongExtra("etaSeconds", 0L);
+                String error = intent.getStringExtra("error");
+
+                Log.d(TAG, "[DownloadPlugin] broadcast received: trackId=" + trackId + " state=" + state + " progress=" + progress + "% speed=" + (speedBytesPerSec / 1024) + "KB/s");
+
                 JSObject data = new JSObject();
-                data.put("trackId", intent.getStringExtra("trackId"));
-                data.put("songId", intent.getStringExtra("songId"));
-                data.put("state", intent.getStringExtra("state"));
-                data.put("progress", intent.getIntExtra("progress", 0));
-                data.put("downloadedBytes", intent.getLongExtra("downloadedBytes", 0L));
-                data.put("totalBytes", intent.getLongExtra("totalBytes", 0L));
+                data.put("trackId", trackId);
+                data.put("songId", trackId);
+                data.put("state", state);
+                data.put("progress", progress);
+                data.put("downloadedBytes", downloadedBytes);
+                data.put("totalBytes", totalBytes);
+                data.put("speedBytesPerSec", speedBytesPerSec);
+                data.put("etaSeconds", etaSeconds);
+                if (error != null) {
+                    data.put("error", error);
+                }
                 notifyListeners("downloadProgress", data);
 
             } else if ("com.raagax.music.DOWNLOAD_COMPLETED".equals(action)) {
+                String trackId = intent.getStringExtra("trackId");
+                Log.d(TAG, "[DownloadPlugin] broadcast received: trackId=" + trackId + " state=COMPLETED");
+
                 JSObject data = new JSObject();
-                data.put("trackId", intent.getStringExtra("trackId"));
-                data.put("songId", intent.getStringExtra("songId"));
+                data.put("trackId", trackId);
+                data.put("songId", trackId);
                 data.put("localPath", intent.getStringExtra("localPath"));
                 data.put("fileName", intent.getStringExtra("fileName"));
                 data.put("fileSize", intent.getLongExtra("fileSize", 0L));
@@ -251,6 +270,37 @@ public class RaagaXDownloadPlugin extends Plugin {
         res.put("requiredBytes", required);
         res.put("musicFolderPath", StorageHelper.getRaagaXMusicDirectory(getContext()).getAbsolutePath());
         call.resolve(res);
+    }
+
+    /**
+     * Returns all currently active download entries (QUEUED, DOWNLOADING, VERIFYING, PAUSED, FAILED).
+     * The TypeScript layer calls this at hydration time to reconcile JS task state against
+     * the real Android Room DB state, fixing the root cause of tasks stuck in QUEUED.
+     */
+    @PluginMethod
+    public void getActiveDownloads(PluginCall call) {
+        downloadManager.getActiveDownloads((downloads, error) -> {
+            JSArray arr = new JSArray();
+            for (DownloadEntity e : downloads) {
+                JSObject obj = new JSObject();
+                obj.put("songId", e.trackId);
+                obj.put("trackId", e.trackId);
+                obj.put("title", e.title);
+                obj.put("artist", e.artist);
+                obj.put("album", e.album);
+                obj.put("artworkUrl", e.artwork);
+                obj.put("coverUrl", e.artwork);
+                obj.put("quality", e.quality);
+                obj.put("downloadState", e.downloadState);
+                obj.put("downloadProgress", e.downloadProgress);
+                obj.put("downloadedBytes", e.downloadedBytes);
+                arr.put(obj);
+            }
+            JSObject res = new JSObject();
+            res.put("downloads", arr);
+            res.put("count", arr.length());
+            call.resolve(res);
+        });
     }
 
     @PluginMethod

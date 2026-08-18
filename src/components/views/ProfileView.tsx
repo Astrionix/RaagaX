@@ -26,7 +26,13 @@ import {
   Award,
   Compass,
   Play,
-  CheckCircle2
+  CheckCircle2,
+  Laptop,
+  Tv,
+  Wifi,
+  Smartphone,
+  MonitorSmartphone,
+  Radio
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
@@ -40,6 +46,10 @@ export function ProfileView() {
     setActiveTab, 
     toggleSettingsModal, 
     toggleBackupModal,
+    toggleDeviceModal,
+    activeDeviceId,
+    connectedDeviceId,
+    deviceId,
     streamingQuality,
     setStreamingQuality,
     playSong
@@ -197,6 +207,43 @@ export function ProfileView() {
             </button>
           )}
         </div>
+      </section>
+
+      {/* ======================================================== */}
+      {/* CONNECT TO MY DEVICE SECTION                             */}
+      {/* ======================================================== */}
+      <section className="p-5 rounded-3xl glass-deep border border-white/12 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#FA233B] to-purple-800 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+            <MonitorSmartphone className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-black text-white truncate">Connect to My Device</h3>
+              {activeDeviceId && activeDeviceId !== deviceId ? (
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-[10px] font-bold border border-emerald-500/30 flex items-center gap-1 flex-shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Connected
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full bg-white/5 text-slate-400 text-[10px] font-bold border border-white/10 flex-shrink-0">
+                  This Device
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-400 truncate mt-0.5">
+              Listen seamlessly across your PC, mobile, and Wi-Fi audio devices
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={toggleDeviceModal}
+          className="px-4 py-2 rounded-2xl bg-[#FA233B] hover:bg-[#d91e32] text-white text-xs font-bold shadow-md shadow-red-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer flex-shrink-0 self-start sm:self-center"
+        >
+          <Wifi className="w-3.5 h-3.5" />
+          <span>{activeDeviceId && activeDeviceId !== deviceId ? 'Switch Device' : 'Connect to Device'}</span>
+        </button>
       </section>
 
       {activeTabSub === 'journey' ? (
