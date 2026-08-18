@@ -27,7 +27,29 @@ export class PlaybackSourceResolver {
     const isOfflineForced = networkMode === 'offline_forced';
     const isOffline = networkMode === 'offline' || isOfflineForced || (typeof navigator !== 'undefined' && !navigator.onLine);
 
-    // ── 1. Check Local Sandboxed / Offline Storage First ───────────────────────
+    // ── 1. Check Native Android Physical Music/RaagaX Storage First ────────
+    try {
+      const { RaagaXNativeDownload } = await import('@/lib/playback/native/RaagaXNativeDownload');
+      if (RaagaXNativeDownload.isNative()) {
+        const { useDownloadStore } = await import('@/context/useDownloadStore');
+        const nativeTrack = useDownloadStore.getState().nativeDownloadedTracks[song.id];
+        if (nativeTrack?.localPath) {
+          const fileUri = nativeTrack.localPath.startsWith('file://') ? nativeTrack.localPath : `file://${nativeTrack.localPath}`;
+          console.log(`[PlaybackSourceResolver] Playing verified native offline MP3: "${nativeTrack.localPath}"`);
+          return {
+            type: 'offline',
+            url: fileUri,
+            mediaId: song.id,
+            localId: song.id,
+            isLocalBlob: false,
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('[PlaybackSourceResolver] Native offline check fallback:', e);
+    }
+
+    // ── 2. Check Local Sandboxed / Offline Storage (Web / PWA) ───────────────
     const catalog = OfflineCatalog.getInstance();
     const storage = DownloadStorage.getInstance();
 

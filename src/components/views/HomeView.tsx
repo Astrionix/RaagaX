@@ -385,65 +385,7 @@ export function HomeView() {
       {/* 3.5 Recurring Music Recap Banner */}
       <RecapBanner />
 
-      {/* 4. Made For You / Daily Mixes */}
-      {homeFeedControls.showRecommended !== false && feed?.dailyMixes && feed.dailyMixes.length > 0 && (
-        <section className="space-y-3">
-          <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-[#E50914]" /> Made For You • Daily Mixes
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {feed.dailyMixes.map((mix) => (
-              <div
-                key={mix.id}
-                onClick={() => {
-                  if (mix.songs.length > 0) {
-                    usePlayerStore.getState().playSong(mix.songs[0], mix.songs);
-                  }
-                }}
-                className="p-4 rounded-3xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 hover:border-white/20 transition-all flex items-center gap-3.5 cursor-pointer group shadow-lg"
-              >
-                <img
-                  src={mix.coverUrl}
-                  alt={mix.title}
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                  className="w-14 h-14 rounded-2xl object-cover shadow-md flex-shrink-0 group-hover:scale-105 transition-transform"
-                />
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-sm font-bold text-white truncate group-hover:text-[#E50914] transition-colors">
-                    {mix.title}
-                  </h4>
-                  <p className="text-xs text-slate-400 truncate mt-0.5">{mix.description}</p>
-                </div>
-                <button className="w-8 h-8 rounded-full bg-[#E50914] text-white flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* 4.5 Recommended For You */}
-      {homeFeedControls.showRecommended !== false && feed?.madeForYou && feed.madeForYou.length > 0 && (
-        <CarouselShelf
-          title={displayLang ? `Recommended in ${displayLang}` : 'Recommended For You'}
-          icon={<Sparkles className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-amber-400 flex-shrink-0" />}
-          items={songsToShelfItems(feed.madeForYou)}
-          showPlayAll={true}
-        />
-      )}
-
-      {/* 5. Because You Listened To... */}
-      {homeFeedControls.showRecommended !== false && feed?.becauseYouListenedTo && feed.becauseYouListenedTo.items.length > 0 && (
-        <CarouselShelf
-          title={`Because You Listened to ${feed.becauseYouListenedTo.seedSongOrArtist}`}
-          icon={<Radio className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-rose-400 flex-shrink-0" />}
-          items={songsToShelfItems(feed.becauseYouListenedTo.items)}
-          showPlayAll={true}
-        />
-      )}
-
-      {/* 6. Recently Played */}
+      {/* 4. Recently Played */}
       {feed?.recentlyPlayed && feed.recentlyPlayed.length > 0 && (
         <CarouselShelf
           title="Recently Played"

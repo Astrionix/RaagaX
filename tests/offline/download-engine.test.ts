@@ -74,7 +74,7 @@ describe('RaagaX Production Download & Offline Architecture Tests', () => {
     // Trigger Mode A saveForOffline
     await downloadStore.saveForOffline(mockSong);
     expect(useDownloadStore.getState().tasks[mockSong.id]?.mode).toBe('offline_sandboxed');
-    expect(['queued', 'downloading']).toContain(useDownloadStore.getState().tasks[mockSong.id]?.status);
+    expect(['queued', 'downloading', 'QUEUED', 'DOWNLOADING']).toContain(useDownloadStore.getState().tasks[mockSong.id]?.status);
 
     // Verify playerStore downloadedSongIds is NOT optimistically marked before completion
     expect(usePlayerStore.getState().downloadedSongIds.includes(mockSong.id)).toBe(false);

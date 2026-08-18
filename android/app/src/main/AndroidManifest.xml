@@ -13,12 +13,13 @@
     <!-- ── NETWORK ─────────────────────────────────────────────────── -->
     <!-- Required for streaming audio and API calls. No user prompt.   -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- ── BACKGROUND MEDIA PLAYBACK ──────────────────────────────── -->
-    <!-- Required for Media3 ExoPlayer foreground service.             -->
-    <!-- No runtime user prompt — manifest-only declarations.          -->
+    <!-- ── BACKGROUND MEDIA PLAYBACK & DOWNLOADS ────────────────────── -->
+    <!-- Required for Media3 ExoPlayer and WorkManager download jobs.  -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <!-- ── WAKE LOCK ────────────────────────────────────────────────── -->
     <!-- Prevents CPU sleep during network streaming. No user prompt.   -->

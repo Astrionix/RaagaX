@@ -401,12 +401,16 @@ export class ConnectManager {
   }
 
   public async broadcastSessionState(statePayload: any) {
-    const { LocalPeerConnection } = await import('./LocalPeerConnection');
-    LocalPeerConnection.getInstance().sendDirectBroadcast({
-      type: 'STATE_UPDATE',
-      event: 'STATE_UPDATE',
-      payload: statePayload
-    } as any);
+    try {
+      const { LocalPeerConnection } = await import('./LocalPeerConnection');
+      if (LocalPeerConnection && typeof LocalPeerConnection.getInstance === 'function') {
+        LocalPeerConnection.getInstance()?.sendDirectBroadcast({
+          type: 'STATE_UPDATE',
+          event: 'STATE_UPDATE',
+          payload: statePayload
+        } as any);
+      }
+    } catch {}
 
     if (!this.sessionChannel) return;
     await this.sessionChannel.send({

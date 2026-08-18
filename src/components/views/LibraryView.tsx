@@ -70,31 +70,68 @@ export function LibraryView() {
   }, [downloadedSongIds.length, fetchStorageInfo]);
 
   useEffect(() => {
-    // Load offline tracks from catalog
-    OfflineCatalog.getInstance().getAllTracks().then((tracks) => {
-      if (tracks && tracks.length > 0) {
-        const mapped: Song[] = tracks.map((t) => ({
-          id: t.trackId,
-          title: t.title,
-          artist: t.artist,
-          album: t.album || 'Downloaded',
-          coverUrl: t.artworkUrl || '/app-icon.png',
-          duration: t.duration || Math.round(t.durationMs / 1000),
-          audioUrl: '',
-          artistId: 'offline',
-          albumId: 'offline',
-          genre: 'Various',
-          category: 'global_trending',
-          year: new Date(t.downloadedAt).getFullYear().toString(),
-          releaseYear: new Date(t.downloadedAt).getFullYear(),
-          plays: 0,
-          likes: 0,
-          quality: 'HIGH',
-          language: 'Mixed'
-        }));
-        setOfflineTrackList(mapped);
+    // Load verified offline tracks from native Android or web catalog
+    const loadOfflineTracks = async () => {
+      try {
+        const { RaagaXNativeDownload } = await import('@/lib/playback/native/RaagaXNativeDownload');
+        if (RaagaXNativeDownload.isNative()) {
+          const nativeTracks = await RaagaXNativeDownload.getDownloadedTracks();
+          if (nativeTracks && nativeTracks.length > 0) {
+            const mapped: Song[] = nativeTracks.map((t) => ({
+              id: t.songId || t.id,
+              title: t.title,
+              artist: t.artist,
+              album: t.album || 'RaagaX Music',
+              coverUrl: t.artworkUrl || t.coverUrl || '/app-icon.png',
+              duration: 180,
+              audioUrl: t.localPath || '',
+              artistId: 'offline',
+              albumId: 'offline',
+              genre: 'Various',
+              category: 'global_trending',
+              year: new Date(t.completedAt || Date.now()).getFullYear().toString(),
+              releaseYear: new Date(t.completedAt || Date.now()).getFullYear(),
+              plays: 0,
+              likes: 0,
+              quality: t.quality || '320 kbps',
+              language: 'Mixed'
+            }));
+            setOfflineTrackList(mapped);
+            return;
+          }
+        }
+
+        const tracks = await OfflineCatalog.getInstance().getAllTracks();
+        if (tracks && tracks.length > 0) {
+          const mapped: Song[] = tracks.map((t) => ({
+            id: t.trackId,
+            title: t.title,
+            artist: t.artist,
+            album: t.album || 'Downloaded',
+            coverUrl: t.artworkUrl || '/app-icon.png',
+            duration: t.duration || Math.round(t.durationMs / 1000),
+            audioUrl: '',
+            artistId: 'offline',
+            albumId: 'offline',
+            genre: 'Various',
+            category: 'global_trending',
+            year: new Date(t.downloadedAt).getFullYear().toString(),
+            releaseYear: new Date(t.downloadedAt).getFullYear(),
+            plays: 0,
+            likes: 0,
+            quality: 'HIGH',
+            language: 'Mixed'
+          }));
+          setOfflineTrackList(mapped);
+        } else {
+          setOfflineTrackList([]);
+        }
+      } catch (e) {
+        console.warn('Failed to load offline tracks:', e);
       }
-    });
+    };
+
+    loadOfflineTracks();
   }, [downloadedSongIds.length]);
 
   // Combine queue songs, store liked songs, offline tracks, resolved map, and cloud records into known map

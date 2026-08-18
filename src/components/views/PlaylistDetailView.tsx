@@ -4,7 +4,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { 
   Play, Heart, Download, Music, ArrowLeft, Shuffle, Trash2, ListPlus, 
   Users, UserPlus, Share2, Copy, Check, Lock, Globe, Sparkles, Plus,
-  ArrowUpDown, CheckSquare, Square, X, CheckCheck
+  ArrowUpDown, CheckSquare, Square, X, CheckCheck, Pause, Loader2
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { RealMusicEngine } from '@/lib/realMusicEngine';
@@ -43,6 +43,13 @@ export function PlaylistDetailView() {
     removeSongFromPlaylist,
     deletePlaylist
   } = usePlaylistStore();
+
+  const {
+    playlistDownloadProgress,
+    pauseAll,
+    resumeAll,
+    cancelAll
+  } = useDownloadStore();
 
   const [playlist, setPlaylist] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -447,6 +454,48 @@ export function PlaylistDetailView() {
           </div>
         </div>
       </section>
+
+      {/* Playlist Download Progress Banner (Requirement #8) */}
+      {playlistDownloadProgress && playlistDownloadProgress.status === 'DOWNLOADING' && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-[#fa233b]/20 via-purple-500/15 to-transparent border border-[#fa233b]/30 shadow-xl backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[#fa233b] animate-ping" />
+                <span className="text-xs font-black text-white uppercase tracking-wider">
+                  Downloading Playlist: {playlistDownloadProgress.completedSongs} / {playlistDownloadProgress.totalSongs} songs ({playlistDownloadProgress.overallProgress}%)
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 truncate max-w-md">
+                Current: <span className="text-white font-bold">{playlistDownloadProgress.currentSongTitle || 'Preparing track...'}</span>
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-center">
+              <button
+                onClick={() => pauseAll()}
+                className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <Pause className="w-3.5 h-3.5" /> Pause All
+              </button>
+              <button
+                onClick={() => cancelAll()}
+                className="px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" /> Cancel
+              </button>
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="w-full bg-white/10 rounded-full h-1.5 mt-3 overflow-hidden">
+            <div 
+              className="bg-gradient-to-r from-[#fa233b] to-purple-500 h-full rounded-full transition-all duration-300"
+              style={{ width: `${Math.max(5, playlistDownloadProgress.overallProgress)}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Playlist Songs Table Header with Sort & Select Controls */}
       <section className="space-y-3">

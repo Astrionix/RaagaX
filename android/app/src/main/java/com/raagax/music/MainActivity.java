@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.util.Log;
 
 import com.getcapacitor.BridgeActivity;
+import com.raagax.music.download.RaagaXDownloadPlugin;
 import com.raagax.music.permission.RaagaXPermissionsPlugin;
 
 import java.io.PrintWriter;
@@ -17,6 +18,7 @@ public class MainActivity extends BridgeActivity {
         setupCrashHandler();
         registerPlugin(RaagaXCapacitorPlugin.class);
         registerPlugin(RaagaXPermissionsPlugin.class);
+        registerPlugin(RaagaXDownloadPlugin.class);
         super.onCreate(savedInstanceState);
     }
 

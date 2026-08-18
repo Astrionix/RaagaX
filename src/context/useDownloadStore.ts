@@ -6,16 +6,25 @@ import { DownloadManager } from '@/lib/offline/DownloadManager';
 import { DownloadStorage } from '@/lib/offline/DownloadStorage';
 import { OfflineCatalog } from '@/lib/offline/OfflineCatalog';
 import { AtomicDownloader } from '@/lib/offline/AtomicDownloader';
-import { DownloadMode, DownloadQuality, StorageEstimateInfo, TrackDownloadState } from '@/lib/offline/types';
+import { DownloadMode, DownloadQuality, StorageEstimateInfo } from '@/lib/offline/types';
 import { exportSongToDevice } from '@/lib/downloadHelper';
 import { getApiUrl } from '@/lib/config/apiConfig';
+import { RaagaXNativeDownload, NativeDownloadedTrack } from '@/lib/playback/native/RaagaXNativeDownload';
 
-export type DownloadStatus = 'queued' | 'downloading' | 'verifying' | 'paused' | 'completed' | 'error' | 'cancelled';
+export type DownloadStatus = 
+  | 'NOT_DOWNLOADED' 
+  | 'QUEUED' 
+  | 'DOWNLOADING' 
+  | 'VERIFYING' 
+  | 'PAUSED' 
+  | 'COMPLETED' 
+  | 'FAILED' 
+  | 'CANCELLED';
 
 export interface DownloadTask {
   song: Song;
   mode: DownloadMode;
-  quality: DownloadQuality;
+  quality: string; // e.g. '320 kbps' | '192 kbps' | '128 kbps'
   status: DownloadStatus;
   progress: number;
   downloadedBytes: number;
@@ -25,6 +34,17 @@ export interface DownloadTask {
   checksum?: string;
   error?: string;
   abortController?: AbortController;
+  playlistId?: string;
+}
+
+export interface PlaylistDownloadProgress {
+  playlistId: string;
+  playlistTitle: string;
+  totalSongs: number;
+  completedSongs: number;
+  currentSongTitle: string;
+  overallProgress: number;
+  status: 'IDLE' | 'DOWNLOADING' | 'PAUSED' | 'COMPLETED';
 }
 
 export interface ExportState {
@@ -37,6 +57,8 @@ interface DownloadStore {
   tasks: Record<string, DownloadTask>;
   exportStates: Record<string, ExportState>;
   storageInfo: StorageEstimateInfo | null;
+  nativeDownloadedTracks: Record<string, NativeDownloadedTrack>;
+  playlistDownloadProgress: PlaylistDownloadProgress | null;
   activeCount: number;
   maxConcurrent: number;
   wifiOnly: boolean;
@@ -44,19 +66,20 @@ interface DownloadStore {
 
   hydrate: () => Promise<void>;
   fetchStorageInfo: () => Promise<StorageEstimateInfo>;
-  saveForOffline: (song: Song) => Promise<boolean>;
-  queueDownload: (song: Song, mode?: DownloadMode) => void;
+  saveForOffline: (song: Song, quality?: string) => Promise<boolean>;
+  queueDownload: (song: Song, mode?: DownloadMode, quality?: string) => void;
   exportSong: (song: Song) => Promise<boolean>;
   pauseDownload: (songId: string) => void;
   resumeDownload: (songId: string) => void;
   cancelDownload: (songId: string) => void;
   removeDownload: (songId: string) => Promise<void>;
-  downloadPlaylist: (songs: Song[]) => void;
+  downloadPlaylist: (songs: Song[], quality?: string, playlistTitle?: string, playlistId?: string) => void;
   pauseAll: () => void;
   resumeAll: () => void;
   cancelAll: () => void;
   clearStreamingCache: () => Promise<void>;
   purgeOfflineDownloads: () => Promise<void>;
+  shareSongFile: (songId: string) => Promise<boolean>;
 
   setWifiOnly: (wifiOnly: boolean) => void;
 
@@ -73,7 +96,7 @@ interface DownloadStore {
   setOfflineMode: (enabled: boolean) => void;
 
   offlineSettings: {
-    audioQuality: 'High' | 'Standard' | 'Lossless';
+    audioQuality: '128 kbps' | '192 kbps' | '320 kbps' | 'High' | 'Standard' | 'Lossless';
     autoDeleteTemp: boolean;
     smartDownloads: boolean;
     autoDownloadPlaylists: boolean;
@@ -88,12 +111,15 @@ interface DownloadStore {
   _processQueue: () => void;
   _persistTasks: () => void;
   syncDownloadedIds: () => Promise<void>;
+  verifyPhysicalFiles: () => Promise<void>;
 }
 
 export const useDownloadStore = create<DownloadStore>((set, get) => ({
   tasks: {},
   exportStates: {},
   storageInfo: null,
+  nativeDownloadedTracks: {},
+  playlistDownloadProgress: null,
   activeCount: 0,
   maxConcurrent: 2,
   wifiOnly: false,
@@ -102,7 +128,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
   isSetupModalOpen: false,
   isOfflineMode: false,
   offlineSettings: {
-    audioQuality: 'High',
+    audioQuality: '320 kbps',
     autoDeleteTemp: false,
     smartDownloads: false,
     autoDownloadPlaylists: false,
@@ -122,11 +148,34 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
   setOfflineSettings: (settings) => { set((state) => ({ offlineSettings: { ...state.offlineSettings, ...settings } })); get()._persistTasks(); },
   setMaxConcurrent: (count) => {
     set({ maxConcurrent: count });
-    DownloadManager.getInstance();
   },
 
   fetchStorageInfo: async () => {
     try {
+      if (RaagaXNativeDownload.isNative()) {
+        const nativeStorage = await RaagaXNativeDownload.checkStorage(15 * 1024 * 1024);
+        const allTracks = await RaagaXNativeDownload.getDownloadedTracks();
+        const downloadsSize = allTracks.reduce((sum, t) => sum + (t.fileSize || 0), 0);
+
+        const info: StorageEstimateInfo = {
+          quota: nativeStorage.totalBytes,
+          usage: nativeStorage.totalBytes - nativeStorage.availableBytes,
+          available: nativeStorage.availableBytes,
+          raagaXUsed: downloadsSize,
+          raagaXDownloads: downloadsSize,
+          raagaXCache: 12 * 1024 * 1024,
+          raagaXSongCount: allTracks.length,
+          percentUsed: nativeStorage.totalBytes > 0 ? Math.round(((nativeStorage.totalBytes - nativeStorage.availableBytes) / nativeStorage.totalBytes) * 100) : 0,
+          isNative: true,
+          storageType: 'device',
+          deviceName: 'Android Device (Music/RaagaX)',
+          deviceType: 'mobile',
+          platform: 'Android',
+        };
+        set({ storageInfo: info });
+        return info;
+      }
+
       const info = await DownloadStorage.getInstance().getStorageEstimate();
       set({ storageInfo: info });
       return info;
@@ -151,31 +200,42 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     }
   },
 
-  syncDownloadedIds: async () => {
+  /**
+   * Anti-Stale Sync: Verifies that physical MP3 files actually exist on disk in Music/RaagaX/.
+   * If a user deleted a file externally, removes it from downloadedSongIds so no broken entries remain.
+   */
+  verifyPhysicalFiles: async () => {
     try {
+      if (RaagaXNativeDownload.isNative()) {
+        const verifiedIds = await RaagaXNativeDownload.verifyAndSyncLibrary();
+        const nativeTracks = await RaagaXNativeDownload.getDownloadedTracks();
+        const trackMap: Record<string, NativeDownloadedTrack> = {};
+        nativeTracks.forEach(t => { trackMap[t.songId] = t; });
+
+        set({ nativeDownloadedTracks: trackMap });
+        usePlayerStore.setState({ downloadedSongIds: verifiedIds });
+        await get().fetchStorageInfo();
+        return;
+      }
+
+      // Web/PWA verification
       const catalog = OfflineCatalog.getInstance();
       const allTracks = await catalog.getAllTracks();
       const ids = allTracks.map(t => t.trackId);
       usePlayerStore.setState({ downloadedSongIds: ids });
       await get().fetchStorageInfo();
-    } catch {}
+    } catch (e) {
+      console.warn('[useDownloadStore] verifyPhysicalFiles error:', e);
+    }
+  },
+
+  syncDownloadedIds: async () => {
+    await get().verifyPhysicalFiles();
   },
 
   hydrate: async () => {
     if (get().isHydrated) return;
     try {
-      const db = LocalDatabase.getInstance();
-      const savedTasks = await db.loadDownloadTasks();
-      
-      const hydratedTasks: Record<string, DownloadTask> = {};
-      Object.keys(savedTasks).forEach(id => {
-        const task = savedTasks[id];
-        if (task.status === 'downloading' || task.status === 'verifying') {
-          task.status = 'paused';
-        }
-        hydratedTasks[id] = task;
-      });
-
       if (typeof window !== 'undefined') {
         const storedEnabled = localStorage.getItem('isOfflineStorageEnabled');
         if (storedEnabled !== null) set({ isOfflineStorageEnabled: storedEnabled === 'true' });
@@ -191,8 +251,64 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
         }
       }
 
+      // Setup Native Download Event Listeners
+      if (RaagaXNativeDownload.isNative()) {
+        RaagaXNativeDownload.addDownloadProgressListener((ev) => {
+          get().updateProgress(ev.songId, ev.progress, ev.downloadedBytes, ev.totalBytes);
+          const stateNormalized: DownloadStatus = ev.state as DownloadStatus;
+          get().setStatus(ev.songId, stateNormalized);
+
+          // Update playlist overall progress if active
+          const pl = get().playlistDownloadProgress;
+          if (pl && pl.status === 'DOWNLOADING') {
+            set({
+              playlistDownloadProgress: {
+                ...pl,
+                currentSongTitle: get().tasks[ev.songId]?.song?.title || pl.currentSongTitle,
+              }
+            });
+          }
+        });
+
+        RaagaXNativeDownload.addDownloadCompletedListener((ev) => {
+          get().setStatus(ev.songId, 'COMPLETED');
+          usePlayerStore.setState(s => ({
+            downloadedSongIds: [...new Set([...s.downloadedSongIds, ev.songId])],
+            cloudDownloadedSongIds: [...new Set([...s.cloudDownloadedSongIds, ev.songId])]
+          }));
+          get().verifyPhysicalFiles();
+
+          // Increment playlist completed count if active
+          const pl = get().playlistDownloadProgress;
+          if (pl && pl.status === 'DOWNLOADING') {
+            const nextCompleted = pl.completedSongs + 1;
+            const overallPct = Math.round((nextCompleted / pl.totalSongs) * 100);
+            set({
+              playlistDownloadProgress: {
+                ...pl,
+                completedSongs: nextCompleted,
+                overallProgress: overallPct,
+                status: nextCompleted >= pl.totalSongs ? 'COMPLETED' : 'DOWNLOADING'
+              }
+            });
+          }
+        });
+      }
+
+      const db = LocalDatabase.getInstance();
+      const savedTasks = await db.loadDownloadTasks();
+      
+      const hydratedTasks: Record<string, DownloadTask> = {};
+      Object.keys(savedTasks).forEach(id => {
+        const task = savedTasks[id];
+        if (task.status === 'DOWNLOADING' || task.status === 'VERIFYING') {
+          task.status = 'PAUSED';
+        }
+        hydratedTasks[id] = task;
+      });
+
       set({ tasks: hydratedTasks, isHydrated: true });
-      await get().syncDownloadedIds();
+      await get().verifyPhysicalFiles();
       get()._processQueue();
     } catch (e) {
       set({ isHydrated: true });
@@ -212,6 +328,9 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
 
   setWifiOnly: (wifiOnly) => {
     set({ wifiOnly });
+    if (RaagaXNativeDownload.isNative()) {
+      RaagaXNativeDownload.setWifiOnly(wifiOnly);
+    }
     DownloadManager.getInstance().setWifiOnly(wifiOnly);
     if (wifiOnly && typeof navigator !== 'undefined') {
       const conn = (navigator as any).connection;
@@ -221,32 +340,46 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     }
   },
 
-  /**
-   * Mode A: In-App Offline Playback Storage with Pre-Check & Atomic Verification
-   */
-  saveForOffline: async (song: Song): Promise<boolean> => {
+  saveForOffline: async (song: Song, quality?: string): Promise<boolean> => {
     if (!song || !song.id) return false;
+    const targetQuality = quality || get().offlineSettings.audioQuality || '320 kbps';
     
-    // Check if already downloaded
+    // Check if already verified on device
     const alreadyDownloaded = usePlayerStore.getState().downloadedSongIds.includes(song.id);
     if (alreadyDownloaded) return true;
 
     // Check device storage availability
-    const quotaCheck = await DownloadStorage.getInstance().checkStorageAvailable(10 * 1024 * 1024);
-    if (!quotaCheck.hasSpace) {
-      get().setStatus(song.id, 'error', 'Not enough device storage available');
-      return false;
+    if (RaagaXNativeDownload.isNative()) {
+      const storage = await RaagaXNativeDownload.checkStorage(15 * 1024 * 1024);
+      if (!storage.hasSpace) {
+        get().setStatus(song.id, 'FAILED', `Not enough storage. Required: 15 MB, Available: ${Math.round(storage.availableBytes / (1024 * 1024))} MB. Free some storage and try again.`);
+        usePlayerStore.getState().setToastMessage(`Not enough storage. Required: 15 MB, Available: ${Math.round(storage.availableBytes / (1024 * 1024))} MB`);
+        return false;
+      }
+    } else {
+      const quotaCheck = await DownloadStorage.getInstance().checkStorageAvailable(10 * 1024 * 1024);
+      if (!quotaCheck.hasSpace) {
+        get().setStatus(song.id, 'FAILED', 'Not enough device storage available');
+        return false;
+      }
     }
 
-    get().queueDownload(song, 'offline_sandboxed');
+    get().queueDownload(song, 'offline_sandboxed', targetQuality);
     return true;
   },
 
-  /**
-   * Mode B: Standalone File Export to Device OS
-   */
   exportSong: async (song: Song) => {
     if (!song || !song.id) return false;
+
+    // If native Android, native download already places standard MP3 into Music/RaagaX/
+    if (RaagaXNativeDownload.isNative()) {
+      const success = await get().saveForOffline(song, '320 kbps');
+      if (success) {
+        usePlayerStore.getState().setToastMessage(`Saving "${song.title}" directly to Music/RaagaX folder`);
+      }
+      return success;
+    }
+
     set((s) => ({
       exportStates: {
         ...s.exportStates,
@@ -281,93 +414,159 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     }
   },
 
-  queueDownload: (song, mode = 'offline_sandboxed') => {
+  queueDownload: (song, mode = 'offline_sandboxed', quality = '320 kbps') => {
     const { tasks, _processQueue, _persistTasks } = get();
     if (!song || !song.id) return;
 
-    if (mode === 'offline_sandboxed' && usePlayerStore.getState().downloadedSongIds.includes(song.id)) {
+    if (usePlayerStore.getState().downloadedSongIds.includes(song.id)) {
       return;
     }
-    if (tasks[song.id] && ['downloading', 'queued', 'completed', 'verifying'].includes(tasks[song.id].status)) {
+    if (tasks[song.id] && ['DOWNLOADING', 'QUEUED', 'COMPLETED', 'VERIFYING'].includes(tasks[song.id].status)) {
       return;
     }
+
+    const newTask: DownloadTask = { 
+      song, 
+      mode,
+      quality,
+      status: 'QUEUED', 
+      progress: 0, 
+      downloadedBytes: 0, 
+      totalBytes: 0, 
+      retryCount: 0 
+    };
 
     set((state) => ({
       tasks: {
         ...state.tasks,
-        [song.id]: { 
-          song, 
-          mode,
-          quality: 'HIGH',
-          status: 'queued', 
-          progress: 0, 
-          downloadedBytes: 0, 
-          totalBytes: 0, 
-          retryCount: 0 
-        }
+        [song.id]: newTask
       }
     }));
+
+    // If native Android, delegate immediately to RaagaXNativeDownload WorkManager
+    if (RaagaXNativeDownload.isNative()) {
+      RaagaXNativeDownload.downloadTrack({
+        songId: song.id,
+        title: song.title,
+        artist: song.artist,
+        album: song.album || 'RaagaX Music',
+        artworkUrl: song.coverUrl || '',
+        streamUrl: song.audioUrl || '',
+        quality,
+        duration: song.duration || 180,
+      }).catch(err => {
+        get().setStatus(song.id, 'FAILED', err.message);
+      });
+      _persistTasks();
+      return;
+    }
+
     _persistTasks();
     _processQueue();
   },
 
-  downloadPlaylist: (songs) => {
+  downloadPlaylist: (songs, quality = '320 kbps', playlistTitle = 'Playlist', playlistId = 'pl_custom') => {
     const state = get();
     const downloadedIds = usePlayerStore.getState().downloadedSongIds;
+    const toDownload = songs.filter(s => s && s.id && !downloadedIds.includes(s.id));
     
-    let newTasks = { ...state.tasks };
-    let added = false;
+    if (toDownload.length === 0) {
+      usePlayerStore.getState().setToastMessage('All songs in this playlist are already downloaded.');
+      return;
+    }
 
-    songs.forEach(song => {
-      if (!song || !song.id) return;
-      if (downloadedIds.includes(song.id)) return;
-      if (newTasks[song.id] && ['downloading', 'queued', 'completed', 'verifying'].includes(newTasks[song.id].status)) return;
-      
+    // Set Playlist Progress Banner State
+    set({
+      playlistDownloadProgress: {
+        playlistId,
+        playlistTitle,
+        totalSongs: toDownload.length,
+        completedSongs: 0,
+        currentSongTitle: toDownload[0].title,
+        overallProgress: 0,
+        status: 'DOWNLOADING'
+      }
+    });
+
+    // Native Android WorkManager batch download
+    if (RaagaXNativeDownload.isNative()) {
+      RaagaXNativeDownload.downloadPlaylist(toDownload, quality).then((queuedCount) => {
+        usePlayerStore.getState().setToastMessage(`Queued ${queuedCount} songs to download to Music/RaagaX`);
+      }).catch(err => {
+        usePlayerStore.getState().setToastMessage(`Playlist download failed: ${err.message}`);
+      });
+
+      const newTasks = { ...state.tasks };
+      toDownload.forEach(song => {
+        newTasks[song.id] = {
+          song,
+          mode: 'offline_sandboxed',
+          quality,
+          status: 'QUEUED',
+          progress: 0,
+          downloadedBytes: 0,
+          totalBytes: 0,
+          retryCount: 0,
+          playlistId,
+        };
+      });
+      set({ tasks: newTasks });
+      state._persistTasks();
+      return;
+    }
+
+    // Web Fallback queueing
+    let newTasks = { ...state.tasks };
+    toDownload.forEach(song => {
       newTasks[song.id] = { 
         song, 
         mode: 'offline_sandboxed',
-        quality: 'HIGH',
-        status: 'queued', 
+        quality,
+        status: 'QUEUED', 
         progress: 0, 
         downloadedBytes: 0, 
         totalBytes: 0, 
-        retryCount: 0 
+        retryCount: 0,
+        playlistId,
       };
-      added = true;
     });
 
-    if (added) {
-      set({ tasks: newTasks });
-      state._persistTasks();
-      state._processQueue();
-    }
+    set({ tasks: newTasks });
+    state._persistTasks();
+    state._processQueue();
   },
 
   pauseDownload: (songId) => {
+    if (RaagaXNativeDownload.isNative()) {
+      RaagaXNativeDownload.pauseDownload(songId);
+    }
     const task = get().tasks[songId];
-    if (task && (task.status === 'downloading' || task.status === 'verifying')) {
+    if (task && (task.status === 'DOWNLOADING' || task.status === 'VERIFYING')) {
       if (task.abortController) {
         task.abortController.abort();
       }
       set((state) => ({
-        tasks: { ...state.tasks, [songId]: { ...task, status: 'paused', abortController: undefined } },
+        tasks: { ...state.tasks, [songId]: { ...task, status: 'PAUSED', abortController: undefined } },
         activeCount: Math.max(0, state.activeCount - 1)
       }));
       get()._persistTasks();
       get()._processQueue();
-    } else if (task && task.status === 'queued') {
+    } else if (task && task.status === 'QUEUED') {
       set((state) => ({
-        tasks: { ...state.tasks, [songId]: { ...task, status: 'paused' } }
+        tasks: { ...state.tasks, [songId]: { ...task, status: 'PAUSED' } }
       }));
       get()._persistTasks();
     }
   },
 
   resumeDownload: (songId) => {
+    if (RaagaXNativeDownload.isNative()) {
+      RaagaXNativeDownload.resumeDownload(songId);
+    }
     const task = get().tasks[songId];
-    if (task && (task.status === 'paused' || task.status === 'error')) {
+    if (task && (task.status === 'PAUSED' || task.status === 'FAILED')) {
       set((state) => ({
-        tasks: { ...state.tasks, [songId]: { ...task, status: 'queued', retryCount: 0, error: undefined } }
+        tasks: { ...state.tasks, [songId]: { ...task, status: 'QUEUED', retryCount: 0, error: undefined } }
       }));
       get()._persistTasks();
       get()._processQueue();
@@ -375,9 +574,12 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
   },
 
   cancelDownload: (songId) => {
+    if (RaagaXNativeDownload.isNative()) {
+      RaagaXNativeDownload.cancelDownload(songId);
+    }
     const task = get().tasks[songId];
     if (task) {
-      if ((task.status === 'downloading' || task.status === 'verifying') && task.abortController) {
+      if ((task.status === 'DOWNLOADING' || task.status === 'VERIFYING') && task.abortController) {
         task.abortController.abort();
         set((state) => ({ activeCount: Math.max(0, state.activeCount - 1) }));
       }
@@ -395,26 +597,33 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     get().cancelDownload(songId);
     
     try {
-      await DownloadStorage.getInstance().deleteMedia(songId);
-      await OfflineCatalog.getInstance().removeTrack(songId);
+      if (RaagaXNativeDownload.isNative()) {
+        await RaagaXNativeDownload.removeDownload(songId);
+      } else {
+        await DownloadStorage.getInstance().deleteMedia(songId);
+        await OfflineCatalog.getInstance().removeTrack(songId);
+      }
     } catch {}
 
     usePlayerStore.setState(state => ({
       downloadedSongIds: state.downloadedSongIds.filter(id => id !== songId)
     }));
-    await get().fetchStorageInfo();
+    await get().verifyPhysicalFiles();
   },
 
   pauseAll: () => {
+    if (RaagaXNativeDownload.isNative()) {
+      RaagaXNativeDownload.pauseAll();
+    }
     const tasks = { ...get().tasks };
     Object.keys(tasks).forEach(id => {
       const task = tasks[id];
-      if (task.status === 'downloading' || task.status === 'verifying') {
+      if (task.status === 'DOWNLOADING' || task.status === 'VERIFYING') {
         if (task.abortController) task.abortController.abort();
-        task.status = 'paused';
+        task.status = 'PAUSED';
         task.abortController = undefined;
-      } else if (task.status === 'queued') {
-        task.status = 'paused';
+      } else if (task.status === 'QUEUED') {
+        task.status = 'PAUSED';
       }
     });
     set({ tasks, activeCount: 0 });
@@ -422,11 +631,14 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
   },
 
   resumeAll: () => {
+    if (RaagaXNativeDownload.isNative()) {
+      RaagaXNativeDownload.resumeAll();
+    }
     const tasks = { ...get().tasks };
     Object.keys(tasks).forEach(id => {
       const task = tasks[id];
-      if (task.status === 'paused' || task.status === 'error') {
-        task.status = 'queued';
+      if (task.status === 'PAUSED' || task.status === 'FAILED') {
+        task.status = 'QUEUED';
         task.retryCount = 0;
         task.error = undefined;
       }
@@ -456,29 +668,46 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
   purgeOfflineDownloads: async () => {
     get().cancelAll();
     try {
-      await DownloadStorage.getInstance().clearAllMedia();
-      await OfflineCatalog.getInstance().clearCatalog();
+      if (RaagaXNativeDownload.isNative()) {
+        const all = await RaagaXNativeDownload.getDownloadedTracks();
+        for (const t of all) {
+          await RaagaXNativeDownload.removeDownload(t.songId);
+        }
+      } else {
+        await DownloadStorage.getInstance().clearAllMedia();
+        await OfflineCatalog.getInstance().clearCatalog();
+      }
     } catch {}
     
     usePlayerStore.setState({ downloadedSongIds: [] });
-    set({ tasks: {}, activeCount: 0 });
+    set({ tasks: {}, activeCount: 0, nativeDownloadedTracks: {} });
     get()._persistTasks();
     await get().fetchStorageInfo();
     console.log('[DownloadStore] All offline downloads purged.');
   },
 
   cancelAll: () => {
+    if (RaagaXNativeDownload.isNative()) {
+      RaagaXNativeDownload.cancelAll();
+    }
     const tasks = { ...get().tasks };
     Object.keys(tasks).forEach(id => {
       const task = tasks[id];
-      if (task.status === 'downloading' && task.abortController) {
+      if (task.status === 'DOWNLOADING' && task.abortController) {
         task.abortController.abort();
       }
       delete tasks[id];
     });
-    set({ tasks, activeCount: 0 });
+    set({ tasks, activeCount: 0, playlistDownloadProgress: null });
     get()._persistTasks();
     get()._processQueue();
+  },
+
+  shareSongFile: async (songId: string): Promise<boolean> => {
+    if (RaagaXNativeDownload.isNative()) {
+      return await RaagaXNativeDownload.shareSongFile(songId);
+    }
+    return false;
   },
 
   updateProgress: (songId, progress, downloadedBytes, totalBytes, speed) => {
@@ -492,7 +721,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
             ...task, 
             progress, 
             downloadedBytes, 
-            totalBytes,
+            totalBytes, 
             speedBytesPerSec: speed !== undefined ? speed : task.speedBytesPerSec 
           } 
         }
@@ -512,6 +741,9 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
   },
 
   _processQueue: () => {
+    // If native Android, WorkManager processes queue natively in background
+    if (RaagaXNativeDownload.isNative()) return;
+
     const state = get();
     const { tasks, activeCount, maxConcurrent, updateProgress, setStatus } = state;
 
@@ -521,7 +753,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
 
     if (activeCount >= maxConcurrent) return;
 
-    const nextTaskId = Object.keys(tasks).find(id => tasks[id].status === 'queued');
+    const nextTaskId = Object.keys(tasks).find(id => tasks[id].status === 'QUEUED');
     if (!nextTaskId) return;
 
     const task = tasks[nextTaskId];
@@ -529,7 +761,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
 
     set((s) => ({
       activeCount: s.activeCount + 1,
-      tasks: { ...s.tasks, [nextTaskId]: { ...task, status: 'downloading', abortController } }
+      tasks: { ...s.tasks, [nextTaskId]: { ...task, status: 'DOWNLOADING', abortController } }
     }));
 
     const downloader = AtomicDownloader.getInstance();
@@ -547,7 +779,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     downloader.download({
       url: targetUrl,
       trackId: task.song.id,
-      quality: task.quality,
+      quality: (task.quality as DownloadQuality) || 'HIGH',
       startOffset: task.downloadedBytes > 0 ? task.downloadedBytes : 0,
       signal: abortController.signal,
       onProgress: (progress: number, downloadedBytes: number, totalBytes: number, speed: number) => {
@@ -555,89 +787,45 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
       },
       onStateChange: (downloadState: string) => {
         if (downloadState === 'VERIFYING') {
-          setStatus(nextTaskId, 'verifying');
+          setStatus(nextTaskId, 'VERIFYING');
         }
       }
     }).then(async (result: any) => {
-      if (task.mode === 'device_export') {
-        if (typeof document !== 'undefined') {
-          const exportUrl = URL.createObjectURL(result.blob);
-          const anchor = document.createElement('a');
-          anchor.href = exportUrl;
-          anchor.download = filename;
-          document.body.appendChild(anchor);
-          anchor.click();
-          setTimeout(() => {
-            document.body.removeChild(anchor);
-            URL.revokeObjectURL(exportUrl);
-          }, 1500);
-        }
-      } else {
-        await DownloadStorage.getInstance().saveMedia(
-          task.song.id, 
-          result.blob, 
-          result.mimeType, 
-          'liked_songs',
-          { checksum: result.checksum, quality: task.quality }
-        );
+      await DownloadStorage.getInstance().saveMedia(
+        task.song.id, 
+        result.blob, 
+        result.mimeType, 
+        'liked_songs',
+        { checksum: result.checksum, quality: (task.quality as DownloadQuality) || 'HIGH' }
+      );
 
-        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-        await OfflineCatalog.getInstance().addTrack({
-          trackId: task.song.id,
-          localMediaId: task.song.id,
-          title: task.song.title,
-          artist: task.song.artist || 'Unknown Artist',
-          album: task.song.album,
-          artworkUrl: task.song.coverUrl,
-          duration: task.song.duration || 0,
-          durationMs: (task.song.duration || 0) * 1000,
-          mimeType: result.mimeType,
-          quality: task.quality,
-          fileSizeBytes: result.totalBytes,
-          checksum: result.checksum,
-          leaseExpiresAt: Date.now() + thirtyDaysMs,
-          downloadedAt: Date.now(),
-          version: '2'
-        });
+      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+      await OfflineCatalog.getInstance().addTrack({
+        trackId: task.song.id,
+        localMediaId: task.song.id,
+        title: task.song.title,
+        artist: task.song.artist || 'Unknown Artist',
+        album: task.song.album,
+        artworkUrl: task.song.coverUrl,
+        duration: task.song.duration || 0,
+        durationMs: (task.song.duration || 0) * 1000,
+        mimeType: result.mimeType,
+        quality: (task.quality as DownloadQuality) || 'HIGH',
+        fileSizeBytes: result.totalBytes,
+        checksum: result.checksum,
+        leaseExpiresAt: Date.now() + thirtyDaysMs,
+        downloadedAt: Date.now(),
+        version: '2'
+      });
 
-        usePlayerStore.setState(s => ({
-          downloadedSongIds: [...new Set([...s.downloadedSongIds, nextTaskId])],
-          cloudDownloadedSongIds: [...new Set([...s.cloudDownloadedSongIds, nextTaskId])]
-        }));
-        await get().fetchStorageInfo();
+      usePlayerStore.setState(s => ({
+        downloadedSongIds: [...new Set([...s.downloadedSongIds, nextTaskId])],
+        cloudDownloadedSongIds: [...new Set([...s.cloudDownloadedSongIds, nextTaskId])]
+      }));
+      await get().fetchStorageInfo();
 
-        // Cloud sync: record download metadata in user's cloud account
-        try {
-          const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
-          const { useAuthStore } = await import('@/context/useAuthStore');
-          const activeUserId = useAuthStore.getState().user?.id || 'guest';
-          await AccountSyncEngine.getInstance().recordCloudDownload(activeUserId, task.song);
-        } catch (e) {
-          console.warn('[useDownloadStore] Cloud download record sync deferred:', e);
-        }
+      setStatus(nextTaskId, 'COMPLETED');
 
-        // Offline Lyrics Pre-caching: Download and store lyrics in IndexedDB alongside the audio
-        try {
-          const { LyricsResolver } = await import('@/lib/lyrics/LyricsResolver');
-          await LyricsResolver.getInstance().fetchLyrics(task.song.id, {
-            title: task.song.title,
-            artist: task.song.artist,
-            album: task.song.album,
-            durationMs: (task.song.duration || 0) * 1000,
-          });
-        } catch (e) {
-          console.warn('[useDownloadStore] Offline lyrics pre-caching deferred:', e);
-        }
-      }
-
-      setStatus(nextTaskId, 'completed');
-
-      // Dispatch smart-batched notification to Activity Center
-      try {
-        const { useNotificationStore } = await import('@/context/useNotificationStore');
-        useNotificationStore.getState().notifyDownloadCompleted(task.song.title, task.song.id, task.song.coverUrl);
-      } catch (e) {}
-      
       setTimeout(() => {
         set((s) => {
           const newTasks = { ...s.tasks };
@@ -657,7 +845,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
       }
 
       const currentTask = get().tasks[nextTaskId];
-      if (currentTask && currentTask.status !== 'paused' && currentTask.status !== 'cancelled') {
+      if (currentTask && currentTask.status !== 'PAUSED' && currentTask.status !== 'CANCELLED') {
         if (currentTask.retryCount < 3) {
           const nextRetry = currentTask.retryCount + 1;
           const delay = nextRetry * 1500;
@@ -667,7 +855,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
               ...s.tasks, 
               [nextTaskId]: { 
                 ...currentTask, 
-                status: 'queued', 
+                status: 'QUEUED', 
                 retryCount: nextRetry,
                 error: `Retrying (${nextRetry}/3)...` 
               } 
@@ -675,7 +863,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
           }));
           setTimeout(() => get()._processQueue(), delay);
         } else {
-          setStatus(nextTaskId, 'error', err.message || 'Download failed after 3 attempts');
+          setStatus(nextTaskId, 'FAILED', err.message || 'Download failed after 3 attempts');
           set((s) => ({ activeCount: Math.max(0, s.activeCount - 1) }));
           get()._processQueue();
         }

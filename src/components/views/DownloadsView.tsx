@@ -69,6 +69,33 @@ export function DownloadsView() {
 
   const refreshCatalog = async () => {
     try {
+      const { RaagaXNativeDownload } = await import('@/lib/playback/native/RaagaXNativeDownload');
+      if (RaagaXNativeDownload.isNative()) {
+        const nativeTracks = await RaagaXNativeDownload.getDownloadedTracks();
+        const mappedTracks: OfflineTrack[] = nativeTracks.map((t) => ({
+          trackId: t.songId || t.id,
+          localMediaId: t.songId || t.id,
+          title: t.title,
+          artist: t.artist,
+          album: t.album,
+          artworkUrl: t.artworkUrl || t.coverUrl,
+          duration: 180,
+          durationMs: 180000,
+          mimeType: t.mimeType || 'audio/mpeg',
+          quality: (t.quality as any) || '320 kbps',
+          fileSizeBytes: t.fileSize,
+          checksum: 'native',
+          leaseExpiresAt: Date.now() + 30 * 24 * 3600 * 1000,
+          downloadedAt: t.completedAt || Date.now(),
+          version: '2',
+          playCount: 1,
+        }));
+        setOfflineCatalogTracks(mappedTracks);
+        const info = await useDownloadStore.getState().fetchStorageInfo();
+        setStorageInfo(info);
+        return;
+      }
+
       const tracks = await OfflineCatalog.getInstance().getAllTracks();
       setOfflineCatalogTracks(tracks);
       
@@ -99,10 +126,10 @@ export function DownloadsView() {
   };
 
   const activeTasks = Object.values(tasks).filter(
-    t => t.status === 'downloading' || t.status === 'queued' || t.status === 'paused' || t.status === 'verifying' || t.status === 'error'
+    t => ['downloading', 'queued', 'paused', 'verifying', 'failed', 'error'].includes(t.status?.toLowerCase())
   );
-  const downloadingTasks = activeTasks.filter(t => t.status === 'downloading' || t.status === 'verifying' || t.status === 'paused' || t.status === 'error');
-  const queuedTasks = activeTasks.filter(t => t.status === 'queued');
+  const downloadingTasks = activeTasks.filter(t => ['downloading', 'verifying', 'paused', 'failed', 'error'].includes(t.status?.toLowerCase()));
+  const queuedTasks = activeTasks.filter(t => t.status?.toLowerCase() === 'queued');
 
   // Convert offline catalog tracks to Song objects
   const offlineSongs: Song[] = useMemo(() => {
@@ -445,7 +472,7 @@ export function DownloadsView() {
                   <div className="flex items-center justify-between gap-2">
                     <h4 className="text-sm font-bold truncate">{task.song.title}</h4>
                     <span className="text-[10px] font-mono text-slate-400">
-                      {task.status === 'verifying' ? 'Verifying checksum...' : task.status === 'error' ? 'Failed' : task.status === 'paused' ? 'Paused' : `${task.progress}%`}
+                      {task.status === 'VERIFYING' ? 'Verifying tags...' : task.status === 'FAILED' ? 'Failed' : task.status === 'PAUSED' ? 'Paused' : `${task.progress}%`}
                     </span>
                   </div>
                   <p className="text-xs text-slate-400 truncate">{task.song.artist}</p>
@@ -454,9 +481,9 @@ export function DownloadsView() {
                     <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
                       <div 
                         className={`h-full rounded-full transition-all duration-300 ${
-                          task.status === 'error' ? 'bg-red-500' : 
-                          task.status === 'paused' ? 'bg-amber-500' : 
-                          task.status === 'verifying' ? 'bg-indigo-500 animate-pulse' : 
+                          task.status === 'FAILED' ? 'bg-red-500' : 
+                          task.status === 'PAUSED' ? 'bg-amber-500' : 
+                          task.status === 'VERIFYING' ? 'bg-indigo-500 animate-pulse' : 
                           'bg-[#fa233b]'
                         }`} 
                         style={{ width: `${task.progress}%` }} 
@@ -473,7 +500,7 @@ export function DownloadsView() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {task.status === 'paused' || task.status === 'error' ? (
+                  {task.status === 'PAUSED' || task.status === 'FAILED' ? (
                      <button onClick={() => resumeDownload(task.song.id)} className="p-2 text-slate-400 hover:text-white" title="Resume"><PlayCircle className="w-5 h-5" /></button>
                   ) : (
                      <button onClick={() => pauseDownload(task.song.id)} className="p-2 text-slate-400 hover:text-white" title="Pause"><PauseCircle className="w-5 h-5" /></button>
