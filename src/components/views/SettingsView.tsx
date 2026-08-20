@@ -793,120 +793,123 @@ export function SettingsView() {
                   </select>
                 }
               />
-              <SettingRow
-                title="Offline Download Quality"
-                description="Quality used when caching songs to IndexedDB storage for offline playback."
-                control={
-                  <select
-                    value={downloadQuality}
-                    onChange={(e) => {
-                      usePlayerStore.setState({ downloadQuality: e.target.value as AudioQuality });
-                      showToast(`Download Quality: ${e.target.value}`);
-                    }}
-                    className="bg-[#171922] border border-white/10 text-white text-xs rounded-xl px-3 py-2 outline-none focus:border-[#F51B3D]"
-                  >
-                    <option value="NORMAL">Normal (160 kbps)</option>
-                    <option value="HIGH">High (320 kbps Studio Master)</option>
-                    <option value="LOSSLESS">Lossless (FLAC Original)</option>
-                  </select>
-                }
-              />
-              <SettingRow
-                title="Download songs added to my playlists"
-                description="Automatically downloads any track you add to your custom playlists for offline playback."
-                control={
-                  <ToggleSwitch
-                    checked={offlineSettings.autoDownloadPlaylists}
-                    onChange={() => {
-                      const next = !offlineSettings.autoDownloadPlaylists;
-                      setOfflineSettings({ autoDownloadPlaylists: next });
-                      showToast(next ? 'Automatic playlist downloads enabled' : 'Automatic playlist downloads disabled');
-                    }}
-                  />
-                }
-              />
-              <SettingRow
-                title="Download songs added to Favorites"
-                description="Automatically downloads any song you like (❤️) for offline listening."
-                control={
-                  <ToggleSwitch
-                    checked={offlineSettings.autoDownloadFavorites}
-                    onChange={() => {
-                      const next = !offlineSettings.autoDownloadFavorites;
-                      setOfflineSettings({ autoDownloadFavorites: next });
-                      showToast(next ? 'Automatic favorites downloads enabled' : 'Automatic favorites downloads disabled');
-                    }}
-                  />
-                }
-              />
-              <SettingRow
-                title="Download newly added songs to followed playlists"
-                description="Automatically downloads new tracks added to community or curated playlists you follow."
-                control={
-                  <ToggleSwitch
-                    checked={offlineSettings.autoDownloadFollowedPlaylists}
-                    onChange={() => {
-                      const next = !offlineSettings.autoDownloadFollowedPlaylists;
-                      setOfflineSettings({ autoDownloadFollowedPlaylists: next });
-                      showToast(next ? 'Followed playlists auto-download enabled' : 'Followed playlists auto-download disabled');
-                    }}
-                  />
-                }
-              />
-              <SettingRow
-                title="Maximum Automatic Downloads"
-                description="Cap the maximum number of tracks saved automatically by smart rules to preserve device space."
-                control={
-                  <select
-                    value={offlineSettings.maxAutoDownloadsCount || 0}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value, 10);
-                      setOfflineSettings({ maxAutoDownloadsCount: val });
-                      showToast(val === 0 ? 'Automatic downloads limit: Unlimited' : `Auto downloads limit: ${val} songs`);
-                    }}
-                    className="bg-[#171922] border border-white/10 text-white text-xs rounded-xl px-3 py-2 outline-none focus:border-[#F51B3D]"
-                  >
-                    <option value={0}>Unlimited</option>
-                    <option value={50}>50 Songs</option>
-                    <option value={100}>100 Songs</option>
-                    <option value={250}>250 Songs</option>
-                    <option value={500}>500 Songs</option>
-                  </select>
-                }
-              />
-              <SettingRow
-                title="Download Only When Storage Is Sufficient"
-                description="Minimum free device storage required before executing any automatic background download."
-                control={
-                  <select
-                    value={offlineSettings.minStorageThresholdGB || 2}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value, 10);
-                      setOfflineSettings({ minStorageThresholdGB: val });
-                      showToast(`Minimum free storage threshold: ${val} GB`);
-                    }}
-                    className="bg-[#171922] border border-white/10 text-white text-xs rounded-xl px-3 py-2 outline-none focus:border-[#F51B3D]"
-                  >
-                    <option value={1}>1 GB Minimum Free Space</option>
-                    <option value={2}>2 GB Minimum Free Space (Recommended)</option>
-                    <option value={5}>5 GB Minimum Free Space</option>
-                    <option value={10}>10 GB Minimum Free Space</option>
-                  </select>
-                }
-              />
-              <SettingRow
-                title="Wi-Fi Only Downloads"
-                description="Prevent automatic and manual downloads over metered cellular mobile data."
-                control={
-                  <ToggleSwitch
-                    checked={wifiOnly}
-                    onChange={() => {
-                      setWifiOnly(!wifiOnly);
-                      showToast(wifiOnly ? 'Wi-Fi only downloads disabled' : 'Wi-Fi only downloads enabled');
-                    }}
-                  />
-                }
-              />
+              {/* Offline & Storage Settings (Mobile / Native Only) */}
+              <div className="md:hidden space-y-5 pt-3 border-t border-white/5">
+                <SettingRow
+                  title="Offline Download Quality"
+                  description="Quality used when caching songs to IndexedDB storage for offline playback."
+                  control={
+                    <select
+                      value={downloadQuality}
+                      onChange={(e) => {
+                        usePlayerStore.setState({ downloadQuality: e.target.value as AudioQuality });
+                        showToast(`Download Quality: ${e.target.value}`);
+                      }}
+                      className="bg-[#171922] border border-white/10 text-white text-xs rounded-xl px-3 py-2 outline-none focus:border-[#F51B3D]"
+                    >
+                      <option value="NORMAL">Normal (160 kbps)</option>
+                      <option value="HIGH">High (320 kbps Studio Master)</option>
+                      <option value="LOSSLESS">Lossless (FLAC Original)</option>
+                    </select>
+                  }
+                />
+                <SettingRow
+                  title="Download songs added to my playlists"
+                  description="Automatically downloads any track you add to your custom playlists for offline playback."
+                  control={
+                    <ToggleSwitch
+                      checked={offlineSettings.autoDownloadPlaylists}
+                      onChange={() => {
+                        const next = !offlineSettings.autoDownloadPlaylists;
+                        setOfflineSettings({ autoDownloadPlaylists: next });
+                        showToast(next ? 'Automatic playlist downloads enabled' : 'Automatic playlist downloads disabled');
+                      }}
+                    />
+                  }
+                />
+                <SettingRow
+                  title="Download songs added to Favorites"
+                  description="Automatically downloads any song you like (❤️) for offline listening."
+                  control={
+                    <ToggleSwitch
+                      checked={offlineSettings.autoDownloadFavorites}
+                      onChange={() => {
+                        const next = !offlineSettings.autoDownloadFavorites;
+                        setOfflineSettings({ autoDownloadFavorites: next });
+                        showToast(next ? 'Automatic favorites downloads enabled' : 'Automatic favorites downloads disabled');
+                      }}
+                    />
+                  }
+                />
+                <SettingRow
+                  title="Download newly added songs to followed playlists"
+                  description="Automatically downloads new tracks added to community or curated playlists you follow."
+                  control={
+                    <ToggleSwitch
+                      checked={offlineSettings.autoDownloadFollowedPlaylists}
+                      onChange={() => {
+                        const next = !offlineSettings.autoDownloadFollowedPlaylists;
+                        setOfflineSettings({ autoDownloadFollowedPlaylists: next });
+                        showToast(next ? 'Followed playlists auto-download enabled' : 'Followed playlists auto-download disabled');
+                      }}
+                    />
+                  }
+                />
+                <SettingRow
+                  title="Maximum Automatic Downloads"
+                  description="Cap the maximum number of tracks saved automatically by smart rules to preserve device space."
+                  control={
+                    <select
+                      value={offlineSettings.maxAutoDownloadsCount || 0}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        setOfflineSettings({ maxAutoDownloadsCount: val });
+                        showToast(val === 0 ? 'Automatic downloads limit: Unlimited' : `Auto downloads limit: ${val} songs`);
+                      }}
+                      className="bg-[#171922] border border-white/10 text-white text-xs rounded-xl px-3 py-2 outline-none focus:border-[#F51B3D]"
+                    >
+                      <option value={0}>Unlimited</option>
+                      <option value={50}>50 Songs</option>
+                      <option value={100}>100 Songs</option>
+                      <option value={250}>250 Songs</option>
+                      <option value={500}>500 Songs</option>
+                    </select>
+                  }
+                />
+                <SettingRow
+                  title="Download Only When Storage Is Sufficient"
+                  description="Minimum free device storage required before executing any automatic background download."
+                  control={
+                    <select
+                      value={offlineSettings.minStorageThresholdGB || 2}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        setOfflineSettings({ minStorageThresholdGB: val });
+                        showToast(`Minimum free storage threshold: ${val} GB`);
+                      }}
+                      className="bg-[#171922] border border-white/10 text-white text-xs rounded-xl px-3 py-2 outline-none focus:border-[#F51B3D]"
+                    >
+                      <option value={1}>1 GB Minimum Free Space</option>
+                      <option value={2}>2 GB Minimum Free Space (Recommended)</option>
+                      <option value={5}>5 GB Minimum Free Space</option>
+                      <option value={10}>10 GB Minimum Free Space</option>
+                    </select>
+                  }
+                />
+                <SettingRow
+                  title="Wi-Fi Only Downloads"
+                  description="Prevent automatic and manual downloads over metered cellular mobile data."
+                  control={
+                    <ToggleSwitch
+                      checked={wifiOnly}
+                      onChange={() => {
+                        setWifiOnly(!wifiOnly);
+                        showToast(wifiOnly ? 'Wi-Fi only downloads disabled' : 'Wi-Fi only downloads enabled');
+                      }}
+                    />
+                  }
+                />
+              </div>
             </div>
           )}
 
