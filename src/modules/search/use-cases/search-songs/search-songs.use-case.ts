@@ -102,50 +102,78 @@ export class SearchSongsUseCase implements IUseCase<SearchSongsArgs, z.infer<typ
       }
     }
 
-    // Strategy 4: Autocomplete Global Search Fallback with direct song hydration
+    // Strategy 4: Autocomplete & Movie Album Song-PIDs Hydration
     try {
       const autocompleteRes = await apiFetch<any>({
         endpoint: Endpoints.search.all,
         params: { query }
       });
 
-      if (autocompleteRes.data && autocompleteRes.data.songs?.data?.length > 0) {
-        const songIds = autocompleteRes.data.songs.data.map((s: any) => s.id).filter(Boolean);
-        if (songIds.length > 0) {
-          const songsDetailRes = await apiFetch<any>({
-            endpoint: Endpoints.songs.id,
-            params: { pids: songIds.join(',') }
-          });
+      const pids: string[] = [];
 
-          let rawList: any[] = [];
-          if (Array.isArray(songsDetailRes.data?.songs)) {
-            rawList = songsDetailRes.data.songs;
-          } else if (Array.isArray(songsDetailRes.data)) {
-            rawList = songsDetailRes.data;
-          } else if (songsDetailRes.data?.songs && typeof songsDetailRes.data.songs === 'object') {
-            rawList = Object.values(songsDetailRes.data.songs);
-          } else if (songsDetailRes.data && typeof songsDetailRes.data === 'object') {
-            rawList = Object.values(songsDetailRes.data).filter((x: any) => x && typeof x === 'object' && x.id);
+      // 1. Check topquery (often movie album with song_pids)
+      if (autocompleteRes.data?.topquery?.data?.length > 0) {
+        for (const tq of autocompleteRes.data.topquery.data) {
+          if (tq.more_info?.song_pids) {
+            tq.more_info.song_pids.split(',').forEach((p: string) => pids.push(p.trim()));
+          } else if (tq.id && (tq.type === 'song' || !tq.type)) {
+            pids.push(tq.id);
           }
+        }
+      }
 
-          if (rawList.length > 0) {
-            const mapped = rawList.map((item: any) => {
-              try {
-                return createSongPayload(item);
-              } catch {
-                return null;
-              }
-            }).filter(Boolean);
+      // 2. Check albums matching query
+      if (Array.isArray(autocompleteRes.data?.albums?.data)) {
+        for (const alb of autocompleteRes.data.albums.data.slice(0, 3)) {
+          if (alb.more_info?.song_pids) {
+            alb.more_info.song_pids.split(',').forEach((p: string) => pids.push(p.trim()));
+          }
+        }
+      }
 
-            if (mapped.length > 0) {
-              const resultPayload = {
-                total: mapped.length,
-                start: 0,
-                results: mapped.slice(0, limit) as any
-              };
-              searchCache.set(cacheKey, { data: resultPayload, expiresAt: Date.now() + CACHE_TTL_MS });
-              return resultPayload;
+      // 3. Check songs in autocomplete
+      if (Array.isArray(autocompleteRes.data?.songs?.data)) {
+        for (const s of autocompleteRes.data.songs.data) {
+          if (s.id) pids.push(s.id);
+        }
+      }
+
+      const uniquePids = Array.from(new Set(pids)).filter(Boolean);
+
+      if (uniquePids.length > 0) {
+        const songsDetailRes = await apiFetch<any>({
+          endpoint: Endpoints.songs.id,
+          params: { pids: uniquePids.slice(0, 25).join(',') }
+        });
+
+        let rawList: any[] = [];
+        if (Array.isArray(songsDetailRes.data?.songs)) {
+          rawList = songsDetailRes.data.songs;
+        } else if (Array.isArray(songsDetailRes.data)) {
+          rawList = songsDetailRes.data;
+        } else if (songsDetailRes.data?.songs && typeof songsDetailRes.data.songs === 'object') {
+          rawList = Object.values(songsDetailRes.data.songs);
+        } else if (songsDetailRes.data && typeof songsDetailRes.data === 'object') {
+          rawList = Object.values(songsDetailRes.data).filter((x: any) => x && typeof x === 'object' && x.id);
+        }
+
+        if (rawList.length > 0) {
+          const mapped = rawList.map((item: any) => {
+            try {
+              return createSongPayload(item);
+            } catch {
+              return null;
             }
+          }).filter(Boolean);
+
+          if (mapped.length > 0) {
+            const resultPayload = {
+              total: mapped.length,
+              start: 0,
+              results: mapped.slice(0, limit) as any
+            };
+            searchCache.set(cacheKey, { data: resultPayload, expiresAt: Date.now() + CACHE_TTL_MS });
+            return resultPayload;
           }
         }
       }
