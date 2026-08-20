@@ -266,7 +266,7 @@ export class UnifiedSearchEngine {
       };
     }
 
-    // 2. Fetch Remote Provider Results
+    // 2. Fetch Remote Provider Results (Global + Dedicated High-Fidelity Song Search concurrently)
     const apiBase = `${getApiBaseUrl().replace(/\/+$/, '')}/api`;
     let songs: Song[] = [];
     let albums: UnifiedAlbumResult[] = [];
@@ -276,17 +276,19 @@ export class UnifiedSearchEngine {
 
     try {
       const globalSearchUrl = `${apiBase}/search?query=${encodeURIComponent(q)}`;
-      const res = await fetch(globalSearchUrl, { signal });
-      if (res.ok) {
-        const json = await res.json();
+      const songSearchUrl = `${apiBase}/search/songs?query=${encodeURIComponent(q)}&limit=20`;
+
+      const [globalRes, songsRes] = await Promise.allSettled([
+        fetch(globalSearchUrl, { signal }),
+        fetch(songSearchUrl, { signal }),
+      ]);
+
+      // Parse Global Search (Albums, Artists, Playlists, Top Query)
+      if (globalRes.status === 'fulfilled' && globalRes.value.ok) {
+        const json = await globalRes.value.json();
         const data = json.data;
 
         if (data) {
-          // Parse Songs
-          if (Array.isArray(data.songs?.results)) {
-            songs = data.songs.results.map((item: any) => this.mapSong(item));
-          }
-
           // Parse Albums
           if (Array.isArray(data.albums?.results)) {
             albums = data.albums.results.map((item: any) => ({
@@ -323,27 +325,25 @@ export class UnifiedSearchEngine {
           if (data.topQuery?.results && data.topQuery.results.length > 0) {
             topQueryMatch = data.topQuery.results[0];
           }
+
+          if (Array.isArray(data.songs?.results) && songs.length === 0) {
+            songs = data.songs.results.map((item: any) => this.mapSong(item));
+          }
+        }
+      }
+
+      // Parse Dedicated High-Fidelity Song Search (Primary for Songs)
+      if (songsRes.status === 'fulfilled' && songsRes.value.ok) {
+        const json = await songsRes.value.json();
+        const results = json.data?.results || json.results || [];
+        if (Array.isArray(results) && results.length > 0) {
+          songs = results.map((item: any) => this.mapSong(item));
         }
       }
     } catch (err: any) {
       if (err?.name !== 'AbortError') {
-        console.warn('[UnifiedSearchEngine] Global search error, attempting fallback song search:', err?.message);
+        console.warn('[UnifiedSearchEngine] Search execution error:', err?.message);
       }
-    }
-
-    // Fallback: If global search returned empty songs, fetch from dedicated /search/songs endpoint
-    if (songs.length === 0 && !signal.aborted) {
-      try {
-        const songSearchUrl = `${apiBase}/search/songs?query=${encodeURIComponent(q)}&limit=20`;
-        const res = await fetch(songSearchUrl, { signal });
-        if (res.ok) {
-          const json = await res.json();
-          const results = json.data?.results || json.results || [];
-          if (Array.isArray(results) && results.length > 0) {
-            songs = results.map((item: any) => this.mapSong(item));
-          }
-        }
-      } catch {}
     }
 
     // 3. Deduplicate and Merge Local Download Matches
@@ -489,41 +489,66 @@ export class UnifiedSearchEngine {
     };
   }
 
+  private computeMatchScore(title: string, artist: string, query: string, preferredLang: string, songLang: string): number {
+    const normalize = (s: string) => (s || '').toLowerCase().replace(/([aeiou])\1+/gi, '$1').replace(/[^\w\s]/g, '').trim();
+
+    const normTitle = normalize(title);
+    const normArtist = normalize(artist || '');
+    const normQuery = normalize(query);
+
+    if (!normQuery) return 0;
+
+    let score = 0;
+
+    // 1. Exact or starts-with match on normalized text
+    if (normTitle === normQuery) score += 200;
+    else if (normTitle.startsWith(normQuery)) score += 120;
+    else if (normTitle.includes(normQuery)) score += 80;
+
+    // 2. Token overlap score
+    const queryTokens = normQuery.split(/\s+/).filter(Boolean);
+    const titleTokens = normTitle.split(/\s+/).filter(Boolean);
+
+    let matchedTokens = 0;
+    for (const qToken of queryTokens) {
+      if (titleTokens.some((tToken) => tToken === qToken || tToken.startsWith(qToken) || qToken.startsWith(tToken))) {
+        matchedTokens++;
+      }
+    }
+
+    if (queryTokens.length > 0) {
+      score += (matchedTokens / queryTokens.length) * 100;
+      if (matchedTokens === queryTokens.length) {
+        score += 50; // All query words present in title
+      }
+    }
+
+    // 3. Artist match bonus
+    if (normArtist && queryTokens.some((qToken) => normArtist.includes(qToken))) {
+      score += 40;
+    }
+
+    // 4. Minor language tie-breaker (only 15 points, so title relevance always wins)
+    if (preferredLang && songLang && songLang.toLowerCase() === preferredLang.toLowerCase()) {
+      score += 15;
+    }
+
+    return score;
+  }
+
   private rankByLanguage(songs: Song[], preferredLang: string, query: string): Song[] {
-    const lowerQuery = query.toLowerCase();
-    const lowerLang = preferredLang.toLowerCase();
-
     return [...songs].sort((a, b) => {
-      // 1. Exact query match in title
-      const aExact = a.title.toLowerCase() === lowerQuery ? 100 : 0;
-      const bExact = b.title.toLowerCase() === lowerQuery ? 100 : 0;
-
-      // 2. Starts with query
-      const aStarts = a.title.toLowerCase().startsWith(lowerQuery) ? 50 : 0;
-      const bStarts = b.title.toLowerCase().startsWith(lowerQuery) ? 50 : 0;
-
-      // 3. Language priority matching
-      const aLang = (a.genre || '').toLowerCase() === lowerLang ? 30 : 0;
-      const bLang = (b.genre || '').toLowerCase() === lowerLang ? 30 : 0;
-
-      const scoreA = aExact + aStarts + aLang;
-      const scoreB = bExact + bStarts + bLang;
-
+      const scoreA = this.computeMatchScore(a.title, a.artist, query, preferredLang, a.genre || '');
+      const scoreB = this.computeMatchScore(b.title, b.artist, query, preferredLang, b.genre || '');
       return scoreB - scoreA;
     });
   }
 
   private rankAlbumsByLanguage(albums: UnifiedAlbumResult[], preferredLang: string, query: string): UnifiedAlbumResult[] {
-    const lowerQuery = query.toLowerCase();
-
     return [...albums].sort((a, b) => {
-      const aExact = a.title.toLowerCase() === lowerQuery ? 100 : 0;
-      const bExact = b.title.toLowerCase() === lowerQuery ? 100 : 0;
-
-      const aStarts = a.title.toLowerCase().startsWith(lowerQuery) ? 50 : 0;
-      const bStarts = b.title.toLowerCase().startsWith(lowerQuery) ? 50 : 0;
-
-      return (bExact + bStarts) - (aExact + aStarts);
+      const scoreA = this.computeMatchScore(a.title, a.artist, query, preferredLang, '');
+      const scoreB = this.computeMatchScore(b.title, b.artist, query, preferredLang, '');
+      return scoreB - scoreA;
     });
   }
 }
