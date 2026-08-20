@@ -98,12 +98,13 @@ export const SUPPORTED_LANGUAGES_LIST = [
   { label: 'English', code: 'en' },
 ];
 
-const STORAGE_KEY = 'raagax_advanced_catalog_v4';
+const STORAGE_KEY = 'raagax_advanced_catalog_v5';
 const TARGET_MINIMUM_SONGS = 50;
 const CURRENT_SYSTEM_YEAR = 2026;
 const NEW_RELEASE_LOOKBACK_DAYS = 90; // Freshness window: up to 90 days lookback
 const MAX_PAGES = 5;
 const CONCURRENCY_LIMIT = 4;
+const COMPILATION_REGEX = /top\s*\d+|superhits|best\s*of|greatest\s*hits|valentines?\s*day|dance\s*dhamaka|party\s*mix|mashup|evergreen|remix\s*collection|anniversary\s*special|world\s*music\s*day|hits\s*\d{4}/i;
 
 export interface MusicSourceAdapter {
   discoverNewReleaseAlbums(language: string, page?: number): Promise<any[]>;
@@ -125,25 +126,25 @@ export class DefaultJioSaavnSourceAdapter implements MusicSourceAdapter {
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          return json.data.map((item: any) => ({
-            id: item.id,
-            title: item.title,
-            coverUrl: item.image,
-            language: item.language,
-            releaseDate: item.more_info?.release_date,
-            releaseYear: item.more_info?.release_date ? parseInt(item.more_info.release_date.slice(0, 4)) : 2026,
-          }));
+          return json.data.map((item: any) => {
+            const rawTitle = item.title ? item.title.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#039;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>') : 'Untitled';
+            return {
+              id: item.id,
+              title: rawTitle,
+              coverUrl: item.image ? item.image.replace('150x150', '500x500') : '/app-icon.png',
+              language: item.language,
+              type: item.type || 'album',
+              rawItem: item,
+              releaseDate: item.more_info?.release_date || (item.year ? `${item.year}-01-01` : undefined),
+              releaseYear: item.more_info?.release_date ? parseInt(item.more_info.release_date.slice(0, 4)) : (item.year ? parseInt(item.year) : 2026),
+            };
+          });
         }
       }
-    } catch {}
-
-    // Fallback to search if needed
-    try {
-      const q = `latest ${language} albums`;
-      return await this.musicEngine.searchRealAlbums(q, 15);
-    } catch {
-      return [];
+    } catch (err) {
+      console.warn('[DefaultJioSaavnSourceAdapter] Failed to fetch new releases:', err);
     }
+    return [];
   }
 
   async getAlbumDetails(albumId: string): Promise<{ id: string; title: string; coverUrl: string; songs: Song[] } | null> {
@@ -151,7 +152,8 @@ export class DefaultJioSaavnSourceAdapter implements MusicSourceAdapter {
   }
 
   async searchNewSongs(query: string, page = 1): Promise<Song[]> {
-    return this.musicEngine.searchRealSongs(query, 20);
+    // Return empty to avoid generic keyword search injecting compilation albums
+    return [];
   }
 }
 
@@ -209,8 +211,8 @@ export class NewReleasesEngine {
    * RELEASE DATE FRESHNESS VALIDATOR
    * CRITICAL RULE:
    * Uses `release_date` / `releaseYear` to determine whether something qualifies as a New Release.
-   * 2014, 2020, 2023, 2024 -> REJECTED.
-   * Genuine recent releases (2025/2026) qualify.
+   * Compilations, old catalog songs (2025, 2024, 2023) -> REJECTED.
+   * Genuine recent releases (2026) qualify.
    */
   public static isEligibleNewRelease(song: Song): boolean {
     if (!song || !song.title) return false;
@@ -221,19 +223,24 @@ export class NewReleasesEngine {
       return false;
     }
 
-    // 2. Filter abnormal duration (genuine songs: 30s to 15 mins)
+    // 2. Filter compilation albums and re-packages
+    if (COMPILATION_REGEX.test(`${song.title} ${song.album || ''}`)) {
+      return false;
+    }
+
+    // 3. Filter abnormal duration (genuine songs: 30s to 15 mins)
     const dur = Number(song.duration) || 0;
     if (dur > 900 || (dur > 0 && dur < 30)) {
       return false;
     }
 
-    // 3. Hard reject old catalog years (e.g. 2014, 2020, 2023, 2024)
+    // 4. Hard reject old catalog years (e.g. 2025, 2024, 2023, 2020)
     const year = Number(song.releaseYear) || 0;
-    if (year > 0 && year < 2025) {
+    if (year > 0 && year < 2026) {
       return false;
     }
 
-    // 4. Check exact releaseDate if available
+    // 5. Check exact releaseDate if available
     if (song.releaseDate) {
       const releaseTime = new Date(song.releaseDate).getTime();
       if (!isNaN(releaseTime)) {
@@ -242,20 +249,15 @@ export class NewReleasesEngine {
 
         // Reject future dates > 30 days ahead
         if (diffDays < -30) return false;
-        // Reject releases older than freshness lookback window if before 2025
-        if (diffDays > 365 && year < 2025) return false;
+        // Reject releases older than freshness lookback window
+        if (diffDays > NEW_RELEASE_LOOKBACK_DAYS) return false;
 
         return true;
       }
     }
 
-    // Recent release years (2025, 2026) qualify
-    if (year >= 2025) {
-      return true;
-    }
-
-    // Fallback: If year is 0, check if title/context has 2026
-    if (year === 0) {
+    // Recent release year 2026 qualifies
+    if (year >= 2026) {
       return true;
     }
 
@@ -470,8 +472,8 @@ export class NewReleasesEngine {
     };
 
     if (isAll) {
-      const supported = ['Telugu', 'Hindi', 'Tamil', 'Kannada', 'Malayalam', 'Punjabi', 'Bengali', 'English'];
-      const langPromises = supported.map((l) => this.getNewReleasesForLanguage(l, 15));
+      const supported = ['Telugu', 'Hindi', 'Tamil', 'Kannada', 'Malayalam', 'Punjabi', 'Bengali', 'Marathi', 'Gujarati', 'Bhojpuri', 'English'];
+      const langPromises = supported.map((l) => this.getNewReleasesForLanguage(l, 10));
       const res = await Promise.allSettled(langPromises);
 
       const allMerged: Song[] = [];
@@ -490,7 +492,12 @@ export class NewReleasesEngine {
       });
 
       return unique
-        .sort((a, b) => new Date(b.added_at || 0).getTime() - new Date(a.added_at || 0).getTime())
+        .sort((a, b) => {
+          const dateA = a.releaseDate ? new Date(a.releaseDate).getTime() : 0;
+          const dateB = b.releaseDate ? new Date(b.releaseDate).getTime() : 0;
+          if (dateB !== dateA) return dateB - dateA;
+          return new Date(b.added_at || 0).getTime() - new Date(a.added_at || 0).getTime();
+        })
         .slice(0, targetLimit);
     }
 
@@ -514,31 +521,63 @@ export class NewReleasesEngine {
     while (collectedSongs.length < targetLimit && currentPage <= MAX_PAGES) {
       report.releasePagesScanned += 1;
 
-      // Fetch album releases and latest songs across multiple queries
-      const [newAlbums, newSingles1, newSingles2] = await Promise.all([
-        this.retryWithBackoff(() => this.sourceAdapter.discoverNewReleaseAlbums(targetLangName, currentPage)),
-        this.retryWithBackoff(() => this.sourceAdapter.searchNewSongs(`latest ${targetLangName} songs`, currentPage)),
-        this.retryWithBackoff(() => this.sourceAdapter.searchNewSongs(`new ${targetLangName} songs`, currentPage)),
-      ]);
+      // Fetch official verified new releases from JioSaavn
+      const newItems = await this.retryWithBackoff(() => this.sourceAdapter.discoverNewReleaseAlbums(targetLangName, currentPage));
 
-      const newSingles = [...(newSingles1 || []), ...(newSingles2 || [])];
+      if (!newItems || !Array.isArray(newItems) || newItems.length === 0) {
+        break;
+      }
 
-      // Process Singles
-      if (newSingles && Array.isArray(newSingles)) {
-        report.tracksDiscovered += newSingles.length;
+      // 1. Process Single Releases directly
+      const singleItems = newItems.filter((item) => item.type === 'song' && item.rawItem);
+      const rawSingles: Song[] = singleItems.map((a) => {
+        const it = a.rawItem;
+        const pa = it.more_info?.artistMap?.primary_artists || [];
+        const artist = pa.length > 0
+          ? pa.map((art: any) => art.name).join(', ')
+          : (it.subtitle || it.more_info?.singers || 'Various Artists');
+        const title = it.title ? it.title.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#039;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>') : 'Untitled';
+        const album = it.more_info?.album ? it.more_info.album.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#039;/g, "'") : title;
+        const releaseDate = it.more_info?.release_date || a.releaseDate;
+        const releaseYear = a.releaseYear || (releaseDate ? parseInt(releaseDate.slice(0, 4)) : 2026);
+        const coverUrl = it.image ? it.image.replace('150x150', '500x500') : (a.coverUrl || '/app-icon.png');
 
-        // Strict Language Filter
-        const validSingles = newSingles.filter((s) => {
+        return {
+          id: it.id,
+          title,
+          artist,
+          artistId: pa[0]?.id || `art-${it.id}`,
+          album,
+          albumId: it.more_info?.album_id || `alb-${it.id}`,
+          duration: parseInt(it.more_info?.duration) || 210,
+          coverUrl,
+          audioUrl: '',
+          genre: `${targetLangName.toUpperCase()} HITS`,
+          language: targetLangName,
+          language_code: targetCode,
+          category: 'latest_telugu' as const,
+          releaseYear,
+          releaseDate,
+          plays: parseInt(it.play_count) || 100000,
+          likes: 15000,
+          downloads: 5000,
+          audioQuality: '24-bit FLAC' as const,
+          bitrate: '320 kbps',
+          sampleRate: '48 kHz',
+          codec: 'AAC HQ Stream',
+          lyrics: [],
+          credits: { composer: artist, lyricist: 'RaagaX Catalog', singers: [artist], label: it.more_info?.label || 'Aditya Music / Sony' }
+        } as Song;
+      });
+
+      if (rawSingles.length > 0) {
+        report.tracksDiscovered += rawSingles.length;
+        const validSingles = rawSingles.filter((s) => {
           const norm = NewReleasesEngine.normalizeLanguage(s.language || targetLangName);
-          return norm?.language_code === targetCode;
+          return norm?.language_code === targetCode && NewReleasesEngine.isEligibleNewRelease(s);
         });
-        report.languageValid += validSingles.length;
 
-        // Strict Release Date Freshness Filter (Filters out 2014, 2023, 2024)
-        const freshSingles = validSingles.filter((s) => NewReleasesEngine.isEligibleNewRelease(s));
-        report.releaseDateValid += freshSingles.length;
-
-        this.ingestBatch(freshSingles, targetLangName).forEach((s) => {
+        this.ingestBatch(validSingles, targetLangName).forEach((s) => {
           const key = NewReleasesEngine.generateCanonicalKey(s.title, s.artist, s.album);
           if (!seenSongKeys.has(key)) {
             seenSongKeys.add(key);
@@ -550,67 +589,59 @@ export class NewReleasesEngine {
         });
       }
 
-      // Process Albums
-      if (newAlbums && Array.isArray(newAlbums)) {
-        const freshAlbums = newAlbums.filter((a) => a && a.id && !seenAlbumIds.has(a.id)).slice(0, 6);
-        freshAlbums.forEach((a) => seenAlbumIds.add(a.id));
-        report.albumsDiscovered += freshAlbums.length;
+      // 2. Process Album Releases (Fetch tracks with inherited album release date)
+      const albumItems = newItems.filter((a) => (a.type === 'album' || !a.type) && a.id && !seenAlbumIds.has(a.id));
+      albumItems.forEach((a) => seenAlbumIds.add(a.id));
+      report.albumsDiscovered += albumItems.length;
 
-        const albumResults = await this.runConcurrent(freshAlbums, CONCURRENCY_LIMIT, async (alb) => {
-          const cached = this.albumCache.get(alb.id);
-          if (cached && Date.now() - cached.fetchedAt < 3600000) {
-            return cached.data;
-          }
-
-          const details = await this.retryWithBackoff(() => this.sourceAdapter.getAlbumDetails(alb.id));
-          if (details) {
-            this.albumCache.set(alb.id, { fetchedAt: Date.now(), data: details });
-          }
-          return details;
-        });
-
-        report.albumsFetched += albumResults.filter(Boolean).length;
-
-        for (const details of albumResults) {
-          if (details && Array.isArray(details.songs)) {
-            report.tracksDiscovered += details.songs.length;
-
-            // Strict Language Filter
-            const validTracks = details.songs.filter((s) => {
-              const norm = NewReleasesEngine.normalizeLanguage(s.language || targetLangName);
-              return norm?.language_code === targetCode;
-            });
-            report.languageValid += validTracks.length;
-
-            // Strict Release Date Freshness Filter (Filters out 2014, 2023, 2024)
-            const freshTracks = validTracks.filter((s) => NewReleasesEngine.isEligibleNewRelease(s));
-            report.releaseDateValid += freshTracks.length;
-
-            this.ingestBatch(freshTracks, targetLangName).forEach((s) => {
-              const key = NewReleasesEngine.generateCanonicalKey(s.title, s.artist, s.album);
-              if (!seenSongKeys.has(key)) {
-                seenSongKeys.add(key);
-                collectedSongs.push(s);
-                report.newSongsInserted += 1;
-              } else {
-                report.duplicatesRemoved += 1;
-              }
-            });
-          }
+      const albumResults = await this.runConcurrent(albumItems.slice(0, 10), CONCURRENCY_LIMIT, async (alb) => {
+        const cached = this.albumCache.get(alb.id);
+        if (cached && Date.now() - cached.fetchedAt < 3600000) {
+          return cached.data;
         }
-      }
 
-      if (!newAlbums?.length && !newSingles?.length) {
-        break;
+        const details = await this.retryWithBackoff(() => this.sourceAdapter.getAlbumDetails(alb.id));
+        if (details) {
+          this.albumCache.set(alb.id, { fetchedAt: Date.now(), data: details });
+        }
+        return details;
+      });
+
+      report.albumsFetched += albumResults.filter(Boolean).length;
+
+      for (const details of albumResults) {
+        if (details && Array.isArray(details.songs)) {
+          report.tracksDiscovered += details.songs.length;
+
+          // Strict Language & Freshness Filter
+          const validTracks = details.songs.filter((s) => {
+            const norm = NewReleasesEngine.normalizeLanguage(s.language || targetLangName);
+            return norm?.language_code === targetCode && NewReleasesEngine.isEligibleNewRelease(s);
+          });
+
+          this.ingestBatch(validTracks, targetLangName).forEach((s) => {
+            const key = NewReleasesEngine.generateCanonicalKey(s.title, s.artist, s.album);
+            if (!seenSongKeys.has(key)) {
+              seenSongKeys.add(key);
+              collectedSongs.push(s);
+              report.newSongsInserted += 1;
+            } else {
+              report.duplicatesRemoved += 1;
+            }
+          });
+        }
       }
 
       currentPage += 1;
     }
 
-    // ── FINAL SORTING BY added_at DESC ─────────────────────────────────
-    const sorted = collectedSongs.sort(
-      (a, b) => new Date(b.added_at || 0).getTime() - new Date(a.added_at || 0).getTime()
-    );
+    // ── FINAL SORTING BY releaseDate DESC then added_at DESC ───────────
+    const sorted = collectedSongs.sort((a, b) => {
+      const dateA = a.releaseDate ? new Date(a.releaseDate).getTime() : 0;
+      const dateB = b.releaseDate ? new Date(b.releaseDate).getTime() : 0;
+      if (dateB !== dateA) return dateB - dateA;
+      return new Date(b.added_at || 0).getTime() - new Date(a.added_at || 0).getTime();
+    });
 
     report.finalUniqueSongs = sorted.length;
     report.durationMs = Date.now() - startTime;

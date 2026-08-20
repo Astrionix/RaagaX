@@ -1,89 +1,124 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { apiFetch } from '#common/helpers';
 
 export const dynamic = 'force-dynamic';
+
+function cleanHtml(str?: string) {
+  if (!str) return '';
+  return str
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&#039;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+}
+
+const COMPILATION_REGEX = /top\s*\d+|superhits|best\s*of|greatest\s*hits|valentines?\s*day|dance\s*dhamaka|party\s*mix|mashup|evergreen|remix\s*collection|anniversary\s*special|world\s*music\s*day|hits\s*\d{4}/i;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const lang = searchParams.get('lang') || 'Telugu';
-  const limit = parseInt(searchParams.get('limit') || '100');
+  const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
 
   try {
-    // 1. Fetch from spotify_playlist_cache for aggregated_new_releases (100 songs)
-    const { data: cacheData } = await supabaseAdmin
-      .from('spotify_playlist_cache')
-      .select('data')
-      .eq('playlist_id', 'aggregated_new_releases')
-      .eq('language', lang)
-      .maybeSingle();
+    const { data: albumData, ok } = await apiFetch<any>({
+      endpoint: 'content.getAlbums' as any,
+      params: {
+        n: 20,
+        p: 1,
+        language: lang.toLowerCase(),
+      },
+      cookieLanguage: lang.toLowerCase() === 'all' ? 'english,hindi,telugu,tamil,kannada,malayalam,punjabi,marathi,gujarati,bengali,bhojpuri,haryanvi' : lang.toLowerCase(),
+    });
 
-    let cachedSongs: any[] = [];
-    if (cacheData && cacheData.data) {
-      const list = Array.isArray(cacheData.data)
-        ? cacheData.data
-        : (typeof cacheData.data === 'object' && Array.isArray((cacheData.data as any).songs) ? (cacheData.data as any).songs : []);
-      cachedSongs = (list as any[]).filter(s => s && s.title && !s.title.includes('New Release') && s.artist !== 'Unknown');
-    }
+    if (ok && Array.isArray(albumData?.data)) {
+      const items = albumData.data;
+      const songs: any[] = [];
+      const seenKeys = new Set<string>();
 
-    // 2. Fetch from verified_releases
-    const { data: verifiedData } = await supabaseAdmin
-      .from('verified_releases')
-      .select('song_metadata')
-      .eq('language', lang)
-      .order('official_release_date', { ascending: false })
-      .order('discovered_at', { ascending: false })
-      .limit(limit);
+      for (const item of items) {
+        const rawTitle = cleanHtml(item.title);
+        const releaseDate = item.more_info?.release_date || (item.year ? `${item.year}-01-01` : undefined);
+        const releaseYear = item.more_info?.release_date ? parseInt(item.more_info.release_date.slice(0, 4)) : (item.year ? parseInt(item.year) : 2026);
 
-    let verifiedSongs: any[] = [];
-    if (verifiedData) {
-      verifiedSongs = verifiedData
-        .map(row => row.song_metadata)
-        .filter(s => s && s.title && !s.title.includes('New Release') && s.artist !== 'Unknown' && s.artist !== 'Various Artists');
-    }
+        if (COMPILATION_REGEX.test(rawTitle)) continue;
+        if (releaseYear < 2026) continue;
 
-    // Merge verified & cached songs, deduplicating by ID/Title, prioritizing verified
-    const merged = [...verifiedSongs, ...cachedSongs];
-    const seen = new Set<string>();
-    const finalSongs: any[] = [];
+        if (item.type === 'song') {
+          const pa = item.more_info?.artistMap?.primary_artists || [];
+          const artist = pa.length > 0
+            ? pa.map((a: any) => a.name).join(', ')
+            : cleanHtml(item.subtitle || item.more_info?.singers || 'Various Artists');
+          const key = `${rawTitle.toLowerCase()}:::${artist.toLowerCase()}`;
 
-    for (const song of merged) {
-      const key = (song.id || `${song.title}_${song.artist}`).toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        finalSongs.push(song);
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            songs.push({
+              id: item.id,
+              title: rawTitle,
+              artist,
+              album: rawTitle,
+              coverUrl: item.image ? item.image.replace('150x150', '500x500') : '/app-icon.png',
+              language: lang,
+              releaseDate,
+              releaseYear,
+              duration: parseInt(item.more_info?.duration) || 210,
+              plays: parseInt(item.play_count) || 100000,
+            });
+          }
+        } else {
+          // Album
+          const { data: details } = await apiFetch<any>({
+            endpoint: 'content.getAlbumDetails' as any,
+            params: { albumid: item.id },
+            cookieLanguage: lang.toLowerCase(),
+          });
+
+          const albSongs = details?.list || details?.songs || [];
+          const albDate = details?.release_date || releaseDate;
+          const albYear = albDate ? parseInt(albDate.slice(0, 4)) : releaseYear;
+
+          if (albYear < 2026) continue;
+
+          for (const s of albSongs) {
+            const sTitle = cleanHtml(s.song || s.title);
+            if (COMPILATION_REGEX.test(sTitle)) continue;
+
+            const pa = s.more_info?.artistMap?.primary_artists || [];
+            const artist = pa.length > 0
+              ? pa.map((a: any) => a.name).join(', ')
+              : cleanHtml(s.singers || s.primary_artists || details?.artist || 'Various Artists');
+
+            const key = `${sTitle.toLowerCase()}:::${artist.toLowerCase()}`;
+
+            if (!seenKeys.has(key)) {
+              seenKeys.add(key);
+              songs.push({
+                id: s.id,
+                title: sTitle,
+                artist,
+                album: rawTitle,
+                coverUrl: (s.image || details?.image || item.image)?.replace('150x150', '500x500') || '/app-icon.png',
+                language: lang,
+                releaseDate: s.release_date || albDate,
+                releaseYear: albYear,
+                duration: parseInt(s.duration) || 210,
+                plays: parseInt(s.play_count) || 100000,
+              });
+            }
+          }
+        }
+      }
+
+      if (songs.length > 0) {
+        songs.sort((a, b) => new Date(b.releaseDate || 0).getTime() - new Date(a.releaseDate || 0).getTime());
+        return NextResponse.json({ success: true, data: songs.slice(0, limit) });
       }
     }
 
-    if (finalSongs.length > 0) {
-      return NextResponse.json({
-        success: true,
-        data: finalSongs.slice(0, limit)
-      });
-    }
-
-    // Fallback to local JSON cache
-    if (lang.toLowerCase() === 'telugu') {
-      const fs = require('fs');
-      const path = require('path');
-      const cachePath = path.join(process.cwd(), 'src/lib/cached_youtube_releases.json');
-      if (fs.existsSync(cachePath)) {
-        const localData = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
-        return NextResponse.json(localData);
-      }
-    }
-    
     return NextResponse.json({ success: true, data: [] });
   } catch (error: any) {
     console.error('Error fetching new releases:', error);
-    if (lang.toLowerCase() === 'telugu') {
-      const fs = require('fs');
-      const path = require('path');
-      const cachePath = path.join(process.cwd(), 'src/lib/cached_youtube_releases.json');
-      if (fs.existsSync(cachePath)) {
-        const localData = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
-        return NextResponse.json(localData);
-      }
-    }
-    return NextResponse.json({ success: true, data: [] });
+    return NextResponse.json({ success: false, data: [] }, { status: 500 });
   }
 }

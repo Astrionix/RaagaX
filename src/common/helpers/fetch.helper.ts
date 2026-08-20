@@ -8,6 +8,7 @@ interface FetchParams {
   params: Record<string, string | number>
   context?: ApiContextEnum
   timeoutMs?: number
+  cookieLanguage?: string
 }
 
 interface FetchResponse<T> {
@@ -17,7 +18,7 @@ interface FetchResponse<T> {
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
-export const apiFetch = async <T>({ endpoint, params, context, timeoutMs = DEFAULT_TIMEOUT_MS }: FetchParams): Promise<FetchResponse<T>> => {
+export const apiFetch = async <T>({ endpoint, params, context, timeoutMs = DEFAULT_TIMEOUT_MS, cookieLanguage }: FetchParams): Promise<FetchResponse<T>> => {
   const url = new URL('https://www.jiosaavn.com/api.php')
 
   url.searchParams.append('__call', endpoint.toString())
@@ -29,6 +30,9 @@ export const apiFetch = async <T>({ endpoint, params, context, timeoutMs = DEFAU
   Object.keys(params).forEach((key) => url.searchParams.append(key, String(params[key])))
 
   const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)]
+
+  const langParam = params.language ? String(params.language).toLowerCase() : null;
+  const targetCookieLang = cookieLanguage || langParam || 'english,hindi,telugu,tamil,kannada,malayalam,punjabi,marathi,gujarati,bengali,bhojpuri,haryanvi';
 
   let response: Response;
   let text = '';
@@ -46,7 +50,7 @@ export const apiFetch = async <T>({ endpoint, params, context, timeoutMs = DEFAU
           'Accept': 'application/json, text/plain, */*',
           'Accept-Language': 'en-US,en;q=0.9',
           'Referer': 'https://www.jiosaavn.com/',
-          'Cookie': 'L=english%2Chindi%2Ctelugu%2Ctamil%2Ckannada%2Cmalayalam%2Cpunjabi%2Cmarathi%2Cgujarati%2Cbengali%2Cbhojpuri%2Charyanvi%2Cpersian%2Cchinese%2Cjapanese%2Cfrench%2Cspanish%2Cgerman; gdpr_acceptance=true; DL=english;'
+          'Cookie': `L=${encodeURIComponent(targetCookieLang)}; gdpr_acceptance=true; DL=english;`
         },
         signal: controller.signal,
       });

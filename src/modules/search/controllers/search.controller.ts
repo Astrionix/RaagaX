@@ -123,6 +123,10 @@ export class SearchController implements Routes {
 
         const result = await this.searchService.searchSongs({ query, page: page || 0, limit: limit || 10 })
 
+        ctx.header('X-Result-Count', String(result?.results?.length || 0))
+        ctx.header('X-Environment', process.env.NODE_ENV || 'production')
+        ctx.header('X-Search-Source', this.searchService.getLastSongSearchSource())
+
         return ctx.json({ success: true, data: result })
       }
     )

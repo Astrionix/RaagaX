@@ -163,7 +163,16 @@ export class RealMusicEngine {
 
       const coverUrl = this.extractCoverUrl(collection.image || collection.coverUrl) || '/app-icon.png';
 
+      const albReleaseDate = collection.release_date || collection.releaseDate || (collection.year ? `${collection.year}-01-01` : undefined);
       let rawSongs = collection.songs ? this.mapResults(collection.songs) : [];
+
+      if (albReleaseDate) {
+        rawSongs = rawSongs.map((s) => ({
+          ...s,
+          releaseDate: s.releaseDate && !s.releaseDate.endsWith('-01-01') ? s.releaseDate : albReleaseDate,
+          releaseYear: albReleaseDate ? parseInt(String(albReleaseDate).slice(0, 4)) : s.releaseYear,
+        }));
+      }
 
       // Only apply minimum padding/deduplication for playlists, NOT for actual albums
       // Because we want full movie albums to just show exactly the songs they have.

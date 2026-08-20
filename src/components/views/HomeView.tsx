@@ -263,31 +263,6 @@ export function HomeView() {
         </div>
       </section>
 
-      {/* RaagaX 2026 Wrapped Special Banner */}
-      <section 
-        onClick={() => usePlayerStore.getState().toggleWrappedModal(true)}
-        className="relative rounded-3xl overflow-hidden p-4 sm:p-5 flex items-center justify-between gap-4 cursor-pointer group bg-gradient-to-r from-[#FA233B]/20 via-purple-600/20 to-amber-500/20 border border-[#FA233B]/30 shadow-2xl hover:scale-[1.01] transition-all"
-      >
-        <div className="flex items-center gap-3.5 min-w-0 z-10">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#FA233B] to-purple-600 flex items-center justify-center text-white shadow-lg flex-shrink-0">
-            <Sparkles className="w-6 h-6 animate-pulse" />
-          </div>
-          <div className="min-w-0">
-            <span className="text-[9px] font-mono font-black text-[#FA233B] uppercase tracking-widest block">
-              2026 WRAPPED IS HERE
-            </span>
-            <h3 className="text-sm sm:text-base font-black text-white truncate">
-              Your Year in Music & Personal Recap
-            </h3>
-            <p className="text-[11px] text-slate-300 truncate">Tap to explore your top songs, artists & listening story</p>
-          </div>
-        </div>
-
-        <button className="px-4 py-2 rounded-full bg-[#FA233B] text-white font-bold text-xs flex items-center gap-1 flex-shrink-0 shadow-lg shadow-red-500/30 group-hover:scale-105 transition-transform">
-          <span>View Story</span>
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      </section>
 
       {/* 2. Continue Listening Hero */}
       {isMounted && currentSong && (
@@ -402,16 +377,6 @@ export function HomeView() {
           initialSongs={feed.moreLikeWhatYouHeard.items}
           seedSongTitle={feed.moreLikeWhatYouHeard.seedSongTitle}
           seedSong={feed.moreLikeWhatYouHeard.seedSong}
-        />
-      )}
-
-      {/* 4. Recently Played */}
-      {feed?.recentlyPlayed && feed.recentlyPlayed.length > 0 && (
-        <CarouselShelf
-          title="Recently Played"
-          icon={<Clock className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-cyan-400 flex-shrink-0" />}
-          items={songsToShelfItems(feed.recentlyPlayed)}
-          showPlayAll={true}
         />
       )}
 

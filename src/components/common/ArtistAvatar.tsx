@@ -87,11 +87,13 @@ export const ArtistAvatar: React.FC<ArtistAvatarProps> = ({
     setCurrentSrc(null);
   };
 
-  const containerSizeClass = size !== 'full' ? SIZE_CLASSES[size] : '';
+  const hasCustomSize = /\b(w-|h-|size-)/.test(className);
+  const containerSizeClass = hasCustomSize ? '' : size === 'full' ? 'w-full h-full' : (SIZE_CLASSES[size] || SIZE_CLASSES.md);
+  const borderClass = /\bborder-/.test(className) ? '' : 'border border-white/10';
 
   return (
     <div
-      className={`relative rounded-full overflow-hidden flex-shrink-0 bg-white/5 border border-white/10 flex items-center justify-center select-none ${containerSizeClass} ${className}`}
+      className={`relative rounded-full overflow-hidden flex-shrink-0 bg-white/5 ${borderClass} flex items-center justify-center select-none ${containerSizeClass} ${className}`}
     >
       {/* 1. Sleek Placeholder / Initials fallback */}
       <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-white/10 to-white/5 text-slate-300 font-black">

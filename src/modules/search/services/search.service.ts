@@ -44,4 +44,8 @@ export class SearchService {
   searchPlaylists = (args: SearchPlaylistsArgs) => {
     return this.searchPlaylistsUseCase.execute(args)
   }
+
+  getLastSongSearchSource = () => {
+    return this.searchSongsUseCase.lastSource
+  }
 }

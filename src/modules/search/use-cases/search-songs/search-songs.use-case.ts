@@ -11,11 +11,31 @@ export interface SearchSongsArgs {
   limit: number
 }
 
+interface CacheEntry {
+  data: z.infer<typeof SearchSongModel>
+  expiresAt: number
+}
+
+const searchCache = new Map<string, CacheEntry>()
+const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+
 export class SearchSongsUseCase implements IUseCase<SearchSongsArgs, z.infer<typeof SearchSongModel>> {
+  public lastSource: 'cache' | 'direct' | 'sumit' = 'direct'
+
   constructor() {}
 
   async execute({ query, limit, page }: SearchSongsArgs): Promise<z.infer<typeof SearchSongModel>> {
-    // Strategy 1: Exact search
+    const cacheKey = `${query.toLowerCase().trim()}:::p${page}:::l${limit}`
+    const cached = searchCache.get(cacheKey)
+
+    if (cached && Date.now() < cached.expiresAt && cached.data.results.length > 0) {
+      this.lastSource = 'cache'
+      return cached.data
+    }
+
+    this.lastSource = 'direct'
+
+    // Strategy 1: Direct JioSaavn exact search
     const { data } = await apiFetch<z.infer<typeof SearchSongAPIResponseModel>>({
       endpoint: Endpoints.search.songs,
       params: {
@@ -26,11 +46,13 @@ export class SearchSongsUseCase implements IUseCase<SearchSongsArgs, z.infer<typ
     })
 
     if (data && data.results && data.results.length > 0) {
-      return {
+      const resultPayload = {
         total: data.total || 0,
         start: data.start || 0,
         results: data.results.map(createSongPayload).slice(0, limit)
       }
+      searchCache.set(cacheKey, { data: resultPayload, expiresAt: Date.now() + CACHE_TTL_MS })
+      return resultPayload
     }
 
     // Strategy 2: Phonetic normalization (collapse repeated vowels like 'aa' -> 'a', 'ee' -> 'e', 'oo' -> 'o')
@@ -116,16 +138,49 @@ export class SearchSongsUseCase implements IUseCase<SearchSongsArgs, z.infer<typ
             }).filter(Boolean);
 
             if (mapped.length > 0) {
-              return {
+              const resultPayload = {
                 total: mapped.length,
                 start: 0,
                 results: mapped.slice(0, limit) as any
               };
+              searchCache.set(cacheKey, { data: resultPayload, expiresAt: Date.now() + CACHE_TTL_MS });
+              return resultPayload;
             }
           }
         }
       }
     } catch {}
+
+    // Strategy 5: Secondary Mirror Fallback (saavn.sumit.co) with quick 3s timeout
+    try {
+      const sumitBase = process.env.JIOSAAVN_API_BASE_URL || 'https://saavn.sumit.co';
+      const sumitUrl = `${sumitBase.replace(/\/+$/, '')}/api/search/songs?query=${encodeURIComponent(query)}&limit=${limit}&page=${page}`;
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 3000);
+      const sRes = await fetch(sumitUrl, { signal: ctrl.signal });
+      clearTimeout(tid);
+
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        const rawResults = sData.data?.results || sData.results || [];
+        if (Array.isArray(rawResults) && rawResults.length > 0) {
+          this.lastSource = 'sumit';
+          const resultPayload = {
+            total: sData.data?.total || rawResults.length,
+            start: sData.data?.start || 0,
+            results: rawResults.map(createSongPayload).slice(0, limit)
+          };
+          searchCache.set(cacheKey, { data: resultPayload, expiresAt: Date.now() + CACHE_TTL_MS });
+          return resultPayload;
+        }
+      }
+    } catch {}
+
+    // Strategy 6: Return stale cache if available
+    if (cached && cached.data.results.length > 0) {
+      this.lastSource = 'cache';
+      return cached.data;
+    }
 
     return {
       total: 0,
