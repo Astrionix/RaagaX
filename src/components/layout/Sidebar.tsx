@@ -18,6 +18,7 @@ import {
   WifiOff,
   Bell,
   BarChart3,
+  Clock,
   MonitorSmartphone,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
@@ -148,6 +149,16 @@ export function Sidebar() {
           >
             <User className="w-4 h-4 text-blue-400" />
             <span>Artists</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('history')} 
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all ${
+              activeTab === 'history' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] font-bold shadow-sm' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
+            }`}
+          >
+            <Clock className="w-4 h-4 text-cyan-400" />
+            <span>Listening History</span>
           </button>
 
           <button 

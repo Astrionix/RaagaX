@@ -356,7 +356,7 @@ export function HomeView() {
         </button>
 
         <button
-          onClick={() => setActiveTab('library')}
+          onClick={() => setActiveTab('history')}
           className="flex items-center gap-3 p-3 rounded-2xl lens-floating border border-white/15 text-left transition-all hover:scale-[1.02] active:scale-95 shadow-md cursor-pointer"
         >
           <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
