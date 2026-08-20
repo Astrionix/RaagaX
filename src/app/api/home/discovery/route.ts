@@ -248,25 +248,6 @@ export async function GET(request: Request) {
       })),
       latestSingles: singles.slice(0, 10),
       latestAlbums: albums.slice(0, 10),
-      latestEPs: eps.slice(0, 10),
-      upcoming: [
-        {
-          id: 'up-1',
-          title: `Upcoming ${lang} Blockbusters`,
-          artist: 'Exclusive Pre-Releases & Soundtracks',
-          coverUrl: albums[0]?.coverUrl || '/app-icon.png',
-          releaseDate: 'Coming This Friday',
-          badge: '📅 UPCOMING',
-        },
-        {
-          id: 'up-2',
-          title: `Viral Regional Anthem`,
-          artist: 'Top Motion Picture Soundtrack',
-          coverUrl: albums[1]?.coverUrl || '/app-icon.png',
-          releaseDate: 'August 2026',
-          badge: '📅 UPCOMING',
-        },
-      ],
     };
 
     discoveryCache.set(cacheKey, { data: result, expiresAt: Date.now() + CACHE_TTL_MS });

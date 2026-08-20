@@ -101,7 +101,7 @@ export function DiscoveryHubView({ initialCategory, onBack }: DiscoveryHubViewPr
   } = usePlayerStore();
 
   // New Music State
-  const [newMusicSubTab, setNewMusicSubTab] = useState<'all' | 'today' | 'singles' | 'albums' | 'eps' | 'upcoming'>('all');
+  const [newMusicSubTab, setNewMusicSubTab] = useState<'all' | 'today' | 'singles' | 'albums'>('all');
   const [newMusicData, setNewMusicData] = useState<any>(null);
   const [isLoadingNewMusic, setIsLoadingNewMusic] = useState(false);
 
@@ -286,8 +286,6 @@ export function DiscoveryHubView({ initialCategory, onBack }: DiscoveryHubViewPr
               { id: 'today', label: '🔥 Released Today' },
               { id: 'singles', label: '🎵 Latest Singles' },
               { id: 'albums', label: '💿 New Albums' },
-              { id: 'eps', label: '🎧 New EPs' },
-              { id: 'upcoming', label: '📅 Upcoming' },
             ].map((st) => (
               <button
                 key={st.id}
