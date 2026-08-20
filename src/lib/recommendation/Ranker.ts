@@ -1,15 +1,18 @@
 import { CandidateSong } from './CandidateGenerator';
+import { usePlayerStore } from '@/context/usePlayerStore';
 
 export class Ranker {
   /**
    * Ranks an array of candidate songs using a weighted formula.
-   * Score = (0.25 * Affinity) + (0.20 * Vector Similarity) + (0.15 * Trending) + (0.10 * Freshness) + (0.05 * Diversity Penalty)
+   * Score = (0.25 * Affinity) + (0.20 * Vector Similarity) + (0.15 * Trending) + (0.10 * Freshness) + (0.20 * Followed Artist Boost) + (0.05 * Diversity Penalty)
    */
   public static rankCandidates(
     candidates: CandidateSong[],
     lastArtists: string[],
     limit: number = 20
   ): CandidateSong[] {
+    const followedArtistIds = usePlayerStore.getState().favoriteArtistIds || [];
+
     const scoredCandidates = candidates.map(song => {
       let score = 0;
 
@@ -35,6 +38,13 @@ export class Ranker {
       // Add popularity baseline (normalize 0-100 to 0-0.10)
       if (song.popularity) {
         score += (song.popularity / 100) * 0.10;
+      }
+
+      // Followed Artist Subscription Boost (+10 Affinity Behavior Weight)
+      const isFollowed = followedArtistIds.includes(song.artistId || '') ||
+        followedArtistIds.some(id => (song.artist || '').toLowerCase().includes(id.toLowerCase()));
+      if (isFollowed) {
+        score += 0.35;
       }
 
       // Diversity Penalty: If this artist was played recently, heavily penalize to prevent echo chambers

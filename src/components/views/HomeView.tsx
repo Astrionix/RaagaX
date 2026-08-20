@@ -9,7 +9,7 @@ import { ChartListShelf } from '@/components/home/ChartListShelf';
 import { SkeletonGrid } from '@/components/ui/SkeletonLoader';
 import { 
   Play, Pause, Clock, Sparkles, Disc, Shuffle, Download, Heart, 
-  Flame, Radio, Headphones, ListMusic, User, Compass, ChevronRight 
+  Flame, Radio, Headphones, ListMusic, User, Users, Compass, ChevronRight 
 } from 'lucide-react';
 import { ArtistDiscoveryShelves } from '@/components/home/ArtistDiscoveryShelves';
 import { Song } from '@/types/music';
@@ -26,6 +26,7 @@ import { UserLifecycleManager } from '@/lib/lifecycle/UserLifecycleManager';
 import { NewReleasesEngine } from '@/lib/catalog/NewReleasesEngine';
 import { StrictNewReleasesShelf } from '@/components/home/StrictNewReleasesShelf';
 import { MoreLikeWhatYouHeardShelf } from '@/components/home/MoreLikeWhatYouHeardShelf';
+import { FollowedArtistsNewReleasesShelf } from '@/components/home/FollowedArtistsNewReleasesShelf';
 
 const homeFetcher = async (url: string, preferredLanguage: string) => {
   const db = RaagaDB.getInstance();
@@ -329,15 +330,15 @@ export function HomeView() {
         </button>
 
         <button
-          onClick={() => setActiveTab('downloads')}
+          onClick={() => setActiveTab('artist')}
           className="flex items-center gap-3 p-3 rounded-2xl lens-floating border border-white/15 text-left transition-all hover:scale-[1.02] active:scale-95 shadow-md cursor-pointer"
         >
-          <div className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
-            <Download className="w-4 h-4" />
+          <div className="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400">
+            <Users className="w-4 h-4" />
           </div>
           <div>
-            <div className="text-xs font-bold text-white">Downloads</div>
-            <div className="text-[10px] text-slate-400">Available offline</div>
+            <div className="text-xs font-bold text-white">Following</div>
+            <div className="text-[10px] text-slate-400">Artists & alerts</div>
           </div>
         </button>
 
@@ -367,6 +368,9 @@ export function HomeView() {
           </div>
         </button>
       </section>
+
+      {/* 3.4 New From Artists You Follow Subscription Shelf */}
+      <FollowedArtistsNewReleasesShelf />
 
       {/* 3.5 Recurring Music Recap Banner */}
       <RecapBanner />

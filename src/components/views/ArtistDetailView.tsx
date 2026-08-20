@@ -12,6 +12,7 @@ import { ArtistAvatar } from '@/components/common/ArtistAvatar';
 import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { Song } from '@/types/music';
+import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 import { haptics } from '@/lib/haptics/HapticEngine';
 
 const fetcher = (url: string) => fetch(getApiUrl(url)).then(res => res.json()).catch(() => null);
@@ -28,12 +29,14 @@ export function ArtistDetailView() {
     togglePlayPause,
     likedSongIds, 
     toggleLikeSong, 
-    downloadedSongIds, 
+    favoriteArtistIds = [],
+    toggleFavoriteArtist,
     preferredLanguage,
     setToastMessage,
   } = usePlayerStore();
   
-  const [isFollowing, setIsFollowing] = useState(false);
+  const isFollowing = selectedArtistId ? favoriteArtistIds.includes(selectedArtistId) : false;
+  const [showUnfollowModal, setShowUnfollowModal] = useState(false);
 
   const { data, error, isLoading, mutate } = useSWR(
     selectedArtistId ? `/api/artists/${selectedArtistId}?songCount=30&albumCount=20` : null,
@@ -289,14 +292,17 @@ export function ArtistDetailView() {
 
           <button
             onClick={() => {
-              const next = !isFollowing;
-              setIsFollowing(next);
-              haptics.lightImpact();
-              setToastMessage(next ? `Following ${artist.name}` : `Unfollowed ${artist.name}`);
+              if (isFollowing) {
+                setShowUnfollowModal(true);
+              } else if (selectedArtistId) {
+                toggleFavoriteArtist(selectedArtistId);
+                haptics.lightImpact();
+                setToastMessage(`✓ Following ${artist.name}. We'll keep you updated about new releases.`);
+              }
             }}
             className={`flex items-center gap-2 px-5 py-3.5 rounded-full font-bold text-sm border transition-all active:scale-95 cursor-pointer ${
               isFollowing
-                ? 'bg-white/20 border-white/40 text-white'
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400'
                 : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/90'
             }`}
           >
@@ -322,52 +328,40 @@ export function ArtistDetailView() {
                 <div
                   key={song.id}
                   onClick={() => playSong(song, artistSongs)}
-                  className={`group flex items-center justify-between gap-3 p-3 rounded-2xl transition-all cursor-pointer select-none ${
-                    isPlayingCurrent
-                      ? 'bg-red-500/15 border border-red-500/30 text-white shadow-lg shadow-red-500/10'
-                      : 'hover:bg-white/5 text-slate-300 hover:text-white border border-transparent'
+                  className={`flex items-center justify-between p-2.5 sm:px-4 rounded-xl transition-all cursor-pointer group ${
+                    isPlayingCurrent ? 'bg-[#fa233b]/15 border border-[#fa233b]/30' : 'hover:bg-white/5'
                   }`}
                 >
-                  {/* Left: Rank / Waveform + Cover + Title */}
                   <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                    <div className="w-6 text-center flex-shrink-0 flex items-center justify-center">
-                      {isPlayingCurrent ? (
-                        <div className="flex items-end gap-[2px] h-4">
-                          <span className={`w-1 bg-[#fa233b] rounded-full ${isPlaying ? 'animate-pulse' : ''} h-4`} />
-                          <span className={`w-1 bg-[#fa233b] rounded-full ${isPlaying ? 'animate-pulse' : ''} h-2.5`} style={{ animationDelay: '150ms' }} />
-                          <span className={`w-1 bg-[#fa233b] rounded-full ${isPlaying ? 'animate-pulse' : ''} h-3.5`} style={{ animationDelay: '300ms' }} />
-                        </div>
-                      ) : (
-                        <span className="text-xs font-mono font-bold text-slate-500 group-hover:text-slate-300">
-                          {rankNum}
-                        </span>
-                      )}
-                    </div>
-
+                    <span className="text-xs font-mono font-bold text-slate-500 w-4 text-center group-hover:hidden">
+                      {rankNum}
+                    </span>
+                    <button className="w-4 text-[#fa233b] hidden group-hover:flex items-center justify-center">
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                    </button>
                     <img
-                      src={song.coverUrl}
+                      src={song.coverUrl || '/app-icon.png'}
                       alt={song.title}
-                      className="w-11 h-11 rounded-xl object-cover shadow-sm bg-slate-900 border border-white/10 flex-shrink-0"
+                      className="w-10 h-10 rounded-lg object-cover bg-slate-800 flex-shrink-0"
                     />
-
                     <div className="min-w-0 flex-1">
-                      <h4 className={`text-sm font-bold truncate leading-snug ${isPlayingCurrent ? 'text-[#fa233b]' : 'text-white'}`}>
+                      <h4 className={`text-xs font-bold truncate ${isPlayingCurrent ? 'text-[#fa233b]' : 'text-white'}`}>
                         {song.title}
                       </h4>
-                      <p className="text-xs text-slate-400 truncate mt-0.5">
-                        {song.album || song.artist}
-                      </p>
+                      <p className="text-[11px] text-slate-400 truncate mt-0.5">{song.artist}</p>
                     </div>
                   </div>
 
-                  {/* Right: Duration + Download + Action Menu */}
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <span className="text-xs font-mono text-slate-500 hidden sm:inline">
-                      {formatDuration(song.duration || 210)}
+                  <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                    <span className="text-[11px] font-mono text-slate-400 hidden sm:inline">
+                      {formatDuration(song.duration)}
                     </span>
-
-                    <DownloadStatusIndicator song={song} size="sm" />
-
+                    <button
+                      onClick={() => toggleLikeSong(song.id)}
+                      className="p-1 text-slate-400 hover:text-[#fa233b] transition-transform active:scale-125"
+                    >
+                      <Heart className={`w-4 h-4 ${likedSongIds.includes(song.id) ? 'text-[#fa233b] fill-current' : ''}`} />
+                    </button>
                     <SongActionMenu song={song} />
                   </div>
                 </div>
@@ -379,7 +373,7 @@ export function ArtistDetailView() {
 
       {/* ── DISCOGRAPHY / ALBUMS HORIZONTAL CAROUSEL ──────────────────────── */}
       {artistAlbums.length > 0 && (
-        <div className="max-w-6xl mx-auto px-4 sm:px-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 mb-10">
           <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider pb-3 mb-4 border-b border-white/10 flex items-center gap-2">
             <Disc className="w-4 h-4 text-[#fa233b]" /> Discography & Albums
           </h3>
@@ -411,6 +405,66 @@ export function ArtistDetailView() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── SIMILAR ARTISTS SECTION ────────────────────────────────────────── */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-8">
+        <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider pb-3 mb-4 border-b border-white/10 flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-amber-400" /> Similar Artists You Might Like
+        </h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          {POPULAR_ARTISTS.filter(a => a.id !== selectedArtistId).slice(0, 6).map((sim) => (
+            <div
+              key={sim.id}
+              onClick={() => {
+                setSelectedArtistId(sim.id);
+              }}
+              className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 transition-all cursor-pointer group text-center space-y-2 hover:scale-105"
+            >
+              <img
+                src={sim.image}
+                alt={sim.name}
+                className="w-20 h-20 rounded-full mx-auto object-cover bg-slate-800 shadow-md group-hover:border-[#fa233b] border-2 border-transparent transition-all"
+              />
+              <div>
+                <h4 className="text-xs font-bold text-white group-hover:text-[#fa233b] truncate">{sim.name}</h4>
+                <p className="text-[10px] text-slate-400 mt-0.5">{sim.genres.join(' • ')}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── UNFOLLOW CONFIRMATION MODAL ────────────────────────────────────── */}
+      {showUnfollowModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-[#1c1d22] border border-white/10 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-center">
+            <h3 className="text-lg font-black text-white">Unfollow {artist.name}?</h3>
+            <p className="text-xs text-slate-400">
+              You will no longer receive new-release updates or personalized recommendations for this artist.
+            </p>
+            <div className="grid grid-cols-2 gap-2.5 pt-2">
+              <button
+                onClick={() => setShowUnfollowModal(false)}
+                className="px-4 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-bold text-xs transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (selectedArtistId) {
+                    toggleFavoriteArtist(selectedArtistId);
+                    setShowUnfollowModal(false);
+                    setToastMessage(`Unfollowed ${artist.name}`);
+                  }
+                }}
+                className="px-4 py-2.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-lg shadow-rose-600/30 transition-colors cursor-pointer"
+              >
+                Unfollow
+              </button>
+            </div>
           </div>
         </div>
       )}
