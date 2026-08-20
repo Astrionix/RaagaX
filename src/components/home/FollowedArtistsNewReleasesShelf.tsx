@@ -100,27 +100,7 @@ export function FollowedArtistsNewReleasesShelf() {
   }));
 
   return (
-    <section className="space-y-3 pt-2 animate-in fade-in duration-200">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-1.5 text-[10px] font-black text-emerald-400 uppercase tracking-wider">
-            <Bell className="w-3 h-3 animate-bounce" />
-            <span>FOLLOWING SUBSCRIPTION</span>
-          </div>
-          <h2 className="text-lg sm:text-xl font-black text-white tracking-tight mt-0.5">
-            New From Artists You Follow
-          </h2>
-        </div>
-
-        <button
-          onClick={() => setActiveTab('artist')}
-          className="text-xs font-bold text-slate-400 hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
-        >
-          <span>All Followed Artists</span>
-          <ChevronRight className="w-3.5 h-3.5" />
-        </button>
-      </div>
-
+    <section className="animate-in fade-in duration-200">
       {isLoading && artistReleases.length === 0 ? (
         <div className="h-44 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-center">
           <Loader2 className="w-6 h-6 text-[#fa233b] animate-spin" />
@@ -128,7 +108,8 @@ export function FollowedArtistsNewReleasesShelf() {
       ) : (
         <CarouselShelf
           title="New From Artists You Follow"
-          subtitle="Latest songs and drops from your subscribed artists"
+          subtitle="Latest releases from your subscribed artists"
+          icon={<Bell className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
           items={shelfItems}
           showPlayAll
         />
