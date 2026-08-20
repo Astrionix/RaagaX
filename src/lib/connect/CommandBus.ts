@@ -126,8 +126,8 @@ export class CommandBus {
 
     this.applyCommand(command);
 
-    // Automatically send COMMAND_ACK back to the sender if we are the active renderer device
-    if (store.isActiveDevice && command.type !== 'COMMAND_ACK') {
+    // Automatically send COMMAND_ACK back to the sender if we are the active renderer device (exclude transfer protocol control commands)
+    if (store.isActiveDevice && command.type !== 'COMMAND_ACK' && !command.type.startsWith('TRANSFER_')) {
       const ackPayload = {
         commandId: command.commandId,
         status: 'APPLIED',

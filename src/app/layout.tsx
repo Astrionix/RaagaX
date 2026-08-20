@@ -55,7 +55,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="antialiased bg-[var(--bg-primary)] text-[var(--text-primary)] selection:bg-red-500 selection:text-white transition-colors duration-200">
+      <body suppressHydrationWarning className="antialiased bg-[var(--bg-primary)] text-[var(--text-primary)] selection:bg-red-500 selection:text-white transition-colors duration-200">
         <ThemeProvider>
           <DeviceSyncProvider>
             {children}

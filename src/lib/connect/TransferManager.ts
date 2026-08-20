@@ -108,9 +108,9 @@ export class TransferManager {
   private postCommitCommands: PendingTransferIntent[] = [];
 
   // Bounded stage timeouts
-  private readonly REQUEST_ACK_TIMEOUT_MS = 6000;
-  private readonly PREPARATION_TIMEOUT_MS = 8000;
-  private readonly COMMIT_TIMEOUT_MS = 6000;
+  private readonly REQUEST_ACK_TIMEOUT_MS = 8000;
+  private readonly PREPARATION_TIMEOUT_MS = 15000;
+  private readonly COMMIT_TIMEOUT_MS = 10000;
 
   private constructor() {}
 
@@ -414,18 +414,14 @@ export class TransferManager {
         const { RaagaXNativePlayer } = await import('../playback/native/RaagaXNativePlayer');
 
         if (RaagaXNativePlayer.isNative() && queueToRestore.length > 0) {
-          await PlaybackService.getInstance().loadQueueContext(queueToRestore, queueIndexToRestore, false, targetPosMs);
+          PlaybackService.getInstance().loadQueueContext(queueToRestore, queueIndexToRestore, false, targetPosMs).catch(() => {});
         } else {
           const service = PlaybackService.getInstance();
-          await service.prepareTrack(payload.songData, targetPosSeconds);
-          const activeAudio = service.getActiveAudio();
-          if (activeAudio && !activeAudio.paused) {
-            activeAudio.pause();
-          }
+          service.prepareTrack(payload.songData, targetPosSeconds).catch(() => {});
         }
       }
 
-      // Step 4: DESTINATION_READY — Notify source that target has loaded stream and is armed
+      // Step 4: DESTINATION_READY — Notify source that target has loaded context and is armed
       console.log(`[TransferReceiver] DESTINATION_READY: transactionId=${transitionId}`);
       this.processedTransactions.set(transitionId, { status: 'READY', handledAt: Date.now() });
 
@@ -475,15 +471,19 @@ export class TransferManager {
    * (Sender side) Handles incoming TRANSFER_ACCEPTED from target.
    */
   public handleTransferAccepted(command: ConnectCommand) {
-    if (command.transitionId !== this.activeTransitionId) return;
+    const txId = command.transitionId || (command.payload as any)?.transactionId;
+    if (this.activeTransitionId && txId && txId !== this.activeTransitionId) {
+      console.warn(`[TransferManager] Mismatched transitionId in TRANSFER_ACCEPTED: expected ${this.activeTransitionId}, got ${txId}`);
+      return;
+    }
     this.recordTimeline('TRANSFER_ACCEPTED', { fromDeviceId: command.sourceDeviceId });
     this.currentStage = 'PREPARING';
     if (this.activeTransferContext) this.activeTransferContext.stage = 'PREPARING';
 
     this.clearStageTimeout();
     this.pendingStageTimeout = setTimeout(() => {
-      console.warn(`[TransferManager] [TRANSFER ${command.transitionId}] PREPARATION timed out. Rolling back.`);
-      this.handleTransferRollback(command.transitionId, 'PREPARATION_TIMEOUT');
+      console.warn(`[TransferManager] [TRANSFER ${txId || this.activeTransitionId}] PREPARATION timed out. Rolling back.`);
+      this.handleTransferRollback(txId || this.activeTransitionId || undefined, 'PREPARATION_TIMEOUT');
     }, this.PREPARATION_TIMEOUT_MS);
   }
 
@@ -492,7 +492,11 @@ export class TransferManager {
    * Sends TRANSFER_COMMIT to complete ownership transfer.
    */
   public async handleTransferReady(command: ConnectCommand) {
-    if (command.transitionId !== this.activeTransitionId) return;
+    const txId = command.transitionId || (command.payload as any)?.transactionId;
+    if (this.activeTransitionId && txId && txId !== this.activeTransitionId) {
+      console.warn(`[TransferManager] Mismatched transitionId in TRANSFER_READY: expected ${this.activeTransitionId}, got ${txId}`);
+      return;
+    }
     this.recordTimeline('DESTINATION_READY', { fromDeviceId: command.sourceDeviceId });
     this.currentStage = 'COMMITTING';
     if (this.activeTransferContext) this.activeTransferContext.stage = 'COMMITTING';
@@ -525,7 +529,7 @@ export class TransferManager {
     }
 
     const commitPayload: TransferCommitPayload = {
-      transactionId: command.transitionId || this.activeTransitionId,
+      transactionId: command.transitionId || (command.payload as any)?.transactionId || this.activeTransitionId || 'tr_commit',
       shouldResume,
       targetAction,
       targetPositionMs,
