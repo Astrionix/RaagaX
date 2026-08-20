@@ -1,26 +1,22 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Song } from '@/types/music';
 import { ShelfItem } from '@/types/home';
-import { Bell, Play, Heart, ChevronRight, Sparkles, Loader2 } from 'lucide-react';
+import { Bell } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { CarouselShelf } from './CarouselShelf';
-import { POPULAR_ARTISTS } from '@/lib/popularArtists';
+import { getApiUrl } from '@/lib/config/apiConfig';
+import { RaagaDB, STORES } from '@/lib/storage/IndexedDB';
 
 export function FollowedArtistsNewReleasesShelf() {
   const {
     favoriteArtistIds = [],
-    setActiveTab,
-    setSelectedArtistId,
-    playSong,
-    likedSongIds = [],
-    toggleLikeSong,
     preferredLanguage = 'Telugu',
   } = usePlayerStore();
 
   const [artistReleases, setArtistReleases] = useState<Song[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const hasHydratedRef = useRef(false);
 
   useEffect(() => {
     if (favoriteArtistIds.length === 0) {
@@ -29,17 +25,33 @@ export function FollowedArtistsNewReleasesShelf() {
     }
 
     let isCancelled = false;
-    setIsLoading(true);
+    const topFollowedIds = favoriteArtistIds.slice(0, 4);
+    const cacheKey = `followed_releases_${topFollowedIds.sort().join('_')}_${preferredLanguage}`;
 
-    const fetchFollowedReleases = async () => {
+    const loadReleases = async () => {
+      // 1. Instant Cache Hydration (0ms load time)
       try {
-        const topFollowedIds = favoriteArtistIds.slice(0, 4);
+        const db = RaagaDB.getInstance();
+        const cached = await db.get<any>(STORES.BROWSE_CACHE, cacheKey);
+        if (!isCancelled && cached?.data && Array.isArray(cached.data) && cached.data.length > 0) {
+          setArtistReleases(cached.data);
+          hasHydratedRef.current = true;
+        }
+      } catch (e) {
+        // Cache miss is fine, continue to network
+      }
+
+      // 2. Fast background revalidation
+      try {
         const songsList: Song[] = [];
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout max
 
         await Promise.all(
           topFollowedIds.map(async (artistId) => {
             try {
-              const res = await fetch(`/api/artists/${encodeURIComponent(artistId)}?songCount=8&albumCount=4`);
+              const url = getApiUrl(`/api/artists/${encodeURIComponent(artistId)}?songCount=8&albumCount=4`);
+              const res = await fetch(url, { signal: controller.signal });
               if (res.ok) {
                 const json = await res.json();
                 const artist = json.data;
@@ -65,28 +77,34 @@ export function FollowedArtistsNewReleasesShelf() {
                   });
                 }
               }
-            } catch {}
+            } catch {
+              // Individual artist fetch error / abort ignored
+            }
           })
         );
 
+        clearTimeout(timeoutId);
+
         if (!isCancelled && songsList.length > 0) {
-          // Shuffle slightly to blend multiple followed artists
-          setArtistReleases(songsList.slice(0, 12));
+          const finalSongs = songsList.slice(0, 12);
+          setArtistReleases(finalSongs);
+          // Persist to IndexedDB cache for instant future loads
+          RaagaDB.getInstance()
+            .put(STORES.BROWSE_CACHE, { id: cacheKey, data: finalSongs, updatedAt: Date.now() })
+            .catch(() => {});
         }
       } catch (e) {
-        console.warn('Failed to load followed artists releases:', e);
-      } finally {
-        if (!isCancelled) setIsLoading(false);
+        console.warn('[FollowedArtistsNewReleasesShelf] Background update failed:', e);
       }
     };
 
-    fetchFollowedReleases();
+    loadReleases();
     return () => {
       isCancelled = true;
     };
   }, [favoriteArtistIds, preferredLanguage]);
 
-  if (favoriteArtistIds.length === 0 || (!isLoading && artistReleases.length === 0)) {
+  if (favoriteArtistIds.length === 0 || artistReleases.length === 0) {
     return null;
   }
 
@@ -101,19 +119,13 @@ export function FollowedArtistsNewReleasesShelf() {
 
   return (
     <section className="animate-in fade-in duration-200">
-      {isLoading && artistReleases.length === 0 ? (
-        <div className="h-44 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-center">
-          <Loader2 className="w-6 h-6 text-[#fa233b] animate-spin" />
-        </div>
-      ) : (
-        <CarouselShelf
-          title="New From Artists You Follow"
-          subtitle="Latest releases from your subscribed artists"
-          icon={<Bell className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
-          items={shelfItems}
-          showPlayAll
-        />
-      )}
+      <CarouselShelf
+        title="New From Artists You Follow"
+        subtitle="Latest releases from your subscribed artists"
+        icon={<Bell className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
+        items={shelfItems}
+        showPlayAll
+      />
     </section>
   );
 }
