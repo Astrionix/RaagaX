@@ -2,9 +2,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  MoreVertical, ListPlus, Heart, Play, Share2, Plus, Music, Download, 
-  PauseCircle, CheckCircle2, XCircle, ChevronRight, Info, Trash2, Check,
-  User, Disc, Ban
+  MoreVertical, MoreHorizontal, ListPlus, FastForward, Heart, Play, Share2, Plus, 
+  Download, PauseCircle, XCircle, ChevronRight, ChevronLeft, Info, Trash2, 
+  Check, User, Disc, Ban, Bookmark, Flag
 } from 'lucide-react';
 import { Song } from '@/types/music';
 import { usePlayerStore } from '@/context/usePlayerStore';
@@ -21,7 +21,7 @@ interface SongActionMenuProps {
 
 export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotInterested }: SongActionMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [showPlaylists, setShowPlaylists] = useState(false);
+  const [currentView, setCurrentView] = useState<'main' | 'playlist' | 'more'>('main');
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [copied, setCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -33,7 +33,6 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
     toggleLikeSong, 
     likedSongIds, 
     downloadedSongIds, 
-    cloudDownloadedSongIds = [], 
     setToastMessage,
     setSelectedArtistId,
     setSelectedAlbumId,
@@ -41,19 +40,19 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
   } = usePlayerStore();
   
   const { playlists, addSongToPlaylist, removeSongFromPlaylist } = usePlaylistStore();
-  const { tasks, pauseDownload, resumeDownload, cancelDownload, saveForOffline, removeDownload, shareSongFile } = useDownloadStore();
+  const { tasks, pauseDownload, cancelDownload, saveForOffline, removeDownload, shareSongFile } = useDownloadStore();
 
   const task = song ? tasks[song.id] : null;
   const isDownloaded = song ? downloadedSongIds.includes(song.id) : false;
-  const isCloudRecorded = song ? cloudDownloadedSongIds.includes(song.id) : false;
   const isLiked = song ? likedSongIds.includes(song.id) : false;
   const isDownloading = task && (task.status === 'DOWNLOADING' || task.status === 'QUEUED' || task.status === 'VERIFYING');
+  const isInPlaylistContext = Boolean(playlistId || onRemoveFromPlaylist);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsOpen(false);
-        setShowPlaylists(false);
+        setCurrentView('main');
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -65,6 +64,7 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
   const handleAction = (action: () => void) => {
     action();
     setIsOpen(false);
+    setCurrentView('main');
   };
 
   const handleShare = async () => {
@@ -105,6 +105,7 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
       setToastMessage(`Removed "${song.title}" from playlist`);
     }
     setIsOpen(false);
+    setCurrentView('main');
   };
 
   return (
@@ -114,7 +115,7 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
           onClick={(e) => {
             e.stopPropagation();
             setIsOpen(!isOpen);
-            setShowPlaylists(false);
+            setCurrentView('main');
           }}
           className="p-2 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
           aria-label="Track actions"
@@ -141,7 +142,7 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
               </div>
             </div>
 
-            {!showPlaylists ? (
+            {currentView === 'main' && (
               <div className="space-y-0.5 pt-1">
                 {/* 1. Play */}
                 <button 
@@ -149,7 +150,7 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
                   className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
                 >
                   <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-[#EF233C] group-hover:bg-[#EF233C] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
-                    <Play className="w-3.5 h-3.5 ml-0.5" />
+                    <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
                   </div>
                   <span className="font-medium text-slate-200 group-hover:text-white flex-1 ml-3 text-xs">Play</span>
                 </button>
@@ -159,8 +160,8 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
                   onClick={() => handleAction(() => playNextInQueue(song))}
                   className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-[#EF233C] group-hover:bg-[#EF233C] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
-                    <Play className="w-3.5 h-3.5 ml-0.5" />
+                  <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-slate-300 group-hover:bg-[#EF233C] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
+                    <FastForward className="w-3.5 h-3.5" />
                   </div>
                   <span className="font-medium text-slate-200 group-hover:text-white flex-1 ml-3 text-xs">Play Next</span>
                 </button>
@@ -170,106 +171,58 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
                   onClick={() => handleAction(() => addToQueue(song))}
                   className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-[#EF233C] group-hover:bg-[#EF233C] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
+                  <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-slate-300 group-hover:bg-[#EF233C] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
                     <ListPlus className="w-3.5 h-3.5" />
                   </div>
                   <span className="font-medium text-slate-200 group-hover:text-white flex-1 ml-3 text-xs">Add to Queue</span>
                 </button>
 
-                {/* 4. Add to Playlist */}
-                <button 
-                  onClick={() => setShowPlaylists(true)}
-                  className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center justify-between transition-all group cursor-pointer"
-                >
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-[#EF233C] group-hover:bg-[#EF233C] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
-                      <Plus className="w-3.5 h-3.5" />
+                {/* 4. Add to Playlist / Remove from Playlist (contextual) */}
+                {isInPlaylistContext ? (
+                  <button 
+                    onClick={handleRemoveFromThisPlaylist}
+                    className="w-full text-left px-2.5 py-2 hover:bg-red-500/15 text-red-400 rounded-xl flex items-center transition-all group cursor-pointer"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center flex-shrink-0 transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" />
                     </div>
-                    <span className="font-medium text-slate-200 group-hover:text-white ml-3 text-xs">Add to Playlist</span>
-                  </div>
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
-                </button>
+                    <span className="font-medium flex-1 ml-3 text-xs">Remove from Playlist</span>
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => setCurrentView('playlist')}
+                    className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center justify-between transition-all group cursor-pointer"
+                  >
+                    <div className="flex items-center">
+                      <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-slate-300 group-hover:bg-[#EF233C] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
+                        <Plus className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="font-medium text-slate-200 group-hover:text-white ml-3 text-xs">Add to Playlist</span>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
+                  </button>
+                )}
 
-                {/* 5. Like / Favorite */}
+                {/* 5. Like / Liked (dynamic reflection) */}
                 <button 
                   onClick={() => handleAction(() => toggleLikeSong(song.id))}
                   className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
                 >
                   <div className={`w-8 h-8 rounded-lg border border-white/5 flex items-center justify-center flex-shrink-0 transition-colors ${
-                    isLiked ? 'bg-[#EF233C]/20 border-[#EF233C]/30 text-[#EF233C]' : 'bg-white/5 text-[#EF233C] group-hover:bg-[#EF233C] group-hover:text-white'
+                    isLiked ? 'bg-[#EF233C]/20 border-[#EF233C]/30 text-[#EF233C]' : 'bg-white/5 text-slate-300 group-hover:bg-[#EF233C] group-hover:text-white'
                   }`}>
-                    <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-[#EF233C]' : ''}`} />
+                    <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-[#EF233C] text-[#EF233C]' : ''}`} />
                   </div>
-                  <span className="font-medium text-slate-200 group-hover:text-white flex-1 ml-3 text-xs">
-                    {isLiked ? 'Unlike' : 'Like'}
+                  <span className={`font-medium flex-1 ml-3 text-xs ${isLiked ? 'text-[#EF233C]' : 'text-slate-200 group-hover:text-white'}`}>
+                    {isLiked ? 'Liked' : 'Like'}
                   </span>
                 </button>
 
-                {/* 6. Download States (Mobile Native Only - Hidden on Desktop) */}
-                <div className="md:hidden">
-                  {isDownloaded ? (
-                    <button
-                      onClick={() => handleAction(async () => {
-                        await removeDownload(song.id);
-                        setToastMessage(`Removed "${song.title}" from local storage`);
-                      })}
-                      className="w-full text-left px-2.5 py-2 hover:bg-red-500/10 text-slate-400 hover:text-red-400 rounded-xl flex items-center transition-all group cursor-pointer"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 group-hover:border-red-500/30 group-hover:bg-red-500/20 group-hover:text-red-400 flex items-center justify-center flex-shrink-0 transition-colors">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="flex-1 min-w-0 ml-3">
-                        <span className="font-medium block text-xs">Remove Download</span>
-                        <span className="text-[10px] text-slate-500 block">Deletes local MP3 (keeps in playlist)</span>
-                      </div>
-                    </button>
-                  ) : isDownloading ? (
-                    <div className="flex items-center w-full gap-1 p-1">
-                      <button 
-                        onClick={() => handleAction(() => pauseDownload(song.id))}
-                        className="flex-1 text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center group cursor-pointer"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center flex-shrink-0">
-                          <PauseCircle className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0 ml-3">
-                          <span className="font-bold text-amber-400 block text-xs">
-                            Pause ({task?.progress || 0}%)
-                          </span>
-                          <span className="text-[10px] text-slate-400 block">Downloading...</span>
-                        </div>
-                      </button>
-                      <button 
-                        onClick={() => handleAction(() => cancelDownload(song.id))}
-                        className="p-2 text-red-400 hover:bg-white/10 rounded-xl cursor-pointer"
-                        title="Cancel"
-                      >
-                        <XCircle className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button 
-                      onClick={() => handleAction(async () => {
-                        await saveForOffline(song);
-                      })}
-                      className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-[#EF233C] group-hover:bg-[#EF233C] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
-                        <Download className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="flex-1 min-w-0 ml-3">
-                        <span className="font-medium text-slate-200 group-hover:text-white block text-xs">Download</span>
-                        <span className="text-[10px] text-slate-400 block font-mono">Offline playback</span>
-                      </div>
-                    </button>
-                  )}
-                </div>
-
-                {/* 7. Go to Artist */}
-                {song.artistId && (
+                {/* 6. Go to Artist */}
+                {(song.artistId || song.artist) && (
                   <button 
                     onClick={() => handleAction(() => {
-                      setSelectedArtistId(song.artistId);
+                      setSelectedArtistId(song.artistId || song.artist);
                       setActiveTab('artist');
                     })}
                     className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
@@ -281,11 +234,11 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
                   </button>
                 )}
 
-                {/* 8. Go to Album */}
-                {song.albumId && (
+                {/* 7. Go to Album */}
+                {(song.albumId || song.album) && (
                   <button 
                     onClick={() => handleAction(() => {
-                      setSelectedAlbumId(song.albumId);
+                      setSelectedAlbumId(song.albumId || song.album);
                       setActiveTab('album');
                     })}
                     className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
@@ -297,18 +250,18 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
                   </button>
                 )}
 
-                {/* 9. View Details */}
+                {/* 8. Song Details */}
                 <button 
                   onClick={() => handleAction(() => setShowDetailsModal(true))}
                   className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
+                  <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-slate-300 group-hover:bg-white/10 group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
                     <Info className="w-3.5 h-3.5" />
                   </div>
                   <span className="font-medium text-slate-300 group-hover:text-white flex-1 ml-3 text-xs">Song Details</span>
                 </button>
 
-                {/* 10. Share */}
+                {/* 9. Share */}
                 <button 
                   onClick={handleShare}
                   className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
@@ -321,46 +274,30 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
                   </span>
                 </button>
 
-                {/* 11. Not Interested */}
+                {/* 10. More */}
                 <button 
-                  onClick={() => {
-                    handleAction(() => {
-                      import('@/lib/recommendation/RecommendationEngine').then(({ RecommendationEngine }) => {
-                        RecommendationEngine.getInstance().markNotInterested(song.id, 'user_action');
-                      });
-                      setToastMessage(`We'll recommend fewer songs like "${song.title}"`);
-                      onNotInterested?.();
-                    });
-                  }}
-                  className="w-full text-left px-2.5 py-2 hover:bg-red-500/10 rounded-xl flex items-center transition-all group cursor-pointer"
+                  onClick={() => setCurrentView('more')}
+                  className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center justify-between transition-all group cursor-pointer"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-slate-400 group-hover:text-red-400 group-hover:bg-red-500/20 flex items-center justify-center flex-shrink-0 transition-colors">
-                    <Ban className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="font-medium text-slate-300 group-hover:text-red-300 flex-1 ml-3 text-xs">Not Interested</span>
-                </button>
-
-                {/* 11. Remove from Playlist (when in a playlist) */}
-                {(playlistId || onRemoveFromPlaylist) && (
-                  <button 
-                    onClick={handleRemoveFromThisPlaylist}
-                    className="w-full text-left px-2.5 py-2 hover:bg-red-500/15 text-red-400 rounded-xl flex items-center transition-all group cursor-pointer"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center flex-shrink-0 transition-colors">
-                      <Trash2 className="w-3.5 h-3.5" />
+                  <div className="flex items-center">
+                    <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
+                      <MoreHorizontal className="w-3.5 h-3.5" />
                     </div>
-                    <span className="font-medium flex-1 ml-3 text-xs">Remove from Playlist</span>
-                  </button>
-                )}
+                    <span className="font-medium text-slate-300 group-hover:text-white ml-3 text-xs">More</span>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
+                </button>
               </div>
-            ) : (
-              // Playlists Submenu
+            )}
+
+            {/* Playlist Submenu */}
+            {currentView === 'playlist' && (
               <div className="max-h-64 overflow-y-auto no-scrollbar space-y-1 p-1">
                 <button 
-                  onClick={() => setShowPlaylists(false)}
-                  className="w-full text-left px-3 py-2 text-slate-400 hover:text-white border-b border-white/10 flex items-center gap-2 font-medium mb-1 text-xs cursor-pointer"
+                  onClick={() => setCurrentView('main')}
+                  className="w-full text-left px-2.5 py-1.5 text-slate-400 hover:text-white border-b border-white/10 flex items-center gap-1.5 font-semibold mb-1 text-xs cursor-pointer transition-colors"
                 >
-                  ← Back
+                  <ChevronLeft className="w-3.5 h-3.5" /> Back
                 </button>
                 
                 <button 
@@ -398,6 +335,142 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
                     </button>
                   );
                 })}
+              </div>
+            )}
+
+            {/* More Submenu */}
+            {currentView === 'more' && (
+              <div className="space-y-0.5 pt-1">
+                <button 
+                  onClick={() => setCurrentView('main')}
+                  className="w-full text-left px-2.5 py-1.5 text-slate-400 hover:text-white border-b border-white/10 flex items-center gap-1.5 font-semibold mb-1 text-xs cursor-pointer transition-colors"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" /> Back
+                </button>
+
+                {/* Dynamic Add to Library / In Library */}
+                <button 
+                  onClick={() => handleAction(() => {
+                    toggleLikeSong(song.id);
+                    setToastMessage(isLiked ? `Removed "${song.title}" from Library` : `Added "${song.title}" to Library`);
+                  })}
+                  className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
+                >
+                  <div className={`w-8 h-8 rounded-lg border border-white/5 flex items-center justify-center flex-shrink-0 transition-colors ${
+                    isLiked ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400' : 'bg-white/5 text-slate-300 group-hover:bg-emerald-500/20 group-hover:text-emerald-400'
+                  }`}>
+                    {isLiked ? <Check className="w-3.5 h-3.5 stroke-[2.5]" /> : <Bookmark className="w-3.5 h-3.5" />}
+                  </div>
+                  <span className={`font-medium flex-1 ml-3 text-xs ${isLiked ? 'text-emerald-400' : 'text-slate-300 group-hover:text-white'}`}>
+                    {isLiked ? '✓ In Library' : 'Add to Library'}
+                  </span>
+                </button>
+
+                {/* Download / Remove Download */}
+                <div>
+                  {isDownloaded ? (
+                    <button
+                      onClick={() => handleAction(async () => {
+                        await removeDownload(song.id);
+                        setToastMessage(`Removed "${song.title}" from local storage`);
+                      })}
+                      className="w-full text-left px-2.5 py-2 hover:bg-red-500/10 text-slate-400 hover:text-red-400 rounded-xl flex items-center transition-all group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 group-hover:border-red-500/30 group-hover:bg-red-500/20 group-hover:text-red-400 flex items-center justify-center flex-shrink-0 transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex-1 min-w-0 ml-3">
+                        <span className="font-medium block text-xs">Remove Download</span>
+                        <span className="text-[10px] text-slate-500 block">Deletes local MP3</span>
+                      </div>
+                    </button>
+                  ) : isDownloading ? (
+                    <div className="flex items-center w-full gap-1 p-1">
+                      <button 
+                        onClick={() => handleAction(() => pauseDownload(song.id))}
+                        className="flex-1 text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center group cursor-pointer"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center flex-shrink-0">
+                          <PauseCircle className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0 ml-3">
+                          <span className="font-bold text-amber-400 block text-xs">
+                            Pause ({task?.progress || 0}%)
+                          </span>
+                          <span className="text-[10px] text-slate-400 block">Downloading...</span>
+                        </div>
+                      </button>
+                      <button 
+                        onClick={() => handleAction(() => cancelDownload(song.id))}
+                        className="p-2 text-red-400 hover:bg-white/10 rounded-xl cursor-pointer"
+                        title="Cancel"
+                      >
+                        <XCircle className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={() => handleAction(async () => {
+                        await saveForOffline(song);
+                        setToastMessage(`Downloading "${song.title}"...`);
+                      })}
+                      className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-emerald-400 group-hover:bg-emerald-500/20 flex items-center justify-center flex-shrink-0 transition-colors">
+                        <Download className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex-1 min-w-0 ml-3">
+                        <span className="font-medium text-slate-200 group-hover:text-white block text-xs">Download</span>
+                        <span className="text-[10px] text-slate-400 block font-mono">Offline 320kbps</span>
+                      </div>
+                    </button>
+                  )}
+                </div>
+
+                {/* Not Interested */}
+                <button 
+                  onClick={() => {
+                    handleAction(() => {
+                      import('@/lib/recommendation/RecommendationEngine').then(({ RecommendationEngine }) => {
+                        RecommendationEngine.getInstance().markNotInterested(song.id, 'user_action');
+                      });
+                      setToastMessage(`We'll recommend fewer songs like "${song.title}"`);
+                      onNotInterested?.();
+                    });
+                  }}
+                  className="w-full text-left px-2.5 py-2 hover:bg-red-500/10 rounded-xl flex items-center transition-all group cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-slate-400 group-hover:text-red-400 group-hover:bg-red-500/20 flex items-center justify-center flex-shrink-0 transition-colors">
+                    <Ban className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="font-medium text-slate-300 group-hover:text-red-300 flex-1 ml-3 text-xs">Not Interested</span>
+                </button>
+
+                {/* Remove from Playlist (if rendered in playlist view) */}
+                {isInPlaylistContext && (
+                  <button 
+                    onClick={handleRemoveFromThisPlaylist}
+                    className="w-full text-left px-2.5 py-2 hover:bg-red-500/15 text-red-400 rounded-xl flex items-center transition-all group cursor-pointer"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center flex-shrink-0 transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="font-medium flex-1 ml-3 text-xs">Remove from Playlist</span>
+                  </button>
+                )}
+
+                {/* Report */}
+                <button 
+                  onClick={() => handleAction(() => {
+                    setToastMessage('Thanks for your feedback! Audio issue reported.');
+                  })}
+                  className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-slate-400 group-hover:text-amber-400 group-hover:bg-amber-500/20 flex items-center justify-center flex-shrink-0 transition-colors">
+                    <Flag className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="font-medium text-slate-300 group-hover:text-white flex-1 ml-3 text-xs">Report</span>
+                </button>
               </div>
             )}
           </div>
