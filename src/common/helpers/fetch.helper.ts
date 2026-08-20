@@ -50,7 +50,10 @@ export const apiFetch = async <T>({ endpoint, params, context, timeoutMs = DEFAU
           'Accept': 'application/json, text/plain, */*',
           'Accept-Language': 'en-US,en;q=0.9',
           'Referer': 'https://www.jiosaavn.com/',
-          'Cookie': `L=${encodeURIComponent(targetCookieLang)}; gdpr_acceptance=true; DL=english;`
+          'X-Forwarded-For': '49.37.0.1',
+          'X-Real-IP': '49.37.0.1',
+          'CF-IPCountry': 'IN',
+          'Cookie': `L=${targetCookieLang}; gdpr_acceptance=true; DL=english;`
         },
         signal: controller.signal,
       });
