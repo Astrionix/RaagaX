@@ -29,6 +29,8 @@ export function AlbumDetailView() {
     setRemoteState,
     likedSongIds,
     toggleLikeSong,
+    favoriteAlbumIds,
+    toggleFavoriteAlbum,
     downloadedSongIds,
     preferredLanguage
   } = usePlayerStore();
@@ -48,7 +50,7 @@ export function AlbumDetailView() {
   const [sortOption, setSortOption] = useState<SortOption>('default');
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showAlbumMenu, setShowAlbumMenu] = useState(false);
-  const [isLikedAlbum, setIsLikedAlbum] = useState(false);
+  const isLikedAlbum = selectedAlbumId ? favoriteAlbumIds.includes(selectedAlbumId) : false;
 
   useEffect(() => {
     if (!selectedAlbumId) return;
@@ -408,17 +410,19 @@ export function AlbumDetailView() {
 
           <button
             onClick={() => {
-              setIsLikedAlbum(!isLikedAlbum);
-              setToastMessage(isLikedAlbum ? 'Removed album from Favorites' : 'Saved album to Favorites');
+              if (selectedAlbumId) {
+                toggleFavoriteAlbum(selectedAlbumId);
+                setToastMessage(isLikedAlbum ? 'Removed album from Favorites' : 'Saved album to Favorites');
+              }
             }}
-            className={`p-3.5 rounded-full border transition-all active:scale-95 ${
+            className={`p-3.5 rounded-full border transition-all active:scale-95 cursor-pointer ${
               isLikedAlbum
                 ? 'bg-red-500/15 border-red-500/30 text-[#fa233b]'
                 : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white'
             }`}
-            title="Favorite Album"
+            title={isLikedAlbum ? 'Remove from Favorites' : 'Favorite Album'}
           >
-            <Heart className={`w-5 h-5 ${isLikedAlbum ? 'fill-current' : ''}`} />
+            <Heart className={`w-5 h-5 ${isLikedAlbum ? 'fill-current text-[#fa233b]' : ''}`} />
           </button>
         </div>
       </div>

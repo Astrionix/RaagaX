@@ -1,32 +1,40 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Heart, Play, User, Music, Shuffle, Loader2 } from 'lucide-react';
+import { Heart, Play, User, Music, Disc3, Shuffle, Loader2 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { OfflineCatalog } from '@/lib/offline/OfflineCatalog';
 import { SongResolver } from '@/lib/discovery/SongResolver';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
+import { AlbumCatalogEngine, AlbumItem } from '@/lib/albumCatalog';
 import { Song } from '@/types/music';
 import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 
 export function FavoritesView() {
-  const [activeSubTab, setActiveSubTab] = useState<'songs' | 'artists'>('songs');
+  const [activeSubTab, setActiveSubTab] = useState<'songs' | 'albums' | 'artists'>('songs');
   const {
     queue,
     likedSongIds = [],
     likedSongs = [],
     cloudDownloadRecords = [],
     favoriteArtistIds = [],
+    favoriteAlbumIds = [],
+    toggleFavoriteAlbum,
+    setSelectedAlbumId,
+    setActiveTab,
     playSong,
     togglePlayPause,
     isPlaying,
     currentSong,
     toggleLikeSong,
     setSelectedArtistId,
+    preferredLanguage = 'Telugu',
   } = usePlayerStore();
 
   const [offlineTracks, setOfflineTracks] = useState<Song[]>([]);
   const [resolvedSongsMap, setResolvedSongsMap] = useState<Record<string, Song>>({});
+  const [resolvedAlbums, setResolvedAlbums] = useState<AlbumItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoadingAlbums, setIsLoadingAlbums] = useState<boolean>(false);
   const resolvingRef = useRef<boolean>(false);
 
   useEffect(() => {
@@ -113,6 +121,65 @@ export function FavoritesView() {
       });
   }, [likedSongIds]);
 
+  // Resolve Liked Albums
+  useEffect(() => {
+    if (favoriteAlbumIds.length === 0) {
+      setResolvedAlbums([]);
+      return;
+    }
+
+    setIsLoadingAlbums(true);
+    const resolved: AlbumItem[] = [];
+    const missingIds: string[] = [];
+
+    for (const albumId of favoriteAlbumIds) {
+      const known = AlbumCatalogEngine.getAlbumById(albumId, preferredLanguage);
+      if (known) {
+        resolved.push(known);
+      } else {
+        missingIds.push(albumId);
+      }
+    }
+
+    if (missingIds.length === 0) {
+      setResolvedAlbums(resolved);
+      setIsLoadingAlbums(false);
+      return;
+    }
+
+    // Fetch missing albums from API
+    Promise.all(
+      missingIds.map(async (id) => {
+        try {
+          const { RealMusicEngine } = await import('@/lib/realMusicEngine');
+          const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${id}`);
+          if (details) {
+            return {
+              id,
+              title: details.title,
+              artist: details.songs?.[0]?.artist || 'Soundtrack',
+              artistId: `art-${id}`,
+              coverUrl: details.coverUrl || '/app-icon.png',
+              releaseDate: '2024-01-01',
+              releaseYear: 2024,
+              trackCount: details.songs?.length || 6,
+              durationSec: (details.songs?.length || 6) * 210,
+              language: preferredLanguage,
+              albumType: 'soundtrack' as const,
+              freshnessScore: 90,
+              trendingScore: 90,
+            };
+          }
+        } catch {}
+        return null;
+      })
+    ).then((fetched) => {
+      const allResolved = [...resolved, ...(fetched.filter(Boolean) as AlbumItem[])];
+      setResolvedAlbums(allResolved);
+      setIsLoadingAlbums(false);
+    });
+  }, [favoriteAlbumIds, preferredLanguage]);
+
   // Single canonical resolved liked songs array
   const resolvedLikedSongs: Song[] = likedSongIds
     .map((id) => knownMap.get(id) || {
@@ -146,6 +213,11 @@ export function FavoritesView() {
     playSong(tracklist[0], tracklist);
   };
 
+  const handleOpenAlbum = (albumId: string) => {
+    setSelectedAlbumId(albumId);
+    setActiveTab('album');
+  };
+
   return (
     <div className="space-y-6 pb-12 text-white select-none animate-in fade-in duration-200">
       {/* Header */}
@@ -155,7 +227,7 @@ export function FavoritesView() {
         </div>
         <div>
           <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight">Your Favorites</h1>
-          <p className="text-xs text-[#8E92A4] mt-0.5">Liked songs and artists in your cloud library</p>
+          <p className="text-xs text-[#8E92A4] mt-0.5">Liked songs, albums, and artists in your cloud library</p>
         </div>
       </div>
 
@@ -163,8 +235,9 @@ export function FavoritesView() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
         <div className="flex items-center gap-2">
           {[
-            { id: 'songs', label: 'Songs', icon: Music },
-            { id: 'artists', label: 'Artists', icon: User },
+            { id: 'songs', label: 'Songs', icon: Music, count: likedSongIds.length },
+            { id: 'albums', label: 'Albums', icon: Disc3, count: favoriteAlbumIds.length },
+            { id: 'artists', label: 'Artists', icon: User, count: favoriteArtistIds.length },
           ].map((t) => {
             const Icon = t.icon;
             const isActive = activeSubTab === t.id;
@@ -180,6 +253,13 @@ export function FavoritesView() {
               >
                 <Icon className="w-3.5 h-3.5" />
                 <span>{t.label}</span>
+                {t.count > 0 && (
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                    isActive ? 'bg-white/25 text-white' : 'bg-white/10 text-slate-400'
+                  }`}>
+                    {t.count}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -262,6 +342,78 @@ export function FavoritesView() {
               <Heart className="w-8 h-8 text-[#8E92A4] mx-auto opacity-50" />
               <p className="text-xs font-bold text-white">No liked songs yet.</p>
               <p className="text-[11px] text-[#8E92A4]">Tap the heart icon on any track to save it here.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Liked Albums Sub-Tab */}
+      {activeSubTab === 'albums' && (
+        <div className="space-y-3">
+          {isLoadingAlbums && resolvedAlbums.length === 0 ? (
+            <div className="py-16 text-center text-slate-500 space-y-3 bg-white/[0.02] rounded-2xl border border-white/5 flex flex-col items-center justify-center">
+              <Loader2 className="w-6 h-6 text-[#FA233B] animate-spin" />
+              <p className="text-xs font-bold text-white">Loading your favorite albums...</p>
+            </div>
+          ) : resolvedAlbums.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              {resolvedAlbums.map((album) => (
+                <div
+                  key={album.id}
+                  onClick={() => handleOpenAlbum(album.id)}
+                  className="group relative p-3 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] hover:border-white/20 transition-all cursor-pointer shadow-sm hover:shadow-xl flex flex-col justify-between"
+                >
+                  <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-3 bg-slate-900 shadow-md">
+                    <img
+                      src={album.coverUrl}
+                      alt={album.title}
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = '/app-icon.png';
+                      }}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenAlbum(album.id);
+                        }}
+                        className="w-10 h-10 rounded-full bg-[#fa233b] text-white flex items-center justify-center shadow-lg shadow-red-500/40 hover:scale-110 transition-transform"
+                      >
+                        <Play className="w-4 h-4 fill-white ml-0.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-start justify-between gap-1">
+                      <h4 className="text-xs font-bold text-[var(--text-primary)] group-hover:text-[#fa233b] transition-colors truncate">
+                        {album.title}
+                      </h4>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFavoriteAlbum(album.id);
+                        }}
+                        title="Remove from favorites"
+                        className="p-1 text-[#fa233b] hover:scale-110 transition-transform flex-shrink-0"
+                      >
+                        <Heart className="w-3.5 h-3.5 fill-current" />
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-[var(--text-secondary)] truncate">{album.artist}</p>
+                    <p className="text-[10px] text-slate-500 font-medium">
+                      {album.releaseYear || 2024} • {album.trackCount || 6} Songs
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="py-16 text-center text-slate-500 space-y-2 bg-white/[0.02] rounded-2xl border border-white/5">
+              <Disc3 className="w-8 h-8 text-[#8E92A4] mx-auto opacity-50" />
+              <p className="text-xs font-bold text-white">No favorite albums yet.</p>
+              <p className="text-[11px] text-[#8E92A4]">Tap the heart icon on any album page to save it here.</p>
             </div>
           )}
         </div>
