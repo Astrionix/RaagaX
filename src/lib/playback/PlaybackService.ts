@@ -572,8 +572,17 @@ export class PlaybackService {
               this.triggerNextPreload();
               return true;
             } catch (retryErr: any) {
+              if (retryErr?.name === 'AbortError' || this.playbackGeneration !== currentGen) {
+                console.warn('[PLAYBACK PIPELINE] Candidate retry superseded:', retryErr);
+                return false;
+              }
               console.warn('[PLAYBACK PIPELINE] Candidate retry failed:', retryErr);
             }
+          }
+
+          if (this.playbackGeneration !== currentGen) {
+            console.warn(`[PLAYBACK PIPELINE] Discarding failure for superseded generation ${currentGen}`);
+            return false;
           }
 
           console.error('[PLAYBACK PIPELINE] Play failed for song:', song.title);

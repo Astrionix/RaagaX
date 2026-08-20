@@ -20,6 +20,8 @@ export class ConnectManager {
   
   private inboxChannel: RealtimeChannel | null = null;
   private sessionChannel: RealtimeChannel | null = null;
+  private targetChannels = new Map<string, RealtimeChannel>();
+  private isCleaningUp: boolean = false;
 
   private currentState: ConnectState = 'OFFLINE';
   private recoveryQueue: ConnectCommand[] = [];
@@ -55,6 +57,9 @@ export class ConnectManager {
   public getConnectionGeneration(): number {
     return this.connectionGeneration;
   }
+
+  private stateChangeListeners: Array<(state: ConnectState) => void> = [];
+  public onStateChange(listener: (state: ConnectState) => void) { this.stateChangeListeners.push(listener); }
 
   public async init(userId: string, deviceId: string) {
     this.manualDisconnectRequested = false;
@@ -100,12 +105,19 @@ export class ConnectManager {
     const { PlaybackSessionManager } = await import('../sync/PlaybackSessionManager');
     PlaybackSessionManager.getInstance().init(sessionId);
 
-    this.transitionState('READY');
+    // 6. Connect State Machine to Global Player State
+    this.onStateChange((state) => {
+      const storeState = state === 'CONNECTED' ? 'CONNECTED' : (state === 'CONNECTING' || state === 'SUBSCRIBING' || state === 'RECOVERING' ? 'CONNECTING' : 'AVAILABLE');
+      usePlayerStore.setState({ deviceConnectionState: storeState });
+    });
+
+    console.log(`[ConnectManager] Initialized for User: ${userId}, Device: ${deviceId}, Session: ${sessionId}`);
   }
 
   private transitionState(newState: ConnectState) {
     console.log(`[ConnectManager] State transition: ${this.currentState} -> ${newState}`);
     this.currentState = newState;
+    this.stateChangeListeners.forEach(l => l(newState));
     
     // Additional state effects can be hooked here.
     if (newState === 'RECOVERING') {
@@ -210,8 +222,9 @@ export class ConnectManager {
        return; // Already connecting or connected
     }
     if (this.inboxChannel) {
-      try { supabase.removeChannel(this.inboxChannel); } catch (e) {}
+      const ch = this.inboxChannel;
       this.inboxChannel = null;
+      try { supabase.removeChannel(ch); } catch (e) {}
     }
 
     const inboxTopic = `user:${this.userId}:device:${this.deviceId}`;
@@ -338,71 +351,77 @@ export class ConnectManager {
   }
 
   public unsubscribeSession() {
-    if (this.sessionChannel) {
-      supabase.removeChannel(this.sessionChannel);
-      this.sessionChannel = null;
-      this.sessionId = null;
+    if (this.isCleaningUp) return;
+    this.isCleaningUp = true;
+    try {
+      if (this.sessionChannel) {
+        const ch = this.sessionChannel;
+        this.sessionChannel = null;
+        this.sessionId = null;
+        try { supabase.removeChannel(ch); } catch {}
+      }
+    } finally {
+      this.isCleaningUp = false;
     }
+  }
+
+  private async getOrCreateTargetChannel(targetDeviceId: string): Promise<RealtimeChannel | null> {
+    if (!this.userId) return null;
+    const targetTopic = `user:${this.userId}:device:${targetDeviceId}`;
+    let channel = this.targetChannels.get(targetDeviceId);
+    if (channel && (channel.state === 'joined' || channel.state === 'joining')) {
+      return channel;
+    }
+
+    const rawChannels = typeof supabase.getChannels === 'function' ? supabase.getChannels() : [];
+    const channels = Array.isArray(rawChannels) ? rawChannels : [];
+    const existing = channels.find((c: any) => c.topic === `realtime:${targetTopic}` || c.topic === targetTopic);
+    if (existing) {
+      this.targetChannels.set(targetDeviceId, existing);
+      return existing;
+    }
+
+    channel = supabase.channel(targetTopic, { config: { broadcast: { self: false } } });
+    this.targetChannels.set(targetDeviceId, channel);
+
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => resolve(channel), 3000);
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          clearTimeout(timeout);
+          resolve(channel);
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          clearTimeout(timeout);
+          this.targetChannels.delete(targetDeviceId);
+          resolve(null);
+        }
+      });
+    });
   }
 
   public async sendTargetedCommand(targetDeviceId: string, command: ConnectCommand) {
     if (!this.userId) return;
 
-    // WebRTC signals are routed directly — they bootstrap the DataChannel itself
-    // and cannot be sent over a DataChannel that doesn't yet exist.
+    // WebRTC signals are routed directly
     if (command.type === 'WEBRTC_SIGNAL') {
-      const targetTopic = `user:${this.userId}:device:${targetDeviceId}`;
-      const tempChannel = supabase.channel(targetTopic, { config: { broadcast: { self: false } } });
-      const timeout = setTimeout(() => {
-        try { supabase.removeChannel(tempChannel); } catch {}
-      }, 4000);
-
-      tempChannel.subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          clearTimeout(timeout);
-          try {
-            await tempChannel.send({ type: 'broadcast', event: 'COMMAND', payload: command });
-          } catch {}
-          setTimeout(() => {
-            try { supabase.removeChannel(tempChannel); } catch {}
-          }, 300);
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          clearTimeout(timeout);
-          try { supabase.removeChannel(tempChannel); } catch {}
+      try {
+        const channel = await this.getOrCreateTargetChannel(targetDeviceId);
+        if (channel) {
+          await channel.send({ type: 'broadcast', event: 'COMMAND', payload: command });
         }
-      });
+      } catch (e) {
+        console.warn('[ConnectManager] Failed to send WebRTC signal:', e);
+      }
       return;
     }
 
     // All other commands go through TransportRouter for LAN-first selection with cloud fallback
     const { TransportRouter } = await import('./TransportRouter');
     const cloudFallback = async (cmd: ConnectCommand) => {
-      const targetTopic = `user:${this.userId}:device:${targetDeviceId}`;
-      const tempChannel = supabase.channel(targetTopic, { config: { broadcast: { self: false } } });
-
-      await new Promise<void>((resolve) => {
-        const timeout = setTimeout(() => {
-          try { supabase.removeChannel(tempChannel); } catch {}
-          resolve();
-        }, 4000);
-
-        tempChannel.subscribe(async (status) => {
-          if (status === 'SUBSCRIBED') {
-            clearTimeout(timeout);
-            try {
-              await tempChannel.send({ type: 'broadcast', event: 'COMMAND', payload: cmd });
-            } catch {}
-            setTimeout(() => {
-              try { supabase.removeChannel(tempChannel); } catch {}
-            }, 300);
-            resolve();
-          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            clearTimeout(timeout);
-            try { supabase.removeChannel(tempChannel); } catch {}
-            resolve();
-          }
-        });
-      });
+      const channel = await this.getOrCreateTargetChannel(targetDeviceId);
+      if (channel) {
+        await channel.send({ type: 'broadcast', event: 'COMMAND', payload: cmd });
+      }
     };
 
     const result = await TransportRouter.getInstance().dispatchTargeted(
@@ -568,9 +587,13 @@ export class ConnectManager {
       this.inboxChannel = null;
     }
 
-    // 5. Unsubscribe session channel
-    console.log('[ConnectManager] Unsubscribing session');
+    // 5. Unsubscribe session channel and target channels
+    console.log('[ConnectManager] Unsubscribing session and target channels');
     this.unsubscribeSession();
+    for (const [devId, ch] of this.targetChannels.entries()) {
+      try { supabase.removeChannel(ch); } catch {}
+    }
+    this.targetChannels.clear();
 
     // 6. Cleanup local peer connections if any
     const store = usePlayerStore.getState();

@@ -983,6 +983,9 @@ export const usePlayerStore = create<PlayerState>()(
                   id: crypto.randomUUID(),
                   user_id: authUser.id,
                   song_id: song.id,
+                  event_type: 'play',
+                  position_ms: 0,
+                  device_id: get().deviceId || null,
                   created_at: new Date().toISOString(),
                 });
               } catch { }

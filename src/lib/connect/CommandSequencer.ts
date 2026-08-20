@@ -4,8 +4,8 @@ export class CommandSequencer {
   // Managed by lease/epoch system
   private currentEpoch: number = 0;
   
-  // Increments for every command sent by THIS device in the current epoch
-  private outboundSequence: number = 0;
+  // Monotonically increasing sequence across lifetime
+  private outboundSequence: number = Math.floor(Date.now() / 1000) % 100000;
   
   // Tracks the highest sequence processed by THIS device from the server
   private lastAppliedSequence: number = 0;
@@ -22,14 +22,22 @@ export class CommandSequencer {
   public setEpoch(epoch: number) {
     if (epoch > this.currentEpoch) {
       this.currentEpoch = epoch;
-      this.outboundSequence = 0; // Reset seq on new epoch
       this.lastAppliedSequence = 0;
+    }
+  }
+
+  public syncWithRevision(revision: number) {
+    if (revision > this.outboundSequence) {
+      this.outboundSequence = revision;
     }
   }
 
   public setSequence(seq: number) {
     if (seq > this.lastAppliedSequence) {
       this.lastAppliedSequence = seq;
+    }
+    if (seq > this.outboundSequence) {
+      this.outboundSequence = seq;
     }
   }
 
@@ -47,7 +55,8 @@ export class CommandSequencer {
 
   public reset() {
     this.currentEpoch = 0;
-    this.outboundSequence = 0;
+    // Step forward rather than resetting to 0 to prevent stale sequence rejection on remote peers
+    this.outboundSequence += 10;
     this.lastAppliedSequence = 0;
   }
 }

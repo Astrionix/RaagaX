@@ -78,23 +78,25 @@ export class CandidateGenerator {
       if (session?.session?.user && !CandidateGenerator.unavailable.has('user_artist_affinity')) {
         const { data: affinities, error: affinityErr } = await supabase
           .from('user_artist_affinity')
-          .select('artist')
+          .select('artist_id')
           .eq('user_id', session.session.user.id)
-          .order('affinity_score', { ascending: false })
+          .order('score', { ascending: false })
           .limit(5);
 
         if (affinityErr) {
           CandidateGenerator.markUnavailable('user_artist_affinity');
         } else if (affinities && affinities.length > 0) {
-          const topArtists = affinities.map(a => a.artist);
-          const { data: affinitySongs, error: affinityError } = await supabase
-            .from('canonical_songs')
-            .select('*')
-            .in('artist', topArtists)
-            .limit(limit * 2);
-            
-          if (!affinityError && affinitySongs) {
-             if (await addCandidates(affinitySongs, 'personalized')) return Array.from(candidates.values());
+          const topArtists = affinities.map((a: any) => a.artist_id).filter(Boolean);
+          if (topArtists.length > 0) {
+            const { data: affinitySongs, error: affinityError } = await supabase
+              .from('canonical_songs')
+              .select('*')
+              .in('artist', topArtists)
+              .limit(limit * 2);
+              
+            if (!affinityError && affinitySongs) {
+               if (await addCandidates(affinitySongs, 'personalized')) return Array.from(candidates.values());
+            }
           }
         }
       }
@@ -102,8 +104,9 @@ export class CandidateGenerator {
       // 2. Similar real songs (Vector Match)
       if (currentSong && !CandidateGenerator.unavailable.has('match_similar_songs')) {
         const { data: vectorMatches, error: vectorError } = await supabase.rpc('match_similar_songs', {
-          target_song_id: currentSong.id,
-          match_count: limit * 2
+          target_song_id: String(currentSong.id),
+          match_count: Math.round(limit * 2),
+          match_threshold: 0.5
         });
         
         if (vectorError) {

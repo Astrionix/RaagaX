@@ -137,15 +137,18 @@ export class RecommendationEngine {
           return;
         }
 
+        const validEventTypes = ['play', 'pause', 'complete', 'skip', 'like', 'unlike', 'replay', 'search', 'add_to_queue'];
+        const resolvedEventType = validEventTypes.includes(action) ? action : (action === 'complete' ? 'complete' : 'play');
+
         const { error: insertError } = await supabase.from('listening_events').insert({
           user_id: session.user.id,
           song_id: song.id,
-          event_type: action === 'complete' ? 'complete' : action,
+          event_type: resolvedEventType,
           position_ms: Math.floor(durationSec * 1000),
           device_id: typeof window !== 'undefined' ? localStorage.getItem('raagax_device_id') : null
         });
 
-        if (insertError) {
+        if (insertError && insertError.code !== '23503' && insertError.code !== '42501') {
           console.warn('[RecommendationEngine] Failed to log telemetry:', insertError.message);
         }
       }

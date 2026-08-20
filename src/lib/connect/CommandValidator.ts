@@ -65,7 +65,7 @@ export class CommandValidator {
     }
 
     // 4. Revision Validation (only apply to standard playback commands, never block transfer negotiation or ACKs)
-    const isTransferControlCommand = command.type.startsWith('TRANSFER_') || command.type === 'COMMAND_ACK' || command.type === 'WEBRTC_SIGNAL';
+    const isTransferControlCommand = command.type.startsWith('TRANSFER_') || command.type === 'COMMAND_ACK' || command.type === 'WEBRTC_SIGNAL' || command.type === 'CONNECT_REQUEST' || command.type === 'CONNECT_RESPONSE' || command.type === 'HANDOFF' || command.type === 'HEARTBEAT';
     if (!isTransferControlCommand && typeof command.revision === 'number' && command.revision < this.currentRevision) {
       console.warn(`[CommandValidator] Rejected stale revision ${command.revision} < current ${this.currentRevision} for ${command.type}`);
       return false;
@@ -74,8 +74,13 @@ export class CommandValidator {
     // 5. Sequence Validation per Source Device
     const lastSeenSeq = this.highestSequenceByDevice.get(command.sourceDeviceId) || 0;
     if (command.sequence <= lastSeenSeq) {
-      console.warn(`[CommandValidator] Rejected stale sequence from ${command.sourceDeviceId}. Seq ${command.sequence} <= last ${lastSeenSeq}`);
-      return false;
+      if (isTransferControlCommand) {
+        console.log(`[CommandValidator] Adopting sequence baseline ${command.sequence} for ${command.sourceDeviceId} on ${command.type}`);
+        this.highestSequenceByDevice.set(command.sourceDeviceId, command.sequence);
+      } else {
+        console.warn(`[CommandValidator] Rejected stale sequence from ${command.sourceDeviceId}. Seq ${command.sequence} <= last ${lastSeenSeq}`);
+        return false;
+      }
     }
 
     // Mark as processed
