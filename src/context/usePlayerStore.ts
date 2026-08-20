@@ -15,6 +15,7 @@ import { SongCoverEngine } from '@/lib/playback/SongCoverEngine';
 import { SongUniquenessEngine } from '@/lib/music/SongUniquenessEngine';
 import { PlaybackStateSync } from '@/lib/connect/PlaybackStateSync';
 import { TransferManager } from '@/lib/connect/TransferManager';
+import { MediaSessionManager } from '@/lib/playback/MediaSessionManager';
 
 import { AudioQuality, AudioQualityState } from '@/lib/playback/types';
 
@@ -612,34 +613,20 @@ export const usePlayerStore = create<PlayerState>()(
 
       transferPlayback: async (targetDeviceId: string) => {
         const { currentSong } = get();
-        if (!currentSong) return;
+        if (!currentSong) {
+          // If no song is playing locally, connect to the target device as a remote controller
+          return get().connectToDevice(targetDeviceId);
+        }
 
         set({ isTransferring: true, transferringDeviceId: targetDeviceId });
 
         try {
           const { TransferManager } = await import('@/lib/connect/TransferManager');
-          const success = await TransferManager.getInstance().initiateTransfer(targetDeviceId);
-
-          if (success) {
-            const { DeviceDiscoveryEngine } = await import('@/lib/connect/discovery/DeviceDiscoveryEngine');
-            const devices = DeviceDiscoveryEngine.getInstance().getRankedDevices();
-            const targetDev = devices.find((d) => d.deviceId === targetDeviceId);
-
-            PlaybackService.getInstance().pause();
-            set({
-              connectedDeviceId: targetDeviceId,
-              activeDeviceId: targetDeviceId,
-              remoteDeviceName: targetDev?.name || 'Remote Device',
-              isActiveDevice: false,
-              isTransferring: false,
-              transferringDeviceId: null,
-              deviceConnectionState: 'CONNECTED',
-            });
-          } else {
-            set({ isTransferring: false, transferringDeviceId: null });
-          }
-        } catch (err) {
-          console.error('[usePlayerStore] transferPlayback error:', err);
+          await TransferManager.getInstance().initiateTransfer(targetDeviceId);
+          // Note: TransferManager's 3-way handshake will update isActiveDevice and connectedDeviceId
+          // in handleTransferCommitted (on success) or handleTransferRollback (on timeout/failure).
+        } catch (e) {
+          console.error('[ZUSTAND] Playback transfer failed:', e);
           set({ isTransferring: false, transferringDeviceId: null });
         }
       },
@@ -922,8 +909,6 @@ export const usePlayerStore = create<PlayerState>()(
           return;
         }
         lastPlayCallTimestamp = now;
-        lastPlaySongId = song.id || '';
-
         // Upgrade coverUrl immediately to 500x500 HD
         const activePlaySong: Song = {
           ...song,
@@ -961,6 +946,7 @@ export const usePlayerStore = create<PlayerState>()(
           playbackIntent: 'PLAYING',
           trackSource: 'USER_SELECTED',
           sessionLanguage: songLang,
+          activeRenderer: 'audio',
           currentTime: 0,
           currentSong: activePlaySong,
           queue: syncedQueue,
@@ -1019,7 +1005,7 @@ export const usePlayerStore = create<PlayerState>()(
             service.loadQueueContext(syncedQueue, syncedIndex);
           } else {
             // ── Web / PWA path: use HTMLAudioElement + queue management
-            service.playTrack(song, true);
+            service.playTrack(activePlaySong, true);
           }
           import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
             PlaybackStateSync.getInstance().broadcastState(true);
@@ -1113,10 +1099,14 @@ export const usePlayerStore = create<PlayerState>()(
         }
 
         if (get().isActiveDevice) {
-          if (!isNowPlaying) {
-            PlaybackService.getInstance().pause();
+          if (get().activeRenderer === 'video') {
+            PlaybackService.getInstance().pauseAudioElementOnly();
           } else {
-            PlaybackService.getInstance().play();
+            if (!isNowPlaying) {
+              PlaybackService.getInstance().pause();
+            } else {
+              PlaybackService.getInstance().play();
+            }
           }
           try {
             PlaybackStateSync.getInstance().broadcastState(true);
@@ -1153,16 +1143,21 @@ export const usePlayerStore = create<PlayerState>()(
         }
         set({ isPlaying: playing, playbackIntent: playing ? 'PLAYING' : 'PAUSED' });
         persistSessionHelper({ ...get() });
+        MediaSessionManager.getInstance().setPlaybackState(playing ? 'playing' : 'paused');
 
         if (!get().connectedDeviceId && !get().isActiveDevice && !fromRemote) {
           set({ isActiveDevice: true, activeDeviceId: get().deviceId });
         }
 
         if (get().isActiveDevice && !fromRemote) {
-          if (!playing) {
-            PlaybackService.getInstance().pause();
+          if (get().activeRenderer === 'video') {
+            PlaybackService.getInstance().pauseAudioElementOnly();
           } else {
-            PlaybackService.getInstance().play();
+            if (!playing) {
+              PlaybackService.getInstance().pause();
+            } else {
+              PlaybackService.getInstance().play();
+            }
           }
           try {
             PlaybackStateSync.getInstance().broadcastState(true);
@@ -1223,6 +1218,7 @@ export const usePlayerStore = create<PlayerState>()(
       toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 
       playNext: async () => {
+        const wasPlaying = get().isPlaying;
         if (get().isTransferring) {
           const manager = QueueManager.getInstance();
           const nextItem = manager.getNext(false);
@@ -1234,7 +1230,7 @@ export const usePlayerStore = create<PlayerState>()(
               currentSong: nextItem.song,
               queue: syncedQueue,
               queueIndex: syncedIndex,
-              isPlaying: true,
+              isPlaying: wasPlaying,
               currentTime: 0
             });
           }
@@ -1275,7 +1271,7 @@ export const usePlayerStore = create<PlayerState>()(
             currentSong: nextItem.song,
             queue: syncedQueue,
             queueIndex: syncedIndex,
-            isPlaying: true,
+            isPlaying: wasPlaying,
             currentTime: 0
           });
           persistSessionHelper({ ...get(), currentSong: nextItem.song, currentTime: 0, queue: syncedQueue, queueIndex: syncedIndex });
@@ -1295,12 +1291,11 @@ export const usePlayerStore = create<PlayerState>()(
             return;
           }
 
-          if (RaagaXNativePlayer.isNative()) {
-            await RaagaXNativePlayer.next();
-            return;
+          if (get().activeRenderer === 'video') {
+            PlaybackService.getInstance().pauseAudioElementOnly();
+          } else {
+            PlaybackService.getInstance().playTrack(nextItem.song, wasPlaying);
           }
-
-          PlaybackService.getInstance().playTrack(nextItem.song, true);
         } else {
           if (get().sleepTimerMode === 'end_of_queue') {
             get().setSleepTimer(null);
@@ -1312,6 +1307,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       playPrev: async () => {
+        const wasPlaying = get().isPlaying;
         if (get().isTransferring) {
           const manager = QueueManager.getInstance();
           const prevItem = manager.getPrevious();
@@ -1323,7 +1319,7 @@ export const usePlayerStore = create<PlayerState>()(
               currentSong: prevItem.song,
               queue: syncedQueue,
               queueIndex: syncedIndex,
-              isPlaying: true,
+              isPlaying: wasPlaying,
               currentTime: 0
             });
           }
@@ -1341,10 +1337,13 @@ export const usePlayerStore = create<PlayerState>()(
         const oldTime = get().currentTime;
 
         const { currentTime, setCurrentTime, setSeekTarget } = get();
-        if (currentTime > 2) {
+        // If track played more than 5 seconds, restart current track
+        if (currentTime > 5) {
           setCurrentTime(0);
           setSeekTarget(0);
-          if (!get().isActiveDevice) {
+          if (get().isActiveDevice) {
+            PlaybackService.getInstance().seek(0);
+          } else {
             const res = await ConnectManager.getInstance().dispatchPlaybackCommand('SEEK', { positionMs: 0 });
             if (res && !res.success) {
               set({ currentTime: oldTime });
@@ -1366,7 +1365,7 @@ export const usePlayerStore = create<PlayerState>()(
             currentSong: prevItem.song,
             queue: syncedQueue,
             queueIndex: syncedIndex,
-            isPlaying: true,
+            isPlaying: wasPlaying,
             currentTime: 0
           });
           persistSessionHelper({ ...get(), currentSong: prevItem.song, currentTime: 0, queue: syncedQueue, queueIndex: syncedIndex });
@@ -1386,12 +1385,11 @@ export const usePlayerStore = create<PlayerState>()(
             return;
           }
 
-          if (RaagaXNativePlayer.isNative()) {
-            await RaagaXNativePlayer.previous();
-            return;
+          if (get().activeRenderer === 'video') {
+            PlaybackService.getInstance().pauseAudioElementOnly();
+          } else {
+            PlaybackService.getInstance().playTrack(prevItem.song, wasPlaying);
           }
-
-          PlaybackService.getInstance().playTrack(prevItem.song, true);
         } else {
           set({ isPlaying: false });
           persistSessionHelper(get());

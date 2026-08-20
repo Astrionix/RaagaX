@@ -10,8 +10,8 @@ import {
   ListMusic,
   Plus,
   Download,
-  Heart, 
-  LogOut, 
+  Heart,
+  LogOut,
   LogIn,
   Settings,
   Disc3,
@@ -52,7 +52,7 @@ export function Sidebar() {
   } = usePlayerStore();
 
   const isConnectedRemote = Boolean(activeDeviceId && activeDeviceId !== deviceId);
-  
+
   const { user, signOut, setAuthModalOpen } = useAuthStore();
   const { playlists: userPlaylists, fetchPlaylists } = usePlaylistStore();
   const { resolvedTheme } = useThemeStore();
@@ -108,9 +108,8 @@ export function Sidebar() {
         <div className="space-y-1">
           <button
             onClick={() => setActiveTab('home')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold transition-all ${
-              activeTab === 'home' ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
-            }`}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold transition-all ${activeTab === 'home' ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
+              }`}
           >
             <Home className="w-4 h-4" />
             <span>Home</span>
@@ -118,9 +117,8 @@ export function Sidebar() {
 
           <button
             onClick={() => setActiveTab('search')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold transition-all ${
-              activeTab === 'search' ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
-            }`}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold transition-all ${activeTab === 'search' ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
+              }`}
           >
             <Search className="w-4 h-4" />
             <span>Search</span>
@@ -130,9 +128,9 @@ export function Sidebar() {
         {/* YOUR LIBRARY */}
         <div className="space-y-1 pt-2 border-t border-white/5">
           <span className="px-3 py-1 text-[10px] font-black text-slate-500 uppercase tracking-widest block">YOUR LIBRARY</span>
-          
-          <button 
-            onClick={() => setActiveTab('favorites')} 
+
+          <button
+            onClick={() => setActiveTab('favorites')}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all ${
               activeTab === 'favorites' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] font-bold shadow-sm' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
             }`}
@@ -141,8 +139,23 @@ export function Sidebar() {
             <span>Liked Songs</span>
           </button>
 
-          <button 
-            onClick={() => setActiveTab('artist')} 
+          <button
+            onClick={() => {
+              usePlayerStore.getState().setSelectedAlbumId(null);
+              setActiveTab('album');
+            }}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all ${
+              activeTab === 'album' && !usePlayerStore.getState().selectedAlbumId
+                ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] font-bold shadow-sm'
+                : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
+            }`}
+          >
+            <Disc3 className="w-4 h-4 text-purple-400" />
+            <span>Albums</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('artist')}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all ${
               activeTab === 'artist' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] font-bold shadow-sm' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
             }`}
@@ -151,21 +164,19 @@ export function Sidebar() {
             <span>Artists</span>
           </button>
 
-          <button 
-            onClick={() => setActiveTab('history')} 
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all ${
-              activeTab === 'history' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] font-bold shadow-sm' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
-            }`}
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all ${activeTab === 'history' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] font-bold shadow-sm' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
+              }`}
           >
             <Clock className="w-4 h-4 text-cyan-400" />
             <span>Listening History</span>
           </button>
 
-          <button 
-            onClick={() => setActiveTab('insights')} 
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all ${
-              activeTab === 'insights' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] font-bold shadow-sm' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
-            }`}
+          <button
+            onClick={() => setActiveTab('insights')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all ${activeTab === 'insights' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] font-bold shadow-sm' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
+              }`}
           >
             <BarChart3 className="w-4 h-4 text-amber-400" />
             <span>Music Insights</span>
@@ -176,7 +187,7 @@ export function Sidebar() {
         <div className="space-y-1 pt-2 border-t border-white/5">
           <div className="flex items-center justify-between px-3 py-1 text-[10px] font-black text-slate-500 uppercase tracking-widest">
             <span>YOUR PLAYLISTS</span>
-            <button 
+            <button
               onClick={() => setCreatePlaylistModalOpen(true)}
               className="hover:text-white p-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400"
               title="Create Playlist"
@@ -194,9 +205,8 @@ export function Sidebar() {
                   setSelectedPlaylistId(pl.id);
                   setActiveTab('playlist');
                 }}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all ${
-                  selectedPlaylistId === pl.id && activeTab === 'playlist' ? 'bg-white/10 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
-                }`}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all ${selectedPlaylistId === pl.id && activeTab === 'playlist' ? 'bg-white/10 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                  }`}
               >
                 <div className="w-6 h-6 rounded-lg bg-[#fa233b]/15 text-[#fa233b] flex items-center justify-center flex-shrink-0">
                   <Music className="w-3.5 h-3.5" />
@@ -223,11 +233,10 @@ export function Sidebar() {
         {/* Connect to My Device Button */}
         <button
           onClick={toggleDeviceModal}
-          className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold transition-all text-xs cursor-pointer ${
-            isConnectedRemote
+          className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold transition-all text-xs cursor-pointer ${isConnectedRemote
               ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-md shadow-emerald-500/10'
               : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/5'
-          }`}
+            }`}
           title="Connect to My Device (Cast & Sync)"
         >
           <div className="flex items-center gap-2.5">
@@ -243,11 +252,10 @@ export function Sidebar() {
 
         <button
           onClick={() => setActiveTab('settings')}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all text-xs ${
-            activeTab === 'settings'
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all text-xs ${activeTab === 'settings'
               ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30'
               : 'text-slate-400 hover:bg-white/5 hover:text-white'
-          }`}
+            }`}
         >
           <Settings className={`w-4 h-4 ${activeTab === 'settings' ? 'text-white' : 'text-slate-400'}`} />
           <span>Settings</span>
@@ -256,8 +264,8 @@ export function Sidebar() {
         <div className="pt-1">
           {mounted && user ? (
             <div className="flex items-center justify-between p-2 rounded-2xl bg-white/5 border border-white/5">
-              <div 
-                onClick={() => setActiveTab('profile')} 
+              <div
+                onClick={() => setActiveTab('profile')}
                 className="flex items-center gap-2.5 min-w-0 cursor-pointer"
               >
                 <div className="w-7 h-7 rounded-xl bg-[#fa233b] text-white font-black text-xs flex items-center justify-center shadow-md flex-shrink-0">
@@ -269,7 +277,7 @@ export function Sidebar() {
                   </h4>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => signOut()}
                 className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-white/5 transition-colors"
                 title="Sign Out"
@@ -278,7 +286,7 @@ export function Sidebar() {
               </button>
             </div>
           ) : (
-            <button 
+            <button
               onClick={() => setAuthModalOpen(true)}
               className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-[#fa233b]/10 hover:bg-[#fa233b]/20 text-[#fa233b] font-bold text-xs transition-colors border border-[#fa233b]/20"
             >

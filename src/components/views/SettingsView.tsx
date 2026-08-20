@@ -155,6 +155,12 @@ export function SettingsView() {
   const [albumCompletion, setAlbumCompletion] = useState<'stop' | 'autoplay'>('stop');
   const [playlistCompletion, setPlaylistCompletion] = useState<'stop' | 'autoplay'>('autoplay');
   const [crossDeviceSync, setCrossDeviceSync] = useState(true);
+  const [desktopPlaybackMode, setDesktopPlaybackMode] = useState<'audio' | 'video' | 'ask'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('raagax_preferred_playback_mode') as any) || 'audio';
+    }
+    return 'audio';
+  });
 
   // Recommendations state
   const [recPersonalized, setRecPersonalized] = useState(true);
@@ -793,6 +799,31 @@ export function SettingsView() {
                   </select>
                 }
               />
+
+              {/* Desktop Preferred Playback Presentation Mode */}
+              <SettingRow
+                title="Preferred Media Presentation"
+                description="Default presentation mode on desktop for songs with official music videos."
+                control={
+                  <select
+                    value={desktopPlaybackMode}
+                    onChange={(e) => {
+                      const val = e.target.value as 'audio' | 'video' | 'ask';
+                      setDesktopPlaybackMode(val);
+                      if (typeof window !== 'undefined') {
+                        localStorage.setItem('raagax_preferred_playback_mode', val);
+                      }
+                      showToast(`Preferred mode: ${val === 'audio' ? 'Prefer Audio' : val === 'video' ? 'Prefer Video' : 'Ask when available'}`);
+                    }}
+                    className="bg-[#171922] border border-white/10 text-white text-xs rounded-xl px-3 py-2 outline-none focus:border-[#F51B3D]"
+                  >
+                    <option value="audio">Prefer Audio (Default)</option>
+                    <option value="video">Prefer Video</option>
+                    <option value="ask">Ask when Video is Available</option>
+                  </select>
+                }
+              />
+
               {/* Offline & Storage Settings (Mobile / Native Only) */}
               <div className="md:hidden space-y-5 pt-3 border-t border-white/5">
                 <SettingRow

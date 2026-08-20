@@ -14,7 +14,14 @@ export interface CandidateContext {
 }
 
 export class CandidateGenerator {
-  
+  // Tables/RPCs that returned 400/403 — skip them for the session to avoid console spam
+  private static unavailable = new Set<string>();
+
+  private static markUnavailable(feature: string) {
+    if (!CandidateGenerator.unavailable.has(feature)) {
+      CandidateGenerator.unavailable.add(feature);
+    }
+  }
   /**
    * Generates candidate tracks for queue refill using multilingual signals & candidate source hierarchy
    */
@@ -68,15 +75,17 @@ export class CandidateGenerator {
     try {
       // 1. Personalized songs (User Affinity)
       const { data: session } = await supabase.auth.getSession();
-      if (session?.session?.user) {
-        const { data: affinities } = await supabase
+      if (session?.session?.user && !CandidateGenerator.unavailable.has('user_artist_affinity')) {
+        const { data: affinities, error: affinityErr } = await supabase
           .from('user_artist_affinity')
           .select('artist')
           .eq('user_id', session.session.user.id)
           .order('affinity_score', { ascending: false })
           .limit(5);
 
-        if (affinities && affinities.length > 0) {
+        if (affinityErr) {
+          CandidateGenerator.markUnavailable('user_artist_affinity');
+        } else if (affinities && affinities.length > 0) {
           const topArtists = affinities.map(a => a.artist);
           const { data: affinitySongs, error: affinityError } = await supabase
             .from('canonical_songs')
@@ -91,13 +100,15 @@ export class CandidateGenerator {
       }
 
       // 2. Similar real songs (Vector Match)
-      if (currentSong) {
+      if (currentSong && !CandidateGenerator.unavailable.has('match_similar_songs')) {
         const { data: vectorMatches, error: vectorError } = await supabase.rpc('match_similar_songs', {
           target_song_id: currentSong.id,
           match_count: limit * 2
         });
         
-        if (!vectorError && vectorMatches && vectorMatches.length > 0) {
+        if (vectorError) {
+          CandidateGenerator.markUnavailable('match_similar_songs');
+        } else if (vectorMatches && vectorMatches.length > 0) {
           if (await addCandidates(vectorMatches, 'similar')) return Array.from(candidates.values());
         }
       }

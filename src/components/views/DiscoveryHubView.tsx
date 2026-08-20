@@ -87,7 +87,7 @@ export const GENRES = [
 export function DiscoveryHubView({ initialCategory, onBack }: DiscoveryHubViewProps) {
   const [activeCategory, setActiveCategory] = useState<DiscoveryCategory>(initialCategory);
   const [isLangModalOpen, setIsLangModalOpen] = useState(initialCategory === 'language');
-  
+
   const {
     preferredLanguage = 'Telugu',
     setPreferredLanguage,
@@ -261,11 +261,10 @@ export function DiscoveryHubView({ initialCategory, onBack }: DiscoveryHubViewPr
             <button
               key={tab.id}
               onClick={() => setActiveCategory(tab.id as any)}
-              className={`px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 whitespace-nowrap transition-all cursor-pointer ${
-                isActive
+              className={`px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 whitespace-nowrap transition-all cursor-pointer ${isActive
                   ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30'
                   : 'bg-white/5 hover:bg-white/10 text-slate-300'
-              }`}
+                }`}
             >
               <span>{tab.emoji}</span>
               <span>{tab.label}</span>
@@ -290,11 +289,10 @@ export function DiscoveryHubView({ initialCategory, onBack }: DiscoveryHubViewPr
               <button
                 key={st.id}
                 onClick={() => setNewMusicSubTab(st.id as any)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                  newMusicSubTab === st.id
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${newMusicSubTab === st.id
                     ? 'bg-white text-black font-black'
                     : 'bg-white/5 hover:bg-white/10 text-slate-300'
-                }`}
+                  }`}
               >
                 {st.label}
               </button>
@@ -420,11 +418,10 @@ export function DiscoveryHubView({ initialCategory, onBack }: DiscoveryHubViewPr
               <button
                 key={l.id}
                 onClick={() => setChartsLanguage(l.id)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                  chartsLanguage === l.id
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${chartsLanguage === l.id
                     ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white font-black shadow-md shadow-red-500/25'
                     : 'bg-white/5 hover:bg-white/10 text-slate-300'
-                }`}
+                  }`}
               >
                 <span>{l.flag} {l.label}</span>
               </button>
@@ -473,9 +470,8 @@ export function DiscoveryHubView({ initialCategory, onBack }: DiscoveryHubViewPr
                   return (
                     <div
                       key={`${song.id}-${item.rank}`}
-                      className={`p-3 sm:px-5 flex items-center justify-between hover:bg-[var(--bg-surface)] transition-colors group cursor-pointer ${
-                        isCurrent ? 'bg-red-500/10' : ''
-                      }`}
+                      className={`p-3 sm:px-5 flex items-center justify-between hover:bg-[var(--bg-surface)] transition-colors group cursor-pointer ${isCurrent ? 'bg-red-500/10' : ''
+                        }`}
                       onClick={() => playSong(song, chartsData.rankedSongs.map((r: any) => r.song))}
                     >
                       <div className="flex items-center gap-3.5 min-w-0 flex-1">
@@ -508,9 +504,8 @@ export function DiscoveryHubView({ initialCategory, onBack }: DiscoveryHubViewPr
                           className="w-11 h-11 rounded-xl object-cover shadow-sm bg-slate-800 flex-shrink-0"
                         />
                         <div className="min-w-0 flex-1 pr-2">
-                          <h4 className={`text-xs font-bold truncate group-hover:text-[#fa233b] transition-colors ${
-                            isCurrent ? 'text-[#fa233b]' : 'text-white'
-                          }`}>
+                          <h4 className={`text-xs font-bold truncate group-hover:text-[#fa233b] transition-colors ${isCurrent ? 'text-[#fa233b]' : 'text-white'
+                            }`}>
                             {song.title}
                           </h4>
                           <p className="text-[11px] text-slate-400 truncate mt-0.5">{song.artist}</p>
@@ -575,11 +570,10 @@ export function DiscoveryHubView({ initialCategory, onBack }: DiscoveryHubViewPr
               <button
                 key={t.id}
                 onClick={() => setPlaylistTab(t.id as any)}
-                className={`px-4 py-2 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer ${
-                  playlistTab === t.id
+                className={`px-4 py-2 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer ${playlistTab === t.id
                     ? 'bg-white text-black'
                     : 'bg-white/5 hover:bg-white/10 text-slate-300'
-                }`}
+                  }`}
               >
                 {t.label}
               </button>
@@ -709,9 +703,8 @@ export function DiscoveryHubView({ initialCategory, onBack }: DiscoveryHubViewPr
                 <button
                   key={m.id}
                   onClick={() => setSelectedMood(m.id)}
-                  className={`p-4 rounded-2xl bg-gradient-to-br ${m.bg} text-left transition-all cursor-pointer shadow-md flex items-center justify-between border ${
-                    isSelected ? 'border-white ring-2 ring-white/30 scale-[1.02]' : 'border-white/10 opacity-85 hover:opacity-100'
-                  }`}
+                  className={`p-4 rounded-2xl bg-gradient-to-br ${m.bg} text-left transition-all cursor-pointer shadow-md flex items-center justify-between border ${isSelected ? 'border-white ring-2 ring-white/30 scale-[1.02]' : 'border-white/10 opacity-85 hover:opacity-100'
+                    }`}
                 >
                   <div>
                     <span className="text-2xl">{m.emoji}</span>
@@ -801,7 +794,7 @@ export function DiscoveryHubView({ initialCategory, onBack }: DiscoveryHubViewPr
           {/* Combinatorial Formula Pill Bar */}
           <div className="p-4 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] flex flex-wrap items-center gap-2 shadow-sm">
             <span className="text-xs font-black text-slate-400 uppercase tracking-wider">COMBINATION:</span>
-            
+
             {/* Language Tag */}
             <span className="px-3 py-1 rounded-full bg-[#fa233b]/20 border border-[#fa233b]/40 text-[#fa233b] text-xs font-black">
               🇮🇳 {preferredLanguage}
@@ -841,9 +834,8 @@ export function DiscoveryHubView({ initialCategory, onBack }: DiscoveryHubViewPr
                 <button
                   key={g.id}
                   onClick={() => setSelectedGenre(g.id)}
-                  className={`p-3.5 rounded-2xl bg-gradient-to-br ${g.bg} text-left transition-all cursor-pointer shadow-md flex items-center justify-between border ${
-                    isSelected ? 'border-white ring-2 ring-white/30 scale-[1.02]' : 'border-white/10 opacity-80 hover:opacity-100'
-                  }`}
+                  className={`p-3.5 rounded-2xl bg-gradient-to-br ${g.bg} text-left transition-all cursor-pointer shadow-md flex items-center justify-between border ${isSelected ? 'border-white ring-2 ring-white/30 scale-[1.02]' : 'border-white/10 opacity-80 hover:opacity-100'
+                    }`}
                 >
                   <div>
                     <span className="text-xl">{g.emoji}</span>
@@ -934,11 +926,10 @@ export function DiscoveryHubView({ initialCategory, onBack }: DiscoveryHubViewPr
                   <button
                     key={l.id}
                     onClick={() => handleLanguageSelect(l.id)}
-                    className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between min-h-[85px] ${
-                      isSelected
+                    className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between min-h-[85px] ${isSelected
                         ? 'bg-gradient-to-br from-[#fa233b]/20 to-[#d91c2e]/10 border-[#fa233b] ring-2 ring-[#fa233b]/30 shadow-lg shadow-red-500/15'
                         : 'bg-white/5 hover:bg-white/10 border-white/10'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-base">{l.flag}</span>

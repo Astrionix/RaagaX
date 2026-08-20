@@ -38,8 +38,6 @@ export function SleepTimerModal() {
   const [remainingSec, setRemainingSec] = useState<number>(0);
   const [totalSec, setTotalSec] = useState<number>(0);
 
-  if (!mounted || !isSleepTimerModalOpen) return null;
-
   useEffect(() => {
     if (!sleepTimerEndsAt) {
       setRemainingSec(0);
@@ -54,7 +52,7 @@ export function SleepTimerModal() {
     return () => clearInterval(interval);
   }, [sleepTimerEndsAt]);
 
-  if (!isSleepTimerModalOpen) return null;
+  if (!mounted || !isSleepTimerModalOpen) return null;
 
   const isTimerRunning = (sleepTimerEndsAt !== null && sleepTimerEndsAt > Date.now()) || sleepTimerMode === 'end_of_song' || sleepTimerMode === 'end_of_queue';
 

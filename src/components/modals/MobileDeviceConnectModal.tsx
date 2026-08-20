@@ -180,7 +180,7 @@ export function MobileDeviceConnectModal() {
             </button>
             <div>
               <h3 className="text-base font-black text-white tracking-tight">Connect to Device</h3>
-              <p className="text-xs text-slate-400 font-medium">Choose where you want to listen</p>
+              <p className="text-xs text-slate-400 font-medium">Audio playback sync • Video stays on Desktop</p>
             </div>
           </div>
           

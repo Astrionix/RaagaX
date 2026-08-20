@@ -111,7 +111,7 @@ export function ContextMenuModal() {
               toggleDownloadSong(contextMenuSong.id);
               closeContextMenu();
             }}
-            className="w-full py-3 px-4 rounded-2xl hover:bg-white/10 flex items-center gap-3.5 transition-colors text-white"
+            className="md:hidden w-full py-3 px-4 rounded-2xl hover:bg-white/10 flex items-center gap-3.5 transition-colors text-white"
           >
             <Download className={`w-5 h-5 ${isDownloaded ? 'text-emerald-400' : 'text-slate-300'}`} />
             {isDownloaded ? 'Downloaded (320kbps MP3)' : 'Download Local File'}

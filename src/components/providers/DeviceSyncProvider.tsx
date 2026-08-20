@@ -231,7 +231,7 @@ export function DeviceSelector({ variant = 'pill', align, className = '' }: Devi
               </div>
               <div>
                 <h4 className="text-xs font-black uppercase tracking-wider text-white">Devices</h4>
-                <p className="text-[10px] text-slate-400 font-medium">Automatic Discovery · Explicit Connect</p>
+                <p className="text-[10px] text-slate-400 font-medium">Audio Playback Sync · Video stays on Desktop</p>
               </div>
             </div>
             <button 

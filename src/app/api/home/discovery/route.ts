@@ -30,7 +30,7 @@ function toFrontendSong(s: any): any {
   const encUrl = s.more_info?.encrypted_media_url || s.encrypted_media_url;
   const dlLinks = encUrl ? createDownloadLinks(encUrl) : [];
   const audio320 = dlLinks.find((l: any) => l.quality === '320kbps')?.url || dlLinks[dlLinks.length - 1]?.url || '';
-  
+
   const title = cleanHtml(s.title || s.name || 'Unknown Track');
   const artist = cleanHtml(
     s.more_info?.artistMap?.primary_artists?.map((a: any) => a.name).join(', ') ||
@@ -117,7 +117,7 @@ export async function GET(request: Request) {
       const rankedSongs = rawSongs.slice(0, 50).map((s: any, idx: number) => {
         let trend: 'UP' | 'DOWN' | 'NEW' | 'SAME' = 'SAME';
         let change = 0;
-        
+
         const hash = (s.id || '').split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
         const mod = (hash + idx) % 10;
         if (idx < 3) {
@@ -204,7 +204,7 @@ export async function GET(request: Request) {
     });
 
     const items = Array.isArray(albumsData?.data) ? albumsData.data : (Array.isArray(albumsData) ? albumsData : []);
-    
+
     const albums: any[] = [];
     const singles: any[] = [];
     const eps: any[] = [];

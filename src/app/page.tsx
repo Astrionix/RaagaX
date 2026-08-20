@@ -19,7 +19,6 @@ import { PlaylistImporterModal } from '@/components/modals/PlaylistImporterModal
 import { BackupRestoreModal } from '@/components/modals/BackupRestoreModal';
 import { SleepTimerModal } from '@/components/modals/SleepTimerModal';
 import { CastModal } from '@/components/modals/CastModal';
-import { PlaybackDebugPanel } from '@/components/player/PlaybackDebugPanel';
 import { SettingsModal } from '@/components/modals/SettingsModal';
 import { ContextMenuModal } from '@/components/modals/ContextMenuModal';
 import { OnboardingAuthModal } from '@/components/modals/OnboardingAuthModal';
@@ -42,6 +41,8 @@ import { SearchView } from '@/components/views/SearchView';
 import { LibraryView } from '@/components/views/LibraryView';
 import { PlaylistDetailView } from '@/components/views/PlaylistDetailView';
 import { AlbumDetailView } from '@/components/views/AlbumDetailView';
+import { AlbumsView } from '@/components/views/AlbumsView';
+import { VideoView } from '@/components/views/VideoView';
 import { RadioView } from '@/components/views/RadioView';
 import { ArtistDetailView } from '@/components/views/ArtistDetailView';
 import { ArtistsView } from '@/components/views/ArtistsView';
@@ -59,9 +60,10 @@ import { useDownloadStore } from '@/context/useDownloadStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
 
 export default function Page() {
-  const { 
-    activeTab, 
-    selectedArtistId, 
+  const {
+    activeTab,
+    selectedArtistId,
+    selectedAlbumId,
     rightPanelMode,
     isWrappedModalOpen,
     toggleWrappedModal,
@@ -138,8 +140,8 @@ export default function Page() {
           } else {
             appBackButtonListener = handle;
           }
-        }).catch(() => {});
-      } catch {}
+        }).catch(() => { });
+      } catch { }
     }
 
     window.addEventListener('popstate', handlePopState);
@@ -153,7 +155,7 @@ export default function Page() {
           } else if (typeof appBackButtonListener.then === 'function') {
             appBackButtonListener.then((h: any) => h?.remove?.());
           }
-        } catch {}
+        } catch { }
       }
     };
   }, []);
@@ -172,11 +174,11 @@ export default function Page() {
       {/* Splash Screen Animation */}
       <SplashScreen />
       <Toast />
-      
-      <OfflineStorageSetupModal 
-        isOpen={isSetupModalOpen} 
-        onClose={() => setSetupModalOpen(false)} 
-        onComplete={() => setSetupModalOpen(false)} 
+
+      <OfflineStorageSetupModal
+        isOpen={isSetupModalOpen}
+        onClose={() => setSetupModalOpen(false)}
+        onComplete={() => setSetupModalOpen(false)}
       />
 
       {/* RaagaX 2026 Wrapped Experience */}
@@ -203,7 +205,7 @@ export default function Page() {
 
       {/* App Layout (Grid after Sidebar) */}
       <div className="flex-1 ml-0 md:ml-64 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] md:h-[calc(100vh-5rem)] overflow-hidden">
-        
+
         {/* Main Content Column */}
         <div className="main-content min-w-0 min-h-0 overflow-y-auto overflow-x-hidden relative flex flex-col h-full">
           {/* Header Bar */}
@@ -213,10 +215,11 @@ export default function Page() {
           <main className="flex-1 pt-14 md:pt-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))] md:pb-8 px-3.5 sm:px-8">
             {activeTab === 'home' && <HomeView />}
             {activeTab === 'search' && <SearchView />}
+            {activeTab === 'video' && <VideoView />}
             {activeTab === 'library' && <LibraryView />}
             {activeTab === 'radio' && <RadioView />}
             {activeTab === 'artist' && (selectedArtistId ? <ArtistDetailView /> : <ArtistsView />)}
-            {activeTab === 'album' && <AlbumDetailView />}
+            {activeTab === 'album' && (selectedAlbumId ? <AlbumDetailView /> : <AlbumsView />)}
             {activeTab === 'playlist' && <PlaylistDetailView />}
             {activeTab === 'profile' && <ProfileView />}
             {activeTab === 'downloads' && <DownloadsView />}
@@ -290,7 +293,7 @@ export default function Page() {
       <ErrorBoundary name="NotificationCenterModal">
         <NotificationCenterModal />
       </ErrorBoundary>
-      
+
       {/* ── Native Android Connected Surfaces ── */}
       <LockScreenPlayerModal
         isOpen={isLockScreenOpen}
@@ -306,9 +309,6 @@ export default function Page() {
         onOpenLockScreen={() => toggleLockScreen(true)}
         onOpenNotificationShade={() => toggleNotificationShade(true)}
       />
-
-      {/* Real-Time Ultra-Fast Playback Diagnostics Panel */}
-      <PlaybackDebugPanel />
     </div>
   );
 }

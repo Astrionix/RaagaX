@@ -70,6 +70,11 @@ export class PlaybackService {
       const active = this.getActiveAudio();
       if (!active) return;
       const store = usePlayerStore.getState();
+
+      // INVARIANT: When video is the active renderer, audio is intentionally paused.
+      // The watchdog must not try to recover audio in this state.
+      if (store.activeRenderer === 'video') return;
+
       if (store.isActiveDevice && store.isPlaying && store.playbackIntent === 'PLAYING' && active.paused && !active.ended && !this.isTransitioning) {
         if (active.readyState >= 2) {
           console.warn('[PlaybackService Watchdog] Active audio paused unexpectedly while isPlaying=true. Recovering play()...');
@@ -286,6 +291,15 @@ export class PlaybackService {
 
   public async playTrack(song: Song, forceResume: boolean = true): Promise<boolean> {
     if (!song) return false;
+
+    // INVARIANT: Audio playTrack must not execute while video renderer is active.
+    // Only the MediaHandoffManager is allowed to call playTrack during a switchToAudio transition.
+    const rendererCheck = usePlayerStore.getState().activeRenderer;
+    if (rendererCheck === 'video') {
+      console.warn(`[PlaybackService] playTrack() blocked for "${song.title}" — video renderer is active`);
+      return false;
+    }
+
     this.isTransitioning = true;
     const currentGen = ++this.playbackGeneration;
 
@@ -701,6 +715,14 @@ export class PlaybackService {
     } catch {}
   }
 
+  public pauseAudioElementOnly() {
+    [this.audioA, this.audioB].forEach(audio => {
+      if (audio && !audio.paused) {
+        try { audio.pause(); } catch {}
+      }
+    });
+  }
+
   public pause() {
     if (RaagaXNativePlayer.isNative()) {
       RaagaXNativePlayer.pause();
@@ -709,16 +731,49 @@ export class PlaybackService {
       return;
     }
 
-    [this.audioA, this.audioB].forEach(audio => {
-      if (audio && !audio.paused) {
-        try { audio.pause(); } catch {}
-      }
-    });
+    this.pauseAudioElementOnly();
 
     const store = usePlayerStore.getState();
-    store.setIsPlaying(false, true);
-    MediaSessionManager.getInstance().setPlaybackState('paused');
+    // Only update store isPlaying if audio is the active renderer
+    if (store.activeRenderer !== 'video') {
+      store.setIsPlaying(false, true);
+      MediaSessionManager.getInstance().setPlaybackState('paused');
+    }
     AudioFocusManager.getInstance().releaseFocus();
+  }
+
+  public async resume(): Promise<boolean> {
+    if (RaagaXNativePlayer.isNative()) {
+      RaagaXNativePlayer.resume();
+      const store = usePlayerStore.getState();
+      store.setIsPlaying(true, true);
+      return true;
+    }
+
+    // INVARIANT: Audio must never resume while video is the active renderer
+    const store = usePlayerStore.getState();
+    if (store.activeRenderer === 'video') {
+      console.warn('[PlaybackService] resume() blocked — video renderer is active');
+      return false;
+    }
+
+    const active = this.getActiveAudio() || PlaybackEngine.getInstance().getActiveMediaElement();
+    if (active && active.src) {
+      try {
+        await active.play();
+        store.setIsPlaying(true, true);
+        MediaSessionManager.getInstance().setPlaybackState('playing');
+        AudioFocusManager.getInstance().requestFocus();
+        return true;
+      } catch (e) {
+        console.warn('[PlaybackService] Resume failed:', e);
+      }
+    }
+
+    if (store.currentSong) {
+      return this.playTrack(store.currentSong, true);
+    }
+    return false;
   }
 
   public seek(timeSeconds: number, fromRemote: boolean = false) {
@@ -764,13 +819,18 @@ export class PlaybackService {
   private handleNativePlayState(tag: 'A' | 'B', isPlaying: boolean) {
     if (tag !== this.activeTag) return;
 
+    const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+    // CRITICAL: If video is the active renderer, the HTML5 audio element's pause event must NOT overwrite store isPlaying!
+    if (store.activeRenderer === 'video') {
+      return;
+    }
+
     // Ignore native pause events caused by track ending, during transition/initialization, or while loading (readyState < 2)
     const active = this.getActiveAudio();
     if (!isPlaying && (this.isTransitioning || this.isInitializing || (active && (active.ended || active.readyState < 2)))) {
       return;
     }
 
-    const store = require('@/context/usePlayerStore').usePlayerStore.getState();
     if (store.isActiveDevice) {
       if (store.isPlaying !== isPlaying) {
         store.setIsPlaying(isPlaying, true);

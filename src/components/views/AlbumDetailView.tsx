@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
   Play, Pause, Heart, ArrowLeft, Shuffle, Music, Clock, Disc,
-  Download, Check, MoreVertical, ArrowUpDown, Sparkles, User, Share2, ListPlus, Loader2
+  Download, Check, MoreVertical, ArrowUpDown, Sparkles, User, Share2, ListPlus, Loader2, Plus
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
@@ -408,11 +408,42 @@ export function AlbumDetailView() {
             )}
           </button>
 
+          {/* ＋ Add to Library / ✓ In Library Button */}
           <button
             onClick={() => {
               if (selectedAlbumId) {
+                haptics.mediumImpact();
                 toggleFavoriteAlbum(selectedAlbumId);
-                setToastMessage(isLikedAlbum ? 'Removed album from Favorites' : 'Saved album to Favorites');
+                setToastMessage(isLikedAlbum ? 'Removed album from Library' : 'Added album to Library (Albums)');
+              }
+            }}
+            className={`flex items-center gap-2 px-5 py-3.5 rounded-full font-bold text-sm border transition-all active:scale-95 cursor-pointer ${
+              isLikedAlbum
+                ? 'bg-purple-500/20 border-purple-500/40 text-purple-300 shadow-lg shadow-purple-500/20'
+                : 'bg-white/10 hover:bg-white/20 border-white/15 text-white'
+            }`}
+            title={isLikedAlbum ? 'Remove from Library' : 'Add to Library'}
+          >
+            {isLikedAlbum ? (
+              <>
+                <Check className="w-4 h-4 text-purple-400 stroke-[3]" />
+                <span>In Library</span>
+              </>
+            ) : (
+              <>
+                <Plus className="w-4 h-4" />
+                <span>Add to Library</span>
+              </>
+            )}
+          </button>
+
+          {/* ♡ Like Button */}
+          <button
+            onClick={() => {
+              if (selectedAlbumId) {
+                haptics.lightImpact();
+                toggleFavoriteAlbum(selectedAlbumId);
+                setToastMessage(isLikedAlbum ? 'Removed from Favorites' : 'Liked album');
               }
             }}
             className={`p-3.5 rounded-full border transition-all active:scale-95 cursor-pointer ${
@@ -420,7 +451,7 @@ export function AlbumDetailView() {
                 ? 'bg-red-500/15 border-red-500/30 text-[#fa233b]'
                 : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white'
             }`}
-            title={isLikedAlbum ? 'Remove from Favorites' : 'Favorite Album'}
+            title={isLikedAlbum ? 'Unlike Album' : 'Like Album'}
           >
             <Heart className={`w-5 h-5 ${isLikedAlbum ? 'fill-current text-[#fa233b]' : ''}`} />
           </button>

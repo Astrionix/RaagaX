@@ -73,6 +73,39 @@ export function HistoryView() {
     );
   }, [historySongs, searchQuery]);
 
+  // Group into Today, Yesterday, Earlier This Week, and Older
+  const groupedHistory = useMemo(() => {
+    const today: { song: Song; playedAt?: number }[] = [];
+    const yesterday: { song: Song; playedAt?: number }[] = [];
+    const earlierThisWeek: { song: Song; playedAt?: number }[] = [];
+    const older: { song: Song; playedAt?: number }[] = [];
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfYesterday = startOfToday - 86400000;
+    const startOfWeek = startOfToday - 86400000 * 6;
+
+    filteredHistory.forEach((item) => {
+      const time = item.playedAt || Date.now();
+      if (time >= startOfToday) {
+        today.push(item);
+      } else if (time >= startOfYesterday) {
+        yesterday.push(item);
+      } else if (time >= startOfWeek) {
+        earlierThisWeek.push(item);
+      } else {
+        older.push(item);
+      }
+    });
+
+    return [
+      { title: 'Today', items: today },
+      { title: 'Yesterday', items: yesterday },
+      { title: 'Earlier This Week', items: earlierThisWeek },
+      { title: 'Older', items: older },
+    ].filter((group) => group.items.length > 0);
+  }, [filteredHistory]);
+
   const handlePlayAll = (shuffle = false) => {
     if (filteredHistory.length === 0) return;
     const songs = filteredHistory.map((h) => h.song);
@@ -214,83 +247,92 @@ export function HistoryView() {
           )}
         </div>
       ) : (
-        <div className="space-y-1.5">
-          {filteredHistory.map((item, idx) => {
-            const song = item.song;
-            const isPlayingCurrent = currentSong?.id === song.id;
-            const isLiked = likedSongIds.includes(song.id);
+        <div className="space-y-8">
+          {groupedHistory.map((group) => (
+            <div key={group.title} className="space-y-3">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 px-1 border-b border-white/5 pb-2">
+                {group.title}
+              </h3>
+              <div className="space-y-1.5">
+                {group.items.map((item, idx) => {
+                  const song = item.song;
+                  const isPlayingCurrent = currentSong?.id === song.id;
+                  const isLiked = likedSongIds.includes(song.id);
 
-            return (
-              <div
-                key={`${song.id}-${idx}`}
-                onClick={() => playSong(song, filteredHistory.map(h => h.song))}
-                className={`flex items-center justify-between p-3 rounded-2xl transition-all cursor-pointer group select-none ${
-                  isPlayingCurrent
-                    ? 'bg-[#fa233b]/15 border border-[#fa233b]/30 text-white shadow-lg shadow-red-500/10'
-                    : 'bg-white/[0.02] hover:bg-white/5 border border-white/5 hover:border-white/10'
-                }`}
-              >
-                {/* Left: Index / Waveform + Cover + Details */}
-                <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                  <div className="w-6 text-center flex-shrink-0 flex items-center justify-center">
-                    {isPlayingCurrent ? (
-                      <div className="flex items-end gap-[2px] h-3.5">
-                        <span className={`w-1 bg-[#fa233b] rounded-full ${isPlaying ? 'animate-pulse' : ''} h-3.5`} />
-                        <span className={`w-1 bg-[#fa233b] rounded-full ${isPlaying ? 'animate-pulse' : ''} h-2`} style={{ animationDelay: '150ms' }} />
-                        <span className={`w-1 bg-[#fa233b] rounded-full ${isPlaying ? 'animate-pulse' : ''} h-3`} style={{ animationDelay: '300ms' }} />
+                  return (
+                    <div
+                      key={`${song.id}-${group.title}-${idx}`}
+                      onClick={() => playSong(song, filteredHistory.map(h => h.song))}
+                      className={`flex items-center justify-between p-3 rounded-2xl transition-all cursor-pointer group select-none ${
+                        isPlayingCurrent
+                          ? 'bg-[#fa233b]/15 border border-[#fa233b]/30 text-white shadow-lg shadow-red-500/10'
+                          : 'bg-white/[0.02] hover:bg-white/5 border border-white/5 hover:border-white/10'
+                      }`}
+                    >
+                      {/* Left: Waveform/Play + Cover + Details */}
+                      <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                        <div className="w-6 text-center flex-shrink-0 flex items-center justify-center">
+                          {isPlayingCurrent ? (
+                            <div className="flex items-end gap-[2px] h-3.5">
+                              <span className={`w-1 bg-[#fa233b] rounded-full ${isPlaying ? 'animate-pulse' : ''} h-3.5`} />
+                              <span className={`w-1 bg-[#fa233b] rounded-full ${isPlaying ? 'animate-pulse' : ''} h-2`} style={{ animationDelay: '150ms' }} />
+                              <span className={`w-1 bg-[#fa233b] rounded-full ${isPlaying ? 'animate-pulse' : ''} h-3`} style={{ animationDelay: '300ms' }} />
+                            </div>
+                          ) : (
+                            <span className="text-xs font-mono font-bold text-slate-500 group-hover:hidden">
+                              {(idx + 1).toString().padStart(2, '0')}
+                            </span>
+                          )}
+                          <button className={`w-5 h-5 text-white items-center justify-center hidden ${!isPlayingCurrent ? 'group-hover:flex' : ''}`}>
+                            <Play className="w-3.5 h-3.5 fill-current" />
+                          </button>
+                        </div>
+
+                        <img
+                          src={song.coverUrl || '/app-icon.png'}
+                          alt={song.title}
+                          className="w-11 h-11 rounded-xl object-cover shadow-sm bg-slate-900 border border-white/10 flex-shrink-0"
+                        />
+
+                        <div className="min-w-0 flex-1">
+                          <h4 className={`text-xs sm:text-sm font-bold truncate leading-snug ${isPlayingCurrent ? 'text-[#fa233b]' : 'text-white'}`}>
+                            {song.title}
+                          </h4>
+                          <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                            {song.artist} {song.album ? `• ${song.album}` : ''}
+                          </p>
+                        </div>
                       </div>
-                    ) : (
-                      <span className="text-xs font-mono font-bold text-slate-500 group-hover:hidden">
-                        {(idx + 1).toString().padStart(2, '0')}
-                      </span>
-                    )}
-                    <button className={`w-5 h-5 text-white items-center justify-center hidden ${!isPlayingCurrent ? 'group-hover:flex' : ''}`}>
-                      <Play className="w-3.5 h-3.5 fill-current" />
-                    </button>
-                  </div>
 
-                  <img
-                    src={song.coverUrl || '/app-icon.png'}
-                    alt={song.title}
-                    className="w-11 h-11 rounded-xl object-cover shadow-sm bg-slate-900 border border-white/10 flex-shrink-0"
-                  />
+                      {/* Right: Timestamp + Duration + Heart + Menu */}
+                      <div className="flex items-center gap-3 flex-shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-[10px] font-semibold text-slate-400 hidden md:inline px-2 py-0.5 rounded-full bg-white/5 border border-white/5">
+                          {formatRelativeTime(item.playedAt)}
+                        </span>
 
-                  <div className="min-w-0 flex-1">
-                    <h4 className={`text-xs sm:text-sm font-bold truncate leading-snug ${isPlayingCurrent ? 'text-[#fa233b]' : 'text-white'}`}>
-                      {song.title}
-                    </h4>
-                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                      {song.artist} {song.album ? `• ${song.album}` : ''}
-                    </p>
-                  </div>
-                </div>
+                        <span className="text-xs font-mono text-slate-500 hidden sm:inline">
+                          {formatDuration(song.duration || 210)}
+                        </span>
 
-                {/* Right: Timestamp + Duration + Heart + Menu */}
-                <div className="flex items-center gap-3 flex-shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
-                  <span className="text-[10px] font-semibold text-slate-400 hidden md:inline px-2 py-0.5 rounded-full bg-white/5 border border-white/5">
-                    {formatRelativeTime(item.playedAt)}
-                  </span>
+                        <button
+                          onClick={() => {
+                            haptics.lightImpact();
+                            toggleLikeSong(song.id);
+                          }}
+                          className="p-1.5 rounded-full text-slate-400 hover:text-[#fa233b] hover:bg-white/5 transition-all"
+                          title={isLiked ? 'Liked' : 'Like track'}
+                        >
+                          <Heart className={`w-4 h-4 ${isLiked ? 'text-[#fa233b] fill-current' : ''}`} />
+                        </button>
 
-                  <span className="text-xs font-mono text-slate-500 hidden sm:inline">
-                    {formatDuration(song.duration || 210)}
-                  </span>
-
-                  <button
-                    onClick={() => {
-                      haptics.lightImpact();
-                      toggleLikeSong(song.id);
-                    }}
-                    className="p-1.5 rounded-full text-slate-400 hover:text-[#fa233b] hover:bg-white/5 transition-all"
-                    title={isLiked ? 'Liked' : 'Like track'}
-                  >
-                    <Heart className={`w-4 h-4 ${isLiked ? 'text-[#fa233b] fill-current' : ''}`} />
-                  </button>
-
-                  <SongActionMenu song={song} />
-                </div>
+                        <SongActionMenu song={song} />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       )}
 

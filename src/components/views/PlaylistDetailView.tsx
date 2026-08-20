@@ -561,7 +561,7 @@ export function PlaylistDetailView() {
 
           <button
             onClick={handleDownloadAll}
-            className="px-4 py-3 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer"
+            className="md:hidden px-4 py-3 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer"
             title="Download All Songs"
           >
             <Download className="w-4 h-4 text-emerald-400" />
@@ -665,8 +665,8 @@ export function PlaylistDetailView() {
                   </div>
                 </div>
 
-                {/* Download State Indicator */}
-                <div className="flex items-center gap-3 flex-shrink-0">
+                {/* Download State Indicator (Mobile Only) */}
+                <div className="md:hidden flex items-center gap-3 flex-shrink-0">
                   {isDownloaded ? (
                     <span title="Downloaded Offline" className="text-emerald-400 p-1">
                       <CheckCircle2 className="w-4 h-4" />
@@ -678,25 +678,25 @@ export function PlaylistDetailView() {
                   ) : (
                     <button
                       onClick={() => saveForOffline(song)}
-                      className="p-1.5 text-slate-500 hover:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      className="p-1.5 text-slate-500 hover:text-slate-300 transition-opacity cursor-pointer"
                       title="Download song"
                     >
                       <Download className="w-3.5 h-3.5" />
                     </button>
                   )}
-
-                  {/* Duration */}
-                  <span className="text-[11px] font-mono text-slate-400 hidden sm:inline-block">
-                    {Math.floor((song.duration || 180) / 60)}:{((song.duration || 180) % 60).toString().padStart(2, '0')}
-                  </span>
-
-                  {/* Song 3-dot Menu */}
-                  <SongActionMenu 
-                    song={song} 
-                    playlistId={playlist.id}
-                    onRemoveFromPlaylist={() => removeSongFromPlaylist(playlist.id, song.id)}
-                  />
                 </div>
+
+                {/* Duration */}
+                <span className="text-[11px] font-mono text-slate-400 hidden sm:inline-block">
+                  {Math.floor((song.duration || 180) / 60)}:{((song.duration || 180) % 60).toString().padStart(2, '0')}
+                </span>
+
+                {/* Song 3-dot Menu */}
+                <SongActionMenu 
+                  song={song} 
+                  playlistId={playlist.id}
+                  onRemoveFromPlaylist={() => removeSongFromPlaylist(playlist.id, song.id)}
+                />
               </div>
             );
           })}

@@ -26,6 +26,9 @@ export function DownloadStatusIndicator({
   const saveForOffline = useDownloadStore((s) => s.saveForOffline);
   const retryDownload = useDownloadStore((s) => s.retryDownload);
   const downloadedSongIds = usePlayerStore((s) => s.downloadedSongIds);
+  // INVARIANT: Downloads are strictly native mobile offline features — completely hide on Desktop
+  const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
+  if (!isNative) return null;
 
   if (!song || !song.id) return null;
 

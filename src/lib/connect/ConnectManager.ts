@@ -353,10 +353,22 @@ export class ConnectManager {
     if (command.type === 'WEBRTC_SIGNAL') {
       const targetTopic = `user:${this.userId}:device:${targetDeviceId}`;
       const tempChannel = supabase.channel(targetTopic, { config: { broadcast: { self: false } } });
+      const timeout = setTimeout(() => {
+        try { supabase.removeChannel(tempChannel); } catch {}
+      }, 4000);
+
       tempChannel.subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
-          await tempChannel.send({ type: 'broadcast', event: 'COMMAND', payload: command });
-          supabase.removeChannel(tempChannel);
+          clearTimeout(timeout);
+          try {
+            await tempChannel.send({ type: 'broadcast', event: 'COMMAND', payload: command });
+          } catch {}
+          setTimeout(() => {
+            try { supabase.removeChannel(tempChannel); } catch {}
+          }, 300);
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          clearTimeout(timeout);
+          try { supabase.removeChannel(tempChannel); } catch {}
         }
       });
       return;
@@ -367,11 +379,26 @@ export class ConnectManager {
     const cloudFallback = async (cmd: ConnectCommand) => {
       const targetTopic = `user:${this.userId}:device:${targetDeviceId}`;
       const tempChannel = supabase.channel(targetTopic, { config: { broadcast: { self: false } } });
+
       await new Promise<void>((resolve) => {
+        const timeout = setTimeout(() => {
+          try { supabase.removeChannel(tempChannel); } catch {}
+          resolve();
+        }, 4000);
+
         tempChannel.subscribe(async (status) => {
           if (status === 'SUBSCRIBED') {
-            await tempChannel.send({ type: 'broadcast', event: 'COMMAND', payload: cmd });
-            supabase.removeChannel(tempChannel);
+            clearTimeout(timeout);
+            try {
+              await tempChannel.send({ type: 'broadcast', event: 'COMMAND', payload: cmd });
+            } catch {}
+            setTimeout(() => {
+              try { supabase.removeChannel(tempChannel); } catch {}
+            }, 300);
+            resolve();
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            clearTimeout(timeout);
+            try { supabase.removeChannel(tempChannel); } catch {}
             resolve();
           }
         });

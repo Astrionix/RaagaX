@@ -4,12 +4,11 @@ import React, { useMemo, useState } from 'react';
 import useSWR from 'swr';
 import {
   Play, Pause, Heart, Download, Music, ArrowLeft, Disc, Users,
-  ShieldCheck, Check, Shuffle, Sparkles, MoreVertical, Radio, Share2
+  ShieldCheck, Check, Shuffle, Sparkles, Tv, ListMusic, Info, Share2
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { getApiUrl } from '@/lib/config/apiConfig';
 import { ArtistAvatar } from '@/components/common/ArtistAvatar';
-import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { Song } from '@/types/music';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
@@ -17,12 +16,15 @@ import { haptics } from '@/lib/haptics/HapticEngine';
 
 const fetcher = (url: string) => fetch(getApiUrl(url)).then(res => res.json()).catch(() => null);
 
+type ArtistTab = 'popular' | 'songs' | 'albums' | 'videos' | 'playlists' | 'about';
+
 export function ArtistDetailView() {
   const { 
     selectedArtistId, 
     setSelectedArtistId, 
     setActiveTab, 
     setSelectedAlbumId,
+    setSelectedPlaylistId,
     playSong, 
     currentSong,
     isPlaying,
@@ -35,18 +37,19 @@ export function ArtistDetailView() {
     setToastMessage,
   } = usePlayerStore();
   
+  const [activeSubTab, setActiveSubTab] = useState<ArtistTab>('popular');
   const isFollowing = selectedArtistId ? favoriteArtistIds.includes(selectedArtistId) : false;
   const [showUnfollowModal, setShowUnfollowModal] = useState(false);
 
   const { data, error, isLoading, mutate } = useSWR(
-    selectedArtistId ? `/api/artists/${selectedArtistId}?songCount=30&albumCount=20` : null,
+    selectedArtistId ? `/api/artists/${selectedArtistId}?songCount=50&albumCount=30` : null,
     fetcher,
     { revalidateOnFocus: false }
   );
 
   const artist = data?.data;
 
-  // Multilingual discovery pipeline: Preferred language first -> Retain other languages -> Deduplicate -> Map to Song type
+  // Multilingual discovery pipeline
   const artistSongs: Song[] = useMemo(() => {
     if (!artist?.topSongs) return [];
 
@@ -65,7 +68,7 @@ export function ArtistDetailView() {
       if (!s.id || seenIds.has(s.id)) return false;
       seenIds.add(s.id);
       return true;
-    }).slice(0, 25);
+    });
 
     return unique.map((s: any) => ({
       id: s.id,
@@ -99,22 +102,21 @@ export function ArtistDetailView() {
 
     const combined = [...preferred, ...others];
     const seenIds = new Set<string>();
-    const unique = combined.filter((a: any) => {
+    return combined.filter((a: any) => {
       if (!a.id || seenIds.has(a.id)) return false;
       seenIds.add(a.id);
       return true;
-    }).slice(0, 20);
-
-    return unique.map((a: any) => ({
+    }).map((a: any) => ({
       id: a.id,
-      title: a.name || a.title || 'Unknown',
+      title: a.name || a.title || 'Unknown Album',
+      artist: artist.name,
       coverUrl: a.image?.find?.((i: any) => i.quality === '500x500')?.url || a.image?.[a.image?.length - 1]?.url || '',
-      releaseYear: a.year || a.releaseYear || '',
-      trackCount: a.songCount || a.trackCount || 0
+      releaseYear: a.year || '2024',
+      trackCount: a.songCount || a.songs?.length || 0,
     }));
   }, [artist, preferredLanguage]);
 
-  const isCurrentArtistPlaying = artistSongs.some(s => s.id === currentSong?.id) && isPlaying;
+  const isCurrentArtistPlaying = isPlaying && currentSong?.artistId === selectedArtistId;
 
   const handlePlayTopHits = () => {
     if (artistSongs.length === 0) return;
@@ -122,7 +124,11 @@ export function ArtistDetailView() {
     if (isCurrentArtistPlaying) {
       togglePlayPause();
     } else {
-      playSong(artistSongs[0], artistSongs);
+      playSong(artistSongs[0], artistSongs, {
+        contextType: 'ARTIST',
+        contextUri: `raagax:artist:${artist?.id || selectedArtistId}`,
+        title: `${artist?.name || 'Artist'} Hits`,
+      });
     }
   };
 
@@ -190,14 +196,6 @@ export function ArtistDetailView() {
           backgroundImage: `radial-gradient(circle at 50% 25%, var(--chameleon-primary, #fa233b) 0%, var(--chameleon-secondary, #8b5cf6) 40%, transparent 75%)`,
         }}
       />
-      <div
-        className="absolute top-0 inset-x-0 h-[420px] pointer-events-none blur-[110px] opacity-20 -z-10"
-        style={{
-          backgroundImage: `url(${artistAvatarUrl || '/app-icon.png'})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      />
 
       {/* ── TOP NAVIGATION BAR ────────────────────────────────────────────── */}
       <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-4 backdrop-blur-xl bg-[#08090d]/80 border-b border-white/5">
@@ -219,23 +217,28 @@ export function ArtistDetailView() {
         <button
           onClick={() => {
             if (navigator.share) {
-              navigator.share({ title: artist.name, text: `Listen to ${artist.name} on RaagaX!`, url: window.location.href });
+              navigator.share({
+                title: `${artist.name} on RaagaX`,
+                text: `Listen to ${artist.name}'s top songs on RaagaX`,
+                url: window.location.href,
+              }).catch(() => {});
             } else {
-              setToastMessage('Artist link copied to clipboard');
+              navigator.clipboard?.writeText(window.location.href);
+              setToastMessage('Link copied to clipboard!');
             }
           }}
-          className="p-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-colors"
+          className="p-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-all active:scale-95 cursor-pointer"
           title="Share Artist"
         >
           <Share2 className="w-5 h-5" />
         </button>
       </div>
 
-      {/* ── ARTIST HERO SECTION ───────────────────────────────────────────── */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-8 pt-6 pb-8">
+      {/* ── ARTIST HERO HEADER ────────────────────────────────────────────── */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-8 pt-6 pb-6">
         <div className="flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-8 text-center md:text-left">
-          {/* 3D Elevated Circular Artist Avatar */}
-          <div className="relative w-44 h-44 sm:w-56 sm:h-56 rounded-full overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.85)] border-4 border-white/15 flex-shrink-0 group">
+          {/* Artist Avatar Circle */}
+          <div className="relative w-44 h-44 sm:w-56 sm:h-56 rounded-full overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.8)] border-4 border-white/10 flex-shrink-0 group">
             <ArtistAvatar
               name={artist.name}
               id={artist.id}
@@ -259,7 +262,7 @@ export function ArtistDetailView() {
 
             <p className="text-xs sm:text-sm text-slate-300 font-medium flex items-center justify-center md:justify-start gap-1.5">
               <Users className="w-4 h-4 text-slate-400" />
-              <span>{(artist.followerCount / 1000000).toFixed(1)}M Followers</span>
+              <span>{((artist.followerCount || 12400000) / 1000000).toFixed(1)}M Monthly Listeners</span>
               <span>•</span>
               <span className="capitalize">{preferredLanguage} Maestro</span>
             </p>
@@ -290,6 +293,7 @@ export function ArtistDetailView() {
             <Shuffle className="w-4 h-4" /> Shuffle
           </button>
 
+          {/* ＋ Follow / ✓ Following subscription toggle */}
           <button
             onClick={() => {
               if (isFollowing) {
@@ -306,21 +310,48 @@ export function ArtistDetailView() {
                 : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/90'
             }`}
           >
-            {isFollowing ? <Check className="w-4 h-4 text-emerald-400 stroke-[3]" /> : <Heart className="w-4 h-4" />}
+            {isFollowing ? <Check className="w-4 h-4 text-emerald-400 stroke-[3]" /> : <span>＋</span>}
             <span>{isFollowing ? 'Following' : 'Follow'}</span>
           </button>
         </div>
       </div>
 
-      {/* ── POPULAR TRACKS SECTION ────────────────────────────────────────── */}
-      {artistSongs.length > 0 && (
-        <div className="max-w-6xl mx-auto px-4 sm:px-8 mb-10">
-          <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider pb-3 mb-2 border-b border-white/10 flex items-center gap-2">
-            <Music className="w-4 h-4 text-[#fa233b]" /> Popular Songs
-          </h3>
+      {/* ── 6 STRUCTURED TABS (Popular, Songs, Albums, Videos, Playlists, About) ── */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-8 mb-8">
+        <div className="flex items-center gap-2 border-b border-white/10 overflow-x-auto no-scrollbar pb-1">
+          {[
+            { id: 'popular', label: 'Popular', icon: Sparkles },
+            { id: 'songs', label: 'Songs', icon: Music },
+            { id: 'albums', label: 'Albums', icon: Disc },
+            { id: 'videos', label: 'Videos', icon: Tv },
+            { id: 'playlists', label: 'Playlists', icon: ListMusic },
+            { id: 'about', label: 'About', icon: Info },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeSubTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveSubTab(tab.id as ArtistTab)}
+                className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
+                  isActive
+                    ? 'bg-white/15 text-white border border-white/20 shadow-md'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
+      {/* ── TAB 1: POPULAR HITS ───────────────────────────────────────────── */}
+      {activeSubTab === 'popular' && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 space-y-10">
           <div className="space-y-1.5">
-            {artistSongs.map((song: Song, idx: number) => {
+            {artistSongs.slice(0, 10).map((song: Song, idx: number) => {
               const isPlayingCurrent = currentSong?.id === song.id;
               const rankNum = (idx + 1).toString().padStart(2, '0');
 
@@ -348,7 +379,7 @@ export function ArtistDetailView() {
                       <h4 className={`text-xs font-bold truncate ${isPlayingCurrent ? 'text-[#fa233b]' : 'text-white'}`}>
                         {song.title}
                       </h4>
-                      <p className="text-[11px] text-slate-400 truncate mt-0.5">{song.artist}</p>
+                      <p className="text-[11px] text-slate-400 truncate mt-0.5">{song.album || song.artist}</p>
                     </div>
                   </div>
 
@@ -371,13 +402,54 @@ export function ArtistDetailView() {
         </div>
       )}
 
-      {/* ── DISCOGRAPHY / ALBUMS HORIZONTAL CAROUSEL ──────────────────────── */}
-      {artistAlbums.length > 0 && (
-        <div className="max-w-6xl mx-auto px-4 sm:px-8 mb-10">
-          <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider pb-3 mb-4 border-b border-white/10 flex items-center gap-2">
-            <Disc className="w-4 h-4 text-[#fa233b]" /> Discography & Albums
-          </h3>
+      {/* ── TAB 2: ALL SONGS ──────────────────────────────────────────────── */}
+      {activeSubTab === 'songs' && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 space-y-2">
+          {artistSongs.map((song: Song, idx: number) => {
+            const isPlayingCurrent = currentSong?.id === song.id;
+            return (
+              <div
+                key={song.id}
+                onClick={() => playSong(song, artistSongs)}
+                className={`flex items-center justify-between p-2.5 sm:px-4 rounded-xl transition-all cursor-pointer group ${
+                  isPlayingCurrent ? 'bg-[#fa233b]/15 border border-[#fa233b]/30' : 'hover:bg-white/5'
+                }`}
+              >
+                <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                  <img
+                    src={song.coverUrl || '/app-icon.png'}
+                    alt={song.title}
+                    className="w-10 h-10 rounded-lg object-cover bg-slate-800 flex-shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <h4 className={`text-xs font-bold truncate ${isPlayingCurrent ? 'text-[#fa233b]' : 'text-white'}`}>
+                      {song.title}
+                    </h4>
+                    <p className="text-[11px] text-slate-400 truncate mt-0.5">{song.album || song.artist}</p>
+                  </div>
+                </div>
 
+                <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                  <span className="text-[11px] font-mono text-slate-400 hidden sm:inline">
+                    {formatDuration(song.duration)}
+                  </span>
+                  <button
+                    onClick={() => toggleLikeSong(song.id)}
+                    className="p-1 text-slate-400 hover:text-[#fa233b] transition-transform active:scale-125"
+                  >
+                    <Heart className={`w-4 h-4 ${likedSongIds.includes(song.id) ? 'text-[#fa233b] fill-current' : ''}`} />
+                  </button>
+                  <SongActionMenu song={song} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── TAB 3: ALBUMS & DISCOGRAPHY ──────────────────────────────────── */}
+      {activeSubTab === 'albums' && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-8">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {artistAlbums.map((alb: any) => (
               <div
@@ -409,33 +481,107 @@ export function ArtistDetailView() {
         </div>
       )}
 
-      {/* ── SIMILAR ARTISTS SECTION ────────────────────────────────────────── */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-8">
-        <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider pb-3 mb-4 border-b border-white/10 flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-amber-400" /> Similar Artists You Might Like
-        </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {POPULAR_ARTISTS.filter(a => a.id !== selectedArtistId).slice(0, 6).map((sim) => (
-            <div
-              key={sim.id}
-              onClick={() => {
-                setSelectedArtistId(sim.id);
-              }}
-              className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 transition-all cursor-pointer group text-center space-y-2 hover:scale-105"
-            >
-              <img
-                src={sim.image}
-                alt={sim.name}
-                className="w-20 h-20 rounded-full mx-auto object-cover bg-slate-800 shadow-md group-hover:border-[#fa233b] border-2 border-transparent transition-all"
-              />
+      {/* ── TAB 4: VIDEOS ─────────────────────────────────────────────────── */}
+      {activeSubTab === 'videos' && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {artistSongs.slice(0, 9).map((song: Song) => (
+              <div
+                key={song.id}
+                onClick={() => {
+                  playSong(song, artistSongs);
+                  usePlayerStore.getState().setRenderer('video');
+                }}
+                className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 transition-all space-y-3 cursor-pointer group hover:scale-[1.02]"
+              >
+                <div className="w-full aspect-video rounded-xl overflow-hidden shadow-lg relative bg-black border border-white/10 flex items-center justify-center">
+                  <img
+                    src={song.coverUrl}
+                    alt={song.title}
+                    className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500"
+                  />
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                    <div className="w-11 h-11 rounded-full bg-[#fa233b] text-white flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
+                      <Play className="w-5 h-5 fill-white ml-0.5" />
+                    </div>
+                  </div>
+                  <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/80 backdrop-blur-md text-[10px] font-mono font-bold text-white">
+                    HD Video
+                  </span>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white truncate group-hover:text-[#fa233b] transition-colors">
+                    {song.title}
+                  </h4>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{artist.name} • Official Cinema</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 5: PLAYLISTS ─────────────────────────────────────────────── */}
+      {activeSubTab === 'playlists' && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-8">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {[
+              { id: 'mix-1', title: `${artist.name} Hits Mix`, count: artistSongs.length, img: artistAvatarUrl },
+              { id: 'mix-2', title: `${artist.name} Radio`, count: 25, img: artistSongs[1]?.coverUrl || artistAvatarUrl },
+              { id: 'mix-3', title: `Best of ${artist.name} Melodies`, count: 18, img: artistSongs[2]?.coverUrl || artistAvatarUrl },
+            ].map((pl) => (
+              <div
+                key={pl.id}
+                onClick={handlePlayTopHits}
+                className="p-3.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 transition-all cursor-pointer group space-y-3 hover:scale-[1.02]"
+              >
+                <div className="w-full aspect-square rounded-xl overflow-hidden shadow-lg relative bg-slate-900 border border-white/10">
+                  <img
+                    src={pl.img}
+                    alt={pl.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute bottom-2 right-2 w-9 h-9 rounded-full bg-[#fa233b] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 shadow-xl transition-all">
+                    <Play className="w-4 h-4 fill-white ml-0.5" />
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white truncate group-hover:text-[#fa233b]">{pl.title}</h4>
+                  <p className="text-[10px] text-slate-400 mt-0.5">RaagaX Curated • {pl.count} Songs</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 6: ABOUT ─────────────────────────────────────────────────── */}
+      {activeSubTab === 'about' && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 space-y-6">
+          <div className="p-6 rounded-3xl bg-white/5 border border-white/10 space-y-4">
+            <h3 className="text-base font-black text-white flex items-center gap-2">
+              <Info className="w-5 h-5 text-[#fa233b]" /> About {artist.name}
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+              {artist.bio || `${artist.name} is one of the most prolific and celebrated artists in Indian music, known for iconic melodies and dynamic chart-topping hits across ${preferredLanguage} and regional cinema.`}
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-white/10">
               <div>
-                <h4 className="text-xs font-bold text-white group-hover:text-[#fa233b] truncate">{sim.name}</h4>
-                <p className="text-[10px] text-slate-400 mt-0.5">{sim.genres.join(' • ')}</p>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Monthly Listeners</span>
+                <span className="text-base font-mono font-black text-white">{((artist.followerCount || 12400000) / 1000000).toFixed(1)}M</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Primary Region</span>
+                <span className="text-base font-bold text-white capitalize">{preferredLanguage || 'Global'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Status</span>
+                <span className="text-base font-bold text-emerald-400">Verified Artist</span>
               </div>
             </div>
-          ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── UNFOLLOW CONFIRMATION MODAL ────────────────────────────────────── */}
       {showUnfollowModal && (

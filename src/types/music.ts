@@ -44,6 +44,25 @@ export interface Song {
   bitrate?: string;
   sampleRate?: string;
   codec?: string;
+  /**
+   * Verified audio ↔ video mapping.
+   * Only populated when a curator or automated pipeline has
+   * confirmed that this YouTube video is the EXACT same recording as this audio track.
+   * If null/undefined → no "Watch Video" button should be shown.
+   */
+  matchedVideo?: {
+    videoId: string;          // YouTube video ID (11 chars)
+    videoUrl?: string;        // Full watch URL (optional)
+    durationSec?: number;     // Video duration in seconds
+    /** Seconds the official video intro plays before the song actually begins.
+     *  video_position = audio_position + offsetSec
+     *  audio_position = video_position - offsetSec
+     *  Set to 0 if perfectly aligned. */
+    offsetSec?: number;
+    matchStatus: 'verified' | 'auto' | 'unverified';
+    matchedAt?: string;       // ISO timestamp
+    source?: 'jiosaavn' | 'youtube' | 'manual';
+  };
   lyrics?: LyricLine[];
   credits?: {
     composer: string;
@@ -121,7 +140,7 @@ export interface AIDJState {
 
 export type PlaybackContext = { type: 'album' | 'playlist' | 'radio' | 'recommendation' | 'album_sequence'; id?: string; language?: string; mood?: string; genre?: string; seedSongId?: string; seedAlbumId?: string; seedPlaylistId?: string; collectionId?: string; };
 
-export type ActiveTab = 'home' | 'search' | 'library' | 'radio' | 'ai-dj' | 'artist' | 'album' | 'playlist' | 'profile' | 'downloads' | 'favorites' | 'settings' | 'insights' | 'recaps' | 'history';
+export type ActiveTab = 'home' | 'search' | 'library' | 'video' | 'radio' | 'ai-dj' | 'artist' | 'album' | 'playlist' | 'profile' | 'downloads' | 'favorites' | 'settings' | 'insights' | 'recaps' | 'history';
 
 export interface Device {
   id: string;

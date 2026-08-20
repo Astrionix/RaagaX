@@ -7,9 +7,9 @@ import { HomePayload, HomeSection, ShelfItem } from '@/types/home';
 import { CarouselShelf } from '@/components/home/CarouselShelf';
 import { ChartListShelf } from '@/components/home/ChartListShelf';
 import { SkeletonGrid } from '@/components/ui/SkeletonLoader';
-import { 
-  Play, Pause, Clock, Sparkles, Disc, Shuffle, Download, Heart, 
-  Flame, Radio, Headphones, ListMusic, User, Users, Compass, ChevronRight 
+import {
+  Play, Pause, Clock, Sparkles, Disc, Shuffle, Download, Heart,
+  Flame, Radio, Headphones, ListMusic, User, Users, Compass, ChevronRight
 } from 'lucide-react';
 import { ArtistDiscoveryShelves } from '@/components/home/ArtistDiscoveryShelves';
 import { Song } from '@/types/music';
@@ -50,7 +50,7 @@ const homeFetcher = async (url: string, preferredLanguage: string) => {
         data.sections = data.sections.filter(s => !s.title?.toLowerCase().includes('trending'));
       }
       if (data?.sections && data.sections.length > 0) {
-        await db.put(STORES.BROWSE_CACHE, { id: cacheKey, data, updatedAt: Date.now() }).catch(() => {});
+        await db.put(STORES.BROWSE_CACHE, { id: cacheKey, data, updatedAt: Date.now() }).catch(() => { });
         return data;
       }
     }
@@ -64,7 +64,7 @@ const homeFetcher = async (url: string, preferredLanguage: string) => {
     if (cached && cached.data?.sections && cached.data.sections.length > 0) {
       return cached.data;
     }
-  } catch {}
+  } catch { }
 
   return { greeting: 'Welcome to RaagaX 🎵', sections: defaultSections };
 };
@@ -168,12 +168,12 @@ export function HomeView() {
   const greeting = !isMounted
     ? 'Good day'
     : (hours < 12
-        ? 'Good morning'
-        : hours < 17
-          ? 'Good afternoon'
-          : hours < 21
-            ? 'Good evening'
-            : 'Good night');
+      ? 'Good morning'
+      : hours < 17
+        ? 'Good afternoon'
+        : hours < 21
+          ? 'Good evening'
+          : 'Good night');
   const displayName = user?.user_metadata?.full_name?.split(' ')[0] || 'Listener';
 
   const coverUrl = currentSong?.coverUrl && !currentSong.coverUrl.includes('/null/')
@@ -242,18 +242,17 @@ export function HomeView() {
                 onClick={() => {
                   usePlayerStore.getState().setPreferredLanguage(lang);
                 }}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 flex-shrink-0 cursor-pointer ${
-                  isPrimary
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 flex-shrink-0 cursor-pointer ${isPrimary
                     ? 'bg-[#FA233B] text-white shadow-lg shadow-red-500/30'
                     : 'bg-white/5 hover:bg-white/15 text-slate-300 border border-white/10'
-                }`}
+                  }`}
               >
                 <span>{lang}</span>
                 {isPrimary && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
               </button>
             );
           })}
-          
+
           <button
             onClick={() => toggleOnboarding(true)}
             className="px-3 py-1.5 rounded-full text-xs font-bold text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1 flex-shrink-0 transition-colors cursor-pointer"

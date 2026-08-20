@@ -417,10 +417,7 @@ export class TransferManager {
           await PlaybackService.getInstance().loadQueueContext(queueToRestore, queueIndexToRestore, false, targetPosMs);
         } else {
           const service = PlaybackService.getInstance();
-          await service.playTrack(payload.songData, false);
-          if (targetPosMs > 0) {
-            service.seek(targetPosSeconds, true);
-          }
+          await service.prepareTrack(payload.songData, targetPosSeconds);
           const activeAudio = service.getActiveAudio();
           if (activeAudio && !activeAudio.paused) {
             activeAudio.pause();
@@ -789,8 +786,12 @@ export class TransferManager {
     this.activeTransferContext = null;
     this.postCommitCommands = [];
 
+    const store = usePlayerStore.getState();
     usePlayerStore.setState({
       isActiveDevice: true,
+      activeDeviceId: store.deviceId,
+      connectedDeviceId: null,
+      deviceConnectionState: 'AVAILABLE',
       isTransferring: false,
       transferringDeviceId: null
     });

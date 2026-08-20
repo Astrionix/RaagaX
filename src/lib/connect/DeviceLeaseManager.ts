@@ -178,14 +178,16 @@ export class DeviceLeaseManager {
       const store = usePlayerStore.getState();
       const sId = sessionId || (await import('./ConnectManager')).ConnectManager.getInstance().getSessionId();
       if (sId) {
-        await supabase.rpc('release_playback_lease', {
-          p_session_id: sId,
-          p_device_id: store.deviceId,
-          p_lease_token: token
-        });
+        try {
+          await supabase.rpc('release_playback_lease', {
+            p_session_id: sId,
+            p_device_id: store.deviceId,
+            p_lease_token: token
+          });
+        } catch {
+          // Optional server RPC, safe to ignore if not defined
+        }
       }
-    } catch (e) {
-      console.warn('[DeviceLeaseManager] Lease release notification completed:', e);
-    }
+    } catch {}
   }
 }

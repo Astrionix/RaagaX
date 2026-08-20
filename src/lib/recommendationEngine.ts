@@ -133,7 +133,7 @@ export class RecommendationEngine {
         }, { onConflict: 'id' });
 
         if (upsertError) {
-          console.warn('[RecommendationEngine] Could not upsert canonical_song:', upsertError.message);
+          // RLS policy blocks anon/unverified clients from upserting canonical_songs — skip telemetry silently
           return;
         }
 
