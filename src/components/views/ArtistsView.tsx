@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import useSWR from 'swr';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { Users, ShieldCheck, Search, ArrowUpDown, Bell, Check, Sparkles, Heart } from 'lucide-react';
@@ -8,6 +8,7 @@ import { getApiUrl } from '@/lib/config/apiConfig';
 import { HomeFeedGenerator } from '@/lib/home/HomeFeedGenerator';
 import { ArtistAvatar } from '@/components/common/ArtistAvatar';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
+import cachedArtistsData from '@/lib/cached_artists.json';
 
 const fetcher = (url: string) => fetch(getApiUrl(url)).then(r => r.json()).catch(() => null);
 
@@ -25,6 +26,17 @@ export function ArtistsView() {
   const [searchFilter, setSearchFilter] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'alphabetical' | 'listeners'>('recent');
 
+  // Dynamic artist metadata cache (for IDs followed from search/unbundled sources)
+  const [dynamicArtistMetadata, setDynamicArtistMetadata] = useState<Record<string, { name: string; imageUrl: string; isVerified?: boolean }>>(() => {
+    if (typeof window === 'undefined') return {};
+    try {
+      const cached = localStorage.getItem('raagax_resolved_artist_metadata_v1');
+      return cached ? JSON.parse(cached) : {};
+    } catch {
+      return {};
+    }
+  });
+
   const currentLang = preferredLanguage || 'Telugu';
   const fallbackArtists = HomeFeedGenerator.getArtistsForLanguage(currentLang, 24);
   
@@ -36,53 +48,151 @@ export function ArtistsView() {
 
   const allDiscoverArtists = data?.data && data.data.length > 0 ? data.data : fallbackArtists;
 
+  // Build comprehensive dictionary of all seed artists across all languages
+  const allSeedArtistsMap = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; imageUrl: string; monthlyListeners: number; genres: string[]; isVerified: boolean }>();
+    
+    // 1. POPULAR_ARTISTS
+    POPULAR_ARTISTS.forEach((a) => {
+      map.set(a.id, {
+        id: a.id,
+        name: a.name,
+        imageUrl: a.image,
+        monthlyListeners: a.monthlyListeners,
+        genres: a.genres,
+        isVerified: true,
+      });
+    });
+
+    // 2. All languages from cached_artists.json
+    const rawData = cachedArtistsData as Record<string, any[]>;
+    for (const [lang, list] of Object.entries(rawData)) {
+      if (Array.isArray(list)) {
+        list.forEach((a) => {
+          if (a && a.id && !map.has(a.id)) {
+            map.set(a.id, {
+              id: a.id,
+              name: a.name || a.id,
+              imageUrl: a.imageUrl || a.image || '/app-icon.png',
+              monthlyListeners: a.followerCount || 10000000,
+              genres: [lang],
+              isVerified: Boolean(a.isVerified ?? true),
+            });
+          }
+        });
+      }
+    }
+
+    return map;
+  }, []);
+
+  // Background fetch unresolved artist IDs from /api/artists/:id
+  useEffect(() => {
+    const unresolvedIds = favoriteArtistIds.filter((id) => {
+      if (allSeedArtistsMap.has(id)) return false;
+      const cached = dynamicArtistMetadata[id];
+      return !cached || !cached.name || /^\d+$/.test(cached.name);
+    });
+
+    if (unresolvedIds.length === 0) return;
+
+    let isMounted = true;
+    unresolvedIds.forEach(async (id) => {
+      try {
+        const res = await fetch(getApiUrl(`/api/artists/${encodeURIComponent(id)}?songCount=1&albumCount=1`));
+        if (!res.ok) return;
+        const json = await res.json();
+        const artistObj = json?.data;
+        if (artistObj && artistObj.name && isMounted) {
+          const imgUrl = artistObj.image?.find?.((i: any) => i.quality === '500x500')?.url ||
+                         artistObj.image?.[artistObj.image?.length - 1]?.url ||
+                         artistObj.imageUrl ||
+                         '/app-icon.png';
+
+          setDynamicArtistMetadata((prev) => {
+            const updated = {
+              ...prev,
+              [id]: {
+                name: artistObj.name,
+                imageUrl: imgUrl,
+                isVerified: Boolean(artistObj.isVerified ?? true),
+              },
+            };
+            try {
+              localStorage.setItem('raagax_resolved_artist_metadata_v1', JSON.stringify(updated));
+            } catch {}
+            return updated;
+          });
+        }
+      } catch {}
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [favoriteArtistIds, allSeedArtistsMap, dynamicArtistMetadata]);
+
   // Resolve followed artists
   const followedArtists = useMemo(() => {
     const map = new Map<string, any>();
     
-    // Check in POPULAR_ARTISTS
-    POPULAR_ARTISTS.forEach((a) => {
-      if (favoriteArtistIds.includes(a.id)) {
-        map.set(a.id, {
-          id: a.id,
-          name: a.name,
-          imageUrl: a.image,
-          monthlyListeners: a.monthlyListeners,
-          genres: a.genres,
-          isVerified: true,
-          status: 'Up to date',
-        });
-      }
-    });
-
-    // Check in discover artists
-    allDiscoverArtists.forEach((a: any) => {
-      if (favoriteArtistIds.includes(a.id) && !map.has(a.id)) {
-        map.set(a.id, {
-          id: a.id,
-          name: a.name,
-          imageUrl: a.imageUrl,
-          monthlyListeners: 15000000,
-          genres: [currentLang],
-          isVerified: a.isVerified,
-          status: 'Up to date',
-        });
-      }
-    });
-
-    // For any ID not found in pre-cached sets
     favoriteArtistIds.forEach((id) => {
-      if (!map.has(id)) {
+      // 1. Check allSeedArtistsMap
+      const seed = allSeedArtistsMap.get(id);
+      if (seed) {
+        map.set(id, {
+          id: seed.id,
+          name: seed.name,
+          imageUrl: seed.imageUrl,
+          monthlyListeners: seed.monthlyListeners,
+          genres: seed.genres,
+          isVerified: seed.isVerified,
+          status: 'Up to date',
+        });
+        return;
+      }
+
+      // 2. Check dynamicArtistMetadata
+      const dynamicMeta = dynamicArtistMetadata[id];
+      if (dynamicMeta && dynamicMeta.name && !/^\d+$/.test(dynamicMeta.name)) {
         map.set(id, {
           id,
-          name: id.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-          imageUrl: '/app-icon.png',
-          monthlyListeners: 10000000,
+          name: dynamicMeta.name,
+          imageUrl: dynamicMeta.imageUrl || '/app-icon.png',
+          monthlyListeners: 12000000,
           genres: [currentLang],
-          isVerified: true,
+          isVerified: Boolean(dynamicMeta.isVerified ?? true),
           status: 'Up to date',
         });
+        return;
       }
+
+      // 3. Check in discover artists
+      const discoverMatch = allDiscoverArtists.find((a: any) => a.id === id);
+      if (discoverMatch) {
+        map.set(id, {
+          id,
+          name: discoverMatch.name,
+          imageUrl: discoverMatch.imageUrl,
+          monthlyListeners: 15000000,
+          genres: [currentLang],
+          isVerified: discoverMatch.isVerified,
+          status: 'Up to date',
+        });
+        return;
+      }
+
+      // 4. Clean fallback while loading
+      const isNumericId = /^\d+$/.test(id);
+      map.set(id, {
+        id,
+        name: isNumericId ? 'Artist' : id.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        imageUrl: '/app-icon.png',
+        monthlyListeners: 10000000,
+        genres: [currentLang],
+        isVerified: true,
+        status: 'Up to date',
+      });
     });
 
     let list = Array.from(map.values());
@@ -99,7 +209,7 @@ export function ArtistsView() {
     }
 
     return list;
-  }, [favoriteArtistIds, allDiscoverArtists, searchFilter, sortBy, currentLang]);
+  }, [favoriteArtistIds, allSeedArtistsMap, dynamicArtistMetadata, allDiscoverArtists, searchFilter, sortBy, currentLang]);
 
   return (
     <div className="space-y-6 pb-12 select-none pt-2 text-white animate-in fade-in duration-200">
@@ -189,8 +299,14 @@ export function ArtistsView() {
                     }}
                     className="p-4 rounded-3xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] hover:border-[#fa233b]/30 transition-all cursor-pointer group shadow-sm text-center space-y-3 hover:scale-105"
                   >
-                    <div className="relative w-24 h-24 sm:w-28 sm:h-28 mx-auto rounded-full overflow-hidden shadow-lg border-2 border-white/10 group-hover:border-[#fa233b]/60 transition-all bg-slate-900">
-                      <img src={artist.imageUrl} alt={artist.name} className="w-full h-full object-cover" />
+                    <div className="relative w-24 h-24 sm:w-28 sm:h-28 mx-auto rounded-full overflow-hidden shadow-lg border-2 border-white/10 group-hover:border-[#fa233b]/60 transition-all bg-slate-900 flex items-center justify-center">
+                      <ArtistAvatar
+                        name={artist.name}
+                        id={artist.id}
+                        imageUrl={artist.imageUrl}
+                        language={currentLang}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      />
                     </div>
 
                     <div>
