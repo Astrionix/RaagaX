@@ -21,6 +21,7 @@ import {
 } from '@/lib/search/UnifiedSearchEngine';
 import { ArtistAvatar } from '@/components/common/ArtistAvatar';
 import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
+import { DiscoveryHubView, DiscoveryCategory } from '@/components/views/DiscoveryHubView';
 
 export function SearchView() {
   const {
@@ -147,13 +148,15 @@ export function SearchView() {
     setRecentSearches(UnifiedSearchEngine.getInstance().getRecentSearches());
   };
 
+  const [selectedDiscoveryCategory, setSelectedDiscoveryCategory] = useState<DiscoveryCategory | null>(null);
+
   const categories = [
-    { id: 'language', name: preferredLanguage || 'Telugu', bg: 'from-red-600 to-rose-800' },
-    { id: 'new_music', name: 'New Music', bg: 'from-orange-500 to-amber-700' },
-    { id: 'charts', name: 'Charts', bg: 'from-[#EF233C] to-red-900' },
-    { id: 'playlists', name: 'Playlists', bg: 'from-blue-600 to-indigo-800' },
-    { id: 'mood', name: 'Mood', bg: 'from-purple-600 to-violet-900' },
-    { id: 'genres', name: 'Genres', bg: 'from-pink-600 to-purple-800' },
+    { id: 'language' as DiscoveryCategory, tag: 'ACTIVE LANGUAGE', name: `🇮🇳 ${preferredLanguage || 'Telugu'}`, bg: 'from-red-600 to-rose-800' },
+    { id: 'new_music' as DiscoveryCategory, tag: 'DISCOVER', name: '✨ New Music', bg: 'from-orange-500 to-amber-700' },
+    { id: 'charts' as DiscoveryCategory, tag: 'DISCOVER', name: '📈 Charts', bg: 'from-[#EF233C] to-red-900' },
+    { id: 'playlists' as DiscoveryCategory, tag: 'DISCOVER', name: '🎵 Playlists', bg: 'from-blue-600 to-indigo-800' },
+    { id: 'mood' as DiscoveryCategory, tag: 'DISCOVER', name: '❤️ Mood', bg: 'from-purple-600 to-violet-900' },
+    { id: 'genres' as DiscoveryCategory, tag: 'DISCOVER', name: '🎸 Genres', bg: 'from-pink-600 to-purple-800' },
   ];
 
   const [dynamicTrendingSearches, setDynamicTrendingSearches] = useState<Array<{ rank: number; term: string }>>([
@@ -244,8 +247,16 @@ export function SearchView() {
         )}
       </div>
 
+      {/* DISCOVERY HUB VIEW (When user clicks a Category Card) */}
+      {!searchQuery && selectedDiscoveryCategory && (
+        <DiscoveryHubView
+          initialCategory={selectedDiscoveryCategory}
+          onBack={() => setSelectedDiscoveryCategory(null)}
+        />
+      )}
+
       {/* IDLE VIEW: Recent Searches, Categories, and Trending */}
-      {!searchQuery && (
+      {!searchQuery && !selectedDiscoveryCategory && (
         <>
           {/* Recent Searches Section */}
           {recentSearches.length > 0 && (
@@ -290,28 +301,13 @@ export function SearchView() {
               {categories.map((cat) => (
                 <button
                   key={cat.id}
-                  onClick={() => {
-                    if (cat.id === 'language') {
-                      const languages = ['Telugu', 'Tamil', 'Kannada', 'Malayalam', 'Hindi', 'English'];
-                      const nextIndex = (languages.indexOf(preferredLanguage) + 1) % languages.length;
-                      setPreferredLanguage(languages[nextIndex]);
-                    } else {
-                      const langSources = CATEGORY_SPOTIFY_SOURCES[preferredLanguage] || CATEGORY_SPOTIFY_SOURCES['Telugu'];
-                      const targetSource = langSources[cat.id];
-                      if (targetSource) {
-                        setSelectedPlaylistId(`spotify:${targetSource.id}`);
-                        setActiveTab('playlist');
-                      } else {
-                        setActiveTab('home');
-                      }
-                    }
-                  }}
-                  className={`h-24 rounded-2xl bg-gradient-to-br ${cat.bg} p-4 flex flex-col justify-between font-black text-base text-white shadow-lg active:scale-95 transition-transform text-left cursor-pointer group`}
+                  onClick={() => setSelectedDiscoveryCategory(cat.id)}
+                  className={`h-24 rounded-2xl bg-gradient-to-br ${cat.bg} p-4 flex flex-col justify-between font-black text-base text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all text-left cursor-pointer group`}
                 >
-                  <span className="text-xs font-bold tracking-wider opacity-70 uppercase">
-                    {cat.id === 'language' ? 'Active Language' : 'Category'}
+                  <span className="text-[10px] font-black tracking-widest opacity-80 uppercase">
+                    {cat.tag}
                   </span>
-                  <span className="text-lg font-black">{cat.name}</span>
+                  <span className="text-base sm:text-lg font-black">{cat.name}</span>
                 </button>
               ))}
             </div>
