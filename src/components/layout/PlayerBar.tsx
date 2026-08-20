@@ -148,20 +148,8 @@ export function PlayerBar() {
                 <span className="text-[8px] font-mono bg-[#fa233b]/20 text-[#fa233b] px-1.5 py-0.5 rounded-full font-bold border border-[#fa233b]/30">
                   {currentSong.audioQuality || '320kbps MP3'}
                 </span>
-                <button onClick={() => toggleLikeSong(currentSong.id)} title="Like Song" className="p-0.5 text-slate-400 hover:text-[#fa233b] transition-transform hover:scale-110">
+                <button onClick={() => toggleLikeSong(currentSong.id)} title="Like Song" className="p-0.5 text-slate-400 hover:text-[#fa233b] transition-transform hover:scale-110 cursor-pointer">
                   <Heart className={`w-3.5 h-3.5 ${isLiked ? 'text-[#fa233b] fill-[#fa233b]' : ''}`} />
-                </button>
-                <button 
-                  onClick={async () => {
-                    toggleDownloadSong(currentSong.id);
-                    const { exportSongToDevice } = await import('@/lib/downloadHelper');
-                    await exportSongToDevice(currentSong);
-                    usePlayerStore.getState().setToastMessage(`Downloading "${currentSong.title}" to local storage...`);
-                  }} 
-                  title="Download to Local Storage" 
-                  className="p-0.5 text-slate-400 hover:text-emerald-400 transition-transform hover:scale-110"
-                >
-                  <Download className={`w-3.5 h-3.5 ${isDownloaded ? 'text-emerald-400' : ''}`} />
                 </button>
               </div>
             </div>

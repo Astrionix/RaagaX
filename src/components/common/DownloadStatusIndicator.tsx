@@ -18,7 +18,7 @@ export function DownloadStatusIndicator({
   song,
   size = 'sm',
   showPercentage = false,
-  className = '',
+  className = 'md:hidden',
   onDownloadedClick,
 }: DownloadStatusIndicatorProps) {
   const tasks = useDownloadStore((s) => s.tasks);

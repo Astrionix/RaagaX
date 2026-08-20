@@ -379,10 +379,10 @@ export function AlbumDetailView() {
             <Shuffle className="w-4 h-4" /> Shuffle
           </button>
 
-          {/* Smart Download All Button */}
+          {/* Smart Download All Button (Mobile/Native only) */}
           <button
             onClick={isAllDownloaded ? handleRemoveAllDownloads : handleDownloadAll}
-            className={`flex items-center gap-2 px-5 py-3.5 rounded-full font-bold text-sm border transition-all active:scale-95 cursor-pointer ${
+            className={`md:hidden flex items-center gap-2 px-5 py-3.5 rounded-full font-bold text-sm border transition-all active:scale-95 cursor-pointer ${
               isAllDownloaded
                 ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
                 : isDownloadingAlbum

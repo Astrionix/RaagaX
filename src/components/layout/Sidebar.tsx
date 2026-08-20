@@ -151,16 +151,6 @@ export function Sidebar() {
           </button>
 
           <button 
-            onClick={() => setActiveTab('downloads')} 
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all ${
-              activeTab === 'downloads' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] font-bold shadow-sm' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
-            }`}
-          >
-            <Download className="w-4 h-4 text-cyan-400" />
-            <span>Downloads</span>
-          </button>
-
-          <button 
             onClick={() => setActiveTab('insights')} 
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all ${
               activeTab === 'insights' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] font-bold shadow-sm' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
@@ -168,19 +158,6 @@ export function Sidebar() {
           >
             <BarChart3 className="w-4 h-4 text-amber-400" />
             <span>Music Insights</span>
-          </button>
-          
-          <button 
-            onClick={() => setOfflineMode(!isOfflineMode)} 
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all ${
-              isOfflineMode ? 'bg-[#fa233b]/10 text-[#fa233b] font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <WifiOff className="w-4 h-4" />
-            <span>Offline Mode</span>
-            <div className={`ml-auto w-8 h-4 rounded-full relative transition-colors ${isOfflineMode ? 'bg-[#fa233b]' : 'bg-slate-700'}`}>
-               <div className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full transition-transform ${isOfflineMode ? 'left-[18px]' : 'left-0.5'}`} />
-            </div>
           </button>
         </div>
 
