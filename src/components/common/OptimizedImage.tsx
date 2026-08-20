@@ -10,13 +10,16 @@ export interface OptimizedImageProps extends Omit<React.ImgHTMLAttributes<HTMLIm
   fallbackSrc?: string;
 }
 
+// In-memory cache set for already loaded image URLs across the user session
+const loadedImageUrls = new Set<string>();
+
 /**
  * OptimizedImage
- * High-performance artwork image component for RaagaX:
- * - Smart sizing (JioSaavn CDN compatible: 500x500 / 150x150)
- * - Instant rendering from memory / disk cache
- * - Zero flash / fast load
- * - Fallback recovery on error
+ * Blazing fast, high-performance artwork image component for RaagaX:
+ * - Zero delay / eager loading for immediate visual rendering
+ * - JioSaavn CDN resolution auto-tuning (500x500 / 150x150)
+ * - In-memory instant cache hit tracking (no opacity-0 pop-in)
+ * - Resilient fallback recovery
  */
 export function OptimizedImage({
   src,
@@ -27,10 +30,6 @@ export function OptimizedImage({
   style,
   ...props
 }: OptimizedImageProps) {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [hasError, setHasError] = useState(false);
-  const imgRef = useRef<HTMLImageElement>(null);
-
   // Normalize and transform artwork resolution based on target size
   const resolveArtworkUrl = (rawUrl?: string | null): string => {
     if (!rawUrl || rawUrl.includes('/null/') || rawUrl.trim() === '') {
@@ -43,51 +42,65 @@ export function OptimizedImage({
       // 150x150 for track rows, mini player
       url = url.replace(/500x500|50x50/g, '150x150');
     } else {
-      // 500x500 high-res for cards, shelves, expanded modal (Never 250x250 which 404s on JioSaavn CDN)
+      // 500x500 high-res for cards, shelves, expanded modal
       url = url.replace(/50x50|150x150/g, '500x500');
     }
 
     return url;
   };
 
-  const finalSrc = hasError ? fallbackSrc : resolveArtworkUrl(src);
+  const resolvedUrl = resolveArtworkUrl(src);
+  const isAlreadyLoaded = loadedImageUrls.has(resolvedUrl);
 
-  // Immediate check if image is already completed in browser cache
+  const [isLoaded, setIsLoaded] = useState(isAlreadyLoaded);
+  const [hasError, setHasError] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  const finalSrc = hasError ? fallbackSrc : resolvedUrl;
+
   useEffect(() => {
+    if (loadedImageUrls.has(resolvedUrl)) {
+      setIsLoaded(true);
+      return;
+    }
     if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
+      loadedImageUrls.add(resolvedUrl);
       setIsLoaded(true);
     }
-  }, [finalSrc]);
+  }, [resolvedUrl]);
 
-  // Reset error and loaded state when source changes
   useEffect(() => {
     setHasError(false);
-    setIsLoaded(false);
-  }, [src]);
+    if (!loadedImageUrls.has(resolvedUrl)) {
+      setIsLoaded(false);
+    }
+  }, [src, resolvedUrl]);
 
   return (
-    <div className={`relative overflow-hidden bg-slate-800/80 ${className}`}>
-      {/* Skeleton placeholder while loading */}
+    <div className={`relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 ${className}`}>
+      {/* Subtle pulse placeholder only if not yet in memory cache */}
       {!isLoaded && !hasError && (
-        <div className="absolute inset-0 bg-white/[0.06] animate-pulse pointer-events-none" />
+        <div className="absolute inset-0 bg-white/[0.04] animate-pulse pointer-events-none" />
       )}
 
       <img
         ref={imgRef}
         src={finalSrc}
         alt={alt}
-        loading="lazy"
+        loading="eager"
         decoding="async"
-        onLoad={() => setIsLoaded(true)}
+        fetchPriority={size === 'thumb' ? 'auto' : 'high'}
+        onLoad={() => {
+          loadedImageUrls.add(resolvedUrl);
+          setIsLoaded(true);
+        }}
         onError={() => {
           if (!hasError) {
             setHasError(true);
             setIsLoaded(true);
           }
         }}
-        className={`w-full h-full object-cover transition-opacity duration-200 ${
-          isLoaded || hasError ? 'opacity-100' : 'opacity-0'
-        }`}
+        className="w-full h-full object-cover transition-transform duration-300"
         style={style}
         {...props}
       />
