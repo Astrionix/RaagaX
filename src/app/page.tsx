@@ -106,8 +106,33 @@ export default function Page() {
         return true;
       }
 
-      // 4. If on any detail view / secondary tab (browse, search, library, profile, artist, album, playlist, downloads, etc.), navigate back to Home
+      // 4. If on Album Detail View, return to Albums catalog list
+      if (store.activeTab === 'album' && store.selectedAlbumId) {
+        store.setSelectedAlbumId(null);
+        import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact());
+        return true;
+      }
+
+      // 5. If on Artist Detail View, return to Artists catalog list
+      if (store.activeTab === 'artist' && store.selectedArtistId) {
+        store.setSelectedArtistId(null);
+        import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact());
+        return true;
+      }
+
+      // 6. If on Playlist Detail View, return to Library
+      if (store.activeTab === 'playlist' && store.selectedPlaylistId) {
+        store.setSelectedPlaylistId(null);
+        store.setActiveTab('library');
+        import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact());
+        return true;
+      }
+
+      // 7. If on any detail view / secondary tab (browse, search, library, profile, artist, album, playlist, downloads, etc.), navigate back to Home
       if (store.activeTab !== 'home') {
+        store.setSelectedAlbumId(null);
+        store.setSelectedArtistId(null);
+        store.setSelectedPlaylistId(null);
         store.setActiveTab('home');
         import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact());
         return true;

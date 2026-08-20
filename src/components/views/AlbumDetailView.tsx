@@ -121,8 +121,11 @@ export function AlbumDetailView() {
         <Disc className="w-16 h-16 text-[#fa233b] mb-4 animate-spin" />
         <h2 className="text-xl font-bold text-white mb-2">Loading Album...</h2>
         <button
-          onClick={() => setActiveTab('album')}
-          className="px-5 py-2.5 rounded-full bg-[#fa233b] text-white text-xs font-bold hover:scale-105 transition-transform mt-4"
+          onClick={() => {
+            setSelectedAlbumId(null);
+            setActiveTab('album');
+          }}
+          className="px-5 py-2.5 rounded-full bg-[#fa233b] text-white text-xs font-bold hover:scale-105 transition-transform mt-4 cursor-pointer"
         >
           Browse Albums
         </button>
@@ -217,8 +220,12 @@ export function AlbumDetailView() {
       {/* ── TOP NAVIGATION BAR ────────────────────────────────────────────── */}
       <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-4 backdrop-blur-xl bg-[#08090d]/80 border-b border-white/5">
         <button
-          onClick={() => setActiveTab('album')}
-          className="p-2 -ml-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold"
+          onClick={() => {
+            setSelectedAlbumId(null);
+            setActiveTab('album');
+          }}
+          className="p-2 -ml-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+          title="Back to Albums"
         >
           <ArrowLeft className="w-5 h-5" />
           <span className="hidden sm:inline">Albums</span>
