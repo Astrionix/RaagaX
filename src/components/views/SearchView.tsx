@@ -156,14 +156,37 @@ export function SearchView() {
     { id: 'genres', name: 'Genres', bg: 'from-pink-600 to-purple-800' },
   ];
 
-  const trendingSearches = [
-    { rank: 1, term: 'sid sriram' },
-    { rank: 2, term: 'anirudh ravichander' },
-    { rank: 3, term: 'devara songs' },
-    { rank: 4, term: 'pushpa 2' },
-    { rank: 5, term: 'samajavaragamana' },
-    { rank: 6, term: 'love songs telugu' },
-  ];
+  const [dynamicTrendingSearches, setDynamicTrendingSearches] = useState<Array<{ rank: number; term: string }>>([
+    { rank: 1, term: 'Thandel' },
+    { rank: 2, term: 'Game Changer' },
+    { rank: 3, term: 'Devara Songs' },
+    { rank: 4, term: 'Pushpa 2' },
+    { rank: 5, term: 'Sid Sriram' },
+    { rank: 6, term: 'Anirudh Ravichander' },
+  ]);
+
+  // Dynamic Trending Searches based on active language
+  useEffect(() => {
+    let isCancelled = false;
+    const fetchTrends = async () => {
+      try {
+        const lang = preferredLanguage || 'Telugu';
+        const res = await fetch(`/api/home/trending-searches?lang=${encodeURIComponent(lang)}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (!isCancelled && Array.isArray(json.data) && json.data.length > 0) {
+            setDynamicTrendingSearches(json.data);
+          }
+        }
+      } catch (err) {
+        console.warn('[SearchView] Failed to fetch dynamic trending searches:', err);
+      }
+    };
+    fetchTrends();
+    return () => {
+      isCancelled = true;
+    };
+  }, [preferredLanguage]);
 
   const queuedSongIds = useMemo(() => new Set(queue.map((s) => s.id)), [queue]);
 
@@ -300,9 +323,9 @@ export function SearchView() {
               <Flame className="w-4 h-4 text-[#EF233C]" /> Trending Searches
             </h3>
             <div className="divide-y divide-[var(--border-subtle)] bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-subtle)] overflow-hidden shadow-sm">
-              {trendingSearches.map((item) => (
+              {dynamicTrendingSearches.map((item) => (
                 <button
-                  key={item.term}
+                  key={`${item.term}-${item.rank}`}
                   onClick={() => setSearchQuery(item.term)}
                   className="w-full py-3.5 px-4 flex items-center gap-4 hover:bg-[var(--bg-surface)] transition-colors text-left cursor-pointer group"
                 >
