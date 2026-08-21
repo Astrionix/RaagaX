@@ -540,9 +540,15 @@ public class RaagaXPlaybackService extends Service {
 
             isPreparingNewTrack = true;
             java.util.List<androidx.media3.exoplayer.source.MediaSource> sources = new java.util.ArrayList<>();
-            androidx.media3.datasource.FileDataSource.Factory fileFactory = new androidx.media3.datasource.FileDataSource.Factory();
-            androidx.media3.datasource.DefaultDataSource.Factory defaultFactory = new androidx.media3.datasource.DefaultDataSource.Factory(this);
-            androidx.media3.exoplayer.source.DefaultMediaSourceFactory defaultSourceFactory = new androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this).setDataSourceFactory(defaultFactory);
+            androidx.media3.extractor.DefaultExtractorsFactory extractorsFactory =
+                    new androidx.media3.extractor.DefaultExtractorsFactory()
+                            .setConstantBitrateSeekingEnabled(true);
+
+            androidx.media3.datasource.DataSource.Factory dataSourceFactory =
+                    new androidx.media3.datasource.DefaultDataSource.Factory(
+                            this,
+                            new androidx.media3.datasource.FileDataSource.Factory()
+                    );
 
             for (int i = 0; i < urls.length; i++) {
                 String u = urls[i];
@@ -564,15 +570,13 @@ public class RaagaXPlaybackService extends Service {
                 Uri itemUri = parsePlayableUri(u);
                 MediaItem mi = new MediaItem.Builder()
                         .setUri(itemUri)
-                        .setMimeType(androidx.media3.common.MimeTypes.AUDIO_MPEG)
                         .setMediaMetadata(metaBuilder.build())
                         .build();
 
-                if ("file".equalsIgnoreCase(itemUri.getScheme())) {
-                    sources.add(new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(fileFactory).createMediaSource(mi));
-                } else {
-                    sources.add(defaultSourceFactory.createMediaSource(mi));
-                }
+                sources.add(new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
+                        dataSourceFactory,
+                        extractorsFactory
+                ).createMediaSource(mi));
             }
 
             if (sources.isEmpty()) return;
@@ -809,22 +813,28 @@ public class RaagaXPlaybackService extends Service {
             MediaItem mediaItem = new MediaItem.Builder()
                     .setMediaId(currentTrackId)
                     .setUri(playableUri)
-                    .setMimeType(androidx.media3.common.MimeTypes.AUDIO_MPEG)
                     .setMediaMetadata(metaBuilder.build())
                     .build();
 
             Log.d(TAG, "[DIRECT_LOCAL_TEST] mediaItemCreated=true mediaId=" + mediaItem.mediaId);
 
-            if (isLocal || "file".equalsIgnoreCase(playableUri.getScheme())) {
-                androidx.media3.exoplayer.source.MediaSource localSource =
-                        new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
-                                new androidx.media3.datasource.FileDataSource.Factory()
-                        ).createMediaSource(mediaItem);
-                player.setMediaSource(localSource);
-            } else {
-                player.setMediaItem(mediaItem);
-            }
+            androidx.media3.extractor.DefaultExtractorsFactory extractorsFactory =
+                    new androidx.media3.extractor.DefaultExtractorsFactory()
+                            .setConstantBitrateSeekingEnabled(true);
 
+            androidx.media3.datasource.DataSource.Factory dataSourceFactory =
+                    new androidx.media3.datasource.DefaultDataSource.Factory(
+                            this,
+                            new androidx.media3.datasource.FileDataSource.Factory()
+                    );
+
+            androidx.media3.exoplayer.source.MediaSource localSource =
+                    new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
+                            dataSourceFactory,
+                            extractorsFactory
+                    ).createMediaSource(mediaItem);
+
+            player.setMediaSource(localSource);
             player.prepare();
             player.setPlayWhenReady(true);
             player.play();
@@ -846,22 +856,28 @@ public class RaagaXPlaybackService extends Service {
             Uri itemUri = parsePlayableUri(url);
             MediaItem mi = new MediaItem.Builder()
                     .setUri(itemUri)
-                    .setMimeType(androidx.media3.common.MimeTypes.AUDIO_MPEG)
                     .setMediaMetadata(new MediaMetadata.Builder()
                             .setTitle(title != null ? title : "RaagaX")
                             .setArtist(artist != null ? artist : "")
                             .build())
                     .build();
 
-            if ("file".equalsIgnoreCase(itemUri.getScheme())) {
-                androidx.media3.exoplayer.source.MediaSource localSource =
-                        new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
-                                new androidx.media3.datasource.FileDataSource.Factory()
-                        ).createMediaSource(mi);
-                player.addMediaSource(localSource);
-            } else {
-                player.addMediaItem(mi);
-            }
+            androidx.media3.extractor.DefaultExtractorsFactory extractorsFactory =
+                    new androidx.media3.extractor.DefaultExtractorsFactory()
+                            .setConstantBitrateSeekingEnabled(true);
+
+            androidx.media3.datasource.DataSource.Factory dataSourceFactory =
+                    new androidx.media3.datasource.DefaultDataSource.Factory(
+                            this,
+                            new androidx.media3.datasource.FileDataSource.Factory()
+                    );
+
+            androidx.media3.exoplayer.source.MediaSource localSource =
+                    new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
+                            dataSourceFactory,
+                            extractorsFactory
+                    ).createMediaSource(mi);
+            player.addMediaSource(localSource);
         });
     }
 
@@ -876,9 +892,15 @@ public class RaagaXPlaybackService extends Service {
                 player.removeMediaItem(player.getCurrentMediaItemIndex() + 1);
             }
             java.util.List<androidx.media3.exoplayer.source.MediaSource> sources = new java.util.ArrayList<>();
-            androidx.media3.datasource.FileDataSource.Factory fileFactory = new androidx.media3.datasource.FileDataSource.Factory();
-            androidx.media3.datasource.DefaultDataSource.Factory defaultFactory = new androidx.media3.datasource.DefaultDataSource.Factory(this);
-            androidx.media3.exoplayer.source.DefaultMediaSourceFactory defaultSourceFactory = new androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this).setDataSourceFactory(defaultFactory);
+            androidx.media3.extractor.DefaultExtractorsFactory extractorsFactory =
+                    new androidx.media3.extractor.DefaultExtractorsFactory()
+                            .setConstantBitrateSeekingEnabled(true);
+
+            androidx.media3.datasource.DataSource.Factory dataSourceFactory =
+                    new androidx.media3.datasource.DefaultDataSource.Factory(
+                            this,
+                            new androidx.media3.datasource.FileDataSource.Factory()
+                    );
 
             for (int i = 0; i < urls.length; i++) {
                 String u = urls[i];
@@ -888,18 +910,16 @@ public class RaagaXPlaybackService extends Service {
                 Uri itemUri = parsePlayableUri(u);
                 MediaItem mi = new MediaItem.Builder()
                         .setUri(itemUri)
-                        .setMimeType(androidx.media3.common.MimeTypes.AUDIO_MPEG)
                         .setMediaMetadata(new MediaMetadata.Builder()
                                 .setTitle(t)
                                 .setArtist(a)
                                 .build())
                         .build();
 
-                if ("file".equalsIgnoreCase(itemUri.getScheme())) {
-                    sources.add(new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(fileFactory).createMediaSource(mi));
-                } else {
-                    sources.add(defaultSourceFactory.createMediaSource(mi));
-                }
+                sources.add(new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
+                        dataSourceFactory,
+                        extractorsFactory
+                ).createMediaSource(mi));
             }
             if (!sources.isEmpty()) {
                 player.addMediaSources(sources);
