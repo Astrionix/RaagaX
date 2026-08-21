@@ -340,52 +340,60 @@ export function ExpandedPlayerModal() {
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* ── 1. DYNAMIC ARTWORK ATMOSPHERE (Blur + Dominant Meshes + Vignette) ── */}
+      {/* ── 1. DYNAMIC ARTWORK ATMOSPHERE (Cover Blur + 2-3 Color Meshes + Dark Glass Scrim) ── */}
+      {/* Layer A: Blurred Enlarged Cover Artwork (40-60px blur) */}
       <div
-        className="absolute inset-0 opacity-60 blur-[100px] scale-[1.4] pointer-events-none transition-all duration-1000 ease-out"
+        className="absolute inset-0 opacity-65 scale-125 pointer-events-none transition-all duration-1000 ease-out"
         style={{
           backgroundImage: `url(${coverUrl})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-          filter: 'blur(85px) saturate(210%) brightness(0.65)',
+          filter: 'blur(50px) saturate(175%) brightness(0.50)',
         }}
       />
 
-      {/* Dynamic Dominant Color Radial Meshes (Artwork Lighting Atmosphere) */}
+      {/* Layer B: Dynamic 2-3 Dominant Color Ambient Lighting Meshes */}
       {palette && (
         <>
-          {/* Layer A: Dominant Primary (Deep Wine / Primary Glow at Top-Center) */}
+          {/* Primary Dominant Glow (Top & Center Atmosphere) */}
           <div
-            className="absolute -top-24 left-1/2 -translate-x-1/2 w-[140%] h-[520px] rounded-full blur-3xl pointer-events-none transition-all duration-1000 opacity-80"
+            className="absolute -top-24 left-1/2 -translate-x-1/2 w-[130%] h-[560px] rounded-full blur-3xl pointer-events-none transition-all duration-1000 opacity-75"
             style={{
-              background: `radial-gradient(ellipse at 50% 20%, ${palette.primary} 0%, transparent 65%)`,
+              background: `radial-gradient(ellipse at 50% 25%, ${palette.primary} 0%, ${palette.secondary} 45%, transparent 75%)`,
             }}
           />
 
-          {/* Layer B: Secondary Warm Ambient (Mid-Atmosphere Glow) */}
+          {/* Secondary Ambient Accent (Side Atmosphere) */}
           <div
-            className="absolute top-28 -left-20 w-[90%] h-[460px] rounded-full blur-3xl pointer-events-none transition-all duration-1000 opacity-60"
+            className="absolute top-32 -left-16 w-[80%] h-[420px] rounded-full blur-3xl pointer-events-none transition-all duration-1000 opacity-50"
             style={{
-              background: `radial-gradient(circle at 35% 45%, ${palette.secondary} 0%, transparent 70%)`,
+              background: `radial-gradient(circle at 30% 40%, ${palette.secondary} 0%, transparent 65%)`,
             }}
           />
 
-          {/* Layer C: Highlight Bloom (Directly Radiating From Behind Artwork) */}
+          {/* Highlight Bloom (Radiating Behind Foreground Artwork) */}
           <div
-            className="absolute top-24 left-1/2 -translate-x-1/2 w-[480px] h-[480px] rounded-full blur-2xl pointer-events-none transition-all duration-1000 opacity-45"
+            className="absolute top-20 left-1/2 -translate-x-1/2 w-[480px] h-[480px] rounded-full blur-2xl pointer-events-none transition-all duration-1000 opacity-40"
             style={{
-              background: `radial-gradient(circle at 50% 50%, ${palette.highlight} 0%, transparent 65%)`,
+              background: `radial-gradient(circle at 50% 50%, ${palette.highlight} 0%, transparent 60%)`,
             }}
           />
         </>
       )}
 
-      {/* Multi-stop vertical readability scrim fading smoothly into RaagaX black bottom */}
+      {/* Layer C: Dark Glass / Vignette Scrim (Ensures Crisp Artwork & Neutral Glass Readability) */}
+      <div
+        className="absolute inset-0 pointer-events-none transition-all duration-1000"
+        style={{
+          background:
+            'radial-gradient(ellipse at 50% 35%, rgba(6,7,10,0.15) 0%, rgba(6,7,10,0.55) 55%, rgba(6,7,10,0.92) 100%)',
+        }}
+      />
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'linear-gradient(180deg, rgba(6,7,10,0.2) 0%, rgba(6,7,10,0.45) 40%, rgba(6,7,10,0.80) 70%, rgba(6,7,10,0.96) 90%, #06070A 100%)',
+            'linear-gradient(180deg, rgba(6,7,10,0.20) 0%, rgba(6,7,10,0.30) 35%, rgba(6,7,10,0.72) 75%, rgba(6,7,10,0.96) 92%, #06070A 100%)',
         }}
       />
 

@@ -100,6 +100,7 @@ export class ArtworkColorExtractor {
           let secondSat = -1;
           let secondR = 85, secondG = 30, secondB = 25;
           let warmHighlightR = 215, warmHighlightG = 75, warmHighlightB = 45;
+          let hasVibrant = false;
 
           for (let i = 0; i < imageData.length; i += 16) {
             const r = imageData[i];
@@ -120,8 +121,10 @@ export class ArtworkColorExtractor {
             const delta = max - min;
             const sat = max === 0 ? 0 : delta / max;
 
-            // Track dominant saturated primary (e.g. deep burgundy / crimson / sapphire)
-            if (sat > maxSat && max > 40 && min < 240) {
+            // Track dominant saturated primary (e.g. deep burgundy, sapphire, emerald, amber)
+            if (sat > 0.25) hasVibrant = true;
+
+            if (sat > maxSat && max > 35 && min < 245) {
               secondSat = maxSat;
               secondR = maxSatR;
               secondG = maxSatG;
@@ -131,15 +134,15 @@ export class ArtworkColorExtractor {
               maxSatR = r;
               maxSatG = g;
               maxSatB = b;
-            } else if (sat > secondSat && max > 35) {
+            } else if (sat > secondSat && max > 30) {
               secondSat = sat;
               secondR = r;
               secondG = g;
               secondB = b;
             }
 
-            // Detect warm golden/orange/crimson highlights
-            if (r > 130 && r > b * 1.3 && sat > 0.4) {
+            // Detect highlight color (warm or bright accent)
+            if (max > 120 && sat > 0.35) {
               warmHighlightR = r;
               warmHighlightG = g;
               warmHighlightB = b;
@@ -155,15 +158,27 @@ export class ArtworkColorExtractor {
           const avgG = Math.round(gTotal / count);
           const avgB = Math.round(bTotal / count);
 
+          // Handle monochrome/dark covers gracefully (charcoal + subtle accent)
+          if (!hasVibrant) {
+            maxSatR = Math.max(25, Math.min(80, avgR));
+            maxSatG = Math.max(25, Math.min(80, avgG));
+            maxSatB = Math.max(30, Math.min(90, avgB));
+            secondR = Math.max(15, Math.floor(maxSatR * 0.7));
+            secondG = Math.max(15, Math.floor(maxSatG * 0.7));
+            secondB = Math.max(20, Math.floor(maxSatB * 0.7));
+            warmHighlightR = Math.min(180, Math.max(70, avgR + 30));
+            warmHighlightG = Math.min(180, Math.max(70, avgG + 30));
+            warmHighlightB = Math.min(190, Math.max(80, avgB + 40));
+          }
+
           const primary = `rgb(${maxSatR}, ${maxSatG}, ${maxSatB})`;
           const secondary = `rgb(${secondR}, ${secondG}, ${secondB})`;
           const highlight = `rgb(${warmHighlightR}, ${warmHighlightG}, ${warmHighlightB})`;
-          const accent = `rgb(${Math.min(255, avgR + 40)}, ${Math.max(0, avgG - 20)}, ${Math.min(255, avgB + 50)})`;
-          const darkAmbient = `rgb(${Math.max(6, Math.floor(avgR * 0.15))}, ${Math.max(6, Math.floor(avgG * 0.12))}, ${Math.max(10, Math.floor(avgB * 0.18))})`;
+          const accent = `rgb(${Math.min(255, maxSatR + 35)}, ${Math.min(255, maxSatG + 25)}, ${Math.min(255, maxSatB + 35)})`;
+          const darkAmbient = `rgb(${Math.max(6, Math.floor(maxSatR * 0.12))}, ${Math.max(6, Math.floor(maxSatG * 0.10))}, ${Math.max(8, Math.floor(maxSatB * 0.15))})`;
           const glow = `rgba(${warmHighlightR}, ${warmHighlightG}, ${warmHighlightB}, 0.35)`;
 
           const gradientCss = `radial-gradient(circle at 50% 25%, rgba(${maxSatR}, ${maxSatG}, ${maxSatB}, 0.45) 0%, rgba(${secondR}, ${secondG}, ${secondB}, 0.28) 45%, rgba(${darkAmbient}, 0.95) 100%)`;
-          // refractionRgba: very low opacity tint injected into glass surfaces
           const refractionRgba = `rgba(${maxSatR}, ${maxSatG}, ${maxSatB}, 0.10)`;
 
           resolve({

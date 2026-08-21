@@ -1076,6 +1076,18 @@ export const usePlayerStore = create<PlayerState>()(
           }
         }).catch(() => {});
 
+        // ── RULE 21: GLOBAL DEBUG ASSERTION ──────────────────────────────────────
+        const currentStoreTrack = get().currentSong;
+        if (currentStoreTrack && currentStoreTrack.id !== track.id) {
+          console.error('[RAAGAX_PLAYBACK_DESYNC]', {
+            expectedTrackId: track.id,
+            storeTrackId: currentStoreTrack.id,
+            queueIndex: index,
+            playbackGeneration: requestId,
+            source: track.audioUrl || 'NATIVE_EXOPLAYER',
+          });
+        }
+
         // Broadcast to peers
         try {
           PlaybackStateSync.getInstance().broadcastState(true);
