@@ -53,6 +53,7 @@ export function AlbumDetailView() {
   const [sortOption, setSortOption] = useState<SortOption>('default');
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showAlbumMenu, setShowAlbumMenu] = useState(false);
+  const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
   const isLikedAlbum = selectedAlbumId ? favoriteAlbumIds.includes(selectedAlbumId) : false;
 
   useEffect(() => {
@@ -337,17 +338,19 @@ export function AlbumDetailView() {
               >
                 <Shuffle className="w-4 h-4 text-white/70" /> Shuffle Play
               </button>
-              <button
-                onClick={() => {
-                  if (isAllDownloaded) handleRemoveAllDownloads();
-                  else handleDownloadAll();
-                  setShowAlbumMenu(false);
-                }}
-                className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 font-bold"
-              >
-                <Download className="w-4 h-4 text-emerald-400" />
-                {isAllDownloaded ? 'Remove All Downloads' : 'Download Album'}
-              </button>
+              {isNative && (
+                <button
+                  onClick={() => {
+                    if (isAllDownloaded) handleRemoveAllDownloads();
+                    else handleDownloadAll();
+                    setShowAlbumMenu(false);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 font-bold"
+                >
+                  <Download className="w-4 h-4 text-emerald-400" />
+                  {isAllDownloaded ? 'Remove All Downloads' : 'Download Album'}
+                </button>
+              )}
               <div className="h-px bg-white/10 my-1" />
               <button
                 onClick={() => {
@@ -548,35 +551,37 @@ export function AlbumDetailView() {
             )}
           </div>
 
-          {/* Right: Compact Download All Button (Mobile Only) */}
-          <button
-            onClick={isAllDownloaded ? handleRemoveAllDownloads : handleDownloadAll}
-            className={`md:hidden flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all active:scale-95 cursor-pointer ${
-              isAllDownloaded
-                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                : isDownloadingAlbum
-                ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
-                : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300 hover:text-white'
-            }`}
-            title={isAllDownloaded ? "All songs downloaded (Click to manage)" : "Download All Songs"}
-          >
-            {isDownloadingAlbum ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
-                <span className="font-mono">{downloadedCount}/{tracks.length}</span>
-              </>
-            ) : isAllDownloaded ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
-                <span className="hidden sm:inline">Downloaded</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{downloadedCount > 0 ? `${downloadedCount}/${tracks.length}` : 'Download All'}</span>
-              </>
-            )}
-          </button>
+          {/* Right: Compact Download All Button (Android Mobile Only) */}
+          {isNative && (
+            <button
+              onClick={isAllDownloaded ? handleRemoveAllDownloads : handleDownloadAll}
+              className={`md:hidden flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all active:scale-95 cursor-pointer ${
+                isAllDownloaded
+                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                  : isDownloadingAlbum
+                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                  : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300 hover:text-white'
+              }`}
+              title={isAllDownloaded ? "All songs downloaded (Click to manage)" : "Download All Songs"}
+            >
+              {isDownloadingAlbum ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                  <span className="font-mono">{downloadedCount}/{tracks.length}</span>
+                </>
+              ) : isAllDownloaded ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
+                  <span className="hidden sm:inline">Downloaded</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{downloadedCount > 0 ? `${downloadedCount}/${tracks.length}` : 'Download All'}</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
 
         {/* Track List Rows */}

@@ -154,6 +154,7 @@ export function ExpandedPlayerModal() {
     }
   }, [lyricsIndex, viewMode]);
 
+  const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
   const isLiked = currentSong ? likedSongIds.includes(currentSong.id) : false;
   const isDownloaded = currentSong ? (downloadedSongIds || []).includes(currentSong.id) : false;
 
@@ -171,26 +172,6 @@ export function ExpandedPlayerModal() {
 
   const songDuration = Number.isFinite(duration) && duration > 0 ? duration : (Number.isFinite(currentSong?.duration) && (currentSong?.duration || 0) > 0 ? (currentSong?.duration || 0) : 0);
   const remainingTime = Math.max(0, songDuration - currentTime);
-
-  // ── DYNAMIC PLAYBACK CONTEXT RESOLUTION ─────────────────────────────────────
-  const rawContext = (playbackContext || playbackContextData) as any;
-  const rawTitle = rawContext?.title || rawContext?.name || '';
-  
-  // If context title matches song title or is empty, resolve to clean album or artist radio
-  const contextTitle = useMemo(() => {
-    if (rawTitle && rawTitle !== currentSong?.title) {
-      return rawTitle;
-    }
-    if (currentSong?.album && currentSong.album !== currentSong.title) {
-      return currentSong.album;
-    }
-    if (currentSong?.artist) {
-      return `${currentSong.artist} Radio`;
-    }
-    return 'Your Queue';
-  }, [rawTitle, currentSong]);
-
-  const contextType = String(rawContext?.type || rawContext?.contextType || 'album').toLowerCase();
 
   // Exact ID-based entity resolution
   const exactArtistId = useMemo(() => {
@@ -221,32 +202,6 @@ export function ExpandedPlayerModal() {
     }
     return () => { isMounted = false; };
   }, [coverUrl]);
-
-  const handleContextClick = () => {
-    haptics.lightImpact();
-
-    if (rawContext?.id) {
-      if (contextType.includes('playlist')) {
-        navigateFromPlayer({ tab: 'playlist', playlistId: rawContext.id });
-      } else if (contextType.includes('album')) {
-        navigateFromPlayer({ tab: 'album', albumId: rawContext.id });
-      } else if (contextType.includes('artist')) {
-        navigateFromPlayer({ tab: 'artist', artistId: rawContext.id });
-      } else if (contextType.includes('genre')) {
-        navigateFromPlayer({ tab: 'genres' });
-      } else if (contextType.includes('new')) {
-        navigateFromPlayer({ tab: 'new' });
-      } else {
-        navigateFromPlayer({ tab: 'library' });
-      }
-    } else if (exactAlbumId) {
-      navigateFromPlayer({ tab: 'album', albumId: exactAlbumId });
-    } else if (exactArtistId) {
-      navigateFromPlayer({ tab: 'artist', artistId: exactArtistId });
-    } else {
-      navigateFromPlayer({ tab: 'library' });
-    }
-  };
 
   const cycleRepeatMode = () => {
     haptics.lightImpact();
@@ -424,24 +379,28 @@ export function ExpandedPlayerModal() {
           </div>
         )}
 
-        {/* ── 4. PLAYBACK CONTEXT & METADATA SECTION ───────────────────────── */}
+        {/* ── 4. PLAYBACK METADATA & ACTIONS SECTION ───────────────────────── */}
         <div className="w-full space-y-2 pt-1 pb-1">
-          {/* Row 1: [Context Title] ... ♡ (44dp) ... ⋯ (44dp) in one clean row */}
-          <div className="flex items-center justify-between gap-2.5">
-            {/* Flexible Width Context Pill */}
-            <LiquidGlass
-              level={2}
-              shape="pill"
-              interactive
-              refractionColor={palette?.refractionRgba}
-              onClick={handleContextClick}
-              className="flex items-center px-3.5 h-[42px] min-w-0 flex-1 cursor-pointer select-none group"
-              title={contextTitle}
-            >
-              <span className="text-xs font-bold text-white group-hover:underline truncate tracking-tight">
-                {contextTitle}
-              </span>
-            </LiquidGlass>
+          <div className="flex items-center justify-between gap-3">
+            {/* Song Title (20-22sp Bold) & Artist (15-16sp #A8B2C2) */}
+            <div className="min-w-0 flex-1">
+              <h1 className="text-[20px] sm:text-[22px] font-black text-white tracking-tight leading-snug truncate" title={currentSong.title}>
+                {currentSong.title}
+              </h1>
+              <p
+                onClick={() => {
+                  if (exactArtistId) {
+                    navigateFromPlayer({ tab: 'artist', artistId: exactArtistId });
+                  }
+                }}
+                className={`text-[15px] sm:text-[16px] font-semibold text-[#A8B2C2] hover:text-white transition-colors truncate mt-0.5 ${
+                  exactArtistId ? 'cursor-pointer' : 'cursor-default'
+                }`}
+                title={currentSong.artist}
+              >
+                {currentSong.artist}
+              </p>
+            </div>
 
             {/* Actions: 44dp Like ♡ + 44dp More ⋯ */}
             <div className="flex items-center gap-2 flex-shrink-0 relative" ref={menuRef}>
@@ -518,17 +477,19 @@ export function ExpandedPlayerModal() {
                       <span>Add to Queue</span>
                     </button>
 
-                    <button
-                      onClick={() => {
-                        saveForOffline(currentSong);
-                        setToastMessage(`Downloading "${currentSong.title}"`);
-                        setIsMenuOpen(false);
-                      }}
-                      className="w-full p-2.5 rounded-xl flex items-center gap-2.5 hover:bg-white/10 transition-colors text-left cursor-pointer"
-                    >
-                      <Download className="w-4 h-4 text-slate-400" />
-                      <span>Download Song</span>
-                    </button>
+                    {isNative && (
+                      <button
+                        onClick={() => {
+                          saveForOffline(currentSong);
+                          setToastMessage(`Downloading "${currentSong.title}"`);
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full p-2.5 rounded-xl flex items-center gap-2.5 hover:bg-white/10 transition-colors text-left cursor-pointer"
+                      >
+                        <Download className="w-4 h-4 text-slate-400" />
+                        <span>Download Song</span>
+                      </button>
+                    )}
                   </div>
 
                   <div className="space-y-0.5 pt-1">
@@ -571,25 +532,6 @@ export function ExpandedPlayerModal() {
                 </div>
               )}
             </div>
-          </div>
-
-          {/* Song Title (20-22sp Bold) & Artist (15-16sp #A8B2C2) */}
-          <div className="pt-1">
-            <h1 className="text-[20px] sm:text-[22px] font-black text-white tracking-tight leading-snug truncate">
-              {currentSong.title}
-            </h1>
-            <p
-              onClick={() => {
-                if (exactArtistId) {
-                  navigateFromPlayer({ tab: 'artist', artistId: exactArtistId });
-                }
-              }}
-              className={`text-[15px] sm:text-[16px] font-semibold text-[#A8B2C2] hover:text-white transition-colors truncate mt-0.5 ${
-                exactArtistId ? 'cursor-pointer' : 'cursor-default'
-              }`}
-            >
-              {currentSong.artist}
-            </p>
           </div>
         </div>
 

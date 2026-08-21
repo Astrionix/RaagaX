@@ -42,6 +42,8 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
   const { playlists, addSongToPlaylist, removeSongFromPlaylist } = usePlaylistStore();
   const { tasks, pauseDownload, cancelDownload, saveForOffline, removeDownload, shareSongFile } = useDownloadStore();
 
+  const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
+
   const task = song ? tasks[song.id] : null;
   const isDownloaded = song ? downloadedSongIds.includes(song.id) : false;
   const isLiked = song ? likedSongIds.includes(song.id) : false;
@@ -366,66 +368,68 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
                   </span>
                 </button>
 
-                {/* Download / Remove Download */}
-                <div>
-                  {isDownloaded ? (
-                    <button
-                      onClick={() => handleAction(async () => {
-                        await removeDownload(song.id);
-                        setToastMessage(`Removed "${song.title}" from local storage`);
-                      })}
-                      className="w-full text-left px-2.5 py-2 hover:bg-red-500/10 text-slate-400 hover:text-red-400 rounded-xl flex items-center transition-all group cursor-pointer"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 group-hover:border-red-500/30 group-hover:bg-red-500/20 group-hover:text-red-400 flex items-center justify-center flex-shrink-0 transition-colors">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="flex-1 min-w-0 ml-3">
-                        <span className="font-medium block text-xs">Remove Download</span>
-                        <span className="text-[10px] text-slate-500 block">Deletes local MP3</span>
-                      </div>
-                    </button>
-                  ) : isDownloading ? (
-                    <div className="flex items-center w-full gap-1 p-1">
-                      <button 
-                        onClick={() => handleAction(() => pauseDownload(song.id))}
-                        className="flex-1 text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center group cursor-pointer"
+                {/* Download / Remove Download (Android Only) */}
+                {isNative && (
+                  <div>
+                    {isDownloaded ? (
+                      <button
+                        onClick={() => handleAction(async () => {
+                          await removeDownload(song.id);
+                          setToastMessage(`Removed "${song.title}" from local storage`);
+                        })}
+                        className="w-full text-left px-2.5 py-2 hover:bg-red-500/10 text-slate-400 hover:text-red-400 rounded-xl flex items-center transition-all group cursor-pointer"
                       >
-                        <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center flex-shrink-0">
-                          <PauseCircle className="w-4 h-4" />
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 group-hover:border-red-500/30 group-hover:bg-red-500/20 group-hover:text-red-400 flex items-center justify-center flex-shrink-0 transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
                         </div>
                         <div className="flex-1 min-w-0 ml-3">
-                          <span className="font-bold text-amber-400 block text-xs">
-                            Pause ({task?.progress || 0}%)
-                          </span>
-                          <span className="text-[10px] text-slate-400 block">Downloading...</span>
+                          <span className="font-medium block text-xs">Remove Download</span>
+                          <span className="text-[10px] text-slate-500 block">Deletes local MP3</span>
                         </div>
                       </button>
+                    ) : isDownloading ? (
+                      <div className="flex items-center w-full gap-1 p-1">
+                        <button 
+                          onClick={() => handleAction(() => pauseDownload(song.id))}
+                          className="flex-1 text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center group cursor-pointer"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center flex-shrink-0">
+                            <PauseCircle className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0 ml-3">
+                            <span className="font-bold text-amber-400 block text-xs">
+                              Pause ({task?.progress || 0}%)
+                            </span>
+                            <span className="text-[10px] text-slate-400 block">Downloading...</span>
+                          </div>
+                        </button>
+                        <button 
+                          onClick={() => handleAction(() => cancelDownload(song.id))}
+                          className="p-2 text-red-400 hover:bg-white/10 rounded-xl cursor-pointer"
+                          title="Cancel"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
                       <button 
-                        onClick={() => handleAction(() => cancelDownload(song.id))}
-                        className="p-2 text-red-400 hover:bg-white/10 rounded-xl cursor-pointer"
-                        title="Cancel"
+                        onClick={() => handleAction(async () => {
+                          await saveForOffline(song);
+                          setToastMessage(`Downloading "${song.title}"...`);
+                        })}
+                        className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
                       >
-                        <XCircle className="w-4 h-4" />
+                        <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-emerald-400 group-hover:bg-emerald-500/20 flex items-center justify-center flex-shrink-0 transition-colors">
+                          <Download className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="flex-1 min-w-0 ml-3">
+                          <span className="font-medium text-slate-200 group-hover:text-white block text-xs">Download</span>
+                          <span className="text-[10px] text-slate-400 block font-mono">Offline 320kbps</span>
+                        </div>
                       </button>
-                    </div>
-                  ) : (
-                    <button 
-                      onClick={() => handleAction(async () => {
-                        await saveForOffline(song);
-                        setToastMessage(`Downloading "${song.title}"...`);
-                      })}
-                      className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-emerald-400 group-hover:bg-emerald-500/20 flex items-center justify-center flex-shrink-0 transition-colors">
-                        <Download className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="flex-1 min-w-0 ml-3">
-                        <span className="font-medium text-slate-200 group-hover:text-white block text-xs">Download</span>
-                        <span className="text-[10px] text-slate-400 block font-mono">Offline 320kbps</span>
-                      </div>
-                    </button>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Not Interested */}
                 <button 

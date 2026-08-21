@@ -42,6 +42,8 @@ export function SearchView() {
     setPreferredLanguage,
   } = usePlayerStore();
 
+  const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
+
   const [searchResults, setSearchResults] = useState<UnifiedSearchResults>({
     query: '',
     topResult: null,
@@ -424,7 +426,7 @@ export function SearchView() {
             >
               <ListMusic className="w-3.5 h-3.5" /> Playlists
             </button>
-            {downloadedOnlyResults.length > 0 && (
+            {isNative && downloadedOnlyResults.length > 0 && (
               <button
                 onClick={() => setFilterType('downloaded')}
                 className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
@@ -684,7 +686,7 @@ export function SearchView() {
 
                         {/* Status Badges */}
                         <div className="flex items-center gap-1.5 mt-1">
-                          {isDownloaded && (
+                          {isNative && isDownloaded && (
                             <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-400 bg-emerald-500/15 px-1.5 py-0.2 rounded border border-emerald-500/25">
                               ✓ Downloaded
                             </span>

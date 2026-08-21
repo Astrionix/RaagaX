@@ -61,6 +61,8 @@ export function PlaylistDetailView() {
     cancelAll
   } = useDownloadStore();
 
+  const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
+
   const [playlist, setPlaylist] = useState<UserPlaylist | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddSongsModal, setShowAddSongsModal] = useState(false);
@@ -400,20 +402,24 @@ export function PlaylistDetailView() {
                   <Plus className="w-3.5 h-3.5 text-purple-400" /> Add Songs
                 </button>
 
-                <button
-                  onClick={() => { setShowPlaylistMenu(false); handleDownloadAll(); }}
-                  className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-xl flex items-center gap-2.5 text-slate-200 hover:text-white transition-colors"
-                >
-                  <Download className="w-3.5 h-3.5 text-emerald-400" /> Download All
-                </button>
+                {isNative && (
+                  <>
+                    <button
+                      onClick={() => { setShowPlaylistMenu(false); handleDownloadAll(); }}
+                      className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-xl flex items-center gap-2.5 text-slate-200 hover:text-white transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5 text-emerald-400" /> Download All
+                    </button>
 
-                {downloadedSongsInPlaylist.length > 0 && (
-                  <button
-                    onClick={handleRemoveAllDownloads}
-                    className="w-full text-left px-3 py-2 hover:bg-red-500/10 rounded-xl flex items-center gap-2.5 text-slate-300 hover:text-red-400 transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" /> Remove All Downloads
-                  </button>
+                    {downloadedSongsInPlaylist.length > 0 && (
+                      <button
+                        onClick={handleRemoveAllDownloads}
+                        className="w-full text-left px-3 py-2 hover:bg-red-500/10 rounded-xl flex items-center gap-2.5 text-slate-300 hover:text-red-400 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Remove All Downloads
+                      </button>
+                    )}
+                  </>
                 )}
 
                 <div className="border-t border-white/5 my-1" />
@@ -519,7 +525,7 @@ export function PlaylistDetailView() {
               <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/10 text-slate-300 border border-white/10">
                 {playlist.visibility === 'public' ? 'Public Playlist' : 'Private Playlist'}
               </span>
-              {downloadedSongsInPlaylist.length === playlist.songs.length && playlist.songs.length > 0 && (
+              {isNative && downloadedSongsInPlaylist.length === playlist.songs.length && playlist.songs.length > 0 && (
                 <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
                   <Check className="w-3 h-3 stroke-[3]" /> Downloaded
                 </span>
@@ -541,7 +547,7 @@ export function PlaylistDetailView() {
               <span>{playlist.songs?.length || 0} {playlist.songs?.length === 1 ? 'song' : 'songs'}</span>
               <span>•</span>
               <span>{formattedDuration}</span>
-              {downloadedSongsInPlaylist.length > 0 && (
+              {isNative && downloadedSongsInPlaylist.length > 0 && (
                 <>
                   <span>•</span>
                   <span className="text-emerald-400 font-mono">
@@ -592,7 +598,7 @@ export function PlaylistDetailView() {
           )}
         </div>
 
-        {/* Secondary Toolbar: Sort & Compact Download All (Mobile Only) */}
+        {/* Secondary Toolbar: Sort & Compact Download All (Android Mobile Only) */}
         <div className="flex items-center justify-between gap-2 pb-2 border-b border-white/10">
           {!isEditOrderMode ? (
             <div className="flex items-center gap-1.5 bg-[var(--bg-surface)] border border-[var(--border-subtle)] px-3 py-1.5 rounded-full text-xs shadow-sm">
@@ -618,35 +624,37 @@ export function PlaylistDetailView() {
             </button>
           )}
 
-          {/* Compact Download All Button (Mobile Only) */}
-          <button
-            onClick={isAllDownloaded ? handleRemoveAllDownloads : handleDownloadAll}
-            className={`md:hidden flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all active:scale-95 cursor-pointer ${
-              isAllDownloaded
-                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                : isDownloading
-                ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
-                : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300 hover:text-white'
-            }`}
-            title={isAllDownloaded ? "All songs downloaded (Click to manage)" : "Download All Songs"}
-          >
-            {isDownloading ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
-                <span className="font-mono">{downloadedSongsInPlaylist.length}/{playlist.songs.length}</span>
-              </>
-            ) : isAllDownloaded ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
-                <span className="hidden sm:inline">Downloaded</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{downloadedSongsInPlaylist.length > 0 ? `${downloadedSongsInPlaylist.length}/${playlist.songs.length}` : 'Download All'}</span>
-              </>
-            )}
-          </button>
+          {/* Compact Download All Button (Android Mobile Only) */}
+          {isNative && (
+            <button
+              onClick={isAllDownloaded ? handleRemoveAllDownloads : handleDownloadAll}
+              className={`md:hidden flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all active:scale-95 cursor-pointer ${
+                isAllDownloaded
+                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                  : isDownloading
+                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                  : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300 hover:text-white'
+              }`}
+              title={isAllDownloaded ? "All songs downloaded (Click to manage)" : "Download All Songs"}
+            >
+              {isDownloading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                  <span className="font-mono">{downloadedSongsInPlaylist.length}/{playlist.songs.length}</span>
+                </>
+              ) : isAllDownloaded ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
+                  <span className="hidden sm:inline">Downloaded</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{downloadedSongsInPlaylist.length > 0 ? `${downloadedSongsInPlaylist.length}/${playlist.songs.length}` : 'Download All'}</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -718,26 +726,28 @@ export function PlaylistDetailView() {
                   </div>
                 </div>
 
-                {/* Download State Indicator (Mobile Only) */}
-                <div className="md:hidden flex items-center gap-3 flex-shrink-0">
-                  {isDownloaded ? (
-                    <span title="Downloaded Offline" className="text-emerald-400 p-1">
-                      <CheckCircle2 className="w-4 h-4" />
-                    </span>
-                  ) : isDownloading ? (
-                    <span title={`Downloading... ${task?.progress || 0}%`} className="text-amber-400 font-mono text-[10px] flex items-center gap-1">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> {task?.progress}%
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => saveForOffline(song)}
-                      className="p-1.5 text-slate-500 hover:text-slate-300 transition-opacity cursor-pointer"
-                      title="Download song"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
+                {/* Download State Indicator (Android Mobile Only) */}
+                {isNative && (
+                  <div className="md:hidden flex items-center gap-3 flex-shrink-0">
+                    {isDownloaded ? (
+                      <span title="Downloaded Offline" className="text-emerald-400 p-1">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </span>
+                    ) : isDownloading ? (
+                      <span title={`Downloading... ${task?.progress || 0}%`} className="text-amber-400 font-mono text-[10px] flex items-center gap-1">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> {task?.progress}%
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => saveForOffline(song)}
+                        className="p-1.5 text-slate-500 hover:text-slate-300 transition-opacity cursor-pointer"
+                        title="Download song"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {/* Duration */}
                 <span className="text-[11px] font-mono text-slate-400 hidden sm:inline-block">

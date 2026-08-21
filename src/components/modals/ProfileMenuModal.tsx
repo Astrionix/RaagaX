@@ -39,6 +39,7 @@ export function ProfileMenuModal({ isOpen, onClose }: ProfileMenuModalProps) {
 
   if (!isOpen) return null;
 
+  const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
   const isConnectedRemote = Boolean(activeDeviceId && activeDeviceId !== deviceId);
   const displayName = user?.user_metadata?.full_name || (user?.email ? user.email.split('@')[0] : 'Guest Listener');
   const userEmail = user?.email || 'Sign in to sync across devices';
@@ -171,28 +172,30 @@ export function ProfileMenuModal({ isOpen, onClose }: ProfileMenuModalProps) {
               <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
             </button>
 
-            {/* Downloads */}
-            <button
-              onClick={() => {
-                haptics.lightImpact();
-                onClose();
-                setActiveTab('downloads');
-              }}
-              className="w-full p-3 rounded-2xl bg-white/[0.03] hover:bg-white/10 border border-white/5 flex items-center justify-between text-left group transition-all cursor-pointer"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                  <Download className="w-4 h-4" />
+            {/* Downloads (Android Only) */}
+            {isNative && (
+              <button
+                onClick={() => {
+                  haptics.lightImpact();
+                  onClose();
+                  setActiveTab('downloads');
+                }}
+                className="w-full p-3 rounded-2xl bg-white/[0.03] hover:bg-white/10 border border-white/5 flex items-center justify-between text-left group transition-all cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                    <Download className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">
+                      Downloads & Offline Audio
+                    </h4>
+                    <p className="text-[11px] text-slate-400">Saved tracks, offline playback, Wi-Fi downloads</p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">
-                    Downloads & Offline Audio
-                  </h4>
-                  <p className="text-[11px] text-slate-400">Saved tracks, offline playback, Wi-Fi downloads</p>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
-            </button>
+                <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+              </button>
+            )}
           </div>
 
           {/* 3. Notifications & Preferences */}
