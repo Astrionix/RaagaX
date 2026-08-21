@@ -182,7 +182,11 @@ public class RaagaXPlaybackService extends Service {
             @Override
             public void onPlayerError(androidx.media3.common.PlaybackException error) {
                 Log.e(TAG, "[RAAGAX_LOCAL_PLAYBACK_ERROR] songId=" + currentTrackId + " errorCode=" + error.errorCode + " message=" + error.getMessage() + " cause=" + error.getCause());
-                if (isCurrentLocalPlayback && currentTrackId != null && !currentTrackId.isEmpty()) {
+                android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(android.content.Context.CONNECTIVITY_SERVICE);
+                android.net.NetworkInfo activeNetwork = cm != null ? cm.getActiveNetworkInfo() : null;
+                boolean isOnline = activeNetwork != null && activeNetwork.isConnectedOrConnecting();
+
+                if (isCurrentLocalPlayback && currentTrackId != null && !currentTrackId.isEmpty() && isOnline) {
                     Log.w(TAG, "[RAAGAX_LOCAL_PLAYBACK_ERROR] Local playback failed for songId=" + currentTrackId + " -> Automatic online fallback stream initiating...");
                     isCurrentLocalPlayback = false;
                     final String fallbackTrackId = currentTrackId;
@@ -469,11 +473,15 @@ public class RaagaXPlaybackService extends Service {
             if (!localPath.startsWith("/")) localPath = "/" + localPath;
             return Uri.fromFile(new java.io.File(localPath));
         }
+        if (trimmed.startsWith("file://")) {
+            String localPath = trimmed.substring(7);
+            try {
+                localPath = java.net.URLDecoder.decode(localPath, "UTF-8");
+            } catch (Exception ignored) {}
+            return Uri.fromFile(new java.io.File(localPath));
+        }
         if (trimmed.startsWith("/") || trimmed.startsWith("/storage/") || trimmed.startsWith("/data/")) {
             return Uri.fromFile(new java.io.File(trimmed));
-        }
-        if (trimmed.startsWith("file://")) {
-            return Uri.parse(trimmed);
         }
         return Uri.parse(trimmed);
     }
@@ -696,6 +704,9 @@ public class RaagaXPlaybackService extends Service {
                 String cleanPath = url.trim();
                 if (cleanPath.startsWith("file://")) {
                     cleanPath = cleanPath.substring(7);
+                    try {
+                        cleanPath = java.net.URLDecoder.decode(cleanPath, "UTF-8");
+                    } catch (Exception ignored) {}
                 }
                 if (cleanPath.startsWith("/") || cleanPath.startsWith("/storage/") || cleanPath.startsWith("/data/")) {
                     java.io.File f = new java.io.File(cleanPath);
@@ -711,6 +722,9 @@ public class RaagaXPlaybackService extends Service {
             // 3. Fall back to standard network URI parser
             if (playableUri == null && url != null && !url.isEmpty()) {
                 playableUri = parsePlayableUri(url);
+                if ("file".equalsIgnoreCase(playableUri.getScheme())) {
+                    isLocal = true;
+                }
             }
 
             if (playableUri == null || playableUri.equals(Uri.EMPTY)) {

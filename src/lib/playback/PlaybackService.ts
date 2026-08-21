@@ -926,14 +926,17 @@ export class PlaybackService {
       for (const item of upcomingItems) {
         if (!item?.song) continue;
         const song = item.song;
-        let finalSrc = song.audioUrl || '';
-        if (!finalSrc || finalSrc.includes('pixabay.com')) {
-          try {
-            const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
-            if (source && source.type === 'remote' && source.url) {
-              finalSrc = source.url;
-            }
-          } catch {}
+        let finalSrc = '';
+        try {
+          const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+          if (source?.url) {
+            finalSrc = source.url;
+          }
+        } catch {}
+        if (!finalSrc && song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
+          if (typeof navigator === 'undefined' || navigator.onLine !== false) {
+            finalSrc = song.audioUrl;
+          }
         }
         if (!finalSrc) continue;
 

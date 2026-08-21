@@ -19,6 +19,7 @@ import com.raagax.music.data.db.entity.DownloadEntity;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -238,8 +239,12 @@ public class RaagaXDownloadPlugin extends Plugin {
                 obj.put("title", e.title);
                 obj.put("artist", e.artist);
                 obj.put("album", e.album);
-                obj.put("artworkUrl", e.artwork);
-                obj.put("coverUrl", e.artwork);
+                
+                File artFile = StorageHelper.getArtworkFile(getContext(), e.trackId);
+                String artUrl = (artFile != null && artFile.exists()) ? "file://" + artFile.getAbsolutePath() : (e.artwork != null ? e.artwork : "");
+                obj.put("artworkUrl", artUrl);
+                obj.put("coverUrl", artUrl);
+                obj.put("localArtworkPath", artFile != null && artFile.exists() ? artFile.getAbsolutePath() : "");
                 obj.put("localPath", e.localPath);
                 obj.put("fileName", e.fileName);
                 obj.put("fileSize", e.fileSize);
