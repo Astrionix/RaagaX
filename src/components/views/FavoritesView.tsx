@@ -233,15 +233,18 @@ export function FavoritesView() {
                     </div>
                   </div>
 
+                  {/* Fixed Right-Side Action Column */}
                   <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                    <DownloadStatusIndicator song={song} size="sm" showPercentage />
+                    <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                      <DownloadStatusIndicator song={song} size="sm" />
+                    </div>
                     <button
                       onClick={() => {
                         haptics.lightImpact();
                         toggleLikeSong(song.id);
                       }}
                       aria-label="Unlike song"
-                      className="p-2 text-[#FA233B] hover:scale-110 active:scale-95 transition-transform cursor-pointer"
+                      className="w-8 h-8 flex items-center justify-center text-[#FA233B] hover:scale-110 active:scale-95 transition-transform cursor-pointer flex-shrink-0"
                       title="Remove from Liked Songs"
                     >
                       <Heart className="w-4 h-4 fill-current" />

@@ -31,10 +31,6 @@ export function DownloadStatusIndicator({
   const downloadedSongIds = usePlayerStore((s) => s.downloadedSongIds);
   const librarySongIds = usePlayerStore((s) => s.librarySongIds);
 
-  // INVARIANT: Downloads are strictly native mobile offline features — completely hide on Desktop
-  const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
-  if (!isNative) return null;
-
   if (!song || !song.id) return null;
 
   const task = tasks[song.id];

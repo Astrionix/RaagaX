@@ -724,25 +724,29 @@ export function PlaylistDetailView() {
                   </div>
                 </div>
 
-                {/* Download State Indicator — Apple Music 3-state (Android only) */}
-                <DownloadStatusIndicator
-                  song={song}
-                  size="sm"
-                  showCloudIcon
-                  className=""
-                />
+                {/* Fixed Download Action Column */}
+                <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                  <DownloadStatusIndicator
+                    song={song}
+                    size="sm"
+                    showCloudIcon
+                    className=""
+                  />
+                </div>
 
                 {/* Duration */}
-                <span className="text-[11px] font-mono text-slate-400 hidden sm:inline-block">
+                <span className="text-[11px] font-mono text-slate-400 hidden sm:inline-block w-10 text-right flex-shrink-0">
                   {Math.floor((song.duration || 180) / 60)}:{((song.duration || 180) % 60).toString().padStart(2, '0')}
                 </span>
 
                 {/* Song 3-dot Menu */}
-                <SongActionMenu 
-                  song={song} 
-                  playlistId={playlist.id}
-                  onRemoveFromPlaylist={() => removeSongFromPlaylist(playlist.id, song.id)}
-                />
+                <div className="flex-shrink-0">
+                  <SongActionMenu 
+                    song={song} 
+                    playlistId={playlist.id}
+                    onRemoveFromPlaylist={() => removeSongFromPlaylist(playlist.id, song.id)}
+                  />
+                </div>
               </div>
             );
           })}
