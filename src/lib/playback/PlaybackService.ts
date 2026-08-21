@@ -629,11 +629,12 @@ export class PlaybackService {
   }
 
   public async playPrevTrack(): Promise<boolean> {
-    // Spotify 3-Second Rule: if track has played > 3 seconds, restart current track from 00:00
+    // Spotify 3-Second Rule: if track has played > 3 seconds, restart current track from 00:00 and play
     const active = this.getActiveAudio();
     if (active && active.currentTime > 3.0) {
       this.seek(0);
       this.play();
+      usePlayerStore.getState().setIsPlaying(true);
       return true;
     }
     try {

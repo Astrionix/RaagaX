@@ -1430,12 +1430,14 @@ export const usePlayerStore = create<PlayerState>()(
       playPrev: async () => {
         const { queue, queueIndex, currentTime, currentSong, repeatMode } = get();
 
-        // If track played more than 3 seconds, restart current track at 0:00
+        // If track played more than 3 seconds, restart current track at 0:00 and start playback
         if (currentTime > 3) {
           console.log(`[RESTART] ${currentSong?.id || 'unknown'} (pos: ${currentTime.toFixed(1)}s > 3s)`);
           get().setCurrentTime(0, true);
           get().setSeekTarget(0);
+          get().setIsPlaying(true);
           PlaybackService.getInstance().seek(0);
+          PlaybackService.getInstance().play();
           return;
         }
 
@@ -1449,11 +1451,13 @@ export const usePlayerStore = create<PlayerState>()(
           console.log(`[PREVIOUS] ${queueIndex} → ${prevIndex} (Track: "${prevTrack.title}")`);
           await get().switchTrack(prevTrack, prevIndex, true);
         } else {
-          // At beginning of queue and no previous: restart at 0:00
+          // At beginning of queue and no previous: restart at 0:00 and start playback
           console.log(`[RESTART] ${currentSong?.id || 'unknown'} (beginning of queue)`);
           get().setCurrentTime(0, true);
           get().setSeekTarget(0);
+          get().setIsPlaying(true);
           PlaybackService.getInstance().seek(0);
+          PlaybackService.getInstance().play();
         }
       },
 

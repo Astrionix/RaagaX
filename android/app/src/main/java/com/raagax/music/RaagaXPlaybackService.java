@@ -289,8 +289,12 @@ public class RaagaXPlaybackService extends Service {
                 sendBroadcast(i);
                 if (player != null && player.hasPreviousMediaItem() && player.getCurrentPosition() <= 3000) {
                     player.seekToPreviousMediaItem();
+                    player.setPlayWhenReady(true);
+                    player.play();
                 } else if (player != null && player.getCurrentPosition() > 3000) {
                     player.seekTo(player.getCurrentMediaItemIndex(), 0L);
+                    player.setPlayWhenReady(true);
+                    player.play();
                 }
             });
 
@@ -300,6 +304,8 @@ public class RaagaXPlaybackService extends Service {
                 sendBroadcast(i);
                 if (player != null && player.hasNextMediaItem()) {
                     player.seekToNextMediaItem();
+                    player.setPlayWhenReady(true);
+                    player.play();
                 }
             });
 
