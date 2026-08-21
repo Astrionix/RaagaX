@@ -400,61 +400,61 @@ export function ExpandedPlayerModal() {
       {/* ── Top Grab Handle Indicator (Mobile Drag-Down Affordance) ── */}
       <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-9 h-1 rounded-full bg-white/25 z-40 md:hidden pointer-events-none" />
 
-      {/* ── 2. DESKTOP & MOBILE TOP BAR ────────────────────────────────────── */}
+      {/* ── 2. DESKTOP & MOBILE MINIMAL TOP BAR ───────────────────────────── */}
       <div className="relative z-30 flex items-center justify-between px-5 sm:px-8 pt-3 sm:pt-4 w-full flex-shrink-0">
-        {/* Left: Minimize / Chevron Down */}
+        {/* Left: Minimize Chevron */}
         <button
           onClick={() => {
             haptics.lightImpact();
             togglePlayerExpanded();
           }}
-          className="p-2 sm:p-2.5 -ml-2 text-white/70 hover:text-white rounded-full bg-white/[0.04] hover:bg-white/10 border border-white/5 transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+          className="w-9 h-9 sm:w-10 sm:h-10 -ml-1 text-white/70 hover:text-white rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 transition-all active:scale-95 cursor-pointer flex items-center justify-center"
           aria-label="Minimize Player"
           title="Minimize Player (Esc)"
         >
           <ChevronDown className="w-5 h-5 sm:w-6 sm:h-6" />
         </button>
 
-        {/* Center: Subtle Now Playing Title / Context */}
-        <div className="flex flex-col items-center justify-center text-center">
-          <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-[#F0444F] font-mono">
-            {playbackContext?.type === 'radio' ? 'Radio Stream' : 'Now Playing'}
+        {/* Center: Context Info (Playing from Playlist / Album) */}
+        <div className="flex flex-col items-center justify-center text-center px-2 min-w-0">
+          <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-white/50 font-sans">
+            {playbackContext?.type === 'radio' ? 'Radio Stream' : 'Playing From'}
           </span>
-          <span className="text-xs sm:text-sm font-bold text-white/90 truncate max-w-[200px] sm:max-w-[360px]">
-            {playbackContext?.title || currentSong.album || 'RaagaX Master Audio'}
+          <span className="text-xs sm:text-sm font-semibold text-white/90 truncate max-w-[200px] sm:max-w-[340px]">
+            {playbackContext?.title || currentSong.album || 'Library'}
           </span>
         </div>
 
-        {/* Right: Quick Close Button on Desktop */}
+        {/* Right: Quick Close on Desktop */}
         <button
           onClick={() => {
             haptics.lightImpact();
             togglePlayerExpanded();
           }}
-          className="p-2 sm:p-2.5 -mr-2 text-white/70 hover:text-white rounded-full bg-white/[0.04] hover:bg-white/10 border border-white/5 transition-all active:scale-95 cursor-pointer hidden md:flex items-center justify-center"
+          className="w-9 h-9 sm:w-10 sm:h-10 -mr-1 text-white/70 hover:text-white rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 transition-all active:scale-95 cursor-pointer hidden md:flex items-center justify-center"
           aria-label="Close"
           title="Close Player (Esc)"
         >
           <X className="w-5 h-5" />
         </button>
-        <div className="w-6 md:hidden" />
+        <div className="w-9 md:hidden" />
       </div>
 
-      {/* ── 3. MAIN WORKSPACE (CENTRAL STAGE + OPTIONAL SLIDING QUEUE PANEL) ─ */}
-      <div className="relative z-20 flex-1 flex items-center justify-center w-full max-w-7xl mx-auto px-4 sm:px-8 py-1 min-h-0 overflow-hidden">
+      {/* ── 3. MAIN WORKSPACE (CENTRAL UNBOXED STAGE + OPTIONAL DESKTOP QUEUE) ─ */}
+      <div className="relative z-20 flex-1 flex items-center justify-center w-full max-w-7xl mx-auto px-5 sm:px-10 py-1 min-h-0 overflow-hidden">
         
-        {/* Central Stage (Artwork + Metadata + Controls) */}
-        <div className={`flex-1 flex flex-col justify-between items-center h-full w-full transition-all duration-300 min-h-0 py-1 sm:py-2 gap-2 sm:gap-2.5 ${
-          isDesktopQueueOpen ? 'max-w-[460px] lg:max-w-[500px]' : 'max-w-[440px] lg:max-w-[480px]'
+        {/* Central Stage (Fluid, Unboxed Apple-Music Hierarchy) */}
+        <div className={`flex-1 flex flex-col justify-between items-center h-full w-full transition-all duration-300 min-h-0 py-2 sm:py-3 gap-3 sm:gap-4 ${
+          isDesktopQueueOpen ? 'max-w-[420px] lg:max-w-[460px]' : 'max-w-[390px] sm:max-w-[420px] lg:max-w-[450px]'
         }`}>
           
-          {/* A. ARTWORK / LYRICS STAGE */}
+          {/* A. HERO ARTWORK / SYNCHRONIZED LYRICS */}
           {viewMode === 'art' ? (
-            /* Large 3D Artwork (strictly responsive and never overflowing into metadata) */
-            <div className="w-full flex-1 flex items-center justify-center py-1 px-2 min-h-0 overflow-hidden">
+            /* Large Unboxed Hero Artwork with Deep Cinematic Shadow */
+            <div className="w-full flex-1 flex items-center justify-center py-1 min-h-0 overflow-hidden">
               <div
                 key={songTransitionKey}
-                className="relative h-full max-h-[min(380px,36vh)] aspect-square rounded-[24px] sm:rounded-[28px] overflow-hidden shadow-[0_25px_70px_rgba(0,0,0,0.9),0_10px_30px_rgba(0,0,0,0.6)] border border-white/15 group transition-transform duration-500 hover:scale-[1.02] animate-in zoom-in-95 fade-in duration-300 flex-shrink-0"
+                className="relative w-full max-w-[min(340px,78vw)] max-h-[min(340px,40vh)] aspect-square rounded-[24px] sm:rounded-[28px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85),0_10px_24px_rgba(0,0,0,0.55)] transition-transform duration-500 hover:scale-[1.02] animate-in zoom-in-95 fade-in duration-300 flex-shrink-0"
               >
                 <OptimizedImage
                   src={coverUrl}
@@ -462,24 +462,22 @@ export function ExpandedPlayerModal() {
                   size="full"
                   className="w-full h-full object-cover select-none"
                 />
-                {/* 3D Specular Liquid Top Reflection */}
-                <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/60 to-transparent pointer-events-none" />
-                {/* Subtle Inner Glow Border */}
+                {/* 1px Inner Specular Rim Highlight */}
                 <div className="absolute inset-0 rounded-[24px] sm:rounded-[28px] ring-1 ring-inset ring-white/20 pointer-events-none" />
               </div>
             </div>
           ) : (
             /* SYNCHRONIZED LYRICS STAGE */
-            <div className="w-full flex-1 flex flex-col min-h-0 overflow-hidden py-1 px-2">
+            <div className="w-full flex-1 flex flex-col min-h-0 overflow-hidden py-1">
               <div className="flex items-center justify-between px-3 pb-2 mb-1 border-b border-white/10 flex-shrink-0">
-                <div className="flex items-center gap-2 text-xs font-black text-white">
-                  <Mic2 className="w-4 h-4 text-[#F0444F]" /> Live Synced Lyrics
+                <div className="flex items-center gap-2 text-xs font-bold text-white">
+                  <Mic2 className="w-4 h-4 text-[#F0444F]" /> Synced Lyrics
                 </div>
                 <button
                   onClick={() => setViewMode('art')}
-                  className="text-xs font-bold text-white/80 hover:text-white px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-all cursor-pointer"
+                  className="text-xs font-semibold text-white/80 hover:text-white px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-all cursor-pointer"
                 >
-                  Show Artwork (L)
+                  Show Artwork
                 </button>
               </div>
 
@@ -518,10 +516,10 @@ export function ExpandedPlayerModal() {
                         }}
                         className={`w-full text-left transition-all duration-300 transform origin-left cursor-pointer py-1.5 ${
                           isActive
-                            ? 'text-xl sm:text-2xl lg:text-3xl font-black text-[#F0444F] scale-[1.03]'
+                            ? 'text-xl sm:text-2xl font-black text-white scale-[1.03]'
                             : isPassed
-                            ? 'text-sm sm:text-base font-bold text-white/35 opacity-40'
-                            : 'text-sm sm:text-base font-bold text-white/70 hover:text-white'
+                            ? 'text-sm sm:text-base font-medium text-white/30'
+                            : 'text-sm sm:text-base font-semibold text-white/60 hover:text-white'
                         }`}
                       >
                         {mainContent}
@@ -533,12 +531,12 @@ export function ExpandedPlayerModal() {
             </div>
           )}
 
-          {/* B. PLAYBACK METADATA & ACTIONS (Title, Artist, Like, More) */}
-          <div className="w-full pt-1 px-1 flex-shrink-0">
-            <div className="flex items-center justify-between gap-4">
+          {/* B. SONG INFORMATION & ACTIONS (Unboxed Direct Row) */}
+          <div className="w-full px-1 flex-shrink-0">
+            <div className="flex items-center justify-between gap-3">
               {/* Title & Artist */}
               <div className="min-w-0 flex-1">
-                <h1 className="text-lg sm:text-xl md:text-2xl font-black text-white tracking-tight leading-tight truncate" title={currentSong.title}>
+                <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight truncate" title={currentSong.title}>
                   {currentSong.title}
                 </h1>
                 <p
@@ -547,7 +545,7 @@ export function ExpandedPlayerModal() {
                       navigateFromPlayer({ tab: 'artist', artistId: exactArtistId });
                     }
                   }}
-                  className={`text-xs sm:text-sm md:text-base font-semibold text-[#A8B2C2] hover:text-white transition-colors truncate mt-0.5 ${
+                  className={`text-sm sm:text-base font-medium text-white/70 hover:text-white transition-colors truncate mt-0.5 ${
                     exactArtistId ? 'cursor-pointer' : 'cursor-default'
                   }`}
                   title={currentSong.artist}
@@ -556,47 +554,40 @@ export function ExpandedPlayerModal() {
                 </p>
               </div>
 
-              {/* Heart (Like) & More (⋯) */}
-              <div className="flex items-center gap-2.5 flex-shrink-0 relative" ref={menuRef}>
-                <LiquidGlass
-                  level={2}
-                  shape="circle"
-                  interactive
-                  refractionColor={isLiked ? 'rgba(240,68,79,0.15)' : undefined}
+              {/* Heart (Like) & More (...) Circular Glass Buttons */}
+              <div className="flex items-center gap-2 flex-shrink-0 relative" ref={menuRef}>
+                <button
                   onClick={() => {
                     haptics.lightImpact();
                     toggleLikeSong(currentSong.id);
                     setToastMessage(isLiked ? 'Removed from Liked Songs' : 'Saved to Liked Songs');
                   }}
-                  className="w-[42px] h-[42px] sm:w-[46px] sm:h-[46px] cursor-pointer hover:scale-105 transition-transform"
+                  className="w-10 h-10 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer"
                   title={isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
                 >
                   <Heart
                     className={`w-5 h-5 transition-colors ${
-                      isLiked ? 'fill-[#F0444F] text-[#F0444F]' : 'text-slate-300 hover:text-white'
+                      isLiked ? 'fill-[#F0444F] text-[#F0444F]' : 'text-white/70 hover:text-white'
                     }`}
-                    strokeWidth={2.2}
+                    strokeWidth={2}
                   />
-                </LiquidGlass>
+                </button>
 
-                <LiquidGlass
-                  level={2}
-                  shape="circle"
-                  interactive
+                <button
                   onClick={() => {
                     haptics.lightImpact();
                     setIsMenuOpen(!isMenuOpen);
                   }}
-                  className="w-[42px] h-[42px] sm:w-[46px] sm:h-[46px] cursor-pointer text-slate-300 hover:text-white hover:scale-105 transition-transform"
+                  className="w-10 h-10 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 flex items-center justify-center transition-all text-white/70 hover:text-white hover:scale-105 active:scale-95 cursor-pointer"
                   title="More Options"
                 >
                   <MoreHorizontal className="w-5 h-5" />
-                </LiquidGlass>
+                </button>
 
                 {/* More Options Popover */}
                 {isMenuOpen && (
                   <div
-                    className="absolute right-0 bottom-full mb-2 w-60 bg-[#14161E]/95 backdrop-blur-xl border border-white/15 rounded-2xl p-1.5 shadow-2xl z-50 text-xs text-white divide-y divide-white/5 animate-in fade-in zoom-in-95 duration-150"
+                    className="absolute right-0 bottom-full mb-2 w-56 bg-[#12141C]/95 backdrop-blur-xl border border-white/15 rounded-2xl p-1.5 shadow-2xl z-50 text-xs text-white divide-y divide-white/5 animate-in fade-in zoom-in-95 duration-150"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="space-y-0.5 pb-1">
@@ -689,199 +680,172 @@ export function ExpandedPlayerModal() {
             </div>
           </div>
 
-          {/* C. PROGRESS BAR WITH HOVER PREVIEW */}
-          <div className="w-full space-y-1 pt-1 pb-0.5 px-1 flex-shrink-0">
+          {/* C. THIN ELEGANT PROGRESS BAR (Unboxed) */}
+          <div className="w-full space-y-1.5 px-1 flex-shrink-0">
             <SeekBar
-              height="h-1.5"
-              thumbSize="w-4 h-4"
-              accentGradient={palette ? `linear-gradient(90deg, ${palette.highlight} 0%, ${palette.accent} 100%)` : undefined}
-              accentGlow={palette ? `0 0 10px ${palette.glow}` : undefined}
+              height="h-1"
+              thumbSize="w-3.5 h-3.5"
+              accentGradient={palette ? `linear-gradient(90deg, ${palette.highlight} 0%, ${palette.accent} 100%)` : 'linear-gradient(90deg, #FFFFFF 0%, #FFFFFF 100%)'}
+              accentGlow={palette ? `0 0 8px ${palette.glow}` : undefined}
             />
-            <div className="flex items-center justify-between text-xs font-mono text-[#A8B2C2] font-semibold px-0.5">
+            <div className="flex items-center justify-between text-[11px] font-mono text-white/50 font-medium px-0.5">
               <span>{formatTime(currentTime)}</span>
               <span>-{formatTime(remainingTime)}</span>
             </div>
           </div>
 
-          {/* D. UNIFIED FROSTED GLASS PLAYBACK CONTROLS CARD */}
-          <div className="w-full pt-1 pb-0.5 px-1 flex-shrink-0">
-            <div className="p-2.5 sm:p-3.5 rounded-3xl bg-white/[0.04] backdrop-blur-xl border border-white/10 shadow-2xl space-y-2">
-              
-              {/* Playback Controls Row (Shuffle, Prev, HERO PLAY/PAUSE, Next, Repeat) */}
-              <div className="flex items-center justify-between w-full px-1">
-                {/* Shuffle Button (44px) */}
-                <LiquidGlass
-                  level={2}
-                  shape="circle"
-                  interactive
-                  onClick={toggleShuffle}
-                  refractionColor={shuffleMode !== 'OFF' ? 'rgba(240,68,79,0.2)' : undefined}
-                  className="w-[40px] h-[40px] sm:w-[44px] sm:h-[44px] cursor-pointer hover:scale-105 active:scale-95 transition-transform"
-                  title={`Shuffle: ${shuffleMode} (S)`}
-                >
-                  <Shuffle className={`w-4.5 h-4.5 ${shuffleMode !== 'OFF' ? 'text-[#F0444F]' : 'text-slate-400 hover:text-white'}`} />
-                </LiquidGlass>
+          {/* D. UNBOXED MAIN PLAYBACK CONTROLS (Apple-Style Hierarchy) */}
+          <div className="w-full flex items-center justify-between px-2 sm:px-4 flex-shrink-0">
+            {/* Shuffle */}
+            <button
+              onClick={toggleShuffle}
+              className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${
+                shuffleMode !== 'OFF' ? 'text-[#F0444F]' : 'text-white/40 hover:text-white'
+              }`}
+              title={`Shuffle: ${shuffleMode} (S)`}
+            >
+              <Shuffle className="w-5 h-5" />
+            </button>
 
-                {/* Previous Track (50-54px) */}
-                <LiquidGlass
-                  level={3}
-                  shape="circle"
-                  interactive
-                  onClick={() => { haptics.lightImpact(); playPrev(); }}
-                  className="w-[48px] h-[48px] sm:w-[54px] sm:h-[54px] cursor-pointer text-white hover:scale-105 active:scale-95 transition-transform"
-                  title="Previous Track (←)"
-                >
-                  <SkipBack className="w-5 h-5 sm:w-6 sm:h-6 fill-white text-white" />
-                </LiquidGlass>
+            {/* Previous Track */}
+            <button
+              onClick={() => { haptics.lightImpact(); playPrev(); }}
+              className="w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-md"
+              title="Previous Track (←)"
+            >
+              <SkipBack className="w-6 h-6 fill-white text-white" />
+            </button>
 
-                {/* HERO PLAY / PAUSE BUTTON (72–78px, Glowing High-Gloss 3D Glass) */}
-                <button
-                  onClick={() => { haptics.mediumImpact(); togglePlayPause(); }}
-                  className="relative w-[70px] h-[70px] sm:w-[76px] sm:h-[76px] rounded-full cursor-pointer flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center bg-gradient-to-b from-white via-[#F5F7FB] to-[#D8DEEE] border-2 border-white/90 shadow-[0_16px_40px_rgba(0,0,0,0.7),0_0_30px_rgba(255,255,255,0.35),inset_0_2px_1px_#ffffff,inset_0_-2px_4px_rgba(0,0,0,0.12)] group"
-                  title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
-                >
-                  {/* Top Specular High-Gloss Droplet Reflection */}
-                  <div className="absolute top-1 left-3.5 right-3.5 h-[38%] bg-gradient-to-b from-white to-transparent rounded-full pointer-events-none opacity-90" />
+            {/* HERO PLAY / PAUSE BUTTON (Circular, Bright Frosted 3D Surface with Subtle Depth) */}
+            <button
+              onClick={() => { haptics.mediumImpact(); togglePlayPause(); }}
+              className="relative w-16 h-16 sm:w-18 sm:h-18 rounded-full cursor-pointer flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center bg-white text-black shadow-[0_12px_36px_rgba(0,0,0,0.6),0_0_24px_rgba(255,255,255,0.25)] border-2 border-white/90 group"
+              title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+            >
+              {/* Subtle Top Specular Glass Reflection */}
+              <div className="absolute top-1 left-3 right-3 h-[36%] bg-gradient-to-b from-white to-transparent rounded-full pointer-events-none opacity-80" />
 
-                  {/* Icon */}
-                  {isPlaying ? (
-                    <Pause className="w-7 h-7 sm:w-8 sm:h-8 fill-[#11131E] text-[#11131E] transition-transform group-hover:scale-105" strokeWidth={0} />
-                  ) : (
-                    <Play className="w-7 h-7 sm:w-8 sm:h-8 fill-[#11131E] text-[#11131E] ml-1 transition-transform group-hover:scale-105" strokeWidth={0} />
-                  )}
-                </button>
+              {/* Icon */}
+              {isPlaying ? (
+                <Pause className="w-7 h-7 sm:w-8 sm:h-8 fill-black text-black transition-transform group-hover:scale-105" strokeWidth={0} />
+              ) : (
+                <Play className="w-7 h-7 sm:w-8 sm:h-8 fill-black text-black ml-1 transition-transform group-hover:scale-105" strokeWidth={0} />
+              )}
+            </button>
 
-                {/* Next Track (50-54px) */}
-                <LiquidGlass
-                  level={3}
-                  shape="circle"
-                  interactive
-                  onClick={() => { haptics.lightImpact(); playNext(); }}
-                  className="w-[48px] h-[48px] sm:w-[54px] sm:h-[54px] cursor-pointer text-white hover:scale-105 active:scale-95 transition-transform"
-                  title="Next Track (→)"
-                >
-                  <SkipForward className="w-5 h-5 sm:w-6 sm:h-6 fill-white text-white" />
-                </LiquidGlass>
+            {/* Next Track */}
+            <button
+              onClick={() => { haptics.lightImpact(); playNext(); }}
+              className="w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-md"
+              title="Next Track (→)"
+            >
+              <SkipForward className="w-6 h-6 fill-white text-white" />
+            </button>
 
-                {/* Repeat Button (44px) */}
-                <LiquidGlass
-                  level={2}
-                  shape="circle"
-                  interactive
-                  onClick={cycleRepeatMode}
-                  refractionColor={(normRepeat === 'ALL' || normRepeat === 'ONE') ? 'rgba(240,68,79,0.2)' : undefined}
-                  className="w-[40px] h-[40px] sm:w-[44px] sm:h-[44px] cursor-pointer hover:scale-105 active:scale-95 transition-transform"
-                  title={`Repeat: ${normRepeat} (R)`}
-                >
-                  {normRepeat === 'ONE' ? (
-                    <Repeat1 className="w-4.5 h-4.5 text-[#F0444F]" />
-                  ) : (
-                    <Repeat className={`w-4.5 h-4.5 ${normRepeat !== 'OFF' ? 'text-[#F0444F]' : 'text-slate-400 hover:text-white'}`} />
-                  )}
-                </LiquidGlass>
-              </div>
-
-              {/* Volume Slider Bar */}
-              <div className="w-full flex items-center gap-3 px-2 pt-0.5">
-                <button
-                  onClick={toggleMute}
-                  className="flex-shrink-0 active:scale-90 hover:scale-110 transition-transform cursor-pointer text-slate-400 hover:text-white"
-                  title="Mute / Unmute (M)"
-                >
-                  {isMuted || volume === 0 ? (
-                    <VolumeX className="w-4 h-4 text-[#F0444F]" />
-                  ) : (
-                    <Volume2 className="w-4 h-4 text-slate-300" />
-                  )}
-                </button>
-                <div className="relative flex-1 h-5 flex items-center group cursor-pointer">
-                  <div
-                    className="absolute left-0 right-0 h-1.5 rounded-full bg-white/10 group-hover:h-2 transition-all"
-                    style={{
-                      boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.5)',
-                    }}
-                  />
-                  <div
-                    className="absolute left-0 h-1.5 group-hover:h-2 rounded-full pointer-events-none transition-all"
-                    style={{
-                      width: `${(isMuted ? 0 : volume) * 100}%`,
-                      background: palette ? `linear-gradient(90deg, ${palette.highlight} 0%, ${palette.accent} 100%)` : 'linear-gradient(90deg, #d93845 0%, #F0444F 100%)',
-                    }}
-                  />
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={isMuted ? 0 : volume}
-                    onChange={(e) => setVolume(parseFloat(e.target.value))}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    title={`Volume: ${Math.round((isMuted ? 0 : volume) * 100)}% (↑/↓)`}
-                  />
-                </div>
-                <span className="text-[10px] font-mono text-slate-400 w-7 text-right">
-                  {Math.round((isMuted ? 0 : volume) * 100)}%
-                </span>
-              </div>
-            </div>
+            {/* Repeat */}
+            <button
+              onClick={cycleRepeatMode}
+              className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${
+                normRepeat !== 'OFF' ? 'text-[#F0444F]' : 'text-white/40 hover:text-white'
+              }`}
+              title={`Repeat: ${normRepeat} (R)`}
+            >
+              {normRepeat === 'ONE' ? (
+                <Repeat1 className="w-5 h-5 text-[#F0444F]" />
+              ) : (
+                <Repeat className="w-5 h-5" />
+              )}
+            </button>
           </div>
 
-          {/* E. SINGLE TRANSLUCENT GLASS CONTROL BAR [ Lyrics | Device | Queue ] */}
-          <div className="w-full pt-1 pb-1 sm:pb-2 px-1 flex-shrink-0">
-            <div className="w-full p-1 rounded-2xl bg-white/[0.04] backdrop-blur-xl border border-white/10 flex items-center justify-between gap-1.5 shadow-lg">
-              
-              {/* Lyrics Button */}
-              <button
-                onClick={() => {
-                  haptics.lightImpact();
-                  setViewMode(viewMode === 'lyrics' ? 'art' : 'lyrics');
+          {/* E. SUBTLE VOLUME SLIDER (Unboxed) */}
+          <div className="w-full flex items-center gap-3 px-3 flex-shrink-0">
+            <button
+              onClick={toggleMute}
+              className="flex-shrink-0 text-white/40 hover:text-white transition-colors cursor-pointer"
+              title="Mute / Unmute (M)"
+            >
+              {isMuted || volume === 0 ? (
+                <VolumeX className="w-4 h-4 text-[#F0444F]" />
+              ) : (
+                <Volume2 className="w-4 h-4 text-white/50" />
+              )}
+            </button>
+            <div className="relative flex-1 h-4 flex items-center group cursor-pointer">
+              <div className="absolute left-0 right-0 h-1 rounded-full bg-white/15 group-hover:h-1.5 transition-all" />
+              <div
+                className="absolute left-0 h-1 group-hover:h-1.5 rounded-full pointer-events-none transition-all"
+                style={{
+                  width: `${(isMuted ? 0 : volume) * 100}%`,
+                  background: palette ? `linear-gradient(90deg, ${palette.highlight} 0%, ${palette.accent} 100%)` : '#FFFFFF',
                 }}
-                className={`flex-1 h-10 rounded-xl flex items-center justify-center gap-2 text-xs font-bold transition-all cursor-pointer ${
-                  viewMode === 'lyrics'
-                    ? 'bg-[#F0444F]/25 text-white border border-[#F0444F]/40 shadow-md shadow-[#F0444F]/20'
-                    : 'text-slate-300 hover:text-white hover:bg-white/10'
-                }`}
-                title="Synchronized Lyrics (L)"
-              >
-                <Mic2 className={`w-4 h-4 ${viewMode === 'lyrics' ? 'text-[#F0444F]' : 'text-slate-400'}`} />
-                <span>Lyrics</span>
-              </button>
-
-              {/* Device Connect Button */}
-              <button
-                onClick={() => {
-                  haptics.lightImpact();
-                  toggleDeviceModal();
-                }}
-                className="flex-1 h-10 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-                title="Connect Device / Spotify-Style Handoff"
-              >
-                <Cast className="w-4 h-4 text-slate-400" />
-                <span className="truncate">{activeDeviceId && activeDeviceId !== deviceId ? (remoteDeviceName || 'Remote') : 'Device'}</span>
-              </button>
-
-              {/* Queue Button */}
-              <button
-                onClick={() => {
-                  haptics.lightImpact();
-                  // On desktop, toggle inline side panel; on mobile, open standard drawer
-                  if (typeof window !== 'undefined' && window.innerWidth >= 768) {
-                    setIsDesktopQueueOpen(!isDesktopQueueOpen);
-                  } else {
-                    toggleQueue();
-                  }
-                }}
-                className={`flex-1 h-10 rounded-xl flex items-center justify-center gap-2 text-xs font-bold transition-all cursor-pointer ${
-                  isDesktopQueueOpen
-                    ? 'bg-purple-500/25 text-white border border-purple-500/40 shadow-md shadow-purple-500/20'
-                    : 'text-slate-300 hover:text-white hover:bg-white/10'
-                }`}
-                title="Playback Queue (Q)"
-              >
-                <ListMusic className={`w-4 h-4 ${isDesktopQueueOpen ? 'text-purple-400' : 'text-slate-400'}`} />
-                <span>Queue ({upNextTracks.length})</span>
-              </button>
+              />
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={isMuted ? 0 : volume}
+                onChange={(e) => setVolume(parseFloat(e.target.value))}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                title={`Volume: ${Math.round((isMuted ? 0 : volume) * 100)}%`}
+              />
             </div>
+            <Volume2 className="w-4 h-4 text-white/50 flex-shrink-0" />
+          </div>
+
+          {/* F. BOTTOM UTILITIES ROW [ Lyrics | Device | Queue ] (Unboxed Minimal Pills) */}
+          <div className="w-full flex items-center justify-center gap-3 pt-1 pb-1 sm:pb-2 px-2 flex-shrink-0">
+            {/* Lyrics Button */}
+            <button
+              onClick={() => {
+                haptics.lightImpact();
+                setViewMode(viewMode === 'lyrics' ? 'art' : 'lyrics');
+              }}
+              className={`px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                viewMode === 'lyrics'
+                  ? 'bg-white/20 text-white border-white/30 shadow-sm'
+                  : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
+              }`}
+              title="Synchronized Lyrics (L)"
+            >
+              <Mic2 className="w-3.5 h-3.5" />
+              <span>Lyrics</span>
+            </button>
+
+            {/* Device Button */}
+            <button
+              onClick={() => {
+                haptics.lightImpact();
+                toggleDeviceModal();
+              }}
+              className="px-4 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/70 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Connect Device"
+            >
+              <Cast className="w-3.5 h-3.5" />
+              <span className="truncate max-w-[90px]">{activeDeviceId && activeDeviceId !== deviceId ? (remoteDeviceName || 'Remote') : 'Device'}</span>
+            </button>
+
+            {/* Queue Button */}
+            <button
+              onClick={() => {
+                haptics.lightImpact();
+                if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+                  setIsDesktopQueueOpen(!isDesktopQueueOpen);
+                } else {
+                  toggleQueue();
+                }
+              }}
+              className={`px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                isDesktopQueueOpen
+                  ? 'bg-white/20 text-white border-white/30 shadow-sm'
+                  : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
+              }`}
+              title="Playback Queue (Q)"
+            >
+              <ListMusic className="w-3.5 h-3.5" />
+              <span>Queue ({upNextTracks.length})</span>
+            </button>
           </div>
         </div>
 
