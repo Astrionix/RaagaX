@@ -183,11 +183,23 @@ export function AudioPlayerController() {
       }
     });
 
+    const unsubActionNext = RaagaXNativePlayer.addActionNextListener(() => {
+      console.log('[AudioPlayerController] Native actionNext command received -> playNext()');
+      usePlayerStore.getState().playNext();
+    });
+
+    const unsubActionPrev = RaagaXNativePlayer.addActionPrevListener(() => {
+      console.log('[AudioPlayerController] Native actionPrev command received -> playPrev()');
+      usePlayerStore.getState().playPrev();
+    });
+
     return () => {
       unsubPlaybackState();
       unsubQueueEnded();
       unsubChanged();
       unsubSeekComplete();
+      unsubActionNext();
+      unsubActionPrev();
     };
   }, []);
 

@@ -170,6 +170,20 @@ export const RaagaXNativePlayer = {
     return () => plugin.removeAllListeners('playbackStateChanged');
   },
 
+  addActionNextListener(callback: () => void): () => void {
+    const plugin = getPlugin();
+    if (!plugin) return () => {};
+    plugin.addListener('actionNext', callback);
+    return () => plugin.removeAllListeners('actionNext');
+  },
+
+  addActionPrevListener(callback: () => void): () => void {
+    const plugin = getPlugin();
+    if (!plugin) return () => {};
+    plugin.addListener('actionPrev', callback);
+    return () => plugin.removeAllListeners('actionPrev');
+  },
+
   /**
    * Fires when ExoPlayer has confirmed a seek — provides the authoritative
    * settled positionMs. Use this to immediately update the UI after a seek

@@ -274,13 +274,19 @@ public class RaagaXPlaybackService extends Service {
 
         } else if ("PREV".equals(action)) {
             runOnMainThread(() -> {
-                if (player != null && player.hasPreviousMediaItem()) {
+                Intent i = new Intent("com.raagax.music.ACTION_PREV");
+                sendBroadcast(i);
+                if (player != null && player.hasPreviousMediaItem() && player.getCurrentPosition() <= 3000) {
                     player.seekToPreviousMediaItem();
+                } else if (player != null && player.getCurrentPosition() > 3000) {
+                    player.seekTo(player.getCurrentMediaItemIndex(), 0L);
                 }
             });
 
         } else if ("NEXT".equals(action)) {
             runOnMainThread(() -> {
+                Intent i = new Intent("com.raagax.music.ACTION_NEXT");
+                sendBroadcast(i);
                 if (player != null && player.hasNextMediaItem()) {
                     player.seekToNextMediaItem();
                 }

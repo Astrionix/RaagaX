@@ -53,6 +53,12 @@ public class RaagaXCapacitorPlugin extends Plugin {
                 data.put("wasPlaying", intent.getBooleanExtra("wasPlaying", false));
                 notifyListeners("seekComplete", data);
 
+            } else if ("com.raagax.music.ACTION_NEXT".equals(action)) {
+                notifyListeners("actionNext", new JSObject());
+
+            } else if ("com.raagax.music.ACTION_PREV".equals(action)) {
+                notifyListeners("actionPrev", new JSObject());
+
             } else if ("com.raagax.music.TRACK_ENDED".equals(action)) {
                 // Legacy — kept for compatibility
                 notifyListeners("trackEnded", new JSObject());
@@ -67,6 +73,8 @@ public class RaagaXCapacitorPlugin extends Plugin {
         filter.addAction("com.raagax.music.QUEUE_ENDED");
         filter.addAction("com.raagax.music.PLAYBACK_STATE");
         filter.addAction("com.raagax.music.SEEK_COMPLETE");
+        filter.addAction("com.raagax.music.ACTION_NEXT");
+        filter.addAction("com.raagax.music.ACTION_PREV");
         filter.addAction("com.raagax.music.TRACK_ENDED");
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

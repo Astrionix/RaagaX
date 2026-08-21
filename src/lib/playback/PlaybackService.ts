@@ -422,31 +422,40 @@ export class PlaybackService {
 
       // 2. Native Android ExoPlayer Path
       if (RaagaXNativePlayer.isNative()) {
-        let finalSrc = '';
-        try {
-          const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
-          if (source?.url) {
-            finalSrc = source.url;
-            resolvedSourceType = source.type === 'offline' ? 'LOCAL_DOWNLOAD' : 'NETWORK_STREAM';
-          }
-        } catch (e) {
-          console.warn('[PlaybackService] Native source resolution failed:', e);
-        }
-        if (!finalSrc && song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
-          finalSrc = song.audioUrl;
-        }
-        if (requestId !== this.playbackRequestId) return false;
-        if (!finalSrc) {
-          console.warn(`[PlaybackService] No playable source for native playback: "${song.title}"`);
-          return false;
-        }
+        const queue = store.queue;
+        const currentIdx = store.queueIndex >= 0 ? store.queueIndex : 0;
 
-        await RaagaXNativePlayer.play({
-          url: finalSrc,
-          title: song.title ?? 'Unknown Title',
-          artist: song.artist ?? 'Unknown Artist',
-          artworkUrl: song.coverUrl ?? '',
-        });
+        if (queue && queue.length > 1) {
+          await this.loadQueueContext(queue, currentIdx, autoPlay, 0);
+        } else {
+          let finalSrc = '';
+          try {
+            const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+            if (source?.url) {
+              finalSrc = source.url;
+              resolvedSourceType = source.type === 'offline' ? 'LOCAL_DOWNLOAD' : 'NETWORK_STREAM';
+            }
+          } catch (e) {
+            console.warn('[PlaybackService] Native source resolution failed:', e);
+          }
+          if (!finalSrc && song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
+            finalSrc = song.audioUrl;
+          }
+          if (requestId !== this.playbackRequestId) return false;
+          if (!finalSrc) {
+            console.warn(`[PlaybackService] No playable source for native playback: "${song.title}"`);
+            return false;
+          }
+
+          await RaagaXNativePlayer.setQueue([
+            {
+              url: finalSrc,
+              title: song.title ?? 'Unknown Title',
+              artist: song.artist ?? 'Unknown Artist',
+              artworkUrl: song.coverUrl ?? '',
+            }
+          ], 0, autoPlay, 0);
+        }
 
         if (requestId !== this.playbackRequestId) return false;
 
@@ -602,45 +611,15 @@ export class PlaybackService {
   }
 
   public async playNextTrack(isNaturalEnd: boolean = false): Promise<boolean> {
-    if (this.isTransitioning) return false;
-    this.isTransitioning = true;
-
     try {
-      const manager = QueueManager.getInstance();
-      const nextItem = manager.getNext(isNaturalEnd);
-      if (nextItem && nextItem.song) {
-        const snapshot = manager.getSnapshot();
-        import('../../context/usePlayerStore').then(({ usePlayerStore }) => {
-          usePlayerStore.getState().commitPlaybackTransition(nextItem.song, snapshot.currentIndex, snapshot.items.map((i: any) => i.song));
-        }).catch(() => {});
-        const success = await this.playTrack(nextItem.song, true);
-        return success;
-      } else {
-        // Queue completed. Check autoplay policy.
-        if (manager.isAutoplayEnabled()) {
-          const autoplaySongs = await AdaptiveQueueController.getInstance().fetchAutoplayForCompletedQueue();
-          if (autoplaySongs && autoplaySongs.length > 0) {
-            manager.replaceQueue(autoplaySongs, 0, 'AUTOPLAY');
-            const autoplayFirst = manager.getCurrentItem();
-            if (autoplayFirst && autoplayFirst.song) {
-              usePlayerStore.getState().commitPlaybackTransition(autoplayFirst.song, 0, autoplaySongs);
-              return await this.playTrack(autoplayFirst.song, true);
-            }
-          }
-        }
-
-        usePlayerStore.getState().setIsPlaying(false, true);
-        MediaSessionManager.getInstance().setPlaybackState('paused');
-        return false;
-      }
-    } finally {
-      this.isTransitioning = false;
+      await usePlayerStore.getState().playNext();
+      return true;
+    } catch {
+      return false;
     }
   }
 
   public async playPrevTrack(): Promise<boolean> {
-    if (this.isTransitioning) return false;
-
     // Spotify 3-Second Rule: if track has played > 3 seconds, restart current track from 00:00
     const active = this.getActiveAudio();
     if (active && active.currentTime > 3.0) {
@@ -648,22 +627,11 @@ export class PlaybackService {
       this.play();
       return true;
     }
-
-    this.isTransitioning = true;
-
     try {
-      const manager = QueueManager.getInstance();
-      const prevItem = manager.getPrevious();
-      if (prevItem && prevItem.song) {
-        const store = require('@/context/usePlayerStore').usePlayerStore.getState();
-        const snapshot = manager.getSnapshot();
-        store.commitPlaybackTransition(prevItem.song, snapshot.currentIndex, snapshot.items.map((i: any) => i.song));
-        const success = await this.playTrack(prevItem.song, true);
-        return success;
-      }
+      await usePlayerStore.getState().playPrev();
+      return true;
+    } catch {
       return false;
-    } finally {
-      this.isTransitioning = false;
     }
   }
 

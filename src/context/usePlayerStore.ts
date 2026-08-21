@@ -1079,12 +1079,14 @@ export const usePlayerStore = create<PlayerState>()(
         // ── RULE 21: GLOBAL DEBUG ASSERTION ──────────────────────────────────────
         const currentStoreTrack = get().currentSong;
         if (currentStoreTrack && currentStoreTrack.id !== track.id) {
-          console.error('[RAAGAX_PLAYBACK_DESYNC]', {
-            expectedTrackId: track.id,
-            storeTrackId: currentStoreTrack.id,
-            queueIndex: index,
-            playbackGeneration: requestId,
+          console.error('[ANDROID_PLAYBACK_DESYNC]', {
             source: track.audioUrl || 'NATIVE_EXOPLAYER',
+            currentTrack: currentStoreTrack.id,
+            audioTrack: track.id,
+            mediaSessionTrack: track.title,
+            queueIndex: index,
+            queueLength: get().queue.length,
+            transitionId: requestId,
           });
         }
 
