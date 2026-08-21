@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { LocalDatabase, PendingMutation } from '@/lib/offline/LocalDatabase';
 import { Song } from '@/types/music';
+import { isOfflineMode } from '@/context/usePlayerStore';
 
 export interface UserPlaylist {
   id: string;
@@ -41,10 +42,12 @@ export class AccountSyncEngine {
       this.isOnline = navigator.onLine;
       window.addEventListener('online', () => {
         this.isOnline = true;
-        this.flushPendingMutations();
-        if (this.subscribedUserId) {
-          this.subscribeToRealtime(this.subscribedUserId);
-          this.reconcile(this.subscribedUserId);
+        if (!isOfflineMode()) {
+          this.flushPendingMutations();
+          if (this.subscribedUserId) {
+            this.subscribeToRealtime(this.subscribedUserId);
+            this.reconcile(this.subscribedUserId);
+          }
         }
       });
       window.addEventListener('offline', () => {
@@ -54,7 +57,7 @@ export class AccountSyncEngine {
       // Handle App Foreground / Visibility Resume (Reconcile missed changes and resubscribe if needed)
       if (typeof document !== 'undefined') {
         document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible' && this.subscribedUserId) {
+          if (document.visibilityState === 'visible' && this.subscribedUserId && !isOfflineMode()) {
             this.subscribeToRealtime(this.subscribedUserId);
             this.reconcile(this.subscribedUserId);
           }
@@ -64,11 +67,13 @@ export class AccountSyncEngine {
       // Auto-listen to auth changes and reconcile idempotently
       supabase.auth.onAuthStateChange((event, session) => {
         if (session?.user?.id) {
-          if (event === 'SIGNED_IN') {
-            this.migrateGuestDataToUser(session.user.id);
+          if (!isOfflineMode()) {
+            if (event === 'SIGNED_IN') {
+              this.migrateGuestDataToUser(session.user.id);
+            }
+            this.subscribeToRealtime(session.user.id);
+            this.reconcile(session.user.id);
           }
-          this.subscribeToRealtime(session.user.id);
-          this.reconcile(session.user.id);
         } else {
           this.unsubscribe();
         }
@@ -88,7 +93,7 @@ export class AccountSyncEngine {
   }
 
   public async subscribeToRealtime(userId: string) {
-    if (!this.isUUID(userId)) return;
+    if (!this.isUUID(userId) || isOfflineMode()) return;
     if (this.subscribedUserId === userId && this.channel && this.channel.state === 'joined') {
       return; // Already actively subscribed
     }
@@ -335,7 +340,7 @@ export class AccountSyncEngine {
   }
 
   public async reconcile(userId: string): Promise<string[]> {
-    if (!this.isUUID(userId)) return [];
+    if (!this.isUUID(userId) || isOfflineMode()) return [];
 
     // Coalesce duplicate concurrent reconcile calls
     if (this.inFlightReconcile && this.lastReconciledUser === userId) {

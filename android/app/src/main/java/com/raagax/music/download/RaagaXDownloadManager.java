@@ -63,6 +63,8 @@ public class RaagaXDownloadManager {
         this.database = RaagaXDatabase.getInstance(context);
         this.workManager = WorkManager.getInstance(context);
         this.executor = Executors.newSingleThreadExecutor();
+        // Initialize and verify RaagaX directory tree (Songs, Artwork, Metadata) lazily
+        StorageHelper.ensureDirectories(context);
         // Recover any downloads that were stuck DOWNLOADING on previous app session
         executor.execute(this::recoverStuckDownloads);
     }
@@ -375,10 +377,14 @@ public class RaagaXDownloadManager {
             workManager.cancelUniqueWork("download_" + songId);
             database.downloadDao().deleteDownload(songId);
 
-            // Clean up any temporary files
-            File targetDir = StorageHelper.getRaagaXMusicDirectory(context);
-            File tempRaw = new File(targetDir, ".tmp_raw_" + songId + ".mp3");
+            // Clean up any temporary files from Songs and base directories
+            File songsDir = StorageHelper.getSongsDirectory(context);
+            File tempRaw = new File(songsDir, ".tmp_raw_" + songId + ".mp3");
             if (tempRaw.exists()) tempRaw.delete();
+
+            File baseDir = StorageHelper.getRaagaXMusicDirectory(context);
+            File legacyTemp = new File(baseDir, ".tmp_raw_" + songId + ".mp3");
+            if (legacyTemp.exists()) legacyTemp.delete();
         });
     }
 
@@ -423,7 +429,7 @@ public class RaagaXDownloadManager {
     }
 
     /**
-     * Removes the physical MP3 from Music/RaagaX/ and removes the database download entry.
+     * Removes the physical MP3 from Music/RaagaX/Songs/ and removes the database download entry.
      * Keeps playlists intact!
      */
     public void removeDownload(String songId, Callback<Boolean> callback) {
@@ -439,6 +445,12 @@ public class RaagaXDownloadManager {
                         StorageHelper.scanMediaFile(context, file, null);
                     }
                 }
+                // Clean up cached artwork if exists
+                File artFile = StorageHelper.getArtworkFile(context, songId);
+                if (artFile != null && artFile.exists()) {
+                    artFile.delete();
+                }
+
                 database.downloadDao().deleteDownload(songId);
                 if (callback != null) callback.onResult(true, null);
             } catch (Exception e) {

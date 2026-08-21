@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Heart, Download, Clock, ListMusic, Play, ChevronRight, 
   User, Disc, Sparkles, Laptop, ChevronLeft, Music, Library, Shuffle,
@@ -11,7 +11,7 @@ import { InsightsView } from '@/components/views/InsightsView';
 import { ArtistsView } from '@/components/views/ArtistsView';
 import { AlbumsView } from '@/components/views/AlbumsView';
 import { GenresView } from '@/components/views/GenresView';
-import { usePlayerStore } from '@/context/usePlayerStore';
+import { usePlayerStore, isOfflineMode } from '@/context/usePlayerStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { OfflineCatalog } from '@/lib/offline/OfflineCatalog';
@@ -32,6 +32,7 @@ export function LibraryView() {
   const [resolvedSongsMap, setResolvedSongsMap] = useState<Record<string, Song>>({});
   const [playlistSortBy, setPlaylistSortBy] = useState<'updated' | 'name' | 'count'>('updated');
   const [activeFilterChip, setActiveFilterChip] = useState<string>('all');
+  const attemptedMissingIdsRef = useRef<Set<string>>(new Set());
   const { user } = useAuthStore();
 
   const {
@@ -207,10 +208,13 @@ export function LibraryView() {
 
   // Automatically fetch metadata for any liked or history song IDs not yet in memory
   useEffect(() => {
+    if (isOfflineMode || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
     const allNeededIds = Array.from(new Set([...likedSongIds, ...historySongIds]));
     if (allNeededIds.length === 0) return;
-    const missingIds = allNeededIds.filter((id) => !knownSongsMap.has(id));
+    const missingIds = allNeededIds.filter((id) => !knownSongsMap.has(id) && !attemptedMissingIdsRef.current.has(id));
     if (missingIds.length === 0) return;
+
+    missingIds.forEach((id) => attemptedMissingIdsRef.current.add(id));
 
     import('@/lib/discovery/SongResolver').then(({ SongResolver }) => {
       SongResolver.resolveSongs(missingIds).then((resolved) => {

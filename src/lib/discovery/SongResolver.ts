@@ -3,6 +3,7 @@ import { Song } from '@/types/music';
 import { supabase } from '@/lib/supabase'; // Using the client initialized with SERVICE_ROLE
 import { InternetDateScraper } from './InternetDateScraper';
 import { getApiUrl } from '@/lib/config/apiConfig';
+import { isOfflineMode } from '@/context/usePlayerStore';
 
 export class SongResolver {
   /**
@@ -212,6 +213,25 @@ export class SongResolver {
   public static async resolveSongs(songIds: string[]): Promise<Song[]> {
     if (!songIds || songIds.length === 0) return [];
     
+    if (isOfflineMode()) {
+      // Offline mode: resolve from local player store state if available
+      try {
+        const { usePlayerStore } = await import('@/context/usePlayerStore');
+        const store = usePlayerStore.getState();
+        const pool = [...(store.queue || []), ...(store.likedSongs || [])];
+        const localFound: Song[] = [];
+        const idSet = new Set(songIds);
+        for (const s of pool) {
+          if (s?.id && idSet.has(s.id) && !localFound.some(f => f.id === s.id)) {
+            localFound.push(s);
+          }
+        }
+        return localFound;
+      } catch {
+        return [];
+      }
+    }
+
     const resolved: Song[] = [];
     const missingIds: string[] = [];
 
@@ -276,7 +296,9 @@ export class SongResolver {
 
       return resolved;
     } catch (e) {
-      console.error("Failed to resolve songs from canonical_songs / API:", e);
+      if (!isOfflineMode()) {
+        console.error("Failed to resolve songs from canonical_songs / API:", e);
+      }
       return resolved;
     }
   }

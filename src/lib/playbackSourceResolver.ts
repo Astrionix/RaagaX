@@ -28,111 +28,111 @@ export class PlaybackSourceResolver {
     const isOfflineForced = networkMode === 'offline_forced';
     const isOffline = networkMode === 'offline' || isOfflineForced || (typeof navigator !== 'undefined' && navigator.onLine === false);
 
-    // ── 1. Check Native Android Physical Music/RaagaX Storage First ────────
-    try {
-      const { RaagaXNativeDownload } = await import('@/lib/playback/native/RaagaXNativeDownload');
-      if (RaagaXNativeDownload.isNative()) {
-        const { useDownloadStore } = await import('@/context/useDownloadStore');
-        let nativeTrack: import('@/lib/playback/native/RaagaXNativeDownload').NativeDownloadedTrack | undefined = useDownloadStore.getState().nativeDownloadedTracks[song.id];
-        if (!nativeTrack) {
-          const allNative = await RaagaXNativeDownload.getDownloadedTracks();
-          const trackMap: Record<string, import('@/lib/playback/native/RaagaXNativeDownload').NativeDownloadedTrack> = {};
-          const verifiedIds: string[] = [];
-          allNative.forEach(t => {
-            const sid = t.songId || t.id;
-            if (sid) {
-              trackMap[sid] = t;
-              verifiedIds.push(sid);
-            }
-          });
-          useDownloadStore.setState({ nativeDownloadedTracks: trackMap });
-          usePlayerStore.setState(s => ({ downloadedSongIds: Array.from(new Set([...s.downloadedSongIds, ...verifiedIds])) }));
-          nativeTrack = trackMap[song.id] || allNative.find(t => t.songId === song.id || t.id === song.id);
+    // ── OFFLINE MODE: Resolve ONLY from RaagaX Local Downloads ─────────────
+    if (isOffline) {
+      // 1. Check Native Android Physical Music/RaagaX/Songs Storage
+      try {
+        const { RaagaXNativeDownload } = await import('@/lib/playback/native/RaagaXNativeDownload');
+        if (RaagaXNativeDownload.isNative()) {
+          const { useDownloadStore } = await import('@/context/useDownloadStore');
+          let nativeTrack: import('@/lib/playback/native/RaagaXNativeDownload').NativeDownloadedTrack | undefined = useDownloadStore.getState().nativeDownloadedTracks[song.id];
+          if (!nativeTrack) {
+            const allNative = await RaagaXNativeDownload.getDownloadedTracks();
+            const trackMap: Record<string, import('@/lib/playback/native/RaagaXNativeDownload').NativeDownloadedTrack> = {};
+            const verifiedIds: string[] = [];
+            allNative.forEach(t => {
+              const sid = t.songId || t.id;
+              if (sid) {
+                trackMap[sid] = t;
+                verifiedIds.push(sid);
+              }
+            });
+            useDownloadStore.setState({ nativeDownloadedTracks: trackMap });
+            usePlayerStore.setState(s => ({ downloadedSongIds: Array.from(new Set([...s.downloadedSongIds, ...verifiedIds])) }));
+            nativeTrack = trackMap[song.id] || allNative.find(t => t.songId === song.id || t.id === song.id);
+          }
+          if (nativeTrack?.localPath) {
+            const rawPath = nativeTrack.localPath;
+            const fileUri = rawPath.startsWith('file://') ? rawPath : `file://${rawPath}`;
+            console.log(`[PlaybackSourceResolver] Playing verified native offline MP3: "${rawPath}" -> "${fileUri}"`);
+            return {
+              type: 'offline',
+              url: fileUri,
+              mediaId: song.id,
+              localId: song.id,
+              isLocalBlob: false,
+            };
+          }
         }
-        if (nativeTrack?.localPath) {
-          const rawPath = nativeTrack.localPath;
-          const fileUri = rawPath.startsWith('file://') ? rawPath : `file://${rawPath}`;
-          console.log(`[PlaybackSourceResolver] Playing verified native offline MP3: "${rawPath}" -> "${fileUri}"`);
+      } catch (e) {
+        console.warn('[PlaybackSourceResolver] Native offline check fallback:', e);
+      }
+
+      // 1b. Check direct file:// or /storage/ audioUrl on song
+      if (song.audioUrl && (song.audioUrl.startsWith('file://') || song.audioUrl.startsWith('/storage/') || song.audioUrl.startsWith('/data/'))) {
+        const fileUri = song.audioUrl.startsWith('file://') ? song.audioUrl : `file://${song.audioUrl}`;
+        console.log(`[PlaybackSourceResolver] Playing direct local file audioUrl: "${fileUri}"`);
+        return {
+          type: 'offline',
+          url: fileUri,
+          mediaId: song.id,
+          localId: song.id,
+          isLocalBlob: false,
+        };
+      }
+
+      // 2. Check Local Sandboxed / Offline Storage (Web / PWA)
+      const catalog = OfflineCatalog.getInstance();
+      const storage = DownloadStorage.getInstance();
+
+      const isCatalogDownloaded = await catalog.isDownloaded(song.id);
+      const hasMediaBlob = await storage.hasMedia(song.id);
+
+      if (isCatalogDownloaded || hasMediaBlob) {
+        let localUrl = await storage.getMediaUrl(song.id);
+        
+        // Fallback check in PWA cache
+        if (!localUrl && song.audioUrl) {
+          localUrl = await getCachedAudioUrl(song.audioUrl);
+        }
+
+        if (localUrl) {
+          // Record offline listening history & play count locally
+          catalog.updatePlayStats(song.id).catch(() => {});
+
+          // Resolve local artwork if offline
+          const localArt = await storage.getArtworkUrl(song.id);
+          if (localArt) {
+            song.coverUrl = localArt;
+          }
+
+          PlayableUrlCache.getInstance().set(song.id, localUrl, [localUrl], 'offline', undefined, true);
+
           return {
             type: 'offline',
-            url: fileUri,
+            url: localUrl,
             mediaId: song.id,
             localId: song.id,
-            isLocalBlob: false,
+            isLocalBlob: true,
           };
         }
       }
-    } catch (e) {
-      console.warn('[PlaybackSourceResolver] Native offline check fallback:', e);
+
+      // If offline and song is not in downloaded folder:
+      console.warn(`[PlaybackSourceResolver] Song unavailable offline: "${song.title}"`);
+      return null;
     }
 
-    // ── 1b. Check direct file:// or /storage/ audioUrl on song ─────────────
-    if (song.audioUrl && (song.audioUrl.startsWith('file://') || song.audioUrl.startsWith('/storage/') || song.audioUrl.startsWith('/data/'))) {
-      const fileUri = song.audioUrl.startsWith('file://') ? song.audioUrl : `file://${song.audioUrl}`;
-      console.log(`[PlaybackSourceResolver] Playing direct local file audioUrl: "${fileUri}"`);
-      return {
-        type: 'offline',
-        url: fileUri,
-        mediaId: song.id,
-        localId: song.id,
-        isLocalBlob: false,
-      };
-    }
-
-    // ── 2. Check Local Sandboxed / Offline Storage (Web / PWA) ───────────────
-    const catalog = OfflineCatalog.getInstance();
-    const storage = DownloadStorage.getInstance();
-
-    const isCatalogDownloaded = await catalog.isDownloaded(song.id);
-    const hasMediaBlob = await storage.hasMedia(song.id);
-
-    if (isCatalogDownloaded || hasMediaBlob) {
-      let localUrl = await storage.getMediaUrl(song.id);
-      
-      // Fallback check in PWA cache
-      if (!localUrl && song.audioUrl) {
-        localUrl = await getCachedAudioUrl(song.audioUrl);
-      }
-
-      if (localUrl) {
-        // Record offline listening history & play count locally
-        catalog.updatePlayStats(song.id).catch(() => {});
-
-        // Resolve local artwork if offline
-        const localArt = await storage.getArtworkUrl(song.id);
-        if (localArt) {
-          song.coverUrl = localArt;
-        }
-
-        PlayableUrlCache.getInstance().set(song.id, localUrl, [localUrl], 'offline', undefined, true);
-
-        return {
-          type: 'offline',
-          url: localUrl,
-          mediaId: song.id,
-          localId: song.id,
-          isLocalBlob: true,
-        };
-      }
-    }
-
-    // ── 3. Check High-Speed In-Memory & Persistent URL Cache (0ms) ───────────
+    // ── ONLINE MODE: Resolve via Existing Online Resolver & Stream Engine ────
+    // 1. Check in-memory URL cache
     const cached = PlayableUrlCache.getInstance().get(song.id);
-    if (cached && cached.url && (!isOffline || cached.type === 'offline')) {
+    if (cached && cached.url && cached.type !== 'offline') {
       return {
-        type: cached.type,
+        type: 'remote',
         url: cached.url,
         candidates: cached.candidates,
         videoId: song.id,
-        mediaId: song.id,
-        isLocalBlob: cached.isLocalBlob,
       };
-    }
-
-    // ── 4. If Offline Mode is Active and Track is Not Downloaded ─────────────
-    if (isOffline) {
-      console.warn(`[PlaybackSourceResolver] Song unavailable offline: "${song.title}"`);
-      return null;
     }
 
     // ── 5. Quality Negotiation for Online Streaming ──────────────────────────

@@ -59,6 +59,8 @@ export interface NativeStorageCheckResult {
   totalBytes: number;
   requiredBytes: number;
   musicFolderPath: string;
+  songsFolderPath?: string;
+  artworkFolderPath?: string;
 }
 
 export interface NativeDownloadProgressEvent {

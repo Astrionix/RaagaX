@@ -120,8 +120,8 @@ public class DownloadWorker extends Worker {
                 return Result.failure();
             }
 
-            // 3. Prepare target and staging paths in Music/RaagaX/
-            File targetDir = StorageHelper.getRaagaXMusicDirectory(context);
+            // 3. Prepare target and staging paths in Music/RaagaX/Songs/
+            File targetDir = StorageHelper.getSongsDirectory(context);
             File finalFile = StorageHelper.getDisambiguatedFile(targetDir, title, artist, trackId);
             File tempRawFile = new File(targetDir, ".tmp_raw_" + trackId + ".mp3");
 

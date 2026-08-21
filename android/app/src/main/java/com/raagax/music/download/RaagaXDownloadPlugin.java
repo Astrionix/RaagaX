@@ -269,6 +269,8 @@ public class RaagaXDownloadPlugin extends Plugin {
         res.put("totalBytes", total);
         res.put("requiredBytes", required);
         res.put("musicFolderPath", StorageHelper.getRaagaXMusicDirectory(getContext()).getAbsolutePath());
+        res.put("songsFolderPath", StorageHelper.getSongsDirectory(getContext()).getAbsolutePath());
+        res.put("artworkFolderPath", StorageHelper.getArtworkDirectory(getContext()).getAbsolutePath());
         call.resolve(res);
     }
 
