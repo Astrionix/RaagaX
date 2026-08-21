@@ -397,6 +397,9 @@ export function ExpandedPlayerModal() {
         }}
       />
 
+      {/* ── Top Grab Handle Indicator (Mobile Drag-Down Affordance) ── */}
+      <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-9 h-1 rounded-full bg-white/25 z-40 md:hidden pointer-events-none" />
+
       {/* ── 2. DESKTOP & MOBILE TOP BAR ────────────────────────────────────── */}
       <div className="relative z-30 flex items-center justify-between px-5 sm:px-8 pt-3 sm:pt-4 w-full flex-shrink-0">
         {/* Left: Minimize / Chevron Down */}
