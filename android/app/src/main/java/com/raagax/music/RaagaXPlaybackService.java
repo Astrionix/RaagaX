@@ -491,11 +491,19 @@ public class RaagaXPlaybackService extends Service {
         if (player == null) {
             return new PlaybackSnapshot(false, Player.STATE_IDLE, 0L, 0L, 0L, currentTitle, currentArtist);
         }
+        boolean isPlaying = player.isPlaying();
+        boolean playWhenReady = player.getPlayWhenReady();
+        int state = player.getPlaybackState();
+        boolean effectivePlaying = isPlaying || (state == Player.STATE_BUFFERING && playWhenReady);
+        long dur = player.getDuration() < 0 ? 0L : player.getDuration();
+        if (dur == 0L && lastReportedDurationMs > 0L) {
+            dur = lastReportedDurationMs;
+        }
         return new PlaybackSnapshot(
-                player.isPlaying(),
-                player.getPlaybackState(),
+                effectivePlaying,
+                state,
                 player.getCurrentPosition(),
-                player.getDuration() < 0 ? 0L : player.getDuration(),
+                dur,
                 player.getBufferedPosition(),
                 currentTitle,
                 currentArtist
