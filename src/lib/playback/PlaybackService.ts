@@ -7,7 +7,7 @@ import { AudioFocusManager } from './AudioFocusManager';
 import { RendererManager } from './RendererManager';
 import { QueueManager } from '../queue/QueueManager';
 import { PlaybackSourceResolver } from '@/lib/playbackSourceResolver';
-import { RaagaXNativePlayer } from './native/RaagaXNativePlayer';
+import { RaagaXNativePlayer, NativeTrackItem } from './native/RaagaXNativePlayer';
 import { Song } from '@/types/music';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
@@ -246,14 +246,12 @@ export class PlaybackService {
    * ExoPlayer receives the complete ordered playlist and auto-advances natively
    * without requiring WebView/JS to wake up between tracks.
    */
-  public async loadQueueContext(songs: Song[], startIndex: number, autoPlay: boolean = true, startPositionMs: number = 0): Promise<void> {
+  public async loadQueueContext(songs: Song[], startIndex: number, autoPlay: boolean = true, startPositionMs: number = 0, requestId?: number): Promise<void> {
     if (!RaagaXNativePlayer.isNative()) return;
     if (!songs || songs.length === 0) return;
+    if (requestId !== undefined && requestId !== this.playbackRequestId) return;
 
     // Offline guard for queue context: only resolve network URLs when online.
-    // NOTE: We intentionally do NOT use navigator.onLine here — on Android/Capacitor
-    // WebView, navigator.onLine is unreliable and can be false with an active connection.
-    // We rely solely on the explicitly-set networkMode from the store.
     const store = usePlayerStore.getState();
     const isActuallyOffline =
       store.networkMode === 'offline' ||
@@ -291,13 +289,18 @@ export class PlaybackService {
         })
       );
 
+      if (requestId !== undefined && requestId !== this.playbackRequestId) {
+        console.log(`[PlaybackService] loadQueueContext cancelled: stale requestId #${requestId} (current #${this.playbackRequestId})`);
+        return;
+      }
+
       const validTracks = resolvedTracks.filter(t => !!t.url);
       if (validTracks.length === 0) return;
 
       // setQueue() hands ExoPlayer the entire playlist with the correct start index and position.
       // ExoPlayer then owns all transitions — no WebView involvement needed.
-      await RaagaXNativePlayer.setQueue(validTracks, startIndex, autoPlay, startPositionMs);
-      console.log(`[PlaybackService] loadQueueContext: setQueue(${validTracks.length} tracks, startIndex=${startIndex}, startPos=${startPositionMs}ms, autoPlay=${autoPlay}) — ExoPlayer owns all transitions`);
+      await RaagaXNativePlayer.setQueue(validTracks, startIndex, autoPlay, startPositionMs, requestId);
+      console.log(`[PlaybackService] loadQueueContext: setQueue(${validTracks.length} tracks, startIndex=${startIndex}, startPos=${startPositionMs}ms, autoPlay=${autoPlay}, reqId=${requestId}) — ExoPlayer owns all transitions`);
     } catch (e) {
       console.warn('[PlaybackService] loadQueueContext failed:', e);
     }
@@ -422,40 +425,46 @@ export class PlaybackService {
 
       // 2. Native Android ExoPlayer Path
       if (RaagaXNativePlayer.isNative()) {
+        let finalSrc = '';
+        try {
+          const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+          if (source?.url) {
+            finalSrc = source.url;
+            resolvedSourceType = source.type === 'offline' ? 'LOCAL_DOWNLOAD' : 'NETWORK_STREAM';
+          }
+        } catch (e) {
+          console.warn('[PlaybackService] Native source resolution failed:', e);
+        }
+        if (!finalSrc && song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
+          finalSrc = song.audioUrl;
+        }
+        if (requestId !== this.playbackRequestId) return false;
+        if (!finalSrc) {
+          console.warn(`[PlaybackService] No playable source for native playback: "${song.title}"`);
+          return false;
+        }
+
         const queue = store.queue;
         const currentIdx = store.queueIndex >= 0 ? store.queueIndex : 0;
 
-        if (queue && queue.length > 1) {
-          await this.loadQueueContext(queue, currentIdx, autoPlay, 0);
-        } else {
-          let finalSrc = '';
-          try {
-            const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
-            if (source?.url) {
-              finalSrc = source.url;
-              resolvedSourceType = source.type === 'offline' ? 'LOCAL_DOWNLOAD' : 'NETWORK_STREAM';
-            }
-          } catch (e) {
-            console.warn('[PlaybackService] Native source resolution failed:', e);
-          }
-          if (!finalSrc && song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
-            finalSrc = song.audioUrl;
-          }
-          if (requestId !== this.playbackRequestId) return false;
-          if (!finalSrc) {
-            console.warn(`[PlaybackService] No playable source for native playback: "${song.title}"`);
-            return false;
-          }
+        // Build the native playlist with the freshly resolved active source
+        const nativeTracks: NativeTrackItem[] = (queue && queue.length > 0)
+          ? queue.map((s, idx) => ({
+              url: idx === currentIdx ? finalSrc : (s.audioUrl || ''),
+              title: s.title ?? 'Unknown Title',
+              artist: s.artist ?? 'Unknown Artist',
+              artworkUrl: s.coverUrl ?? '',
+            }))
+          : [
+              {
+                url: finalSrc,
+                title: song.title ?? 'Unknown Title',
+                artist: song.artist ?? 'Unknown Artist',
+                artworkUrl: song.coverUrl ?? '',
+              },
+            ];
 
-          await RaagaXNativePlayer.setQueue([
-            {
-              url: finalSrc,
-              title: song.title ?? 'Unknown Title',
-              artist: song.artist ?? 'Unknown Artist',
-              artworkUrl: song.coverUrl ?? '',
-            }
-          ], 0, autoPlay, 0);
-        }
+        await RaagaXNativePlayer.setQueue(nativeTracks, currentIdx, autoPlay, 0, requestId);
 
         if (requestId !== this.playbackRequestId) return false;
 

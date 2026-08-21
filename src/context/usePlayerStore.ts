@@ -975,16 +975,20 @@ export const usePlayerStore = create<PlayerState>()(
       switchTrack: async (track: Song, index: number, autoPlay: boolean = true) => {
         if (!track) return false;
 
+        const oldSong = get().currentSong;
+        const oldIndex = get().queueIndex;
+
         // 1. Atomically increment playbackRequestId
         const requestId = ++globalPlaybackRequestId;
         PlaybackService.getInstance().setPlaybackRequestId(requestId);
         PlaybackService.getInstance().stopAllAudio();
-        console.log(`[SWITCH_TRACK] #${requestId} target="${track.title}" @ index ${index}`);
 
         const formattedTrack: Song = {
           ...track,
           coverUrl: SongCoverEngine.getInstance().formatRawCoverUrl(track.coverUrl),
         };
+
+        console.log(`[PlaybackTransition] source="${formattedTrack.title}" oldTrackId="${oldSong?.id}" newTrackId="${formattedTrack.id}" oldQueueIndex=${oldIndex} newQueueIndex=${index} queueLength=${get().queue.length} transitionId=${requestId} playbackGeneration=${requestId}`);
 
         // 2. ATOMIC SYNCHRONOUS STATE UPDATE:
         // Currently playing audio URL, artwork, title, artist, duration and track ID must ALWAYS belong to the same currentTrack object!

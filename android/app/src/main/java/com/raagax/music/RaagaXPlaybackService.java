@@ -61,6 +61,7 @@ public class RaagaXPlaybackService extends Service {
     private String    currentArtworkUrl  = "";
     private Bitmap    currentArtworkBitmap = null;
     private final LruCache<String, Bitmap> artworkCache = new LruCache<>(20);
+    private long      activeRequestId    = 0L;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -114,6 +115,7 @@ public class RaagaXPlaybackService extends Service {
                     i.putExtra("artworkUrl", artUrl);
                     i.putExtra("index",      player.getCurrentMediaItemIndex());
                     i.putExtra("reason",     reason);
+                    i.putExtra("requestId",  activeRequestId);
                     if (mediaItem.localConfiguration != null) {
                         i.putExtra("url", mediaItem.localConfiguration.uri.toString());
                     }
@@ -229,7 +231,16 @@ public class RaagaXPlaybackService extends Service {
 
         String action = intent.getAction();
         long receivedAt = System.currentTimeMillis();
-        Log.d(TAG, "[COMMAND_RECEIVED] action=" + action + " | timestamp=" + receivedAt);
+        long reqId = intent.getLongExtra("requestId", 0L);
+        Log.d(TAG, "[COMMAND_RECEIVED] action=" + action + " | reqId=" + reqId + " | timestamp=" + receivedAt);
+
+        if (reqId > 0 && reqId < activeRequestId) {
+            Log.w(TAG, "[STALE_INTENT_DROPPED] reqId=" + reqId + " < activeRequestId=" + activeRequestId + " for action=" + action);
+            return START_NOT_STICKY;
+        }
+        if (reqId > 0) {
+            activeRequestId = reqId;
+        }
 
         if ("SET_QUEUE".equals(action)) {
             // ── PRIMARY command: full ordered playlist ────────────────────
@@ -240,7 +251,7 @@ public class RaagaXPlaybackService extends Service {
             int startIndex       = intent.getIntExtra("startIndex", 0);
             long startPositionMs = intent.getLongExtra("startPositionMs", 0L);
             boolean autoPlay     = intent.getBooleanExtra("autoPlay", true);
-            Log.d(TAG, "[SET_QUEUE_INTENT] tracks=" + (urls != null ? urls.length : 0) + " | startIndex=" + startIndex + " | startPos=" + startPositionMs + "ms | autoPlay=" + autoPlay);
+            Log.d(TAG, "[SET_QUEUE_INTENT] tracks=" + (urls != null ? urls.length : 0) + " | startIndex=" + startIndex + " | startPos=" + startPositionMs + "ms | autoPlay=" + autoPlay + " | reqId=" + reqId);
             if (urls != null && urls.length > 0) {
                 setQueue(urls, titles, artists, artworks, startIndex, startPositionMs, autoPlay);
             }

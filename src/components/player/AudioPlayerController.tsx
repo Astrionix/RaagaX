@@ -138,11 +138,17 @@ export function AudioPlayerController() {
         console.log('[AudioPlayerController] Ignoring native trackChanged during seek settle lock');
         return;
       }
-      console.log('[AudioPlayerController] Native track changed — index:', data.index, 'title:', data.title);
       const store = usePlayerStore.getState();
+
+      // Stale callback protection: ignore events from older playback generations
+      if (typeof data.requestId === 'number' && data.requestId > 0 && data.requestId < store.playbackRequestId) {
+        console.log(`[AudioPlayerController] Dropping stale trackChanged event: reqId=${data.requestId} < currentStore=${store.playbackRequestId}`);
+        return;
+      }
+
+      console.log('[AudioPlayerController] Native track changed — index:', data.index, 'title:', data.title, 'reqId:', data.requestId);
       const manager = QueueManager.getInstance();
-      const snapshot = manager.getSnapshot();
-      const queue = snapshot.items.map((i: any) => i.song);
+      const queue = (store.queue && store.queue.length > 0) ? store.queue : manager.getSnapshot().items.map((i: any) => i.song);
 
       // Use native index first (most reliable), then fall back to URL/title matching
       let targetIndex = -1;
@@ -156,8 +162,8 @@ export function AudioPlayerController() {
 
       if (targetIndex >= 0 && targetIndex < queue.length) {
         const nextSong = queue[targetIndex];
-        // Avoid re-sync if already on this song
-        if (store.currentSong?.id === nextSong?.id) return;
+        // Avoid re-sync if store is already synchronized to this exact song and index
+        if (store.currentSong?.id === nextSong?.id && store.queueIndex === targetIndex) return;
         manager.skipTo(targetIndex);
         store.commitPlaybackTransition(nextSong, targetIndex);
       }

@@ -30,10 +30,11 @@ public class RaagaXCapacitorPlugin extends Plugin {
 
             if ("com.raagax.music.TRACK_CHANGED".equals(action)) {
                 JSObject data = new JSObject();
-                data.put("title",  intent.getStringExtra("title"));
-                data.put("artist", intent.getStringExtra("artist"));
-                data.put("url",    intent.getStringExtra("url"));
-                data.put("index",  intent.getIntExtra("index", 0));
+                data.put("title",     intent.getStringExtra("title"));
+                data.put("artist",    intent.getStringExtra("artist"));
+                data.put("url",       intent.getStringExtra("url"));
+                data.put("index",     intent.getIntExtra("index", 0));
+                data.put("requestId", intent.getLongExtra("requestId", 0L));
                 notifyListeners("trackChanged", data);
 
             } else if ("com.raagax.music.QUEUE_ENDED".equals(action)) {
@@ -134,6 +135,10 @@ public class RaagaXCapacitorPlugin extends Plugin {
 
             boolean autoPlay = call.getBoolean("autoPlay", true);
             long startPositionMs = call.getLong("startPositionMs", 0L);
+            long requestId = 0L;
+            if (call.getData() != null && call.getData().has("requestId")) {
+                requestId = call.getData().optLong("requestId", 0L);
+            }
 
             Intent intent = new Intent("SET_QUEUE");
             intent.putExtra("urls",             urls);
@@ -143,6 +148,7 @@ public class RaagaXCapacitorPlugin extends Plugin {
             intent.putExtra("startIndex",       startIndex);
             intent.putExtra("startPositionMs",  startPositionMs);
             intent.putExtra("autoPlay",         autoPlay);
+            intent.putExtra("requestId",        requestId);
             sendCommandToService(intent);
 
             call.resolve(new JSObject().put("success", true));
@@ -158,6 +164,10 @@ public class RaagaXCapacitorPlugin extends Plugin {
         String title     = call.getString("title", "RaagaX");
         String artist    = call.getString("artist", "");
         String artworkUrl = call.getString("artworkUrl", "");
+        long requestId = 0L;
+        if (call.getData() != null && call.getData().has("requestId")) {
+            requestId = call.getData().optLong("requestId", 0L);
+        }
 
         if (url == null || url.isEmpty()) {
             call.reject("URL missing");
@@ -165,9 +175,10 @@ public class RaagaXCapacitorPlugin extends Plugin {
         }
 
         Intent intent = new Intent("PLAY");
-        intent.putExtra("url",    url);
-        intent.putExtra("title",  title);
-        intent.putExtra("artist", artist);
+        intent.putExtra("url",       url);
+        intent.putExtra("title",     title);
+        intent.putExtra("artist",    artist);
+        intent.putExtra("requestId", requestId);
         sendCommandToService(intent);
         call.resolve(new JSObject().put("success", true));
     }

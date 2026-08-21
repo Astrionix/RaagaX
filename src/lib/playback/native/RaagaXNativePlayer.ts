@@ -54,19 +54,22 @@ export const RaagaXNativePlayer = {
    *
    * @param tracks  Full ordered list of tracks for this playback session
    * @param startIndex  Index of the track to start playing immediately
+   * @param autoPlay  Whether to start playing immediately
+   * @param startPositionMs Initial position offset
+   * @param requestId  Unique transition/generation identifier
    */
-  async setQueue(tracks: NativeTrackItem[], startIndex: number = 0, autoPlay: boolean = true, startPositionMs: number = 0): Promise<void> {
+  async setQueue(tracks: NativeTrackItem[], startIndex: number = 0, autoPlay: boolean = true, startPositionMs: number = 0, requestId?: number): Promise<void> {
     const plugin = getPlugin();
     if (!plugin || !tracks || tracks.length === 0) return;
-    await plugin.setQueue({ tracks, startIndex, autoPlay, startPositionMs });
+    await plugin.setQueue({ tracks, startIndex, autoPlay, startPositionMs, requestId: requestId || 0 });
   },
 
   // ── Legacy single-track API (kept for compatibility) ──────────────────────
 
-  async play(options: NativeTrackItem): Promise<void> {
+  async play(options: NativeTrackItem, requestId?: number): Promise<void> {
     const plugin = getPlugin();
     if (!plugin) return;
-    await plugin.play(options);
+    await plugin.play({ ...options, requestId: requestId || 0 });
   },
 
   async setNextTrack(options: NativeTrackItem): Promise<void> {
@@ -124,17 +127,21 @@ export const RaagaXNativePlayer = {
     await plugin.setVolume({ volume });
   },
 
-  async setRepeatMode(mode: 'OFF' | 'ALL' | 'ONE' | 'off' | 'all' | 'one' | string): Promise<void> {
+  async setRepeatMode(repeatMode: string): Promise<void> {
     const plugin = getPlugin();
     if (!plugin) return;
-    const normalized = (mode || 'OFF').toUpperCase();
-    await plugin.setRepeatMode({ repeatMode: normalized });
+    await plugin.setRepeatMode({ repeatMode });
   },
 
-  async getPlaybackState(): Promise<NativePlaybackState | null> {
+  async getPlaybackState(): Promise<NativePlaybackState> {
     const plugin = getPlugin();
-    if (!plugin) return null;
-    return plugin.getPlaybackState();
+    if (!plugin) return { isPlaying: false, positionMs: 0, durationMs: 0 };
+    try {
+      const res = await plugin.getPlaybackState();
+      return res as NativePlaybackState;
+    } catch {
+      return { isPlaying: false, positionMs: 0, durationMs: 0 };
+    }
   },
 
   // ── Event listeners ───────────────────────────────────────────────────────
@@ -148,7 +155,7 @@ export const RaagaXNativePlayer = {
   },
 
   /** Fires on every track change (auto-advance or manual next/prev) */
-  addTrackChangedListener(callback: (data: { title?: string; artist?: string; url?: string; index?: number }) => void): () => void {
+  addTrackChangedListener(callback: (data: { title?: string; artist?: string; url?: string; index?: number; requestId?: number }) => void): () => void {
     const plugin = getPlugin();
     if (!plugin) return () => {};
     plugin.addListener('trackChanged', callback);
