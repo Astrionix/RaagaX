@@ -112,6 +112,14 @@ public class RaagaXPlaybackService extends Service {
                 }
 
                 if (mediaItem != null && mediaItem.mediaMetadata != null) {
+                    String itemTrackId = mediaItem.mediaId != null ? mediaItem.mediaId : "";
+                    if (!itemTrackId.isEmpty()) {
+                        if (!currentTrackId.isEmpty() && !currentTrackId.equals(itemTrackId)) {
+                            Log.w(TAG, "[ANDROID_PLAYBACK_DESYNC] currentTrackId=" + currentTrackId + " != mediaItem.mediaId=" + itemTrackId);
+                        }
+                        currentTrackId = itemTrackId;
+                    }
+
                     currentTitle  = mediaItem.mediaMetadata.title  != null ? mediaItem.mediaMetadata.title.toString()  : "RaagaX";
                     currentArtist = mediaItem.mediaMetadata.artist != null ? mediaItem.mediaMetadata.artist.toString() : "";
                     Uri artUri = mediaItem.mediaMetadata.artworkUri;
@@ -175,6 +183,27 @@ public class RaagaXPlaybackService extends Service {
                     Log.d(TAG, "[EXOPLAYER_READY] trackId=" + currentTrackId + " duration=" + dur);
                     Log.d(TAG, "[PLAYBACK_STATE] trackId=" + currentTrackId + " isPlaying=" + isPlaying + " position=" + pos + " duration=" + dur + " source=" + (isCurrentLocalPlayback ? "LOCAL" : "NETWORK"));
                     Log.d(TAG, "[RAAGAX_LOCAL_PLAYBACK_READY] songId=" + currentTrackId + " state=READY duration=" + dur + " isPlaying=" + isPlaying);
+                    Log.d(TAG, "[DIRECT_LOCAL_TEST] STATE_READY duration=" + dur);
+
+                    if (isCurrentLocalPlayback) {
+                        Log.d(TAG, "[DIRECT_LOCAL_TEST] PLAY_STARTED");
+                        mainHandler.postDelayed(() -> {
+                            if (player != null && isCurrentLocalPlayback) {
+                                Log.d(TAG, "[DIRECT_LOCAL_TEST] PROGRESS (500ms) pos=" + player.getCurrentPosition() + " isPlaying=" + player.isPlaying());
+                            }
+                        }, 500);
+                        mainHandler.postDelayed(() -> {
+                            if (player != null && isCurrentLocalPlayback) {
+                                Log.d(TAG, "[DIRECT_LOCAL_TEST] PROGRESS (1000ms) pos=" + player.getCurrentPosition() + " isPlaying=" + player.isPlaying());
+                            }
+                        }, 1000);
+                        mainHandler.postDelayed(() -> {
+                            if (player != null && isCurrentLocalPlayback) {
+                                Log.d(TAG, "[DIRECT_LOCAL_TEST] PROGRESS (2000ms) pos=" + player.getCurrentPosition() + " isPlaying=" + player.isPlaying());
+                            }
+                        }, 2000);
+                    }
+
                     Intent i = new Intent("com.raagax.music.PLAYBACK_STATE");
                     i.putExtra("isPlaying", isPlaying);
                     i.putExtra("positionMs", pos);
@@ -753,10 +782,10 @@ public class RaagaXPlaybackService extends Service {
             isCurrentLocalPlayback = isLocal;
 
             if (isLocal && localFile != null) {
+                Log.d(TAG, "[DIRECT_LOCAL_TEST] path=" + localFile.getAbsolutePath() + " exists=" + localFile.exists() + " size=" + localFile.length());
+                Log.d(TAG, "[DIRECT_LOCAL_TEST] uri=" + playableUri);
                 Log.d(TAG, "[LOCAL_PLAYBACK] trackId=" + currentTrackId + " uri=" + playableUri);
                 Log.d(TAG, "[LOCAL_PLAYBACK] trackId=" + currentTrackId + " path=" + localFile.getAbsolutePath() + " exists=" + localFile.exists() + " size=" + localFile.length());
-                Log.d(TAG, "[LOCAL_PLAYBACK_MEDIA_ITEM] uri=" + playableUri);
-                Log.d(TAG, "[LOCAL_PLAYBACK_PREPARE]");
             }
 
             MediaMetadata.Builder metaBuilder = new MediaMetadata.Builder()
@@ -775,6 +804,8 @@ public class RaagaXPlaybackService extends Service {
                     .setMimeType(androidx.media3.common.MimeTypes.AUDIO_MPEG)
                     .setMediaMetadata(metaBuilder.build())
                     .build();
+
+            Log.d(TAG, "[DIRECT_LOCAL_TEST] mediaItemCreated=true mediaId=" + mediaItem.mediaId);
 
             if (isLocal || "file".equalsIgnoreCase(playableUri.getScheme())) {
                 androidx.media3.exoplayer.source.MediaSource localSource =
@@ -797,6 +828,10 @@ public class RaagaXPlaybackService extends Service {
     public void setNextTrack(String url, String title, String artist) {
         runOnMainThread(() -> {
             if (player == null || url == null || url.isEmpty()) return;
+            if (isCurrentLocalPlayback) {
+                Log.d(TAG, "[setNextTrack] Offline single local playback active — suppressing next track preload to preserve local read head");
+                return;
+            }
             while (player.getMediaItemCount() > player.getCurrentMediaItemIndex() + 1) {
                 player.removeMediaItem(player.getCurrentMediaItemIndex() + 1);
             }
@@ -825,6 +860,10 @@ public class RaagaXPlaybackService extends Service {
     public void setNextTracksBatch(String[] urls, String[] titles, String[] artists) {
         runOnMainThread(() -> {
             if (player == null || urls == null || urls.length == 0) return;
+            if (isCurrentLocalPlayback) {
+                Log.d(TAG, "[setNextTracksBatch] Offline single local playback active — suppressing batch preload to preserve local read head");
+                return;
+            }
             while (player.getMediaItemCount() > player.getCurrentMediaItemIndex() + 1) {
                 player.removeMediaItem(player.getCurrentMediaItemIndex() + 1);
             }

@@ -1019,6 +1019,13 @@ export class PlaybackService {
   public async preloadNativeNextTrack() {
     if (!RaagaXNativePlayer.isNative()) return;
     try {
+      const store = usePlayerStore.getState();
+      const isOffline = store.networkMode === 'offline' || store.networkMode === 'offline_forced' || (typeof navigator !== 'undefined' && navigator.onLine === false);
+      if (isOffline) {
+        console.log('[PlaybackService] Offline mode active: skipping native batch preload to preserve single local MediaItem playback');
+        return;
+      }
+
       const manager = QueueManager.getInstance();
       const snapshot = manager.getSnapshot();
       const currentIndex = snapshot.currentIndex;
