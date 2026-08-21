@@ -85,64 +85,59 @@ export function SplashScreen({ onComplete, enableAudio = true }: SplashScreenPro
       };
     }
 
-    // 2. Full 2026 Production Cinematic Timeline
+    // 2. Fast 1.2s - 1.4s Cinematic Timeline
     const timers: NodeJS.Timeout[] = [];
 
-    // Phase 1: 0.20s - Sound Awakens
+    // Phase 1: 0.15s - Sound Awakens
     timers.push(setTimeout(() => {
       setPhase('sound');
       if (enableAudio) soundEngineRef.current.playSubPulse();
-    }, 200));
+    }, 150));
 
-    // Sound micro-cue: 0.35s
-    timers.push(setTimeout(() => {
-      if (enableAudio) soundEngineRef.current.playWaveformTick();
-    }, 350));
-
-    // Phase 2: 0.55s - Waveform Morphing into R
+    // Phase 2: 0.35s - Waveform Morphing into R
     timers.push(setTimeout(() => {
       setPhase('morph');
       if (enableAudio) soundEngineRef.current.playRisingTone();
-    }, 550));
+    }, 350));
 
-    // Phase 3: 0.95s - Playback Identity Emerges
+    // Phase 3: 0.60s - Playback Identity Emerges
     timers.push(setTimeout(() => {
       setPhase('playback');
       if (enableAudio) soundEngineRef.current.playClick();
-    }, 950));
+    }, 600));
 
-    // Phase 4: 1.25s - Signature Momentum Lock
+    // Phase 4: 0.80s - Signature Momentum Lock
     timers.push(setTimeout(() => {
       setPhase('lock');
-    }, 1250));
+    }, 800));
 
-    // Phase 5: 1.50s - Wordmark Reveal (raagax)
+    // Phase 5: 0.95s - Wordmark Reveal (RaagaX)
     timers.push(setTimeout(() => {
       setPhase('wordmark');
       if (enableAudio) soundEngineRef.current.playResolutionChord();
-    }, 1500));
+    }, 950));
 
-    // Phase 6: 1.75s - Tagline Reveal (FEEL EVERY NOTE)
+    // Phase 6: 1.10s - Tagline Reveal (Music that follows you)
     timers.push(setTimeout(() => {
       setPhase('tagline');
-    }, 1750));
+    }, 1100));
 
-    // Phase 7: 1.95s - Final Brand Hold
+    // Phase 7: 1.25s - Final Brand Hold
     timers.push(setTimeout(() => {
       setPhase('hold');
-    }, 1950));
+    }, 1250));
 
-    // Phase 8: 2.10s - Cinematic Transition to App Header
+    // Phase 8: 1.35s - Cinematic Transition to App Header
     timers.push(setTimeout(() => {
       setPhase('transitioning');
-    }, 2100));
+    }, 1350));
 
-    // Phase 9: 2.45s - Complete & Dismount
+    // Phase 9: 1.50s - Complete & Dismount
     timers.push(setTimeout(() => {
       setIsVisible(false);
       if (typeof window !== 'undefined') sessionStorage.setItem('raagax_splash_completed', 'true');
       if (onComplete) onComplete();
-    }, 2450));
+    }, 1500));
 
     return () => {
       timers.forEach(clearTimeout);
@@ -337,10 +332,10 @@ export function SplashScreen({ onComplete, enableAudio = true }: SplashScreenPro
               : 'opacity-0 translate-y-2 tracking-[0.15em]'
           }`}
         >
-          <p className={`text-[10px] sm:text-[11px] font-bold uppercase select-none ${
-            isDark ? 'text-[#94A3B8]' : 'text-[#475569]'
+          <p className={`text-[11px] sm:text-xs font-semibold tracking-wide select-none ${
+            isDark ? 'text-slate-300' : 'text-[#475569]'
           }`}>
-            FEEL EVERY NOTE
+            Music that follows you
           </p>
         </div>
 

@@ -5,8 +5,12 @@ import {
   Heart, Download, Clock, ListMusic, Play, ChevronRight, 
   User, Disc, Sparkles, Laptop, ChevronLeft, Music, Library, Shuffle,
   HardDrive, Trash2, CheckCircle2, Layers, WifiOff, RefreshCw, ShieldCheck,
-  Globe, ArrowUpDown
+  Globe, ArrowUpDown, BarChart3
 } from 'lucide-react';
+import { InsightsView } from '@/components/views/InsightsView';
+import { ArtistsView } from '@/components/views/ArtistsView';
+import { AlbumsView } from '@/components/views/AlbumsView';
+import { GenresView } from '@/components/views/GenresView';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
@@ -50,6 +54,7 @@ export function LibraryView() {
     setSelectedLanguages,
     setPreferredLanguage,
     setSelectedArtistId,
+    setSelectedAlbumId,
     setSelectedPlaylistId,
     setActiveTab,
     setCreatePlaylistModalOpen,
@@ -278,6 +283,7 @@ export function LibraryView() {
     { id: 'liked', label: 'Liked Songs', subtitle: 'Your favorite tracks', icon: Heart, color: 'text-[#F51B3D]', bg: 'bg-[#F51B3D]/10' },
     { id: 'downloads', label: 'Downloaded', subtitle: 'Offline protected tracks', icon: Download, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
     { id: 'playlists', label: 'Playlists', subtitle: 'Your personal & collaborative playlists', icon: ListMusic, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+    { id: 'insights', label: 'Music Insights', subtitle: 'Listening statistics & top charts', icon: BarChart3, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
     { id: 'languages', label: 'Languages', subtitle: 'Preferred regional streams', icon: Globe, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
     { id: 'history', label: 'Recently Played', subtitle: 'Listening history', icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/10' },
     { id: 'artists', label: 'Artists', subtitle: 'Followed artist catalog', icon: User, color: 'text-blue-400', bg: 'bg-blue-500/10' },
@@ -656,30 +662,195 @@ export function LibraryView() {
     );
   };
 
+  const allSavedSongs = useMemo(() => {
+    return Array.from(knownSongsMap.values());
+  }, [knownSongsMap]);
+
+  const recentlyAddedAlbums = useMemo(() => {
+    const map = new Map<string, { id: string; title: string; artist: string; coverUrl: string; year?: string }>();
+    
+    // Add downloaded albums first
+    downloadedAlbums.forEach((alb) => {
+      const first = alb.tracks[0];
+      if (first && !map.has(alb.album)) {
+        map.set(alb.album, {
+          id: first.albumId || alb.album,
+          title: alb.album,
+          artist: alb.artist || 'Various Artists',
+          coverUrl: alb.coverUrl || first.coverUrl || '/app-icon.png',
+          year: (first as any).releaseYear?.toString() || (first as any).year || '2024',
+        });
+      }
+    });
+
+    // Add albums from liked songs
+    likedSongs.forEach((song) => {
+      if (song.album && !map.has(song.album)) {
+        map.set(song.album, {
+          id: song.albumId || song.album,
+          title: song.album,
+          artist: song.artist || 'Various Artists',
+          coverUrl: song.coverUrl || '/app-icon.png',
+          year: (song as any).releaseYear?.toString() || (song as any).year || '2024',
+        });
+      }
+    });
+
+    // Add albums from history
+    historySongs.forEach((song) => {
+      if (song.album && !map.has(song.album)) {
+        map.set(song.album, {
+          id: song.albumId || song.album,
+          title: song.album,
+          artist: song.artist || 'Various Artists',
+          coverUrl: song.coverUrl || '/app-icon.png',
+          year: (song as any).releaseYear?.toString() || (song as any).year || '2024',
+        });
+      }
+    });
+
+    return Array.from(map.values()).slice(0, 8);
+  }, [downloadedAlbums, likedSongs, historySongs]);
+
   if (tab !== 'menu') {
-    const activeItem = libraryNavItems.find((i) => i.id === tab);
+    let activeLabel = 'Collection';
+    let activeSubtitle = 'In your cloud library';
     let content: React.ReactNode = null;
+
     switch (tab) {
       case 'liked':
+        activeLabel = 'Liked Songs';
+        activeSubtitle = `${likedSongs.length} songs saved`;
         content = renderSongList(likedSongs, 'Liked Songs');
         break;
+      case 'songs':
+        activeLabel = 'Songs';
+        activeSubtitle = `${allSavedSongs.length} songs in library`;
+        content = renderSongList(allSavedSongs, 'Songs');
+        break;
       case 'history':
-        content = renderSongList(historySongs, 'Recently Played');
+        activeLabel = 'Listening History';
+        activeSubtitle = `${historySongs.length} recently played tracks`;
+        content = renderSongList(historySongs, 'Listening History');
         break;
       case 'downloads':
+        activeLabel = 'Downloads';
+        activeSubtitle = 'Offline verified audio files';
         content = renderDownloadedSection();
         break;
-      case 'playlists':
+      case 'insights':
+        activeLabel = 'Music Insights';
+        activeSubtitle = 'Listening activity and top charts';
+        content = <InsightsView />;
+        break;
+      case 'artists':
+        activeLabel = 'Artists';
+        activeSubtitle = 'Followed artists and releases';
+        content = <ArtistsView />;
+        break;
+      case 'albums':
+        activeLabel = 'Albums';
+        activeSubtitle = 'Saved album catalog';
+        content = <AlbumsView />;
+        break;
+      case 'made_for_you':
+        activeLabel = 'Made For You';
+        activeSubtitle = 'Personalized playlists curated for your taste';
+        content = (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {currentCuratedPlaylists.map((pl) => (
+              <div
+                key={pl.id}
+                onClick={() => {
+                  setSelectedPlaylistId(pl.id);
+                  setActiveTab('playlist');
+                }}
+                className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-white/15 hover:bg-white/5 transition-all flex items-center justify-between cursor-pointer group"
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-600 to-[#FA233B] flex items-center justify-center text-white font-bold flex-shrink-0 shadow">
+                    <Sparkles className="w-6 h-6" />
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-bold text-white group-hover:text-[#FA233B] transition-colors truncate">
+                      {pl.name}
+                    </h4>
+                    <p className="text-[11px] text-[#8E92A4] truncate mt-0.5">{(pl as any).description || (pl as any).subtitle || 'Curated Mix'}</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white" />
+              </div>
+            ))}
+          </div>
+        );
+        break;
+      case 'genres':
+        return (
+          <div className="space-y-4 pb-6 text-white select-none animate-in fade-in duration-200">
+            <button
+              onClick={() => setTab('menu')}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all text-xs font-bold cursor-pointer"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span>Library</span>
+            </button>
+            <GenresView />
+          </div>
+        );
+      case 'languages':
+        activeLabel = 'Regional Streams & Languages';
+        activeSubtitle = 'Preferred audio streaming languages';
         content = (
           <div className="space-y-4">
-            {/* Action & Filter Toolbar */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {['Telugu', 'Hindi', 'Tamil', 'Kannada', 'Malayalam', 'English', 'Punjabi', 'Bhojpuri'].map((lang) => {
+                const isSelected = selectedLanguages.includes(lang);
+                const isPrimary = preferredLanguage.toLowerCase() === lang.toLowerCase();
+
+                return (
+                  <div
+                    key={lang}
+                    className={`p-4 rounded-2xl border transition-all ${
+                      isPrimary 
+                        ? 'bg-[#FA233B]/10 border-[#FA233B]/40 shadow-lg' 
+                        : isSelected 
+                        ? 'bg-white/[0.04] border-white/15 hover:border-white/25' 
+                        : 'bg-white/[0.02] border-white/5 opacity-70 hover:opacity-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs ${
+                          isPrimary ? 'bg-[#FA233B] text-white' : 'bg-white/10 text-slate-300'
+                        }`}>
+                          {lang.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-white">{lang}</h4>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {isPrimary ? 'Primary' : isSelected ? 'Active' : 'Available'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+        break;
+      case 'playlists':
+        activeLabel = 'Playlists';
+        activeSubtitle = 'Your personal & collaborative playlists';
+        content = (
+          <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3 pt-1 pb-1">
               <span className="text-xs font-bold text-[var(--text-secondary)] font-mono">
                 {userPlaylists.length} {userPlaylists.length === 1 ? 'Playlist' : 'Playlists'}
               </span>
 
               <div className="flex items-center gap-2">
-                {/* Playlist Sort Dropdown */}
                 {userPlaylists.length > 1 && (
                   <div className="flex items-center gap-1.5 bg-[var(--bg-surface)] border border-[var(--border-subtle)] px-3 py-1.5 rounded-xl text-xs shadow-sm">
                     <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
@@ -719,158 +890,38 @@ export function LibraryView() {
                         setSelectedPlaylistId(pl.id);
                         setActiveTab('playlist');
                       }}
-                      className="p-3.5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-purple-500/40 hover:bg-[var(--bg-surface)] transition-all flex items-center justify-between gap-3.5 cursor-pointer group shadow-sm"
+                      className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-white/15 hover:bg-white/5 transition-all flex items-center justify-between group cursor-pointer"
                     >
-                      <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                        <div className="w-12 h-12 rounded-xl bg-purple-500/15 text-purple-400 flex items-center justify-center flex-shrink-0 border border-purple-500/25 shadow-sm">
-                          <ListMusic className="w-5 h-5" />
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <div className="w-12 h-12 rounded-xl bg-slate-800 overflow-hidden flex-shrink-0 relative shadow-sm border border-white/5">
+                          <img
+                            src={pl.coverUrl || '/app-icon.png'}
+                            alt={pl.title}
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-sm font-bold text-[var(--text-primary)] group-hover:text-purple-400 transition-colors truncate">
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-bold text-white group-hover:text-[#FA233B] transition-colors truncate">
                             {pl.title}
                           </h4>
-                          <p className="text-xs text-[var(--text-secondary)] truncate mt-0.5 font-medium">
-                            {songCount} {songCount === 1 ? 'track' : 'tracks'} • {pl.visibility === 'public' ? 'Public' : 'Private'}
+                          <p className="text-[11px] text-[#8E92A4] truncate mt-0.5">
+                            {songCount} {songCount === 1 ? 'song' : 'songs'}
                           </p>
                         </div>
                       </div>
-
-                      <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-purple-400 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                      <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <div className="p-10 rounded-3xl bg-[var(--bg-surface)] border border-dashed border-[var(--border-subtle)] text-center space-y-3">
-                <div className="w-14 h-14 rounded-2xl bg-purple-500/10 text-purple-400 flex items-center justify-center mx-auto shadow-inner">
-                  <ListMusic className="w-7 h-7" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-[var(--text-primary)]">No playlists created yet</p>
-                  <p className="text-xs text-[var(--text-secondary)] mt-1">Create playlists for your favorite artists, moods, or road trips.</p>
-                </div>
-                <button
-                  onClick={() => setCreatePlaylistModalOpen(true)}
-                  className="px-5 py-2.5 rounded-xl bg-[#FA233B] hover:bg-[#D90429] text-white text-xs font-bold transition-all inline-flex items-center gap-1.5 shadow-md shadow-red-500/25 cursor-pointer"
-                >
-                  + Create Your First Playlist
-                </button>
+              <div className="flex flex-col items-center justify-center py-20 text-[#8E92A4]">
+                <ListMusic className="w-12 h-12 mb-4 opacity-40 text-slate-500" />
+                <p className="text-sm font-semibold text-white">No playlists created yet.</p>
+                <p className="text-xs text-[#8E92A4] mt-1">Create your first playlist using the button above.</p>
               </div>
             )}
-          </div>
-        );
-        break;
-      case 'artists':
-        content = (
-          <div className="space-y-4">
-            <h3 className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">Top Featured Artists</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {POPULAR_ARTISTS.map((artist) => (
-                <div
-                  key={artist.id}
-                  onClick={() => {
-                    setSelectedArtistId(artist.id);
-                    setActiveTab('artist');
-                  }}
-                  className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/15 hover:bg-white/5 transition-all text-center space-y-2 cursor-pointer group"
-                >
-                  <img
-                    src={artist.image}
-                    alt={artist.name}
-                    className="w-18 h-18 rounded-full mx-auto object-cover shadow-md group-hover:scale-105 transition-transform bg-slate-800"
-                  />
-                  <div>
-                    <h4 className="text-xs font-bold text-white group-hover:text-[#FA233B] transition-colors truncate">
-                      {artist.name}
-                    </h4>
-                    <p className="text-[10px] text-[#8E92A4] mt-0.5 truncate">{artist.genres.join(' • ')}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-        break;
-      case 'languages':
-        content = (
-          <div className="space-y-6">
-            <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Globe className="w-4 h-4 text-cyan-400" /> Active Music Languages
-              </h3>
-              <p className="text-xs text-slate-400">
-                Manage your music languages or tap any regional hub to explore curated playlists and downloads.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-              {['Telugu', 'Hindi', 'Tamil', 'Kannada', 'Malayalam', 'Bengali', 'Marathi', 'Punjabi', 'English'].map((lang) => {
-                const isSelected = selectedLanguages.includes(lang);
-                const isPrimary = preferredLanguage.toLowerCase() === lang.toLowerCase();
-                const curated = getCuratedPlaylists(lang);
-
-                return (
-                  <div
-                    key={lang}
-                    className={`p-4 rounded-2xl border transition-all ${
-                      isPrimary 
-                        ? 'bg-[#FA233B]/10 border-[#FA233B]/40 shadow-lg' 
-                        : isSelected 
-                        ? 'bg-white/[0.04] border-white/15 hover:border-white/25' 
-                        : 'bg-white/[0.02] border-white/5 opacity-70 hover:opacity-100'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs ${
-                          isPrimary ? 'bg-[#FA233B] text-white' : 'bg-white/10 text-slate-300'
-                        }`}>
-                          {lang.slice(0, 2).toUpperCase()}
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-bold text-white">{lang}</h4>
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            {isPrimary ? 'Primary Language' : isSelected ? 'Active Language' : 'Available'}
-                          </span>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => {
-                          setPreferredLanguage(lang);
-                        }}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                          isPrimary
-                            ? 'bg-[#FA233B] text-white shadow'
-                            : 'bg-white/10 hover:bg-white/20 text-white'
-                        }`}
-                      >
-                        {isPrimary ? 'Active' : 'Switch'}
-                      </button>
-                    </div>
-
-                    <div className="space-y-1 pt-2 border-t border-white/10">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">
-                        Top Playlists ({curated.length})
-                      </span>
-                      {curated.slice(0, 3).map((pl) => (
-                        <div
-                          key={pl.id}
-                          onClick={() => {
-                            setSelectedPlaylistId(pl.id);
-                            setActiveTab('playlist');
-                          }}
-                          className="py-1 px-1.5 rounded-lg hover:bg-white/5 flex items-center justify-between text-xs text-slate-300 hover:text-white cursor-pointer"
-                        >
-                          <span className="truncate">{pl.name}</span>
-                          <span className="text-[10px] text-slate-500">▸</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
           </div>
         );
         break;
@@ -893,10 +944,8 @@ export function LibraryView() {
             <ChevronLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-2xl font-black text-white tracking-tight">{activeItem?.label}</h1>
-            <p className="text-xs text-[#8E92A4]">
-              {activeItem?.subtitle || 'In your cloud library'}
-            </p>
+            <h1 className="text-2xl font-black text-white tracking-tight">{activeLabel}</h1>
+            <p className="text-xs text-[#8E92A4]">{activeSubtitle}</p>
           </div>
         </div>
         {content}
@@ -905,128 +954,175 @@ export function LibraryView() {
   }
 
   return (
-    <div className="space-y-6 pb-6 text-white select-none animate-in fade-in duration-200">
-      {/* Header */}
-      <div className="flex items-center justify-between pt-1">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight">Your Library</h1>
-          <p className="text-xs text-[#8E92A4] mt-0.5">Authoritative collection synchronized with your cloud account</p>
-        </div>
+    <div className="space-y-3.5 pb-2 text-white select-none animate-in fade-in duration-200 max-w-5xl mx-auto">
+      {/* Library Header */}
+      <div className="pt-0.5 pb-0.5">
+        <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">Library</h1>
+        <p className="text-xs text-slate-400 font-medium mt-0.5">Your personal music collection</p>
       </div>
 
-      {/* Smart Filter Chips */}
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-        {['all', 'downloads', 'favorites', 'playlists', 'telugu', 'hindi', 'tamil', 'english'].map(chip => (
-          <button
-            key={chip}
-            onClick={() => {
-              setActiveFilterChip(chip);
-              if (chip === 'downloads') setTab('downloads');
-              else if (chip === 'favorites') setTab('liked');
-              else if (chip === 'playlists') setTab('playlists');
-              else if (chip !== 'all') {
-                setPreferredLanguage(chip.charAt(0).toUpperCase() + chip.slice(1));
-                setTab('languages');
-              }
-            }}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-bold capitalize transition-all cursor-pointer flex-shrink-0 ${
-              activeFilterChip === chip
-                ? 'bg-[#FA233B] text-white shadow'
-                : 'bg-white/5 hover:bg-white/15 text-slate-300 border border-white/10'
-            }`}
-          >
-            {chip}
-          </button>
-        ))}
-      </div>
-
-      {/* Cross-Device Remote Listening Banner */}
-      {!isActiveDevice && currentSong && remoteDeviceName && (
-        <div className="p-4 rounded-2xl bg-gradient-to-r from-[#F51B3D]/15 to-transparent border border-[#F51B3D]/30 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-[#F51B3D]/20 flex items-center justify-center text-[#F51B3D] flex-shrink-0">
-              <Laptop className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-[#F51B3D]">Connected Playback</span>
-              <h4 className="text-xs font-bold text-white truncate">Playing on {remoteDeviceName}</h4>
-              <p className="text-[11px] text-[#8E92A4] truncate">{currentSong.title} • {currentSong.artist}</p>
-            </div>
+      {/* ── ♡ LIKED SONGS HERO CARD ── */}
+      <div
+        onClick={() => setTab('liked')}
+        className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-[#FA233B]/25 via-white/[0.04] to-purple-600/20 border border-white/12 shadow-[0_8px_24px_rgba(0,0,0,0.4)] hover:border-[#FA233B]/40 transition-all cursor-pointer group relative overflow-hidden flex items-center justify-between gap-3 select-none"
+      >
+        <div className="absolute -right-8 -bottom-8 w-36 h-36 bg-[#FA233B]/20 rounded-full blur-2xl pointer-events-none group-hover:scale-125 transition-transform duration-700" />
+        
+        <div className="flex items-center gap-3 min-w-0 z-10">
+          <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-[#FA233B] to-[#D90429] flex items-center justify-center text-white shadow-lg shadow-red-500/30 flex-shrink-0 group-hover:scale-105 transition-transform">
+            <Heart className="w-5 h-5 fill-white stroke-none" />
           </div>
-
-          <button
-            onClick={() => transferPlayback(deviceId)}
-            className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#F51B3D] hover:bg-[#D91533] text-white flex-shrink-0 shadow-md shadow-[#F51B3D]/25 transition-all"
-          >
-            Play Here
-          </button>
+          <div className="min-w-0">
+            <h2 className="text-sm sm:text-base font-black text-white tracking-tight group-hover:text-[#FA233B] transition-colors truncate">
+              Liked Songs
+            </h2>
+            <p className="text-[11px] sm:text-xs font-semibold text-slate-300">
+              {likedSongs.length} {likedSongs.length === 1 ? 'song' : 'songs'} • Auto-synchronized
+            </p>
+          </div>
         </div>
-      )}
 
-      {/* Library Categories List */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {libraryNavItems.map((item) => {
+        <div className="flex items-center gap-2.5 z-10 flex-shrink-0">
+          {likedSongs.length > 0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePlayAll(likedSongs, false);
+              }}
+              className="w-9 h-9 rounded-full bg-[#FA233B] hover:bg-[#D90429] active:scale-95 text-white flex items-center justify-center shadow-md shadow-red-500/35 transition-all cursor-pointer"
+              title="Play Liked Songs"
+            >
+              <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
+            </button>
+          )}
+          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors" />
+        </div>
+      </div>
+
+      {/* ── GROUP 1: CORE COLLECTIONS ── */}
+      <div className="rounded-2xl glass-deep border border-white/10 overflow-hidden divide-y divide-white/5">
+        {[
+          { id: 'playlists', label: 'Playlists', icon: ListMusic, color: 'text-purple-400', count: `${userPlaylists.length}` },
+          { id: 'artists', label: 'Artists', icon: User, color: 'text-blue-400', count: `${favoriteArtistIds.length || POPULAR_ARTISTS.length}` },
+          { id: 'albums', label: 'Albums', icon: Disc, color: 'text-rose-400', count: `${recentlyAddedAlbums.length}` },
+          { id: 'songs', label: 'Songs', icon: Music, color: 'text-cyan-400', count: `${knownSongsMap.size}` },
+          { id: 'downloads', label: 'Downloads', icon: Download, color: 'text-emerald-400', count: `${downloadedSongIds.length}` },
+        ].map((item) => {
           const Icon = item.icon;
           return (
             <button
               key={item.id}
-              onClick={() => {
-                setTab(item.id);
-              }}
-              className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/15 hover:bg-white/[0.05] transition-all flex items-center justify-between group text-left cursor-pointer"
+              onClick={() => setTab(item.id)}
+              className="w-full py-2.5 px-4 flex items-center justify-between hover:bg-white/5 transition-colors text-left group cursor-pointer"
             >
-              <div className="flex items-center gap-3.5">
-                <div className={`w-11 h-11 rounded-xl ${item.bg} flex items-center justify-center ${item.color}`}>
-                  <Icon className="w-5 h-5" />
+              <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-lg bg-white/[0.04] border border-white/5 flex items-center justify-center flex-shrink-0 group-hover:bg-white/10 transition-colors">
+                  <Icon className={`w-3.5 h-3.5 ${item.color}`} />
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white group-hover:text-[#F51B3D] transition-colors">
-                    {item.label}
-                  </h3>
-                  <p className="text-xs text-[#8E92A4] mt-0.5">{item.subtitle}</p>
-                </div>
+                <span className="text-xs sm:text-sm font-bold text-white group-hover:text-white transition-colors">
+                  {item.label}
+                </span>
               </div>
-              <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+              <div className="flex items-center gap-1.5 text-slate-400">
+                <span className="text-[11px] font-mono text-slate-500 font-semibold">{item.count}</span>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
+              </div>
             </button>
           );
         })}
       </div>
 
-      {/* Recently Downloaded Tracks Shelf */}
-      {downloadedSongs.length > 0 && (
-        <div className="space-y-3 pt-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Download className="w-3.5 h-3.5 text-emerald-400" />
-              Recently Downloaded
-            </h3>
+      {/* ── GROUP 2: MADE FOR YOU, GENRES, HISTORY, INSIGHTS ── */}
+      <div className="rounded-2xl glass-deep border border-white/10 overflow-hidden divide-y divide-white/5">
+        {[
+          { id: 'made_for_you', label: 'Made For You', icon: Sparkles, color: 'text-amber-400', subtitle: 'Personalized mixes' },
+          { id: 'genres', label: 'Genres', icon: Layers, color: 'text-indigo-400', subtitle: '50 Indian & Global genres' },
+          { id: 'history', label: 'Listening History', icon: Clock, color: 'text-orange-400', subtitle: `${historySongIds.length} tracks` },
+          { id: 'insights', label: 'Music Insights', icon: BarChart3, color: 'text-pink-400', subtitle: 'Analytics' },
+        ].map((item) => {
+          const Icon = item.icon;
+          return (
             <button
-              onClick={() => setTab('downloads')}
-              className="text-xs text-emerald-400 hover:underline font-bold cursor-pointer"
+              key={item.id}
+              onClick={() => setTab(item.id)}
+              className="w-full py-2.5 px-4 flex items-center justify-between hover:bg-white/5 transition-colors text-left group cursor-pointer"
             >
-              View All
+              <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-lg bg-white/[0.04] border border-white/5 flex items-center justify-center flex-shrink-0 group-hover:bg-white/10 transition-colors">
+                  <Icon className={`w-3.5 h-3.5 ${item.color}`} />
+                </div>
+                <div>
+                  <span className="text-xs sm:text-sm font-bold text-white block group-hover:text-white transition-colors">
+                    {item.label}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 text-slate-400">
+                <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">{item.subtitle}</span>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
+              </div>
             </button>
-          </div>
-          <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-2">
-            {downloadedSongs.slice(0, 8).map(s => (
+          );
+        })}
+      </div>
+
+      {/* ── RECENTLY ADDED (ALBUMS GRID) ── */}
+      <div className="space-y-2.5 pt-1">
+        <div className="flex items-center justify-between px-1">
+          <h3 className="text-xs font-black text-white tracking-tight uppercase flex items-center gap-1.5">
+            <Disc className="w-3.5 h-3.5 text-rose-400" /> Recently Added
+          </h3>
+          <button
+            onClick={() => setTab('albums')}
+            className="text-[11px] font-bold text-[#FA233B] hover:underline cursor-pointer"
+          >
+            View All ({recentlyAddedAlbums.length})
+          </button>
+        </div>
+
+        {recentlyAddedAlbums.length > 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3">
+            {recentlyAddedAlbums.map((album) => (
               <div
-                key={s.id}
-                onClick={() => playSong(s, downloadedSongs)}
-                className="w-32 flex-shrink-0 p-2.5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-emerald-500/30 hover:bg-white/5 transition-all cursor-pointer group"
+                key={album.id}
+                onClick={() => {
+                  setSelectedAlbumId(album.id);
+                  setActiveTab('album');
+                }}
+                className="p-2.5 rounded-xl bg-white/[0.03] border border-white/8 hover:border-white/20 hover:bg-white/[0.06] transition-all cursor-pointer group flex flex-col"
               >
-                <div className="w-full aspect-square rounded-xl overflow-hidden mb-2 bg-slate-800 relative shadow">
-                  <img src={s.coverUrl} alt={s.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                  <div className="absolute bottom-1 right-1 bg-emerald-500 text-slate-950 p-0.5 rounded-full">
-                    <CheckCircle2 className="w-2.5 h-2.5" />
+                <div className="w-full aspect-square rounded-lg overflow-hidden mb-2 bg-slate-800 relative shadow-sm">
+                  <img
+                    src={album.coverUrl || '/app-icon.png'}
+                    alt={album.title}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = '/app-icon.png';
+                    }}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-full bg-[#FA233B] text-white flex items-center justify-center shadow-md transform translate-y-1 group-hover:translate-y-0 transition-transform">
+                      <Play className="w-3 h-3 fill-white ml-0.5" />
+                    </div>
                   </div>
                 </div>
-                <h4 className="text-xs font-bold text-white truncate group-hover:text-emerald-400 transition-colors">{s.title}</h4>
-                <p className="text-[10px] text-[#8E92A4] truncate">{s.artist}</p>
+                <h4 className="text-xs font-bold text-white truncate group-hover:text-[#FA233B] transition-colors">
+                  {album.title}
+                </h4>
+                <p className="text-[10px] text-slate-400 truncate mt-0.5 font-medium">
+                  {album.artist}
+                </p>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 text-center text-slate-400">
+            <Disc className="w-6 h-6 mx-auto mb-1.5 opacity-30 text-slate-400" />
+            <p className="text-xs font-semibold">No recent albums in your collection yet.</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Albums you play, download, or save will appear here.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

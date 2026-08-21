@@ -64,6 +64,9 @@ export class AccountSyncEngine {
       // Auto-listen to auth changes and reconcile idempotently
       supabase.auth.onAuthStateChange((event, session) => {
         if (session?.user?.id) {
+          if (event === 'SIGNED_IN') {
+            this.migrateGuestDataToUser(session.user.id);
+          }
           this.subscribeToRealtime(session.user.id);
           this.reconcile(session.user.id);
         } else {
@@ -910,6 +913,82 @@ export class AccountSyncEngine {
       }
     } finally {
       this.isFlushing = false;
+    }
+  }
+
+  // --- ONE-TIME GUEST TO CLOUD ACCOUNT MIGRATION ---
+
+  /**
+   * One-time non-destructive merge of local guest library data into newly signed-in cloud account.
+   * Merges:
+   * 1. Liked Songs (Union merge)
+   * 2. Custom Playlists (Upload local guest playlists with owner_id = userId)
+   * 3. Favorite Artists & Albums
+   * 4. Listening History
+   * Downloads remain strictly device-local.
+   */
+  public async migrateGuestDataToUser(userId: string): Promise<void> {
+    if (!this.isUUID(userId)) return;
+
+    try {
+      const { usePlayerStore } = await import('@/context/usePlayerStore');
+      const { usePlaylistStore } = await import('@/context/usePlaylistStore');
+
+      // 1. Merge Guest Liked Songs
+      const guestLikedIds = usePlayerStore.getState().likedSongIds || [];
+      if (guestLikedIds.length > 0) {
+        const rows = guestLikedIds.map((songId) => ({
+          user_id: userId,
+          song_id: songId,
+        }));
+        await supabase.from('liked_songs').upsert(rows, { onConflict: 'user_id,song_id', ignoreDuplicates: true });
+      }
+
+      // 2. Merge Guest Playlists
+      const guestPlaylists = usePlaylistStore.getState().playlists || [];
+      for (const pl of guestPlaylists) {
+        const title = pl.title || (pl as any).name;
+        if (pl.id && title) {
+          try {
+            await supabase.from('playlists').upsert({
+              id: pl.id,
+              owner_id: userId,
+              name: title,
+              description: pl.description || '',
+              cover_url: pl.coverUrl || '',
+            }, { onConflict: 'id', ignoreDuplicates: true });
+          } catch (plErr) {
+            console.warn('[AccountSyncEngine] Guest playlist migration failed for:', pl.id, plErr);
+          }
+        }
+      }
+
+      // 3. Merge Guest Favorites (Artists & Albums)
+      const favArtists = usePlayerStore.getState().favoriteArtistIds || [];
+      const favAlbums = usePlayerStore.getState().favoriteAlbumIds || [];
+      const favRows = [
+        ...favArtists.map((id) => ({ user_id: userId, item_id: id, item_type: 'artist' })),
+        ...favAlbums.map((id) => ({ user_id: userId, item_id: id, item_type: 'album' })),
+      ];
+      if (favRows.length > 0) {
+        await supabase.from('user_favorites').upsert(favRows, { onConflict: 'user_id,item_id,item_type', ignoreDuplicates: true });
+      }
+
+      // 4. Merge Guest Listening History
+      const guestHistory = usePlayerStore.getState().historySongIds || [];
+      if (guestHistory.length > 0) {
+        const historyRows = guestHistory.slice(0, 50).map((songId) => ({
+          user_id: userId,
+          song_id: songId,
+          event_type: 'PLAY',
+        }));
+        await supabase.from('listening_events').upsert(historyRows, { onConflict: 'user_id,song_id', ignoreDuplicates: true });
+      }
+
+      // 5. Reconcile back to ensure local state has full union of cloud + guest
+      await this.reconcile(userId);
+    } catch (err) {
+      console.warn('[AccountSyncEngine] One-time guest data migration failed:', err);
     }
   }
 }

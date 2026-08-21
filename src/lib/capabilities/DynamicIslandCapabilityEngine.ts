@@ -1,9 +1,16 @@
 /**
- * RaagaX Dynamic Island — Smart Device Capability Engine
+ * RaagaX Live Player — Universal System Surface Capability Detection Engine
  * 
- * Accurately detects mobile platform capability, Live Activity / Dynamic Island
- * hardware support, safe-area cutout, and notification permissions.
- * Never renders a fake or broken Dynamic Island on unsupported devices.
+ * Accurately detects whether the current Android/OEM/OS platform actually supports
+ * a system-level live media playback surface (e.g. Android 13+ Rich MediaStyle,
+ * ColorOS/OxygenOS Live Alerts, HyperOS Live Island, iOS Live Activity).
+ * 
+ * Principles:
+ * 1. Never determine support using only manufacturer name.
+ * 2. Consider Android SDK level, OEM capabilities, safe-area cutout, and permission state.
+ * 3. If supported: exposes Settings -> Playback -> Live Player.
+ * 4. If unsupported: completely hides the setting.
+ * 5. Never creates a fake in-app overlay or draws over the status bar.
  */
 
 export interface DynamicIslandCapability {
@@ -14,6 +21,7 @@ export interface DynamicIslandCapability {
   permissionState: 'granted' | 'denied' | 'prompt' | 'unsupported';
   isHardwareSupported: boolean;
   isAvailable: boolean;
+  needsSystemSettings: boolean;
   statusMessage: string;
 }
 
@@ -62,7 +70,7 @@ export class DynamicIslandCapabilityEngine {
   }
 
   /**
-   * Evaluates device capabilities using hardware, OS, and permission heuristics.
+   * Evaluates device capabilities using OS API levels, OEM capability interfaces, and permissions.
    */
   public getCapability(): DynamicIslandCapability {
     if (typeof window === 'undefined') {
@@ -74,11 +82,12 @@ export class DynamicIslandCapabilityEngine {
         permissionState: 'unsupported',
         isHardwareSupported: false,
         isAvailable: false,
+        needsSystemSettings: false,
         statusMessage: 'Server-side environment',
       };
     }
 
-    // 1. Desktop vs Mobile Detection (Capability & touch based)
+    // 1. Mobile Platform Detection (Capability, touch & screen-based)
     const hasTouch = (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) || ('ontouchstart' in window);
     const isMobileUA = typeof navigator !== 'undefined' && (
       /(iPhone|iPad|iPod|Android|Mobile)/i.test(navigator.userAgent) || Boolean((navigator as any).userAgentData?.mobile)
@@ -86,15 +95,26 @@ export class DynamicIslandCapabilityEngine {
     const isDesktopPointer = window.matchMedia?.('(pointer: fine)').matches && !window.matchMedia?.('(pointer: coarse)').matches && !hasTouch;
     const isMobilePlatform = (hasTouch || isMobileUA) && !isDesktopPointer;
 
-    // 2. Native Bridge or Hardware Cutout
+    // 2. Native Bridge or System Media Surface Capability Detection
     const isNativeBridgeAvailable = Boolean(
       (window as any).webkit?.messageHandlers?.liveActivity ||
       (window as any).AndroidLiveActivity ||
+      (window as any).AndroidLivePlayerCapability ||
       (window as any).Capacitor?.isNativePlatform?.()
     );
 
+    // Check Android version heuristics (Android 13+ API 33+ introduces enhanced live media surface)
+    let isModernAndroid = false;
+    if (typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent)) {
+      const match = navigator.userAgent.match(/Android\s([0-9\.]+)/i);
+      if (match && parseFloat(match[1]) >= 13) {
+        isModernAndroid = true;
+      }
+    }
+
     const hasCutoutSupport = isMobilePlatform && (
       isNativeBridgeAvailable || 
+      isModernAndroid ||
       (isMobileUA && typeof window.screen !== 'undefined' && (window.screen.height / window.screen.width > 2.0))
     );
 
@@ -114,16 +134,18 @@ export class DynamicIslandCapabilityEngine {
     }
 
     // 5. Hardware Supported Flag:
-    const isHardwareSupported = isMobilePlatform && (hasCutoutSupport || isNativeBridgeAvailable);
+    // Supported only when device is mobile with verified native bridge, modern Android media surface, or display cutout
+    const isHardwareSupported = isMobilePlatform && (hasCutoutSupport || isNativeBridgeAvailable || isModernAndroid);
 
     // 6. Availability:
     const isAvailable = isHardwareSupported && permissionState === 'granted';
+    const needsSystemSettings = isHardwareSupported && permissionState !== 'granted';
 
-    let statusMessage = 'Dynamic Island is active and synchronized';
+    let statusMessage = 'Device supports this feature';
     if (!isHardwareSupported) {
-      statusMessage = 'Dynamic Island isn\'t available on desktop/unsupported hardware';
-    } else if (permissionState === 'denied' || permissionState === 'prompt') {
-      statusMessage = 'Dynamic Island isn\'t available. Enable the required notification/live activity permission';
+      statusMessage = 'Not supported on this device/platform';
+    } else if (needsSystemSettings) {
+      statusMessage = 'Your device supports this feature. Enable in System Settings.';
     }
 
     return {
@@ -134,12 +156,38 @@ export class DynamicIslandCapabilityEngine {
       permissionState,
       isHardwareSupported,
       isAvailable,
+      needsSystemSettings,
       statusMessage,
     };
   }
 
   /**
-   * Prompts user for notification permission.
+   * Opens the appropriate system settings or requests permissions.
+   */
+  public async openSystemSettings(): Promise<boolean> {
+    if (typeof window === 'undefined') return false;
+
+    // 1. If native bridge exposes settings intent, trigger it
+    if ((window as any).AndroidSettings?.openLiveMediaSettings) {
+      try {
+        (window as any).AndroidSettings.openLiveMediaSettings();
+        return true;
+      } catch {}
+    }
+
+    if ((window as any).Capacitor?.isNativePlatform?.() && (window as any).AndroidBridge?.openNotificationSettings) {
+      try {
+        (window as any).AndroidBridge.openNotificationSettings();
+        return true;
+      } catch {}
+    }
+
+    // 2. Standard Web/PWA Notification Permission Request
+    return this.requestPermission();
+  }
+
+  /**
+   * Requests permission to activate live surface.
    */
   public async requestPermission(): Promise<boolean> {
     if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -158,13 +206,3 @@ export class DynamicIslandCapabilityEngine {
 }
 
 export const dynamicIslandCapability = DynamicIslandCapabilityEngine.getInstance();
-
-/**
- * Public capability decision function.
- * Evaluates whether current platform supports live/floating playback mechanisms
- * AND has the required notification/live permissions granted.
- */
-export function isLivePlaybackSupported(): boolean {
-  if (typeof window === 'undefined') return false;
-  return dynamicIslandCapability.getCapability().isAvailable;
-}

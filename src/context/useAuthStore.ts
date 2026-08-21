@@ -47,6 +47,11 @@ export const useAuthStore = create<AuthState>((set) => ({
             session: newSession,
             user: newSession?.user || null
           });
+          if (event === 'SIGNED_IN' && newSession?.user?.id) {
+            import('@/lib/sync/AccountSyncEngine').then(({ AccountSyncEngine }) => {
+              AccountSyncEngine.getInstance().migrateGuestDataToUser(newSession.user.id);
+            }).catch(() => { });
+          }
         } else if (event === 'SIGNED_OUT') {
           set({ session: null, user: null });
         }

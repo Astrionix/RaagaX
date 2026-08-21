@@ -74,6 +74,7 @@ export interface PlaybackContext {
   contextUri?: string;
   collectionId?: string;
   title?: string;
+  name?: string;
   sourceIds?: string[];
 }
 

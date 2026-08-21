@@ -3,6 +3,8 @@
 import React from 'react';
 import {
   Home,
+  Flame,
+  Radio,
   Compass,
   Search,
   User,
@@ -113,6 +115,24 @@ export function Sidebar() {
           >
             <Home className="w-4 h-4" />
             <span>Home</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('new')}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold transition-all ${activeTab === 'new' ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
+              }`}
+          >
+            <Flame className="w-4 h-4" />
+            <span>New</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('radio')}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold transition-all ${activeTab === 'radio' ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
+              }`}
+          >
+            <Radio className="w-4 h-4" />
+            <span>Radio</span>
           </button>
 
           <button

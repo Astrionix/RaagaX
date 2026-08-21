@@ -7,6 +7,7 @@ import {
   ListMusic, FolderHeart, ArrowRight, ExternalLink 
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useAuthStore } from '@/context/useAuthStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { Song } from '@/types/music';
@@ -148,15 +149,23 @@ export function SearchView() {
     setRecentSearches(UnifiedSearchEngine.getInstance().getRecentSearches());
   };
 
-  const [selectedDiscoveryCategory, setSelectedDiscoveryCategory] = useState<DiscoveryCategory | null>(null);
+  const { user } = useAuthStore();
 
   const categories = [
-    { id: 'language' as DiscoveryCategory, tag: 'ACTIVE LANGUAGE', name: `🇮🇳 ${preferredLanguage || 'Telugu'}`, bg: 'from-red-600 to-rose-800' },
-    { id: 'new_music' as DiscoveryCategory, tag: 'DISCOVER', name: '✨ New Music', bg: 'from-orange-500 to-amber-700' },
-    { id: 'charts' as DiscoveryCategory, tag: 'DISCOVER', name: '📈 Charts', bg: 'from-[#EF233C] to-red-900' },
-    { id: 'playlists' as DiscoveryCategory, tag: 'DISCOVER', name: '🎵 Playlists', bg: 'from-blue-600 to-indigo-800' },
-    { id: 'mood' as DiscoveryCategory, tag: 'DISCOVER', name: '❤️ Mood', bg: 'from-purple-600 to-violet-900' },
-    { id: 'genres' as DiscoveryCategory, tag: 'DISCOVER', name: '🎸 Genres', bg: 'from-pink-600 to-purple-800' },
+    { id: 'telugu', tag: 'REGIONAL', name: 'Telugu', bg: 'from-[#FA233B] to-rose-950', query: 'Telugu Songs Hits' },
+    { id: 'hindi', tag: 'BOLLYWOOD', name: 'Hindi', bg: 'from-purple-600 to-indigo-950', query: 'Hindi Bollywood Hits' },
+    { id: 'tamil', tag: 'KUTHU & MASS', name: 'Tamil', bg: 'from-amber-500 to-orange-950', query: 'Tamil Songs Hits' },
+    { id: 'kannada', tag: 'SANDALWOOD', name: 'Kannada', bg: 'from-emerald-600 to-teal-950', query: 'Kannada Songs Hits' },
+    { id: 'malayalam', tag: 'MOLLEWOOD', name: 'Malayalam', bg: 'from-cyan-600 to-blue-950', query: 'Malayalam Songs Hits' },
+    { id: 'bollywood', tag: 'CINEMATIC', name: 'Bollywood', bg: 'from-red-600 to-stone-900', query: 'Bollywood Hits' },
+    { id: 'indian_indie', tag: 'INDEPENDENT', name: 'Indian Indie', bg: 'from-teal-500 to-emerald-950', query: 'Indian Indie Songs' },
+    { id: 'pop', tag: 'GLOBAL', name: 'Pop', bg: 'from-pink-500 to-purple-950', query: 'Pop Songs' },
+    { id: 'classical', tag: 'HERITAGE', name: 'Classical', bg: 'from-amber-600 to-yellow-950', query: 'Indian Classical Carnatic' },
+    { id: 'devotional', tag: 'SPIRITUAL', name: 'Devotional', bg: 'from-yellow-500 to-orange-950', query: 'Devotional Bhakti Songs' },
+    { id: 'charts', tag: 'TRENDING', name: 'Charts', bg: 'from-[#EF233C] to-red-950', query: 'Top 50 Hits' },
+    { id: 'melody', tag: 'SOULFUL', name: 'Melody', bg: 'from-rose-500 to-pink-950', query: 'Melody Love Songs' },
+    { id: 'lofi', tag: 'CHILL', name: 'Lo-fi', bg: 'from-indigo-600 to-slate-950', query: 'Lofi Chill Beats' },
+    { id: 'rock', tag: 'HIGH VOLTAGE', name: 'Rock', bg: 'from-orange-600 to-red-950', query: 'Rock Songs' },
   ];
 
   const [dynamicTrendingSearches, setDynamicTrendingSearches] = useState<Array<{ rank: number; term: string }>>([
@@ -199,6 +208,11 @@ export function SearchView() {
 
   return (
     <div className="space-y-6 pb-28 text-white select-none">
+      {/* Search Header */}
+      <div className="pt-1 pb-0.5">
+        <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">Search</h1>
+      </div>
+
       {/* 3D Liquid Lens Search Bar */}
       <div className="relative">
         <div className="relative flex items-center rounded-2xl lens-soft border border-white/18 focus-within:border-[#E50914]/60 shadow-[0_12px_35px_rgba(0,0,0,0.6)] focus-within:shadow-[0_12px_40px_rgba(229,9,20,0.25)] transition-all">
@@ -207,9 +221,9 @@ export function SearchView() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="✦ Search songs, albums, artists, or Telugu/Hindi lyrics..."
+            placeholder="Artists, Songs, Albums, Lyrics and More"
             className="w-full bg-transparent px-3.5 py-3.5 text-sm text-white placeholder-slate-400 font-medium focus:outline-none"
-            autoFocus
+            autoFocus={false}
           />
           {searchQuery ? (
             <button
@@ -247,16 +261,8 @@ export function SearchView() {
         )}
       </div>
 
-      {/* DISCOVERY HUB VIEW (When user clicks a Category Card) */}
-      {!searchQuery && selectedDiscoveryCategory && (
-        <DiscoveryHubView
-          initialCategory={selectedDiscoveryCategory}
-          onBack={() => setSelectedDiscoveryCategory(null)}
-        />
-      )}
-
       {/* IDLE VIEW: Recent Searches, Categories, and Trending */}
-      {!searchQuery && !selectedDiscoveryCategory && (
+      {!searchQuery && (
         <>
           {/* Recent Searches Section */}
           {recentSearches.length > 0 && (
@@ -294,20 +300,22 @@ export function SearchView() {
             </div>
           )}
 
-          {/* Explore Categories Tile Grid */}
+          {/* Explore Categories Tile Grid (Apple Music-style 2-column visual grid) */}
           <div className="space-y-3 pt-2">
-            <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">Explore Categories</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">Browse Categories</h3>
+            <div className="grid grid-cols-2 gap-3">
               {categories.map((cat) => (
                 <button
                   key={cat.id}
-                  onClick={() => setSelectedDiscoveryCategory(cat.id)}
-                  className={`h-24 rounded-2xl bg-gradient-to-br ${cat.bg} p-4 flex flex-col justify-between font-black text-base text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all text-left cursor-pointer group`}
+                  onClick={() => setSearchQuery(cat.query || cat.name)}
+                  className={`h-28 rounded-2xl bg-gradient-to-br ${cat.bg} p-4 flex flex-col justify-between font-black text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all text-left cursor-pointer group relative overflow-hidden`}
                 >
-                  <span className="text-[10px] font-black tracking-widest opacity-80 uppercase">
+                  <span className="text-[9px] font-black tracking-widest opacity-80 uppercase z-10">
                     {cat.tag}
                   </span>
-                  <span className="text-base sm:text-lg font-black">{cat.name}</span>
+                  <span className="text-base sm:text-lg font-black tracking-tight leading-tight z-10">
+                    {cat.name}
+                  </span>
                 </button>
               ))}
             </div>

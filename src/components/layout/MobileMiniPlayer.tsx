@@ -21,12 +21,37 @@ import { OptimizedImage } from '@/components/common/OptimizedImage';
  */
 export function MobileMiniPlayer() {
   const [mounted, setMounted] = React.useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const [swipeOffset, setSwipeOffset] = useState({ x: 0, y: 0 });
 
   React.useEffect(() => {
     setMounted(true);
+
+    const mainEl = document.querySelector('.main-content');
+    let ticking = false;
+
+    const handleScroll = () => {
+      const currentScrollY = mainEl ? mainEl.scrollTop : window.scrollY;
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          setIsScrolled(currentScrollY > 25);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    if (mainEl) {
+      mainEl.addEventListener('scroll', handleScroll, { passive: true });
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true });
+
+    return () => {
+      if (mainEl) mainEl.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('scroll', handleScroll);
+    };
   }, []);
 
   const {
@@ -106,9 +131,11 @@ export function MobileMiniPlayer() {
 
   return (
     <div
-      className="md:hidden fixed left-3 right-3 z-40 max-w-lg mx-auto transition-transform duration-150 ease-out select-none"
+      className="md:hidden fixed left-4 right-4 z-40 max-w-[480px] mx-auto transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] select-none pointer-events-none"
       style={{
-        bottom: 'calc(4.1rem + env(safe-area-inset-bottom))',
+        bottom: isScrolled 
+          ? 'calc(3.45rem + env(safe-area-inset-bottom))' 
+          : 'calc(3.75rem + env(safe-area-inset-bottom))',
         transform: `translate(${swipeOffset.x}px, ${swipeOffset.y}px)`,
       }}
       onTouchStart={handleTouchStart}
@@ -117,23 +144,30 @@ export function MobileMiniPlayer() {
     >
       {/* Dynamic Album-derived Ambient Illumination Layer */}
       <div 
-        className="absolute -inset-2 rounded-3xl opacity-40 blur-2xl pointer-events-none transition-all duration-700"
+        className={`absolute -inset-1.5 rounded-3xl opacity-35 blur-xl pointer-events-none transition-all duration-700 ${
+          isScrolled ? 'opacity-20 blur-md' : 'opacity-35 blur-xl'
+        }`}
         style={{
           backgroundImage: `url(${coverUrl})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-          filter: 'blur(28px) saturate(200%)',
+          filter: 'blur(22px) saturate(180%)',
         }}
       />
 
-      {/* Main 3D Floating Liquid Lens Panel */}
-      <div className="relative lens-floating rounded-[22px] p-2.5 flex flex-col overflow-hidden border border-white/12 shadow-[0_16px_40px_rgba(0,0,0,0.7)] backdrop-blur-2xl">
-        
+      {/* Main 3D Floating Liquid Lens Panel (80dp Normal -> 52dp Collapsed) */}
+      <div 
+        className={`pointer-events-auto relative lens-floating flex flex-col justify-center overflow-hidden border border-white/12 shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-2xl transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          isScrolled 
+            ? 'h-[52px] rounded-[18px] px-3 py-1.5' 
+            : 'h-[78px] rounded-[22px] px-3.5 py-2.5'
+        }`}
+      >
         {/* Specular Light Refraction Rim */}
         <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/35 to-transparent pointer-events-none" />
 
         {/* Top Edge Progress Indicator */}
-        <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden pointer-events-none rounded-t-[22px]">
+        <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden pointer-events-none">
           <SeekBar
             className="w-full h-full"
             height="h-[2px]"
@@ -145,9 +179,14 @@ export function MobileMiniPlayer() {
           {/* Left: Artwork + Title + Artist */}
           <div 
             onClick={togglePlayerExpanded}
-            className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer py-0.5"
+            className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
           >
-            <div className="relative flex-shrink-0 w-11 h-11 rounded-xl overflow-hidden shadow-lg bg-black/50 border border-white/10">
+            {/* Artwork (44dp Normal -> 36dp Collapsed) */}
+            <div 
+              className={`relative flex-shrink-0 overflow-hidden shadow bg-black/50 border border-white/10 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                isScrolled ? 'w-[36px] h-[36px] rounded-lg' : 'w-[44px] h-[44px] rounded-xl'
+              }`}
+            >
               <OptimizedImage
                 src={coverUrl}
                 alt={currentSong.title}
@@ -157,74 +196,82 @@ export function MobileMiniPlayer() {
               {/* Playing Soundwave Pill Overlay */}
               {isPlaying && (
                 <div className="absolute inset-0 bg-black/30 flex items-center justify-center gap-0.5 pointer-events-none">
-                  <span className="w-0.5 h-3 bg-[#E50914] rounded-full animate-[pulse_0.4s_infinite_alternate]" />
-                  <span className="w-0.5 h-4 bg-white rounded-full animate-[pulse_0.5s_infinite_alternate_0.1s]" />
+                  <span className="w-0.5 h-2.5 bg-[#E50914] rounded-full animate-[pulse_0.4s_infinite_alternate]" />
+                  <span className="w-0.5 h-3.5 bg-white rounded-full animate-[pulse_0.5s_infinite_alternate_0.1s]" />
                   <span className="w-0.5 h-2 bg-[#E50914] rounded-full animate-[pulse_0.45s_infinite_alternate_0.2s]" />
                 </div>
               )}
             </div>
 
+            {/* Metadata Text */}
             <div className="min-w-0 flex-1">
-              <h4 className="text-[13px] font-bold text-[var(--text-primary)] truncate leading-snug">
+              <h4 className="text-xs sm:text-[13px] font-bold text-[var(--text-primary)] truncate leading-tight">
                 {currentSong.title}
               </h4>
-              <p className="text-[11px] text-[var(--text-secondary)] truncate leading-snug flex items-center gap-1.5 mt-0.5">
-                {!isActiveDevice ? (
-                  <span className="text-[#E50914] font-medium flex items-center gap-1">
-                    <Disc3 className="w-3 h-3 animate-spin" />
-                    {remoteDeviceName || 'Remote Device'}
-                  </span>
-                ) : (
-                  <span>{currentSong.artist}</span>
-                )}
-              </p>
+              {!isScrolled && (
+                <p className="text-[11px] text-[var(--text-secondary)] truncate leading-tight flex items-center gap-1 mt-0.5 animate-in fade-in duration-200">
+                  {!isActiveDevice ? (
+                    <span className="text-[#E50914] font-medium flex items-center gap-1">
+                      <Disc3 className="w-3 h-3 animate-spin" />
+                      {remoteDeviceName || 'Remote Device'}
+                    </span>
+                  ) : (
+                    <span>{currentSong.artist}</span>
+                  )}
+                </p>
+              )}
             </div>
           </div>
 
-          {/* Right: Controls (Like, Play/Pause, Next) */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleLikeSong(currentSong.id);
-              }}
-              aria-label="Favorite track"
-              className="p-2 text-[#94A3B8] hover:text-white active:scale-90 transition-transform cursor-pointer"
-            >
-              <Heart
-                className={`w-4 h-4 transition-colors ${
-                  isLiked ? 'fill-[#E50914] text-[#E50914]' : ''
+          {/* Right: Controls (Like, Device Cast, 44dp Play/Pause, Next) */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {/* Favorite button (visible in Normal state) */}
+            {!isScrolled && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleLikeSong(currentSong.id);
+                }}
+                aria-label="Favorite track"
+                className="w-11 h-11 flex items-center justify-center text-[#94A3B8] hover:text-white active:scale-90 transition-transform cursor-pointer rounded-full"
+              >
+                <Heart
+                  className={`w-4 h-4 transition-colors ${
+                    isLiked ? 'fill-[#E50914] text-[#E50914]' : ''
+                  }`}
+                  strokeWidth={2.2}
+                />
+              </button>
+            )}
+
+            {/* Audio Output Device Sheet Trigger (visible in Normal state) */}
+            {!isScrolled && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  usePlayerStore.getState().toggleDeviceModal();
+                }}
+                aria-label="Connect to My Device"
+                className={`w-11 h-11 rounded-full transition-all active:scale-90 flex items-center justify-center relative cursor-pointer ${
+                  !isActiveDevice ? 'text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 shadow-sm' : 'text-[#94A3B8] hover:text-white'
                 }`}
-                strokeWidth={2.2}
-              />
-            </button>
+                title={remoteDeviceName ? `Connected: ${remoteDeviceName}` : 'Connect to My Device'}
+              >
+                <MonitorSmartphone className="w-4 h-4" />
+                {!isActiveDevice && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 absolute top-2 right-2 animate-ping" />
+                )}
+              </button>
+            )}
 
-            {/* Audio Output Device Sheet Trigger (Connect to My Device) */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                usePlayerStore.getState().toggleDeviceModal();
-              }}
-              aria-label="Connect to My Device"
-              className={`p-2 rounded-full transition-all active:scale-90 flex items-center justify-center relative cursor-pointer ${
-                !isActiveDevice ? 'text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 shadow-sm' : 'text-[#94A3B8] hover:text-white'
-              }`}
-              title={remoteDeviceName ? `Connected: ${remoteDeviceName}` : 'Connect to My Device (Cast & Sync)'}
-            >
-              <MonitorSmartphone className="w-4 h-4" />
-              {!isActiveDevice && (
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 absolute top-1 right-1 animate-ping" />
-              )}
-            </button>
-
-            {/* Play/Pause Button */}
+            {/* Play/Pause Button (44dp Touch Target) */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 togglePlayPause();
               }}
               aria-label={isPlaying ? 'Pause' : 'Play'}
-              className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center active:scale-90 transition-transform shadow-[0_4px_15px_rgba(255,255,255,0.25)] cursor-pointer"
+              className="w-11 h-11 rounded-full bg-white text-black flex items-center justify-center active:scale-90 transition-transform shadow-[0_3px_12px_rgba(255,255,255,0.2)] cursor-pointer flex-shrink-0"
             >
               {isPlaying ? (
                 <Pause className="w-4 h-4 fill-black text-black" />
@@ -233,17 +280,19 @@ export function MobileMiniPlayer() {
               )}
             </button>
 
-            {/* Next Track */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                playNext();
-              }}
-              aria-label="Next track"
-              className="p-2 text-[#94A3B8] hover:text-white active:scale-90 transition-transform cursor-pointer"
-            >
-              <SkipForward className="w-4 h-4" />
-            </button>
+            {/* Next Track Button */}
+            {!isScrolled && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  playNext();
+                }}
+                aria-label="Next track"
+                className="w-11 h-11 flex items-center justify-center text-[#94A3B8] hover:text-white active:scale-90 transition-transform cursor-pointer rounded-full"
+              >
+                <SkipForward className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 

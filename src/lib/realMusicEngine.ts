@@ -53,7 +53,14 @@ export class RealMusicEngine {
    * does NOT cancel other in-flight requests.
    */
   public async searchRealSongs(query: string, limit = 15): Promise<Song[]> {
-    const q = query.trim() || 'Trending Telugu Songs';
+    // Sanitize query: strip surrounding/unescaped quotes and brackets that break upstream parsers
+    const cleanQ = (query || '')
+      .replace(/["“”'‘’]/g, '')
+      .replace(/\(From\s+[^)]+\)/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const q = cleanQ || 'Trending Telugu Songs';
     const url = `${getLocalApiBase()}/search/songs?query=${encodeURIComponent(q)}&limit=${limit}`;
 
     // Fresh controller per request

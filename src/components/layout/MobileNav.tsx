@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Home, Search, Library, Download, User } from 'lucide-react';
+import { Home, Flame, Radio, Library, User } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { ActiveTab } from '@/types/music';
 
@@ -10,11 +10,20 @@ export function MobileNav() {
 
   const navItems = [
     { id: 'home' as const, label: 'Home', icon: Home },
-    { id: 'search' as const, label: 'Search', icon: Search },
+    { id: 'new' as const, label: 'New', icon: Flame },
+    { id: 'radio' as const, label: 'Radio', icon: Radio },
     { id: 'library' as const, label: 'Library', icon: Library },
-    { id: 'downloads' as const, label: 'Downloads', icon: Download },
-    { id: 'profile' as const, label: 'Profile', icon: User },
+    { id: 'profile' as const, label: 'You', icon: User },
   ];
+
+  const isItemActive = (id: string) => {
+    if (id === 'home') return activeTab === 'home';
+    if (id === 'new') return activeTab === 'new';
+    if (id === 'radio') return activeTab === 'radio';
+    if (id === 'library') return ['library', 'downloads', 'favorites', 'history', 'insights', 'recaps', 'album', 'artist', 'playlist'].includes(activeTab);
+    if (id === 'profile') return ['profile', 'settings'].includes(activeTab);
+    return activeTab === id;
+  };
 
   return (
     <div 
@@ -22,14 +31,14 @@ export function MobileNav() {
       style={{ bottom: 'calc(0.35rem + env(safe-area-inset-bottom))' }}
     >
       <nav 
-        className="pointer-events-auto flex items-center justify-between gap-1 px-3 py-1.5 rounded-[28px] lens-floating shadow-[0_16px_40px_rgba(0,0,0,0.7)] w-full max-w-[380px] border border-white/10 relative overflow-hidden"
+        className="pointer-events-auto flex items-center justify-between gap-1 px-3 py-1.5 rounded-[22px] lens-floating shadow-[0_12px_32px_rgba(0,0,0,0.65)] w-full max-w-[480px] border border-white/10 relative overflow-hidden"
         aria-label="Mobile Navigation"
       >
         {/* Specular Liquid Edge Light */}
         <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none" />
 
         {navItems.map((item) => {
-          const isActive = activeTab === item.id;
+          const isActive = isItemActive(item.id);
           const Icon = item.icon;
           
           return (
@@ -39,7 +48,7 @@ export function MobileNav() {
                 import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact());
                 setActiveTab(item.id as ActiveTab);
               }}
-              className={`relative flex-1 flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+              className={`relative flex-1 flex flex-col items-center justify-center min-h-[44px] py-1 px-1.5 rounded-xl transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer ${
                 isActive 
                   ? 'scale-105' 
                   : 'text-slate-400 hover:text-[var(--text-primary)] active:scale-95'
@@ -48,7 +57,7 @@ export function MobileNav() {
               {/* Soft Active Red Lens Droplet */}
               {isActive && (
                 <span 
-                  className="absolute inset-0 rounded-2xl bg-[#E50914]/15 border border-[#E50914]/30 shadow-[0_2px_12px_rgba(229,9,20,0.2)] pointer-events-none animate-in fade-in zoom-in-95 duration-200" 
+                  className="absolute inset-0 rounded-xl bg-[#E50914]/15 border border-[#E50914]/30 shadow-[0_2px_12px_rgba(229,9,20,0.2)] pointer-events-none animate-in fade-in zoom-in-95 duration-200" 
                 />
               )}
 

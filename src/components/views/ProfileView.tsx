@@ -60,7 +60,6 @@ export function ProfileView() {
   const [analytics, setAnalytics] = useState<AnalyticsSnapshot | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<TimeFilterPeriod>('all');
   const [selectedLangName, setSelectedLangName] = useState<string | null>(null);
-  const [recentPlayedSongs, setRecentPlayedSongs] = useState<Song[]>([]);
   const [activeTabSub, setActiveTabSub] = useState<'journey' | 'settings'>('journey');
 
   useEffect(() => {
@@ -76,22 +75,6 @@ export function ProfileView() {
     const load = async () => {
       const data = await ListeningAnalyticsEngine.getInstance().getAnalytics(user?.id || 'guest');
       setAnalytics(data);
-
-      try {
-        const historyInstance = QueueHistory.getInstance();
-        const entries = await historyInstance.ensureLoaded();
-        const seen = new Set<string>();
-        const songs: Song[] = [];
-        for (let i = entries.length - 1; i >= 0; i--) {
-          const s = entries[i].song;
-          if (s && !seen.has(s.id)) {
-            seen.add(s.id);
-            songs.push(s);
-          }
-          if (songs.length >= 8) break;
-        }
-        setRecentPlayedSongs(songs);
-      } catch {}
     };
     load();
   }, [user?.id]);
@@ -590,50 +573,6 @@ export function ProfileView() {
             </div>
 
           </div>
-
-          {/* ======================================================== */}
-          {/* 9. RECENTLY PLAYED QUICK SHELF                           */}
-          {/* ======================================================== */}
-          {recentPlayedSongs.length > 0 && (
-            <section className="space-y-3 pt-2">
-              <div className="flex items-center justify-between px-1">
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-[#E50914]" /> RECENTLY PLAYED
-                </h3>
-                <button 
-                  onClick={() => setActiveTab('library')}
-                  className="text-xs font-bold text-[#FF1E27] hover:underline"
-                >
-                  View Library →
-                </button>
-              </div>
-
-              <div className="divide-y divide-white/5 glass-frosted rounded-2xl border border-white/10 overflow-hidden shadow-lg">
-                {recentPlayedSongs.map((song) => (
-                  <div 
-                    key={song.id} 
-                    onClick={() => playSong(song, recentPlayedSongs)}
-                    className="p-3.5 flex items-center justify-between hover:bg-white/5 transition-colors cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <img src={song.coverUrl} alt={song.title} className="w-11 h-11 rounded-xl object-cover shadow-sm flex-shrink-0" />
-                      <div className="min-w-0">
-                        <h4 className="text-xs font-bold text-white truncate group-hover:text-red-400 transition-colors">{song.title}</h4>
-                        <p className="text-[11px] text-slate-400 truncate mt-0.5">{song.artist}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <span className="text-[11px] text-slate-500 font-mono hidden sm:inline">Recently Played</span>
-                      <button className="w-8 h-8 rounded-full bg-white/10 group-hover:bg-[#E50914] text-white flex items-center justify-center transition-all">
-                        <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
         </>
       ) : (
         /* ======================================================== */
@@ -679,11 +618,39 @@ export function ProfileView() {
               </div>
 
               <button
+                onClick={toggleDeviceModal}
+                className="w-full py-4 px-4 flex items-center justify-between hover:bg-white/5 transition-colors text-left"
+              >
+                <div className="flex items-center gap-3.5">
+                  <MonitorSmartphone className="w-5 h-5 text-cyan-400" />
+                  <div>
+                    <span className="text-sm font-bold text-white block">Connect to My Devices</span>
+                    <span className="text-[11px] text-slate-400">Control playback seamlessly on Phone, Desktop & Smart Speakers</span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-500" />
+              </button>
+
+              <button
+                onClick={() => setActiveTab('downloads')}
+                className="w-full py-4 px-4 flex items-center justify-between hover:bg-white/5 transition-colors text-left"
+              >
+                <div className="flex items-center gap-3.5">
+                  <Download className="w-5 h-5 text-emerald-400" />
+                  <div>
+                    <span className="text-sm font-bold text-white block">Storage & Downloads</span>
+                    <span className="text-[11px] text-slate-400">Offline song management and download audio quality</span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-500" />
+              </button>
+
+              <button
                 onClick={toggleBackupModal}
                 className="w-full py-4 px-4 flex items-center justify-between hover:bg-white/5 transition-colors text-left"
               >
                 <div className="flex items-center gap-3.5">
-                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                  <ShieldCheck className="w-5 h-5 text-purple-400" />
                   <div>
                     <span className="text-sm font-bold text-white block">Backup & Cloud Sync</span>
                     <span className="text-[11px] text-slate-400">Cross-device history backup and restore</span>
@@ -691,6 +658,35 @@ export function ProfileView() {
                 </div>
                 <ChevronRight className="w-4 h-4 text-slate-500" />
               </button>
+
+              <button
+                onClick={() => {
+                  import('@/context/useNotificationStore').then(({ useNotificationStore }) => {
+                    useNotificationStore.getState().toggleOpen();
+                  });
+                }}
+                className="w-full py-4 px-4 flex items-center justify-between hover:bg-white/5 transition-colors text-left"
+              >
+                <div className="flex items-center gap-3.5">
+                  <Sparkles className="w-5 h-5 text-amber-400" />
+                  <div>
+                    <span className="text-sm font-bold text-white block">Notifications & Alerts</span>
+                    <span className="text-[11px] text-slate-400">New releases from followed artists & system alerts</span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-500" />
+              </button>
+
+              <div className="py-3 px-4 flex items-center justify-between">
+                <div className="flex items-center gap-3.5">
+                  <Info className="w-5 h-5 text-slate-400" />
+                  <div>
+                    <span className="text-sm font-bold text-white block">About RaagaX</span>
+                    <span className="text-[11px] text-slate-400">v1.0.0 Studio Edition • Pure Audiophile Experience</span>
+                  </div>
+                </div>
+                <span className="text-[10px] font-mono text-slate-500">Audio Only</span>
+              </div>
             </div>
           </div>
         </section>

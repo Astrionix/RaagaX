@@ -138,9 +138,9 @@ export interface AIDJState {
   insightText: string;
 }
 
-export type PlaybackContext = { type: 'album' | 'playlist' | 'radio' | 'recommendation' | 'album_sequence'; id?: string; language?: string; mood?: string; genre?: string; seedSongId?: string; seedAlbumId?: string; seedPlaylistId?: string; collectionId?: string; };
+export type PlaybackContext = { type: 'album' | 'playlist' | 'radio' | 'recommendation' | 'album_sequence' | 'artist' | 'genre' | 'made_for_you' | 'new_releases' | 'queue' | 'search' | string; id?: string; title?: string; name?: string; language?: string; mood?: string; genre?: string; seedSongId?: string; seedAlbumId?: string; seedPlaylistId?: string; collectionId?: string; contextType?: string; };
 
-export type ActiveTab = 'home' | 'search' | 'library' | 'video' | 'radio' | 'ai-dj' | 'artist' | 'album' | 'playlist' | 'profile' | 'downloads' | 'favorites' | 'settings' | 'insights' | 'recaps' | 'history';
+export type ActiveTab = 'home' | 'new' | 'search' | 'library' | 'genres' | 'video' | 'radio' | 'ai-dj' | 'artist' | 'album' | 'playlist' | 'profile' | 'downloads' | 'favorites' | 'settings' | 'insights' | 'recaps' | 'history';
 
 export interface Device {
   id: string;

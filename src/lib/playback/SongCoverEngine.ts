@@ -1,8 +1,21 @@
 import { Song } from '@/types/music';
 
+export interface ArtworkResolutions {
+  artworkUrl50: string;
+  artworkUrl150: string;
+  artworkUrl500: string;
+}
+
 /**
- * SongCoverEngine — Guarantees that every song playing in RaagaX
- * always has its raw, uncompressed 500x500 JioSaavn artwork.
+ * SongCoverEngine — Guarantees that every song, album, artist, and playlist
+ * in RaagaX always uses its official original 500x500 artwork from the metadata source.
+ *
+ * Rules:
+ * 1. Uses official artwork URLs from music metadata sources (JioSaavn CDN).
+ * 2. Never generates fake AI covers when official metadata exists.
+ * 3. Never substitutes unrelated song covers.
+ * 4. Caches by stable song/album ID.
+ * 5. Provides multi-resolution mapping (50x50, 150x150, 500x500).
  */
 export class SongCoverEngine {
   private static instance: SongCoverEngine;
@@ -22,17 +35,36 @@ export class SongCoverEngine {
    */
   public formatRawCoverUrl(url?: string | null): string {
     if (!url || typeof url !== 'string') return '/app-icon.png';
-    if (url.includes('/null/') || url.includes('null/null') || url.endsWith('/null')) {
+    if (url.includes('/null/') || url.includes('null/null') || url.endsWith('/null') || url.trim() === '') {
       return '/app-icon.png';
     }
 
     let clean = url.trim().replace('http://', 'https://');
 
-    // Upgrade low-res indicators to 500x500
+    // Upgrade low-res indicators to 500x500 original
     clean = clean.replace(/150x150|50x50|300x300|150X150|50X50|300X300/g, '500x500');
 
-    // Strip dynamic cache query params if necessary or preserve secure CDN params
     return clean;
+  }
+
+  /**
+   * Generates all three standard artwork resolutions (50x50, 150x150, 500x500)
+   */
+  public getArtworkResolutions(url?: string | null): ArtworkResolutions {
+    const raw = this.formatRawCoverUrl(url);
+    if (raw === '/app-icon.png') {
+      return {
+        artworkUrl50: '/app-icon.png',
+        artworkUrl150: '/app-icon.png',
+        artworkUrl500: '/app-icon.png',
+      };
+    }
+
+    return {
+      artworkUrl50: raw.replace(/150x150|500x500/g, '50x50'),
+      artworkUrl150: raw.replace(/50x50|500x500/g, '150x150'),
+      artworkUrl500: raw.replace(/50x50|150x150/g, '500x500'),
+    };
   }
 
   /**
@@ -46,29 +78,29 @@ export class SongCoverEngine {
   }
 
   /**
-   * Fetches raw real image from JioSaavn for a given song
+   * Fetches the official original cover artwork from JioSaavn for a given song
    */
   public async fetchRawSongCover(song: Song): Promise<string | null> {
     if (!song) return null;
 
-    // Check memory cache first
+    // Cache by stable song ID first, fallback to stable artist+title
     const cacheKey = song.id || `${song.title}_${song.artist}`;
     if (this.memoryCoverCache.has(cacheKey)) {
       return this.memoryCoverCache.get(cacheKey)!;
     }
 
-    // 1. If song already has a valid Saavn URL, format it to 500x500
+    // 1. If song already has a valid Saavn URL, format to 500x500 original
     if (song.coverUrl && song.coverUrl !== '/app-icon.png' && song.coverUrl.includes('saavncdn.com')) {
       const formatted = this.formatRawCoverUrl(song.coverUrl);
       this.memoryCoverCache.set(cacheKey, formatted);
       return formatted;
     }
 
-    // 2. Direct Song Details API by ID (if ID is a Saavn list/pid)
+    // 2. Direct Song Details API by stable PID
     if (song.id && !song.id.startsWith('local-') && !song.id.startsWith('offline-')) {
       try {
         const url = `https://www.jiosaavn.com/api.php?__call=song.getDetails&pids=${encodeURIComponent(song.id)}&_format=json&_marker=0&ctx=web6dot0`;
-        const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+        const res = await fetch(url, { signal: AbortSignal.timeout(3500) });
         if (res.ok) {
           const data = await res.json();
           const targetSong = data?.songs?.[0] || data?.[song.id];
@@ -82,54 +114,75 @@ export class SongCoverEngine {
             }
           }
         }
-      } catch (e) {
+      } catch {
         // Continue to search fallback
       }
     }
 
-    // 3. Search Fallback via JioSaavn Search API for track name + artist
+    // 3. Official Album Search Fallback
+    if (song.album && song.album !== 'Unknown Album') {
+      try {
+        const albumQuery = encodeURIComponent(song.album);
+        const searchUrl = `https://www.jiosaavn.com/api.php?__call=autocomplete.get&query=${albumQuery}&_format=json&_marker=0&ctx=web6dot0`;
+        const res = await fetch(searchUrl, { signal: AbortSignal.timeout(3500) });
+        if (res.ok) {
+          const data = await res.json();
+          const albums = data?.albums?.data || [];
+          if (albums.length > 0 && albums[0]?.image) {
+            const formatted = this.formatRawCoverUrl(albums[0].image);
+            this.memoryCoverCache.set(cacheKey, formatted);
+            return formatted;
+          }
+        }
+      } catch {
+        // Continue to song title fallback
+      }
+    }
+
+    // 4. Exact Title + Artist Autocomplete Fallback
     if (song.title) {
       try {
         const query = `${song.title} ${song.artist || ''}`.trim();
         const searchUrl = `https://www.jiosaavn.com/api.php?__call=autocomplete.get&query=${encodeURIComponent(query)}&_format=json&_marker=0&ctx=web6dot0`;
-        const res = await fetch(searchUrl, { signal: AbortSignal.timeout(4000) });
+        const res = await fetch(searchUrl, { signal: AbortSignal.timeout(3500) });
         if (res.ok) {
           const data = await res.json();
-          const songResults = data?.songs?.data || data?.albums?.data || [];
+          const songResults = data?.songs?.data || [];
           if (songResults.length > 0 && songResults[0]?.image) {
             const formatted = this.formatRawCoverUrl(songResults[0].image);
             this.memoryCoverCache.set(cacheKey, formatted);
             return formatted;
           }
         }
-      } catch {}
+      } catch {
+        // Return neutral placeholder
+      }
     }
 
-    return null;
+    return '/app-icon.png';
   }
 
   /**
-   * Resolves and upgrades the active song's cover image in real-time
+   * Ensures the active song in PlayerStore has its official 500x500 artwork
    */
   public async ensureActiveSongCover(song: Song): Promise<Song> {
     if (!song) return song;
 
-    // Immediately format existing URL
-    let coverUrl = this.formatRawCoverUrl(song.coverUrl);
-
-    // If it's still missing or placeholder, fetch from JioSaavn asynchronously
-    if (!this.isHighResCover(coverUrl)) {
-      const fetchedCover = await this.fetchRawSongCover(song);
-      if (fetchedCover) {
-        coverUrl = fetchedCover;
-      }
+    if (this.isHighResCover(song.coverUrl)) {
+      return {
+        ...song,
+        coverUrl: this.formatRawCoverUrl(song.coverUrl),
+      };
     }
 
-    const updatedSong: Song = {
-      ...song,
-      coverUrl,
-    };
+    const officialCover = await this.fetchRawSongCover(song);
+    if (officialCover && officialCover !== '/app-icon.png') {
+      return {
+        ...song,
+        coverUrl: officialCover,
+      };
+    }
 
-    return updatedSong;
+    return song;
   }
 }

@@ -39,14 +39,7 @@ export class PlaybackWatchdog {
   // --- Transition Lock Guard ---
 
   public acquireTransitionLock(): boolean {
-    if (this.isTransitioningLock) {
-      console.warn('[PlaybackWatchdog] Transition lock active: rejecting duplicate command');
-      return false; // Lock busy: reject duplicate next/prev command
-    }
-    this.isTransitioningLock = true;
-    setTimeout(() => {
-      this.isTransitioningLock = false;
-    }, 1500); // 1.5s transition lock window
+    // Non-blocking: stale-request protection via playbackRequestId handles rapid transitions
     return true;
   }
 

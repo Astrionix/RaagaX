@@ -12,6 +12,7 @@ import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 import { Song } from '@/types/music';
 import { haptics } from '@/lib/haptics/HapticEngine';
+import { DynamicArtworkAtmosphere } from '@/components/common/DynamicArtworkAtmosphere';
 
 type SortOption = 'default' | 'az' | 'za' | 'popular';
 
@@ -152,7 +153,12 @@ export function AlbumDetailView() {
       togglePlayPause();
     } else {
       setRemoteState({ shuffleMode: 'OFF' });
-      playSong(tracks[0], tracks);
+      playSong(tracks[0], tracks, {
+        type: 'album',
+        id: album.id,
+        title: album.title,
+        name: album.title,
+      });
     }
   };
 
@@ -200,25 +206,10 @@ export function AlbumDetailView() {
     : '/app-icon.png';
 
   return (
-    <div className="relative min-h-screen text-white pb-36 select-none animate-in fade-in duration-300">
-      {/* ── ATMOSPHERIC DYNAMIC BACKGROUND ────────────────────────────────── */}
-      <div
-        className="absolute top-0 inset-x-0 h-[480px] pointer-events-none blur-[140px] opacity-35 scale-[1.25] transition-all duration-1000 -z-10"
-        style={{
-          backgroundImage: `radial-gradient(circle at 50% 25%, var(--chameleon-primary, #fa233b) 0%, var(--chameleon-secondary, #8b5cf6) 40%, transparent 75%)`,
-        }}
-      />
-      <div
-        className="absolute top-0 inset-x-0 h-[420px] pointer-events-none blur-[100px] opacity-25 -z-10"
-        style={{
-          backgroundImage: `url(${coverUrl})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      />
-
-      {/* ── TOP NAVIGATION BAR ────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-4 backdrop-blur-xl bg-[#08090d]/80 border-b border-white/5">
+    <DynamicArtworkAtmosphere artworkUrl={coverUrl} isPlaying={isPlaying}>
+      <div className="relative min-h-screen text-white pb-36 select-none animate-in fade-in duration-300">
+        {/* ── TOP NAVIGATION BAR ────────────────────────────────────────────── */}
+        <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-4 backdrop-blur-xl bg-[#08090d]/80 border-b border-white/5">
         <button
           onClick={() => {
             setSelectedAlbumId(null);
@@ -363,10 +354,10 @@ export function AlbumDetailView() {
         </div>
 
         {/* ── ACTION BUTTONS ROW ─────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center justify-center md:justify-start gap-3.5 mt-8 pt-6 border-t border-white/10">
+        <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-8 pt-6 border-t border-white/10">
           <button
             onClick={handlePlayAll}
-            className="flex items-center gap-2.5 px-7 py-3.5 rounded-full bg-[#fa233b] hover:bg-[#d91e32] text-white font-black text-sm shadow-xl shadow-red-500/25 active:scale-95 transition-all cursor-pointer"
+            className="h-11 px-6 rounded-full bg-[#fa233b] hover:bg-[#d91e32] text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xl shadow-red-500/25 active:scale-95 transition-all cursor-pointer shrink-0 whitespace-nowrap"
           >
             {isCurrentAlbumPlaying ? (
               <>
@@ -381,38 +372,9 @@ export function AlbumDetailView() {
 
           <button
             onClick={handleShufflePlay}
-            className="flex items-center gap-2 px-5 py-3.5 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold text-sm border border-white/10 active:scale-95 transition-all cursor-pointer"
+            className="h-11 px-5 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-white/10 active:scale-95 transition-all cursor-pointer shrink-0 whitespace-nowrap"
           >
             <Shuffle className="w-4 h-4" /> Shuffle
-          </button>
-
-          {/* Smart Download All Button (Mobile/Native only) */}
-          <button
-            onClick={isAllDownloaded ? handleRemoveAllDownloads : handleDownloadAll}
-            className={`md:hidden flex items-center gap-2 px-5 py-3.5 rounded-full font-bold text-sm border transition-all active:scale-95 cursor-pointer ${
-              isAllDownloaded
-                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                : isDownloadingAlbum
-                ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
-                : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/90'
-            }`}
-          >
-            {isDownloadingAlbum ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
-                <span>Downloading ({downloadingCount})</span>
-              </>
-            ) : isAllDownloaded ? (
-              <>
-                <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
-                <span>Downloaded</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4" />
-                <span>{isPartialDownloaded ? `Download (${tracks.length - downloadedCount} left)` : 'Download All'}</span>
-              </>
-            )}
           </button>
 
           {/* ＋ Add to Library / ✓ In Library Button */}
@@ -424,7 +386,7 @@ export function AlbumDetailView() {
                 setToastMessage(isLikedAlbum ? 'Removed album from Library' : 'Added album to Library (Albums)');
               }
             }}
-            className={`flex items-center gap-2 px-5 py-3.5 rounded-full font-bold text-sm border transition-all active:scale-95 cursor-pointer ${
+            className={`h-11 px-5 rounded-full font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border transition-all active:scale-95 cursor-pointer shrink-0 whitespace-nowrap ${
               isLikedAlbum
                 ? 'bg-purple-500/20 border-purple-500/40 text-purple-300 shadow-lg shadow-purple-500/20'
                 : 'bg-white/10 hover:bg-white/20 border-white/15 text-white'
@@ -439,7 +401,7 @@ export function AlbumDetailView() {
             ) : (
               <>
                 <Plus className="w-4 h-4" />
-                <span>Add to Library</span>
+                <span>Save</span>
               </>
             )}
           </button>
@@ -453,26 +415,23 @@ export function AlbumDetailView() {
                 setToastMessage(isLikedAlbum ? 'Removed from Favorites' : 'Liked album');
               }
             }}
-            className={`p-3.5 rounded-full border transition-all active:scale-95 cursor-pointer ${
+            className={`w-11 h-11 rounded-full flex items-center justify-center border transition-all active:scale-95 cursor-pointer shrink-0 ${
               isLikedAlbum
                 ? 'bg-red-500/15 border-red-500/30 text-[#fa233b]'
                 : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white'
             }`}
             title={isLikedAlbum ? 'Unlike Album' : 'Like Album'}
           >
-            <Heart className={`w-5 h-5 ${isLikedAlbum ? 'fill-current text-[#fa233b]' : ''}`} />
+            <Heart className={`w-4 h-4 ${isLikedAlbum ? 'fill-current text-[#fa233b]' : ''}`} />
           </button>
         </div>
       </div>
 
       {/* ── TRACK LIST SECTION ────────────────────────────────────────────── */}
       <div className="max-w-6xl mx-auto px-4 sm:px-8">
-        {/* Track List Header & Sort Option */}
-        <div className="flex items-center justify-between pb-3 mb-2 border-b border-white/10">
-          <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">
-            Songs ({tracks.length})
-          </h3>
-
+        {/* Track List Header & Sort Option + Compact Download All Button (Mobile Only) */}
+        <div className="flex items-center justify-between pb-3 mb-2 border-b border-white/10 gap-2">
+          {/* Left: Sort Menu */}
           <div className="relative">
             <button
               onClick={() => setShowSortMenu(!showSortMenu)}
@@ -480,24 +439,24 @@ export function AlbumDetailView() {
             >
               <ArrowUpDown className="w-3.5 h-3.5" />
               <span>
-                {sortOption === 'default' ? 'Track Order' : sortOption === 'az' ? 'A → Z' : sortOption === 'za' ? 'Z → A' : 'Most Popular'}
+                Sort: {sortOption === 'default' ? 'Track Order' : sortOption === 'az' ? 'A → Z' : sortOption === 'za' ? 'Z → A' : 'Most Popular'}
               </span>
             </button>
 
             {showSortMenu && (
               <div
                 onClick={(e) => e.stopPropagation()}
-                className="absolute right-0 top-full mt-1 w-44 bg-[#141520] border border-white/15 rounded-xl p-1.5 shadow-2xl z-30 text-xs"
+                className="absolute left-0 top-full mt-1 w-44 bg-[#141520] border border-white/15 rounded-xl p-1.5 shadow-2xl z-30 text-xs"
               >
-                {(['default', 'az', 'za', 'popular'] as SortOption[]).map((opt) => (
+                {(['default', 'az', 'za', 'popular'] as const).map((opt) => (
                   <button
                     key={opt}
                     onClick={() => {
                       setSortOption(opt);
                       setShowSortMenu(false);
                     }}
-                    className={`w-full text-left px-3 py-1.5 rounded-lg transition-colors font-medium ${
-                      sortOption === opt ? 'bg-[#fa233b] text-white font-bold' : 'hover:bg-white/10 text-slate-300'
+                    className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors ${
+                      sortOption === opt ? 'bg-[#fa233b]/20 text-[#fa233b] font-bold' : 'hover:bg-white/10 text-slate-300 hover:text-white'
                     }`}
                   >
                     {opt === 'default' ? 'Track Order' : opt === 'az' ? 'A → Z' : opt === 'za' ? 'Z → A' : 'Most Popular'}
@@ -506,6 +465,36 @@ export function AlbumDetailView() {
               </div>
             )}
           </div>
+
+          {/* Right: Compact Download All Button (Mobile Only) */}
+          <button
+            onClick={isAllDownloaded ? handleRemoveAllDownloads : handleDownloadAll}
+            className={`md:hidden flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all active:scale-95 cursor-pointer ${
+              isAllDownloaded
+                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                : isDownloadingAlbum
+                ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300 hover:text-white'
+            }`}
+            title={isAllDownloaded ? "All songs downloaded (Click to manage)" : "Download All Songs"}
+          >
+            {isDownloadingAlbum ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                <span className="font-mono">{downloadedCount}/{tracks.length}</span>
+              </>
+            ) : isAllDownloaded ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
+                <span className="hidden sm:inline">Downloaded</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{downloadedCount > 0 ? `${downloadedCount}/${tracks.length}` : 'Download All'}</span>
+              </>
+            )}
+          </button>
         </div>
 
         {/* Track List Rows */}
@@ -528,10 +517,10 @@ export function AlbumDetailView() {
               return (
                 <div
                   key={track.id}
-                  onClick={() => playSong(track, sortedTracks)}
+                  onClick={() => playSong(track, sortedTracks, { type: 'album', id: album.id, title: album.title, name: album.title })}
                   className={`group flex items-center justify-between gap-3 p-3 rounded-2xl transition-all cursor-pointer select-none ${
                     isPlayingCurrent
-                      ? 'bg-red-500/15 border border-red-500/30 text-white shadow-lg shadow-red-500/10'
+                      ? 'bg-white/[0.08] border border-white/15 text-white'
                       : 'hover:bg-white/5 text-slate-300 hover:text-white border border-transparent'
                   }`}
                 >
@@ -552,7 +541,7 @@ export function AlbumDetailView() {
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <h4 className={`text-sm font-bold truncate leading-snug ${isPlayingCurrent ? 'text-[#fa233b]' : 'text-white'}`}>
+                      <h4 className="text-sm font-bold truncate leading-snug text-white">
                         {track.title}
                       </h4>
                       <p className="text-xs text-slate-400 truncate mt-0.5">
@@ -578,5 +567,6 @@ export function AlbumDetailView() {
         )}
       </div>
     </div>
+  </DynamicArtworkAtmosphere>
   );
 }

@@ -175,9 +175,9 @@ export function SeekBar({
   };
 
   const currentPercent = localProgress * 100;
-  
+
   return (
-    <div 
+    <div
       className={`relative cursor-pointer touch-none group flex items-center ${className}`}
       ref={trackRef}
       onPointerDown={handlePointerDown}
@@ -186,32 +186,51 @@ export function SeekBar({
       onPointerCancel={handlePointerCancel}
       onPointerLeave={handlePointerLeave}
     >
-      {/* 1. Track Background */}
-      <div className={`absolute left-0 right-0 ${height} ${trackColor} rounded-full`} />
-      
-      {/* 2. Played Progress */}
-      <div 
-        className={`absolute left-0 ${height} ${activeColor} rounded-full pointer-events-none`} 
-        style={{ width: `${currentPercent}%` }}
-      />
-      
-      {/* 3. Thumb */}
-      <div 
-        className={`absolute ${thumbSize} bg-white rounded-full shadow-md pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center ${isSeeking ? 'opacity-100 scale-125' : ''}`}
-        style={{ 
-          left: `${currentPercent}%`,
-          transform: 'translateX(-50%)',
-          transition: isSeeking ? 'none' : 'left 0.1s linear'
+      {/* ── 1. Glass Track Background ─── */}
+      <div
+        className={`absolute left-0 right-0 ${height} rounded-full`}
+        style={{
+          background: 'rgba(255,255,255,0.08)',
+          boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.5), 0 0.5px 0 rgba(255,255,255,0.07)',
         }}
       />
-      
-      {/* Hover Tooltip */}
+
+      {/* ── 2. Progress Fill (RaagaX Red gradient) ─── */}
+      <div
+        className={`absolute left-0 ${height} rounded-full pointer-events-none`}
+        style={{
+          width: `${currentPercent}%`,
+          background: 'linear-gradient(90deg, #c91c30 0%, #FA233B 100%)',
+          boxShadow: '0 0 6px rgba(250,35,59,0.45)',
+        }}
+      />
+
+      {/* ── 3. Water-Drop Sphere Thumb ─── */}
+      <div
+        className={`absolute ${thumbSize} rounded-full pointer-events-none ${
+          isSeeking ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        }`}
+        style={{
+          left: `${currentPercent}%`,
+          transform: `translateX(-50%) ${isSeeking ? 'scale(1.22)' : ''}`,
+          transition: isSeeking ? 'none' : 'left 0.1s linear, opacity 0.15s',
+          background: 'radial-gradient(circle at 38% 30%, rgba(255,255,255,0.96) 0%, rgba(220,220,225,0.88) 55%, rgba(185,185,198,0.70) 100%)',
+          boxShadow: [
+            '0 2px 8px rgba(0,0,0,0.55)',
+            '0 0 0 1px rgba(255,255,255,0.22)',
+            'inset 0 1px 0 rgba(255,255,255,0.92)',
+            'inset 0 -1px 2px rgba(0,0,0,0.18)',
+          ].join(', '),
+        }}
+      />
+
+      {/* ── 4. Hover Tooltip ─── */}
       {hoverProgress !== null && !isSeeking && (
-        <div 
-          className="absolute bottom-full mb-2 bg-black/80 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg pointer-events-none"
-          style={{ 
+        <div
+          className="absolute bottom-full mb-2 bg-black/80 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-1 rounded-lg shadow-lg pointer-events-none border border-white/10"
+          style={{
             left: `${hoverProgress * 100}%`,
-            transform: 'translateX(-50%)' 
+            transform: 'translateX(-50%)',
           }}
         >
           {formatTime(hoverProgress * duration)}

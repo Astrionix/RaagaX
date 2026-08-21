@@ -142,6 +142,12 @@ export class QueueManager {
     this.notify();
   }
 
+  public appendQueue(songs: Song[], source: QueueSource = 'RADIO') {
+    const items = songs.map(s => this.createQueueItem(s, source));
+    this.engine.appendAutoplayItems(items);
+    this.notify();
+  }
+
   public clearQueue() {
     this.engine.clearQueue();
     this.notify();

@@ -31,7 +31,7 @@ export function ChartListShelf({ title, items }: { title: string; items: ShelfIt
 
           return (
             <div
-              key={item.id}
+              key={`${item.id || 'chart'}-${index}`}
               className="group flex items-center gap-3 p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
             >
               <div className="w-6 text-center text-sm font-semibold text-slate-400 group-hover:text-white">

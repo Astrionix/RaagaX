@@ -18,9 +18,11 @@ import { useThemeStore } from '@/context/useThemeStore';
 import { RaagaXLogo } from '@/components/brand/RaagaXLogo';
 import { RaagaXWordmark } from '@/components/brand/RaagaXWordmark';
 import { NetworkManager } from '@/lib/offline/NetworkManager';
+import { ProfileMenuModal } from '@/components/modals/ProfileMenuModal';
 
 export function Header() {
   const [mounted, setMounted] = React.useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = React.useState(false);
   const [isOnline, setIsOnline] = React.useState<boolean>(() => {
     return typeof navigator !== 'undefined' ? navigator.onLine : true;
   });
@@ -58,7 +60,7 @@ export function Header() {
           <RaagaXWordmark size="sm" />
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           {mounted && !isOnline && (
             <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-bold tracking-wide animate-pulse">
               <WifiOff className="w-3 h-3" />
@@ -66,48 +68,31 @@ export function Header() {
             </div>
           )}
 
-          {/* System Surfaces Launcher (Lock Screen, Notification Shade, Dynamic Island) */}
+          {/* Profile Avatar on Top Right -> Opens Profile Menu Drawer */}
           <button
-            onClick={() => usePlayerStore.getState().toggleSystemSurfaces()}
-            aria-label="System Surfaces"
-            className="p-1.5 rounded-xl border border-white/5 bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center gap-1 cursor-pointer"
-            title="System Surfaces (Lock Screen & Notification Shade)"
+            onClick={() => setIsProfileMenuOpen(true)}
+            className="w-8 h-8 rounded-full overflow-hidden border border-white/20 bg-white/10 hover:border-white/40 transition-all flex items-center justify-center text-white font-bold text-xs shadow-sm cursor-pointer active:scale-95 flex-shrink-0"
+            title="Account & Menu"
+            aria-label="Account & Menu"
           >
-            <Sparkles className="w-4 h-4 text-[#E50914]" />
-          </button>
-
-          {/* Connect to My Device Button */}
-          <button
-            onClick={toggleDeviceModal}
-            aria-label="Connect to My Device"
-            className={`p-1.5 rounded-xl border transition-all flex items-center gap-1 cursor-pointer ${
-              isConnectedRemote
-                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-sm'
-                : 'text-slate-400 hover:text-white hover:bg-white/10 border-white/5 bg-white/5'
-            }`}
-            title="Connect to My Device"
-          >
-            <MonitorSmartphone className="w-4 h-4" />
-            {isConnectedRemote && (
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            {user?.user_metadata?.avatar_url ? (
+              <img src={user.user_metadata.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              <span>
+                {user?.user_metadata?.full_name 
+                  ? user.user_metadata.full_name[0].toUpperCase() 
+                  : (user?.email ? user.email[0].toUpperCase() : '👤')}
+              </span>
             )}
-          </button>
-
-          <button
-            onClick={() => {
-              import('@/context/useNotificationStore').then(({ useNotificationStore }) => {
-                useNotificationStore.getState().toggleOpen();
-              });
-            }}
-            aria-label="Notifications"
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors relative cursor-pointer"
-            title="Notifications"
-          >
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-[#E50914] rounded-full" />
           </button>
         </div>
       </header>
+
+      {/* Profile & Account Drawer Modal */}
+      <ProfileMenuModal
+        isOpen={isProfileMenuOpen}
+        onClose={() => setIsProfileMenuOpen(false)}
+      />
     </>
   );
 }

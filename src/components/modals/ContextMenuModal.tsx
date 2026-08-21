@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { 
   X, Play, FastForward, ListPlus, Heart, Download, Share2, User, Disc, 
-  Plus, MoreHorizontal, ChevronRight, ChevronLeft, Info, Bookmark, Trash2, Ban, Flag, Check
+  Plus, MoreHorizontal, ChevronRight, ChevronLeft, Info, Bookmark, Trash2, Ban, Flag, Check, Radio
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
@@ -145,7 +145,29 @@ export function ContextMenuModal() {
                 <span className="font-semibold text-slate-200 group-hover:text-white flex-1 ml-3 text-xs">Play Next</span>
               </button>
 
-              {/* 3. Add to Queue */}
+              {/* 3. Start Song Radio */}
+              <button
+                onClick={() => handleAction(() => {
+                  import('@/lib/radio/RadioEngine').then(({ RadioEngine }) => {
+                    RadioEngine.getInstance().startRadio({
+                      type: 'song',
+                      seedId: contextMenuSong.id,
+                      seedTitle: contextMenuSong.title,
+                      seedCover: contextMenuSong.coverUrl,
+                      initialSong: contextMenuSong,
+                      language: contextMenuSong.language,
+                    });
+                  });
+                })}
+                className="w-full py-2.5 px-3 rounded-xl hover:bg-white/10 flex items-center transition-colors group cursor-pointer"
+              >
+                <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-[#FA233B] group-hover:bg-[#FA233B] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
+                  <Radio className="w-4 h-4" />
+                </div>
+                <span className="font-semibold text-slate-200 group-hover:text-white flex-1 ml-3 text-xs">Start Song Radio</span>
+              </button>
+
+              {/* 4. Add to Queue */}
               <button
                 onClick={() => handleAction(() => addToQueue(contextMenuSong))}
                 className="w-full py-2.5 px-3 rounded-xl hover:bg-white/10 flex items-center transition-colors group cursor-pointer"

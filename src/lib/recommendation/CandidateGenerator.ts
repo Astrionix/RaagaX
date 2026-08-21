@@ -101,18 +101,23 @@ export class CandidateGenerator {
         }
       }
 
-      // 2. Similar real songs (Vector Match)
-      if (currentSong && !CandidateGenerator.unavailable.has('match_similar_songs')) {
-        const { data: vectorMatches, error: vectorError } = await supabase.rpc('match_similar_songs', {
-          target_song_id: String(currentSong.id),
-          match_count: Math.round(limit * 2),
-          match_threshold: 0.5
-        });
-        
-        if (vectorError) {
+      // 2. Similar real songs (Vector Match - only for valid UUIDs)
+      const isUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      if (currentSong && isUUID(String(currentSong.id)) && !CandidateGenerator.unavailable.has('match_similar_songs')) {
+        try {
+          const { data: vectorMatches, error: vectorError } = await supabase.rpc('match_similar_songs', {
+            target_song_id: String(currentSong.id),
+            match_count: Math.round(limit * 2),
+            match_threshold: 0.5
+          });
+          
+          if (vectorError) {
+            CandidateGenerator.markUnavailable('match_similar_songs');
+          } else if (vectorMatches && vectorMatches.length > 0) {
+            if (await addCandidates(vectorMatches, 'similar')) return Array.from(candidates.values());
+          }
+        } catch {
           CandidateGenerator.markUnavailable('match_similar_songs');
-        } else if (vectorMatches && vectorMatches.length > 0) {
-          if (await addCandidates(vectorMatches, 'similar')) return Array.from(candidates.values());
         }
       }
 

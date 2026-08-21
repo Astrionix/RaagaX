@@ -265,7 +265,7 @@ export function HistoryView() {
                       onClick={() => playSong(song, filteredHistory.map(h => h.song))}
                       className={`flex items-center justify-between p-3 rounded-2xl transition-all cursor-pointer group select-none ${
                         isPlayingCurrent
-                          ? 'bg-[#fa233b]/15 border border-[#fa233b]/30 text-white shadow-lg shadow-red-500/10'
+                          ? 'bg-white/[0.08] border border-white/15 text-white'
                           : 'bg-white/[0.02] hover:bg-white/5 border border-white/5 hover:border-white/10'
                       }`}
                     >
@@ -295,7 +295,7 @@ export function HistoryView() {
                         />
 
                         <div className="min-w-0 flex-1">
-                          <h4 className={`text-xs sm:text-sm font-bold truncate leading-snug ${isPlayingCurrent ? 'text-[#fa233b]' : 'text-white'}`}>
+                          <h4 className="text-xs sm:text-sm font-bold truncate leading-snug text-white">
                             {song.title}
                           </h4>
                           <p className="text-[11px] text-slate-400 truncate mt-0.5">

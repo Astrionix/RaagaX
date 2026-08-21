@@ -51,6 +51,7 @@ import { LocalDatabase } from '@/lib/offline/LocalDatabase';
 import { AccountSyncEngine } from '@/lib/sync/AccountSyncEngine';
 import { AudioQuality } from '@/lib/playback/types';
 import { BrandShowcaseView } from '@/components/brand/BrandShowcaseView';
+import { useDynamicIslandCapabilityStore } from '@/context/useDynamicIslandCapabilityStore';
 
 export type SettingsSectionId =
   | 'account'
@@ -144,6 +145,10 @@ export function SettingsView() {
   } = useDownloadStore();
 
   const { user } = useAuthStore();
+  const liveCap = useDynamicIslandCapabilityStore((s) => s.capability);
+  const isLiveUserEnabled = useDynamicIslandCapabilityStore((s) => s.userEnabled);
+  const setLiveUserEnabled = useDynamicIslandCapabilityStore((s) => s.setUserEnabled);
+  const openSystemSettings = useDynamicIslandCapabilityStore((s) => s.openSystemSettings);
 
   // Local state for toggles and options
   const [restorePreviousPlayback, setRestorePreviousPlayback] = useState(true);
@@ -670,6 +675,61 @@ export function SettingsView() {
           {/* 2. PLAYBACK */}
           {activeSection === 'playback' && (
             <div className="space-y-5">
+              {/* Universal Live Player / System Surface Setting (Only visible if hardware/OS supports it) */}
+              {liveCap.isHardwareSupported && (
+                <div className="p-4.5 rounded-3xl bg-white/[0.03] border border-white/10 space-y-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-bold text-white">Live Player</h4>
+                        {liveCap.isAvailable && isLiveUserEnabled && (
+                          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                            ✓ Device supports this feature
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-300">
+                        Show playback controls on supported system surfaces (Live Activities, Dynamic Media Alerts, and Lock Screen pills).
+                      </p>
+                    </div>
+
+                    {liveCap.isAvailable ? (
+                      <ToggleSwitch
+                        checked={isLiveUserEnabled}
+                        onChange={() => {
+                          const next = !isLiveUserEnabled;
+                          setLiveUserEnabled(next);
+                          showToast(`Live Player ${next ? 'Enabled' : 'Disabled'}`);
+                        }}
+                      />
+                    ) : (
+                      <span className="text-xs font-bold text-slate-500 bg-white/5 px-2.5 py-1 rounded-lg">
+                        OFF
+                      </span>
+                    )}
+                  </div>
+
+                  {/* If device supports it but permission/system setting is needed */}
+                  {!liveCap.isAvailable && (
+                    <div className="pt-2 border-t border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+                      <p className="text-xs text-amber-300/90 font-medium">
+                        Your device supports this feature. Enable notification and live surface permissions in system settings.
+                      </p>
+                      <button
+                        onClick={async () => {
+                          const success = await openSystemSettings();
+                          showToast(success ? 'Live Player activated!' : 'Opened system settings');
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/15 transition-all cursor-pointer flex items-center gap-1.5 flex-shrink-0"
+                      >
+                        <span>Enable in System Settings</span>
+                        <ExternalLink className="w-3.5 h-3.5 text-slate-300" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <SettingRow
                 title="Autoplay"
                 description="Continue playing recommended music seamlessly after your current queue ends."

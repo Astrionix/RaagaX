@@ -19,9 +19,17 @@ export function StrictNewReleasesShelf({
   defaultLanguage = 'All',
 }: StrictNewReleasesShelfProps) {
   const { preferredLanguage } = usePlayerStore();
-  const [selectedLang, setSelectedLang] = useState<string>(preferredLanguage || defaultLanguage || 'All');
+  const [mounted, setMounted] = useState(false);
+  const [selectedLang, setSelectedLang] = useState<string>(defaultLanguage || 'All');
   const [songs, setSongs] = useState<Song[]>(initialSongs);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    if (preferredLanguage) {
+      setSelectedLang(preferredLanguage);
+    }
+  }, [preferredLanguage]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -73,15 +81,17 @@ export function StrictNewReleasesShelf({
   return (
     <div className="space-y-2 mb-4 select-none">
       {/* ── INTERACTIVE STRICT LANGUAGE FILTER PILLS ─────────────────────── */}
-      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div suppressHydrationWarning className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 -mx-4 px-4 sm:mx-0 sm:px-0">
         {SUPPORTED_LANGUAGES_LIST.map((lang) => {
-          const isSelected =
+          const isSelected = mounted && (
             selectedLang.toLowerCase() === lang.label.toLowerCase() ||
-            selectedLang.toLowerCase() === lang.code.toLowerCase();
+            selectedLang.toLowerCase() === lang.code.toLowerCase()
+          );
 
           return (
             <button
               key={lang.code}
+              suppressHydrationWarning
               onClick={() => handleLanguageChange(lang.label)}
               className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex-shrink-0 cursor-pointer ${
                 isSelected

@@ -24,6 +24,7 @@ import { PlaybackSourceResolver } from '@/lib/playbackSourceResolver';
 import { PreloadManager } from '@/lib/playback/PreloadManager';
 import { ArtworkColorExtractor } from '@/lib/theme/ArtworkColorExtractor';
 import { getApiUrl } from '@/lib/config/apiConfig';
+import { RadioEngine } from '@/lib/radio/RadioEngine';
 
 export function AudioPlayerController() {
   const audioRefA = useRef<HTMLAudioElement | null>(null);
@@ -66,6 +67,7 @@ export function AudioPlayerController() {
       PlaybackService.getInstance().registerElements(audioRefA.current, audioRefB.current);
       PlaybackService.getInstance().setupMediaSessionHandlers();
       WebAudioGraph.getInstance().init(audioRefA.current, audioRefB.current);
+      PlaybackService.getInstance().syncLivePlayingState();
     }
   }, []);
 
@@ -83,11 +85,33 @@ export function AudioPlayerController() {
     } catch {}
   }, []);
 
-  // Native Android: hook into ExoPlayer queueEnded & trackChanged events.
+  // Native Android: hook into ExoPlayer queueEnded, trackChanged, and playbackStateChanged events.
   // NOTE: We do NOT trigger playNext() on trackChanged — ExoPlayer auto-advances
   // natively via the full playlist set by setQueue(). We only sync the UI state.
   useEffect(() => {
     if (!RaagaXNativePlayer.isNative()) return;
+
+    // Immediately fetch authoritative native playback state on mount
+    RaagaXNativePlayer.getPlaybackState().then((state) => {
+      if (state) {
+        console.log('[AudioPlayerController] Native initial state on mount:', state);
+        const store = usePlayerStore.getState();
+        store.setIsPlaying(state.isPlaying, true);
+        if (state.positionMs > 0) {
+          store.setCurrentTime(state.positionMs / 1000, true);
+        }
+        if (state.durationMs > 0) {
+          store.setDuration(state.durationMs / 1000);
+        }
+      }
+    }).catch(() => {});
+
+    // playbackStateChanged fires whenever ExoPlayer changes between PLAYING and PAUSED
+    // (via lock screen, notification shade, bluetooth headset, car controls, or audio focus).
+    const unsubPlaybackState = RaagaXNativePlayer.addPlaybackStateListener((data) => {
+      console.log('[AudioPlayerController] Native playbackStateChanged — isPlaying:', data.isPlaying);
+      usePlayerStore.getState().setIsPlaying(data.isPlaying, true);
+    });
 
     // queueEnded fires only when ExoPlayer has exhausted the entire playlist.
     // This is where we trigger autoplay continuation, NOT on every song end.
@@ -160,6 +184,7 @@ export function AudioPlayerController() {
     });
 
     return () => {
+      unsubPlaybackState();
       unsubQueueEnded();
       unsubChanged();
       unsubSeekComplete();
@@ -279,7 +304,16 @@ export function AudioPlayerController() {
   // Auto-refill queue (Continuous Radio Mode)
   useEffect(() => {
     const remaining = queue.length - (queueIndex + 1);
-    if (!isAutoplayEnabled || remaining >= QUEUE_REFILL_THRESHOLD || isRefilling.current || !currentSong) return;
+    if (remaining > QUEUE_REFILL_THRESHOLD || isRefilling.current || !currentSong) return;
+
+    // Check if RadioEngine is active
+    const radio = RadioEngine.getInstance();
+    if (radio.isRadioActive()) {
+      radio.extendQueueIfNeeded(remaining);
+      return;
+    }
+
+    if (!isAutoplayEnabled) return;
 
     isRefilling.current = true;
     const existingIds = queue.map(s => s.id);
@@ -304,7 +338,7 @@ export function AudioPlayerController() {
         currentSong: currentSong,
         lastArtists: lastArtists,
         playbackContext: usePlayerStore.getState().playbackContext,
-        count: 10 
+        count: 20 
       })
     })
       .then(r => r.json())
@@ -392,15 +426,15 @@ export function AudioPlayerController() {
   const prebufferedIndexRef = useRef<number>(-1);
   useEffect(() => {
     const effectiveDuration = duration > 0 ? duration : (currentSong?.duration || 0);
-    if (!isPlaying) return;
+    if (!isPlaying || !currentSong) return;
 
-    // Start preloading shortly after current track starts (after 2s or 5% progress)
+    // Start preloading only after current track is stable (after 3s or 10% progress)
     const progress = effectiveDuration > 0 ? currentTime / effectiveDuration : 0;
     const nextIndex = queueIndex + 1;
 
-    const isEarlyTrigger = currentTime >= 2 || progress >= 0.05 || effectiveDuration < 60;
+    const isEligible = currentTime >= 3 && (progress >= 0.10 || currentTime >= 5);
 
-    if (isEarlyTrigger && nextIndex < queue.length && prebufferedIndexRef.current !== nextIndex) {
+    if (isEligible && nextIndex < queue.length && prebufferedIndexRef.current !== nextIndex) {
       prebufferedIndexRef.current = nextIndex;
       const nextSong = queue[nextIndex];
       if (nextSong && nextSong.id) {
@@ -409,7 +443,7 @@ export function AudioPlayerController() {
         PreloadManager.getInstance().prepareNextTrack(nextSong, standby).catch(() => {});
       }
     }
-  }, [currentTime, duration, isPlaying, queueIndex, queue]);
+  }, [currentTime, duration, isPlaying, queueIndex, queue, currentSong]);
 
   // ── Chameleon Theme: Extract vibrant palette from active track ──
   useEffect(() => {

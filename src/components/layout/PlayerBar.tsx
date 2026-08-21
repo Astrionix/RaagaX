@@ -57,6 +57,9 @@ export function PlayerBar() {
 
   React.useEffect(() => {
     setMounted(true);
+    import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
+      PlaybackService.getInstance().syncLivePlayingState();
+    }).catch(() => {});
   }, []);
 
   const {

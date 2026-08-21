@@ -9,6 +9,7 @@ interface DynamicIslandCapabilityStore {
 
   // Actions
   setUserEnabled: (enabled: boolean) => void;
+  openSystemSettings: () => Promise<boolean>;
   requestPermission: () => Promise<boolean>;
   refreshCapability: () => void;
 }
@@ -21,6 +22,7 @@ const DEFAULT_CAPABILITY: DynamicIslandCapability = {
   permissionState: 'unsupported',
   isHardwareSupported: false,
   isAvailable: false,
+  needsSystemSettings: false,
   statusMessage: 'Evaluating device capability...',
 };
 
@@ -38,6 +40,18 @@ export const useDynamicIslandCapabilityStore = create<DynamicIslandCapabilitySto
           userEnabled: enabled,
           isAvailable: cap.isAvailable && enabled,
         });
+      },
+
+      openSystemSettings: async () => {
+        const granted = await dynamicIslandCapability.openSystemSettings();
+        const updatedCap = dynamicIslandCapability.getCapability();
+        const state = get();
+        const userEnabled = state?.userEnabled !== false;
+        set({
+          capability: updatedCap,
+          isAvailable: updatedCap.isAvailable && userEnabled,
+        });
+        return granted;
       },
 
       requestPermission: async () => {

@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react';
 import useSWR from 'swr';
 import {
   Play, Pause, Heart, Download, Music, ArrowLeft, Disc, Users,
-  ShieldCheck, Check, Shuffle, Sparkles, Tv, ListMusic, Info, Share2
+  ShieldCheck, Check, Shuffle, Sparkles, Tv, ListMusic, Info, Share2, Radio
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { getApiUrl } from '@/lib/config/apiConfig';
@@ -13,6 +13,7 @@ import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { Song } from '@/types/music';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 import { haptics } from '@/lib/haptics/HapticEngine';
+import { DynamicArtworkAtmosphere } from '@/components/common/DynamicArtworkAtmosphere';
 
 const fetcher = (url: string) => fetch(getApiUrl(url)).then(res => res.json()).catch(() => null);
 
@@ -188,17 +189,10 @@ export function ArtistDetailView() {
   const artistAvatarUrl = artist.imageUrl || artist.image?.find?.((i: any) => i.quality === '500x500')?.url || artist.image?.[artist.image?.length - 1]?.url;
 
   return (
-    <div className="relative min-h-screen text-white pb-36 select-none animate-in fade-in duration-300">
-      {/* ── ATMOSPHERIC DYNAMIC ARTIST BACKGROUND ────────────────────────── */}
-      <div
-        className="absolute top-0 inset-x-0 h-[480px] pointer-events-none blur-[140px] opacity-35 scale-[1.25] transition-all duration-1000 -z-10"
-        style={{
-          backgroundImage: `radial-gradient(circle at 50% 25%, var(--chameleon-primary, #fa233b) 0%, var(--chameleon-secondary, #8b5cf6) 40%, transparent 75%)`,
-        }}
-      />
-
-      {/* ── TOP NAVIGATION BAR ────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-4 backdrop-blur-xl bg-[#08090d]/80 border-b border-white/5">
+    <DynamicArtworkAtmosphere artworkUrl={artistAvatarUrl} isPlaying={isCurrentArtistPlaying}>
+      <div className="relative min-h-screen text-white pb-36 select-none animate-in fade-in duration-300">
+        {/* ── TOP NAVIGATION BAR ────────────────────────────────────────────── */}
+        <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-4 backdrop-blur-xl bg-[#08090d]/80 border-b border-white/5">
         <button
           onClick={() => {
             setSelectedArtistId(null);
@@ -293,6 +287,24 @@ export function ArtistDetailView() {
             <Shuffle className="w-4 h-4" /> Shuffle
           </button>
 
+          {/* Artist Radio Station */}
+          <button
+            onClick={() => {
+              import('@/lib/radio/RadioEngine').then(({ RadioEngine }) => {
+                RadioEngine.getInstance().startRadio({
+                  type: 'artist',
+                  seedId: artist?.id || selectedArtistId || '',
+                  seedTitle: artist?.name || 'Artist',
+                  seedCover: artist?.image?.find?.((i: any) => i.quality === '500x500')?.url || artist?.image?.[0]?.url,
+                  language: preferredLanguage,
+                });
+              });
+            }}
+            className="flex items-center gap-2 px-5 py-3.5 rounded-full bg-white/10 hover:bg-[#FA233B]/20 text-white hover:text-[#FA233B] font-bold text-sm border border-white/10 hover:border-[#FA233B]/40 active:scale-95 transition-all cursor-pointer"
+          >
+            <Radio className="w-4 h-4 text-[#FA233B]" /> Radio
+          </button>
+
           {/* ＋ Follow / ✓ Following subscription toggle */}
           <button
             onClick={() => {
@@ -323,7 +335,7 @@ export function ArtistDetailView() {
             { id: 'popular', label: 'Popular', icon: Sparkles },
             { id: 'songs', label: 'Songs', icon: Music },
             { id: 'albums', label: 'Albums', icon: Disc },
-            { id: 'videos', label: 'Videos', icon: Tv },
+            { id: 'videos', label: 'Videos', icon: Tv, desktopOnly: true },
             { id: 'playlists', label: 'Playlists', icon: ListMusic },
             { id: 'about', label: 'About', icon: Info },
           ].map((tab) => {
@@ -333,7 +345,7 @@ export function ArtistDetailView() {
               <button
                 key={tab.id}
                 onClick={() => setActiveSubTab(tab.id as ArtistTab)}
-                className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
+                className={`${tab.desktopOnly ? 'hidden md:flex' : 'flex'} items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
                   isActive
                     ? 'bg-white/15 text-white border border-white/20 shadow-md'
                     : 'text-slate-400 hover:text-white hover:bg-white/5'
@@ -358,9 +370,9 @@ export function ArtistDetailView() {
               return (
                 <div
                   key={song.id}
-                  onClick={() => playSong(song, artistSongs)}
+                  onClick={() => playSong(song, artistSongs, { type: 'artist', id: artist?.id || selectedArtistId || '', title: artist?.name || 'Artist', name: artist?.name || 'Artist' })}
                   className={`flex items-center justify-between p-2.5 sm:px-4 rounded-xl transition-all cursor-pointer group ${
-                    isPlayingCurrent ? 'bg-[#fa233b]/15 border border-[#fa233b]/30' : 'hover:bg-white/5'
+                    isPlayingCurrent ? 'bg-white/[0.08] border border-white/15' : 'hover:bg-white/5 border border-transparent'
                   }`}
                 >
                   <div className="flex items-center gap-3.5 min-w-0 flex-1">
@@ -376,7 +388,7 @@ export function ArtistDetailView() {
                       className="w-10 h-10 rounded-lg object-cover bg-slate-800 flex-shrink-0"
                     />
                     <div className="min-w-0 flex-1">
-                      <h4 className={`text-xs font-bold truncate ${isPlayingCurrent ? 'text-[#fa233b]' : 'text-white'}`}>
+                      <h4 className="text-xs font-bold truncate text-white">
                         {song.title}
                       </h4>
                       <p className="text-[11px] text-slate-400 truncate mt-0.5">{song.album || song.artist}</p>
@@ -412,7 +424,7 @@ export function ArtistDetailView() {
                 key={song.id}
                 onClick={() => playSong(song, artistSongs)}
                 className={`flex items-center justify-between p-2.5 sm:px-4 rounded-xl transition-all cursor-pointer group ${
-                  isPlayingCurrent ? 'bg-[#fa233b]/15 border border-[#fa233b]/30' : 'hover:bg-white/5'
+                  isPlayingCurrent ? 'bg-white/[0.08] border border-white/15' : 'hover:bg-white/5 border border-transparent'
                 }`}
               >
                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
@@ -422,7 +434,7 @@ export function ArtistDetailView() {
                     className="w-10 h-10 rounded-lg object-cover bg-slate-800 flex-shrink-0"
                   />
                   <div className="min-w-0 flex-1">
-                    <h4 className={`text-xs font-bold truncate ${isPlayingCurrent ? 'text-[#fa233b]' : 'text-white'}`}>
+                    <h4 className="text-xs font-bold truncate text-white">
                       {song.title}
                     </h4>
                     <p className="text-[11px] text-slate-400 truncate mt-0.5">{song.album || song.artist}</p>
@@ -615,5 +627,6 @@ export function ArtistDetailView() {
         </div>
       )}
     </div>
+  </DynamicArtworkAtmosphere>
   );
 }

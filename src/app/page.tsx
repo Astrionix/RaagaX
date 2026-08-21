@@ -6,8 +6,7 @@ import { Header } from '@/components/layout/Header';
 import { PlayerBar } from '@/components/layout/Navbar';
 import { RightQueuePanel } from '@/components/layout/RightQueuePanel';
 import { RightDeviceConnectPanel } from '@/components/layout/RightDeviceConnectPanel';
-import { MobileNav } from '@/components/layout/MobileNav';
-import { MobileMiniPlayer } from '@/components/layout/MobileMiniPlayer';
+import { MobileBottomController } from '@/components/layout/MobileBottomController';
 import { AudioPlayerController } from '@/components/player/AudioPlayerController';
 import { LyricsPanel } from '@/components/lyrics/LyricsPanel';
 import { QueueModal } from '@/components/player/QueueModal';
@@ -37,8 +36,10 @@ import { CarModeModal } from '@/components/modals/CarModeModal';
 import { Toast } from '@/components/ui/Toast';
 
 import { HomeView } from '@/components/views/HomeView';
+import { NewView } from '@/components/views/NewView';
 import { SearchView } from '@/components/views/SearchView';
 import { LibraryView } from '@/components/views/LibraryView';
+import { GenresView } from '@/components/views/GenresView';
 import { PlaylistDetailView } from '@/components/views/PlaylistDetailView';
 import { AlbumDetailView } from '@/components/views/AlbumDetailView';
 import { AlbumsView } from '@/components/views/AlbumsView';
@@ -237,11 +238,13 @@ export default function Page() {
           <Header />
 
           {/* View Switcher Container */}
-          <main className="flex-1 pt-14 md:pt-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))] md:pb-8 px-3.5 sm:px-8">
+          <main className="flex-1 pt-14 md:pt-4 pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-8 px-3.5 sm:px-8">
             {activeTab === 'home' && <HomeView />}
+            {activeTab === 'new' && <NewView />}
             {activeTab === 'search' && <SearchView />}
             {activeTab === 'video' && <VideoView />}
             {activeTab === 'library' && <LibraryView />}
+            {activeTab === 'genres' && <GenresView />}
             {activeTab === 'radio' && <RadioView />}
             {activeTab === 'artist' && (selectedArtistId ? <ArtistDetailView /> : <ArtistsView />)}
             {activeTab === 'album' && (selectedAlbumId ? <AlbumDetailView /> : <AlbumsView />)}
@@ -255,9 +258,8 @@ export default function Page() {
             {activeTab === 'settings' && <SettingsView />}
           </main>
 
-          {/* Mobile Navigation & Mini Player */}
-          <MobileMiniPlayer />
-          <MobileNav />
+          {/* Unified Global Scroll-Aware Mobile Bottom Controller */}
+          <MobileBottomController />
         </div>
 
         {/* Right Queue Column */}

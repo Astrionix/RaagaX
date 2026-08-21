@@ -7,7 +7,20 @@ export interface DeviceRoleDescriptor {
   lastActive?: number;
 }
 
-export interface UnifiedPlaybackSession {
+export interface PlaybackSession {
+  currentTrack: Song | null;
+  currentTrackId: string | null;
+  currentQueueIndex: number;
+  queue: Song[];
+  position: number;
+  duration: number;
+  isPlaying: boolean;
+  shuffleMode: string;
+  repeatMode: 'off' | 'all' | 'one' | 'OFF' | 'ALL' | 'ONE';
+  playbackRequestId: number;
+}
+
+export interface UnifiedPlaybackSession extends PlaybackSession {
   sessionId: string;
   userId?: string;
   trackId: string;
@@ -40,11 +53,9 @@ export interface UnifiedPlaybackSession {
   queueId?: string;
   queueRevision?: number;
   currentItemId?: string | null;
-
-  queue: Song[];
   queueIndex: number;
+
   shuffle: boolean;
-  repeatMode: 'off' | 'all' | 'one';
 
   contextData?: {
     type?: string;
@@ -79,7 +90,7 @@ export class SessionManager {
     activeDeviceId: string,
     initialRenderer: Renderer = 'audio'
   ): UnifiedPlaybackSession {
-    this.currentSession = {
+    const session: UnifiedPlaybackSession = {
       sessionId: crypto.randomUUID(),
       trackId,
       canonicalPositionMs: 0,
@@ -103,11 +114,20 @@ export class SessionManager {
       serverTimestamp: Date.now(),
       queue: [],
       queueIndex: 0,
-      shuffle: false,
+      currentTrack: null,
+      currentTrackId: trackId || null,
+      currentQueueIndex: 0,
+      position: 0,
+      duration: durationMs > 0 ? durationMs / 1000 : 0,
+      isPlaying: false,
+      shuffleMode: 'OFF',
       repeatMode: 'off',
+      playbackRequestId: 0,
+      shuffle: false,
       source,
     };
-    return this.currentSession;
+    this.currentSession = session;
+    return session;
   }
 
   public getSession(): UnifiedPlaybackSession | null {

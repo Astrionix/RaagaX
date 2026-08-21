@@ -470,7 +470,7 @@ export function DiscoveryHubView({ initialCategory, onBack }: DiscoveryHubViewPr
                   return (
                     <div
                       key={`${song.id}-${item.rank}`}
-                      className={`p-3 sm:px-5 flex items-center justify-between hover:bg-[var(--bg-surface)] transition-colors group cursor-pointer ${isCurrent ? 'bg-red-500/10' : ''
+                      className={`p-3 sm:px-5 flex items-center justify-between hover:bg-[var(--bg-surface)] transition-colors group cursor-pointer ${isCurrent ? 'bg-white/[0.08]' : ''
                         }`}
                       onClick={() => playSong(song, chartsData.rankedSongs.map((r: any) => r.song))}
                     >
