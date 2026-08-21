@@ -343,7 +343,7 @@ export function ExpandedPlayerModal() {
       {/* ── 1. DYNAMIC ARTWORK ATMOSPHERE (Cover Blur + 2-3 Color Meshes + Dark Glass Scrim) ── */}
       {/* Layer A: Blurred Enlarged Cover Artwork (40-60px blur) */}
       <div
-        className="absolute inset-0 opacity-65 scale-125 pointer-events-none transition-all duration-1000 ease-out"
+        className="absolute inset-0 opacity-65 scale-125 pointer-events-none transition-all duration-700 ease-out"
         style={{
           backgroundImage: `url(${coverUrl})`,
           backgroundSize: 'cover',
@@ -357,7 +357,7 @@ export function ExpandedPlayerModal() {
         <>
           {/* Primary Dominant Glow (Top & Center Atmosphere) */}
           <div
-            className="absolute -top-24 left-1/2 -translate-x-1/2 w-[130%] h-[560px] rounded-full blur-3xl pointer-events-none transition-all duration-1000 opacity-75"
+            className="absolute -top-24 left-1/2 -translate-x-1/2 w-[130%] h-[560px] rounded-full blur-3xl pointer-events-none transition-all duration-700 opacity-75"
             style={{
               background: `radial-gradient(ellipse at 50% 25%, ${palette.primary} 0%, ${palette.secondary} 45%, transparent 75%)`,
             }}
@@ -365,7 +365,7 @@ export function ExpandedPlayerModal() {
 
           {/* Secondary Ambient Accent (Side Atmosphere) */}
           <div
-            className="absolute top-32 -left-16 w-[80%] h-[420px] rounded-full blur-3xl pointer-events-none transition-all duration-1000 opacity-50"
+            className="absolute top-32 -left-16 w-[80%] h-[420px] rounded-full blur-3xl pointer-events-none transition-all duration-700 opacity-50"
             style={{
               background: `radial-gradient(circle at 30% 40%, ${palette.secondary} 0%, transparent 65%)`,
             }}
@@ -373,7 +373,7 @@ export function ExpandedPlayerModal() {
 
           {/* Highlight Bloom (Radiating Behind Foreground Artwork) */}
           <div
-            className="absolute top-20 left-1/2 -translate-x-1/2 w-[480px] h-[480px] rounded-full blur-2xl pointer-events-none transition-all duration-1000 opacity-40"
+            className="absolute top-20 left-1/2 -translate-x-1/2 w-[480px] h-[480px] rounded-full blur-2xl pointer-events-none transition-all duration-700 opacity-40"
             style={{
               background: `radial-gradient(circle at 50% 50%, ${palette.highlight} 0%, transparent 60%)`,
             }}
@@ -383,14 +383,14 @@ export function ExpandedPlayerModal() {
 
       {/* Layer C: Dark Glass / Vignette Scrim (Ensures Crisp Artwork & Neutral Glass Readability) */}
       <div
-        className="absolute inset-0 pointer-events-none transition-all duration-1000"
+        className="absolute inset-0 pointer-events-none transition-all duration-700"
         style={{
           background:
             'radial-gradient(ellipse at 50% 35%, rgba(6,7,10,0.15) 0%, rgba(6,7,10,0.55) 55%, rgba(6,7,10,0.92) 100%)',
         }}
       />
       <div
-        className="absolute inset-0 pointer-events-none"
+        className="absolute inset-0 pointer-events-none transition-all duration-700"
         style={{
           background:
             'linear-gradient(180deg, rgba(6,7,10,0.20) 0%, rgba(6,7,10,0.30) 35%, rgba(6,7,10,0.72) 75%, rgba(6,7,10,0.96) 92%, #06070A 100%)',
