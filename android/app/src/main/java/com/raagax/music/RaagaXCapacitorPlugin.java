@@ -10,11 +10,17 @@ import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
 
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.raagax.music.playback.NetworkStateMonitor;
+import com.raagax.music.playback.OfflineQueueResolver;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @CapacitorPlugin(name = "RaagaXPlayer")
 public class RaagaXCapacitorPlugin extends Plugin {
@@ -67,6 +73,20 @@ public class RaagaXCapacitorPlugin extends Plugin {
             } else if ("com.raagax.music.TRACK_ENDED".equals(action)) {
                 // Legacy — kept for compatibility
                 notifyListeners("trackEnded", new JSObject());
+
+            } else if ("com.raagax.music.OFFLINE_QUEUE_READY".equals(action)) {
+                // Offline queue successfully resolved and loaded into ExoPlayer
+                JSObject data = new JSObject();
+                data.put("resolvedCount", intent.getIntExtra("resolvedCount", 0));
+                data.put("startIndex",    intent.getIntExtra("startIndex", 0));
+                data.put("firstTrackId",  intent.getStringExtra("firstTrackId"));
+                notifyListeners("offlineQueueReady", data);
+
+            } else if ("com.raagax.music.OFFLINE_QUEUE_EMPTY".equals(action)) {
+                // No songs were available offline for the requested IDs
+                JSObject data = new JSObject();
+                data.put("requestedCount", intent.getIntExtra("requestedCount", 0));
+                notifyListeners("offlineQueueEmpty", data);
             }
         }
     };
@@ -81,6 +101,8 @@ public class RaagaXCapacitorPlugin extends Plugin {
         filter.addAction("com.raagax.music.ACTION_NEXT");
         filter.addAction("com.raagax.music.ACTION_PREV");
         filter.addAction("com.raagax.music.TRACK_ENDED");
+        filter.addAction("com.raagax.music.OFFLINE_QUEUE_READY");
+        filter.addAction("com.raagax.music.OFFLINE_QUEUE_EMPTY");
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             getContext().registerReceiver(playbackReceiver, filter, Context.RECEIVER_EXPORTED);
@@ -125,16 +147,18 @@ public class RaagaXCapacitorPlugin extends Plugin {
         try {
             int len = tracks.length();
             String[] urls     = new String[len];
+            String[] trackIds = new String[len]; // ← now populated for mediaId
             String[] titles   = new String[len];
             String[] artists  = new String[len];
             String[] artworks = new String[len];
 
             for (int i = 0; i < len; i++) {
                 org.json.JSONObject obj = tracks.getJSONObject(i);
-                urls[i]     = obj.optString("url", "");
-                titles[i]   = obj.optString("title", "RaagaX");
-                artists[i]  = obj.optString("artist", "");
-                artworks[i] = obj.optString("artworkUrl", obj.optString("coverUrl", ""));
+                urls[i]      = obj.optString("url", "");
+                trackIds[i]  = obj.optString("trackId", obj.optString("id", obj.optString("songId", "")));
+                titles[i]    = obj.optString("title", "RaagaX");
+                artists[i]   = obj.optString("artist", "");
+                artworks[i]  = obj.optString("artworkUrl", obj.optString("coverUrl", ""));
             }
 
             boolean autoPlay = call.getBoolean("autoPlay", true);
@@ -146,6 +170,7 @@ public class RaagaXCapacitorPlugin extends Plugin {
 
             Intent intent = new Intent("SET_QUEUE");
             intent.putExtra("urls",             urls);
+            intent.putExtra("trackIds",         trackIds);  // ← added
             intent.putExtra("titles",           titles);
             intent.putExtra("artists",          artists);
             intent.putExtra("artworks",         artworks);
@@ -350,5 +375,159 @@ public class RaagaXCapacitorPlugin extends Plugin {
             getContext().unregisterReceiver(playbackReceiver);
         } catch (Exception ignored) {}
         super.handleOnDestroy();
+    }
+
+    // ── Offline Playback Plugin Methods ───────────────────────────────────────
+
+    /**
+     * setOfflineQueue — Build and play an ExoPlayer queue from local files only.
+     *
+     * The Android layer receives song IDs, resolves them via OfflineQueueResolver
+     * (Room DB + file verification), and loads only COMPLETED tracks into ExoPlayer.
+     * Songs without a local copy are automatically excluded.
+     *
+     * JS call:
+     *   RaagaXPlayer.setOfflineQueue({
+     *     songIds: ['id1', 'id2', 'id3'],
+     *     startIndex: 0,
+     *     autoPlay: true
+     *   })
+     *
+     * Emits 'offlineQueueReady' or 'offlineQueueEmpty' event back to JS.
+     */
+    @PluginMethod
+    public void setOfflineQueue(PluginCall call) {
+        com.getcapacitor.JSArray songIdsArray = call.getArray("songIds");
+        int startIndex = call.getInt("startIndex", 0);
+        boolean autoPlay = call.getBoolean("autoPlay", true);
+
+        if (songIdsArray == null || songIdsArray.length() == 0) {
+            call.reject("songIds array is required");
+            return;
+        }
+
+        try {
+            int len = songIdsArray.length();
+            String[] songIds = new String[len];
+            for (int i = 0; i < len; i++) {
+                songIds[i] = songIdsArray.getString(i);
+            }
+
+            long requestId = 0L;
+            if (call.getData() != null && call.getData().has("requestId")) {
+                requestId = call.getData().optLong("requestId", 0L);
+            }
+
+            Intent intent = new Intent("SET_OFFLINE_QUEUE");
+            intent.putExtra("songIds",    songIds);
+            intent.putExtra("startIndex", startIndex);
+            intent.putExtra("autoPlay",   autoPlay);
+            intent.putExtra("requestId",  requestId);
+            sendCommandToService(intent);
+
+            call.resolve(new JSObject().put("success", true));
+        } catch (Exception e) {
+            Log.e(TAG, "Error in setOfflineQueue: " + e.getMessage());
+            call.reject("Failed to set offline queue: " + e.getMessage());
+        }
+    }
+
+    /**
+     * resolveOfflineTracks — Check which songs in a given list are available offline.
+     *
+     * Runs OfflineQueueResolver on a background thread. Returns the same list annotated
+     * with isAvailableOffline=true/false so the JS layer can build offline-filtered UIs
+     * without hitting the native layer per-song.
+     *
+     * JS call:
+     *   RaagaXPlayer.resolveOfflineTracks({ songIds: ['id1', 'id2', 'id3'] })
+     *
+     * Returns:
+     *   {
+     *     tracks: [{ songId, title, artist, artworkUrl, isAvailableOffline }],
+     *     availableCount: N
+     *   }
+     */
+    @PluginMethod
+    public void resolveOfflineTracks(PluginCall call) {
+        com.getcapacitor.JSArray songIdsArray = call.getArray("songIds");
+
+        if (songIdsArray == null || songIdsArray.length() == 0) {
+            call.reject("songIds array is required");
+            return;
+        }
+
+        try {
+            int len = songIdsArray.length();
+            List<String> songIdList = new ArrayList<>();
+            for (int i = 0; i < len; i++) {
+                String id = songIdsArray.getString(i);
+                if (id != null && !id.isEmpty()) songIdList.add(id);
+            }
+
+            // Run on background thread — Room I/O
+            new Thread(() -> {
+                try {
+                    OfflineQueueResolver resolver = OfflineQueueResolver.getInstance(getContext());
+                    List<OfflineQueueResolver.ResolvedTrack> resolvedTracks = resolver.resolve(songIdList);
+
+                    // Build a Set for quick lookup
+                    java.util.Set<String> resolvedIds = new java.util.HashSet<>();
+                    java.util.Map<String, OfflineQueueResolver.ResolvedTrack> trackMap = new java.util.HashMap<>();
+                    for (OfflineQueueResolver.ResolvedTrack t : resolvedTracks) {
+                        resolvedIds.add(t.songId);
+                        trackMap.put(t.songId, t);
+                    }
+
+                    com.getcapacitor.JSArray arr = new com.getcapacitor.JSArray();
+                    int availableCount = 0;
+                    for (String songId : songIdList) {
+                        JSObject obj = new JSObject();
+                        obj.put("songId", songId);
+                        boolean available = resolvedIds.contains(songId);
+                        obj.put("isAvailableOffline", available);
+                        if (available) {
+                            OfflineQueueResolver.ResolvedTrack t = trackMap.get(songId);
+                            obj.put("title",      t.title);
+                            obj.put("artist",     t.artist);
+                            obj.put("artworkUrl", t.artworkUrl);
+                            obj.put("fileSize",   t.fileSize);
+                            availableCount++;
+                        }
+                        arr.put(obj);
+                    }
+
+                    JSObject result = new JSObject();
+                    result.put("tracks",        arr);
+                    result.put("availableCount", availableCount);
+                    result.put("totalCount",     songIdList.size());
+                    call.resolve(result);
+                } catch (Exception e) {
+                    Log.e(TAG, "resolveOfflineTracks background error: " + e.getMessage());
+                    call.reject("Failed to resolve offline tracks: " + e.getMessage());
+                }
+            }, "ResolveOfflineTracks-Thread").start();
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error in resolveOfflineTracks: " + e.getMessage());
+            call.reject("Failed to parse songIds: " + e.getMessage());
+        }
+    }
+
+    /**
+     * getNetworkState — Returns the current network online/offline state.
+     *
+     * Uses the centralized NetworkStateMonitor singleton (ConnectivityManager.NetworkCallback).
+     * Safe to call from any thread.
+     *
+     * JS call:
+     *   RaagaXPlayer.getNetworkState()
+     *
+     * Returns: { isOnline: boolean }
+     */
+    @PluginMethod
+    public void getNetworkState(PluginCall call) {
+        boolean isOnline = NetworkStateMonitor.getInstance(getContext()).isOnline();
+        call.resolve(new JSObject().put("isOnline", isOnline));
     }
 }

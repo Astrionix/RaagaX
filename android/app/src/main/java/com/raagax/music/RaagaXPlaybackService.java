@@ -17,6 +17,8 @@ import android.util.LruCache;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.OptIn;
@@ -28,6 +30,9 @@ import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
+
+import com.raagax.music.playback.NetworkStateMonitor;
+import com.raagax.music.playback.OfflineQueueResolver;
 
 /**
  * RaagaXPlaybackService — Native Android foreground playback service.
@@ -366,6 +371,7 @@ public class RaagaXPlaybackService extends Service {
         if ("SET_QUEUE".equals(action)) {
             // ── PRIMARY command: full ordered playlist ────────────────────
             String[] urls        = intent.getStringArrayExtra("urls");
+            String[] trackIds    = intent.getStringArrayExtra("trackIds");   // mediaId per item
             String[] titles      = intent.getStringArrayExtra("titles");
             String[] artists     = intent.getStringArrayExtra("artists");
             String[] artworks    = intent.getStringArrayExtra("artworks");
@@ -374,7 +380,18 @@ public class RaagaXPlaybackService extends Service {
             boolean autoPlay     = intent.getBooleanExtra("autoPlay", true);
             Log.d(TAG, "[SET_QUEUE_INTENT] tracks=" + (urls != null ? urls.length : 0) + " | startIndex=" + startIndex + " | startPos=" + startPositionMs + "ms | autoPlay=" + autoPlay + " | reqId=" + reqId);
             if (urls != null && urls.length > 0) {
-                setQueue(urls, titles, artists, artworks, startIndex, startPositionMs, autoPlay);
+                setQueue(urls, trackIds, titles, artists, artworks, startIndex, startPositionMs, autoPlay);
+            }
+
+        } else if ("SET_OFFLINE_QUEUE".equals(action)) {
+            // ── OFFLINE command: accepts songIds[], resolves local files ──
+            String[] songIds     = intent.getStringArrayExtra("songIds");
+            int startIndex       = intent.getIntExtra("startIndex", 0);
+            boolean autoPlay     = intent.getBooleanExtra("autoPlay", true);
+            Log.d(TAG, "[SET_OFFLINE_QUEUE_INTENT] songIds=" + (songIds != null ? songIds.length : 0)
+                    + " | startIndex=" + startIndex + " | autoPlay=" + autoPlay + " | reqId=" + reqId);
+            if (songIds != null && songIds.length > 0) {
+                setOfflineQueue(songIds, startIndex, autoPlay);
             }
 
         } else if ("PLAY".equals(action)) {
@@ -544,13 +561,18 @@ public class RaagaXPlaybackService extends Service {
      * Replaces the entire ExoPlayer playlist with the provided ordered list of
      * tracks and starts playing from startIndex. ExoPlayer then auto-advances
      * through all items natively without WebView involvement.
+     *
+     * trackIds[] is now the canonical mediaId array. Each MediaItem.mediaId is
+     * set to the song ID, enabling the onMediaItemTransition desync guard to
+     * correctly identify which track ExoPlayer is actually playing.
      */
-    public void setQueue(String[] urls, String[] titles, String[] artists, String[] artworks, int startIndex, long startPositionMs, boolean autoPlay) {
+    public void setQueue(String[] urls, String[] trackIds, String[] titles, String[] artists,
+                         String[] artworks, int startIndex, long startPositionMs, boolean autoPlay) {
         runOnMainThread(() -> {
             if (player == null || urls == null || urls.length == 0) return;
 
             isPreparingNewTrack = true;
-            java.util.List<androidx.media3.exoplayer.source.MediaSource> sources = new java.util.ArrayList<>();
+            List<androidx.media3.exoplayer.source.MediaSource> sources = new ArrayList<>();
             androidx.media3.extractor.DefaultExtractorsFactory extractorsFactory =
                     new androidx.media3.extractor.DefaultExtractorsFactory()
                             .setConstantBitrateSeekingEnabled(true);
@@ -561,8 +583,11 @@ public class RaagaXPlaybackService extends Service {
             for (int i = 0; i < urls.length; i++) {
                 String u = urls[i];
                 if (u == null || u.isEmpty()) continue;
-                String t = (titles  != null && i < titles.length  && titles[i]  != null) ? titles[i]  : "RaagaX";
-                String a = (artists != null && i < artists.length && artists[i] != null) ? artists[i] : "";
+                // Use trackId as mediaId when available — critical for desync guard
+                String id  = (trackIds != null && i < trackIds.length && trackIds[i] != null && !trackIds[i].isEmpty())
+                             ? trackIds[i] : "";
+                String t   = (titles   != null && i < titles.length   && titles[i]   != null) ? titles[i]   : "RaagaX";
+                String a   = (artists  != null && i < artists.length  && artists[i]  != null) ? artists[i]  : "";
                 String art = (artworks != null && i < artworks.length && artworks[i] != null) ? artworks[i] : "";
 
                 MediaMetadata.Builder metaBuilder = new MediaMetadata.Builder()
@@ -576,10 +601,13 @@ public class RaagaXPlaybackService extends Service {
                 }
 
                 Uri itemUri = parsePlayableUri(u);
-                MediaItem mi = new MediaItem.Builder()
+                MediaItem.Builder miBuilder = new MediaItem.Builder()
                         .setUri(itemUri)
-                        .setMediaMetadata(metaBuilder.build())
-                        .build();
+                        .setMediaMetadata(metaBuilder.build());
+                if (!id.isEmpty()) {
+                    miBuilder.setMediaId(id);
+                }
+                MediaItem mi = miBuilder.build();
 
                 sources.add(new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
                         dataSourceFactory,
@@ -592,12 +620,12 @@ public class RaagaXPlaybackService extends Service {
             int safeIndex = Math.max(0, Math.min(startIndex, sources.size() - 1));
             long safePositionMs = Math.max(0L, startPositionMs);
 
-            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(android.content.Context.CONNECTIVITY_SERVICE);
-            android.net.NetworkInfo activeNetwork = cm != null ? cm.getActiveNetworkInfo() : null;
-            boolean isOnline = activeNetwork != null && activeNetwork.isConnectedOrConnecting();
+            boolean isOnline = NetworkStateMonitor.getInstance(this).isOnline();
             Log.d(TAG, "[PLAYBACK_MODE] mode=" + (isOnline ? "ONLINE" : "OFFLINE"));
             Log.d(TAG, "[OFFLINE_QUEUE] tracks=" + sources.size() + " downloadedOnly=" + (!isOnline));
-            Log.d(TAG, "[QUEUE_UPDATE] reason=setQueue mode=" + (isOnline ? "ONLINE" : "OFFLINE") + " currentTrack=" + (titles != null && safeIndex < titles.length ? titles[safeIndex] : "") + " action=SET");
+            Log.d(TAG, "[QUEUE_UPDATE] reason=setQueue mode=" + (isOnline ? "ONLINE" : "OFFLINE")
+                    + " currentTrack=" + (titles != null && safeIndex < titles.length ? titles[safeIndex] : "")
+                    + " action=SET");
 
             // Set the complete playlist — ExoPlayer starts from designated track & position
             player.setMediaSources(sources, safeIndex, safePositionMs);
@@ -614,20 +642,157 @@ public class RaagaXPlaybackService extends Service {
             }
             saveNativeQueueToPrefs(urls, titles, artists, safeIndex);
             updateNotification();
-            Log.d(TAG, "setQueue: " + sources.size() + " items, startIndex=" + safeIndex + ", startPos=" + safePositionMs + "ms, autoPlay=" + autoPlay);
+            Log.d(TAG, "setQueue: " + sources.size() + " items, startIndex=" + safeIndex
+                    + ", startPos=" + safePositionMs + "ms, autoPlay=" + autoPlay);
         });
     }
 
-    public void setQueue(String[] urls, String[] titles, String[] artists, int startIndex, long startPositionMs, boolean autoPlay) {
-        setQueue(urls, titles, artists, null, startIndex, startPositionMs, autoPlay);
+    // ── setQueue overloads (backward compat) ──────────────────────────────────
+
+    /** Legacy overload without trackIds — mediaId will be empty on each MediaItem. */
+    public void setQueue(String[] urls, String[] titles, String[] artists, String[] artworks,
+                         int startIndex, long startPositionMs, boolean autoPlay) {
+        setQueue(urls, /*trackIds=*/null, titles, artists, artworks, startIndex, startPositionMs, autoPlay);
+    }
+
+    public void setQueue(String[] urls, String[] titles, String[] artists,
+                         int startIndex, long startPositionMs, boolean autoPlay) {
+        setQueue(urls, null, titles, artists, null, startIndex, startPositionMs, autoPlay);
     }
 
     public void setQueue(String[] urls, String[] titles, String[] artists, int startIndex, boolean autoPlay) {
-        setQueue(urls, titles, artists, null, startIndex, 0L, autoPlay);
+        setQueue(urls, null, titles, artists, null, startIndex, 0L, autoPlay);
     }
 
     public void setQueue(String[] urls, String[] titles, String[] artists, int startIndex) {
-        setQueue(urls, titles, artists, null, startIndex, 0L, true);
+        setQueue(urls, null, titles, artists, null, startIndex, 0L, true);
+    }
+
+    // ── Offline queue: songIds → Room → local file URIs → ExoPlayer ──────────
+
+    /**
+     * setOfflineQueue — Offline-only playback entry point.
+     *
+     * Accepts an ordered list of song IDs. Resolves each one via OfflineQueueResolver
+     * (Room DB lookup + file verification) on a background thread, then builds an
+     * ExoPlayer queue containing only songs with verified local files.
+     *
+     * Architecture:
+     *   songIds[]
+     *       ↓ (background thread)
+     *   OfflineQueueResolver.resolve()
+     *       ↓  filters: COMPLETED + file.exists()
+     *   ResolvedTrack[]
+     *       ↓ (main thread)
+     *   MediaItem(mediaId=songId, uri=file://...)
+     *       ↓
+     *   ExoPlayer queue
+     *
+     * Songs without a COMPLETED download are silently excluded from the queue.
+     * If nothing resolves (no songs downloaded), nothing is played.
+     */
+    public void setOfflineQueue(String[] songIds, int startIndex, boolean autoPlay) {
+        if (songIds == null || songIds.length == 0) return;
+
+        Log.d(TAG, "[SET_OFFLINE_QUEUE] Resolving " + songIds.length + " songIds on background thread");
+
+        // ── Background thread: Room DB lookup + file verification ────────────
+        new Thread(() -> {
+            List<String> idList = new ArrayList<>();
+            for (String id : songIds) {
+                if (id != null && !id.isEmpty()) idList.add(id);
+            }
+
+            OfflineQueueResolver resolver = OfflineQueueResolver.getInstance(this);
+            List<OfflineQueueResolver.ResolvedTrack> resolved = resolver.resolve(idList);
+
+            if (resolved.isEmpty()) {
+                Log.w(TAG, "[SET_OFFLINE_QUEUE] No offline tracks available for " + idList.size() + " requested song IDs");
+                // Broadcast so the JS layer can show 'Nothing available offline'
+                Intent notAvail = new Intent("com.raagax.music.OFFLINE_QUEUE_EMPTY");
+                notAvail.putExtra("requestedCount", idList.size());
+                sendBroadcast(notAvail);
+                return;
+            }
+
+            Log.d(TAG, "[SET_OFFLINE_QUEUE] Resolved " + resolved.size() + " offline tracks");
+
+            // Clamp startIndex to the resolved (filtered) list length
+            int safeIndex = Math.max(0, Math.min(startIndex, resolved.size() - 1));
+
+            // ── Main thread: build MediaItems and hand to ExoPlayer ──────────
+            runOnMainThread(() -> {
+                if (player == null) return;
+
+                isPreparingNewTrack = true;
+                isCurrentLocalPlayback = true;
+
+                androidx.media3.extractor.DefaultExtractorsFactory extractorsFactory =
+                        new androidx.media3.extractor.DefaultExtractorsFactory()
+                                .setConstantBitrateSeekingEnabled(true);
+                androidx.media3.datasource.DefaultDataSource.Factory dataSourceFactory =
+                        new androidx.media3.datasource.DefaultDataSource.Factory(this);
+
+                List<androidx.media3.exoplayer.source.MediaSource> sources = new ArrayList<>();
+
+                for (OfflineQueueResolver.ResolvedTrack track : resolved) {
+                    MediaMetadata.Builder metaBuilder = new MediaMetadata.Builder()
+                            .setTitle(track.title)
+                            .setArtist(track.artist);
+
+                    if (!track.artworkUrl.isEmpty()) {
+                        try {
+                            metaBuilder.setArtworkUri(parsePlayableUri(track.artworkUrl));
+                        } catch (Exception ignored) {}
+                    }
+
+                    // ── THE KEY: mediaId = songId ────────────────────────────
+                    // This is what makes onMediaItemTransition's desync guard work
+                    // correctly during offline auto-advance.
+                    MediaItem mi = new MediaItem.Builder()
+                            .setMediaId(track.songId)          // ← songId as identity
+                            .setUri(track.localUri)            // ← verified file:// URI
+                            .setMediaMetadata(metaBuilder.build())
+                            .build();
+
+                    sources.add(new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
+                            dataSourceFactory, extractorsFactory
+                    ).createMediaSource(mi));
+                }
+
+                if (sources.isEmpty()) return;
+
+                // Set starting track metadata so notification updates immediately
+                OfflineQueueResolver.ResolvedTrack startTrack = resolved.get(safeIndex);
+                currentTrackId = startTrack.songId;
+                currentTitle   = startTrack.title;
+                currentArtist  = startTrack.artist;
+                loadArtworkAsync(startTrack.artworkUrl);
+
+                player.setMediaSources(sources, safeIndex, 0L);
+                player.prepare();
+                if (autoPlay) {
+                    player.setPlayWhenReady(true);
+                    player.play();
+                } else {
+                    player.setPlayWhenReady(false);
+                    player.pause();
+                }
+                updateNotification();
+
+                Log.d(TAG, "[SET_OFFLINE_QUEUE] ExoPlayer loaded: "
+                        + sources.size() + " local tracks, startIndex=" + safeIndex
+                        + ", autoPlay=" + autoPlay
+                        + ", firstTrack=" + startTrack.songId);
+
+                // Broadcast the actual resolved queue back to JS (for UI sync)
+                Intent queueReady = new Intent("com.raagax.music.OFFLINE_QUEUE_READY");
+                queueReady.putExtra("resolvedCount", resolved.size());
+                queueReady.putExtra("startIndex",    safeIndex);
+                queueReady.putExtra("firstTrackId",  startTrack.songId);
+                sendBroadcast(queueReady);
+            });
+        }, "OfflineQueueResolver-Thread").start();
     }
 
     private void saveNativeQueueToPrefs(String[] urls, String[] titles, String[] artists, int startIndex) {

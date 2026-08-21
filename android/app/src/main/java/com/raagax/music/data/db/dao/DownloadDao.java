@@ -48,4 +48,23 @@ public interface DownloadDao {
 
     @Query("DELETE FROM downloads")
     void clearAllDownloads();
+
+    // ── Batch queries for OfflineQueueResolver ────────────────────────────────
+
+    /**
+     * Batch-fetch COMPLETED download records for a given list of song IDs.
+     * Used by OfflineQueueResolver to avoid N individual queries when building
+     * an offline playback queue from Liked Songs or Playlists.
+     *
+     * Note: Room handles the IN clause with a List<String> automatically.
+     */
+    @Query("SELECT * FROM downloads WHERE (trackId IN (:trackIds) OR songId IN (:trackIds)) AND downloadState = 'COMPLETED'")
+    List<DownloadEntity> getCompletedDownloadsForTracks(List<String> trackIds);
+
+    /**
+     * Returns true (1) if the given song ID has a COMPLETED download record.
+     * Useful for fast per-song offline badge checks in UI.
+     */
+    @Query("SELECT COUNT(*) FROM downloads WHERE (trackId = :trackId OR songId = :trackId) AND downloadState = 'COMPLETED'")
+    int isDownloadedAndVerified(String trackId);
 }
