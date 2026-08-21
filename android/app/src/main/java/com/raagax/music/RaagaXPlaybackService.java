@@ -93,7 +93,7 @@ public class RaagaXPlaybackService extends Service {
                 .setMediaSourceFactory(mediaSourceFactory)
                 .setAudioAttributes(audioAttributes, /* handleAudioFocus= */ true)
                 .setHandleAudioBecomingNoisy(true)
-                .setWakeMode(C.WAKE_MODE_NETWORK)
+                .setWakeMode(C.WAKE_MODE_LOCAL)
                 .build();
 
         // Strict Anti-Autoplay Rule: Player boots strictly paused with no media loaded
@@ -180,7 +180,7 @@ public class RaagaXPlaybackService extends Service {
                     }
                 } else if (state == Player.STATE_READY) {
                     isPreparingNewTrack = false;
-                    boolean isPlaying = player != null && player.isPlaying();
+                    boolean isPlaying = player != null && (player.isPlaying() || player.getPlayWhenReady());
                     long dur = player != null && player.getDuration() > 0 ? player.getDuration() : 0L;
                     long pos = player != null ? player.getCurrentPosition() : 0L;
                     if (dur == 0L && lastReportedDurationMs > 0L) {
@@ -220,6 +220,20 @@ public class RaagaXPlaybackService extends Service {
                     i.putExtra("timestamp", System.currentTimeMillis());
                     sendBroadcast(i);
                 }
+                updateNotification();
+            }
+
+            @Override
+            public void onIsPlayingChanged(boolean isPlaying) {
+                long pos = player != null ? player.getCurrentPosition() : 0L;
+                long dur = player != null && player.getDuration() > 0 ? player.getDuration() : (lastReportedDurationMs > 0 ? lastReportedDurationMs : 0L);
+                Log.d(TAG, "[ON_IS_PLAYING_CHANGED] isPlaying=" + isPlaying + " pos=" + pos + " dur=" + dur + " trackId=" + currentTrackId);
+                Intent i = new Intent("com.raagax.music.PLAYBACK_STATE");
+                i.putExtra("isPlaying", isPlaying);
+                i.putExtra("positionMs", pos);
+                i.putExtra("durationMs", dur);
+                i.putExtra("timestamp", System.currentTimeMillis());
+                sendBroadcast(i);
                 updateNotification();
             }
 
