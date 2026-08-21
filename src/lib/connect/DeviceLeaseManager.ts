@@ -141,6 +141,15 @@ export class DeviceLeaseManager {
            throw new Error(data?.error || 'lease_denied');
         }
       } catch (e) {
+        // If we're offline when the renewal fails, don't count it against us —
+        // refresh the lease locally and reset the failure counter.
+        if (isOfflineMode()) {
+          this.leaseExpiresAt = Date.now() + 60000;
+          consecutiveFailures = 0;
+          console.log('[DeviceLeaseManager] Renewal failed while OFFLINE — refreshed local lease, ownership retained.');
+          return;
+        }
+
         consecutiveFailures++;
         console.warn(`[DeviceLeaseManager] Lease renewal attempt ${consecutiveFailures} failed:`, e);
  
@@ -148,6 +157,13 @@ export class DeviceLeaseManager {
         if (consecutiveFailures < 3) {
           setTimeout(async () => {
              if (!this.currentLeaseToken) return;
+             // Don't lose ownership if we've gone offline during the retry window
+             if (isOfflineMode()) {
+               this.leaseExpiresAt = Date.now() + 60000;
+               consecutiveFailures = 0;
+               console.log('[DeviceLeaseManager] Retry skipped (OFFLINE) — local lease refreshed, ownership retained.');
+               return;
+             }
              try {
                const retryStore = usePlayerStore.getState();
                const retryExpires = new Date(Date.now() + 60000).toISOString();
@@ -167,6 +183,14 @@ export class DeviceLeaseManager {
              } catch {}
           }, 5000);
         } else {
+          // Last guard: never lose ownership if we're offline — the failures
+          // are network errors, not actual lease conflicts.
+          if (isOfflineMode()) {
+            this.leaseExpiresAt = Date.now() + 60000;
+            consecutiveFailures = 0;
+            console.log('[DeviceLeaseManager] Repeated failures but OFFLINE — local lease refreshed, ownership retained.');
+            return;
+          }
           console.error('[DeviceLeaseManager] Lease renewal failed repeatedly, losing ownership.');
           this.currentLeaseToken = null;
           this.leaseExpiresAt = 0;
