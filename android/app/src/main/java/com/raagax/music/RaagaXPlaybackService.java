@@ -153,9 +153,15 @@ public class RaagaXPlaybackService extends Service {
             @Override
             public void onPlaybackStateChanged(int state) {
                 if (state == Player.STATE_ENDED) {
-                    // The ENTIRE queue is exhausted — no more MediaItems to play.
-                    Log.d(TAG, "onPlaybackStateChanged: STATE_ENDED — queue exhausted, sending QUEUE_ENDED");
-                    sendBroadcast(new Intent("com.raagax.music.QUEUE_ENDED"));
+                    long pos = player != null ? player.getCurrentPosition() : 0L;
+                    long dur = player != null && player.getDuration() > 0 ? player.getDuration() : 0L;
+                    Log.d(TAG, "onPlaybackStateChanged: STATE_ENDED pos=" + pos + " dur=" + dur);
+                    if (pos >= 1000 || (dur > 0 && pos >= dur - 1500)) {
+                        Log.d(TAG, "onPlaybackStateChanged: STATE_ENDED — track finished naturally, sending QUEUE_ENDED");
+                        sendBroadcast(new Intent("com.raagax.music.QUEUE_ENDED"));
+                    } else {
+                        Log.w(TAG, "onPlaybackStateChanged: STATE_ENDED received at pos=" + pos + " (suppressing false premature skip)");
+                    }
                 } else if (state == Player.STATE_READY) {
                     boolean isPlaying = player != null && player.isPlaying();
                     long dur = player != null && player.getDuration() > 0 ? player.getDuration() : 0L;
@@ -497,7 +503,11 @@ public class RaagaXPlaybackService extends Service {
         runOnMainThread(() -> {
             if (player == null || urls == null || urls.length == 0) return;
 
-            java.util.List<MediaItem> items = new java.util.ArrayList<>();
+            java.util.List<androidx.media3.exoplayer.source.MediaSource> sources = new java.util.ArrayList<>();
+            androidx.media3.datasource.FileDataSource.Factory fileFactory = new androidx.media3.datasource.FileDataSource.Factory();
+            androidx.media3.datasource.DefaultDataSource.Factory defaultFactory = new androidx.media3.datasource.DefaultDataSource.Factory(this);
+            androidx.media3.exoplayer.source.DefaultMediaSourceFactory defaultSourceFactory = new androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this).setDataSourceFactory(defaultFactory);
+
             for (int i = 0; i < urls.length; i++) {
                 String u = urls[i];
                 if (u == null || u.isEmpty()) continue;
@@ -515,26 +525,34 @@ public class RaagaXPlaybackService extends Service {
                     } catch (Exception ignored) {}
                 }
 
-                items.add(new MediaItem.Builder()
-                        .setUri(parsePlayableUri(u))
+                Uri itemUri = parsePlayableUri(u);
+                MediaItem mi = new MediaItem.Builder()
+                        .setUri(itemUri)
+                        .setMimeType(androidx.media3.common.MimeTypes.AUDIO_MPEG)
                         .setMediaMetadata(metaBuilder.build())
-                        .build());
+                        .build();
+
+                if ("file".equalsIgnoreCase(itemUri.getScheme())) {
+                    sources.add(new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(fileFactory).createMediaSource(mi));
+                } else {
+                    sources.add(defaultSourceFactory.createMediaSource(mi));
+                }
             }
 
-            if (items.isEmpty()) return;
+            if (sources.isEmpty()) return;
 
-            int safeIndex = Math.max(0, Math.min(startIndex, items.size() - 1));
+            int safeIndex = Math.max(0, Math.min(startIndex, sources.size() - 1));
             long safePositionMs = Math.max(0L, startPositionMs);
 
             android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(android.content.Context.CONNECTIVITY_SERVICE);
             android.net.NetworkInfo activeNetwork = cm != null ? cm.getActiveNetworkInfo() : null;
             boolean isOnline = activeNetwork != null && activeNetwork.isConnectedOrConnecting();
             Log.d(TAG, "[PLAYBACK_MODE] mode=" + (isOnline ? "ONLINE" : "OFFLINE"));
-            Log.d(TAG, "[OFFLINE_QUEUE] tracks=" + items.size() + " downloadedOnly=" + (!isOnline));
+            Log.d(TAG, "[OFFLINE_QUEUE] tracks=" + sources.size() + " downloadedOnly=" + (!isOnline));
             Log.d(TAG, "[QUEUE_UPDATE] reason=setQueue mode=" + (isOnline ? "ONLINE" : "OFFLINE") + " currentTrack=" + (titles != null && safeIndex < titles.length ? titles[safeIndex] : "") + " action=SET");
 
             // Set the complete playlist — ExoPlayer starts from designated track & position
-            player.setMediaItems(items, safeIndex, safePositionMs);
+            player.setMediaSources(sources, safeIndex, safePositionMs);
             player.prepare();
             if (autoPlay) {
                 player.setPlayWhenReady(true);
@@ -548,7 +566,7 @@ public class RaagaXPlaybackService extends Service {
             }
             saveNativeQueueToPrefs(urls, titles, artists, safeIndex);
             updateNotification();
-            Log.d(TAG, "setQueue: " + items.size() + " items, startIndex=" + safeIndex + ", startPos=" + safePositionMs + "ms, autoPlay=" + autoPlay);
+            Log.d(TAG, "setQueue: " + sources.size() + " items, startIndex=" + safeIndex + ", startPos=" + safePositionMs + "ms, autoPlay=" + autoPlay);
         });
     }
 
@@ -751,11 +769,23 @@ public class RaagaXPlaybackService extends Service {
                 } catch (Exception ignored) {}
             }
 
-            player.setMediaItem(new MediaItem.Builder()
+            MediaItem mediaItem = new MediaItem.Builder()
                     .setMediaId(currentTrackId)
                     .setUri(playableUri)
+                    .setMimeType(androidx.media3.common.MimeTypes.AUDIO_MPEG)
                     .setMediaMetadata(metaBuilder.build())
-                    .build());
+                    .build();
+
+            if (isLocal || "file".equalsIgnoreCase(playableUri.getScheme())) {
+                androidx.media3.exoplayer.source.MediaSource localSource =
+                        new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
+                                new androidx.media3.datasource.FileDataSource.Factory()
+                        ).createMediaSource(mediaItem);
+                player.setMediaSource(localSource);
+            } else {
+                player.setMediaItem(mediaItem);
+            }
+
             player.prepare();
             player.setPlayWhenReady(true);
             player.play();
@@ -767,20 +797,27 @@ public class RaagaXPlaybackService extends Service {
     public void setNextTrack(String url, String title, String artist) {
         runOnMainThread(() -> {
             if (player == null || url == null || url.isEmpty()) return;
-            // Remove stale items after current position
             while (player.getMediaItemCount() > player.getCurrentMediaItemIndex() + 1) {
                 player.removeMediaItem(player.getCurrentMediaItemIndex() + 1);
             }
-            player.addMediaItem(new MediaItem.Builder()
-                    .setUri(parsePlayableUri(url))
+            Uri itemUri = parsePlayableUri(url);
+            MediaItem mi = new MediaItem.Builder()
+                    .setUri(itemUri)
+                    .setMimeType(androidx.media3.common.MimeTypes.AUDIO_MPEG)
                     .setMediaMetadata(new MediaMetadata.Builder()
                             .setTitle(title != null ? title : "RaagaX")
                             .setArtist(artist != null ? artist : "")
                             .build())
-                    .build());
-            if (player.getPlaybackState() == Player.STATE_ENDED) {
-                player.prepare();
-                player.play();
+                    .build();
+
+            if ("file".equalsIgnoreCase(itemUri.getScheme())) {
+                androidx.media3.exoplayer.source.MediaSource localSource =
+                        new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
+                                new androidx.media3.datasource.FileDataSource.Factory()
+                        ).createMediaSource(mi);
+                player.addMediaSource(localSource);
+            } else {
+                player.addMediaItem(mi);
             }
         });
     }
@@ -791,26 +828,34 @@ public class RaagaXPlaybackService extends Service {
             while (player.getMediaItemCount() > player.getCurrentMediaItemIndex() + 1) {
                 player.removeMediaItem(player.getCurrentMediaItemIndex() + 1);
             }
-            java.util.List<MediaItem> items = new java.util.ArrayList<>();
+            java.util.List<androidx.media3.exoplayer.source.MediaSource> sources = new java.util.ArrayList<>();
+            androidx.media3.datasource.FileDataSource.Factory fileFactory = new androidx.media3.datasource.FileDataSource.Factory();
+            androidx.media3.datasource.DefaultDataSource.Factory defaultFactory = new androidx.media3.datasource.DefaultDataSource.Factory(this);
+            androidx.media3.exoplayer.source.DefaultMediaSourceFactory defaultSourceFactory = new androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this).setDataSourceFactory(defaultFactory);
+
             for (int i = 0; i < urls.length; i++) {
                 String u = urls[i];
                 if (u == null || u.isEmpty()) continue;
                 String t = (titles  != null && i < titles.length  && titles[i]  != null) ? titles[i]  : "RaagaX";
                 String a = (artists != null && i < artists.length && artists[i] != null) ? artists[i] : "";
-                items.add(new MediaItem.Builder()
-                        .setUri(parsePlayableUri(u))
+                Uri itemUri = parsePlayableUri(u);
+                MediaItem mi = new MediaItem.Builder()
+                        .setUri(itemUri)
+                        .setMimeType(androidx.media3.common.MimeTypes.AUDIO_MPEG)
                         .setMediaMetadata(new MediaMetadata.Builder()
                                 .setTitle(t)
                                 .setArtist(a)
                                 .build())
-                        .build());
-            }
-            if (!items.isEmpty()) {
-                player.addMediaItems(items);
-                if (player.getPlaybackState() == Player.STATE_ENDED) {
-                    player.prepare();
-                    player.play();
+                        .build();
+
+                if ("file".equalsIgnoreCase(itemUri.getScheme())) {
+                    sources.add(new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(fileFactory).createMediaSource(mi));
+                } else {
+                    sources.add(defaultSourceFactory.createMediaSource(mi));
                 }
+            }
+            if (!sources.isEmpty()) {
+                player.addMediaSources(sources);
             }
         });
     }
