@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { usePlayerStore } from '@/context/usePlayerStore';
+import { usePlayerStore, isOfflineMode } from '@/context/usePlayerStore';
 import { PlaybackEngine } from '../playback/PlaybackEngine';
 
 export class PlaybackSessionManager {
@@ -37,6 +37,10 @@ export class PlaybackSessionManager {
   // Adaptive checkpointing - explicit triggers
   public async checkpoint(force = false) {
     if (!this.sessionId || !this.isSchemaSupported) return;
+
+    if (isOfflineMode()) {
+      return;
+    }
     
     const engine = PlaybackEngine.getInstance();
     let currentPosition = engine.getCanonicalPositionMs();

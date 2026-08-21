@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { usePlayerStore } from '@/context/usePlayerStore';
+import { usePlayerStore, isOfflineMode } from '@/context/usePlayerStore';
 import { CommandSequencer } from './CommandSequencer';
 import { PlaybackEngine } from '../playback/PlaybackEngine';
 import { CommandValidator } from './CommandValidator';
@@ -34,6 +34,11 @@ export class SessionReconciler {
   }
 
   public async fetchAuthoritativeSnapshot(sessionId: string): Promise<PlaybackSnapshot | null> {
+    if (isOfflineMode()) {
+      console.log('[SessionReconciler] Suppressing fetchAuthoritativeSnapshot - device is offline.');
+      return null;
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) return null;
 
@@ -90,6 +95,11 @@ export class SessionReconciler {
   }
 
   public async applySnapshot(snapshot: PlaybackSnapshot): Promise<void> {
+    if (isOfflineMode()) {
+      console.log('[SessionReconciler] Suppressing applySnapshot - device is offline.');
+      return;
+    }
+
     const store = usePlayerStore.getState();
     const sequencer = CommandSequencer.getInstance();
     const validator = CommandValidator.getInstance();

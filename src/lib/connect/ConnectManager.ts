@@ -8,7 +8,7 @@ import { SessionReconciler } from './SessionReconciler';
 import { CommandValidator } from './CommandValidator';
 import { CommandSequencer } from './CommandSequencer';
 import { ClockSynchronizer } from './ClockSynchronizer';
-import { usePlayerStore } from '@/context/usePlayerStore';
+import { usePlayerStore, isOfflineMode } from '@/context/usePlayerStore';
 
 export class ConnectManager {
   private static instance: ConnectManager;
@@ -152,6 +152,11 @@ export class ConnectManager {
   }
 
   public async initiateRecovery() {
+    if (isOfflineMode()) {
+      console.log('[ConnectManager] Suspending recovery - device is offline.');
+      return;
+    }
+
     if (this.manualDisconnectRequested) {
       console.log('[ConnectManager] Reconnect cancelled: manual disconnect');
       return;
@@ -457,6 +462,10 @@ export class ConnectManager {
         } as any);
       }
     } catch {}
+
+    if (isOfflineMode()) {
+      return;
+    }
 
     if (!this.sessionChannel) return;
     await this.sessionChannel.send({

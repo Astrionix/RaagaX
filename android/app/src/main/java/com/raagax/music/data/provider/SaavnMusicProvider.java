@@ -41,6 +41,18 @@ public class SaavnMusicProvider implements MusicProvider {
     private static final String ALBUM_DETAILS_URL = BASE_API + "__call=content.getAlbumDetails&_format=json&cc=in&_marker=0&albumid=";
 
     private final OkHttpClient httpClient;
+    private static volatile SaavnMusicProvider INSTANCE;
+
+    public static SaavnMusicProvider getInstance() {
+        if (INSTANCE == null) {
+            synchronized (SaavnMusicProvider.class) {
+                if (INSTANCE == null) {
+                    INSTANCE = new SaavnMusicProvider();
+                }
+            }
+        }
+        return INSTANCE;
+    }
 
     public SaavnMusicProvider() {
         this.httpClient = new OkHttpClient.Builder()
@@ -312,21 +324,32 @@ public class SaavnMusicProvider implements MusicProvider {
     }
 
     private MusicTrack fetchTrackFromNewApi(String trackId) {
-        try {
-            String newApiUrl = "https://saavn.dev/api/songs/" + trackId;
-            Request request = new Request.Builder()
-                .url(newApiUrl)
-                .header("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 RaagaX/1.0")
-                .build();
+        String[] endpoints = new String[] {
+            "https://saavn.dev/api/songs?id=" + trackId,
+            "https://saavn.dev/api/songs/" + trackId,
+            "https://raaga-x-chi.vercel.app/api/songs?id=" + trackId
+        };
 
-            try (Response response = httpClient.newCall(request).execute()) {
-                if (!response.isSuccessful() || response.body() == null) return null;
-                String bodyStr = response.body().string();
-                JsonObject root = JsonParser.parseString(bodyStr).getAsJsonObject();
+        for (String url : endpoints) {
+            try {
+                Request request = new Request.Builder()
+                    .url(url)
+                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 RaagaX/1.0")
+                    .build();
 
-                if (root.has("data") && root.get("data").isJsonArray()) {
-                    JsonArray data = root.getAsJsonArray("data");
-                    if (data.size() > 0) {
+                try (Response response = httpClient.newCall(request).execute()) {
+                    if (!response.isSuccessful() || response.body() == null) continue;
+                    String bodyStr = response.body().string();
+                    JsonObject root = JsonParser.parseString(bodyStr).getAsJsonObject();
+
+                    JsonArray data = null;
+                    if (root.has("data") && root.get("data").isJsonArray()) {
+                        data = root.getAsJsonArray("data");
+                    } else if (root.has("songs") && root.get("songs").isJsonArray()) {
+                        data = root.getAsJsonArray("songs");
+                    }
+
+                    if (data != null && data.size() > 0) {
                         JsonObject obj = data.get(0).getAsJsonObject();
                         MusicTrack track = new MusicTrack();
                         track.id = trackId;
@@ -354,12 +377,14 @@ public class SaavnMusicProvider implements MusicProvider {
                         }
                         track.language = getSafeString(obj, "language");
                         track.streamUrl = extractMediaUrl(obj);
-                        return track;
+                        if (track.streamUrl != null && !track.streamUrl.isEmpty()) {
+                            return track;
+                        }
                     }
                 }
+            } catch (Exception e) {
+                Log.w(TAG, "[SaavnProvider] fetchTrackFromNewApi failed on " + url + ": " + e.getMessage());
             }
-        } catch (Exception e) {
-            Log.w(TAG, "[SaavnProvider] fetchTrackFromNewApi failed for " + trackId + ": " + e.getMessage());
         }
         return null;
     }

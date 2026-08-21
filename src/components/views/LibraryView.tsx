@@ -22,6 +22,7 @@ import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 import { Song } from '@/types/music';
 import { getCuratedPlaylists, LANGUAGE_PLAYLIST_MAP } from '@/constants/playlists';
 import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
+import { haptics } from '@/lib/haptics/HapticEngine';
 
 export function LibraryView() {
   const [tab, setTab] = useState<string>('menu');
@@ -1128,10 +1129,15 @@ export function LibraryView() {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                handlePlayAll(likedSongs, false);
+                haptics.mediumImpact();
+                usePlayerStore.getState().playSong(likedSongs[0], likedSongs, {
+                  contextType: 'LIKED_SONGS',
+                  contextUri: 'raagax:liked-songs',
+                  title: 'Liked Songs',
+                });
               }}
               className="w-9 h-9 rounded-full bg-[#FA233B] hover:bg-[#D90429] active:scale-95 text-white flex items-center justify-center shadow-md shadow-red-500/35 transition-all cursor-pointer"
-              title="Play Liked Songs"
+              title="Play Liked Songs from Track 1"
             >
               <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
             </button>

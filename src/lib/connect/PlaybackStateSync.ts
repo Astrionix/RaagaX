@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { usePlayerStore } from '@/context/usePlayerStore';
+import { usePlayerStore, isOfflineMode } from '@/context/usePlayerStore';
 import { Song } from '@/types/music';
 import { CommandSequencer } from './CommandSequencer';
 import { DeviceRegistry } from './DeviceRegistry';
@@ -184,6 +184,10 @@ export class PlaybackStateSync {
    */
   public handleRemoteStateUpdate(remoteState: RemotePlaybackState) {
     if (!remoteState || !remoteState.activeDeviceId) return;
+
+    if (isOfflineMode()) {
+      return;
+    }
 
     const store = usePlayerStore.getState();
     const localDeviceId = store.deviceId;

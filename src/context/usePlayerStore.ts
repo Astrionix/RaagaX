@@ -21,6 +21,19 @@ import { AudioQuality, AudioQualityState } from '@/lib/playback/types';
 import { DownloadStorage } from '@/lib/offline/DownloadStorage';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
 
+export function isOfflineMode(): boolean {
+  try {
+    const store = usePlayerStore.getState();
+    if (store.networkMode === 'offline' || store.networkMode === 'offline_forced') {
+      return true;
+    }
+  } catch {}
+  if (typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean' && navigator.onLine === false) {
+    return true;
+  }
+  return false;
+}
+
 interface PlayerState {
   currentSong: Song | null;
   isPlaying: boolean;
@@ -963,12 +976,8 @@ export const usePlayerStore = create<PlayerState>()(
             playbackRequestId: requestId,
           });
         }).catch(() => {});
-        MediaSessionManager.getInstance().updateMetadata({
-          title: formattedTrack.title,
-          artist: formattedTrack.artist,
-          album: formattedTrack.album || 'RaagaX Music',
-          artwork: formattedTrack.coverUrl ? [{ src: formattedTrack.coverUrl, sizes: '512x512', type: 'image/png' }] : [],
-        });
+        MediaSessionManager.getInstance().updateSongMetadata(formattedTrack);
+        MediaSessionManager.getInstance().setPlaybackState('playing');
         persistSessionHelper(get());
       },
 
@@ -1031,12 +1040,7 @@ export const usePlayerStore = create<PlayerState>()(
         persistSessionHelper(get());
 
         // Update MediaSession (Android lockscreen, Notification shade, Bluetooth metadata)
-        MediaSessionManager.getInstance().updateMetadata({
-          title: formattedTrack.title,
-          artist: formattedTrack.artist,
-          album: formattedTrack.album || 'RaagaX Music',
-          artwork: formattedTrack.coverUrl ? [{ src: formattedTrack.coverUrl, sizes: '512x512', type: 'image/png' }] : [],
-        });
+        MediaSessionManager.getInstance().updateSongMetadata(formattedTrack);
         MediaSessionManager.getInstance().setPlaybackState(autoPlay ? 'playing' : 'paused');
         MediaSessionManager.getInstance().setPositionState({
           duration: formattedTrack.duration || 0,
@@ -1060,7 +1064,11 @@ export const usePlayerStore = create<PlayerState>()(
 
         // 4. Stale-request check: verify the requestId is still current
         if (requestId !== globalPlaybackRequestId || !loaded) {
-          console.log(`[SWITCH_TRACK] Stale or cancelled request #${requestId} for "${track.title}" (current #${globalPlaybackRequestId}) - DISCARDED`);
+          console.log(`[SWITCH_TRACK] Stale or failed request #${requestId} for "${track.title}" (current #${globalPlaybackRequestId}, loaded=${loaded})`);
+          if (!loaded && requestId === globalPlaybackRequestId) {
+            set({ isPlaying: false, playbackIntent: 'PAUSED' });
+            MediaSessionManager.getInstance().setPlaybackState('paused');
+          }
           return false;
         }
 
@@ -1140,7 +1148,20 @@ export const usePlayerStore = create<PlayerState>()(
         let syncedQueue = get().queue;
         let targetIndex = 0;
 
-        if (newQueue && newQueue.length > 0) {
+        let filteredNewQueue = newQueue;
+        if (isOfflineMode()) {
+          try {
+            const { useDownloadStore } = require('@/context/useDownloadStore');
+            const downloadStore = useDownloadStore?.getState?.();
+            const downloadedSongIds = get().downloadedSongIds || [];
+            const originalQueue = newQueue && newQueue.length > 0 ? newQueue : [activePlaySong];
+            filteredNewQueue = originalQueue.filter((s: Song) => {
+              return s && (s.id === activePlaySong.id || downloadedSongIds.includes(s.id) || !!downloadStore?.nativeDownloadedTracks?.[s.id]);
+            });
+          } catch {}
+        }
+
+        if (filteredNewQueue && filteredNewQueue.length > 0) {
           // ── FULL-COLLECTION QUEUE FIX ──────────────────────────────────────────
           // IMPORTANT: Pass the ENTIRE collection to QueueManager with the correct
           // startIndex. Do NOT slice from the tapped song — that destroys all tracks
@@ -1155,7 +1176,7 @@ export const usePlayerStore = create<PlayerState>()(
 
           // 1. Deduplicate by stable track ID while preserving order
           const seen = new Set<string>();
-          const dedupedQueue = newQueue.filter((s: Song) => {
+          const dedupedQueue = filteredNewQueue.filter((s: Song) => {
             if (!s || !s.id) return false;
             if (seen.has(s.id)) return false;
             seen.add(s.id);

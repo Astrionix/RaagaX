@@ -30,11 +30,13 @@ public class RaagaXCapacitorPlugin extends Plugin {
 
             if ("com.raagax.music.TRACK_CHANGED".equals(action)) {
                 JSObject data = new JSObject();
-                data.put("title",     intent.getStringExtra("title"));
-                data.put("artist",    intent.getStringExtra("artist"));
-                data.put("url",       intent.getStringExtra("url"));
-                data.put("index",     intent.getIntExtra("index", 0));
-                data.put("requestId", intent.getLongExtra("requestId", 0L));
+                data.put("trackId",    intent.getStringExtra("trackId"));
+                data.put("title",      intent.getStringExtra("title"));
+                data.put("artist",     intent.getStringExtra("artist"));
+                data.put("artworkUrl", intent.getStringExtra("artworkUrl"));
+                data.put("url",        intent.getStringExtra("url"));
+                data.put("index",      intent.getIntExtra("index", 0));
+                data.put("requestId",  intent.getLongExtra("requestId", 0L));
                 notifyListeners("trackChanged", data);
 
             } else if ("com.raagax.music.QUEUE_ENDED".equals(action)) {
@@ -44,6 +46,8 @@ public class RaagaXCapacitorPlugin extends Plugin {
             } else if ("com.raagax.music.PLAYBACK_STATE".equals(action)) {
                 JSObject data = new JSObject();
                 data.put("isPlaying", intent.getBooleanExtra("isPlaying", false));
+                data.put("positionMs", intent.getLongExtra("positionMs", 0L));
+                data.put("durationMs", intent.getLongExtra("durationMs", 0L));
                 notifyListeners("playbackStateChanged", data);
 
             } else if ("com.raagax.music.SEEK_COMPLETE".equals(action)) {
@@ -160,6 +164,7 @@ public class RaagaXCapacitorPlugin extends Plugin {
 
     @PluginMethod
     public void play(PluginCall call) {
+        String trackId   = call.getString("trackId", "");
         String url       = call.getString("url", "");
         String title     = call.getString("title", "RaagaX");
         String artist    = call.getString("artist", "");
@@ -175,6 +180,7 @@ public class RaagaXCapacitorPlugin extends Plugin {
         }
 
         Intent intent = new Intent("PLAY");
+        intent.putExtra("trackId",    trackId);
         intent.putExtra("url",        url);
         intent.putExtra("title",      title);
         intent.putExtra("artist",     artist);

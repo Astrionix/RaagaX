@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { usePlayerStore } from '@/context/usePlayerStore';
+import { usePlayerStore, isOfflineMode } from '@/context/usePlayerStore';
 import { CommandSequencer } from './CommandSequencer';
 
 export class DeviceLeaseManager {
@@ -27,6 +27,15 @@ export class DeviceLeaseManager {
     const leaseToken = crypto.randomUUID();
     const expiresAtMs = Date.now() + 60000;
     const expiresAt = new Date(expiresAtMs).toISOString();
+
+    if (isOfflineMode()) {
+      this.currentLeaseToken = leaseToken;
+      this.currentLeaseVersion = (this.currentLeaseVersion || 0) + 1;
+      this.leaseExpiresAt = expiresAtMs;
+      usePlayerStore.setState({ isActiveDevice: true, activeDeviceId: deviceId });
+      console.log('[DeviceLeaseManager] Local lease adopted for session (OFFLINE mode)');
+      return true;
+    }
 
     if (!session?.user) {
       this.currentLeaseToken = leaseToken;
@@ -94,7 +103,7 @@ export class DeviceLeaseManager {
     if (this.leaseInterval) clearInterval(this.leaseInterval);
     
     let consecutiveFailures = 0;
-
+ 
     // Renew every 25s for 60s lease window
     this.leaseInterval = setInterval(async () => {
       if (!this.currentLeaseToken) {
@@ -102,10 +111,16 @@ export class DeviceLeaseManager {
         return;
       }
 
+      if (isOfflineMode()) {
+        this.leaseExpiresAt = Date.now() + 60000;
+        consecutiveFailures = 0;
+        return;
+      }
+ 
       const store = usePlayerStore.getState();
       const expiresAtMs = Date.now() + 60000;
       const expiresAt = new Date(expiresAtMs).toISOString();
-
+ 
       try {
         const { data, error } = await supabase.rpc('claim_playback_lease', {
           p_session_id: sessionId,
@@ -117,7 +132,7 @@ export class DeviceLeaseManager {
         });
           
         if (error) throw error;
-
+ 
         if (data && data.success) {
            this.currentLeaseVersion = data.lease_version;
            this.leaseExpiresAt = expiresAtMs;
@@ -128,7 +143,7 @@ export class DeviceLeaseManager {
       } catch (e) {
         consecutiveFailures++;
         console.warn(`[DeviceLeaseManager] Lease renewal attempt ${consecutiveFailures} failed:`, e);
-
+ 
         // Retry once after 5s before losing lease (lease is 60s total)
         if (consecutiveFailures < 3) {
           setTimeout(async () => {
@@ -161,7 +176,7 @@ export class DeviceLeaseManager {
       }
     }, 25000);
   }
-
+ 
   public async releaseLease(sessionId?: string): Promise<void> {
     if (this.leaseInterval) {
       clearInterval(this.leaseInterval);
@@ -171,8 +186,12 @@ export class DeviceLeaseManager {
     this.currentLeaseToken = null;
     this.currentLeaseVersion = 0;
     this.leaseExpiresAt = 0;
-
+ 
     if (!token) return;
+
+    if (isOfflineMode()) {
+      return;
+    }
 
     try {
       const store = usePlayerStore.getState();

@@ -112,15 +112,23 @@ export class RealMusicEngine {
     if (!q) return [];
     const url = `${getLocalApiBase()}/search/albums?query=${encodeURIComponent(q)}&limit=${limit}`;
 
-    const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 7000);
-
     try {
-      const res = await fetch(url, { signal: ctrl.signal });
-      clearTimeout(tid);
-      if (!res.ok) return [];
-      const data = await res.json();
-      const results = data.data?.results || data.results || [];
+      let data: any = null;
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+        if (res.ok) data = await res.json();
+      } catch {}
+
+      // Direct fallback if proxy is cold or unreachable
+      if (!data || (!data.data?.results && !data.results)) {
+        try {
+          const directUrl = `https://saavn.dev/api/search/albums?query=${encodeURIComponent(q)}&limit=${limit}`;
+          const dRes = await fetch(directUrl, { signal: AbortSignal.timeout(6000) });
+          if (dRes.ok) data = await dRes.json();
+        } catch {}
+      }
+
+      const results = data?.data?.results || data?.results || [];
       return results.map((album: any) => {
         const coverUrl = this.extractCoverUrl(album.image || album.coverUrl) || '/app-icon.png';
         return {
@@ -132,7 +140,6 @@ export class RealMusicEngine {
         };
       });
     } catch (err: any) {
-      clearTimeout(tid);
       return [];
     }
   }
@@ -146,24 +153,29 @@ export class RealMusicEngine {
       fetchId = id.replace('album:', '');
     }
 
-    let url = isAlbum ? `${getLocalApiBase()}/albums?id=${fetchId}` : `${getLocalApiBase()}/playlists?id=${fetchId}`;
+    const tryEndpoints = [
+      isAlbum ? `${getLocalApiBase()}/albums?id=${fetchId}` : `${getLocalApiBase()}/playlists?id=${fetchId}`,
+      isAlbum ? `https://saavn.dev/api/albums?id=${fetchId}` : `https://saavn.dev/api/playlists?id=${fetchId}`,
+      `${getLocalApiBase()}/albums?id=${fetchId}`,
+      `https://saavn.dev/api/albums?id=${fetchId}`,
+    ];
 
     try {
-      let res = await fetch(url);
-      let data = res.ok ? await res.json() : null;
-      let collection = data?.data;
+      let collection: any = null;
 
-      // Fallback to Albums if Playlist fails (for legacy IDs)
-      if (!res.ok || !collection) {
-        if (!isAlbum) {
-          url = `${getLocalApiBase()}/albums?id=${fetchId}`;
-          res = await fetch(url);
+      for (const ep of tryEndpoints) {
+        if (collection) break;
+        try {
+          const res = await fetch(ep, { signal: AbortSignal.timeout(6000) });
           if (res.ok) {
-            data = await res.json();
-            collection = data?.data;
-            isAlbum = true;
+            const json = await res.json();
+            collection = json?.data || json;
+            if (collection && (Array.isArray(collection.songs) || collection.name || collection.title)) {
+              if (ep.includes('/albums')) isAlbum = true;
+              break;
+            }
           }
-        }
+        } catch {}
       }
 
       if (!collection) return null;

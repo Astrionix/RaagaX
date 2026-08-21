@@ -294,13 +294,26 @@ export class PlaybackService {
         return;
       }
 
-      const validTracks = resolvedTracks.filter(t => !!t.url);
+      const startingSongId = songs[startIndex]?.id;
+      const validTracks: any[] = [];
+      let newStartIndex = 0;
+
+      for (let i = 0; i < resolvedTracks.length; i++) {
+        const t = resolvedTracks[i];
+        if (t.url) {
+          if (songs[i]?.id === startingSongId) {
+            newStartIndex = validTracks.length;
+          }
+          validTracks.push(t);
+        }
+      }
+
       if (validTracks.length === 0) return;
 
       // setQueue() hands ExoPlayer the entire playlist with the correct start index and position.
       // ExoPlayer then owns all transitions — no WebView involvement needed.
-      await RaagaXNativePlayer.setQueue(validTracks, startIndex, autoPlay, startPositionMs, requestId);
-      console.log(`[PlaybackService] loadQueueContext: setQueue(${validTracks.length} tracks, startIndex=${startIndex}, startPos=${startPositionMs}ms, autoPlay=${autoPlay}, reqId=${requestId}) — ExoPlayer owns all transitions`);
+      await RaagaXNativePlayer.setQueue(validTracks, newStartIndex, autoPlay, startPositionMs, requestId);
+      console.log(`[PlaybackService] loadQueueContext: setQueue(${validTracks.length} tracks, startIndex=${newStartIndex} (original=${startIndex}), startPos=${startPositionMs}ms, autoPlay=${autoPlay}, reqId=${requestId}) — ExoPlayer owns all transitions`);
     } catch (e) {
       console.warn('[PlaybackService] loadQueueContext failed:', e);
     }
@@ -445,6 +458,7 @@ export class PlaybackService {
         }
 
         await RaagaXNativePlayer.play({
+          trackId: song.id,
           url: finalSrc,
           title: song.title ?? 'Unknown Title',
           artist: song.artist ?? 'Unknown Artist',

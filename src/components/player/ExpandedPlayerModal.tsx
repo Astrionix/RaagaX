@@ -690,7 +690,7 @@ export function ExpandedPlayerModal() {
             />
             <div className="flex items-center justify-between text-[11px] font-mono text-white/50 font-medium px-0.5">
               <span>{formatTime(currentTime)}</span>
-              <span>-{formatTime(remainingTime)}</span>
+              <span>{songDuration > 0 ? `-${formatTime(remainingTime)}` : '--:--'}</span>
             </div>
           </div>
 

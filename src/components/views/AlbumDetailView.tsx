@@ -16,6 +16,8 @@ import { DynamicArtworkAtmosphere } from '@/components/common/DynamicArtworkAtmo
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 
+import { getApiUrl } from '@/lib/config/apiConfig';
+
 type SortOption = 'default' | 'az' | 'za' | 'popular';
 
 export function AlbumDetailView() {
@@ -69,91 +71,156 @@ export function AlbumDetailView() {
 
     const loadRealTracks = async () => {
       try {
-        // Direct ID-based fetch from authoritative album API
-        const apiRes = await fetch(`/api/albums?id=${encodeURIComponent(selectedAlbumId)}`).catch(() => null);
-        if (apiRes && apiRes.ok) {
-          const apiJson = await apiRes.json();
-          const albData = apiJson?.data;
-          if (albData && isMounted) {
-            const primaryArtistName =
-              albData.artists?.primary?.map((a: any) => a.name).join(', ') ||
-              albData.primaryArtists ||
-              albData.artist ||
-              'Various Artists';
-            const primaryArtistId = albData.artists?.primary?.[0]?.id || '';
-            const albCover =
-              albData.image?.find?.((i: any) => i.quality === '500x500')?.url ||
-              albData.image?.[albData.image?.length - 1]?.url ||
-              baseAlbum?.coverUrl ||
-              '/app-icon.png';
-            const albYear = Number(albData.year) || baseAlbum?.releaseYear || 2024;
-            const albReleaseDate = albData.releaseDate || (albYear ? `${albYear}-01-01` : '2024-01-01');
+        let mappedTracks: Song[] = [];
+        let albName = baseAlbum?.title || album?.title || '';
+        let primaryArtist = baseAlbum?.artist || album?.artist || 'Various Artists';
+        let albCover = baseAlbum?.coverUrl || album?.coverUrl || '/app-icon.png';
+        let albYear = baseAlbum?.releaseYear || album?.releaseYear || 2024;
+        let albReleaseDate = baseAlbum?.releaseDate || album?.releaseDate || `${albYear}-01-01`;
 
-            const mappedTracks: Song[] = (albData.songs || []).map((s: any) => ({
-              id: s.id,
-              title: s.name || s.title || 'Unknown Title',
-              artist: s.artists?.primary?.map((a: any) => a.name).join(', ') || s.primaryArtists || primaryArtistName,
-              artistId: s.artists?.primary?.[0]?.id || primaryArtistId,
-              album: albData.name || albData.title || '',
-              albumId: albData.id || selectedAlbumId,
-              duration: Number(s.duration) || 210,
-              coverUrl:
-                s.image?.find?.((i: any) => i.quality === '500x500')?.url ||
-                s.image?.[s.image?.length - 1]?.url ||
-                albCover,
-              audioUrl:
-                s.downloadUrl?.find?.((d: any) => d.quality === '320kbps')?.url ||
-                s.downloadUrl?.[s.downloadUrl?.length - 1]?.url ||
-                '',
-              genre: s.language || albData.language || 'Music',
-              category: 'global_trending' as const,
-              releaseYear: albYear,
-              plays: Number(s.playCount) || 0,
-              likes: 0,
-            }));
+        // ── Tier 1: Fetch via local/hosted API endpoint with getApiUrl & direct upstream fallback ──
+        const endpoints = [
+          getApiUrl(`/api/albums?id=${encodeURIComponent(selectedAlbumId)}`),
+          `https://saavn.dev/api/albums?id=${encodeURIComponent(selectedAlbumId)}`,
+        ];
 
-            setAlbum({
-              id: albData.id || selectedAlbumId,
-              title: albData.name || albData.title || baseAlbum?.title || 'Album Details',
-              artist: primaryArtistName,
-              artistId: primaryArtistId,
-              coverUrl: albCover,
-              releaseDate: albReleaseDate,
-              releaseYear: albYear,
-              trackCount: mappedTracks.length || albData.songCount || 0,
-              durationSec: mappedTracks.reduce((s, t) => s + (t.duration || 210), 0),
-              language: albData.language || preferredLanguage,
-              albumType: mappedTracks.length > 6 ? 'album' : 'ep',
-              freshnessScore: 95,
-              trendingScore: 95,
-              topScore: 95,
-              tracks: mappedTracks,
-            });
-            return;
+        for (const ep of endpoints) {
+          if (mappedTracks.length > 0) break;
+          try {
+            const apiRes = await fetch(ep, { signal: AbortSignal.timeout(6000) }).catch(() => null);
+            if (apiRes && apiRes.ok) {
+              const apiJson = await apiRes.json();
+              const albData = apiJson?.data || apiJson;
+              if (albData && Array.isArray(albData.songs) && albData.songs.length > 0) {
+                primaryArtist =
+                  albData.artists?.primary?.map((a: any) => a.name).join(', ') ||
+                  albData.primaryArtists ||
+                  albData.artist ||
+                  primaryArtist;
+                albCover =
+                  albData.image?.find?.((i: any) => i.quality === '500x500')?.url ||
+                  albData.image?.[albData.image?.length - 1]?.url ||
+                  albCover;
+                albYear = Number(albData.year) || albYear;
+                albReleaseDate = albData.releaseDate || (albYear ? `${albYear}-01-01` : albReleaseDate);
+                albName = albData.name || albData.title || albName;
+
+                mappedTracks = albData.songs.map((s: any) => ({
+                  id: s.id,
+                  title: s.name || s.title || 'Unknown Title',
+                  artist: s.artists?.primary?.map((a: any) => a.name).join(', ') || s.primaryArtists || primaryArtist,
+                  artistId: s.artists?.primary?.[0]?.id || '',
+                  album: albData.name || albData.title || albName,
+                  albumId: albData.id || selectedAlbumId,
+                  duration: Number(s.duration) || 210,
+                  coverUrl:
+                    s.image?.find?.((i: any) => i.quality === '500x500')?.url ||
+                    s.image?.[s.image?.length - 1]?.url ||
+                    albCover,
+                  audioUrl:
+                    s.downloadUrl?.find?.((d: any) => d.quality === '320kbps')?.url ||
+                    s.downloadUrl?.[s.downloadUrl?.length - 1]?.url ||
+                    '',
+                  genre: s.language || albData.language || 'Music',
+                  category: 'global_trending' as const,
+                  releaseYear: albYear,
+                  plays: Number(s.playCount) || 0,
+                  likes: 0,
+                }));
+                break;
+              }
+            }
+          } catch {}
+        }
+
+        // ── Tier 2: RealMusicEngine playlist / album resolver ──
+        if (mappedTracks.length === 0) {
+          try {
+            const { RealMusicEngine } = await import('@/lib/realMusicEngine');
+            const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${selectedAlbumId}`);
+            if (details && details.songs && details.songs.length > 0) {
+              mappedTracks = details.songs;
+              albName = details.title || albName;
+              albCover = details.coverUrl || albCover;
+            }
+          } catch {}
+        }
+
+        // ── Tier 3: Search by Album / Movie Name (Direct + RealMusicEngine) ──
+        // Guarantees all movie albums display their complete real song list on Android!
+        const searchCandidate = (albName || baseAlbum?.title || selectedAlbumId || '').trim();
+        if (mappedTracks.length === 0 && searchCandidate) {
+          const searchUrls = [
+            `https://saavn.dev/api/search/songs?query=${encodeURIComponent(searchCandidate)}&limit=30`,
+            getApiUrl(`/api/search/songs?query=${encodeURIComponent(searchCandidate)}&limit=30`),
+          ];
+
+          for (const sUrl of searchUrls) {
+            if (mappedTracks.length > 0) break;
+            try {
+              const sRes = await fetch(sUrl, { signal: AbortSignal.timeout(6000) }).catch(() => null);
+              if (sRes && sRes.ok) {
+                const sJson = await sRes.json();
+                const results = sJson.data?.results || sJson.results || [];
+                if (Array.isArray(results) && results.length > 0) {
+                  mappedTracks = results.map((s: any) => ({
+                    id: s.id,
+                    title: s.name || s.title || 'Unknown Title',
+                    artist: s.artists?.primary?.map((a: any) => a.name).join(', ') || s.primaryArtists || primaryArtist,
+                    artistId: s.artists?.primary?.[0]?.id || '',
+                    album: s.album?.name || s.album || searchCandidate,
+                    albumId: s.album?.id || selectedAlbumId,
+                    duration: Number(s.duration) || 210,
+                    coverUrl:
+                      s.image?.find?.((i: any) => i.quality === '500x500')?.url ||
+                      s.image?.[s.image?.length - 1]?.url ||
+                      albCover,
+                    audioUrl:
+                      s.downloadUrl?.find?.((d: any) => d.quality === '320kbps')?.url ||
+                      s.downloadUrl?.[s.downloadUrl?.length - 1]?.url ||
+                      '',
+                    genre: s.language || 'Music',
+                    category: 'global_trending' as const,
+                    releaseYear: Number(s.year) || albYear,
+                    plays: Number(s.playCount) || 0,
+                    likes: 0,
+                  }));
+                  break;
+                }
+              }
+            } catch {}
           }
         }
 
-        // Secondary fallback to RealMusicEngine playlist resolver
-        const { RealMusicEngine } = await import('@/lib/realMusicEngine');
-        const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${selectedAlbumId}`);
+        // ── Tier 4: Fallback to RealMusicEngine.searchRealSongs ──
+        if (mappedTracks.length === 0 && searchCandidate) {
+          try {
+            const { RealMusicEngine } = await import('@/lib/realMusicEngine');
+            const searchSongs = await RealMusicEngine.getInstance().searchRealSongs(searchCandidate, 30);
+            if (searchSongs && searchSongs.length > 0) {
+              mappedTracks = searchSongs;
+            }
+          } catch {}
+        }
 
-        if (details && isMounted) {
-          setAlbum(prev => ({
-            id: details.id || selectedAlbumId,
-            title: details.title || prev?.title || 'Album Details',
-            artist: prev?.artist || 'Various Artists',
-            coverUrl: details.coverUrl || prev?.coverUrl || '',
-            releaseDate: prev?.releaseDate || '2024-01-01',
-            releaseYear: prev?.releaseYear || 2024,
-            trackCount: details.songs.length || prev?.trackCount || 0,
-            durationSec: details.songs.reduce((s, t) => s + (t.duration || 210), 0),
+        if (isMounted && mappedTracks.length > 0) {
+          setAlbum({
+            id: selectedAlbumId,
+            title: albName || baseAlbum?.title || searchCandidate || 'Album Details',
+            artist: primaryArtist,
+            artistId: primaryArtist,
+            coverUrl: albCover,
+            releaseDate: albReleaseDate,
+            releaseYear: albYear,
+            trackCount: mappedTracks.length,
+            durationSec: mappedTracks.reduce((s, t) => s + (t.duration || 210), 0),
             language: preferredLanguage,
-            albumType: details.songs.length > 6 ? 'album' : 'ep',
-            freshnessScore: prev?.freshnessScore || 90,
-            trendingScore: prev?.trendingScore || 90,
-            topScore: prev?.topScore || 90,
-            tracks: details.songs
-          }));
+            albumType: mappedTracks.length > 6 ? 'album' : 'ep',
+            freshnessScore: 95,
+            trendingScore: 95,
+            topScore: 95,
+            tracks: mappedTracks,
+          });
         }
       } catch (err) {
         console.error('Failed to load real album tracks:', err);
@@ -219,17 +286,13 @@ export function AlbumDetailView() {
   const handlePlayAll = () => {
     if (tracks.length === 0) return;
     haptics.mediumImpact();
-    if (isCurrentAlbumPlaying) {
-      togglePlayPause();
-    } else {
-      setRemoteState({ shuffleMode: 'OFF' });
-      playSong(tracks[0], tracks, {
-        type: 'album',
-        id: album.id,
-        title: album.title,
-        name: album.title,
-      });
-    }
+    setRemoteState({ shuffleMode: 'OFF' });
+    playSong(tracks[0], tracks, {
+      type: 'album',
+      id: album.id,
+      title: album.title,
+      name: album.title,
+    });
   };
 
   const handleShufflePlay = () => {
@@ -435,28 +498,21 @@ export function AlbumDetailView() {
           </div>
         </div>
 
-        {/* ── ACTION BUTTONS ROW ─────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-8 pt-6 border-t border-white/10">
+        {/* ── ACTION BUTTONS ROW (4 side-by-side) ─────────────────────────── */}
+        <div className="flex flex-nowrap items-center justify-center md:justify-start gap-2 sm:gap-3 mt-8 pt-6 border-t border-white/10 w-full overflow-x-auto no-scrollbar py-1">
           <button
             onClick={handlePlayAll}
-            className="h-11 px-6 rounded-full bg-[#fa233b] hover:bg-[#d91e32] text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xl shadow-red-500/25 active:scale-95 transition-all cursor-pointer shrink-0 whitespace-nowrap"
+            className="h-10 sm:h-11 px-4 sm:px-6 rounded-full bg-[#fa233b] hover:bg-[#d91e32] text-white font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2 shadow-xl shadow-red-500/25 active:scale-95 transition-all cursor-pointer shrink-0 whitespace-nowrap"
+            title="Play Album from Track 1"
           >
-            {isCurrentAlbumPlaying ? (
-              <>
-                <Pause className="w-4 h-4 fill-white" /> Pause
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4 fill-white ml-0.5" /> Play
-              </>
-            )}
+            <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-white ml-0.5" /> Play
           </button>
 
           <button
             onClick={handleShufflePlay}
-            className="h-11 px-5 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-white/10 active:scale-95 transition-all cursor-pointer shrink-0 whitespace-nowrap"
+            className="h-10 sm:h-11 px-3.5 sm:px-5 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2 border border-white/10 active:scale-95 transition-all cursor-pointer shrink-0 whitespace-nowrap"
           >
-            <Shuffle className="w-4 h-4" /> Shuffle
+            <Shuffle className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Shuffle
           </button>
 
           {/* ＋ Add to Library / ✓ In Library Button */}
@@ -468,7 +524,7 @@ export function AlbumDetailView() {
                 setToastMessage(isLikedAlbum ? 'Removed album from Library' : 'Added album to Library (Albums)');
               }
             }}
-            className={`h-11 px-5 rounded-full font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border transition-all active:scale-95 cursor-pointer shrink-0 whitespace-nowrap ${
+            className={`h-10 sm:h-11 px-3.5 sm:px-5 rounded-full font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2 border transition-all active:scale-95 cursor-pointer shrink-0 whitespace-nowrap ${
               isLikedAlbum
                 ? 'bg-purple-500/20 border-purple-500/40 text-purple-300 shadow-lg shadow-purple-500/20'
                 : 'bg-white/10 hover:bg-white/20 border-white/15 text-white'
@@ -477,12 +533,12 @@ export function AlbumDetailView() {
           >
             {isLikedAlbum ? (
               <>
-                <Check className="w-4 h-4 text-purple-400 stroke-[3]" />
+                <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400 stroke-[3]" />
                 <span>In Library</span>
               </>
             ) : (
               <>
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 <span>Save</span>
               </>
             )}
@@ -497,14 +553,14 @@ export function AlbumDetailView() {
                 setToastMessage(isLikedAlbum ? 'Removed from Favorites' : 'Liked album');
               }
             }}
-            className={`w-11 h-11 rounded-full flex items-center justify-center border transition-all active:scale-95 cursor-pointer shrink-0 ${
+            className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center border transition-all active:scale-95 cursor-pointer shrink-0 ${
               isLikedAlbum
                 ? 'bg-red-500/15 border-red-500/30 text-[#fa233b]'
                 : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white'
             }`}
             title={isLikedAlbum ? 'Unlike Album' : 'Like Album'}
           >
-            <Heart className={`w-4 h-4 ${isLikedAlbum ? 'fill-current text-[#fa233b]' : ''}`} />
+            <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isLikedAlbum ? 'fill-current text-[#fa233b]' : ''}`} />
           </button>
         </div>
       </div>

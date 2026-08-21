@@ -126,12 +126,8 @@ export function FavoritesView() {
   const handlePlayAll = (shuffle = false) => {
     if (resolvedLikedSongs.length === 0) return;
     haptics.mediumImpact();
-    if (isLikedListPlaying && !shuffle) {
-      togglePlayPause();
-      return;
-    }
     const tracklist = shuffle ? [...resolvedLikedSongs].sort(() => Math.random() - 0.5) : resolvedLikedSongs;
-    playSong(tracklist[0], tracklist, {
+    usePlayerStore.getState().playSong(tracklist[0], tracklist, {
       contextType: 'LIKED_SONGS',
       contextUri: 'raagax:liked-songs',
       title: 'Liked Songs',
@@ -165,9 +161,10 @@ export function FavoritesView() {
               onClick={() => handlePlayAll(false)}
               className="h-11 px-6 rounded-full bg-[#FA233B] hover:bg-[#D90429] active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xl shadow-[#FA233B]/30 transition-all cursor-pointer"
               aria-label="Play all liked songs"
+              title="Play Liked Songs from Track 1"
             >
-              <Play className={`w-4 h-4 fill-white ${isLikedListPlaying ? 'animate-pulse' : ''}`} />
-              <span>{isLikedListPlaying ? 'Pause' : 'Play All'}</span>
+              <Play className="w-4 h-4 fill-white ml-0.5" />
+              <span>Play</span>
             </button>
             <button
               onClick={() => handlePlayAll(true)}
@@ -203,7 +200,11 @@ export function FavoritesView() {
                     className="flex items-center gap-3.5 cursor-pointer min-w-0 flex-1"
                     onClick={() => {
                       haptics.lightImpact();
-                      playSong(song, resolvedLikedSongs);
+                      usePlayerStore.getState().playSong(song, resolvedLikedSongs, {
+                        contextType: 'LIKED_SONGS',
+                        contextUri: 'raagax:liked-songs',
+                        title: 'Liked Songs',
+                      });
                     }}
                   >
                     <div className="w-12 h-12 rounded-xl overflow-hidden shadow-sm flex-shrink-0 bg-slate-800 relative">

@@ -27,6 +27,7 @@ function getPlugin() {
 }
 
 export interface NativeTrackItem {
+  trackId?: string;
   url: string;
   title: string;
   artist: string;
@@ -155,7 +156,7 @@ export const RaagaXNativePlayer = {
   },
 
   /** Fires on every track change (auto-advance or manual next/prev) */
-  addTrackChangedListener(callback: (data: { title?: string; artist?: string; url?: string; index?: number; requestId?: number }) => void): () => void {
+  addTrackChangedListener(callback: (data: { trackId?: string; title?: string; artist?: string; artworkUrl?: string; url?: string; index?: number; requestId?: number }) => void): () => void {
     const plugin = getPlugin();
     if (!plugin) return () => {};
     plugin.addListener('trackChanged', callback);
@@ -170,7 +171,7 @@ export const RaagaXNativePlayer = {
     return () => plugin.removeAllListeners('trackEnded');
   },
 
-  addPlaybackStateListener(callback: (state: { isPlaying: boolean }) => void): () => void {
+  addPlaybackStateListener(callback: (state: { isPlaying: boolean; positionMs?: number; durationMs?: number }) => void): () => void {
     const plugin = getPlugin();
     if (!plugin) return () => {};
     plugin.addListener('playbackStateChanged', callback);

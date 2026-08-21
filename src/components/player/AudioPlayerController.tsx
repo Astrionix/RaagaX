@@ -107,10 +107,21 @@ export function AudioPlayerController() {
     }).catch(() => {});
 
     // playbackStateChanged fires whenever ExoPlayer changes between PLAYING and PAUSED
-    // (via lock screen, notification shade, bluetooth headset, car controls, or audio focus).
     const unsubPlaybackState = RaagaXNativePlayer.addPlaybackStateListener((data) => {
-      console.log('[AudioPlayerController] Native playbackStateChanged — isPlaying:', data.isPlaying);
-      usePlayerStore.getState().setIsPlaying(data.isPlaying, true);
+      console.log('[AudioPlayerController] Native playbackStateChanged — isPlaying:', data.isPlaying, 'durationMs:', data.durationMs, 'positionMs:', data.positionMs);
+      const store = usePlayerStore.getState();
+      // If store is in the middle of a track transition with PLAYING intent, ignore transient false from buffer init
+      if (!data.isPlaying && store.playbackIntent === 'PLAYING') {
+        console.log('[AudioPlayerController] Ignoring transient buffer false isPlaying while playbackIntent is PLAYING');
+        return;
+      }
+      store.setIsPlaying(data.isPlaying, true);
+      if (typeof data.durationMs === 'number' && data.durationMs > 0) {
+        store.setDuration(data.durationMs / 1000);
+      }
+      if (typeof data.positionMs === 'number' && data.positionMs >= 0) {
+        store.setCurrentTime(data.positionMs / 1000, true);
+      }
     });
 
     // queueEnded fires when the current track finishes playing in ExoPlayer.
@@ -128,8 +139,27 @@ export function AudioPlayerController() {
     });
 
     const unsubChanged = RaagaXNativePlayer.addTrackChangedListener((data) => {
-      // No-op: switchTrack in usePlayerStore is the authoritative manager of currentSong & queueIndex
-      console.log('[AudioPlayerController] Native track changed confirmation — title:', data.title, 'reqId:', data.requestId);
+      console.log('[AudioPlayerController] Native track changed confirmation — trackId:', data.trackId, 'title:', data.title, 'reqId:', data.requestId);
+      if (data.trackId) {
+        const store = usePlayerStore.getState();
+        if (store.currentSong?.id !== data.trackId) {
+          const matchIdx = store.queue.findIndex(s => s.id === data.trackId);
+          if (matchIdx !== -1) {
+            const track = store.queue[matchIdx];
+            usePlayerStore.setState({
+              currentSong: track,
+              queueIndex: matchIdx,
+              isPlaying: true,
+              playbackIntent: 'PLAYING',
+              currentTime: 0,
+              duration: track.duration || 0,
+            });
+            import('@/lib/playback/MediaSessionManager').then(({ MediaSessionManager }) => {
+              MediaSessionManager.getInstance().updateSongMetadata(track);
+            });
+          }
+        }
+      }
     });
 
     // seekComplete fires when ExoPlayer confirms the seek has been applied.
@@ -297,6 +327,23 @@ export function AudioPlayerController() {
     if (!isAutoplayEnabled) return;
 
     isRefilling.current = true;
+
+    // On native mobile app or offline mode, generate recommendations client-side to avoid localhost CORS
+    if (typeof window !== 'undefined' && ((window as any).Capacitor?.isNativePlatform?.() || !navigator.onLine)) {
+      import('@/lib/recommendation/CandidateGenerator').then(({ CandidateGenerator }) => {
+        CandidateGenerator.generateCandidates(currentSong, historySongIds, lang, 15).then((songs) => {
+          if (songs && songs.length > 0) {
+            songs.forEach(s => addToQueue(s));
+          }
+        }).catch(() => {}).finally(() => {
+          isRefilling.current = false;
+        });
+      }).catch(() => {
+        isRefilling.current = false;
+      });
+      return;
+    }
+
     const existingIds = queue.map(s => s.id);
     const genre = currentSong.genre || 'TELUGU HITS';
     const language = genre.split(' ')[0] || 'Telugu';

@@ -36,7 +36,18 @@ export class PlaybackSourceResolver {
         let nativeTrack: import('@/lib/playback/native/RaagaXNativeDownload').NativeDownloadedTrack | undefined = useDownloadStore.getState().nativeDownloadedTracks[song.id];
         if (!nativeTrack) {
           const allNative = await RaagaXNativeDownload.getDownloadedTracks();
-          nativeTrack = allNative.find(t => t.songId === song.id || t.id === song.id);
+          const trackMap: Record<string, import('@/lib/playback/native/RaagaXNativeDownload').NativeDownloadedTrack> = {};
+          const verifiedIds: string[] = [];
+          allNative.forEach(t => {
+            const sid = t.songId || t.id;
+            if (sid) {
+              trackMap[sid] = t;
+              verifiedIds.push(sid);
+            }
+          });
+          useDownloadStore.setState({ nativeDownloadedTracks: trackMap });
+          usePlayerStore.setState(s => ({ downloadedSongIds: Array.from(new Set([...s.downloadedSongIds, ...verifiedIds])) }));
+          nativeTrack = trackMap[song.id] || allNative.find(t => t.songId === song.id || t.id === song.id);
         }
         if (nativeTrack?.localPath) {
           const rawPath = nativeTrack.localPath;

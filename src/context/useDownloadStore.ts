@@ -622,32 +622,47 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
       }
     }));
 
-    // If native Android, delegate immediately to RaagaXNativeDownload WorkManager
+    // If native Android, resolve real playable source and delegate to RaagaXNativeDownload WorkManager
     if (RaagaXNativeDownload.isNative()) {
-      console.log('[DownloadManager] addDownload(' + song.id + ') → delegating to WorkManager');
-      RaagaXNativeDownload.downloadTrack({
-        songId: song.id,
-        title: song.title,
-        artist: song.artist,
-        album: song.album || 'RaagaX Music',
-        artworkUrl: song.coverUrl || '',
-        streamUrl: song.audioUrl || '',
-        quality,
-        duration: song.duration || 180,
-      }).then(() => {
-        // Optimistically transition QUEUED → DOWNLOADING after WorkManager accepts the job.
-        // The real state will be confirmed by the DOWNLOAD_PROGRESS broadcast from the Worker.
-        // This fixes Root Cause 1: _processQueue() no-op means task never transitions on native.
-        console.log('[DownloadManager] job persisted → transitioning ' + song.id + ' QUEUED → DOWNLOADING (optimistic)');
-        set((s) => {
-          const task = s.tasks[song.id];
-          if (!task || task.status !== 'QUEUED') return s;
-          return { tasks: { ...s.tasks, [song.id]: { ...task, status: 'DOWNLOADING' } } };
-        });
-      }).catch(err => {
-        console.error('[DownloadManager] downloadTrack error for ' + song.id + ':', err);
-        get().setStatus(song.id, 'FAILED', err.message);
+      console.log('[DownloadManager] addDownload(' + song.id + ') → resolving playable source for WorkManager');
+      
+      import('@/lib/playbackSourceResolver').then(async ({ PlaybackSourceResolver }) => {
+        try {
+          let streamUrl = '';
+          const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+          if (source?.url && !source.url.startsWith('file://') && !source.url.startsWith('blob:')) {
+            streamUrl = source.url;
+          } else if (song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
+            streamUrl = song.audioUrl;
+          }
+
+          if (!streamUrl) {
+            console.error('[DownloadManager] No playable source available for download:', song.title);
+            get().setStatus(song.id, 'FAILED', 'No playable source available');
+            return;
+          }
+
+          await RaagaXNativeDownload.downloadTrack({
+            songId: song.id,
+            title: song.title,
+            artist: song.artist,
+            album: song.album || 'RaagaX Music',
+            artworkUrl: song.coverUrl || '',
+            streamUrl: streamUrl,
+            quality,
+            duration: song.duration || 180,
+          });
+
+          console.log('[DownloadManager] WorkManager download job accepted for ' + song.id + ' with resolved streamUrl');
+          _persistTasks();
+        } catch (err: any) {
+          console.error('[DownloadManager] downloadTrack error for ' + song.id + ':', err);
+          get().setStatus(song.id, 'FAILED', err?.message || 'Download failed');
+        }
+      }).catch((err) => {
+        get().setStatus(song.id, 'FAILED', err?.message || 'Download failed');
       });
+
       _persistTasks();
       return;
     }
@@ -693,27 +708,6 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
 
     // Native Android WorkManager batch download
     if (RaagaXNativeDownload.isNative()) {
-      RaagaXNativeDownload.downloadPlaylist(toDownload, quality).then((queuedCount) => {
-        usePlayerStore.getState().setToastMessage(`Queued ${queuedCount} songs to download to Music/RaagaX`);
-        // Optimistically set first song to DOWNLOADING, rest remain QUEUED
-        // WorkManager will start them sequentially; broadcasts will confirm real states.
-        set((s) => {
-          const updatedTasks = { ...s.tasks };
-          let firstFound = false;
-          for (const song of toDownload) {
-            if (updatedTasks[song.id] && updatedTasks[song.id].status === 'QUEUED') {
-              if (!firstFound) {
-                updatedTasks[song.id] = { ...updatedTasks[song.id], status: 'DOWNLOADING' };
-                firstFound = true;
-              }
-            }
-          }
-          return { tasks: updatedTasks };
-        });
-      }).catch(err => {
-        usePlayerStore.getState().setToastMessage(`Playlist download failed: ${err.message}`);
-      });
-
       const newTasks = { ...state.tasks };
       toDownload.forEach(song => {
         newTasks[song.id] = {
@@ -730,6 +724,31 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
       });
       set({ tasks: newTasks });
       state._persistTasks();
+
+      import('@/lib/playbackSourceResolver').then(async ({ PlaybackSourceResolver }) => {
+        const resolvedSongs: Song[] = [];
+        for (const song of toDownload) {
+          try {
+            const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+            const resolvedUrl = source?.url && !source.url.startsWith('file://') && !source.url.startsWith('blob:')
+              ? source.url
+              : song.audioUrl;
+            resolvedSongs.push({
+              ...song,
+              audioUrl: resolvedUrl,
+            });
+          } catch {
+            resolvedSongs.push(song);
+          }
+        }
+
+        RaagaXNativeDownload.downloadPlaylist(resolvedSongs, quality).then((queuedCount) => {
+          usePlayerStore.getState().setToastMessage(`Queued ${queuedCount} songs to download to Music/RaagaX`);
+        }).catch(err => {
+          usePlayerStore.getState().setToastMessage(`Playlist download failed: ${err.message}`);
+        });
+      });
+
       return;
     }
 
