@@ -322,4 +322,38 @@ public class StorageHelper {
         }
         return null;
     }
+
+    /**
+     * Recursively collects all physical audio files from app-private and public download directories.
+     */
+    public static java.util.List<File> getAllPhysicalAudioFiles(Context context) {
+        java.util.List<File> audioFiles = new java.util.ArrayList<>();
+        java.util.Set<String> seenPaths = new java.util.HashSet<>();
+
+        File[] searchDirs = new File[]{
+                getSongsDirectory(context),
+                getRaagaXMusicDirectory(context),
+                new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), "RaagaX/Songs"),
+                new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), "RaagaX")
+        };
+
+        for (File dir : searchDirs) {
+            if (dir != null && dir.exists() && dir.isDirectory()) {
+                File[] files = dir.listFiles();
+                if (files != null) {
+                    for (File f : files) {
+                        if (f.isFile() && !f.getName().startsWith(".") && f.length() > 1024) {
+                            String name = f.getName().toLowerCase();
+                            if (name.endsWith(".mp3") || name.endsWith(".m4a") || name.endsWith(".flac") || name.endsWith(".aac") || name.endsWith(".wav")) {
+                                if (seenPaths.add(f.getAbsolutePath())) {
+                                    audioFiles.add(f);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return audioFiles;
+    }
 }

@@ -461,25 +461,96 @@ public class RaagaXDownloadManager {
     }
 
     /**
-     * Anti-Stale Sync: Verifies physical file existence for all completed downloads.
-     * Prunes database entries where the MP3 was deleted externally by the user via Android File Manager.
+     * Physical Storage Sync & Auto-Import:
+     * Scans the physical download folder for all existing audio files, auto-imports any files
+     * not currently in the Room DB (extracting ID3 tags), prunes missing records, and returns
+     * the complete verified list of offline songs.
      */
     public void verifyAndSyncLibrary(Callback<List<DownloadEntity>> callback) {
         executor.execute(() -> {
             try {
                 List<DownloadEntity> allCompleted = database.downloadDao().getAllCompletedDownloads();
+                java.util.Map<String, DownloadEntity> pathMap = new java.util.HashMap<>();
+                java.util.Set<String> verifiedTrackIds = new java.util.HashSet<>();
                 List<DownloadEntity> verifiedList = new ArrayList<>();
 
                 for (DownloadEntity entity : allCompleted) {
-                    if (StorageHelper.verifyFileExists(entity.localPath)) {
-                        verifiedList.add(entity);
+                    if (entity.localPath != null) {
+                        pathMap.put(entity.localPath, entity);
+                    }
+                }
+
+                // 1. Scan physical storage for all actual audio files on disk
+                List<File> physicalFiles = StorageHelper.getAllPhysicalAudioFiles(context);
+                for (File file : physicalFiles) {
+                    String absPath = file.getAbsolutePath();
+                    DownloadEntity existing = pathMap.get(absPath);
+                    if (existing != null) {
+                        verifiedList.add(existing);
+                        verifiedTrackIds.add(existing.trackId);
                     } else {
-                        Log.d(TAG, "[DownloadManager] Pruning missing/externally deleted download record: " + entity.trackId + " (path: " + entity.localPath + ")");
+                        // Discover & auto-import physical file into Room DB
+                        try {
+                            android.media.MediaMetadataRetriever mmr = new android.media.MediaMetadataRetriever();
+                            mmr.setDataSource(absPath);
+                            String metaTitle = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_TITLE);
+                            String metaArtist = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ARTIST);
+                            String metaAlbum = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ALBUM);
+                            String durStr = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION);
+                            byte[] artBytes = mmr.getEmbeddedPicture();
+                            mmr.release();
+
+                            String rawName = file.getName();
+                            int dotIdx = rawName.lastIndexOf('.');
+                            if (dotIdx > 0) rawName = rawName.substring(0, dotIdx);
+
+                            String title = (metaTitle != null && !metaTitle.trim().isEmpty()) ? metaTitle.trim() : rawName;
+                            String artist = (metaArtist != null && !metaArtist.trim().isEmpty()) ? metaArtist.trim() : "Unknown Artist";
+                            String album = (metaAlbum != null && !metaAlbum.trim().isEmpty()) ? metaAlbum.trim() : "RaagaX Offline";
+                            long durationSec = 180;
+                            if (durStr != null) {
+                                try { durationSec = Long.parseLong(durStr) / 1000; } catch (Exception ignored) {}
+                            }
+
+                            // Generate stable track ID based on file path
+                            String generatedId = "local_" + Math.abs(absPath.hashCode());
+                            DownloadEntity imported = new DownloadEntity("dl_imp_" + generatedId, generatedId, "COMPLETED");
+                            imported.title = title;
+                            imported.artist = artist;
+                            imported.album = album;
+                            imported.localPath = absPath;
+                            imported.fileName = file.getName();
+                            imported.fileSize = file.length();
+                            imported.duration = durationSec;
+                            imported.completedAt = file.lastModified();
+
+                            // Save extracted artwork if present
+                            if (artBytes != null && artBytes.length > 0) {
+                                File savedArt = StorageHelper.saveArtworkFile(context, generatedId, artBytes);
+                                if (savedArt != null) {
+                                    imported.artwork = "file://" + savedArt.getAbsolutePath();
+                                }
+                            }
+
+                            database.downloadDao().insertOrUpdate(imported);
+                            verifiedList.add(imported);
+                            verifiedTrackIds.add(generatedId);
+                            Log.d(TAG, "[DownloadManager] Auto-imported offline file: " + title + " (" + absPath + ")");
+                        } catch (Exception ex) {
+                            Log.w(TAG, "Failed to inspect offline file metadata for " + absPath + ": " + ex.getMessage());
+                        }
+                    }
+                }
+
+                // 2. Prune obsolete database entries where physical file no longer exists
+                for (DownloadEntity entity : allCompleted) {
+                    if (!verifiedTrackIds.contains(entity.trackId) && !StorageHelper.verifyFileExists(entity.localPath)) {
+                        Log.d(TAG, "[DownloadManager] Pruning missing download record: " + entity.trackId + " (path: " + entity.localPath + ")");
                         database.downloadDao().deleteDownload(entity.trackId);
                     }
                 }
 
-                Log.d(TAG, "[DownloadManager] verifyAndSyncLibrary() verified=" + verifiedList.size() + "/" + allCompleted.size());
+                Log.d(TAG, "[DownloadManager] verifyAndSyncLibrary() final verified=" + verifiedList.size() + " songs found on disk");
                 if (callback != null) callback.onResult(verifiedList, null);
             } catch (Exception e) {
                 Log.e(TAG, "[DownloadManager] verifyAndSyncLibrary error: " + e.getMessage(), e);

@@ -110,6 +110,20 @@ export function LibraryView() {
               language: 'Mixed'
             }));
             setOfflineTrackList(mapped);
+
+            const trackMap: Record<string, any> = {};
+            const verifiedIds: string[] = [];
+            nativeTracks.forEach((t) => {
+              const sid = t.songId || t.id;
+              if (sid) {
+                trackMap[sid] = t;
+                verifiedIds.push(sid);
+              }
+            });
+            useDownloadStore.setState({ nativeDownloadedTracks: trackMap });
+            usePlayerStore.setState(s => ({
+              downloadedSongIds: Array.from(new Set([...s.downloadedSongIds, ...verifiedIds]))
+            }));
             return;
           }
         }
@@ -1157,7 +1171,7 @@ export function LibraryView() {
           { id: 'artists', label: 'Artists', icon: User, color: 'text-blue-400', count: `${favoriteArtistIds.length || POPULAR_ARTISTS.length}` },
           { id: 'albums', label: 'Albums', icon: Disc, color: 'text-rose-400', count: `${recentlyAddedAlbums.length}` },
           { id: 'songs', label: 'Songs', icon: Music, color: 'text-cyan-400', count: `${knownSongsMap.size}` },
-          { id: 'downloads', label: 'Downloads', icon: Download, color: 'text-emerald-400', count: `${downloadedSongIds.length}` },
+          { id: 'downloads', label: 'Downloads', icon: Download, color: 'text-emerald-400', count: `${Math.max(downloadedSongIds.length, offlineTrackList.length)}` },
         ].map((item) => {
           const Icon = item.icon;
           return (
