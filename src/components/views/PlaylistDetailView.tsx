@@ -60,7 +60,8 @@ export function PlaylistDetailView() {
     downloadAlbum,
     pauseAll,
     resumeAll,
-    cancelAll
+    cancelAll,
+    isOfflineMode
   } = useDownloadStore();
 
   const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
@@ -663,11 +664,16 @@ export function PlaylistDetailView() {
             const isDownloaded = downloadedSongIds.includes(song.id);
             const task = tasks[song.id];
             const isDownloading = task && (task.status === 'DOWNLOADING' || task.status === 'QUEUED' || task.status === 'VERIFYING');
+            const isBrowserOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+            const isAppOffline = isOfflineMode || isBrowserOffline;
+            const isSongOfflineUnavailable = isAppOffline && !isDownloaded;
 
             return (
               <div
                 key={`${song.id}-${index}`}
-                className="p-3 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-white/20 hover:bg-[var(--bg-surface)] transition-all flex items-center justify-between gap-3 group"
+                className={`p-3 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-white/20 hover:bg-[var(--bg-surface)] transition-all flex items-center justify-between gap-3 group ${
+                  isSongOfflineUnavailable ? 'opacity-40 pointer-events-none select-none' : ''
+                }`}
               >
                 {/* Track Number / Drag handles in edit order mode */}
                 <div className="w-8 text-center flex-shrink-0">

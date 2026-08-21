@@ -1172,7 +1172,6 @@ export function LibraryView() {
           { id: 'artists', label: 'Artists', icon: User, color: 'text-blue-400', count: `${favoriteArtistIds.length || POPULAR_ARTISTS.length}` },
           { id: 'albums', label: 'Albums', icon: Disc, color: 'text-rose-400', count: `${recentlyAddedAlbums.length}` },
           { id: 'songs', label: 'Songs', icon: Music, color: 'text-cyan-400', count: `${knownSongsMap.size}` },
-          { id: 'downloads', label: 'Downloads', icon: Download, color: 'text-emerald-400', count: `${Math.max(downloadedSongIds.length, offlineTrackList.length)}` },
         ].map((item) => {
           const Icon = item.icon;
           return (

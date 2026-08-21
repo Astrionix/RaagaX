@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Heart, Play, Music, Shuffle, Loader2, Disc } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Heart, Play, Music, Shuffle, Loader2, Disc, Download, Check } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useDownloadStore } from '@/context/useDownloadStore';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { OfflineCatalog } from '@/lib/offline/OfflineCatalog';
 import { SongResolver } from '@/lib/discovery/SongResolver';
@@ -22,7 +23,10 @@ export function FavoritesView() {
     isPlaying,
     currentSong,
     toggleLikeSong,
+    downloadedSongIds = [],
   } = usePlayerStore();
+
+  const { downloadAlbum, removeDownload, tasks, isOfflineMode } = useDownloadStore();
 
   const [offlineTracks, setOfflineTracks] = useState<Song[]>([]);
   const [resolvedSongsMap, setResolvedSongsMap] = useState<Record<string, Song>>({});
@@ -30,30 +34,63 @@ export function FavoritesView() {
   const resolvingRef = useRef<boolean>(false);
 
   useEffect(() => {
-    OfflineCatalog.getInstance().getAllTracks().then((tracks) => {
-      if (tracks && tracks.length > 0) {
-        const mapped: Song[] = tracks.map((t) => ({
-          id: t.trackId,
-          title: t.title,
-          artist: t.artist,
-          album: t.album || 'Downloaded',
-          coverUrl: t.artworkUrl || '/app-icon.png',
-          duration: t.duration || Math.round(t.durationMs / 1000),
-          audioUrl: '',
-          artistId: 'offline',
-          albumId: 'offline',
-          genre: 'Various',
-          category: 'global_trending',
-          year: new Date(t.downloadedAt).getFullYear().toString(),
-          releaseYear: new Date(t.downloadedAt).getFullYear(),
-          plays: 0,
-          likes: 0,
-          quality: 'HIGH',
-          language: 'Mixed',
-        }));
-        setOfflineTracks(mapped);
+    const loadOffline = async () => {
+      try {
+        const { RaagaXNativeDownload } = await import('@/lib/playback/native/RaagaXNativeDownload');
+        if (RaagaXNativeDownload.isNative()) {
+          const tracks = await RaagaXNativeDownload.getDownloadedTracks();
+          if (tracks && tracks.length > 0) {
+            const mapped: Song[] = tracks.map((t) => ({
+              id: t.songId || t.id,
+              title: t.title,
+              artist: t.artist,
+              album: t.album || 'Downloaded',
+              coverUrl: t.artworkUrl || t.coverUrl || '/app-icon.png',
+              duration: 180,
+              audioUrl: t.localPath || '',
+              artistId: 'offline',
+              albumId: 'offline',
+              genre: 'Various',
+              category: 'global_trending',
+              releaseYear: new Date(t.completedAt || Date.now()).getFullYear(),
+              plays: 0,
+              likes: 1,
+            }));
+            setOfflineTracks(mapped);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Native offline fetch error:', e);
       }
-    });
+
+      OfflineCatalog.getInstance().getAllTracks().then((tracks) => {
+        if (tracks && tracks.length > 0) {
+          const mapped: Song[] = tracks.map((t) => ({
+            id: t.trackId,
+            title: t.title,
+            artist: t.artist,
+            album: t.album || 'Downloaded',
+            coverUrl: t.artworkUrl || '/app-icon.png',
+            duration: t.duration || Math.round(t.durationMs / 1000),
+            audioUrl: '',
+            artistId: 'offline',
+            albumId: 'offline',
+            genre: 'Various',
+            category: 'global_trending',
+            year: new Date(t.downloadedAt).getFullYear().toString(),
+            releaseYear: new Date(t.downloadedAt).getFullYear(),
+            plays: 0,
+            likes: 0,
+            quality: 'HIGH',
+            language: 'Mixed',
+          }));
+          setOfflineTracks(mapped);
+        }
+      });
+    };
+
+    loadOffline();
   }, [likedSongIds.length]);
 
   // Combine known store songs, queue, and offline tracks into seed map
@@ -123,6 +160,16 @@ export function FavoritesView() {
 
   const isLikedListPlaying = isPlaying && currentSong && resolvedLikedSongs.some((s) => s.id === currentSong.id);
 
+  const downloadedSongsInFavorites = useMemo(() => {
+    return resolvedLikedSongs.filter(s => downloadedSongIds.includes(s.id));
+  }, [resolvedLikedSongs, downloadedSongIds]);
+
+  const pendingDownloadsCount = useMemo(() => {
+    return resolvedLikedSongs.length - downloadedSongsInFavorites.length;
+  }, [resolvedLikedSongs, downloadedSongsInFavorites]);
+
+  const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
+
   const handlePlayAll = (shuffle = false) => {
     if (resolvedLikedSongs.length === 0) return;
     haptics.mediumImpact();
@@ -132,6 +179,13 @@ export function FavoritesView() {
       contextUri: 'raagax:liked-songs',
       title: 'Liked Songs',
     });
+  };
+
+  const handleDownloadAll = async () => {
+    if (resolvedLikedSongs.length === 0) return;
+    const pending = resolvedLikedSongs.filter(s => !downloadedSongIds.includes(s.id));
+    if (pending.length === 0) return;
+    downloadAlbum('liked-songs', pending);
   };
 
   const totalDurationSec = resolvedLikedSongs.reduce((acc, s) => acc + (s.duration || 180), 0);
@@ -154,9 +208,25 @@ export function FavoritesView() {
           </div>
         </div>
 
-        {/* Play All & Shuffle Buttons */}
+        {/* Play All, Shuffle & Download All Buttons */}
         {resolvedLikedSongs.length > 0 && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+            {isNative && pendingDownloadsCount > 0 && (
+              <button
+                onClick={handleDownloadAll}
+                className="h-11 px-4 rounded-full bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/25 transition-all cursor-pointer"
+                title="Download all liked songs for offline listening"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Download All ({pendingDownloadsCount})</span>
+              </button>
+            )}
+            {isNative && pendingDownloadsCount === 0 && (
+              <div className="h-11 px-4 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5">
+                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                <span>Offline Available</span>
+              </div>
+            )}
             <button
               onClick={() => handlePlayAll(false)}
               className="h-11 px-6 rounded-full bg-[#FA233B] hover:bg-[#D90429] active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xl shadow-[#FA233B]/30 transition-all cursor-pointer"
@@ -189,16 +259,22 @@ export function FavoritesView() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
             {resolvedLikedSongs.map((song, idx) => {
               const isCurrent = currentSong?.id === song.id;
+              const isDownloaded = downloadedSongIds.includes(song.id);
+              const isBrowserOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+              const isAppOffline = isOfflineMode || isBrowserOffline;
+              const isSongOfflineUnavailable = isAppOffline && !isDownloaded;
+
               return (
                 <div
                   key={`${song.id}-${idx}`}
                   className={`p-3 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] transition-all flex items-center justify-between group shadow-sm ${
                     isCurrent ? 'border-red-500/40 ring-1 ring-red-500/20' : ''
-                  }`}
+                  } ${isSongOfflineUnavailable ? 'opacity-40 pointer-events-none select-none' : ''}`}
                 >
                   <div
                     className="flex items-center gap-3.5 cursor-pointer min-w-0 flex-1"
                     onClick={() => {
+                      if (isSongOfflineUnavailable) return;
                       haptics.lightImpact();
                       usePlayerStore.getState().playSong(song, resolvedLikedSongs, {
                         contextType: 'LIKED_SONGS',
