@@ -121,6 +121,12 @@ export class PlayableUrlCache {
     return Date.now() + thresholdMs >= entry.expiresAt;
   }
 
+  public invalidate(songId: string) {
+    if (!songId) return;
+    this.memoryCache.delete(songId);
+    this.persistToStorage();
+  }
+
   public clear() {
     this.memoryCache.clear();
     if (typeof window !== 'undefined') {

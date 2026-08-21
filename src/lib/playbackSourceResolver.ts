@@ -19,11 +19,12 @@ export class PlaybackSourceResolver {
     return PlaybackSourceResolver.instance;
   }
 
-  public async resolvePlayableSource(song: Song): Promise<PlaybackSource | null> {
+  public async resolvePlayableSource(song: Song, options?: { bypassCache?: boolean }): Promise<PlaybackSource | null> {
     if (!song || !song.id) {
       return null;
     }
 
+    const bypassCache = Boolean(options?.bypassCache);
     const networkMode = NetworkManager.getInstance().getMode();
     const isOfflineForced = networkMode === 'offline_forced';
     const isOffline = networkMode === 'offline' || isOfflineForced || (typeof navigator !== 'undefined' && navigator.onLine === false);
@@ -58,9 +59,11 @@ export class PlaybackSourceResolver {
             return {
               type: 'offline',
               url: fileUri,
+              canonicalUrl: fileUri,
               mediaId: song.id,
               localId: song.id,
               isLocalBlob: false,
+              isCached: false,
             };
           }
         }
@@ -75,9 +78,11 @@ export class PlaybackSourceResolver {
         return {
           type: 'offline',
           url: fileUri,
+          canonicalUrl: fileUri,
           mediaId: song.id,
           localId: song.id,
           isLocalBlob: false,
+          isCached: false,
         };
       }
 
@@ -111,9 +116,11 @@ export class PlaybackSourceResolver {
           return {
             type: 'offline',
             url: localUrl,
+            canonicalUrl: localUrl,
             mediaId: song.id,
             localId: song.id,
             isLocalBlob: true,
+            isCached: false,
           };
         }
       }
@@ -124,15 +131,19 @@ export class PlaybackSourceResolver {
     }
 
     // ── ONLINE MODE: Resolve via Existing Online Resolver & Stream Engine ────
-    // 1. Check in-memory URL cache
-    const cached = PlayableUrlCache.getInstance().get(song.id);
-    if (cached && cached.url && cached.type !== 'offline') {
-      return {
-        type: 'remote',
-        url: cached.url,
-        candidates: cached.candidates,
-        videoId: song.id,
-      };
+    // 1. Check in-memory URL cache if not explicitly bypassed
+    if (!bypassCache) {
+      const cached = PlayableUrlCache.getInstance().get(song.id);
+      if (cached && cached.url && cached.type !== 'offline') {
+        return {
+          type: 'remote',
+          url: cached.url,
+          canonicalUrl: cached.url,
+          candidates: cached.candidates,
+          videoId: song.id,
+          isCached: true,
+        };
+      }
     }
 
     // ── 5. Quality Negotiation for Online Streaming ──────────────────────────
@@ -145,10 +156,10 @@ export class PlaybackSourceResolver {
     let validAudioUrl = song.audioUrl ? song.audioUrl.replace('http://', 'https://') : '';
     const isPixabay = validAudioUrl.includes('pixabay.com');
 
-    if (!validAudioUrl || isPixabay) {
+    if (!validAudioUrl || isPixabay || bypassCache) {
       try {
         const query = `${song.title} ${song.artist || ''}`.trim();
-        console.log(`[PlaybackSourceResolver] Resolving real audio stream for: "${query}"`);
+        console.log(`[PlaybackSourceResolver] Resolving real audio stream for: "${query}" (bypassCache=${bypassCache})`);
         const realSongs = await RealMusicEngine.getInstance().searchRealSongs(query, 1);
         
         if (realSongs.length > 0 && realSongs[0].audioUrl && !realSongs[0].audioUrl.includes('pixabay.com')) {
@@ -173,8 +184,10 @@ export class PlaybackSourceResolver {
       return {
         type: 'remote',
         url: selectedUrl,
+        canonicalUrl: selectedUrl,
         candidates,
         videoId: song.id,
+        isCached: false,
       };
     }
 

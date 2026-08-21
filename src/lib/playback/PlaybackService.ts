@@ -501,11 +501,14 @@ export class PlaybackService {
         return false;
       }
 
+      const isCachedSource = Boolean(resolvedSource?.isCached || (resolvedSource?.type !== 'offline' && PlayableUrlCache.getInstance().get(song.id)));
       if (resolvedSource?.type === 'offline') {
         resolvedSourceType = 'LOCAL_DOWNLOAD';
-      } else if (PlayableUrlCache.getInstance().get(song.id)) {
+      } else if (isCachedSource) {
         resolvedSourceType = 'URL_CACHE_HIT';
       }
+
+      console.log(`[PLAYBACK_SOURCE_ATTEMPT] trackId=${song.id} sourceType=${isCachedSource ? 'CACHE' : 'DIRECT'}`);
 
       let finalSrc = '';
       if (resolvedSource?.url) {
@@ -524,6 +527,9 @@ export class PlaybackService {
 
       if (requestId !== this.playbackRequestId) return false;
 
+      this.activeCandidates = resolvedSource?.candidates && resolvedSource.candidates.length > 0 ? resolvedSource.candidates : [finalSrc];
+      this.activeCandidateIndex = 0;
+
       // Reset currentTime to 0 and load new audio URL
       try {
         activeAudio.pause();
@@ -540,6 +546,7 @@ export class PlaybackService {
       activeAudio.dataset.playbackRequestId = String(requestId);
       activeAudio.dataset.playbackGeneration = String(requestId);
       activeAudio.dataset.trackId = song.id;
+      activeAudio.dataset.isCached = isCachedSource ? 'true' : 'false';
 
       PlaybackEngine.getInstance().attachMediaElement(activeAudio);
       RendererManager.getInstance().registerRenderer('audio', activeAudio);
@@ -560,6 +567,9 @@ export class PlaybackService {
             activeAudio.pause();
             return false;
           }
+          console.log(`[PLAYBACK_READY] trackId=${song.id} duration=${activeAudio.duration || song.duration || 0}`);
+          console.log(`[PLAYBACK_STARTED] trackId=${song.id} position=${activeAudio.currentTime}`);
+
           const timeToFirstAudioMs = Math.round(performance.now() - playRequestedAt);
           PlaybackTelemetry.getInstance().recordMetric({
             sessionId: String(requestId),
@@ -576,6 +586,58 @@ export class PlaybackService {
             return false;
           }
           console.warn('[PlaybackService] Direct play failed:', e);
+
+          // ── DIRECT CANONICAL FALLBACK ON CACHE/SOURCE REJECTION ───────────
+          // If browser rejects the cached/preloaded source (e.g. ERR_CACHE_OPERATION_NOT_SUPPORTED, NotSupportedError),
+          // immediately bypass cache, invalidate broken cache entry, resolve direct canonical URL, and play.
+          if (isCachedSource || e?.name === 'NotSupportedError' || e?.message?.includes('supported source') || e?.message?.includes('CACHE')) {
+            console.log(`[PLAYBACK_CACHE_FAILED] trackId=${song.id} error=${e?.message || e?.name || e}`);
+            PlayableUrlCache.getInstance().invalidate(song.id);
+            PreloadManager.getInstance().reset();
+
+            try {
+              const directSource = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song, { bypassCache: true });
+              if (directSource?.url && requestId === this.playbackRequestId) {
+                console.log(`[PLAYBACK_DIRECT_FALLBACK] trackId=${song.id} url=${directSource.url}`);
+                this.activeCandidates = directSource.candidates && directSource.candidates.length > 0 ? directSource.candidates : [directSource.url];
+                this.activeCandidateIndex = 0;
+
+                activeAudio.pause();
+                activeAudio.currentTime = 0;
+                activeAudio.src = directSource.url;
+                activeAudio.load();
+                activeAudio.dataset.playbackRequestId = String(requestId);
+                activeAudio.dataset.playbackGeneration = String(requestId);
+                activeAudio.dataset.trackId = song.id;
+                activeAudio.dataset.isCached = 'false';
+
+                await activeAudio.play();
+                if (requestId !== this.playbackRequestId) {
+                  activeAudio.pause();
+                  return false;
+                }
+
+                console.log(`[PLAYBACK_CACHE_FALLBACK_SUCCESS] trackId=${song.id}`);
+                console.log(`[PLAYBACK_READY] trackId=${song.id} duration=${activeAudio.duration || song.duration || 0}`);
+                console.log(`[PLAYBACK_STARTED] trackId=${song.id} position=${activeAudio.currentTime}`);
+
+                const timeToFirstAudioMs = Math.round(performance.now() - playRequestedAt);
+                PlaybackTelemetry.getInstance().recordMetric({
+                  sessionId: String(requestId),
+                  trackId: song.id,
+                  sourceType: 'NETWORK_STREAM',
+                  timeToFirstAudioMs,
+                  success: true,
+                });
+
+                AudioFocusManager.getInstance().requestFocus();
+                return true;
+              }
+            } catch (fallbackErr) {
+              console.warn('[PlaybackService] Direct canonical fallback failed:', fallbackErr);
+            }
+          }
+
           return false;
         }
       }
@@ -774,6 +836,9 @@ export class PlaybackService {
     const store = require('@/context/usePlayerStore').usePlayerStore.getState();
     if (!isNaN(active.duration) && Number.isFinite(active.duration) && active.duration > 0) {
       store.setDuration(active.duration);
+      if (active.dataset.trackId) {
+        console.log(`[PLAYBACK_READY] trackId=${active.dataset.trackId} duration=${active.duration}`);
+      }
       MediaSessionManager.getInstance().setPositionState({
         duration: active.duration,
         position: active.currentTime || 0
@@ -797,6 +862,10 @@ export class PlaybackService {
 
     const active = this.getActiveAudio();
     const livePlaying = active ? !active.paused && !active.ended : isPlaying;
+
+    if (livePlaying && active?.dataset.trackId) {
+      console.log(`[PLAYBACK_STARTED] trackId=${active.dataset.trackId} position=${active.currentTime || 0}`);
+    }
 
     if (store.isActiveDevice) {
       if (store.isPlaying !== livePlaying) {
@@ -882,10 +951,47 @@ export class PlaybackService {
     const active = this.getActiveAudio();
     if (!active) return;
 
+    const currentReq = Number(active.dataset.playbackRequestId || active.dataset.playbackGeneration || 0);
+    if (currentReq > 0 && currentReq !== this.playbackRequestId) {
+      console.log(`[PlaybackService] Ignoring stale audio error (req ${currentReq} vs current ${this.playbackRequestId})`);
+      return;
+    }
+
     console.warn(`[PLAYBACK PIPELINE] Audio stream error on audio ${tag}:`, e);
 
     const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+    const currentSong = store.currentSong;
     const shouldResume = store.isPlaying && store.playbackIntent === 'PLAYING';
+
+    // Check if error occurred on a cached / preloaded source
+    const isCached = active.dataset.isCached === 'true' || Boolean(currentSong && PlayableUrlCache.getInstance().get(currentSong.id));
+    if (isCached && currentSong) {
+      console.log(`[PLAYBACK_CACHE_FAILED] trackId=${currentSong.id} error=AudioElementError`);
+      PlayableUrlCache.getInstance().invalidate(currentSong.id);
+      PreloadManager.getInstance().reset();
+
+      try {
+        const directSource = await PlaybackSourceResolver.getInstance().resolvePlayableSource(currentSong, { bypassCache: true });
+        if (directSource?.url && (currentReq === this.playbackRequestId || this.playbackRequestId === 0)) {
+          console.log(`[PLAYBACK_DIRECT_FALLBACK] trackId=${currentSong.id} url=${directSource.url}`);
+          this.activeCandidates = directSource.candidates && directSource.candidates.length > 0 ? directSource.candidates : [directSource.url];
+          this.activeCandidateIndex = 0;
+
+          active.dataset.isCached = 'false';
+          active.src = directSource.url;
+          active.load();
+          if (shouldResume) {
+            await active.play();
+            console.log(`[PLAYBACK_CACHE_FALLBACK_SUCCESS] trackId=${currentSong.id}`);
+            console.log(`[PLAYBACK_READY] trackId=${currentSong.id} duration=${active.duration || currentSong.duration || 0}`);
+            console.log(`[PLAYBACK_STARTED] trackId=${currentSong.id} position=${active.currentTime}`);
+          }
+          return;
+        }
+      } catch (err) {
+        console.warn('[PlaybackService] Direct fallback on audio error failed:', err);
+      }
+    }
 
     // Waterfall to next candidate in activeCandidates
     if (this.activeCandidateIndex + 1 < this.activeCandidates.length) {

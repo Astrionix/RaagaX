@@ -93,14 +93,19 @@ export type PlaybackSource =
       candidates?: string[];
       videoId?: string; // used for YouTube fallback
       quality?: DownloadQuality;
+      isCached?: boolean;
+      canonicalUrl?: string;
     }
   | {
       type: 'offline';
       url: string; // Object URL or local file URI
+      candidates?: string[];
       mediaId: string;
       localId?: string;
       quality?: DownloadQuality;
       isLocalBlob?: boolean;
+      isCached?: boolean;
+      canonicalUrl?: string;
     };
 
 
