@@ -69,6 +69,7 @@ export function LibraryView() {
     setOfflineSettings,
     purgeOfflineDownloads,
     removeDownload,
+    nativeDownloadedTracks,
   } = useDownloadStore();
 
   useEffect(() => {
@@ -140,12 +141,35 @@ export function LibraryView() {
     loadOfflineTracks();
   }, [downloadedSongIds.length]);
 
-  // Combine queue songs, store liked songs, offline tracks, resolved map, and cloud records into known map
+    // Combine queue songs, store liked songs, offline tracks, resolved map, and cloud records into known map
   const knownSongsMap = useMemo(() => {
     const map = new Map<string, Song>();
     storeLikedSongs.forEach((s) => { if (s?.id) map.set(s.id, s); });
     queue.forEach((s) => { if (s?.id) map.set(s.id, s); });
     offlineTrackList.forEach((s) => { if (s?.id) map.set(s.id, s); });
+    Object.values(nativeDownloadedTracks).forEach((t) => {
+      if (t && (t.songId || t.id)) {
+        const id = t.songId || t.id;
+        if (!map.has(id)) {
+          map.set(id, {
+            id,
+            title: t.title || id,
+            artist: t.artist || '',
+            artistId: `art-${id}`,
+            album: t.album || 'RaagaX Music',
+            albumId: `alb-${id}`,
+            duration: 180,
+            coverUrl: t.artworkUrl || t.coverUrl || '/app-icon.png',
+            audioUrl: t.localPath || '',
+            genre: 'OFFLINE',
+            category: 'global_trending',
+            releaseYear: new Date(t.completedAt || Date.now()).getFullYear(),
+            plays: 0,
+            likes: 0,
+          });
+        }
+      }
+    });
     Object.values(resolvedSongsMap).forEach((s) => { if (s?.id) map.set(s.id, s); });
     cloudDownloadRecords.forEach((r) => {
       if (r?.song_id && !map.has(r.song_id)) {
@@ -168,7 +192,7 @@ export function LibraryView() {
       }
     });
     return map;
-  }, [storeLikedSongs, queue, offlineTrackList, resolvedSongsMap, cloudDownloadRecords]);
+  }, [storeLikedSongs, queue, offlineTrackList, nativeDownloadedTracks, resolvedSongsMap, cloudDownloadRecords]);
 
   const { playlists: userPlaylists = [], fetchPlaylists } = usePlaylistStore();
 
@@ -227,10 +251,41 @@ export function LibraryView() {
   }, [likedSongIds, knownSongsMap]);
 
   const downloadedSongs = useMemo(() => {
-    return downloadedSongIds
-      .map((id) => knownSongsMap.get(id))
-      .filter((s): s is Song => Boolean(s));
-  }, [downloadedSongIds, knownSongsMap]);
+    const map = new Map<string, Song>();
+    offlineTrackList.forEach((s) => {
+      if (s?.id) map.set(s.id, s);
+    });
+    Object.values(nativeDownloadedTracks).forEach((t) => {
+      if (t && (t.songId || t.id)) {
+        const id = t.songId || t.id;
+        if (!map.has(id)) {
+          map.set(id, {
+            id,
+            title: t.title || id,
+            artist: t.artist || '',
+            artistId: `art-${id}`,
+            album: t.album || 'RaagaX Music',
+            albumId: `alb-${id}`,
+            duration: 180,
+            coverUrl: t.artworkUrl || t.coverUrl || '/app-icon.png',
+            audioUrl: t.localPath || '',
+            genre: 'OFFLINE',
+            category: 'global_trending',
+            releaseYear: new Date(t.completedAt || Date.now()).getFullYear(),
+            plays: 0,
+            likes: 0,
+          });
+        }
+      }
+    });
+    downloadedSongIds.forEach((id) => {
+      const s = knownSongsMap.get(id);
+      if (s && !map.has(id)) {
+        map.set(id, s);
+      }
+    });
+    return Array.from(map.values());
+  }, [downloadedSongIds, knownSongsMap, offlineTrackList, nativeDownloadedTracks]);
 
   // Group downloaded songs by Album
   const downloadedAlbums = useMemo(() => {

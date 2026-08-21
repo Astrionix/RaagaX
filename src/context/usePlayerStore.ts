@@ -369,6 +369,16 @@ let globalPlaybackRequestId = 0;
 export const isTrackDownloaded = (trackId: string): boolean => {
   if (!trackId) return false;
   try {
+    const pStore = usePlayerStore.getState();
+    if (pStore?.downloadedSongIds?.includes(trackId)) return true;
+  } catch {}
+  try {
+    const { useDownloadStore } = require('@/context/useDownloadStore');
+    const dStore = useDownloadStore?.getState?.();
+    if (dStore?.nativeDownloadedTracks?.[trackId]) return true;
+    if (dStore?.tasks?.[trackId]?.status === 'COMPLETED') return true;
+  } catch {}
+  try {
     if (DownloadStorage.getInstance().isDownloadedSync(trackId)) return true;
   } catch {}
   try {

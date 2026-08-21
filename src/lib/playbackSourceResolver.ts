@@ -33,16 +33,18 @@ export class PlaybackSourceResolver {
       const { RaagaXNativeDownload } = await import('@/lib/playback/native/RaagaXNativeDownload');
       if (RaagaXNativeDownload.isNative()) {
         const { useDownloadStore } = await import('@/context/useDownloadStore');
-        const nativeTrack = useDownloadStore.getState().nativeDownloadedTracks[song.id];
+        let nativeTrack: import('@/lib/playback/native/RaagaXNativeDownload').NativeDownloadedTrack | undefined = useDownloadStore.getState().nativeDownloadedTracks[song.id];
+        if (!nativeTrack) {
+          const allNative = await RaagaXNativeDownload.getDownloadedTracks();
+          nativeTrack = allNative.find(t => t.songId === song.id || t.id === song.id);
+        }
         if (nativeTrack?.localPath) {
-          const { Capacitor } = await import('@capacitor/core');
-          const playableUrl = Capacitor.isNativePlatform()
-            ? Capacitor.convertFileSrc(nativeTrack.localPath)
-            : (nativeTrack.localPath.startsWith('file://') ? nativeTrack.localPath : `file://${nativeTrack.localPath}`);
-          console.log(`[PlaybackSourceResolver] Playing verified native offline MP3: "${nativeTrack.localPath}" -> "${playableUrl}"`);
+          const rawPath = nativeTrack.localPath;
+          const fileUri = rawPath.startsWith('file://') ? rawPath : `file://${rawPath}`;
+          console.log(`[PlaybackSourceResolver] Playing verified native offline MP3: "${rawPath}" -> "${fileUri}"`);
           return {
             type: 'offline',
-            url: playableUrl,
+            url: fileUri,
             mediaId: song.id,
             localId: song.id,
             isLocalBlob: false,
@@ -51,6 +53,19 @@ export class PlaybackSourceResolver {
       }
     } catch (e) {
       console.warn('[PlaybackSourceResolver] Native offline check fallback:', e);
+    }
+
+    // ── 1b. Check direct file:// or /storage/ audioUrl on song ─────────────
+    if (song.audioUrl && (song.audioUrl.startsWith('file://') || song.audioUrl.startsWith('/storage/') || song.audioUrl.startsWith('/data/'))) {
+      const fileUri = song.audioUrl.startsWith('file://') ? song.audioUrl : `file://${song.audioUrl}`;
+      console.log(`[PlaybackSourceResolver] Playing direct local file audioUrl: "${fileUri}"`);
+      return {
+        type: 'offline',
+        url: fileUri,
+        mediaId: song.id,
+        localId: song.id,
+        isLocalBlob: false,
+      };
     }
 
     // ── 2. Check Local Sandboxed / Offline Storage (Web / PWA) ───────────────

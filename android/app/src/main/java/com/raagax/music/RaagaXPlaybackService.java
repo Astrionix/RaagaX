@@ -370,6 +370,28 @@ public class RaagaXPlaybackService extends Service {
 
     // ── PRIMARY API ───────────────────────────────────────────────────────────
 
+    public static Uri parsePlayableUri(String url) {
+        if (url == null || url.trim().isEmpty()) return Uri.EMPTY;
+        String trimmed = url.trim();
+        if (trimmed.startsWith("http://localhost/_capacitor_file_")) {
+            String localPath = trimmed.replace("http://localhost/_capacitor_file_", "");
+            if (!localPath.startsWith("/")) localPath = "/" + localPath;
+            return Uri.fromFile(new java.io.File(localPath));
+        }
+        if (trimmed.startsWith("https://localhost/_capacitor_file_")) {
+            String localPath = trimmed.replace("https://localhost/_capacitor_file_", "");
+            if (!localPath.startsWith("/")) localPath = "/" + localPath;
+            return Uri.fromFile(new java.io.File(localPath));
+        }
+        if (trimmed.startsWith("/") || trimmed.startsWith("/storage/") || trimmed.startsWith("/data/")) {
+            return Uri.fromFile(new java.io.File(trimmed));
+        }
+        if (trimmed.startsWith("file://")) {
+            return Uri.parse(trimmed);
+        }
+        return Uri.parse(trimmed);
+    }
+
     /**
      * setQueue — THE primary playback command.
      *
@@ -395,12 +417,12 @@ public class RaagaXPlaybackService extends Service {
 
                 if (!art.isEmpty()) {
                     try {
-                        metaBuilder.setArtworkUri(Uri.parse(art));
+                        metaBuilder.setArtworkUri(parsePlayableUri(art));
                     } catch (Exception ignored) {}
                 }
 
                 items.add(new MediaItem.Builder()
-                        .setUri(u)
+                        .setUri(parsePlayableUri(u))
                         .setMediaMetadata(metaBuilder.build())
                         .build());
             }
@@ -546,7 +568,7 @@ public class RaagaXPlaybackService extends Service {
             currentArtist = artist != null ? artist : "";
 
             player.setMediaItem(new MediaItem.Builder()
-                    .setUri(url)
+                    .setUri(parsePlayableUri(url))
                     .setMediaMetadata(new MediaMetadata.Builder()
                             .setTitle(currentTitle)
                             .setArtist(currentArtist)
@@ -566,7 +588,7 @@ public class RaagaXPlaybackService extends Service {
                 player.removeMediaItem(player.getCurrentMediaItemIndex() + 1);
             }
             player.addMediaItem(new MediaItem.Builder()
-                    .setUri(url)
+                    .setUri(parsePlayableUri(url))
                     .setMediaMetadata(new MediaMetadata.Builder()
                             .setTitle(title != null ? title : "RaagaX")
                             .setArtist(artist != null ? artist : "")
@@ -592,7 +614,7 @@ public class RaagaXPlaybackService extends Service {
                 String t = (titles  != null && i < titles.length  && titles[i]  != null) ? titles[i]  : "RaagaX";
                 String a = (artists != null && i < artists.length && artists[i] != null) ? artists[i] : "";
                 items.add(new MediaItem.Builder()
-                        .setUri(u)
+                        .setUri(parsePlayableUri(u))
                         .setMediaMetadata(new MediaMetadata.Builder()
                                 .setTitle(t)
                                 .setArtist(a)

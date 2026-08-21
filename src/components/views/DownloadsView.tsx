@@ -169,7 +169,7 @@ export function DownloadsView() {
           albumId: `alb-${id}`,
           duration: 180,
           coverUrl: t.artworkUrl || t.coverUrl || '/app-icon.png',
-          audioUrl: '',
+          audioUrl: t.localPath || '',
           genre: 'OFFLINE',
           category: 'melody',
           releaseYear: new Date().getFullYear(),
@@ -213,7 +213,7 @@ export function DownloadsView() {
   }, [offlineSongs, localSearch]);
 
   const handlePlayDownloadedSong = (song: Song) => {
-    playSong(song, filteredOfflineSongs);
+    playSong(song, filteredOfflineSongs, { type: 'downloads', id: 'downloads_view', title: 'Downloaded Music' });
   };
 
   // Safe storage metrics
