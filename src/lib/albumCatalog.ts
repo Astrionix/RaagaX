@@ -64,6 +64,14 @@ const REAL_SEED_ALBUMS: Record<string, { id: string; title: string; artist: stri
 export class AlbumCatalogEngine {
   private static cache: Record<string, AlbumItem[]> = {};
 
+  public static getAllAlbums(): AlbumItem[] {
+    const all: AlbumItem[] = [];
+    Object.keys(REAL_SEED_ALBUMS).forEach((lang) => {
+      all.push(...this.getAlbumsForLanguage(lang));
+    });
+    return all;
+  }
+
   /**
    * Synchronously returns cached albums or seed albums (deduplicated, no singles).
    */

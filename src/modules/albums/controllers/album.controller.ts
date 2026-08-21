@@ -75,5 +75,53 @@ export class AlbumController implements Routes {
         return ctx.json({ success: true, data: response })
       }
     )
+
+    this.controller.openapi(
+      createRoute({
+        method: 'get',
+        path: '/albums/{id}',
+        tags: ['Album'],
+        summary: 'Retrieve an album by path ID',
+        description: 'Retrieve an album by its unique ID in the path.',
+        operationId: 'getAlbumByPathId',
+        request: {
+          params: z.object({
+            id: z.string().openapi({
+              title: 'Album ID',
+              description: 'The unique ID of the album',
+              type: 'string',
+              example: '23241654'
+            })
+          })
+        },
+        responses: {
+          200: {
+            description: 'Successful response with album details',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.boolean().openapi({
+                    description: 'Indicates the success status of the request.',
+                    type: 'boolean',
+                    example: true
+                  }),
+                  data: AlbumModel.openapi({
+                    title: 'Album Details',
+                    description: 'The detailed information of the album.'
+                  })
+                })
+              }
+            }
+          },
+          400: { description: 'Bad request due to missing or invalid parameter.' },
+          404: { description: 'The album could not be found with the provided ID.' }
+        }
+      }),
+      async (ctx) => {
+        const { id } = ctx.req.valid('param')
+        const response = await this.albumService.getAlbumById(id)
+        return ctx.json({ success: true, data: response })
+      }
+    )
   }
 }

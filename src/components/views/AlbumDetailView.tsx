@@ -13,6 +13,8 @@ import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndic
 import { Song } from '@/types/music';
 import { haptics } from '@/lib/haptics/HapticEngine';
 import { DynamicArtworkAtmosphere } from '@/components/common/DynamicArtworkAtmosphere';
+import { NavigationStack } from '@/lib/navigation/NavigationStack';
+import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 
 type SortOption = 'default' | 'az' | 'za' | 'popular';
 
@@ -64,6 +66,71 @@ export function AlbumDetailView() {
 
     const loadRealTracks = async () => {
       try {
+        // Direct ID-based fetch from authoritative album API
+        const apiRes = await fetch(`/api/albums?id=${encodeURIComponent(selectedAlbumId)}`).catch(() => null);
+        if (apiRes && apiRes.ok) {
+          const apiJson = await apiRes.json();
+          const albData = apiJson?.data;
+          if (albData && isMounted) {
+            const primaryArtistName =
+              albData.artists?.primary?.map((a: any) => a.name).join(', ') ||
+              albData.primaryArtists ||
+              albData.artist ||
+              'Various Artists';
+            const primaryArtistId = albData.artists?.primary?.[0]?.id || '';
+            const albCover =
+              albData.image?.find?.((i: any) => i.quality === '500x500')?.url ||
+              albData.image?.[albData.image?.length - 1]?.url ||
+              baseAlbum?.coverUrl ||
+              '/app-icon.png';
+            const albYear = Number(albData.year) || baseAlbum?.releaseYear || 2024;
+            const albReleaseDate = albData.releaseDate || (albYear ? `${albYear}-01-01` : '2024-01-01');
+
+            const mappedTracks: Song[] = (albData.songs || []).map((s: any) => ({
+              id: s.id,
+              title: s.name || s.title || 'Unknown Title',
+              artist: s.artists?.primary?.map((a: any) => a.name).join(', ') || s.primaryArtists || primaryArtistName,
+              artistId: s.artists?.primary?.[0]?.id || primaryArtistId,
+              album: albData.name || albData.title || '',
+              albumId: albData.id || selectedAlbumId,
+              duration: Number(s.duration) || 210,
+              coverUrl:
+                s.image?.find?.((i: any) => i.quality === '500x500')?.url ||
+                s.image?.[s.image?.length - 1]?.url ||
+                albCover,
+              audioUrl:
+                s.downloadUrl?.find?.((d: any) => d.quality === '320kbps')?.url ||
+                s.downloadUrl?.[s.downloadUrl?.length - 1]?.url ||
+                '',
+              genre: s.language || albData.language || 'Music',
+              category: 'global_trending' as const,
+              releaseYear: albYear,
+              plays: Number(s.playCount) || 0,
+              likes: 0,
+            }));
+
+            setAlbum({
+              id: albData.id || selectedAlbumId,
+              title: albData.name || albData.title || baseAlbum?.title || 'Album Details',
+              artist: primaryArtistName,
+              artistId: primaryArtistId,
+              coverUrl: albCover,
+              releaseDate: albReleaseDate,
+              releaseYear: albYear,
+              trackCount: mappedTracks.length || albData.songCount || 0,
+              durationSec: mappedTracks.reduce((s, t) => s + (t.duration || 210), 0),
+              language: albData.language || preferredLanguage,
+              albumType: mappedTracks.length > 6 ? 'album' : 'ep',
+              freshnessScore: 95,
+              trendingScore: 95,
+              topScore: 95,
+              tracks: mappedTracks,
+            });
+            return;
+          }
+        }
+
+        // Secondary fallback to RealMusicEngine playlist resolver
         const { RealMusicEngine } = await import('@/lib/realMusicEngine');
         const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${selectedAlbumId}`);
 
@@ -212,14 +279,26 @@ export function AlbumDetailView() {
         <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-4 backdrop-blur-xl bg-[#08090d]/80 border-b border-white/5">
         <button
           onClick={() => {
-            setSelectedAlbumId(null);
-            setActiveTab('album');
+            haptics.lightImpact();
+            const handled = NavigationStack.getInstance().goBack((target) => {
+              usePlayerStore.setState({
+                activeTab: target.activeTab,
+                selectedAlbumId: target.selectedAlbumId,
+                selectedArtistId: target.selectedArtistId,
+                selectedPlaylistId: target.selectedPlaylistId,
+                isPlayerExpanded: target.isPlayerExpanded,
+              });
+            });
+            if (!handled) {
+              setSelectedAlbumId(null);
+              setActiveTab('album');
+            }
           }}
           className="p-2 -ml-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold cursor-pointer"
-          title="Back to Albums"
+          title="Back"
         >
           <ArrowLeft className="w-5 h-5" />
-          <span className="hidden sm:inline">Albums</span>
+          <span className="hidden sm:inline">Back</span>
         </button>
 
         <h2 className="text-sm font-bold text-white/90 truncate max-w-[240px] sm:max-w-[400px]">
@@ -326,8 +405,11 @@ export function AlbumDetailView() {
 
             <p
               onClick={() => {
-                if (album.artist) {
-                  setSelectedArtistId(album.artist);
+                const targetArtistId =
+                  album.artistId ||
+                  POPULAR_ARTISTS.find((a) => a.name.toLowerCase() === album.artist.toLowerCase())?.id;
+                if (targetArtistId) {
+                  setSelectedArtistId(targetArtistId);
                   setActiveTab('artist');
                 }
               }}

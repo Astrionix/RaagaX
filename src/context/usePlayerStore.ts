@@ -19,6 +19,7 @@ import { MediaSessionManager } from '@/lib/playback/MediaSessionManager';
 
 import { AudioQuality, AudioQualityState } from '@/lib/playback/types';
 import { DownloadStorage } from '@/lib/offline/DownloadStorage';
+import { NavigationStack } from '@/lib/navigation/NavigationStack';
 
 interface PlayerState {
   currentSong: Song | null;
@@ -55,6 +56,12 @@ interface PlayerState {
   selectedArtistId: string | null;
   selectedAlbumId: string | null;
   selectedPlaylistId: string | null;
+  navigateFromPlayer: (destination: {
+    tab: ActiveTab;
+    albumId?: string | null;
+    artistId?: string | null;
+    playlistId?: string | null;
+  }) => void;
   streamingQuality: AudioQuality;
   downloadQuality: AudioQuality;
   isDataSaverEnabled: boolean;
@@ -230,7 +237,7 @@ interface PlayerState {
   setDataSaverEnabled: (enabled: boolean) => void;
   setDeliveredQuality: (quality: AudioQuality) => void;
 
-  togglePlayerExpanded: () => void;
+  togglePlayerExpanded: (open?: boolean | any) => void;
   toggleLyrics: () => void;
   toggleQueue: () => void;
   toggleMiniPlayerFloating: () => void;
@@ -1824,17 +1831,72 @@ export const usePlayerStore = create<PlayerState>()(
       setCrossfadeSec: (sec) => set({ crossfadeSec: sec }),
       setGaplessEnabled: (enabled) => set({ isGaplessEnabled: enabled }),
 
-      setActiveTab: (tab) => set({ activeTab: tab }),
-      setSelectedArtistId: (id) => set({ selectedArtistId: id, activeTab: 'artist' }),
-      setSelectedAlbumId: (id) => set({ selectedAlbumId: id, activeTab: 'album' }),
-      setSelectedPlaylistId: (id) => set({ selectedPlaylistId: id, activeTab: 'playlist' }),
+      setActiveTab: (tab) => {
+        set({ activeTab: tab });
+        NavigationStack.getInstance().push({
+          activeTab: tab,
+          selectedAlbumId: get().selectedAlbumId,
+          selectedArtistId: get().selectedArtistId,
+          selectedPlaylistId: get().selectedPlaylistId,
+          isPlayerExpanded: get().isPlayerExpanded,
+        });
+      },
+      setSelectedArtistId: (id) => {
+        set({ selectedArtistId: id, activeTab: 'artist' });
+        NavigationStack.getInstance().push({
+          activeTab: 'artist',
+          selectedAlbumId: null,
+          selectedArtistId: id,
+          selectedPlaylistId: null,
+          isPlayerExpanded: get().isPlayerExpanded,
+        });
+      },
+      setSelectedAlbumId: (id) => {
+        set({ selectedAlbumId: id, activeTab: 'album' });
+        NavigationStack.getInstance().push({
+          activeTab: 'album',
+          selectedAlbumId: id,
+          selectedArtistId: null,
+          selectedPlaylistId: null,
+          isPlayerExpanded: get().isPlayerExpanded,
+        });
+      },
+      setSelectedPlaylistId: (id) => {
+        set({ selectedPlaylistId: id, activeTab: 'playlist' });
+        NavigationStack.getInstance().push({
+          activeTab: 'playlist',
+          selectedAlbumId: null,
+          selectedArtistId: null,
+          selectedPlaylistId: id,
+          isPlayerExpanded: get().isPlayerExpanded,
+        });
+      },
+      navigateFromPlayer: (destination) => {
+        NavigationStack.getInstance().navigateFromPlayer(destination);
+        set({
+          activeTab: destination.tab,
+          selectedAlbumId: destination.albumId || null,
+          selectedArtistId: destination.artistId || null,
+          selectedPlaylistId: destination.playlistId || null,
+          isPlayerExpanded: false,
+        });
+      },
       setStreamingQuality: (quality) => set({ streamingQuality: quality }),
       setDownloadQuality: (quality) => set({ downloadQuality: quality }),
       setDataSaverEnabled: (enabled) => set({ isDataSaverEnabled: enabled }),
       setDeliveredQuality: (quality) => set({ deliveredQuality: quality }),
 
-      togglePlayerExpanded: () =>
-        set((state) => ({ isPlayerExpanded: !state.isPlayerExpanded })),
+      togglePlayerExpanded: (open) => {
+        const next = typeof open === 'boolean' ? open : !get().isPlayerExpanded;
+        set({ isPlayerExpanded: next });
+        NavigationStack.getInstance().push({
+          activeTab: get().activeTab,
+          selectedAlbumId: get().selectedAlbumId,
+          selectedArtistId: get().selectedArtistId,
+          selectedPlaylistId: get().selectedPlaylistId,
+          isPlayerExpanded: next,
+        });
+      },
       setRenderer: (renderer) => set({ activeRenderer: renderer }),
       toggleLyrics: () => set((state) => ({ isLyricsOpen: !state.isLyricsOpen })),
       toggleQueue: () => set((state) => ({ isQueueOpen: !state.isQueueOpen })),

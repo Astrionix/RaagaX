@@ -34,6 +34,7 @@ import { EqualizerModal } from '@/components/modals/EqualizerModal';
 import { CarModeModal } from '@/components/modals/CarModeModal';
 
 import { Toast } from '@/components/ui/Toast';
+import { NavigationStack } from '@/lib/navigation/NavigationStack';
 
 import { HomeView } from '@/components/views/HomeView';
 import { NewView } from '@/components/views/NewView';
@@ -88,48 +89,33 @@ export default function Page() {
     const handleBackNavigation = () => {
       const store = usePlayerStore.getState();
 
-      // 1. If Full Player modal is expanded, collapse it first
-      if (store.isPlayerExpanded) {
-        usePlayerStore.setState({ isPlayerExpanded: false });
-        import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact());
-        return true;
-      }
-
-      // 2. If Settings modal is open, close it
+      // 1. If Settings modal is open, close it
       if (store.isSettingsModalOpen) {
         store.toggleSettingsModal();
         return true;
       }
 
-      // 3. If Device Connect modal is open, close it
+      // 2. If Device Connect modal is open, close it
       if (store.isDeviceModalOpen) {
         store.toggleDeviceModal();
         return true;
       }
 
-      // 4. If on Album Detail View, return to Albums catalog list
-      if (store.activeTab === 'album' && store.selectedAlbumId) {
-        store.setSelectedAlbumId(null);
+      // 3. Delegate to NavigationStack for authoritative navigation & player restoration
+      const handled = NavigationStack.getInstance().goBack((target) => {
+        usePlayerStore.setState({
+          activeTab: target.activeTab,
+          selectedAlbumId: target.selectedAlbumId,
+          selectedArtistId: target.selectedArtistId,
+          selectedPlaylistId: target.selectedPlaylistId,
+          isPlayerExpanded: target.isPlayerExpanded,
+        });
         import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact());
-        return true;
-      }
+      });
 
-      // 5. If on Artist Detail View, return to Artists catalog list
-      if (store.activeTab === 'artist' && store.selectedArtistId) {
-        store.setSelectedArtistId(null);
-        import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact());
-        return true;
-      }
+      if (handled) return true;
 
-      // 6. If on Playlist Detail View, return to Library
-      if (store.activeTab === 'playlist' && store.selectedPlaylistId) {
-        store.setSelectedPlaylistId(null);
-        store.setActiveTab('library');
-        import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact());
-        return true;
-      }
-
-      // 7. If on any detail view / secondary tab (browse, search, library, profile, artist, album, playlist, downloads, etc.), navigate back to Home
+      // 4. Fallback: If on any secondary tab, navigate to Home
       if (store.activeTab !== 'home') {
         store.setSelectedAlbumId(null);
         store.setSelectedArtistId(null);
@@ -139,7 +125,7 @@ export default function Page() {
         return true;
       }
 
-      return false; // Already on Home with no modals open -> standard app minimize/exit
+      return false; // Already on Home at root -> standard app minimize/exit
     };
 
     const handlePopState = (e: PopStateEvent) => {

@@ -14,6 +14,7 @@ import { Song } from '@/types/music';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 import { haptics } from '@/lib/haptics/HapticEngine';
 import { DynamicArtworkAtmosphere } from '@/components/common/DynamicArtworkAtmosphere';
+import { NavigationStack } from '@/lib/navigation/NavigationStack';
 
 const fetcher = (url: string) => fetch(getApiUrl(url)).then(res => res.json()).catch(() => null);
 
@@ -195,13 +196,26 @@ export function ArtistDetailView() {
         <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-4 backdrop-blur-xl bg-[#08090d]/80 border-b border-white/5">
         <button
           onClick={() => {
-            setSelectedArtistId(null);
-            setActiveTab('home');
+            haptics.lightImpact();
+            const handled = NavigationStack.getInstance().goBack((target) => {
+              usePlayerStore.setState({
+                activeTab: target.activeTab,
+                selectedAlbumId: target.selectedAlbumId,
+                selectedArtistId: target.selectedArtistId,
+                selectedPlaylistId: target.selectedPlaylistId,
+                isPlayerExpanded: target.isPlayerExpanded,
+              });
+            });
+            if (!handled) {
+              setSelectedArtistId(null);
+              setActiveTab('home');
+            }
           }}
           className="p-2 -ml-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+          title="Back"
         >
           <ArrowLeft className="w-5 h-5" />
-          <span className="hidden sm:inline">Explore</span>
+          <span className="hidden sm:inline">Back</span>
         </button>
 
         <h2 className="text-sm font-bold text-white/90 truncate max-w-[240px] sm:max-w-[400px]">

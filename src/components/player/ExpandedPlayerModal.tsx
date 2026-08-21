@@ -40,6 +40,8 @@ import { haptics } from '@/lib/haptics/HapticEngine';
 import { ArtworkColorExtractor, ChameleonPalette } from '@/lib/theme/ArtworkColorExtractor';
 import { LiquidGlass } from '@/components/common/LiquidGlass';
 import { RadioEngine } from '@/lib/radio/RadioEngine';
+import { POPULAR_ARTISTS } from '@/lib/popularArtists';
+import { AlbumCatalogEngine } from '@/lib/albumCatalog';
 
 export function ExpandedPlayerModal() {
   const { playlists, addSongToPlaylist } = usePlaylistStore();
@@ -93,6 +95,7 @@ export function ExpandedPlayerModal() {
     setSelectedArtistId,
     setSelectedAlbumId,
     setSelectedPlaylistId,
+    navigateFromPlayer,
     toggleDeviceModal,
     activeDeviceId,
     isActiveDevice,
@@ -189,6 +192,25 @@ export function ExpandedPlayerModal() {
 
   const contextType = String(rawContext?.type || rawContext?.contextType || 'album').toLowerCase();
 
+  // Exact ID-based entity resolution
+  const exactArtistId = useMemo(() => {
+    if (!currentSong) return null;
+    if (currentSong.artistId) return currentSong.artistId;
+    const match = POPULAR_ARTISTS.find(
+      (a) => a.name.toLowerCase() === currentSong.artist?.toLowerCase()
+    );
+    return match?.id || null;
+  }, [currentSong]);
+
+  const exactAlbumId = useMemo(() => {
+    if (!currentSong) return null;
+    if (currentSong.albumId) return currentSong.albumId;
+    const match = AlbumCatalogEngine.getAllAlbums().find(
+      (a) => a.title.toLowerCase() === currentSong.album?.toLowerCase()
+    );
+    return match?.id || null;
+  }, [currentSong]);
+
   // Extract dominant colors from current artwork
   useEffect(() => {
     let isMounted = true;
@@ -202,30 +224,27 @@ export function ExpandedPlayerModal() {
 
   const handleContextClick = () => {
     haptics.lightImpact();
-    togglePlayerExpanded();
 
     if (rawContext?.id) {
       if (contextType.includes('playlist')) {
-        setSelectedPlaylistId(rawContext.id);
-        setActiveTab('playlist');
+        navigateFromPlayer({ tab: 'playlist', playlistId: rawContext.id });
       } else if (contextType.includes('album')) {
-        setSelectedAlbumId(rawContext.id);
-        setActiveTab('album');
+        navigateFromPlayer({ tab: 'album', albumId: rawContext.id });
       } else if (contextType.includes('artist')) {
-        setSelectedArtistId(rawContext.id);
-        setActiveTab('artist');
+        navigateFromPlayer({ tab: 'artist', artistId: rawContext.id });
       } else if (contextType.includes('genre')) {
-        setActiveTab('genres');
+        navigateFromPlayer({ tab: 'genres' });
       } else if (contextType.includes('new')) {
-        setActiveTab('new');
+        navigateFromPlayer({ tab: 'new' });
       } else {
-        setActiveTab('library');
+        navigateFromPlayer({ tab: 'library' });
       }
-    } else if (currentSong?.albumId || currentSong?.album) {
-      setSelectedAlbumId(currentSong.albumId || currentSong.album);
-      setActiveTab('album');
+    } else if (exactAlbumId) {
+      navigateFromPlayer({ tab: 'album', albumId: exactAlbumId });
+    } else if (exactArtistId) {
+      navigateFromPlayer({ tab: 'artist', artistId: exactArtistId });
     } else {
-      setActiveTab('library');
+      navigateFromPlayer({ tab: 'library' });
     }
   };
 
@@ -515,14 +534,17 @@ export function ExpandedPlayerModal() {
                   <div className="space-y-0.5 pt-1">
                     <button
                       onClick={() => {
-                        const target = currentSong.artistId || currentSong.artist;
-                        if (target) {
-                          setSelectedArtistId(target);
-                          setActiveTab('artist');
-                          togglePlayerExpanded();
+                        if (exactArtistId) {
+                          navigateFromPlayer({ tab: 'artist', artistId: exactArtistId });
+                          setIsMenuOpen(false);
                         }
                       }}
-                      className="w-full p-2.5 rounded-xl flex items-center gap-2.5 hover:bg-white/10 transition-colors text-left cursor-pointer"
+                      disabled={!exactArtistId}
+                      className={`w-full p-2.5 rounded-xl flex items-center gap-2.5 transition-colors text-left ${
+                        exactArtistId
+                          ? 'hover:bg-white/10 text-white cursor-pointer'
+                          : 'opacity-40 text-slate-500 cursor-not-allowed'
+                      }`}
                     >
                       <User className="w-4 h-4 text-slate-400" />
                       <span>Go to Artist</span>
@@ -530,14 +552,17 @@ export function ExpandedPlayerModal() {
 
                     <button
                       onClick={() => {
-                        const albumTarget = currentSong.albumId || currentSong.album;
-                        if (albumTarget) {
-                          setSelectedAlbumId(albumTarget);
-                          setActiveTab('album');
-                          togglePlayerExpanded();
+                        if (exactAlbumId) {
+                          navigateFromPlayer({ tab: 'album', albumId: exactAlbumId });
+                          setIsMenuOpen(false);
                         }
                       }}
-                      className="w-full p-2.5 rounded-xl flex items-center gap-2.5 hover:bg-white/10 transition-colors text-left cursor-pointer"
+                      disabled={!exactAlbumId}
+                      className={`w-full p-2.5 rounded-xl flex items-center gap-2.5 transition-colors text-left ${
+                        exactAlbumId
+                          ? 'hover:bg-white/10 text-white cursor-pointer'
+                          : 'opacity-40 text-slate-500 cursor-not-allowed'
+                      }`}
                     >
                       <Disc className="w-4 h-4 text-slate-400" />
                       <span>Go to Album</span>
@@ -555,14 +580,13 @@ export function ExpandedPlayerModal() {
             </h1>
             <p
               onClick={() => {
-                const target = currentSong.artistId || currentSong.artist;
-                if (target) {
-                  setSelectedArtistId(target);
-                  setActiveTab('artist');
-                  togglePlayerExpanded();
+                if (exactArtistId) {
+                  navigateFromPlayer({ tab: 'artist', artistId: exactArtistId });
                 }
               }}
-              className="text-[15px] sm:text-[16px] font-semibold text-[#A8B2C2] hover:text-white transition-colors truncate cursor-pointer mt-0.5"
+              className={`text-[15px] sm:text-[16px] font-semibold text-[#A8B2C2] hover:text-white transition-colors truncate mt-0.5 ${
+                exactArtistId ? 'cursor-pointer' : 'cursor-default'
+              }`}
             >
               {currentSong.artist}
             </p>

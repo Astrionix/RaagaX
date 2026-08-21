@@ -16,6 +16,8 @@ import { useDownloadStore } from '@/context/useDownloadStore';
 import { useAuthStore } from '@/context/useAuthStore';
 import { AddSongsModal } from '@/components/modals/AddSongsModal';
 import { DynamicArtworkAtmosphere } from '@/components/common/DynamicArtworkAtmosphere';
+import { NavigationStack } from '@/lib/navigation/NavigationStack';
+import { haptics } from '@/lib/haptics/HapticEngine';
 
 type SortOption = 'newest' | 'oldest' | 'az' | 'za' | 'duration';
 
@@ -339,11 +341,27 @@ export function PlaylistDetailView() {
         {/* Top Back Navigation Bar */}
         <div className="flex items-center justify-between pt-1">
           <button
-            onClick={() => setActiveTab('library')}
+            onClick={() => {
+              haptics.lightImpact();
+              const handled = NavigationStack.getInstance().goBack((target) => {
+                usePlayerStore.setState({
+                  activeTab: target.activeTab,
+                  selectedAlbumId: target.selectedAlbumId,
+                  selectedArtistId: target.selectedArtistId,
+                  selectedPlaylistId: target.selectedPlaylistId,
+                  isPlayerExpanded: target.isPlayerExpanded,
+                });
+              });
+              if (!handled) {
+                setSelectedPlaylistId(null);
+                setActiveTab('library');
+              }
+            }}
             className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all text-xs font-bold cursor-pointer"
+            title="Back"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Playlists</span>
+            <span>Back</span>
           </button>
 
           {/* 3-Dot Playlist Action Menu */}
