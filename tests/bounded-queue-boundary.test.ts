@@ -61,8 +61,8 @@ describe('RaagaX Bounded Queue Sessions & Source Boundary Rules', () => {
     expect(Array.isArray(candidates)).toBe(true);
   }, 10000);
 
-  // ALBUM-PLAY-003: Play song C from Album [A, B, C, D, E] -> Queue is [C, D, E]
-  it('ALBUM-PLAY-003: Playing song C from album [A, B, C, D, E] creates bounded queue [C, D, E]', () => {
+  // ALBUM-PLAY-003: Play song C from Album [A, B, C, D, E] -> Queue is [A, B, C, D, E] at index 2
+  it('ALBUM-PLAY-003: Playing song C from album [A, B, C, D, E] creates full collection queue [A, B, C, D, E] with currentIndex 2', () => {
     const store = usePlayerStore.getState();
     store.playSong(mockAlbum[2], mockAlbum); // Play C
 
@@ -70,8 +70,8 @@ describe('RaagaX Bounded Queue Sessions & Source Boundary Rules', () => {
     const snapshot = manager.getSnapshot();
     const queueIds = snapshot.items.map(i => i.song.id);
 
-    expect(queueIds).toEqual(['song_c', 'song_d', 'song_e']);
-    expect(snapshot.currentIndex).toBe(0);
+    expect(queueIds).toEqual(['song_a', 'song_b', 'song_c', 'song_d', 'song_e']);
+    expect(snapshot.currentIndex).toBe(2);
   });
 
   // ALBUM-SHUFFLE-001 & 002: Shuffled Album queue remains stable until completion

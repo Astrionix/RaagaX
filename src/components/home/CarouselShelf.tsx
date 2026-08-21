@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ShelfItem } from '@/types/home';
+import { Song } from '@/types/music';
 import { Play, ChevronRight, ChevronDown, X, Shuffle, MoreHorizontal } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
@@ -131,16 +132,14 @@ export function CarouselShelf({ title, subtitle, items, icon, showPlayAll, pagin
   const handleItemClick = (item: ShelfItem) => {
     if (item.type === 'playlist' || item.type === 'mix') {
       setSelectedPlaylistId(item.id);
-      setActiveTab('playlist');
     } else if (item.type === 'artist') {
       setSelectedArtistId(item.id);
     } else if (item.type === 'album') {
       setSelectedAlbumId(item.id);
-      setSelectedPlaylistId(`album:${item.id}`);
-      setActiveTab('playlist');
     } else if (item.type === 'song') {
-      const rawSongs = shelfItems.map(i => i.rawItem).filter(Boolean);
-      playSong(item.rawItem || (item as any), rawSongs.length > 0 ? rawSongs : (shelfItems as any[]));
+      const rawSongs = shelfItems.map((i) => i.rawItem).filter(Boolean) as Song[];
+      const targetSong = (item.rawItem || item) as Song;
+      playSong(targetSong, rawSongs.length > 0 ? rawSongs : [targetSong]);
     }
   };
 

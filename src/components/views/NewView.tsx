@@ -175,6 +175,8 @@ export function NewView() {
     playSong,
     setActiveTab,
     setSelectedAlbumId,
+    setSelectedArtistId,
+    setSelectedPlaylistId,
   } = usePlayerStore();
 
   const lang = preferredLanguage || 'Telugu';
@@ -429,12 +431,7 @@ export function NewView() {
                 key={`album-${album.albumId || album.id || 'album'}-${idx}`}
                 onClick={() => {
                   haptics.lightImpact();
-                  if (album.albumId) {
-                    setSelectedAlbumId(album.albumId);
-                    setActiveTab('album');
-                  } else {
-                    playSong(album, allSongs, { type: 'album', id: album.albumId || album.id, title: album.album });
-                  }
+                  setSelectedAlbumId(album.albumId || album.id || album.album);
                 }}
                 className="p-3 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-white/15 hover:bg-white/[0.06] transition-all cursor-pointer group"
               >
@@ -542,7 +539,10 @@ export function NewView() {
             {newArtists.map((item, idx) => (
               <div
                 key={`artist-${item.artistId || item.id || 'artist'}-${idx}`}
-                onClick={() => { haptics.lightImpact(); playSong(item, allSongs, { type: 'new_releases', id: 'new', title: `${lang} New Releases` }); }}
+                onClick={() => {
+                  haptics.lightImpact();
+                  setSelectedArtistId(item.artistId || item.id || item.artist);
+                }}
                 className="w-24 flex-shrink-0 text-center cursor-pointer group"
               >
                 <div className="w-24 h-24 rounded-full overflow-hidden mb-2 border-2 border-white/10 group-hover:border-[#FA233B] transition-all shadow-md mx-auto">
@@ -568,7 +568,10 @@ export function NewView() {
             {updatedPlaylists.map((item, idx) => (
               <div
                 key={`pl-${item.id || 'item'}-${idx}`}
-                onClick={() => { haptics.lightImpact(); playSong(item, allSongs, { type: 'new_releases', id: 'new', title: `${lang} New Releases` }); }}
+                onClick={() => {
+                  haptics.lightImpact();
+                  setSelectedPlaylistId(item.id);
+                }}
                 className="w-36 flex-shrink-0 cursor-pointer group"
               >
                 <div className="relative aspect-square rounded-2xl overflow-hidden mb-2 bg-slate-800 shadow-md border border-white/5">

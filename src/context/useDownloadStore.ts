@@ -123,6 +123,11 @@ interface DownloadStore {
     localPath?: string;
   };
 
+  /** Apple Music-style album download status aggregation */
+  getAlbumDownloadStatus: (songIds: string[]) => 'NONE' | 'PARTIAL' | 'ALL';
+  /** Queues all tracks in an album for download, respecting maxConcurrent */
+  downloadAlbum: (albumId: string, songs: Song[], quality?: string) => void;
+
   _processQueue: () => void;
   _persistTasks: () => void;
   syncDownloadedIds: () => Promise<void>;
@@ -1127,7 +1132,69 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     });
 
     get()._processQueue();
-  }
+  },
+
+  /**
+   * getAlbumDownloadStatus — aggregates per-track states into a single album-level status.
+   * Returns: 'NONE' | 'PARTIAL' | 'ALL'
+   */
+  getAlbumDownloadStatus: (songIds: string[]): 'NONE' | 'PARTIAL' | 'ALL' => {
+    if (!songIds || songIds.length === 0) return 'NONE';
+    const downloadedIds = usePlayerStore.getState().downloadedSongIds;
+    const tasks = get().tasks;
+    let completed = 0;
+    for (const id of songIds) {
+      if (downloadedIds.includes(id)) { completed++; continue; }
+      const t = tasks[id];
+      if (t && t.status === 'COMPLETED') completed++;
+    }
+    if (completed === 0) return 'NONE';
+    if (completed === songIds.length) return 'ALL';
+    return 'PARTIAL';
+  },
+
+  /**
+   * downloadAlbum — sequentially queues all tracks in an album, respecting maxConcurrent.
+   * Skips already-downloaded songs. Updates playlistDownloadProgress as a proxy for album progress.
+   */
+  downloadAlbum: (albumId: string, songs: Song[], quality?: string) => {
+    const targetQuality = quality || get().offlineSettings.audioQuality || '320 kbps';
+    const downloadedIds = usePlayerStore.getState().downloadedSongIds;
+    const tasks = get().tasks;
+
+    const toDownload = songs.filter((s) => {
+      if (!s?.id) return false;
+      if (downloadedIds.includes(s.id)) return false;
+      const t = tasks[s.id];
+      if (t && ['DOWNLOADING', 'QUEUED', 'COMPLETED', 'VERIFYING'].includes(t.status)) return false;
+      return true;
+    });
+
+    if (toDownload.length === 0) {
+      usePlayerStore.getState().setToastMessage('All tracks already downloaded');
+      return;
+    }
+
+    const albumTitle = songs[0]?.album || 'Album';
+    set({
+      playlistDownloadProgress: {
+        playlistId: `album-${albumId}`,
+        playlistTitle: albumTitle,
+        totalSongs: toDownload.length,
+        completedSongs: 0,
+        currentSongTitle: toDownload[0]?.title || '',
+        overallProgress: 0,
+        status: 'DOWNLOADING',
+      }
+    });
+
+    // Queue each track — _processQueue enforces maxConcurrent (default: 2)
+    toDownload.forEach((song) => {
+      get().queueDownload(song, 'offline_sandboxed', targetQuality);
+    });
+
+    usePlayerStore.getState().setToastMessage(`Downloading ${toDownload.length} tracks from "${albumTitle}"`);
+  },
 }));
 
 if (typeof window !== 'undefined') {

@@ -4,13 +4,14 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   MoreVertical, MoreHorizontal, ListPlus, FastForward, Heart, Play, Share2, Plus, 
   Download, PauseCircle, XCircle, ChevronRight, ChevronLeft, Info, Trash2, 
-  Check, User, Disc, Ban, Bookmark, Flag
+  Check, User, Disc, Ban, Bookmark, Flag, Library, CloudDownload
 } from 'lucide-react';
 import { Song } from '@/types/music';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { SongDetailsModal } from '@/components/modals/SongDetailsModal';
+import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 
 interface SongActionMenuProps {
   song: Song;
@@ -31,7 +32,10 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
     addToQueue, 
     playNextInQueue, 
     toggleLikeSong, 
-    likedSongIds, 
+    likedSongIds,
+    librarySongIds,
+    addToLibrary,
+    removeFromLibrary,
     downloadedSongIds, 
     setToastMessage,
     setSelectedArtistId,
@@ -47,6 +51,7 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
   const task = song ? tasks[song.id] : null;
   const isDownloaded = song ? downloadedSongIds.includes(song.id) : false;
   const isLiked = song ? likedSongIds.includes(song.id) : false;
+  const isInLibrary = song ? librarySongIds.includes(song.id) : false;
   const isDownloading = task && (task.status === 'DOWNLOADING' || task.status === 'QUEUED' || task.status === 'VERIFYING');
   const isInPlaylistContext = Boolean(playlistId || onRemoveFromPlaylist);
 
@@ -205,7 +210,7 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
                   </button>
                 )}
 
-                {/* 5. Like / Liked (dynamic reflection) */}
+                {/* 5. Like / Liked */}
                 <button 
                   onClick={() => handleAction(() => toggleLikeSong(song.id))}
                   className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
@@ -219,6 +224,73 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
                     {isLiked ? 'Liked' : 'Like'}
                   </span>
                 </button>
+
+                {/* 5b. Add to Library / Remove from Library (Android only — Apple Music model) */}
+                {isNative && (
+                  <button 
+                    onClick={() => handleAction(() => {
+                      if (isInLibrary) {
+                        removeFromLibrary(song.id);
+                        setToastMessage(`Removed "${song.title}" from Library`);
+                      } else {
+                        addToLibrary(song.id, song);
+                        setToastMessage(`Added "${song.title}" to Library`);
+                      }
+                    })}
+                    className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
+                  >
+                    <div className={`w-8 h-8 rounded-lg border border-white/5 flex items-center justify-center flex-shrink-0 transition-colors ${
+                      isInLibrary ? 'bg-blue-500/20 border-blue-500/30 text-blue-400' : 'bg-white/5 text-slate-300 group-hover:bg-blue-500/20 group-hover:text-blue-300'
+                    }`}>
+                      <Library className="w-3.5 h-3.5" />
+                    </div>
+                    <span className={`font-medium flex-1 ml-3 text-xs ${isInLibrary ? 'text-blue-400' : 'text-slate-200 group-hover:text-white'}`}>
+                      {isInLibrary ? 'In Library' : 'Add to Library'}
+                    </span>
+                    {isInLibrary && <Check className="w-3.5 h-3.5 text-blue-400 ml-1" />}
+                  </button>
+                )}
+
+                {/* 5c. Download / Remove Download (Android only) */}
+                {isNative && (
+                  isDownloaded ? (
+                    <button
+                      onClick={() => handleAction(() => {
+                        removeDownload(song.id);
+                        setToastMessage(`"${song.title}" removed from downloads`);
+                      })}
+                      className="w-full text-left px-2.5 py-2 hover:bg-red-500/10 rounded-xl flex items-center transition-all group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 flex items-center justify-center flex-shrink-0">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </div>
+                      <span className="font-medium text-emerald-400 group-hover:text-red-400 flex-1 ml-3 text-xs">Downloaded · Remove</span>
+                    </button>
+                  ) : isDownloading ? (
+                    <button
+                      onClick={() => handleAction(() => cancelDownload(song.id))}
+                      className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 flex items-center justify-center flex-shrink-0">
+                        <DownloadStatusIndicator song={song} size="sm" className="" />
+                      </div>
+                      <span className="font-medium text-slate-300 group-hover:text-white flex-1 ml-3 text-xs">Downloading · Cancel</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleAction(async () => {
+                        await saveForOffline(song);
+                        setToastMessage(`Downloading "${song.title}"`);
+                      })}
+                      className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-slate-300 group-hover:bg-emerald-500/20 group-hover:text-emerald-300 flex items-center justify-center flex-shrink-0 transition-colors">
+                        <CloudDownload className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="font-medium text-slate-200 group-hover:text-white flex-1 ml-3 text-xs">Download</span>
+                    </button>
+                  )
+                )}
 
                 {/* 6. Go to Artist */}
                 {(song.artistId || song.artist) && (

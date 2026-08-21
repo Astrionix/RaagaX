@@ -10,6 +10,7 @@ import { PlaybackSourceResolver } from '@/lib/playbackSourceResolver';
 import { RaagaXNativePlayer } from './native/RaagaXNativePlayer';
 import { Song } from '@/types/music';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useDownloadStore } from '@/context/useDownloadStore';
 import { AdaptiveQueueController } from '../queue/AdaptiveQueueController';
 import { PlaybackTelemetry, PlaybackSourceType } from './PlaybackTelemetry';
 import { PlayableUrlCache } from './PlayableUrlCache';
@@ -249,10 +250,30 @@ export class PlaybackService {
     if (!RaagaXNativePlayer.isNative()) return;
     if (!songs || songs.length === 0) return;
 
+    // Offline guard for queue context: only resolve network URLs when online.
+    // NOTE: We intentionally do NOT use navigator.onLine here — on Android/Capacitor
+    // WebView, navigator.onLine is unreliable and can be false with an active connection.
+    // We rely solely on the explicitly-set networkMode from the store.
+    const store = usePlayerStore.getState();
+    const isActuallyOffline =
+      store.networkMode === 'offline' ||
+      store.networkMode === 'offline_forced';
+
     try {
+      const downloadStore = useDownloadStore.getState();
+
       // Resolve ALL songs in parallel (including the starting song)
       const resolvedTracks = await Promise.all(
         songs.map(async (song) => {
+          // If offline, only attempt local file resolution
+          const isDownloaded =
+            store.downloadedSongIds.includes(song.id) ||
+            !!downloadStore.nativeDownloadedTracks[song.id];
+
+          if (isActuallyOffline && !isDownloaded) {
+            return { url: '', title: song.title ?? '', artist: song.artist ?? '', artworkUrl: song.coverUrl ?? '' };
+          }
+
           let finalSrc = '';
           try {
             const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
@@ -368,6 +389,36 @@ export class PlaybackService {
       // 1. Stop all previous audio sources immediately
       this.stopAllAudio();
       if (requestId !== this.playbackRequestId) return false;
+
+      // ── OFFLINE GUARD ─────────────────────────────────────────────────────────
+      // Prevents network attempts when the user has explicitly enabled Offline Mode.
+      // IMPORTANT: We do NOT use navigator.onLine here — on Android/Capacitor WebView
+      // this property is unreliable and returns false even with an active connection,
+      // which would silently block all liked/library songs from streaming.
+      // PlaybackSourceResolver already handles true network failures gracefully.
+      const isActuallyOffline =
+        store.networkMode === 'offline' ||
+        store.networkMode === 'offline_forced';
+
+      if (isActuallyOffline) {
+        const downloadStore = useDownloadStore.getState();
+        const isDownloaded =
+          store.downloadedSongIds.includes(song.id) ||
+          !!downloadStore.nativeDownloadedTracks[song.id];
+
+        if (!isDownloaded) {
+          console.warn(
+            `[PlaybackService] Offline guard: "${song.title}" not available — Offline Mode is on. Download first.`
+          );
+          store.setToastMessage(
+            `"${song.title}" isn't available offline. Turn off Offline Mode or download it first.`
+          );
+          store.setIsPlaying(false);
+          this.isTransitioning = false;
+          return false;
+        }
+      }
+      // ──────────────────────────────────────────────────────────────────────────
 
       // 2. Native Android ExoPlayer Path
       if (RaagaXNativePlayer.isNative()) {

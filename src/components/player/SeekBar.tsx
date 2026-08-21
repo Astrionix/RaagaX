@@ -10,12 +10,16 @@ export function SeekBar({
   height = 'h-1',
   thumbSize = 'w-3 h-3',
   activeColor = 'bg-[#fa233b]',
+  accentGradient,
+  accentGlow,
   trackColor = 'bg-white/10',
 }: {
   className?: string;
   height?: string;
   thumbSize?: string;
   activeColor?: string;
+  accentGradient?: string;
+  accentGlow?: string;
   trackColor?: string;
 }) {
   const { currentTime, duration, currentSong, setCurrentTime, setSeekTarget } = usePlayerStore();
@@ -195,13 +199,13 @@ export function SeekBar({
         }}
       />
 
-      {/* ── 2. Progress Fill (RaagaX Red gradient) ─── */}
+      {/* ── 2. Progress Fill (RaagaX Red or Artwork Gradient) ─── */}
       <div
-        className={`absolute left-0 ${height} rounded-full pointer-events-none`}
+        className={`absolute left-0 ${height} rounded-full pointer-events-none transition-all duration-75`}
         style={{
           width: `${currentPercent}%`,
-          background: 'linear-gradient(90deg, #c91c30 0%, #FA233B 100%)',
-          boxShadow: '0 0 6px rgba(250,35,59,0.45)',
+          background: accentGradient || 'linear-gradient(90deg, #c91c30 0%, #FA233B 100%)',
+          boxShadow: accentGlow || '0 0 8px rgba(250,35,59,0.45)',
         }}
       />
 
@@ -227,13 +231,13 @@ export function SeekBar({
       {/* ── 4. Hover Tooltip ─── */}
       {hoverProgress !== null && !isSeeking && (
         <div
-          className="absolute bottom-full mb-2 bg-black/80 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-1 rounded-lg shadow-lg pointer-events-none border border-white/10"
+          className="absolute bottom-full mb-2 bg-black/85 backdrop-blur-md text-white text-[11px] font-mono font-bold px-2.5 py-1 rounded-lg shadow-xl pointer-events-none border border-white/15 z-30"
           style={{
             left: `${hoverProgress * 100}%`,
             transform: 'translateX(-50%)',
           }}
         >
-          {formatTime(hoverProgress * duration)}
+          {formatTime(hoverProgress * effectiveDuration)}
         </div>
       )}
     </div>

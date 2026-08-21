@@ -88,7 +88,8 @@ describe('RaagaX Playback Session State & Startup Restoration Engine', () => {
     expect(parsed.currentSong.id).toBe('song_d_4');
     expect(parsed.currentSong.title).toBe('Song D (Latest Track)');
     expect(parsed.currentTime).toBe(97);
-    expect(parsed.queue.length).toBe(1); // bounded slice from index of Song D
+    expect(parsed.queue.length).toBe(3); // Full queue preserved [songA, songB, songD]
+    expect(parsed.queueIndex).toBe(2);
   });
 
   it('2. Persists paused state when user pauses audio before exiting', async () => {

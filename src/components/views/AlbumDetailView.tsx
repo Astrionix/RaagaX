@@ -42,6 +42,8 @@ export function AlbumDetailView() {
     tasks,
     saveForOffline,
     removeDownload,
+    downloadAlbum,
+    getAlbumDownloadStatus,
   } = useDownloadStore();
 
   const [album, setAlbum] = useState<AlbumItem | null>(() => {
@@ -241,14 +243,9 @@ export function AlbumDetailView() {
   };
 
   const handleDownloadAll = () => {
+    if (!album?.id) return;
     haptics.lightImpact();
-    const toDownload = tracks.filter(t => !downloadedSongIds.includes(t.id));
-    if (toDownload.length === 0) {
-      setToastMessage('All songs in this album are already downloaded!');
-      return;
-    }
-    toDownload.forEach(track => saveForOffline(track));
-    setToastMessage(`Downloading ${toDownload.length} songs from ${album.title}...`);
+    downloadAlbum(album.id, tracks);
   };
 
   const handleRemoveAllDownloads = () => {
@@ -643,7 +640,7 @@ export function AlbumDetailView() {
                       {formatDuration(track.duration || 210)}
                     </span>
 
-                    <DownloadStatusIndicator song={track} size="sm" />
+                    <DownloadStatusIndicator song={track} size="sm" showCloudIcon />
 
                     <SongActionMenu song={track} />
                   </div>

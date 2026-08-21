@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ArrowDown, Check, Loader2, Pause, AlertCircle } from 'lucide-react';
+import { ArrowDownToLine, Check, Loader2, Pause, AlertCircle, Cloud } from 'lucide-react';
 import { Song } from '@/types/music';
 import { useDownloadStore, DownloadStatus } from '@/context/useDownloadStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
@@ -12,6 +12,8 @@ interface DownloadStatusIndicatorProps {
   showPercentage?: boolean;
   className?: string;
   onDownloadedClick?: () => void;
+  /** If true, show the ☁ cloud icon when song is in Library but not downloaded */
+  showCloudIcon?: boolean;
 }
 
 export function DownloadStatusIndicator({
@@ -20,12 +22,15 @@ export function DownloadStatusIndicator({
   showPercentage = false,
   className = 'md:hidden',
   onDownloadedClick,
+  showCloudIcon = false,
 }: DownloadStatusIndicatorProps) {
   const tasks = useDownloadStore((s) => s.tasks);
   const nativeTracks = useDownloadStore((s) => s.nativeDownloadedTracks);
   const saveForOffline = useDownloadStore((s) => s.saveForOffline);
   const retryDownload = useDownloadStore((s) => s.retryDownload);
   const downloadedSongIds = usePlayerStore((s) => s.downloadedSongIds);
+  const librarySongIds = usePlayerStore((s) => s.librarySongIds);
+
   // INVARIANT: Downloads are strictly native mobile offline features — completely hide on Desktop
   const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
   if (!isNative) return null;
@@ -34,6 +39,7 @@ export function DownloadStatusIndicator({
 
   const task = tasks[song.id];
   const isDownloaded = downloadedSongIds.includes(song.id) || !!nativeTracks[song.id];
+  const isInLibrary = librarySongIds.includes(song.id);
 
   // Resolve status accurately
   let status: DownloadStatus = 'NOT_DOWNLOADED';
@@ -72,6 +78,7 @@ export function DownloadStatusIndicator({
     }
   };
 
+  // ✓ DOWNLOADED — solid green checkmark (Apple Music "on device" state)
   if (status === 'COMPLETED') {
     return (
       <div
@@ -84,6 +91,7 @@ export function DownloadStatusIndicator({
     );
   }
 
+  // ↓ DOWNLOADING / VERIFYING — circular progress ring
   if (status === 'DOWNLOADING' || status === 'VERIFYING') {
     const isVerifying = status === 'VERIFYING';
     const radius = 9;
@@ -126,6 +134,7 @@ export function DownloadStatusIndicator({
     );
   }
 
+  // ⏳ QUEUED — spinning loader
   if (status === 'QUEUED') {
     return (
       <div
@@ -138,11 +147,12 @@ export function DownloadStatusIndicator({
     );
   }
 
+  // ⏸ PAUSED
   if (status === 'PAUSED') {
     return (
       <div
         onClick={handleClick}
-        title="Download paused"
+        title="Download paused — tap to resume"
         className={`inline-flex items-center justify-center rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 transition-all flex-shrink-0 ${containerSizes[size]} ${className}`}
       >
         <Pause className={`${iconSizes[size]}`} />
@@ -150,6 +160,7 @@ export function DownloadStatusIndicator({
     );
   }
 
+  // ❌ FAILED — retry on tap
   if (status === 'FAILED') {
     return (
       <button
@@ -162,14 +173,28 @@ export function DownloadStatusIndicator({
     );
   }
 
-  // NOT_DOWNLOADED: subtle Apple Music-style arrow down
+  // ☁ IN LIBRARY but NOT DOWNLOADED — Apple Music cloud icon (tap to download)
+  if (showCloudIcon && isInLibrary) {
+    return (
+      <button
+        onClick={handleClick}
+        title="In your library — tap to download for offline listening"
+        className={`inline-flex items-center justify-center rounded-full text-blue-400/70 hover:text-blue-300 hover:bg-blue-500/10 transition-colors flex-shrink-0 cursor-pointer ${containerSizes[size]} ${className}`}
+      >
+        <Cloud className={`${iconSizes[size]}`} />
+      </button>
+    );
+  }
+
+  // ↓ NOT IN LIBRARY / NOT DOWNLOADED — subtle arrow down (tap to download)
   return (
     <button
       onClick={handleClick}
-      title="Download to device"
+      title="Download to device for offline listening"
       className={`inline-flex items-center justify-center rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0 cursor-pointer ${containerSizes[size]} ${className}`}
     >
-      <ArrowDown className={`${iconSizes[size]}`} />
+      <ArrowDownToLine className={`${iconSizes[size]}`} />
     </button>
   );
 }
+

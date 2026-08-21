@@ -5,7 +5,7 @@ import {
   Heart, Download, Clock, ListMusic, Play, ChevronRight, 
   User, Disc, Sparkles, Laptop, ChevronLeft, Music, Library, Shuffle,
   HardDrive, Trash2, CheckCircle2, Layers, WifiOff, RefreshCw, ShieldCheck,
-  Globe, ArrowUpDown, BarChart3
+  Globe, ArrowUpDown, BarChart3, Wifi, CloudDownload, Heart as HeartFill
 } from 'lucide-react';
 import { InsightsView } from '@/components/views/InsightsView';
 import { ArtistsView } from '@/components/views/ArtistsView';
@@ -67,6 +67,8 @@ export function LibraryView() {
     setOfflineMode,
     offlineSettings,
     setOfflineSettings,
+    wifiOnly,
+    setWifiOnly,
     purgeOfflineDownloads,
     removeDownload,
     nativeDownloadedTracks,
@@ -649,6 +651,88 @@ export function LibraryView() {
                   <span className="text-[10px] font-mono font-bold text-slate-400 block uppercase">Storage Type</span>
                   <span className="text-base font-black text-white mt-0.5 block">Private Sandbox</span>
                 </div>
+              </div>
+            </div>
+
+            {/* ── Download Settings Card (Apple Music-style) ──────────────── */}
+            <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/10 space-y-4">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <CloudDownload className="w-4 h-4 text-emerald-400" />
+                Download Settings
+              </h3>
+
+              {/* Audio Quality */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-white">Audio Quality</h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Quality used when saving tracks for offline</p>
+                </div>
+                <select
+                  value={offlineSettings.audioQuality}
+                  onChange={(e) => setOfflineSettings({ audioQuality: e.target.value as any })}
+                  className="bg-white/5 border border-white/10 rounded-xl text-white text-xs font-bold px-3 py-1.5 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                >
+                  <option value="128 kbps">128 kbps</option>
+                  <option value="192 kbps">192 kbps</option>
+                  <option value="320 kbps">320 kbps (High)</option>
+                </select>
+              </div>
+
+              {/* Wi-Fi Only */}
+              <div className="border-t border-white/5 pt-4 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                    <Wifi className="w-3.5 h-3.5 text-blue-400" /> Wi-Fi Only Downloads
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Only download music when connected to Wi-Fi</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={wifiOnly}
+                    onChange={(e) => setWifiOnly(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500" />
+                </label>
+              </div>
+
+              {/* Auto-download Favorites */}
+              <div className="border-t border-white/5 pt-4 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                    <HeartFill className="w-3.5 h-3.5 text-[#fa233b]" /> Auto-Download Liked Songs
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Automatically download songs you like</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={offlineSettings.autoDownloadFavorites}
+                    onChange={(e) => setOfflineSettings({ autoDownloadFavorites: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#fa233b]" />
+                </label>
+              </div>
+
+              {/* Auto-download Playlists */}
+              <div className="border-t border-white/5 pt-4 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                    <ListMusic className="w-3.5 h-3.5 text-purple-400" /> Auto-Download Playlists
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Keep your playlists synced offline automatically</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={offlineSettings.autoDownloadPlaylists}
+                    onChange={(e) => setOfflineSettings({ autoDownloadPlaylists: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500" />
+                </label>
               </div>
             </div>
 

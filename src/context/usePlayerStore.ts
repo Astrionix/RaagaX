@@ -42,6 +42,7 @@ interface PlayerState {
 
   likedSongIds: string[];
   likedSongs: Song[];
+  librarySongIds: string[]; // Apple Music-style: songs added to Library (independent of liked/downloaded)
   downloadedSongIds: string[];
   cloudDownloadedSongIds: string[];
   cloudDownloadRecords: import('@/lib/sync/AccountSyncEngine').CloudDownloadRecord[];
@@ -221,6 +222,8 @@ interface PlayerState {
   toggleLikeSong: (songId: string) => void;
   setLikedSongIds: (songIds: string[]) => void;
   setLikedSongs: (songs: Song[]) => void;
+  addToLibrary: (songId: string, song?: Song) => void;
+  removeFromLibrary: (songId: string) => void;
   toggleDownloadSong: (songId: string) => void;
   toggleFavoriteArtist: (artistId: string) => void;
   toggleFavoriteAlbum: (albumId: string) => void;
@@ -469,6 +472,7 @@ export const usePlayerStore = create<PlayerState>()(
 
       likedSongIds: [],
       likedSongs: [],
+      librarySongIds: [],
       downloadedSongIds: [],
       cloudDownloadedSongIds: [],
       cloudDownloadRecords: [],
@@ -1100,11 +1104,11 @@ export const usePlayerStore = create<PlayerState>()(
           coverUrl: SongCoverEngine.getInstance().formatRawCoverUrl(song.coverUrl),
         };
 
-        const isOffline = !isTest && typeof navigator !== 'undefined' && navigator.onLine === false;
-        if (isOffline && !isTrackDownloaded(activePlaySong.id)) {
-          get().setToastMessage("This song isn't available offline.");
-          return;
-        }
+        // NOTE: navigator.onLine is intentionally NOT used here.
+        // On Android/Capacitor WebView it can return false even with a live network
+        // connection, which would block all liked/library songs from playing.
+        // Offline enforcement is handled downstream by PlaybackService + PlaybackSourceResolver
+        // which use the explicit store.networkMode ('offline' | 'offline_forced') instead.
 
         console.log(`[PLAY CALLED] songId=${activePlaySong.id} title="${activePlaySong.title}" artist="${activePlaySong.artist}" cover="${activePlaySong.coverUrl}" source=${context?.type || 'USER_CLICK'}`);
         get().logCurrentTelemetry('skip');
@@ -1119,12 +1123,38 @@ export const usePlayerStore = create<PlayerState>()(
         let targetIndex = 0;
 
         if (newQueue && newQueue.length > 0) {
-          const index = newQueue.findIndex((s: Song) => s.id === activePlaySong.id);
-          const boundedQueue = index !== -1 ? newQueue.slice(index) : newQueue;
-          manager.replaceQueue(boundedQueue, 0, (context?.type as any) || 'PLAYLIST', context);
+          // ── FULL-COLLECTION QUEUE FIX ──────────────────────────────────────────
+          // IMPORTANT: Pass the ENTIRE collection to QueueManager with the correct
+          // startIndex. Do NOT slice from the tapped song — that destroys all tracks
+          // before it and makes Previous impossible.
+          //
+          // Example: Liked Songs [A,B,C,D,E], user taps C (index=2)
+          //   queue  = [A,B,C,D,E]  ← full collection preserved
+          //   index  = 2            ← QueueManager starts at C
+          //   NEXT   = D, E        ← works
+          //   PREV   = B, A        ← works
+          // ──────────────────────────────────────────────────────────────────────
+
+          // 1. Deduplicate by stable track ID while preserving order
+          const seen = new Set<string>();
+          const dedupedQueue = newQueue.filter((s: Song) => {
+            if (!s || !s.id) return false;
+            if (seen.has(s.id)) return false;
+            seen.add(s.id);
+            return true;
+          });
+
+          // 2. Find the tapped song's position in the deduplicated full collection
+          const index = dedupedQueue.findIndex((s: Song) => s.id === activePlaySong.id);
+          const startIndex = index !== -1 ? index : 0;
+
+          // 3. Load the COMPLETE collection starting at the correct position
+          manager.replaceQueue(dedupedQueue, startIndex, (context?.type as any) || 'PLAYLIST', context);
           const snapshot = manager.getSnapshot();
           syncedQueue = snapshot.items.map((i: any) => i.song);
-          targetIndex = 0;
+
+          // 4. targetIndex must be the actual position in the full queue, not always 0
+          targetIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : startIndex;
           set({ queue: syncedQueue });
         } else {
           manager.playNow(activePlaySong);
@@ -1681,7 +1711,12 @@ export const usePlayerStore = create<PlayerState>()(
             ? state.likedSongs.filter((s) => s.id !== songId)
             : (targetSong ? [targetSong, ...state.likedSongs.filter((s) => s.id !== songId)] : state.likedSongs);
 
-          return { likedSongIds: newLikedIds, likedSongs: newLikedSongs };
+          // Apple Music behavior: liking auto-adds to Library; unliking does NOT remove from library
+          const newLibraryIds = !isLiked && !state.librarySongIds.includes(songId)
+            ? [songId, ...state.librarySongIds]
+            : state.librarySongIds;
+
+          return { likedSongIds: newLikedIds, likedSongs: newLikedSongs, librarySongIds: newLibraryIds };
         });
 
         if (!isLiked && targetSong) {
@@ -1737,6 +1772,32 @@ export const usePlayerStore = create<PlayerState>()(
 
       setLikedSongs: (songs) => {
         set({ likedSongs: songs });
+      },
+
+      addToLibrary: (songId, song) => {
+        set((state) => {
+          if (state.librarySongIds.includes(songId)) return state;
+          const newLikedSongs = song && !state.likedSongs.find((s) => s.id === songId)
+            ? [song, ...state.likedSongs]
+            : state.likedSongs;
+          return {
+            librarySongIds: [songId, ...state.librarySongIds],
+            likedSongs: newLikedSongs,
+          };
+        });
+        import('@/context/useAuthStore').then(({ useAuthStore }) => {
+          const userId = useAuthStore.getState().user?.id || 'guest';
+          import('@/lib/sync/AccountSyncEngine').then(({ AccountSyncEngine }) => {
+            AccountSyncEngine.getInstance().likeSong(userId, songId);
+          });
+        });
+      },
+
+      removeFromLibrary: (songId) => {
+        set((state) => ({
+          librarySongIds: state.librarySongIds.filter((id) => id !== songId),
+        }));
+        // NOTE: removing from library does NOT remove download or like
       },
 
       toggleDownloadSong: (songId) => {
@@ -2009,6 +2070,7 @@ export const usePlayerStore = create<PlayerState>()(
           return {
             ...persistedState,
             likedSongIds: Array.isArray(persistedState.likedSongIds) ? persistedState.likedSongIds : [],
+            librarySongIds: Array.isArray(persistedState.librarySongIds) ? persistedState.librarySongIds : (persistedState.likedSongIds || []),
             downloadedSongIds: Array.isArray(persistedState.downloadedSongIds) ? persistedState.downloadedSongIds : [],
             historySongIds: Array.isArray(persistedState.historySongIds) ? persistedState.historySongIds : [],
             favoriteArtistIds: Array.isArray(persistedState.favoriteArtistIds) ? persistedState.favoriteArtistIds : [],
@@ -2020,6 +2082,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
       partialize: (state) => ({
         downloadedSongIds: state.downloadedSongIds,
+        librarySongIds: state.librarySongIds,
         historySongIds: state.historySongIds,
         favoriteArtistIds: state.favoriteArtistIds,
         favoriteAlbumIds: state.favoriteAlbumIds,

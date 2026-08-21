@@ -11,6 +11,7 @@ import {
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { Song } from '@/types/music';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
+import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 import { usePlaylistStore, UserPlaylist } from '@/context/usePlaylistStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { useAuthStore } from '@/context/useAuthStore';
@@ -56,6 +57,7 @@ export function PlaylistDetailView() {
     tasks,
     saveForOffline,
     removeDownload,
+    downloadAlbum,
     pauseAll,
     resumeAll,
     cancelAll
@@ -249,13 +251,9 @@ export function PlaylistDetailView() {
   const executeBulkDownload = async () => {
     if (!playlist || !playlist.songs) return;
     setShowDownloadConfirmModal(false);
-
-    const songsToDownload = playlist.songs.filter(s => !downloadedSongIds.includes(s.id));
-    setToastMessage(`Starting download of ${songsToDownload.length} remaining tracks...`);
-
-    for (const song of songsToDownload) {
-      await saveForOffline(song);
-    }
+    // Use the concurrency-controlled downloadAlbum engine (playlist reuses same logic)
+    downloadAlbum(playlist.id, playlist.songs);
+    setToastMessage(`Queuing ${pendingDownloadsCount} tracks for offline listening...`);
   };
 
   const handleRemoveAllDownloads = async () => {
@@ -726,28 +724,13 @@ export function PlaylistDetailView() {
                   </div>
                 </div>
 
-                {/* Download State Indicator (Android Mobile Only) */}
-                {isNative && (
-                  <div className="md:hidden flex items-center gap-3 flex-shrink-0">
-                    {isDownloaded ? (
-                      <span title="Downloaded Offline" className="text-emerald-400 p-1">
-                        <CheckCircle2 className="w-4 h-4" />
-                      </span>
-                    ) : isDownloading ? (
-                      <span title={`Downloading... ${task?.progress || 0}%`} className="text-amber-400 font-mono text-[10px] flex items-center gap-1">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> {task?.progress}%
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => saveForOffline(song)}
-                        className="p-1.5 text-slate-500 hover:text-slate-300 transition-opacity cursor-pointer"
-                        title="Download song"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                )}
+                {/* Download State Indicator — Apple Music 3-state (Android only) */}
+                <DownloadStatusIndicator
+                  song={song}
+                  size="sm"
+                  showCloudIcon
+                  className="md:hidden"
+                />
 
                 {/* Duration */}
                 <span className="text-[11px] font-mono text-slate-400 hidden sm:inline-block">
