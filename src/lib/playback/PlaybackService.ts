@@ -251,27 +251,32 @@ export class PlaybackService {
     if (!songs || songs.length === 0) return;
     if (requestId !== undefined && requestId !== this.playbackRequestId) return;
 
-    // Offline guard for queue context: only resolve network URLs when online.
     const store = usePlayerStore.getState();
     const isActuallyOffline =
       store.networkMode === 'offline' ||
       store.networkMode === 'offline_forced';
 
     try {
-      const downloadStore = useDownloadStore.getState();
+      // ── OFFLINE PATH: hand song IDs to Android OfflineQueueResolver ────────
+      // No URL resolution attempted here. Android looks up Room DB directly,
+      // verifies each file exists, and builds the ExoPlayer queue natively.
+      // This is restart-safe: does not depend on downloadedSongIds being in memory.
+      if (isActuallyOffline) {
+        const songIds = songs.map(s => s.id).filter(Boolean);
+        if (songIds.length === 0) return;
 
+        console.log(`[PlaybackService] loadQueueContext OFFLINE: delegating ${songIds.length} songIds to setOfflineQueue (startIndex=${startIndex})`);
+        const plugin = (window as any)?.Capacitor?.Plugins?.RaagaXPlayer;
+        if (plugin) {
+          await plugin.setOfflineQueue({ songIds, startIndex, autoPlay });
+        }
+        return;
+      }
+
+      // ── ONLINE PATH: resolve network URLs and call setQueue ─────────────────
       // Resolve ALL songs in parallel (including the starting song)
       const resolvedTracks = await Promise.all(
         songs.map(async (song) => {
-          // If offline, only attempt local file resolution
-          const isDownloaded =
-            store.downloadedSongIds.includes(song.id) ||
-            !!downloadStore.nativeDownloadedTracks[song.id];
-
-          if (isActuallyOffline && !isDownloaded) {
-            return { url: '', title: song.title ?? '', artist: song.artist ?? '', artworkUrl: song.coverUrl ?? '' };
-          }
-
           let finalSrc = '';
           try {
             const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
@@ -281,9 +286,10 @@ export class PlaybackService {
             finalSrc = song.audioUrl;
           }
           return {
-            url: finalSrc,
-            title: song.title ?? 'Unknown Title',
-            artist: song.artist ?? 'Unknown Artist',
+            trackId:    song.id,
+            url:        finalSrc,
+            title:      song.title ?? 'Unknown Title',
+            artist:     song.artist ?? 'Unknown Artist',
             artworkUrl: song.coverUrl ?? '',
           };
         })
@@ -318,6 +324,7 @@ export class PlaybackService {
       console.warn('[PlaybackService] loadQueueContext failed:', e);
     }
   }
+
 
   /**
    * prepareTrack — Prepares audio element and MediaSession for passive startup restoration.
@@ -407,28 +414,32 @@ export class PlaybackService {
       if (requestId !== this.playbackRequestId) return false;
 
       // ── OFFLINE GUARD ─────────────────────────────────────────────────────────
-      // Prevents network attempts when the user has explicitly enabled Offline Mode.
-      // IMPORTANT: We do NOT use navigator.onLine here — on Android/Capacitor WebView
-      // this property is unreliable and returns false even with an active connection,
-      // which would silently block all liked/library songs from streaming.
-      // PlaybackSourceResolver already handles true network failures gracefully.
+      // When offline on native Android: delegate directly to setOfflineQueue([songId]).
+      // This bypasses all URL resolution and uses Room DB + file verification natively.
+      // No dependency on downloadedSongIds being in memory — restart-safe.
       const isActuallyOffline =
         store.networkMode === 'offline' ||
         store.networkMode === 'offline_forced';
 
-      if (isActuallyOffline) {
+      if (isActuallyOffline && RaagaXNativePlayer.isNative()) {
+        console.log(`[PlaybackService] Offline single-track play: delegating "${song.title}" (${song.id}) to setOfflineQueue`);
+        const plugin = (window as any)?.Capacitor?.Plugins?.RaagaXPlayer;
+        if (plugin) {
+          await plugin.setOfflineQueue({ songIds: [song.id], startIndex: 0, autoPlay });
+        }
+        this.isTransitioning = false;
+        return true;
+      }
+
+      if (isActuallyOffline && !RaagaXNativePlayer.isNative()) {
+        // Web/PWA offline guard: check local blob storage
         const downloadStore = useDownloadStore.getState();
         const isDownloaded =
           store.downloadedSongIds.includes(song.id) ||
           !!downloadStore.nativeDownloadedTracks[song.id];
-
         if (!isDownloaded) {
-          console.warn(
-            `[PlaybackService] Offline guard: "${song.title}" not available — Offline Mode is on. Download first.`
-          );
-          store.setToastMessage(
-            `"${song.title}" isn't available offline. Turn off Offline Mode or download it first.`
-          );
+          console.warn(`[PlaybackService] Offline guard: "${song.title}" not available — Offline Mode is on. Download first.`);
+          store.setToastMessage(`"${song.title}" isn't available offline. Turn off Offline Mode or download it first.`);
           store.setIsPlaying(false);
           this.isTransitioning = false;
           return false;
@@ -436,7 +447,8 @@ export class PlaybackService {
       }
       // ──────────────────────────────────────────────────────────────────────────
 
-      // 2. Native Android ExoPlayer Path
+      // 2. Native Android ExoPlayer Path (online)
+
       if (RaagaXNativePlayer.isNative()) {
         let finalSrc = '';
         try {
