@@ -72,6 +72,12 @@ export class PlaybackSourceResolver {
         // Record offline listening history & play count locally
         catalog.updatePlayStats(song.id).catch(() => {});
 
+        // Resolve local artwork if offline
+        const localArt = await storage.getArtworkUrl(song.id);
+        if (localArt) {
+          song.coverUrl = localArt;
+        }
+
         PlayableUrlCache.getInstance().set(song.id, localUrl, [localUrl], 'offline', undefined, true);
 
         return {

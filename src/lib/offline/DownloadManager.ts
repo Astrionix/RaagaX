@@ -250,6 +250,19 @@ export class DownloadManager {
           { checksum: downloadResult.checksum, quality: task.quality }
         );
 
+        // Fetch and cache artwork blob locally for offline visual UI and dynamic themes
+        if (song?.coverUrl) {
+          try {
+            const artRes = await fetch(song.coverUrl);
+            if (artRes.ok) {
+              const artBlob = await artRes.blob();
+              await this.storage.saveArtwork(task.trackId, artBlob, artBlob.type || 'image/jpeg');
+            }
+          } catch (e) {
+            console.warn('[DownloadManager] Offline artwork cache notice:', e);
+          }
+        }
+
         // Commit rich metadata to Offline Catalog
         const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
         const trackMeta: OfflineTrack = {

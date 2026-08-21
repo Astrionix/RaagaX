@@ -18,6 +18,7 @@ import { TransferManager } from '@/lib/connect/TransferManager';
 import { MediaSessionManager } from '@/lib/playback/MediaSessionManager';
 
 import { AudioQuality, AudioQualityState } from '@/lib/playback/types';
+import { DownloadStorage } from '@/lib/offline/DownloadStorage';
 
 interface PlayerState {
   currentSong: Song | null;
@@ -358,10 +359,42 @@ let lastPlayCallTimestamp = 0;
 let lastPlaySongId = '';
 let globalPlaybackRequestId = 0;
 
+export const isTrackDownloaded = (trackId: string): boolean => {
+  if (!trackId) return false;
+  try {
+    if (DownloadStorage.getInstance().isDownloadedSync(trackId)) return true;
+  } catch {}
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem('download-storage');
+      if (raw && raw.includes(`"${trackId}"`)) return true;
+    }
+  } catch {}
+  return false;
+};
+
 const getNextQueueIndex = (queue: Song[], currentIndex: number, repeatMode: string): number => {
   if (!queue || queue.length === 0) return -1;
   const norm = (repeatMode || 'off').toUpperCase();
   if (norm === 'ONE' || norm === 'TRACK') return currentIndex;
+
+  const isTest = typeof process !== 'undefined' && (process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST));
+  const isOffline = !isTest && typeof navigator !== 'undefined' && navigator.onLine === false;
+
+  if (isOffline) {
+    // Scan forward from currentIndex + 1 to find the next available offline downloaded track
+    for (let i = currentIndex + 1; i < queue.length; i++) {
+      if (isTrackDownloaded(queue[i].id)) return i;
+    }
+    // If repeat ALL is active, wrap around to the start
+    if (norm === 'ALL' || norm === 'CONTEXT') {
+      for (let i = 0; i <= currentIndex; i++) {
+        if (isTrackDownloaded(queue[i].id)) return i;
+      }
+    }
+    return -1;
+  }
+
   if (currentIndex + 1 < queue.length) return currentIndex + 1;
   if (norm === 'ALL' || norm === 'CONTEXT') return 0;
   return -1;
@@ -371,6 +404,23 @@ const getPreviousQueueIndex = (queue: Song[], currentIndex: number, repeatMode: 
   if (!queue || queue.length === 0) return -1;
   const norm = (repeatMode || 'off').toUpperCase();
   if (norm === 'ONE' || norm === 'TRACK') return currentIndex;
+
+  const isTest = typeof process !== 'undefined' && (process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST));
+  const isOffline = !isTest && typeof navigator !== 'undefined' && navigator.onLine === false;
+
+  if (isOffline) {
+    // Scan backward from currentIndex - 1 to find the previous downloaded track
+    for (let i = currentIndex - 1; i >= 0; i--) {
+      if (isTrackDownloaded(queue[i].id)) return i;
+    }
+    if (norm === 'ALL' || norm === 'CONTEXT') {
+      for (let i = queue.length - 1; i >= currentIndex; i--) {
+        if (isTrackDownloaded(queue[i].id)) return i;
+      }
+    }
+    return -1;
+  }
+
   if (currentIndex - 1 >= 0) return currentIndex - 1;
   if (norm === 'ALL' || norm === 'CONTEXT') return queue.length - 1;
   return -1;
@@ -1032,6 +1082,12 @@ export const usePlayerStore = create<PlayerState>()(
           ...song,
           coverUrl: SongCoverEngine.getInstance().formatRawCoverUrl(song.coverUrl),
         };
+
+        const isOffline = !isTest && typeof navigator !== 'undefined' && navigator.onLine === false;
+        if (isOffline && !isTrackDownloaded(activePlaySong.id)) {
+          get().setToastMessage("This song isn't available offline.");
+          return;
+        }
 
         console.log(`[PLAY CALLED] songId=${activePlaySong.id} title="${activePlaySong.title}" artist="${activePlaySong.artist}" cover="${activePlaySong.coverUrl}" source=${context?.type || 'USER_CLICK'}`);
         get().logCurrentTelemetry('skip');

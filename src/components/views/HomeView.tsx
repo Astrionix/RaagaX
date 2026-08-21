@@ -10,11 +10,13 @@ import { SkeletonGrid } from '@/components/ui/SkeletonLoader';
 import {
   Play, Pause, Shuffle, Heart, Clock, ListMusic, User, Users,
   Headphones, Sparkles, Flame, Disc, Radio, ChevronRight,
+  WifiOff, HardDrive, CheckCircle2,
 } from 'lucide-react';
 import { Song } from '@/types/music';
 import useSWR from 'swr';
 import { getApiUrl } from '@/lib/config/apiConfig';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
+import { useDownloadStore } from '@/context/useDownloadStore';
 import { getCuratedPlaylists } from '@/constants/playlists';
 import { RecommendationEngine, PersonalizedHomeFeed } from '@/lib/recommendation/RecommendationEngine';
 import { HomeFeedGenerator } from '@/lib/home/HomeFeedGenerator';
@@ -79,6 +81,212 @@ function songsToShelfItems(songs: Song[]): ShelfItem[] {
   }));
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Dedicated Offline Home View — First-Class Offline Experience
+// ─────────────────────────────────────────────────────────────────────────────
+function OfflineHomeView({
+  downloadedSongs,
+  likedSongs,
+}: {
+  downloadedSongs: Song[];
+  likedSongs: Song[];
+}) {
+  const { playSong, currentSong, isPlaying } = usePlayerStore();
+
+  const downloadedAlbums = React.useMemo(() => {
+    const map = new Map<string, { title: string; coverUrl: string; songs: Song[] }>();
+    downloadedSongs.forEach((song) => {
+      const alb = song.album || 'Downloaded Album';
+      if (!map.has(alb)) {
+        map.set(alb, { title: alb, coverUrl: song.coverUrl, songs: [] });
+      }
+      map.get(alb)!.songs.push(song);
+    });
+    return Array.from(map.values());
+  }, [downloadedSongs]);
+
+  return (
+    <div className="space-y-6 pb-12 animate-in fade-in duration-300">
+      {/* Offline Banner Card */}
+      <div className="relative overflow-hidden p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-emerald-950/40 via-[#0E131F] to-[#0A0D14] border border-emerald-500/20 shadow-2xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 flex-shrink-0">
+              <WifiOff className="w-6 h-6 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  Offline Mode
+                </span>
+                <span className="text-xs text-slate-400 font-mono">
+                  {downloadedSongs.length} {downloadedSongs.length === 1 ? 'Track' : 'Tracks'}
+                </span>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-black text-white mt-1">Downloaded Music</h1>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Ready to play anytime without an internet connection
+              </p>
+            </div>
+          </div>
+
+          {downloadedSongs.length > 0 && (
+            <div className="flex items-center gap-2.5">
+              <button
+                onClick={() => {
+                  haptics.mediumImpact();
+                  playSong(downloadedSongs[0], downloadedSongs, { type: 'downloads', id: 'offline_home', title: 'Downloaded Tracks' });
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-black font-bold text-xs hover:scale-105 active:scale-95 transition-transform shadow-lg cursor-pointer"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" /> Play All
+              </button>
+              <button
+                onClick={() => {
+                  haptics.mediumImpact();
+                  usePlayerStore.getState().shufflePlay(downloadedSongs, { contextType: 'DOWNLOADS', title: 'Downloaded Tracks' });
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 text-white font-bold text-xs hover:bg-white/15 active:scale-95 transition-all border border-white/10 cursor-pointer"
+              >
+                <Shuffle className="w-3.5 h-3.5" /> Shuffle
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {downloadedSongs.length === 0 ? (
+        <div className="p-8 text-center rounded-3xl bg-white/[0.02] border border-white/5 space-y-3">
+          <HardDrive className="w-10 h-10 text-slate-500 mx-auto" />
+          <h3 className="text-base font-bold text-white">No Downloaded Songs Found</h3>
+          <p className="text-xs text-slate-400 max-w-md mx-auto">
+            When you're online, tap the download icon on any song, album, or playlist to save it for offline listening.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* 1. Recently Downloaded Shelf */}
+          <section className="space-y-3">
+            <h2 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5 px-1">
+              <Clock className="w-3.5 h-3.5 text-emerald-400" /> Recently Downloaded
+            </h2>
+            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+              {downloadedSongs.slice(0, 8).map((song) => {
+                const isCurrent = currentSong?.id === song.id;
+                return (
+                  <div
+                    key={`offline-recent-${song.id}`}
+                    onClick={() => {
+                      haptics.lightImpact();
+                      playSong(song, downloadedSongs, { type: 'downloads', id: 'offline_home', title: 'Downloaded Music' });
+                    }}
+                    className="w-32 flex-shrink-0 cursor-pointer group"
+                  >
+                    <div className="relative aspect-square rounded-2xl overflow-hidden mb-2 bg-slate-800 shadow-md border border-white/5">
+                      <OptimizedImage src={song.coverUrl} alt={song.title} size="card" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-md">
+                          <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
+                        </div>
+                      </div>
+                      {isCurrent && isPlaying && (
+                        <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-emerald-500 text-[9px] font-bold text-white uppercase">
+                          Playing
+                        </div>
+                      )}
+                    </div>
+                    <h4 className="text-xs font-bold text-white truncate group-hover:text-emerald-400 transition-colors">{song.title}</h4>
+                    <p className="text-[10px] text-slate-400 truncate mt-0.5">{song.artist}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* 2. Downloaded Albums */}
+          {downloadedAlbums.length > 0 && (
+            <section className="space-y-3">
+              <h2 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5 px-1">
+                <Disc className="w-3.5 h-3.5 text-blue-400" /> Downloaded Albums
+              </h2>
+              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+                {downloadedAlbums.map((album) => (
+                  <div
+                    key={`offline-alb-${album.title}`}
+                    onClick={() => {
+                      haptics.lightImpact();
+                      playSong(album.songs[0], album.songs, { type: 'album', id: album.title, title: album.title });
+                    }}
+                    className="w-36 flex-shrink-0 cursor-pointer group"
+                  >
+                    <div className="relative aspect-square rounded-2xl overflow-hidden mb-2 bg-slate-800 shadow-md border border-white/5">
+                      <OptimizedImage src={album.coverUrl} alt={album.title} size="card" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-md text-[10px] font-bold text-white">
+                        {album.songs.length} {album.songs.length === 1 ? 'song' : 'songs'}
+                      </div>
+                    </div>
+                    <h4 className="text-xs font-bold text-white truncate group-hover:text-emerald-400 transition-colors">{album.title}</h4>
+                    <p className="text-[10px] text-slate-400 truncate mt-0.5">Offline Album</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* 3. Your Downloaded Songs List */}
+          <section className="space-y-3">
+            <h2 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5 px-1">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> All Downloaded Songs ({downloadedSongs.length})
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              {downloadedSongs.map((song, idx) => {
+                const isCurrent = currentSong?.id === song.id;
+                return (
+                  <div
+                    key={`offline-track-${song.id}-${idx}`}
+                    className={`p-2.5 sm:p-3 rounded-2xl border transition-all flex items-center justify-between group ${
+                      isCurrent
+                        ? 'bg-emerald-500/10 border-emerald-500/30 shadow-lg'
+                        : 'bg-white/[0.025] border-white/[0.06] hover:border-white/15 hover:bg-white/[0.05]'
+                    }`}
+                  >
+                    <div
+                      onClick={() => {
+                        haptics.lightImpact();
+                        playSong(song, downloadedSongs, { type: 'downloads', id: 'offline_home', title: 'Downloaded Music' });
+                      }}
+                      className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
+                    >
+                      <div className="relative w-12 h-12 rounded-xl overflow-hidden shadow-sm flex-shrink-0 bg-slate-800 border border-white/5">
+                        <OptimizedImage src={song.coverUrl} alt={song.title} size="thumb" className="w-full h-full object-cover" />
+                        {isCurrent && isPlaying && (
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center gap-0.5">
+                            <span className="w-0.5 h-2 bg-emerald-400 rounded-full animate-[pulse_0.4s_infinite_alternate]" />
+                            <span className="w-0.5 h-3 bg-white rounded-full animate-[pulse_0.5s_infinite_alternate_0.1s]" />
+                            <span className="w-0.5 h-1.5 bg-emerald-400 rounded-full animate-[pulse_0.45s_infinite_alternate_0.2s]" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h4 className={`text-xs font-bold truncate transition-colors ${isCurrent ? 'text-emerald-400' : 'text-white group-hover:text-emerald-400'}`}>
+                          {song.title}
+                        </h4>
+                        <p className="text-[11px] text-slate-400 truncate mt-0.5">{song.artist}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                      <span className="text-[10px] font-mono text-emerald-400/80 font-bold">✓ OFFLINE</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        </>
+      )}
+    </div>
+  );
+}
 
 export function HomeView() {
   const {
@@ -108,6 +316,48 @@ export function HomeView() {
   const activeUserId = user?.id || 'guest';
 
   const [isMounted, setIsMounted] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+
+  const { tasks, nativeDownloadedTracks, isOfflineMode } = useDownloadStore();
+
+  const downloadedSongs: Song[] = React.useMemo(() => {
+    const fromTasks = Object.values(tasks)
+      .filter((t) => t.status === 'COMPLETED' && t.song)
+      .map((t) => t.song);
+    const fromNative: Song[] = Object.values(nativeDownloadedTracks || {}).map((t) => ({
+      id: t.songId || t.id,
+      title: t.title || 'Downloaded Song',
+      artist: t.artist || 'Unknown Artist',
+      artistId: 'offline-artist',
+      album: t.album || 'Downloaded Album',
+      albumId: 'offline-album',
+      coverUrl: t.coverUrl || t.artworkUrl || '/app-icon.png',
+      audioUrl: t.localPath || '',
+      duration: 210,
+      genre: 'Soundtrack',
+      releaseYear: 2024,
+      plays: 1,
+      likes: 0,
+      category: 'global_trending' as const,
+    }));
+    const map = new Map<string, Song>();
+    fromTasks.forEach((s) => map.set(s.id, s));
+    fromNative.forEach((s) => map.set(s.id, s));
+    return Array.from(map.values());
+  }, [tasks, nativeDownloadedTracks]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setIsOnline(navigator.onLine);
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const displayLang = isMounted ? (preferredLanguage || selectedLanguages?.[0] || '') : '';
   const currentLang = displayLang || 'Hindi';
@@ -143,6 +393,8 @@ export function HomeView() {
     return () => { isCancelled = true; };
   }, [currentLang, activeUserId, currentSong?.id, likedSongs.length]);
 
+  const isActuallyOffline = isMounted && (!isOnline || isOfflineMode);
+
   const hours = new Date().getHours();
   const greeting = !isMounted ? 'Good day' : (
     hours < 12 ? 'Good morning' : hours < 17 ? 'Good afternoon' : hours < 21 ? 'Good evening' : 'Good night'
@@ -155,6 +407,17 @@ export function HomeView() {
 
   // Derive "Because You Like [Artist]" section label
   const topArtistName = feed?.topArtists?.[0]?.name;
+
+  if (isActuallyOffline) {
+    return (
+      <div className="space-y-5 sm:space-y-6 pb-4 md:pb-6 select-none relative">
+        <OfflineHomeView
+          downloadedSongs={downloadedSongs}
+          likedSongs={likedSongs as Song[]}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 sm:space-y-6 pb-4 md:pb-6 select-none relative">

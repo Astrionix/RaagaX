@@ -15,12 +15,24 @@ interface DownloadDBSchema extends DBSchema {
       createdAt: number;
     };
   };
+  artwork: {
+    key: string; // trackId
+    value: {
+      id: string; // trackId
+      blob: Blob;
+      mimeType: string;
+      createdAt: number;
+    };
+  };
 }
 
 export class DownloadStorage {
   private static instance: DownloadStorage;
   private dbPromise: Promise<IDBPDatabase<DownloadDBSchema>> | null = null;
   private objectUrlCache: Map<string, string> = new Map();
+  private artworkUrlCache: Map<string, string> = new Map();
+  private downloadedTrackIdsSet: Set<string> = new Set();
+  private isIdsInitialized: boolean = false;
 
   public static getInstance(): DownloadStorage {
     if (!DownloadStorage.instance) {
@@ -34,20 +46,41 @@ export class DownloadStorage {
       if (typeof indexedDB === 'undefined') {
         return Promise.reject(new Error('IndexedDB is not available in current environment'));
       }
-      this.dbPromise = openDB<DownloadDBSchema>('raagax-downloads', 1, {
-        upgrade(db) {
+      this.dbPromise = openDB<DownloadDBSchema>('raagax-downloads', 2, {
+        upgrade(db, oldVersion) {
           if (!db.objectStoreNames.contains('media')) {
             db.createObjectStore('media', { keyPath: 'id' });
           }
+          if (!db.objectStoreNames.contains('artwork')) {
+            db.createObjectStore('artwork', { keyPath: 'id' });
+          }
         },
+      }).then(async (db) => {
+        try {
+          const keys = await db.getAllKeys('media');
+          keys.forEach((k) => this.downloadedTrackIdsSet.add(String(k)));
+          this.isIdsInitialized = true;
+        } catch {}
+        return db;
       });
     }
     return this.dbPromise;
   }
 
   /**
+   * Fast synchronous check for downloaded track IDs
+   */
+  public isDownloadedSync(trackId: string): boolean {
+    if (!trackId) return false;
+    return this.downloadedTrackIdsSet.has(trackId);
+  }
+
+  public getDownloadedIdsSet(): Set<string> {
+    return this.downloadedTrackIdsSet;
+  }
+
+  /**
    * Queries real device storage quota via navigator.storage.estimate()
-   * and calculates available free space vs RaagaX offline media usage and stream cache.
    */
   public async getStorageEstimate(): Promise<StorageEstimateInfo> {
     const raagaXDownloads = await this.getTotalStorageUsed();
@@ -69,7 +102,6 @@ export class DownloadStorage {
 
     if (typeof navigator !== 'undefined' && navigator.storage) {
       try {
-        // Automatically request persistent storage permission to unlock full disk allocation (up to 60% of total drive)
         if (navigator.storage.persist && navigator.storage.persisted) {
           const isPersisted = await navigator.storage.persisted();
           if (!isPersisted) {
@@ -82,7 +114,6 @@ export class DownloadStorage {
           if (estimate.quota) quota = estimate.quota;
           if (estimate.usage) usage = estimate.usage;
           
-          // Check Chromium usageDetails
           if (estimate.usageDetails?.caches) {
             raagaXCache = estimate.usageDetails.caches;
           } else if (estimate.usage && estimate.usage > raagaXDownloads) {
@@ -94,13 +125,11 @@ export class DownloadStorage {
       }
     }
 
-    // If cache was not determined via estimate.usageDetails, check CacheStorage directly
     if (raagaXCache === 0 && typeof window !== 'undefined' && 'caches' in window) {
       try {
         const cacheKeys = await caches.keys();
-        // A minimal approximate estimation if caches exist
         if (cacheKeys.length > 0) {
-          raagaXCache = cacheKeys.length * 1024 * 1024 * 2; // ~2MB average per cache
+          raagaXCache = cacheKeys.length * 1024 * 1024 * 2;
         }
       } catch {}
     }
@@ -109,10 +138,9 @@ export class DownloadStorage {
     const available = Math.max(0, quota - usage);
     const percentUsed = quota > 0 ? (usage / quota) * 100 : 0;
 
-    // Device identification
-    let deviceName = 'My Device';
-    let deviceType: 'desktop' | 'mobile' | 'tablet' | 'tv' = 'desktop';
-    let platform = 'Web';
+    let deviceName = 'Android Device';
+    let deviceType: 'desktop' | 'mobile' | 'tablet' | 'tv' = 'mobile';
+    let platform = 'Android';
 
     try {
       const { DeviceRegistry } = await import('@/lib/connect/DeviceRegistry');
@@ -144,12 +172,8 @@ export class DownloadStorage {
     };
   }
 
-  /**
-   * Pre-checks if the device has adequate free storage before starting a download.
-   */
   public async checkStorageAvailable(requiredBytes: number = 10 * 1024 * 1024): Promise<{ hasSpace: boolean; availableBytes: number }> {
     const estimate = await this.getStorageEstimate();
-    // Keep a safe buffer of 20MB
     const safeBuffer = 20 * 1024 * 1024;
     const hasSpace = estimate.available >= (requiredBytes + safeBuffer);
     return {
@@ -172,7 +196,6 @@ export class DownloadStorage {
         ? Array.from(new Set([...existing.references, initialReference])) 
         : [initialReference];
 
-      // Revoke any previous cached object URL
       if (this.objectUrlCache.has(trackId)) {
         try {
           URL.revokeObjectURL(this.objectUrlCache.get(trackId)!);
@@ -190,17 +213,66 @@ export class DownloadStorage {
         sizeBytes: blob.size,
         createdAt: Date.now(),
       });
+
+      this.downloadedTrackIdsSet.add(trackId);
     } catch (err) {
       console.error(`[DownloadStorage] Failed to save media for ${trackId}:`, err);
       throw err;
     }
   }
 
+  public async saveArtwork(trackId: string, blob: Blob, mimeType = 'image/jpeg'): Promise<void> {
+    try {
+      const db = await this.getDB();
+      if (this.artworkUrlCache.has(trackId)) {
+        try { URL.revokeObjectURL(this.artworkUrlCache.get(trackId)!); } catch {}
+        this.artworkUrlCache.delete(trackId);
+      }
+      await db.put('artwork', {
+        id: trackId,
+        blob,
+        mimeType,
+        createdAt: Date.now(),
+      });
+    } catch (e) {
+      console.warn(`[DownloadStorage] Failed to save artwork for ${trackId}:`, e);
+    }
+  }
+
+  public async getArtworkBlob(trackId: string): Promise<Blob | null> {
+    try {
+      const db = await this.getDB();
+      const entry = await db.get('artwork', trackId);
+      return entry ? entry.blob : null;
+    } catch {
+      return null;
+    }
+  }
+
+  public async getArtworkUrl(trackId: string): Promise<string | null> {
+    if (this.artworkUrlCache.has(trackId)) {
+      return this.artworkUrlCache.get(trackId)!;
+    }
+    const blob = await this.getArtworkBlob(trackId);
+    if (!blob) return null;
+    if (typeof URL !== 'undefined' && URL.createObjectURL) {
+      const url = URL.createObjectURL(blob);
+      this.artworkUrlCache.set(trackId, url);
+      return url;
+    }
+    return null;
+  }
+
   public async hasMedia(trackId: string): Promise<boolean> {
+    if (this.downloadedTrackIdsSet.has(trackId)) return true;
     try {
       const db = await this.getDB();
       const count = await db.count('media', trackId);
-      return count > 0;
+      if (count > 0) {
+        this.downloadedTrackIdsSet.add(trackId);
+        return true;
+      }
+      return false;
     } catch {
       return false;
     }
@@ -228,10 +300,10 @@ export class DownloadStorage {
       const remaining = (entry.references || []).filter((r) => r !== refId);
       if (remaining.length === 0) {
         await this.deleteMedia(trackId);
-        return true; // Fully purged
+        return true;
       } else {
         await db.put('media', { ...entry, references: remaining });
-        return false; // Still referenced by other entities
+        return false;
       }
     } catch (e) {
       console.warn('[DownloadStorage] removeReference error:', e);
@@ -250,17 +322,25 @@ export class DownloadStorage {
   }
 
   public async deleteMedia(trackId: string): Promise<void> {
+    this.downloadedTrackIdsSet.delete(trackId);
     if (this.objectUrlCache.has(trackId)) {
       const url = this.objectUrlCache.get(trackId)!;
       this.objectUrlCache.delete(trackId);
-      // Safe deferred revocation to allow active audio element to finish or transition cleanly
       setTimeout(() => {
         try { URL.revokeObjectURL(url); } catch {}
+      }, 5000);
+    }
+    if (this.artworkUrlCache.has(trackId)) {
+      const artUrl = this.artworkUrlCache.get(trackId)!;
+      this.artworkUrlCache.delete(trackId);
+      setTimeout(() => {
+        try { URL.revokeObjectURL(artUrl); } catch {}
       }, 5000);
     }
     try {
       const db = await this.getDB();
       await db.delete('media', trackId);
+      await db.delete('artwork', trackId);
     } catch (e) {
       console.warn('[DownloadStorage] deleteMedia error:', e);
     }
@@ -285,9 +365,12 @@ export class DownloadStorage {
   public async getAllDownloadedTrackIds(): Promise<string[]> {
     try {
       const db = await this.getDB();
-      return db.getAllKeys('media');
+      const keys = await db.getAllKeys('media');
+      const strKeys = keys.map((k) => String(k));
+      strKeys.forEach((k) => this.downloadedTrackIdsSet.add(k));
+      return strKeys;
     } catch {
-      return [];
+      return Array.from(this.downloadedTrackIdsSet);
     }
   }
 
@@ -302,17 +385,21 @@ export class DownloadStorage {
   }
 
   public async clearAllMedia(): Promise<void> {
+    this.downloadedTrackIdsSet.clear();
     this.objectUrlCache.forEach((url) => {
       try { URL.revokeObjectURL(url); } catch {}
     });
     this.objectUrlCache.clear();
+    this.artworkUrlCache.forEach((url) => {
+      try { URL.revokeObjectURL(url); } catch {}
+    });
+    this.artworkUrlCache.clear();
     try {
       const db = await this.getDB();
       await db.clear('media');
+      await db.clear('artwork');
     } catch (e) {
       console.warn('[DownloadStorage] clearAllMedia error:', e);
     }
   }
 }
-
-
