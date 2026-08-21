@@ -42,7 +42,7 @@ export async function GET(request: Request) {
         const releaseYear = item.more_info?.release_date ? parseInt(item.more_info.release_date.slice(0, 4)) : (item.year ? parseInt(item.year) : 2026);
 
         if (COMPILATION_REGEX.test(rawTitle)) continue;
-        if (releaseYear < 2026) continue;
+        if (releaseYear && releaseYear < 2023) continue;
 
         if (item.type === 'song') {
           const pa = item.more_info?.artistMap?.primary_artists || [];
@@ -78,7 +78,7 @@ export async function GET(request: Request) {
           const albDate = details?.release_date || releaseDate;
           const albYear = albDate ? parseInt(albDate.slice(0, 4)) : releaseYear;
 
-          if (albYear < 2026) continue;
+          if (albYear && albYear < 2023) continue;
 
           for (const s of albSongs) {
             const sTitle = cleanHtml(s.song || s.title);

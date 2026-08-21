@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import useSWR from 'swr';
 import {
   Sparkles,
@@ -22,6 +22,8 @@ import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { Song } from '@/types/music';
 import { getApiUrl } from '@/lib/config/apiConfig';
 import { haptics } from '@/lib/haptics/HapticEngine';
+import { NewReleasesEngine } from '@/lib/catalog/NewReleasesEngine';
+import { RealMusicEngine } from '@/lib/realMusicEngine';
 
 const fetcher = (url: string) =>
   fetch(getApiUrl(url))
@@ -32,8 +34,6 @@ const fetcher = (url: string) =>
 // Helper: Map already-normalised API song (from /api/home/new-releases) → Song
 // ─────────────────────────────────────────────────────────────────────────────
 function normaliseApiSong(s: any, lang: string): Song {
-  // /api/home/new-releases already returns clean objects:
-  // { id, title, artist, album, coverUrl, language, releaseDate, releaseYear, duration, plays }
   return {
     id: s.id,
     title: s.title || s.name || 'New Release',
@@ -179,19 +179,58 @@ export function NewView() {
 
   const lang = preferredLanguage || 'Telugu';
 
-  // ── Fetch strictly date-ordered new releases for the selected language
-  const { data: newReleasesData, isLoading } = useSWR(
+  const [fallbackSongs, setFallbackSongs] = useState<Song[]>([]);
+  const [isFallbackLoading, setIsFallbackLoading] = useState(false);
+
+  // ── Fetch strictly date-ordered new releases for the selected language from API
+  const { data: newReleasesData, isLoading: isSwrLoading } = useSWR(
     `/api/home/new-releases?lang=${encodeURIComponent(lang)}&limit=50`,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 60000 }
   );
 
-  const allSongs: Song[] = useMemo(() => {
-    // /api/home/new-releases returns { success, data: Song[] } — flat array already normalised
+  // ── Fallback fetch for native Android / offline environments
+  useEffect(() => {
+    let isCancelled = false;
+    const loadFallback = async () => {
+      setIsFallbackLoading(true);
+      try {
+        const engine = NewReleasesEngine.getInstance();
+        const results = await engine.getNewReleasesForLanguage(lang, 50);
+        if (!isCancelled && results && results.length > 0) {
+          setFallbackSongs(results);
+          return;
+        }
+        const realEngine = RealMusicEngine.getInstance();
+        const top = await realEngine.getNewReleases(30, lang);
+        if (!isCancelled && top && top.length > 0) {
+          setFallbackSongs(top);
+        }
+      } catch (e) {
+        console.warn('[NewView] Fallback fetch error:', e);
+      } finally {
+        if (!isCancelled) setIsFallbackLoading(false);
+      }
+    };
+
+    loadFallback();
+    return () => {
+      isCancelled = true;
+    };
+  }, [lang]);
+
+  const apiSongs: Song[] = useMemo(() => {
     const raw = newReleasesData?.data || [];
-    if (!Array.isArray(raw)) return [];
+    if (!Array.isArray(raw) || raw.length === 0) return [];
     return raw.map((s: any) => normaliseApiSong(s, lang));
   }, [newReleasesData, lang]);
+
+  // Use API songs if available, else use direct engine fallback
+  const allSongs: Song[] = useMemo(() => {
+    return apiSongs.length > 0 ? apiSongs : fallbackSongs;
+  }, [apiSongs, fallbackSongs]);
+
+  const isDataLoading = isSwrLoading && allSongs.length === 0 && isFallbackLoading;
 
   // ── Section slices — purely based on release order, no personalisation
   const featuredCards    = useMemo(() => allSongs.slice(0,  4),  [allSongs]);
@@ -212,11 +251,9 @@ export function NewView() {
   const newArtists       = useMemo(() => {
     const seen = new Map<string, Song>();
     allSongs.forEach((s) => {
-      // Skip the fallback 'unknown' so we don't collapse all unknown artists into one
       if (s.artistId && s.artistId !== 'unknown' && !seen.has(s.artistId)) {
         seen.set(s.artistId, s);
       } else if (s.artist && !seen.has(`name:${s.artist}`)) {
-        // Fall back to artist name as dedup key
         seen.set(`name:${s.artist}`, s);
       }
     });
@@ -273,6 +310,25 @@ export function NewView() {
         </div>
       </div>
 
+      {/* Loading Skeleton State */}
+      {allSongs.length === 0 && (
+        <div className="space-y-6 pt-2 animate-in fade-in duration-200">
+          <div className="flex gap-4 overflow-hidden pb-2">
+            <div className="w-[280px] sm:w-[320px] h-52 rounded-3xl bg-white/[0.04] border border-white/5 animate-pulse flex-shrink-0" />
+            <div className="w-[280px] sm:w-[320px] h-52 rounded-3xl bg-white/[0.04] border border-white/5 animate-pulse flex-shrink-0" />
+          </div>
+
+          <div className="space-y-3">
+            <div className="h-4 w-40 bg-white/10 rounded animate-pulse" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              {[1, 2, 3, 4, 5, 6].map((k) => (
+                <div key={k} className="h-16 rounded-2xl bg-white/[0.03] border border-white/5 animate-pulse" />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* 2. FEATURED NEW MUSIC — Large editorial hero cards                    */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
@@ -328,7 +384,7 @@ export function NewView() {
           onAction={() => handlePlayAll(false)}
         />
 
-        {isLoading ? (
+        {isDataLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
             {[1, 2, 3, 4, 5, 6].map((i) => <SkeletonRow key={i} />)}
           </div>
