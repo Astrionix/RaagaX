@@ -401,40 +401,49 @@ export function LibraryView() {
         </div>
 
         <div className="space-y-2">
-          {songs.map((song, index) => (
-            <div
-              key={`${song.id}-${index}`}
-              className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 hover:bg-white/5 transition-all flex items-center justify-between group"
-            >
-              <div
-                className="flex items-center gap-3.5 cursor-pointer flex-1 min-w-0 pr-3"
-                onClick={() => playSong(song, songs)}
-              >
-                <img
-                  src={song.coverUrl || '/app-icon.png'}
-                  alt={song.title}
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src = '/app-icon.png';
-                  }}
-                  className="w-11 h-11 rounded-xl object-cover shadow-sm flex-shrink-0 bg-slate-800"
-                />
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-[#F51B3D] transition-colors truncate">
-                    {song.title}
-                  </h4>
-                  <p className="text-[11px] text-[#8E92A4] truncate mt-0.5">{song.artist}</p>
-                </div>
-              </div>
+          {songs.map((song, index) => {
+            const isSongDownloaded = downloadedSongIds.includes(song.id);
+            const isBrowserOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+            const isAppOffline = isOfflineMode || isBrowserOffline;
+            const isSongOfflineUnavailable = isAppOffline && !isSongDownloaded;
 
-              {/* Fixed Right-Side Action Column */}
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
-                  <DownloadStatusIndicator song={song} size="sm" />
+            return (
+              <div
+                key={`${song.id}-${index}`}
+                className={`p-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 hover:bg-white/5 transition-all flex items-center justify-between group ${
+                  isSongOfflineUnavailable ? 'opacity-40 pointer-events-none select-none' : ''
+                }`}
+              >
+                <div
+                  className="flex items-center gap-3.5 cursor-pointer flex-1 min-w-0 pr-3"
+                  onClick={() => { if (!isSongOfflineUnavailable) playSong(song, songs); }}
+                >
+                  <img
+                    src={song.coverUrl || '/app-icon.png'}
+                    alt={song.title}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = '/app-icon.png';
+                    }}
+                    className="w-11 h-11 rounded-xl object-cover shadow-sm flex-shrink-0 bg-slate-800"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-[#F51B3D] transition-colors truncate">
+                      {song.title}
+                    </h4>
+                    <p className="text-[11px] text-[#8E92A4] truncate mt-0.5">{song.artist}</p>
+                  </div>
                 </div>
-                <SongActionMenu song={song} />
+
+                {/* Fixed Right-Side Action Column */}
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                    <DownloadStatusIndicator song={song} size="sm" />
+                  </div>
+                  <SongActionMenu song={song} />
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
