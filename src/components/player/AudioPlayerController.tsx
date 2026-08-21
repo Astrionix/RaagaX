@@ -118,6 +118,11 @@ export function AudioPlayerController() {
       store.setIsPlaying(data.isPlaying, true);
       if (typeof data.durationMs === 'number' && data.durationMs > 0) {
         store.setDuration(data.durationMs / 1000);
+        // If we now have a valid duration and isPlaying, also ensure isPlaying is set
+        // (covers cases where isPlaying: true event was swallowed by the transient guard)
+        if (data.isPlaying) {
+          store.setIsPlaying(true, true);
+        }
       }
       if (typeof data.positionMs === 'number' && data.positionMs >= 0) {
         store.setCurrentTime(data.positionMs / 1000, true);
@@ -159,6 +164,26 @@ export function AudioPlayerController() {
             });
           }
         }
+
+        // Force-poll ExoPlayer state after a short delay to capture the real duration
+        // for local MP3 files. playbackStateChanged is not guaranteed to fire reliably
+        // for offline tracks, so we proactively fetch the state at 400ms and 1200ms.
+        const pollDuration = async () => {
+          try {
+            const state = await RaagaXNativePlayer.getPlaybackState();
+            if (state) {
+              console.log('[AudioPlayerController] Force-poll after trackChanged — durationMs:', state.durationMs, 'isPlaying:', state.isPlaying);
+              if (state.durationMs > 0) {
+                usePlayerStore.getState().setDuration(state.durationMs / 1000);
+              }
+              if (state.isPlaying) {
+                usePlayerStore.getState().setIsPlaying(true, true);
+              }
+            }
+          } catch {}
+        };
+        setTimeout(pollDuration, 400);
+        setTimeout(pollDuration, 1200);
       }
     });
 
