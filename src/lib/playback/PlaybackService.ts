@@ -829,6 +829,7 @@ export class PlaybackService {
 
 
   private handleNativeMetadata(tag: 'A' | 'B') {
+    if (RaagaXNativePlayer.isNative()) return;
     if (tag !== this.activeTag) return;
     const active = this.getActiveAudio();
     if (!active) return;
@@ -847,6 +848,7 @@ export class PlaybackService {
   }
 
   private handleNativePlayState(tag: 'A' | 'B', isPlaying: boolean) {
+    if (RaagaXNativePlayer.isNative()) return;
     if (tag !== this.activeTag) return;
 
     const store = require('@/context/usePlayerStore').usePlayerStore.getState();
@@ -875,6 +877,7 @@ export class PlaybackService {
   }
 
   private handleNativeEnded(tag: 'A' | 'B') {
+    if (RaagaXNativePlayer.isNative()) return;
     if (tag !== this.activeTag) return;
 
     const active = this.getActiveAudio();
@@ -912,6 +915,7 @@ export class PlaybackService {
   }
 
   private handleNativeTimeUpdate(tag: 'A' | 'B') {
+    if (RaagaXNativePlayer.isNative()) return;
     if (tag !== this.activeTag) return;
     const active = this.getActiveAudio();
     const standby = this.getStandbyAudio();
@@ -947,6 +951,7 @@ export class PlaybackService {
   }
 
   private async handleNativeError(tag: 'A' | 'B', e: Event) {
+    if (RaagaXNativePlayer.isNative()) return;
     if (tag !== this.activeTag) return;
     const active = this.getActiveAudio();
     if (!active) return;

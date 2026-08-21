@@ -65,6 +65,7 @@ public class RaagaXPlaybackService extends Service {
     private long      activeRequestId    = 0L;
     private boolean   isCurrentLocalPlayback = false;
     private long      lastReportedDurationMs = 0L;
+    private volatile boolean isPreparingNewTrack = false;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -161,16 +162,21 @@ public class RaagaXPlaybackService extends Service {
             @Override
             public void onPlaybackStateChanged(int state) {
                 if (state == Player.STATE_ENDED) {
+                    if (isPreparingNewTrack) {
+                        Log.w(TAG, "onPlaybackStateChanged: STATE_ENDED suppressed during new track preparation");
+                        return;
+                    }
                     long pos = player != null ? player.getCurrentPosition() : 0L;
                     long dur = player != null && player.getDuration() > 0 ? player.getDuration() : 0L;
                     Log.d(TAG, "onPlaybackStateChanged: STATE_ENDED pos=" + pos + " dur=" + dur);
-                    if (pos >= 1000 || (dur > 0 && pos >= dur - 1500)) {
+                    if (dur > 0 && pos >= (dur - 2500)) {
                         Log.d(TAG, "onPlaybackStateChanged: STATE_ENDED — track finished naturally, sending QUEUE_ENDED");
                         sendBroadcast(new Intent("com.raagax.music.QUEUE_ENDED"));
                     } else {
-                        Log.w(TAG, "onPlaybackStateChanged: STATE_ENDED received at pos=" + pos + " (suppressing false premature skip)");
+                        Log.w(TAG, "onPlaybackStateChanged: STATE_ENDED received at pos=" + pos + " < dur=" + dur + " (suppressing false premature skip)");
                     }
                 } else if (state == Player.STATE_READY) {
+                    isPreparingNewTrack = false;
                     boolean isPlaying = player != null && player.isPlaying();
                     long dur = player != null && player.getDuration() > 0 ? player.getDuration() : 0L;
                     long pos = player != null ? player.getCurrentPosition() : 0L;
@@ -532,6 +538,7 @@ public class RaagaXPlaybackService extends Service {
         runOnMainThread(() -> {
             if (player == null || urls == null || urls.length == 0) return;
 
+            isPreparingNewTrack = true;
             java.util.List<androidx.media3.exoplayer.source.MediaSource> sources = new java.util.ArrayList<>();
             androidx.media3.datasource.FileDataSource.Factory fileFactory = new androidx.media3.datasource.FileDataSource.Factory();
             androidx.media3.datasource.DefaultDataSource.Factory defaultFactory = new androidx.media3.datasource.DefaultDataSource.Factory(this);
@@ -712,6 +719,7 @@ public class RaagaXPlaybackService extends Service {
         runOnMainThread(() -> {
             if (player == null) return;
 
+            isPreparingNewTrack = true;
             currentTrackId = trackId != null ? trackId : "";
             currentTitle  = title  != null ? title  : "RaagaX";
             currentArtist = artist != null ? artist : "";

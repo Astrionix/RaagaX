@@ -34,6 +34,7 @@ export function AudioPlayerController() {
   const isRefilling = useRef(false);
   const seekTarget = usePlayerStore(state => state.seekTarget);
   const lastSeekTimeRef = useRef<number>(0);
+  const lastTrackChangeTimeRef = useRef<number>(Date.now());
 
   const {
     currentSong,
@@ -136,14 +137,24 @@ export function AudioPlayerController() {
         console.log('[AudioPlayerController] Ignoring native queueEnded during seek settle lock');
         return;
       }
-      console.log('[AudioPlayerController] Native track ended — advancing to next track via playNext()');
+      const timeSinceChange = Date.now() - lastTrackChangeTimeRef.current;
+      if (timeSinceChange < 3000) {
+        console.log('[AudioPlayerController] Suppressing premature queueEnded (only', timeSinceChange, 'ms since track change)');
+        return;
+      }
       const store = usePlayerStore.getState();
+      if (store.duration > 0 && store.currentTime < store.duration - 5) {
+        console.log('[AudioPlayerController] Suppressing premature queueEnded (currentTime', store.currentTime, '< duration', store.duration, ')');
+        return;
+      }
+      console.log('[AudioPlayerController] Native track ended — advancing to next track via playNext()');
       if (store.isActiveDevice) {
         store.playNext();
       }
     });
 
     const unsubChanged = RaagaXNativePlayer.addTrackChangedListener((data) => {
+      lastTrackChangeTimeRef.current = Date.now();
       console.log('[AudioPlayerController] Native track changed confirmation — trackId:', data.trackId, 'title:', data.title, 'reqId:', data.requestId);
       if (data.trackId) {
         const store = usePlayerStore.getState();
