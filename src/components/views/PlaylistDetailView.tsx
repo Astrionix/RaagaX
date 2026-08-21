@@ -729,7 +729,7 @@ export function PlaylistDetailView() {
                   song={song}
                   size="sm"
                   showCloudIcon
-                  className="md:hidden"
+                  className=""
                 />
 
                 {/* Duration */}

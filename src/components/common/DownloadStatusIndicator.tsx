@@ -20,7 +20,7 @@ export function DownloadStatusIndicator({
   song,
   size = 'sm',
   showPercentage = false,
-  className = 'md:hidden',
+  className = '',
   onDownloadedClick,
   showCloudIcon = false,
 }: DownloadStatusIndicatorProps) {

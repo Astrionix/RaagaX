@@ -359,13 +359,12 @@ export function LibraryView() {
 
   const libraryNavItems = [
     { id: 'liked', label: 'Liked Songs', subtitle: 'Your favorite tracks', icon: Heart, color: 'text-[#F51B3D]', bg: 'bg-[#F51B3D]/10' },
-    ...(isNative ? [{ id: 'downloads', label: 'Downloaded', subtitle: 'Offline protected tracks', icon: Download, color: 'text-emerald-400', bg: 'bg-emerald-500/10' }] : []),
     { id: 'playlists', label: 'Playlists', subtitle: 'Your personal & collaborative playlists', icon: ListMusic, color: 'text-purple-400', bg: 'bg-purple-500/10' },
-    { id: 'insights', label: 'Music Insights', subtitle: 'Listening statistics & top charts', icon: BarChart3, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
-    { id: 'languages', label: 'Languages', subtitle: 'Preferred regional streams', icon: Globe, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-    { id: 'history', label: 'Recently Played', subtitle: 'Listening history', icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/10' },
     { id: 'artists', label: 'Artists', subtitle: 'Followed artist catalog', icon: User, color: 'text-blue-400', bg: 'bg-blue-500/10' },
     { id: 'albums', label: 'Albums', subtitle: 'Saved audio releases', icon: Disc, color: 'text-rose-400', bg: 'bg-rose-500/10' },
+    { id: 'history', label: 'Recently Played', subtitle: 'Listening history', icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+    { id: 'insights', label: 'Music Insights', subtitle: 'Listening statistics & top charts', icon: BarChart3, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
+    { id: 'languages', label: 'Languages', subtitle: 'Preferred regional streams', icon: Globe, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
   ];
 
   const handlePlayAll = (songs: Song[], shuffle = false) => {
@@ -423,9 +422,12 @@ export function LibraryView() {
                   className="w-11 h-11 rounded-xl object-cover shadow-sm flex-shrink-0 bg-slate-800"
                 />
                 <div className="min-w-0 flex-1">
-                  <h4 className="text-xs font-bold text-white group-hover:text-[#F51B3D] transition-colors truncate">
-                    {song.title}
-                  </h4>
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="text-xs font-bold text-white group-hover:text-[#F51B3D] transition-colors truncate">
+                      {song.title}
+                    </h4>
+                    <DownloadStatusIndicator song={song} size="xs" />
+                  </div>
                   <p className="text-[11px] text-[#8E92A4] truncate mt-0.5">{song.artist}</p>
                 </div>
               </div>
