@@ -82,8 +82,11 @@ public class RaagaXPlaybackService extends Service {
 
         androidx.media3.datasource.DefaultDataSource.Factory dataSourceFactory =
                 new androidx.media3.datasource.DefaultDataSource.Factory(this);
+        androidx.media3.extractor.DefaultExtractorsFactory extractorsFactory =
+                new androidx.media3.extractor.DefaultExtractorsFactory()
+                        .setConstantBitrateSeekingEnabled(true);
         androidx.media3.exoplayer.source.DefaultMediaSourceFactory mediaSourceFactory =
-                new androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this)
+                new androidx.media3.exoplayer.source.DefaultMediaSourceFactory(this, extractorsFactory)
                         .setDataSourceFactory(dataSourceFactory);
 
         player = new ExoPlayer.Builder(this)
@@ -544,11 +547,8 @@ public class RaagaXPlaybackService extends Service {
                     new androidx.media3.extractor.DefaultExtractorsFactory()
                             .setConstantBitrateSeekingEnabled(true);
 
-            androidx.media3.datasource.DataSource.Factory dataSourceFactory =
-                    new androidx.media3.datasource.DefaultDataSource.Factory(
-                            this,
-                            new androidx.media3.datasource.FileDataSource.Factory()
-                    );
+            androidx.media3.datasource.DefaultDataSource.Factory dataSourceFactory =
+                    new androidx.media3.datasource.DefaultDataSource.Factory(this);
 
             for (int i = 0; i < urls.length; i++) {
                 String u = urls[i];
@@ -822,11 +822,8 @@ public class RaagaXPlaybackService extends Service {
                     new androidx.media3.extractor.DefaultExtractorsFactory()
                             .setConstantBitrateSeekingEnabled(true);
 
-            androidx.media3.datasource.DataSource.Factory dataSourceFactory =
-                    new androidx.media3.datasource.DefaultDataSource.Factory(
-                            this,
-                            new androidx.media3.datasource.FileDataSource.Factory()
-                    );
+            androidx.media3.datasource.DefaultDataSource.Factory dataSourceFactory =
+                    new androidx.media3.datasource.DefaultDataSource.Factory(this);
 
             androidx.media3.exoplayer.source.MediaSource localSource =
                     new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
@@ -866,11 +863,8 @@ public class RaagaXPlaybackService extends Service {
                     new androidx.media3.extractor.DefaultExtractorsFactory()
                             .setConstantBitrateSeekingEnabled(true);
 
-            androidx.media3.datasource.DataSource.Factory dataSourceFactory =
-                    new androidx.media3.datasource.DefaultDataSource.Factory(
-                            this,
-                            new androidx.media3.datasource.FileDataSource.Factory()
-                    );
+            androidx.media3.datasource.DefaultDataSource.Factory dataSourceFactory =
+                    new androidx.media3.datasource.DefaultDataSource.Factory(this);
 
             androidx.media3.exoplayer.source.MediaSource localSource =
                     new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(
@@ -896,11 +890,8 @@ public class RaagaXPlaybackService extends Service {
                     new androidx.media3.extractor.DefaultExtractorsFactory()
                             .setConstantBitrateSeekingEnabled(true);
 
-            androidx.media3.datasource.DataSource.Factory dataSourceFactory =
-                    new androidx.media3.datasource.DefaultDataSource.Factory(
-                            this,
-                            new androidx.media3.datasource.FileDataSource.Factory()
-                    );
+            androidx.media3.datasource.DefaultDataSource.Factory dataSourceFactory =
+                    new androidx.media3.datasource.DefaultDataSource.Factory(this);
 
             for (int i = 0; i < urls.length; i++) {
                 String u = urls[i];
