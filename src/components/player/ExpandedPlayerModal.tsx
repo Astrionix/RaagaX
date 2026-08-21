@@ -189,24 +189,6 @@ export function ExpandedPlayerModal() {
 
   const contextType = String(rawContext?.type || rawContext?.contextType || 'album').toLowerCase();
 
-  // Hide "From:" label for user-created and collaborative playlists
-  const isUserOrCollaborativePlaylist = useMemo(() => {
-    if (!rawContext) return false;
-    const type = String(rawContext?.type || rawContext?.contextType || '').toLowerCase();
-    if (
-      type === 'user_playlist' ||
-      type === 'collaborative_playlist' ||
-      rawContext?.isUserPlaylist ||
-      rawContext?.isCollaborative
-    ) {
-      return true;
-    }
-    if (type.includes('playlist') && rawContext?.id) {
-      return playlists.some((pl) => pl.id === rawContext.id);
-    }
-    return false;
-  }, [rawContext, playlists]);
-
   // Extract dominant colors from current artwork
   useEffect(() => {
     let isMounted = true;
@@ -425,9 +407,9 @@ export function ExpandedPlayerModal() {
 
         {/* ── 4. PLAYBACK CONTEXT & METADATA SECTION ───────────────────────── */}
         <div className="w-full space-y-2 pt-1 pb-1">
-          {/* Row 1: From: [Context] ... ♡ (44dp) ... ⋯ (44dp) in one clean row */}
+          {/* Row 1: [Context Title] ... ♡ (44dp) ... ⋯ (44dp) in one clean row */}
           <div className="flex items-center justify-between gap-2.5">
-            {/* Flexible Width From Pill */}
+            {/* Flexible Width Context Pill */}
             <LiquidGlass
               level={2}
               shape="pill"
@@ -435,11 +417,8 @@ export function ExpandedPlayerModal() {
               refractionColor={palette?.refractionRgba}
               onClick={handleContextClick}
               className="flex items-center px-3.5 h-[42px] min-w-0 flex-1 cursor-pointer select-none group"
-              title={isUserOrCollaborativePlaylist ? contextTitle : `Playing from: ${contextTitle}`}
+              title={contextTitle}
             >
-              {!isUserOrCollaborativePlaylist && (
-                <span className="text-[11px] font-medium text-slate-400 mr-1.5 flex-shrink-0">From:</span>
-              )}
               <span className="text-xs font-bold text-white group-hover:underline truncate tracking-tight">
                 {contextTitle}
               </span>
