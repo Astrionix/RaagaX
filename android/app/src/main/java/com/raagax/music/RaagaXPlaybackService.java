@@ -224,20 +224,6 @@ public class RaagaXPlaybackService extends Service {
             }
 
             @Override
-            public void onIsPlayingChanged(boolean isPlaying) {
-                long pos = player != null ? player.getCurrentPosition() : 0L;
-                long dur = player != null && player.getDuration() > 0 ? player.getDuration() : (lastReportedDurationMs > 0 ? lastReportedDurationMs : 0L);
-                Log.d(TAG, "[ON_IS_PLAYING_CHANGED] isPlaying=" + isPlaying + " pos=" + pos + " dur=" + dur + " trackId=" + currentTrackId);
-                Intent i = new Intent("com.raagax.music.PLAYBACK_STATE");
-                i.putExtra("isPlaying", isPlaying);
-                i.putExtra("positionMs", pos);
-                i.putExtra("durationMs", dur);
-                i.putExtra("timestamp", System.currentTimeMillis());
-                sendBroadcast(i);
-                updateNotification();
-            }
-
-            @Override
             public void onPlayerError(androidx.media3.common.PlaybackException error) {
                 Log.e(TAG, "[RAAGAX_LOCAL_PLAYBACK_ERROR] songId=" + currentTrackId + " errorCode=" + error.errorCode + " message=" + error.getMessage() + " cause=" + error.getCause());
                 android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(android.content.Context.CONNECTIVITY_SERVICE);
@@ -273,7 +259,7 @@ public class RaagaXPlaybackService extends Service {
                 long now = System.currentTimeMillis();
                 int state = player != null ? player.getPlaybackState() : -1;
                 long pos = player != null ? player.getCurrentPosition() : 0L;
-                long dur = player != null && player.getDuration() > 0 ? player.getDuration() : 0L;
+                long dur = player != null && player.getDuration() > 0 ? player.getDuration() : (lastReportedDurationMs > 0 ? lastReportedDurationMs : 0L);
                 boolean playWhenReady = player != null && player.getPlayWhenReady();
                 if (dur == 0L && lastReportedDurationMs > 0L) {
                     Log.w(TAG, "[PLAYBACK_STATE_RESET] trackId=" + currentTrackId + " oldDuration=" + lastReportedDurationMs + " newDuration=0 reason=is_playing_changed_reset");
@@ -290,7 +276,7 @@ public class RaagaXPlaybackService extends Service {
                 }
 
                 // During BUFFERING or READY before first audio render, if playWhenReady is true, playback intent is PLAYING
-                boolean effectivePlaying = isPlaying || (state == Player.STATE_BUFFERING && playWhenReady);
+                boolean effectivePlaying = isPlaying || ((state == Player.STATE_BUFFERING || state == Player.STATE_READY) && playWhenReady);
 
                 Intent i = new Intent("com.raagax.music.PLAYBACK_STATE");
                 i.putExtra("isPlaying", effectivePlaying);
