@@ -31,15 +31,20 @@ import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { haptics } from '@/lib/haptics/HapticEngine';
 import { Song } from '@/types/music';
 import { getApiUrl } from '@/lib/config/apiConfig';
-import { RadioStationMetadata } from '@/app/api/radio/stations/route';
+import { getStationCatalog, RadioStationMetadata } from '@/lib/radio/radioCatalog';
+import { RealMusicEngine } from '@/lib/realMusicEngine';
 
 const ALL_LANGUAGES = ['Telugu', 'Hindi', 'Tamil', 'Kannada', 'Malayalam', 'Punjabi', 'English', 'Bengali', 'Marathi', 'Bhojpuri', 'All'];
 
 const stationsFetcher = async (url: string) => {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed to load stations');
-  const json = await res.json();
-  return (json?.data?.stations as RadioStationMetadata[]) || [];
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const json = await res.json();
+    return (json?.data?.stations as RadioStationMetadata[]) || [];
+  } catch {
+    return [];
+  }
 };
 
 export function RadioView() {
@@ -65,11 +70,15 @@ export function RadioView() {
     { revalidateOnFocus: false, dedupingInterval: 60000 }
   );
 
+  const fallbackStations = useMemo(() => {
+    return getStationCatalog(selectedLanguage);
+  }, [selectedLanguage]);
+
   const displayedStations = useMemo(() => {
-    const list = remoteStations || [];
+    const list = (remoteStations && remoteStations.length > 0) ? remoteStations : fallbackStations;
     if (activeCategory === 'all') return list;
     return list.filter((s) => s.category === activeCategory);
-  }, [remoteStations, activeCategory]);
+  }, [remoteStations, fallbackStations, activeCategory]);
 
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
@@ -85,10 +94,20 @@ export function RadioView() {
       if (res.ok) {
         const json = await res.json();
         const songs = json?.data?.results || json?.data || [];
-        setSearchResults(songs);
+        if (songs.length > 0) {
+          setSearchResults(songs);
+          return;
+        }
       }
+      const direct = await RealMusicEngine.getInstance().searchRealSongs(query, 6);
+      setSearchResults(direct);
     } catch {
-      setSearchResults([]);
+      try {
+        const direct = await RealMusicEngine.getInstance().searchRealSongs(query, 6);
+        setSearchResults(direct);
+      } catch {
+        setSearchResults([]);
+      }
     } finally {
       setIsSearching(false);
     }

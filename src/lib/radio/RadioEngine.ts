@@ -56,21 +56,31 @@ export class RadioEngine {
     const { type, seedId, seedTitle, seedCover, initialSong } = options;
     const language = options.language || usePlayerStore.getState().preferredLanguage || 'Telugu';
 
-    try {
-      // 1. Create Radio Station on backend adapter
-      const stationRes = await fetch(getApiUrl('/api/radio'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type,
-          seedId,
-          seedTitle,
-          language,
-        }),
-      });
+    let stationId = `station_${type}_${Date.now()}`;
 
-      const stationData = await stationRes.json();
-      const stationId = stationData?.data?.stationId || `station_${type}_${Date.now()}`;
+    try {
+      // 1. Attempt to create Radio Station on backend adapter
+      try {
+        const stationRes = await fetch(getApiUrl('/api/radio'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type,
+            seedId,
+            seedTitle,
+            language,
+          }),
+        });
+
+        if (stationRes.ok) {
+          const stationData = await stationRes.json();
+          if (stationData?.data?.stationId) {
+            stationId = stationData.data.stationId;
+          }
+        }
+      } catch (e) {
+        console.warn('[RadioEngine] API station creation fallback active:', e);
+      }
 
       // Initialize session tracker
       const fetchedIds = new Set<string>();
@@ -88,7 +98,7 @@ export class RadioEngine {
         hasMore: true,
       };
 
-      // 2. Fetch first batch of 20 tracks
+      // 2. Fetch first batch of tracks
       const initialBatch = await this.fetchBatch(20);
 
       const allTracks: Song[] = [];
@@ -100,6 +110,16 @@ export class RadioEngine {
         if (!allTracks.some((s) => s.id === track.id)) {
           allTracks.push(track);
         }
+      }
+
+      // If batch was empty and we have no initial song, fallback to direct search
+      if (allTracks.length === 0) {
+        const { RealMusicEngine } = await import('@/lib/realMusicEngine');
+        const query = type === 'song' || type === 'artist' 
+          ? seedTitle 
+          : `${seedTitle} ${language} Hit Songs`;
+        const fallbackResults = await RealMusicEngine.getInstance().searchRealSongs(query, 20);
+        allTracks.push(...fallbackResults);
       }
 
       if (allTracks.length === 0) {
@@ -146,11 +166,27 @@ export class RadioEngine {
         excludeIds,
       });
 
-      const res = await fetch(getApiUrl(`/api/radio?${params.toString()}`));
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      let newSongs: Song[] = [];
 
-      const json = await res.json();
-      const newSongs: Song[] = json?.data?.songs || [];
+      try {
+        const res = await fetch(getApiUrl(`/api/radio?${params.toString()}`));
+        if (res.ok) {
+          const json = await res.json();
+          newSongs = json?.data?.songs || [];
+        }
+      } catch (netErr) {
+        console.warn('[RadioEngine] /api/radio endpoint fallback:', netErr);
+      }
+
+      // Fallback: RealMusicEngine
+      if (newSongs.length === 0) {
+        const { RealMusicEngine } = await import('@/lib/realMusicEngine');
+        const query = type === 'song' || type === 'artist' 
+          ? seedTitle 
+          : `${seedTitle} ${language} Songs`;
+        const fallbackResults = await RealMusicEngine.getInstance().searchRealSongs(query, count);
+        newSongs = fallbackResults.filter((s) => !fetchedSongIds.has(s.id));
+      }
 
       newSongs.forEach((song) => {
         if (song.id) this.currentSession?.fetchedSongIds.add(song.id);
@@ -161,43 +197,49 @@ export class RadioEngine {
       }
 
       return newSongs;
-    } catch (e) {
-      console.warn('[RadioEngine] Error fetching radio batch:', e);
+    } catch (err) {
+      console.error('[RadioEngine] Failed to fetch radio batch:', err);
       return [];
     } finally {
-      if (this.currentSession) this.currentSession.isFetching = false;
-    }
-  }
-
-  /**
-   * Triggered when remaining unplayed songs in queue <= 4.
-   * Fetches next 20 songs and seamlessly appends them to the queue without altering history.
-   */
-  public async extendQueueIfNeeded(remainingCount: number): Promise<void> {
-    if (!this.currentSession || remainingCount > 4 || this.currentSession.isFetching || !this.currentSession.hasMore) {
-      return;
-    }
-
-    const nextBatch = await this.fetchBatch(20);
-    if (nextBatch.length > 0) {
-      const state = usePlayerStore.getState();
-      const currentQueue = state.queue;
-      const existingIds = new Set(currentQueue.map((s) => s.id));
-      const uniqueNew = nextBatch.filter((s) => !existingIds.has(s.id));
-
-      if (uniqueNew.length > 0) {
-        // 1. Non-destructively append to Zustand store queue
-        const updatedQueue = [...currentQueue, ...uniqueNew];
-        usePlayerStore.setState({ queue: updatedQueue });
-
-        // 2. Non-destructively append to QueueManager
-        const { QueueManager } = await import('@/lib/queue/QueueManager');
-        QueueManager.getInstance().appendQueue(uniqueNew, 'RADIO');
-        console.log(`[RadioEngine] Appended ${uniqueNew.length} fresh radio tracks to queue. (Total: ${updatedQueue.length})`);
+      if (this.currentSession) {
+        this.currentSession.isFetching = false;
       }
     }
   }
 
+  /**
+   * Called by queue management when remaining unplayed songs fall below threshold.
+   */
+  public async ensureContinuousRadioQueue(remainingTracksCount: number, threshold = 3): Promise<void> {
+    if (!this.currentSession || !this.currentSession.hasMore || this.currentSession.isFetching) {
+      return;
+    }
+
+    if (remainingTracksCount <= threshold) {
+      const nextBatch = await this.fetchBatch(15);
+      if (nextBatch.length > 0) {
+        const store = usePlayerStore.getState();
+        const currentQueue = store.queue || [];
+        const filteredNewTracks = nextBatch.filter((newSong) => !currentQueue.some((q) => q.id === newSong.id));
+
+        if (filteredNewTracks.length > 0) {
+          const updatedQueue = [...currentQueue, ...filteredNewTracks];
+          usePlayerStore.setState({ queue: updatedQueue });
+        }
+      }
+    }
+  }
+
+  /**
+   * Alias for continuous queue replenishment.
+   */
+  public async extendQueueIfNeeded(remainingTracksCount: number, threshold = 3): Promise<void> {
+    return this.ensureContinuousRadioQueue(remainingTracksCount, threshold);
+  }
+
+  /**
+   * Stop and reset current radio session.
+   */
   public stopRadio(): void {
     this.currentSession = null;
   }
