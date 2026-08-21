@@ -19,6 +19,7 @@ import {
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
+import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 import { Song } from '@/types/music';
 import { getApiUrl } from '@/lib/config/apiConfig';
 import { haptics } from '@/lib/haptics/HapticEngine';
@@ -63,7 +64,10 @@ function normaliseApiSong(s: any, lang: string): Song {
 // ─────────────────────────────────────────────────────────────────────────────
 // Language list
 // ─────────────────────────────────────────────────────────────────────────────
-const ALL_LANGUAGES = ['Telugu', 'Hindi', 'Tamil', 'Kannada', 'Malayalam', 'English', 'Punjabi'];
+const ALL_LANGUAGES = [
+  'Telugu', 'Hindi', 'Tamil', 'Kannada', 'Malayalam', 'English', 'Punjabi',
+  'Bhojpuri', 'Marathi', 'Gujarati', 'Bengali', 'Haryanvi'
+];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Compact Song Row
@@ -82,7 +86,7 @@ function SongRow({ song, queue, index }: { song: Song; queue: Song[]; index: num
     >
       <div
         onClick={() => { haptics.lightImpact(); playSong(song, queue, { type: 'new_releases', id: 'new', title: 'New Releases' }); }}
-        className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
+        className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer pr-3"
       >
         <div className="relative w-12 h-12 rounded-xl overflow-hidden shadow-sm flex-shrink-0 bg-slate-800 border border-white/5">
           <OptimizedImage src={song.coverUrl} alt={song.title} size="thumb" className="w-full h-full object-cover" />
@@ -101,7 +105,12 @@ function SongRow({ song, queue, index }: { song: Song; queue: Song[]; index: num
           <p className="text-[11px] text-slate-400 truncate mt-0.5">{song.artist}</p>
         </div>
       </div>
-      <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+
+      {/* Fixed Right-Side Action Column */}
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+          <DownloadStatusIndicator song={song} size="sm" />
+        </div>
         <SongActionMenu song={song} />
       </div>
     </div>
@@ -184,11 +193,11 @@ export function NewView() {
   const [fallbackSongs, setFallbackSongs] = useState<Song[]>([]);
   const [isFallbackLoading, setIsFallbackLoading] = useState(false);
 
-  // ── Fetch strictly date-ordered new releases for the selected language from API
+  // ── Fetch strictly date-ordered new releases for the selected language from API (Every 3 Hours)
   const { data: newReleasesData, isLoading: isSwrLoading } = useSWR(
     `/api/home/new-releases?lang=${encodeURIComponent(lang)}&limit=50`,
     fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 60000 }
+    { revalidateOnFocus: false, dedupingInterval: 60000, refreshInterval: 10800000 }
   );
 
   // ── Fallback fetch for native Android / offline environments
