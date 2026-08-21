@@ -175,10 +175,11 @@ public class RaagaXCapacitorPlugin extends Plugin {
         }
 
         Intent intent = new Intent("PLAY");
-        intent.putExtra("url",       url);
-        intent.putExtra("title",     title);
-        intent.putExtra("artist",    artist);
-        intent.putExtra("requestId", requestId);
+        intent.putExtra("url",        url);
+        intent.putExtra("title",      title);
+        intent.putExtra("artist",     artist);
+        intent.putExtra("artworkUrl", artworkUrl);
+        intent.putExtra("requestId",  requestId);
         sendCommandToService(intent);
         call.resolve(new JSObject().put("success", true));
     }

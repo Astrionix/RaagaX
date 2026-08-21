@@ -113,60 +113,23 @@ export function AudioPlayerController() {
       usePlayerStore.getState().setIsPlaying(data.isPlaying, true);
     });
 
-    // queueEnded fires only when ExoPlayer has exhausted the entire playlist.
-    // This is where we trigger autoplay continuation, NOT on every song end.
+    // queueEnded fires when the current track finishes playing in ExoPlayer.
+    // Trigger store.playNext() to seamlessly advance to the next track in the authoritative queue.
     const unsubQueueEnded = RaagaXNativePlayer.addQueueEndedListener(() => {
       if (Date.now() - lastSeekTimeRef.current < 1500) {
         console.log('[AudioPlayerController] Ignoring native queueEnded during seek settle lock');
         return;
       }
-      console.log('[AudioPlayerController] Native queue exhausted — triggering autoplay continuation');
+      console.log('[AudioPlayerController] Native track ended — advancing to next track via playNext()');
       const store = usePlayerStore.getState();
       if (store.isActiveDevice) {
-        store.setIsPlaying(false, true);
-        // Let the autoplay/recommendation engine load the next batch
-        if (store.isAutoplayEnabled) {
-          store.playNext();
-        }
+        store.playNext();
       }
     });
 
-    // trackChanged fires on every auto-advance. We sync the JS queue index to
-    // match what ExoPlayer is already playing — no JS-side queue advancement needed.
     const unsubChanged = RaagaXNativePlayer.addTrackChangedListener((data) => {
-      if (Date.now() - lastSeekTimeRef.current < 1500) {
-        console.log('[AudioPlayerController] Ignoring native trackChanged during seek settle lock');
-        return;
-      }
-      const store = usePlayerStore.getState();
-
-      // Stale callback protection: ignore events from older playback generations
-      if (typeof data.requestId === 'number' && data.requestId > 0 && data.requestId < store.playbackRequestId) {
-        console.log(`[AudioPlayerController] Dropping stale trackChanged event: reqId=${data.requestId} < currentStore=${store.playbackRequestId}`);
-        return;
-      }
-
-      console.log('[AudioPlayerController] Native track changed — index:', data.index, 'title:', data.title, 'reqId:', data.requestId);
-      const manager = QueueManager.getInstance();
-      const queue = (store.queue && store.queue.length > 0) ? store.queue : manager.getSnapshot().items.map((i: any) => i.song);
-
-      // Use native index first (most reliable), then fall back to URL/title matching
-      let targetIndex = -1;
-      if (typeof data.index === 'number' && data.index >= 0 && data.index < queue.length) {
-        targetIndex = data.index;
-      } else if (data.url) {
-        targetIndex = queue.findIndex((s: Song) => s.audioUrl === data.url);
-      } else if (data.title) {
-        targetIndex = queue.findIndex((s: Song) => s.title === data.title);
-      }
-
-      if (targetIndex >= 0 && targetIndex < queue.length) {
-        const nextSong = queue[targetIndex];
-        // Avoid re-sync if store is already synchronized to this exact song and index
-        if (store.currentSong?.id === nextSong?.id && store.queueIndex === targetIndex) return;
-        manager.skipTo(targetIndex);
-        store.commitPlaybackTransition(nextSong, targetIndex);
-      }
+      // No-op: switchTrack in usePlayerStore is the authoritative manager of currentSong & queueIndex
+      console.log('[AudioPlayerController] Native track changed confirmation — title:', data.title, 'reqId:', data.requestId);
     });
 
     // seekComplete fires when ExoPlayer confirms the seek has been applied.

@@ -444,27 +444,12 @@ export class PlaybackService {
           return false;
         }
 
-        const queue = store.queue;
-        const currentIdx = store.queueIndex >= 0 ? store.queueIndex : 0;
-
-        // Build the native playlist with the freshly resolved active source
-        const nativeTracks: NativeTrackItem[] = (queue && queue.length > 0)
-          ? queue.map((s, idx) => ({
-              url: idx === currentIdx ? finalSrc : (s.audioUrl || ''),
-              title: s.title ?? 'Unknown Title',
-              artist: s.artist ?? 'Unknown Artist',
-              artworkUrl: s.coverUrl ?? '',
-            }))
-          : [
-              {
-                url: finalSrc,
-                title: song.title ?? 'Unknown Title',
-                artist: song.artist ?? 'Unknown Artist',
-                artworkUrl: song.coverUrl ?? '',
-              },
-            ];
-
-        await RaagaXNativePlayer.setQueue(nativeTracks, currentIdx, autoPlay, 0, requestId);
+        await RaagaXNativePlayer.play({
+          url: finalSrc,
+          title: song.title ?? 'Unknown Title',
+          artist: song.artist ?? 'Unknown Artist',
+          artworkUrl: song.coverUrl ?? '',
+        }, requestId);
 
         if (requestId !== this.playbackRequestId) return false;
 

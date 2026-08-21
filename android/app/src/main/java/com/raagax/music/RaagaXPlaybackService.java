@@ -257,11 +257,12 @@ public class RaagaXPlaybackService extends Service {
             }
 
         } else if ("PLAY".equals(action)) {
-            // Legacy single-track play
-            String url    = intent.getStringExtra("url");
-            String title  = intent.getStringExtra("title");
-            String artist = intent.getStringExtra("artist");
-            if (url != null) playUrl(url, title, artist);
+            String url        = intent.getStringExtra("url");
+            String title      = intent.getStringExtra("title");
+            String artist     = intent.getStringExtra("artist");
+            String artworkUrl = intent.getStringExtra("artworkUrl");
+            Log.d(TAG, "[PLAY_INTENT] url=" + url + " | title=" + title + " | artist=" + artist + " | art=" + artworkUrl + " | reqId=" + reqId);
+            if (url != null) playUrl(url, title, artist, artworkUrl);
 
         } else if ("SET_NEXT".equals(action)) {
             String url    = intent.getStringExtra("url");
@@ -572,34 +573,41 @@ public class RaagaXPlaybackService extends Service {
     // ── Single-track API ─────────────────────────────────────────────────────
 
     public void playTrack(String trackId, String title, String artist, String artworkUrl, String uri) {
-        playUrl(uri, title, artist);
+        playUrl(uri, title, artist, artworkUrl);
     }
 
     public void playUrl(String url, String title, String artist) {
+        playUrl(url, title, artist, null);
+    }
+
+    public void playUrl(String url, String title, String artist, String artworkUrl) {
         runOnMainThread(() -> {
             if (player == null || url == null || url.isEmpty()) return;
 
-            // Reuse existing player position if same track already loaded
-            MediaItem currentItem = player.getCurrentMediaItem();
-            if (currentItem != null && currentItem.localConfiguration != null &&
-                    url.equals(currentItem.localConfiguration.uri.toString())) {
-                if (!player.isPlaying()) player.play();
-                return;
-            }
-
             currentTitle  = title  != null ? title  : "RaagaX";
             currentArtist = artist != null ? artist : "";
+            currentArtworkUrl = artworkUrl != null ? artworkUrl : "";
+            loadArtworkAsync(currentArtworkUrl);
+
+            MediaMetadata.Builder metaBuilder = new MediaMetadata.Builder()
+                    .setTitle(currentTitle)
+                    .setArtist(currentArtist);
+
+            if (!currentArtworkUrl.isEmpty()) {
+                try {
+                    metaBuilder.setArtworkUri(parsePlayableUri(currentArtworkUrl));
+                } catch (Exception ignored) {}
+            }
 
             player.setMediaItem(new MediaItem.Builder()
                     .setUri(parsePlayableUri(url))
-                    .setMediaMetadata(new MediaMetadata.Builder()
-                            .setTitle(currentTitle)
-                            .setArtist(currentArtist)
-                            .build())
+                    .setMediaMetadata(metaBuilder.build())
                     .build());
             player.prepare();
+            player.setPlayWhenReady(true);
             player.play();
             updateNotification();
+            Log.d(TAG, "playUrl: title=" + currentTitle + " | artist=" + currentArtist + " | art=" + currentArtworkUrl);
         });
     }
 
