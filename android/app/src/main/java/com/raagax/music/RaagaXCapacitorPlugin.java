@@ -36,13 +36,21 @@ public class RaagaXCapacitorPlugin extends Plugin {
 
             if ("com.raagax.music.TRACK_CHANGED".equals(action)) {
                 JSObject data = new JSObject();
-                data.put("trackId",    intent.getStringExtra("trackId"));
-                data.put("title",      intent.getStringExtra("title"));
-                data.put("artist",     intent.getStringExtra("artist"));
-                data.put("artworkUrl", intent.getStringExtra("artworkUrl"));
-                data.put("url",        intent.getStringExtra("url"));
-                data.put("index",      intent.getIntExtra("index", 0));
-                data.put("requestId",  intent.getLongExtra("requestId", 0L));
+                data.put("oldTrackId",  intent.getStringExtra("oldTrackId"));
+                data.put("trackId",     intent.getStringExtra("trackId"));
+                data.put("title",       intent.getStringExtra("title"));
+                data.put("artist",      intent.getStringExtra("artist"));
+                data.put("artworkUrl",  intent.getStringExtra("artworkUrl"));
+                data.put("url",         intent.getStringExtra("url"));
+                int qIdx = intent.getIntExtra("queueIndex", intent.getIntExtra("index", 0));
+                data.put("queueIndex",  qIdx);
+                data.put("index",       qIdx);
+                data.put("totalItems",  intent.getIntExtra("totalItems", 0));
+                data.put("positionMs",  intent.getLongExtra("positionMs", 0L));
+                data.put("durationMs",  intent.getLongExtra("durationMs", 0L));
+                data.put("isPlaying",   intent.getBooleanExtra("isPlaying", true));
+                data.put("timestamp",   intent.getLongExtra("timestamp", System.currentTimeMillis()));
+                data.put("requestId",   intent.getLongExtra("requestId", 0L));
                 notifyListeners("trackChanged", data);
 
             } else if ("com.raagax.music.QUEUE_ENDED".equals(action)) {

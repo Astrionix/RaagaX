@@ -154,6 +154,7 @@ public class RaagaXPlaybackService extends Service {
             public void onMediaItemTransition(androidx.media3.common.MediaItem mediaItem, int reason) {
                 if (mediaItem == null) return;
                 long now = System.currentTimeMillis();
+                String oldTrackId = currentTrackId != null ? currentTrackId : "";
 
                 // Read trackId from mediaId (set by setQueue/setOfflineQueue/playUrl)
                 String newTrackId = mediaItem.mediaId != null ? mediaItem.mediaId : "";
@@ -164,19 +165,14 @@ public class RaagaXPlaybackService extends Service {
                 String newArt     = (mediaItem.mediaMetadata != null && mediaItem.mediaMetadata.artworkUri != null)
                                     ? mediaItem.mediaMetadata.artworkUri.toString() : "";
 
-                Log.d(TAG, "[MEDIA_ITEM_TRANSITION] reason=" + reason
-                        + " | trackId=" + newTrackId
-                        + " | title=" + newTitle
-                        + " | prevTrack=" + currentTitle
-                        + " | timestamp=" + now);
-
                 currentTrackId    = newTrackId;
                 currentTitle      = newTitle;
                 currentArtist     = newArtist;
                 currentArtworkUrl = newArt;
-                loadArtworkAsync(newArt);
+                loadArtworkAsync(newArt, newTrackId);
 
-                long pos = player != null ? player.getCurrentPosition() : 0L;
+                // Reset position to 0 upon transition
+                long pos = 0L;
                 long dur = (player != null && player.getDuration() > 0 && player.getDuration() != C.TIME_UNSET)
                            ? player.getDuration() : 0L;
 
@@ -196,18 +192,36 @@ public class RaagaXPlaybackService extends Service {
 
                 int queueIndex = player != null ? player.getCurrentMediaItemIndex() : 0;
                 int totalItems = player != null ? player.getMediaItemCount() : 0;
+                boolean isPlaying = player != null && (player.isPlaying() || player.getPlayWhenReady());
+
+                Log.d(TAG, "[TRACK_TRANSITION] oldTrackId=" + oldTrackId
+                        + " newTrackId=" + currentTrackId
+                        + " title=" + currentTitle
+                        + " artist=" + currentArtist
+                        + " artwork=" + currentArtworkUrl
+                        + " duration=" + dur);
+
+                Log.d(TAG, "[PLAYBACK_STATE_PUBLISHED] trackId=" + currentTrackId
+                        + " title=" + currentTitle
+                        + " artist=" + currentArtist
+                        + " artwork=" + currentArtworkUrl
+                        + " durationMs=" + dur
+                        + " positionMs=" + pos
+                        + " isPlaying=" + isPlaying);
 
                 Intent syncIntent = new Intent("com.raagax.music.TRACK_CHANGED");
-                syncIntent.putExtra("trackId",    currentTrackId);
-                syncIntent.putExtra("title",      currentTitle);
-                syncIntent.putExtra("artist",     currentArtist);
-                syncIntent.putExtra("artworkUrl", currentArtworkUrl);
-                syncIntent.putExtra("queueIndex", queueIndex);
-                syncIntent.putExtra("totalItems", totalItems);
-                syncIntent.putExtra("positionMs", pos);
-                syncIntent.putExtra("durationMs", dur);
-                syncIntent.putExtra("reason",     reason);
-                syncIntent.putExtra("timestamp",  now);
+                syncIntent.putExtra("oldTrackId",  oldTrackId);
+                syncIntent.putExtra("trackId",     currentTrackId);
+                syncIntent.putExtra("title",       currentTitle);
+                syncIntent.putExtra("artist",      currentArtist);
+                syncIntent.putExtra("artworkUrl",  currentArtworkUrl);
+                syncIntent.putExtra("queueIndex",  queueIndex);
+                syncIntent.putExtra("totalItems",  totalItems);
+                syncIntent.putExtra("positionMs",  pos);
+                syncIntent.putExtra("durationMs",  dur);
+                syncIntent.putExtra("isPlaying",   isPlaying);
+                syncIntent.putExtra("reason",      reason);
+                syncIntent.putExtra("timestamp",   now);
                 sendBroadcast(syncIntent);
 
                 updateNotification();
@@ -368,6 +382,10 @@ public class RaagaXPlaybackService extends Service {
     }
 
     private void loadArtworkAsync(String url) {
+        loadArtworkAsync(url, currentTrackId);
+    }
+
+    private void loadArtworkAsync(String url, String trackId) {
         if (url == null || url.isEmpty()) {
             currentArtworkBitmap = null;
             currentArtworkUrl = "";
@@ -384,6 +402,7 @@ public class RaagaXPlaybackService extends Service {
             updateNotification();
             return;
         }
+        final String requestTrackId = trackId;
         new Thread(() -> {
             try {
                 URL u = new URL(url);
@@ -396,7 +415,9 @@ public class RaagaXPlaybackService extends Service {
                 Bitmap b = BitmapFactory.decodeStream(in);
                 if (b != null) {
                     artworkCache.put(url, b);
-                    if (url.equals(currentArtworkUrl)) {
+                    // Prevent Stale Async Responses: Only apply if trackId is still current!
+                    if ((requestTrackId == null || requestTrackId.isEmpty() || requestTrackId.equals(currentTrackId))
+                            && url.equals(currentArtworkUrl)) {
                         currentArtworkBitmap = b;
                         runOnMainThread(this::updateNotification);
                     }

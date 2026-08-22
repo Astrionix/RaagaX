@@ -156,7 +156,22 @@ export const RaagaXNativePlayer = {
   },
 
   /** Fires on every track change (auto-advance or manual next/prev) */
-  addTrackChangedListener(callback: (data: { trackId?: string; title?: string; artist?: string; artworkUrl?: string; url?: string; index?: number; requestId?: number }) => void): () => void {
+  addTrackChangedListener(callback: (data: {
+    oldTrackId?: string;
+    trackId?: string;
+    title?: string;
+    artist?: string;
+    artworkUrl?: string;
+    url?: string;
+    index?: number;
+    queueIndex?: number;
+    totalItems?: number;
+    positionMs?: number;
+    durationMs?: number;
+    isPlaying?: boolean;
+    timestamp?: number;
+    requestId?: number;
+  }) => void): () => void {
     const plugin = getPlugin();
     if (!plugin) return () => {};
     plugin.addListener('trackChanged', callback);

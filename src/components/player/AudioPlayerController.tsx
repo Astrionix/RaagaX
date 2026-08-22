@@ -155,47 +155,106 @@ export function AudioPlayerController() {
 
     const unsubChanged = RaagaXNativePlayer.addTrackChangedListener((data) => {
       lastTrackChangeTimeRef.current = Date.now();
-      console.log('[AudioPlayerController] Native track changed confirmation — trackId:', data.trackId, 'title:', data.title, 'reqId:', data.requestId);
-      if (data.trackId) {
+      const currentStoreTrack = usePlayerStore.getState().currentSong;
+      const oldTrackId = data.oldTrackId || currentStoreTrack?.id || '';
+      const newTrackId = data.trackId || '';
+      
+      console.log(`[TRACK_TRANSITION]\noldTrackId=${oldTrackId}\nnewTrackId=${newTrackId}\ntitle=${data.title || ''}\nartist=${data.artist || ''}\nartwork=${data.artworkUrl || ''}\nduration=${data.durationMs || 0}`);
+
+      if (data.trackId || data.title) {
         const store = usePlayerStore.getState();
-        if (store.currentSong?.id !== data.trackId) {
-          const matchIdx = store.queue.findIndex(s => s.id === data.trackId);
+        const incomingId = data.trackId;
+        
+        // 1. Resolve track object by ID from authoritative queue
+        let track = incomingId ? store.queue.find(s => s.id === incomingId) : null;
+        let matchIdx = incomingId ? store.queue.findIndex(s => s.id === incomingId) : -1;
+
+        // 2. If not found by ID, match by queueIndex
+        if (!track && typeof data.queueIndex === 'number' && data.queueIndex >= 0 && data.queueIndex < store.queue.length) {
+          track = store.queue[data.queueIndex];
+          matchIdx = data.queueIndex;
+        }
+
+        // 3. If not found by index, match by title
+        if (!track && data.title) {
+          matchIdx = store.queue.findIndex(s => s.title?.trim().toLowerCase() === data.title?.trim().toLowerCase());
           if (matchIdx !== -1) {
-            const track = store.queue[matchIdx];
-            usePlayerStore.setState({
-              currentSong: track,
-              queueIndex: matchIdx,
-              isPlaying: true,
-              playbackIntent: 'PLAYING',
-              currentTime: 0,
-              duration: track.duration || 0,
-            });
-            import('@/lib/playback/MediaSessionManager').then(({ MediaSessionManager }) => {
-              MediaSessionManager.getInstance().updateSongMetadata(track);
-            });
+            track = store.queue[matchIdx];
           }
         }
 
-        // Force-poll ExoPlayer state after a short delay to capture the real duration
-        // for local MP3 files. playbackStateChanged is not guaranteed to fire reliably
-        // for offline tracks, so we proactively fetch the state at 400ms and 1200ms.
-        const pollDuration = async () => {
-          try {
-            const state = await RaagaXNativePlayer.getPlaybackState();
-            if (state) {
-              console.log('[AudioPlayerController] Force-poll after trackChanged — durationMs:', state.durationMs, 'isPlaying:', state.isPlaying);
-              if (state.durationMs > 0) {
-                usePlayerStore.getState().setDuration(state.durationMs / 1000);
-              }
-              if (state.isPlaying) {
-                usePlayerStore.getState().setIsPlaying(true, true);
-              }
-            }
-          } catch {}
-        };
-        setTimeout(pollDuration, 400);
-        setTimeout(pollDuration, 1200);
+        // 4. If still not in existing queue, construct full track model from native payload
+        if (!track) {
+          track = {
+            id: incomingId || `native-${Date.now()}`,
+            title: data.title || 'RaagaX Music',
+            artist: data.artist || 'Unknown Artist',
+            album: 'RaagaX Music',
+            coverUrl: data.artworkUrl || '/app-icon.png',
+            duration: data.durationMs && data.durationMs > 0 ? Math.round(data.durationMs / 1000) : 180,
+            audioUrl: data.url || '',
+            genre: 'Various',
+            category: 'global_trending',
+            releaseYear: new Date().getFullYear(),
+            plays: 0,
+            likes: 0,
+          };
+          matchIdx = typeof data.queueIndex === 'number' ? data.queueIndex : store.queueIndex;
+        }
+
+        const durationSec = data.durationMs && data.durationMs > 0 
+          ? (data.durationMs / 1000) 
+          : (track.duration || 0);
+
+        // Single atomic state update to prevent UI flickering / mixed metadata
+        usePlayerStore.setState({
+          currentSong: track,
+          queueIndex: matchIdx !== -1 ? matchIdx : store.queueIndex,
+          isPlaying: data.isPlaying !== undefined ? data.isPlaying : true,
+          playbackIntent: 'PLAYING',
+          currentTime: data.positionMs ? (data.positionMs / 1000) : 0,
+          duration: durationSec,
+        });
+
+        console.log(`[PLAYBACK_STATE_PUBLISHED]\ntrackId=${track.id}\ntitle=${track.title}\nartist=${track.artist}\nartwork=${track.coverUrl}\ndurationMs=${durationSec * 1000}\npositionMs=${data.positionMs || 0}\nisPlaying=true`);
+
+        import('@/lib/playback/MediaSessionManager').then(({ MediaSessionManager }) => {
+          MediaSessionManager.getInstance().updateSongMetadata(track!);
+        });
+
+        import('@/lib/playback/PlaybackSession').then(({ SessionManager }) => {
+          SessionManager.getInstance().updateSession({
+            currentTrack: track!,
+            currentTrackId: track!.id,
+            currentQueueIndex: matchIdx !== -1 ? matchIdx : store.queueIndex,
+            position: data.positionMs ? (data.positionMs / 1000) : 0,
+            duration: durationSec,
+            isPlaying: true,
+          });
+        }).catch(() => {});
+
+        // Broadcast to follower devices in Spotify Connect session
+        if (store.isActiveDevice) {
+          import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+            PlaybackStateSync.getInstance().broadcastState(true);
+          });
+        }
       }
+
+      // Proactively poll duration if duration was 0
+      const pollDuration = async () => {
+        try {
+          const state = await RaagaXNativePlayer.getPlaybackState();
+          if (state && state.durationMs > 0) {
+            const currentDur = usePlayerStore.getState().duration;
+            if (currentDur <= 0 || Math.abs(currentDur - (state.durationMs / 1000)) > 2) {
+              usePlayerStore.getState().setDuration(state.durationMs / 1000);
+            }
+          }
+        } catch {}
+      };
+      setTimeout(pollDuration, 300);
+      setTimeout(pollDuration, 800);
     });
 
     // seekComplete fires when ExoPlayer confirms the seek has been applied.
