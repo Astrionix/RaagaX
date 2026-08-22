@@ -17,6 +17,7 @@ import {
   Share2,
   ListPlus,
   Mic2,
+  Moon,
   Volume2,
   VolumeX,
   Cast,
@@ -112,6 +113,9 @@ export function ExpandedPlayerModal() {
     remoteDeviceName,
     onlineDevices,
     toggleQueue,
+    toggleSleepTimerModal,
+    sleepTimerEndsAt,
+    sleepTimerMode,
   } = usePlayerStore();
 
   // Gesture handling for swipe-down to minimize on touch devices
@@ -431,19 +435,36 @@ export function ExpandedPlayerModal() {
           </span>
         </div>
 
-        {/* Right: Quick Close on Desktop */}
-        <button
-          onClick={() => {
-            haptics.lightImpact();
-            togglePlayerExpanded();
-          }}
-          className="w-9 h-9 sm:w-10 sm:h-10 -mr-1 text-white/70 hover:text-white rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 transition-all active:scale-95 cursor-pointer hidden md:flex items-center justify-center"
-          aria-label="Close"
-          title="Close Player (Esc)"
-        >
-          <X className="w-5 h-5" />
-        </button>
-        <div className="w-9 md:hidden" />
+        {/* Right: Sleep Timer & Quick Close on Desktop */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              haptics.lightImpact();
+              toggleSleepTimerModal();
+            }}
+            className={`w-9 h-9 sm:w-10 sm:h-10 text-white/70 hover:text-white rounded-full bg-white/[0.06] hover:bg-white/[0.12] border transition-all active:scale-95 cursor-pointer flex items-center justify-center ${
+              sleepTimerEndsAt || sleepTimerMode
+                ? 'bg-purple-500/20 text-purple-300 border-purple-500/40 shadow-sm shadow-purple-500/20'
+                : 'border-white/10'
+            }`}
+            aria-label="Sleep Timer"
+            title={sleepTimerEndsAt ? 'Sleep Timer Active' : 'Sleep Timer'}
+          >
+            <Moon className={`w-4 h-4 sm:w-4.5 sm:h-4.5 ${sleepTimerEndsAt || sleepTimerMode ? 'text-purple-400 fill-purple-400/30' : ''}`} />
+          </button>
+
+          <button
+            onClick={() => {
+              haptics.lightImpact();
+              togglePlayerExpanded();
+            }}
+            className="w-9 h-9 sm:w-10 sm:h-10 -mr-1 text-white/70 hover:text-white rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 transition-all active:scale-95 cursor-pointer hidden md:flex items-center justify-center"
+            aria-label="Close"
+            title="Close Player (Esc)"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* ── 3. MAIN WORKSPACE (CENTRAL UNBOXED STAGE + OPTIONAL DESKTOP QUEUE) ─ */}
@@ -641,6 +662,18 @@ export function ExpandedPlayerModal() {
                           <span>Download Song</span>
                         </button>
                       )}
+
+                      <button
+                        onClick={() => {
+                          haptics.lightImpact();
+                          toggleSleepTimerModal();
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full p-2.5 rounded-xl flex items-center gap-2.5 hover:bg-purple-500/20 text-white transition-colors text-left cursor-pointer"
+                      >
+                        <Moon className="w-4 h-4 text-purple-400" />
+                        <span>Sleep Timer {sleepTimerEndsAt ? '(Active)' : ''}</span>
+                      </button>
                     </div>
 
                     <div className="space-y-0.5 pt-1">
@@ -800,15 +833,15 @@ export function ExpandedPlayerModal() {
             <Volume2 className="w-4 h-4 text-white/50 flex-shrink-0" />
           </div>
 
-          {/* F. BOTTOM UTILITIES ROW [ Lyrics | Device | Queue ] (Unboxed Minimal Pills) */}
-          <div className="w-full flex items-center justify-center gap-3 pt-1 pb-1 sm:pb-2 px-2 flex-shrink-0">
+          {/* F. BOTTOM UTILITIES ROW [ Lyrics | Device | Queue | Sleep Timer ] (Unboxed Minimal Pills) */}
+          <div className="w-full flex items-center justify-center gap-2 sm:gap-2.5 pt-1 pb-1 sm:pb-2 px-2 flex-shrink-0">
             {/* Lyrics Button */}
             <button
               onClick={() => {
                 haptics.lightImpact();
                 setViewMode(viewMode === 'lyrics' ? 'art' : 'lyrics');
               }}
-              className={`px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                 viewMode === 'lyrics'
                   ? 'bg-white/20 text-white border-white/30 shadow-sm'
                   : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
@@ -825,11 +858,11 @@ export function ExpandedPlayerModal() {
                 haptics.lightImpact();
                 toggleDeviceModal();
               }}
-              className="px-4 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/70 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+              className="px-3.5 sm:px-4 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/70 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
               title="Connect Device"
             >
               <Cast className="w-3.5 h-3.5" />
-              <span className="truncate max-w-[90px]">{activeDeviceId && activeDeviceId !== deviceId ? (remoteDeviceName || 'Remote') : 'Device'}</span>
+              <span className="truncate max-w-[70px] sm:max-w-[90px]">{activeDeviceId && activeDeviceId !== deviceId ? (remoteDeviceName || 'Remote') : 'Device'}</span>
             </button>
 
             {/* Queue Button */}
@@ -842,7 +875,7 @@ export function ExpandedPlayerModal() {
                   toggleQueue();
                 }
               }}
-              className={`px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                 isDesktopQueueOpen
                   ? 'bg-white/20 text-white border-white/30 shadow-sm'
                   : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
@@ -851,6 +884,23 @@ export function ExpandedPlayerModal() {
             >
               <ListMusic className="w-3.5 h-3.5" />
               <span>Queue ({upNextTracks.length})</span>
+            </button>
+
+            {/* Sleep Timer Button */}
+            <button
+              onClick={() => {
+                haptics.lightImpact();
+                toggleSleepTimerModal();
+              }}
+              className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                sleepTimerEndsAt || sleepTimerMode
+                  ? 'bg-purple-500/20 text-purple-300 border-purple-500/40 shadow-sm shadow-purple-500/20'
+                  : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
+              }`}
+              title={sleepTimerEndsAt ? "Sleep timer active" : "Sleep Timer"}
+            >
+              <Moon className={`w-3.5 h-3.5 ${sleepTimerEndsAt || sleepTimerMode ? 'text-purple-400 fill-purple-400/30' : ''}`} />
+              <span>{sleepTimerEndsAt ? 'Timer On' : 'Timer'}</span>
             </button>
           </div>
         </div>
