@@ -1464,7 +1464,7 @@ export const usePlayerStore = create<PlayerState>()(
       toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 
       playNext: async () => {
-        const { duration, currentTime } = get();
+        const { duration, currentTime, isPlaying, playbackIntent } = get();
         const isComplete = duration > 0 && currentTime >= duration - 5;
         get().logCurrentTelemetry(isComplete ? 'complete' : 'skip');
         if (get().sleepTimerMode === 'end_of_song') {
@@ -1477,11 +1477,20 @@ export const usePlayerStore = create<PlayerState>()(
         const { queue, queueIndex, repeatMode } = get();
         if (queue.length === 0) return;
 
+        // Preserve playback intent:
+        // If current track was playing (isPlaying === true or playbackIntent === 'PLAYING'), keep playing.
+        // If current track was explicitly paused (isPlaying === false && playbackIntent === 'PAUSED'), remain paused.
+        const shouldPlay = isPlaying || playbackIntent === 'PLAYING';
+
         const nextIndex = getNextQueueIndex(queue, queueIndex, repeatMode);
         if (nextIndex >= 0 && nextIndex < queue.length) {
           const nextTrack = queue[nextIndex];
-          console.log(`[NEXT] ${queueIndex} → ${nextIndex} (Track: "${nextTrack.title}")`);
-          await get().switchTrack(nextTrack, nextIndex, true);
+          const oldTrackId = get().currentSong?.id || '';
+
+          console.log(`[NEXT_QUEUE]\noldTrackId=${oldTrackId}\nnewTrackId=${nextTrack.id}\noldQueueIndex=${queueIndex}\nnewQueueIndex=${nextIndex}`);
+          console.log(`[NEXT_PLAY]\ntrackId=${nextTrack.id}\nisPlaying=${shouldPlay}`);
+
+          await get().switchTrack(nextTrack, nextIndex, shouldPlay);
         } else {
           if (get().sleepTimerMode === 'end_of_queue') {
             get().setSleepTimer(null);
@@ -1493,16 +1502,17 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       playPrev: async () => {
-        const { queue, queueIndex, currentTime, currentSong, repeatMode } = get();
+        const { queue, queueIndex, currentTime, currentSong, repeatMode, isPlaying, playbackIntent } = get();
 
-        // If track played more than 3 seconds, restart current track at 0:00 and start playback
+        // If track played more than 3 seconds, restart current track at 0:00 and keep current playing state
         if (currentTime > 3) {
           console.log(`[RESTART] ${currentSong?.id || 'unknown'} (pos: ${currentTime.toFixed(1)}s > 3s)`);
           get().setCurrentTime(0, true);
           get().setSeekTarget(0);
-          get().setIsPlaying(true);
           PlaybackService.getInstance().seek(0);
-          PlaybackService.getInstance().play();
+          if (isPlaying || playbackIntent === 'PLAYING') {
+            PlaybackService.getInstance().play();
+          }
           return;
         }
 
@@ -1510,19 +1520,21 @@ export const usePlayerStore = create<PlayerState>()(
 
         if (queue.length === 0) return;
 
+        const shouldPlay = isPlaying || playbackIntent === 'PLAYING';
         const prevIndex = getPreviousQueueIndex(queue, queueIndex, repeatMode);
         if (prevIndex >= 0 && prevIndex < queue.length) {
           const prevTrack = queue[prevIndex];
           console.log(`[PREVIOUS] ${queueIndex} → ${prevIndex} (Track: "${prevTrack.title}")`);
-          await get().switchTrack(prevTrack, prevIndex, true);
+          await get().switchTrack(prevTrack, prevIndex, shouldPlay);
         } else {
-          // At beginning of queue and no previous: restart at 0:00 and start playback
+          // At beginning of queue and no previous: restart at 0:00
           console.log(`[RESTART] ${currentSong?.id || 'unknown'} (beginning of queue)`);
           get().setCurrentTime(0, true);
           get().setSeekTarget(0);
-          get().setIsPlaying(true);
           PlaybackService.getInstance().seek(0);
-          PlaybackService.getInstance().play();
+          if (shouldPlay) {
+            PlaybackService.getInstance().play();
+          }
         }
       },
 

@@ -494,8 +494,13 @@ export function AudioPlayerController() {
           RaagaXNativePlayer.resume();
           LyricsEngine.getInstance().setPlaying(true);
         } else {
-          RaagaXNativePlayer.pause();
-          LyricsEngine.getInstance().setPlaying(false);
+          // Strict Guard: Only pause native player if playbackIntent is explicitly PAUSED
+          // A transient isPlaying=false during buffering or track transition MUST NOT issue pause()
+          const intent = usePlayerStore.getState().playbackIntent;
+          if (intent === 'PAUSED') {
+            RaagaXNativePlayer.pause();
+            LyricsEngine.getInstance().setPlaying(false);
+          }
         }
       }
       return;

@@ -193,7 +193,15 @@ public class RaagaXPlaybackService extends Service {
                 int queueIndex = player != null ? player.getCurrentMediaItemIndex() : 0;
                 int totalItems = player != null ? player.getMediaItemCount() : 0;
                 boolean isPlaying = player != null && (player.isPlaying() || player.getPlayWhenReady());
-                int oldQueueIndex = (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && queueIndex > 0) ? queueIndex - 1 : queueIndex;
+                int oldQueueIndex = (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && queueIndex > 0) ? queueIndex - 1 : (queueIndex > 0 ? queueIndex - 1 : 0);
+
+                Log.d(TAG, "[NEXT_QUEUE]\noldTrackId=" + oldTrackId
+                        + "\nnewTrackId=" + currentTrackId
+                        + "\noldQueueIndex=" + oldQueueIndex
+                        + "\nnewQueueIndex=" + queueIndex);
+
+                Log.d(TAG, "[NEXT_PLAY]\ntrackId=" + currentTrackId
+                        + "\nisPlaying=" + isPlaying);
 
                 Log.d(TAG, "[QUEUE_AUTO_ADVANCE]\noldTrackId=" + oldTrackId
                         + "\nnewTrackId=" + currentTrackId
@@ -548,16 +556,61 @@ public class RaagaXPlaybackService extends Service {
 
         } else if ("PREV".equals(action)) {
             runOnMainThread(() -> {
-                Log.d(TAG, "PREV action received -> broadcasting ACTION_PREV to session");
-                Intent i = new Intent("com.raagax.music.ACTION_PREV");
-                sendBroadcast(i);
+                if (player != null && player.getCurrentPosition() > 3000) {
+                    player.seekTo(0);
+                    if (player.getPlayWhenReady()) {
+                        player.play();
+                    }
+                } else if (player != null && player.hasPreviousMediaItem()) {
+                    boolean wasPlaying = player.isPlaying() || player.getPlayWhenReady();
+                    player.seekToPreviousMediaItem();
+                    player.prepare();
+                    if (wasPlaying) {
+                        player.setPlayWhenReady(true);
+                        player.play();
+                    } else {
+                        player.setPlayWhenReady(false);
+                    }
+                } else {
+                    Log.d(TAG, "PREV action received -> broadcasting ACTION_PREV to session");
+                    Intent i = new Intent("com.raagax.music.ACTION_PREV");
+                    sendBroadcast(i);
+                }
             });
 
         } else if ("NEXT".equals(action)) {
             runOnMainThread(() -> {
-                Log.d(TAG, "NEXT action received -> broadcasting ACTION_NEXT to session");
-                Intent i = new Intent("com.raagax.music.ACTION_NEXT");
-                sendBroadcast(i);
+                if (player != null && player.hasNextMediaItem()) {
+                    int oldQueueIndex = player.getCurrentMediaItemIndex();
+                    String oldTrackId = currentTrackId != null ? currentTrackId : "";
+                    boolean wasPlaying = player.isPlaying() || player.getPlayWhenReady();
+
+                    int nextQueueIndex = oldQueueIndex + 1;
+                    androidx.media3.common.MediaItem nextItem = player.getMediaItemAt(nextQueueIndex);
+                    String newTrackId = (nextItem != null && nextItem.mediaId != null) ? nextItem.mediaId : "";
+
+                    Log.d(TAG, "[NEXT_QUEUE]\noldTrackId=" + oldTrackId
+                            + "\nnewTrackId=" + newTrackId
+                            + "\noldQueueIndex=" + oldQueueIndex
+                            + "\nnewQueueIndex=" + nextQueueIndex);
+
+                    // Switch directly in ExoPlayer without pausing
+                    player.seekToNextMediaItem();
+                    player.prepare();
+                    if (wasPlaying) {
+                        player.setPlayWhenReady(true);
+                        player.play();
+                    } else {
+                        player.setPlayWhenReady(false);
+                    }
+
+                    Log.d(TAG, "[NEXT_PLAY]\ntrackId=" + newTrackId
+                            + "\nisPlaying=" + wasPlaying);
+                } else {
+                    Log.d(TAG, "NEXT action received -> broadcasting ACTION_NEXT to session");
+                    Intent i = new Intent("com.raagax.music.ACTION_NEXT");
+                    sendBroadcast(i);
+                }
             });
 
         } else if ("PAUSE".equals(action))  { pause(); }
