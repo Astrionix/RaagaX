@@ -54,6 +54,9 @@ export const useAuthStore = create<AuthState>((set) => ({
           }
         } else if (event === 'SIGNED_OUT') {
           set({ session: null, user: null });
+          import('@/lib/connect/lan/RaagaXConnectV2').then(({ RaagaXConnectV2 }) => {
+            RaagaXConnectV2.getInstance().handleAccountLogout();
+          }).catch(() => {});
         }
       });
     } catch (e) {
@@ -76,6 +79,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const { LocalDatabase } = await import('@/lib/localDatabase');
       await LocalDatabase.getInstance().clearPlaybackSession();
+    } catch { }
+
+    try {
+      const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
+      RaagaXConnectV2.getInstance().handleAccountLogout();
     } catch { }
 
     await supabase.auth.signOut().catch(() => { });
