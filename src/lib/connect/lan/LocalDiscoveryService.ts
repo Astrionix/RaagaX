@@ -2,7 +2,7 @@
 
 import { LANDeviceAdvertisement, DiscoveredLANDevice, LANDeviceType, LANPlatform } from './types';
 import { LocalServerBridge } from './LocalServerBridge';
-import { RaagaXNativeConnect } from '@/lib/playback/native/RaagaXNativeConnect';
+import { RaagaXNativeConnect } from './RaagaXNativeConnect';
 import { useAuthStore } from '@/context/useAuthStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
 

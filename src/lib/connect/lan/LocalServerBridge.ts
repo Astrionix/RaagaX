@@ -1,7 +1,7 @@
 'use client';
 
 import { LANMessage } from './types';
-import { RaagaXNativeConnect } from '@/lib/playback/native/RaagaXNativeConnect';
+import { RaagaXNativeConnect } from './RaagaXNativeConnect';
 
 export type LANMessageHandler = (msg: LANMessage, remoteAddress?: string) => void;
 
