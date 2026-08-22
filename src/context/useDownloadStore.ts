@@ -127,6 +127,7 @@ interface DownloadStore {
   getAlbumDownloadStatus: (songIds: string[]) => 'NONE' | 'PARTIAL' | 'ALL';
   /** Queues all tracks in an album for download, respecting maxConcurrent */
   downloadAlbum: (albumId: string, songs: Song[], quality?: string) => void;
+  cancelPlaylistDownloads: (playlistId: string, songIds?: string[]) => void;
 
   _processQueue: () => void;
   _persistTasks: () => void;
@@ -747,12 +748,24 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
 
   downloadPlaylist: (songs, quality = '320 kbps', playlistTitle = 'Playlist', playlistId = 'pl_custom') => {
     const state = get();
-    const downloadedIds = usePlayerStore.getState().downloadedSongIds;
+    const downloadedIds = usePlayerStore.getState().downloadedSongIds || [];
     const nativeTracks = state.nativeDownloadedTracks || {};
-    const toDownload = songs.filter(s => s && s.id && !downloadedIds.includes(s.id) && !nativeTracks[s.id]);
+    const tasks = state.tasks || {};
+
+    console.log(`[PLAYLIST_DOWNLOAD_ALL_START] playlistId=${playlistId} totalTracks=${songs.length}`);
+
+    const toDownload = songs.filter(s => {
+      if (!s || !s.id) return false;
+      const isDownloaded = downloadedIds.includes(s.id) || Boolean(nativeTracks[s.id]);
+      if (isDownloaded) return false;
+      const t = tasks[s.id];
+      // Skip if active
+      if (t && ['DOWNLOADING', 'QUEUED', 'VERIFYING', 'COMPLETED'].includes(t.status)) return false;
+      return true;
+    });
     
     if (toDownload.length === 0) {
-      usePlayerStore.getState().setToastMessage('All songs in this playlist are already downloaded.');
+      usePlayerStore.getState().setToastMessage('All downloadable songs in this playlist are already queued or downloaded. ✓');
       return;
     }
 
@@ -805,8 +818,8 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
           }
         }
 
-        RaagaXNativeDownload.downloadPlaylist(resolvedSongs, quality).then((queuedCount) => {
-          usePlayerStore.getState().setToastMessage(`Queued ${queuedCount} songs to download to Music/RaagaX`);
+        RaagaXNativeDownload.downloadPlaylist(resolvedSongs, quality, playlistId).then((queuedCount) => {
+          usePlayerStore.getState().setToastMessage(`Queued ${queuedCount} songs for offline listening`);
         }).catch(err => {
           usePlayerStore.getState().setToastMessage(`Playlist download failed: ${err.message}`);
         });
@@ -834,6 +847,29 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     set({ tasks: newTasks });
     state._persistTasks();
     state._processQueue();
+  },
+
+  cancelPlaylistDownloads: (playlistId, songIds = []) => {
+    if (RaagaXNativeDownload.isNative()) {
+      RaagaXNativeDownload.cancelPlaylist(playlistId, songIds);
+    }
+    const state = get();
+    const newTasks = { ...state.tasks };
+    let removedCount = 0;
+    Object.keys(newTasks).forEach(id => {
+      const t = newTasks[id];
+      if (t.playlistId === playlistId || songIds.includes(id)) {
+        if (t.abortController) {
+          t.abortController.abort();
+        }
+        delete newTasks[id];
+        removedCount++;
+      }
+    });
+    if (removedCount > 0) {
+      set({ tasks: newTasks });
+      state._persistTasks();
+    }
   },
 
   pauseDownload: (songId) => {

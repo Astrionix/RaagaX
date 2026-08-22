@@ -364,17 +364,27 @@ public class RaagaXDownloadManager {
                 return;
             }
 
-            Log.d(TAG, "[DOWNLOAD] enqueuePlaylist() items=" + items.size());
+            String playlistId = items.get(0).playlistId != null ? items.get(0).playlistId : "pl_default";
+            Log.d(TAG, "[PLAYLIST_DOWNLOAD_ALL_START] playlistId=" + playlistId + " totalTracks=" + items.size());
 
             for (DownloadRequestItem item : items) {
                 try {
                     if (item.songId == null || item.songId.isEmpty()) continue;
 
-                    // Skip already completed in Media3 cache
+                    // 1. Skip already verified in Media3 cache
                     if (Media3DownloadHelper.verifyDownloadedTrack(context, item.songId)) {
-                        Log.d(TAG, "[DOWNLOAD] Playlist item " + item.songId + " already downloaded, skipping");
+                        Log.d(TAG, "[PLAYLIST_TRACK_SKIP] trackId=" + item.songId + " reason=ALREADY_DOWNLOADED");
                         continue;
                     }
+
+                    // 2. Check if already actively downloading in Media3
+                    try {
+                        Download existingDl = media3DownloadManager.getDownloadIndex().getDownload(item.songId);
+                        if (existingDl != null && (existingDl.state == Download.STATE_DOWNLOADING || existingDl.state == Download.STATE_QUEUED || existingDl.state == Download.STATE_RESTARTING)) {
+                            Log.d(TAG, "[PLAYLIST_TRACK_SKIP] trackId=" + item.songId + " reason=ALREADY_ACTIVE state=" + existingDl.state);
+                            continue;
+                        }
+                    } catch (Exception ignored) {}
 
                     String streamUrl = item.streamUrl;
                     if (streamUrl != null && !streamUrl.isEmpty()) {
@@ -382,14 +392,39 @@ public class RaagaXDownloadManager {
                         item.streamUrl = streamUrl;
                     }
 
-                    enqueueDownload(item, null);
+                    enqueueDownload(item, (success, error) -> {
+                        if (!success) {
+                            Log.e(TAG, "[PLAYLIST_TRACK_DOWNLOAD_FAILED] playlistId=" + playlistId + " trackId=" + item.songId + " error=" + error);
+                        }
+                    });
                     queuedCount++;
                 } catch (Exception e) {
-                    Log.w(TAG, "[DOWNLOAD] Failed to enqueue playlist item " + item.songId + ": " + e.getMessage());
+                    Log.e(TAG, "[PLAYLIST_TRACK_DOWNLOAD_FAILED] playlistId=" + playlistId + " trackId=" + item.songId + " error=" + e.getMessage());
                 }
             }
 
+            Log.d(TAG, "[PLAYLIST_DOWNLOAD_ALL_ENQUEUED] playlistId=" + playlistId + " queuedCount=" + queuedCount);
             if (callback != null) callback.onResult(queuedCount, null);
+        });
+    }
+
+    /**
+     * Cancel all downloads initiated by a playlist session.
+     */
+    public void cancelPlaylist(String playlistId, List<String> songIds, Callback<Boolean> callback) {
+        executor.execute(() -> {
+            try {
+                Log.d(TAG, "[PLAYLIST_DOWNLOAD_CANCEL_START] playlistId=" + playlistId);
+                if (songIds != null) {
+                    for (String sid : songIds) {
+                        cancelDownload(sid);
+                    }
+                }
+                if (callback != null) callback.onResult(true, null);
+            } catch (Exception e) {
+                Log.w(TAG, "cancelPlaylist error: " + e.getMessage());
+                if (callback != null) callback.onResult(false, e.getMessage());
+            }
         });
     }
 

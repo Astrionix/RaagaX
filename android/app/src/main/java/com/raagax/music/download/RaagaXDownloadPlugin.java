@@ -155,6 +155,7 @@ public class RaagaXDownloadPlugin extends Plugin {
                 return;
             }
 
+            String playlistId = call.getString("playlistId", "pl_custom");
             List<RaagaXDownloadManager.DownloadRequestItem> items = new ArrayList<>();
             for (int i = 0; i < songsArray.length(); i++) {
                 JSONObject obj = songsArray.getJSONObject(i);
@@ -167,9 +168,11 @@ public class RaagaXDownloadPlugin extends Plugin {
                 String artworkUrl = obj.optString("coverUrl", obj.optString("artworkUrl", ""));
                 String streamUrl = obj.optString("audioUrl", obj.optString("streamUrl", ""));
 
-                items.add(new RaagaXDownloadManager.DownloadRequestItem(
+                RaagaXDownloadManager.DownloadRequestItem item = new RaagaXDownloadManager.DownloadRequestItem(
                         songId, title, artist, album, artworkUrl, streamUrl, quality
-                ));
+                );
+                item.playlistId = playlistId;
+                items.add(item);
             }
 
             downloadManager.enqueuePlaylist(items, (count, error) -> {
@@ -183,6 +186,31 @@ public class RaagaXDownloadPlugin extends Plugin {
         } catch (Exception e) {
             Log.e(TAG, "downloadPlaylist safe catch: " + e.getMessage(), e);
             call.reject("Failed to parse playlist: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void cancelPlaylist(PluginCall call) {
+        try {
+            String playlistId = call.getString("playlistId", "");
+            JSArray songsArray = call.getArray("songIds");
+            List<String> songIds = new ArrayList<>();
+            if (songsArray != null) {
+                for (int i = 0; i < songsArray.length(); i++) {
+                    songIds.add(songsArray.getString(i));
+                }
+            }
+            if (downloadManager != null) {
+                downloadManager.cancelPlaylist(playlistId, songIds, (success, error) -> {
+                    JSObject res = new JSObject();
+                    res.put("success", success);
+                    call.resolve(res);
+                });
+            } else {
+                call.resolve(new JSObject().put("success", true));
+            }
+        } catch (Exception e) {
+            call.resolve(new JSObject().put("success", false));
         }
     }
 

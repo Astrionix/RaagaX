@@ -192,6 +192,16 @@ export function PlaylistDetailView() {
 
   const isDownloading = downloadingCount > 0 && !isAllDownloaded;
 
+  const failedCount = useMemo(() => {
+    if (!playlist || !playlist.songs) return 0;
+    return playlist.songs.filter(s => {
+      const isDownloaded = downloadedSongIds.includes(s.id) || Boolean(nativeDownloadedTracks?.[s.id]) || tasks[s.id]?.status === 'COMPLETED';
+      return !isDownloaded && tasks[s.id]?.status === 'FAILED';
+    }).length;
+  }, [playlist, downloadedSongIds, nativeDownloadedTracks, tasks]);
+
+  const hasFailures = failedCount > 0 && !isDownloading && !isAllDownloaded;
+
   const isUserOwned = useMemo(() => {
     if (!playlist) return false;
     return playlist.ownerId !== 'curated' && (playlist.ownerId === activeUserId || playlist.ownerId === 'guest' || !playlist.ownerId);
@@ -615,9 +625,48 @@ export function PlaylistDetailView() {
               Save to Library
             </button>
           )}
+
+          {/* Main Download All Action Button */}
+          {playlist && playlist.songs && playlist.songs.length > 0 && (
+            <button
+              onClick={isAllDownloaded ? handleRemoveAllDownloads : handleDownloadAll}
+              className={`h-11 px-5 rounded-full text-xs sm:text-sm font-bold flex items-center justify-center gap-2 border shadow-md transition-all active:scale-95 cursor-pointer shrink-0 whitespace-nowrap ${
+                isAllDownloaded
+                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                  : isDownloading
+                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                  : hasFailures
+                  ? 'bg-red-500/15 border-red-500/30 text-red-400'
+                  : 'bg-white/10 hover:bg-white/15 text-white border-white/10'
+              }`}
+              title={isAllDownloaded ? "All songs downloaded (Click to manage)" : "Download All Songs"}
+            >
+              {isAllDownloaded ? (
+                <>
+                  <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
+                  <span>Downloaded</span>
+                </>
+              ) : isDownloading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                  <span className="font-mono">Downloading {downloadedSongsInPlaylist.length} of {playlist.songs.length}</span>
+                </>
+              ) : hasFailures ? (
+                <>
+                  <Download className="w-4 h-4 text-red-400" />
+                  <span>Downloaded {downloadedSongsInPlaylist.length} of {playlist.songs.length} ({failedCount} failed)</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 text-emerald-400" />
+                  <span>{downloadedSongsInPlaylist.length > 0 ? `Downloaded ${downloadedSongsInPlaylist.length}/${playlist.songs.length}` : 'Download All'}</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
 
-        {/* Secondary Toolbar: Sort & Compact Download All (Android Mobile Only) */}
+        {/* Secondary Toolbar: Sort & Compact Download All */}
         <div className="flex items-center justify-between gap-2 pb-2 border-b border-white/10">
           {!isEditOrderMode ? (
             <div className="flex items-center gap-1.5 bg-[var(--bg-surface)] border border-[var(--border-subtle)] px-3 py-1.5 rounded-full text-xs shadow-sm">
@@ -643,7 +692,7 @@ export function PlaylistDetailView() {
             </button>
           )}
 
-          {/* Compact Download All Button (Android Mobile Only) */}
+          {/* Compact Download All Button (Mobile Toolbar) */}
           {isNative && (
             <button
               onClick={isAllDownloaded ? handleRemoveAllDownloads : handleDownloadAll}
@@ -652,6 +701,8 @@ export function PlaylistDetailView() {
                   ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
                   : isDownloading
                   ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                  : hasFailures
+                  ? 'bg-red-500/15 border-red-500/30 text-red-400'
                   : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300 hover:text-white'
               }`}
               title={isAllDownloaded ? "All songs downloaded (Click to manage)" : "Download All Songs"}
@@ -665,6 +716,11 @@ export function PlaylistDetailView() {
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
                   <span className="font-mono">{downloadedSongsInPlaylist.length}/{playlist.songs.length}</span>
+                </>
+              ) : hasFailures ? (
+                <>
+                  <Download className="w-3.5 h-3.5 text-red-400" />
+                  <span>{downloadedSongsInPlaylist.length}/{playlist.songs.length}</span>
                 </>
               ) : (
                 <>

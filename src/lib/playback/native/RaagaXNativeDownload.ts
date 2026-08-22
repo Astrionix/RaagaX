@@ -126,7 +126,7 @@ export const RaagaXNativeDownload = {
     }
   },
 
-  async downloadPlaylist(songs: Song[], quality: string = '320 kbps'): Promise<number> {
+  async downloadPlaylist(songs: Song[], quality: string = '320 kbps', playlistId: string = 'pl_custom'): Promise<number> {
     const plugin = getPlugin();
     if (!plugin || !songs || songs.length === 0) return 0;
     try {
@@ -144,11 +144,23 @@ export const RaagaXNativeDownload = {
       const res = await plugin.downloadPlaylist({
         songs: payload,
         quality,
+        playlistId,
       });
       return res?.queuedCount || 0;
     } catch (e) {
       console.error('[RaagaXNativeDownload] downloadPlaylist error:', e);
       throw e;
+    }
+  },
+
+  async cancelPlaylist(playlistId: string, songIds: string[] = []): Promise<boolean> {
+    const plugin = getPlugin();
+    if (!plugin) return false;
+    try {
+      const res = await plugin.cancelPlaylist({ playlistId, songIds });
+      return Boolean(res?.success);
+    } catch {
+      return false;
     }
   },
 
