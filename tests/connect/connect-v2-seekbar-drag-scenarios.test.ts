@@ -19,7 +19,7 @@ const makeSong = (id: string, title: string, duration = 272): Song => ({
   duration,
   audioUrl: `https://audio.test/${id}.mp3`,
   genre: 'Tollywood Hits',
-  category: 'trending',
+  category: 'latest_telugu',
   releaseYear: 2026,
   plays: 5000,
   likes: 1200,
@@ -316,11 +316,13 @@ describe('RaagaX Connect V2: Complete SeekBar Drag & Seek Scenarios (All 14 Edge
       positionMs: 0,
       durationMs: CHIKKIRI_SONG.duration * 1000,
       isPlaying: true,
+      volume: 0.8,
+      isMuted: false,
       queue: [PUSHPA_SONG, CHIKKIRI_SONG],
       queueIndex: 1,
       epoch: 1,
       revision: 120,
-      timestamp: Date.now(),
+      serverTimestamp: Date.now(),
     });
 
     const store = usePlayerStore.getState();
@@ -350,11 +352,13 @@ describe('RaagaX Connect V2: Complete SeekBar Drag & Seek Scenarios (All 14 Edge
       positionMs: 0,
       durationMs: PUSHPA_SONG.duration * 1000,
       isPlaying: true,
+      volume: 0.8,
+      isMuted: false,
       queue: [PUSHPA_SONG, CHIKKIRI_SONG],
       queueIndex: 0,
       epoch: 1,
       revision: 121,
-      timestamp: Date.now(),
+      serverTimestamp: Date.now(),
     });
 
     const store = usePlayerStore.getState();
@@ -426,11 +430,13 @@ describe('RaagaX Connect V2: Complete SeekBar Drag & Seek Scenarios (All 14 Edge
       positionMs: 0, // Transient 0ms while buffering
       durationMs: CHIKKIRI_SONG.duration * 1000,
       isPlaying: true,
+      volume: 0.8,
+      isMuted: false,
       queue: [CHIKKIRI_SONG],
       queueIndex: 0,
       epoch: 1,
       revision: 140,
-      timestamp: Date.now(),
+      serverTimestamp: Date.now(),
     });
 
     // Seek shield must preserve target 195s (03:15) and NOT snap back to 0ms

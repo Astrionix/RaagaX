@@ -57,45 +57,95 @@ export class OwnershipSwitchProtocol {
   }
 
   /**
-   * Initiates atomic ownership transfer from current owner to target device.
+   * Initiates atomic ownership transfer.
+   * If local device is Owner: Pushes playback to target by sending SWITCH_OFFER directly.
+   * If local device is Controller: Requests transfer from current owner via SWITCH_REQUEST.
    */
   public async switchPlayback(
     targetDeviceId: string,
     onProgress?: SwitchProgressCallback
   ): Promise<boolean> {
     const localId = LocalDiscoveryService.getInstance().getLocalIdentity().deviceId;
+    const isOwner = PlaybackOwnerEngine.getInstance().isOwner();
     const currentOwnerId = PlaybackOwnerEngine.getInstance().getActiveOwnerId();
     const transferId = 'tr_' + Math.random().toString(36).substring(2, 10);
 
     onProgress?.(1, 'Connecting to target...');
 
-    const requestMsg: LANSwitchRequestMessage = {
-      id: 'sw_req_' + Date.now(),
-      type: 'SWITCH_REQUEST',
-      sourceDeviceId: localId,
-      targetDeviceId,
-      transferId,
-      initiatorDeviceId: localId,
-      timestamp: Date.now(),
-    };
+    if (isOwner) {
+      // ── Case A: Local device is OWNER -> Push playback to target ──────────
+      console.log(`[OwnershipSwitchProtocol] Owner pushing playback to ${targetDeviceId}`);
+      const snapshot = PlaybackOwnerEngine.getInstance().getStateSnapshot();
 
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.activeTransfers.delete(transferId);
-        resolve(false);
-      }, 7000);
-
-      this.activeTransfers.set(transferId, {
-        sourceDeviceId: currentOwnerId,
+      const offerMsg: LANSwitchOfferMessage = {
+        id: 'sw_off_' + Date.now(),
+        type: 'SWITCH_OFFER',
+        sourceDeviceId: localId,
         targetDeviceId,
-        status: 'REQUESTED',
-        resolve,
-        reject,
-        timeout,
-      });
+        transferId,
+        snapshot: {
+          song: snapshot.song,
+          queue: snapshot.queue,
+          queueIndex: snapshot.queueIndex,
+          positionMs: snapshot.positionMs,
+          durationMs: snapshot.durationMs,
+          isPlaying: snapshot.isPlaying,
+          playbackRate: snapshot.playbackRate,
+          stateVersion: snapshot.stateVersion,
+        },
+        timestamp: Date.now(),
+      };
 
-      DirectLANTransport.getInstance().sendMessage(targetDeviceId, requestMsg);
-    });
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          console.warn(`[OwnershipSwitchProtocol] Transfer ${transferId} timed out waiting for SWITCH_READY`);
+          this.activeTransfers.delete(transferId);
+          resolve(false);
+        }, 7000);
+
+        this.activeTransfers.set(transferId, {
+          sourceDeviceId: localId,
+          targetDeviceId,
+          status: 'OFFERED',
+          resolve,
+          reject,
+          timeout,
+        });
+
+        DirectLANTransport.getInstance().sendMessage(targetDeviceId, offerMsg);
+      });
+    } else {
+      // ── Case B: Local device is CONTROLLER -> Pull playback from owner ────
+      console.log(`[OwnershipSwitchProtocol] Controller pulling playback from owner ${currentOwnerId}`);
+      const requestMsg: LANSwitchRequestMessage = {
+        id: 'sw_req_' + Date.now(),
+        type: 'SWITCH_REQUEST',
+        sourceDeviceId: localId,
+        targetDeviceId: currentOwnerId,
+        transferId,
+        initiatorDeviceId: localId,
+        timestamp: Date.now(),
+      };
+
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          console.warn(`[OwnershipSwitchProtocol] Transfer ${transferId} timed out waiting for SWITCH_OFFER`);
+          this.activeTransfers.delete(transferId);
+          resolve(false);
+        }, 7000);
+
+        this.activeTransfers.set(transferId, {
+          sourceDeviceId: currentOwnerId,
+          targetDeviceId: localId,
+          status: 'REQUESTED',
+          resolve,
+          reject,
+          timeout,
+        });
+
+        DirectLANTransport.getInstance().sendMessage(currentOwnerId, requestMsg);
+      });
+    }
   }
 
   /**
@@ -217,6 +267,11 @@ export class OwnershipSwitchProtocol {
 
     // 2. Transition this device from OWNER to CONTROLLER
     PlaybackOwnerEngine.getInstance().setOwner(ready.sourceDeviceId, false);
+    usePlayerStore.setState({
+      activeDeviceId: ready.sourceDeviceId,
+      connectedDeviceId: ready.sourceDeviceId,
+      isActiveDevice: false,
+    });
     
     // Authorize new owner for reciprocal control & state updates
     ConnectAuthManager.getInstance().addTrustedPeer({
@@ -258,6 +313,13 @@ export class OwnershipSwitchProtocol {
 
     // 1. Become active owner
     PlaybackOwnerEngine.getInstance().setOwner(localId, true);
+    usePlayerStore.setState({
+      activeDeviceId: localId,
+      connectedDeviceId: null,
+      isActiveDevice: true,
+      remoteDeviceName: undefined,
+      deviceConnectionState: 'AVAILABLE',
+    });
 
     // Authorize previous owner as active controller
     ConnectAuthManager.getInstance().addTrustedPeer({
@@ -276,15 +338,17 @@ export class OwnershipSwitchProtocol {
         const seekSec = commit.finalPositionMs / 1000;
         store.setCurrentTime(seekSec);
         store.setSeekTarget(seekSec);
-        const { PlaybackService } = await import('@/lib/playback/PlaybackService');
-        PlaybackService.getInstance().seek(seekSec);
+        try {
+          const { PlaybackService } = await import('@/lib/playback/PlaybackService');
+          PlaybackService.getInstance().seek(seekSec);
+        } catch {}
       }
     } catch (e) {
       console.warn('[OwnershipSwitchProtocol] Playback start error on commit:', e);
     }
 
     // 3. Broadcast authoritative state version 1 as new owner
-    PlaybackOwnerEngine.getInstance().broadcastState();
+    PlaybackOwnerEngine.getInstance().publishAuthoritativePlaybackState();
 
     const pending = this.activeTransfers.get(commit.transferId);
     if (pending) {

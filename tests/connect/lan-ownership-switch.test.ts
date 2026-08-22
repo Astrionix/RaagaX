@@ -27,6 +27,7 @@ describe('RaagaX Connect V2: 4-Way Atomic Ownership Switch Protocol', () => {
     usePlayerStore.setState({
       deviceId: 'dev_d1',
       activeDeviceId: 'dev_d1',
+      connectedDeviceId: null,
       isActiveDevice: true,
       currentSong: mockSong,
       queue: [mockSong],
@@ -49,7 +50,18 @@ describe('RaagaX Connect V2: 4-Way Atomic Ownership Switch Protocol', () => {
       sentMessages.push(msg);
       // Simulate asynchronous peer response
       setTimeout(() => {
-        if (msg.type === 'SWITCH_REQUEST') {
+        if (msg.type === 'SWITCH_OFFER') {
+          // M1 receives offer from D1, prepares, and responds with SWITCH_READY
+          transport.handleIncomingMessage({
+            id: 'rdy_1',
+            type: 'SWITCH_READY',
+            sourceDeviceId: 'dev_m1',
+            targetDeviceId: 'dev_d1',
+            transferId: (msg as any).transferId,
+            readyPositionMs: 120000,
+            timestamp: Date.now(),
+          });
+        } else if (msg.type === 'SWITCH_REQUEST') {
           // D1 responds with offer
           transport.handleIncomingMessage({
             id: 'off_1',
@@ -101,7 +113,7 @@ describe('RaagaX Connect V2: 4-Way Atomic Ownership Switch Protocol', () => {
 
     vi.spyOn(transport, 'sendMessage').mockImplementation((targetId, msg) => {
       setTimeout(() => {
-        if (msg.type === 'SWITCH_REQUEST') {
+        if (msg.type === 'SWITCH_OFFER' || msg.type === 'SWITCH_REQUEST') {
           // Simulate target failing to load track (e.g. network timeout or unsupported codec)
           transport.handleIncomingMessage({
             id: 'fail_1',

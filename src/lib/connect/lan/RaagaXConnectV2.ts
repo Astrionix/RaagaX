@@ -172,6 +172,24 @@ export class RaagaXConnectV2 {
     } catch {}
   }
 
+  public handleAccountLogout() {
+    console.log('[RaagaXConnectV2] Handling Account Logout: Resetting Connect sessions and credentials...');
+    this.disconnect();
+    try {
+      ConnectAuthManager.getInstance().removeAllTrustedPeers();
+    } catch {}
+    usePlayerStore.setState({
+      onlineDevices: [],
+      connectedDeviceId: null,
+      isActiveDevice: true,
+      remoteDeviceName: undefined,
+      deviceConnectionState: 'AVAILABLE',
+    });
+    try {
+      LocalDiscoveryService.getInstance().broadcastAdvertisement();
+    } catch {}
+  }
+
   private syncDiscoveredDevicesToStore(devices: DiscoveredLANDevice[]) {
     const localId = LocalDiscoveryService.getInstance().getLocalIdentity().deviceId;
     const currentUserId = useAuthStore.getState().user?.id;
