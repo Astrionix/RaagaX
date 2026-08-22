@@ -5,7 +5,8 @@ import {
   Heart, Download, Clock, ListMusic, Play, ChevronRight, 
   User, Disc, Sparkles, Laptop, ChevronLeft, Music, Library, Shuffle,
   HardDrive, Trash2, CheckCircle2, Layers, WifiOff, RefreshCw, ShieldCheck,
-  Globe, ArrowUpDown, BarChart3, Wifi, CloudDownload, Heart as HeartFill
+  Globe, ArrowUpDown, BarChart3, Wifi, CloudDownload, Heart as HeartFill,
+  Check, Loader2
 } from 'lucide-react';
 import { InsightsView } from '@/components/views/InsightsView';
 import { ArtistsView } from '@/components/views/ArtistsView';
@@ -76,6 +77,8 @@ export function LibraryView() {
     purgeOfflineDownloads,
     removeDownload,
     nativeDownloadedTracks,
+    saveForOffline,
+    tasks,
   } = useDownloadStore();
 
   const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
@@ -410,10 +413,26 @@ export function LibraryView() {
         </div>
       );
     }
+
+    const pendingDownloads = songs.filter((s) => !downloadedSongIds.includes(s.id) && !nativeDownloadedTracks?.[s.id]);
+    const isAllDownloaded = songs.length > 0 && pendingDownloads.length === 0;
+    const isDownloading = songs.some((s) => {
+      const t = tasks[s.id];
+      return t && (t.status === 'DOWNLOADING' || t.status === 'QUEUED' || t.status === 'VERIFYING');
+    });
+
+    const handleDownloadAll = async () => {
+      if (isAllDownloaded || isDownloading) return;
+      haptics.mediumImpact();
+      for (const song of pendingDownloads) {
+        saveForOffline(song);
+      }
+    };
+
     return (
       <div className="space-y-4">
-        {/* Play & Shuffle Header Actions */}
-        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2.5 w-full sm:w-auto pt-2 pb-1">
+        {/* Play, Shuffle & Download All Header Actions */}
+        <div className="flex flex-wrap items-center gap-2.5 w-full pt-2 pb-1">
           <button
             onClick={() => handlePlayAll(songs, false)}
             className="h-11 sm:h-10 px-5 rounded-full bg-[#FA233B] hover:bg-[#D90429] active:scale-95 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-[#FA233B]/25 transition-all cursor-pointer"
@@ -428,6 +447,38 @@ export function LibraryView() {
             <Shuffle className="w-4 h-4 text-slate-200" />
             Shuffle
           </button>
+
+          {tab === 'liked' && (
+            <button
+              onClick={handleDownloadAll}
+              disabled={isAllDownloaded || isDownloading}
+              className={`h-11 sm:h-10 px-4 rounded-full font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                isAllDownloaded
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 opacity-90 cursor-default'
+                  : isDownloading
+                  ? 'bg-white/10 border-white/20 text-emerald-400 cursor-wait'
+                  : 'bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-slate-950 border-emerald-500 shadow-md shadow-emerald-500/25'
+              }`}
+              title={isAllDownloaded ? 'All liked songs downloaded' : 'Download all liked songs for offline listening'}
+            >
+              {isAllDownloaded ? (
+                <>
+                  <Check className="w-4 h-4 text-emerald-400 stroke-[2.5]" />
+                  <span>Downloaded</span>
+                </>
+              ) : isDownloading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                  <span>Downloading...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 text-slate-950 stroke-[2.5]" />
+                  <span>Download All ({pendingDownloads.length})</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
 
         <div className="space-y-2">
