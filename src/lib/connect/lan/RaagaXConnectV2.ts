@@ -101,7 +101,10 @@ export class RaagaXConnectV2 {
     type: LANRemoteCommandMessage['type'],
     payload?: LANRemoteCommandMessage['payload']
   ) {
-    if (PlaybackOwnerEngine.getInstance().isOwner()) {
+    const store = usePlayerStore.getState();
+    const isLocalActive = store.isActiveDevice && !store.connectedDeviceId;
+
+    if (isLocalActive) {
       // Local owner executes directly
       PlaybackOwnerEngine.getInstance().handleRemoteCommand({
         id: 'local_cmd_' + Date.now(),

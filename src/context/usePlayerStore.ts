@@ -1400,6 +1400,12 @@ export const usePlayerStore = create<PlayerState>()(
         if (get().isActiveDevice && !fromRemote) {
           if (get().activeRenderer === 'video') {
             PlaybackService.getInstance().pauseAudioElementOnly();
+          } else if (RaagaXNativePlayer.isNative()) {
+            if (!playing) {
+              await RaagaXNativePlayer.pause();
+            } else {
+              await RaagaXNativePlayer.resume();
+            }
           } else {
             if (!playing) {
               PlaybackService.getInstance().pause();
