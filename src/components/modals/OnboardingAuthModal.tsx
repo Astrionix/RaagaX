@@ -196,17 +196,29 @@ export function OnboardingAuthModal() {
     });
 
     try {
-      const { error, data } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: username } }
-      });
-      if (error) throw error;
+      if (email && password) {
+        try {
+          const { error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: { data: { full_name: username || 'RaagaX Listener' } }
+          });
+          if (error) {
+            console.warn('[Onboarding] Supabase signup note:', error.message);
+          }
+        } catch (authEx) {
+          console.warn('[Onboarding] Cloud auth skipped/offline:', authEx);
+        }
+      }
       localStorage.setItem('raagax_onboarding_done', 'true');
+      localStorage.setItem('raagax_preferred_language', selectedLanguages[0] || 'Telugu');
+      localStorage.setItem('raagax_preferred_artists', JSON.stringify(selectedArtists));
+      localStorage.setItem('raagax_preferred_moods', JSON.stringify(selectedMoods));
       setAuthModalOpen(false);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Authentication failed');
-      setMode('register-credentials');
+      console.warn('[Onboarding] Finalize fallback:', err);
+      localStorage.setItem('raagax_onboarding_done', 'true');
+      setAuthModalOpen(false);
     } finally {
       setIsLoading(false);
     }
@@ -452,8 +464,8 @@ export function OnboardingAuthModal() {
               })();
 
               return (
-                <div className="animate-in slide-in-from-right-4 duration-300">
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="animate-in slide-in-from-right-4 duration-300 pb-20 md:pb-6">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
                     {activeArtists.map(artist => {
                     const isSelected = selectedArtists.includes(artist.name);
                     return (
@@ -466,9 +478,9 @@ export function OnboardingAuthModal() {
                             setSelectedArtists(prev => [...prev, artist.name]);
                           }
                         }}
-                        className="flex flex-col items-center gap-2 group outline-none"
+                        className="flex flex-col items-center gap-2 group outline-none cursor-pointer"
                       >
-                        <div className={`relative w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden border-4 transition-all duration-300 ${isSelected ? 'border-[#F51B3D] scale-105' : 'border-transparent group-hover:border-[#272A33]'}`}>
+                        <div className={`relative w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden border-4 transition-all duration-300 ${isSelected ? 'border-[#F51B3D] scale-105 shadow-lg shadow-red-500/20' : 'border-transparent group-hover:border-[#272A33]'}`}>
                           <img 
                             src={artist.img || '/app-icon.png'} 
                             alt={artist.name} 
@@ -477,28 +489,32 @@ export function OnboardingAuthModal() {
                           />
                           {isSelected && (
                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                              <Check className="w-8 h-8 text-white" />
+                              <Check className="w-8 h-8 text-white stroke-[3]" />
                             </div>
                           )}
                         </div>
-                        <span className={`text-[12px] font-semibold text-center transition-colors ${isSelected ? 'text-white' : 'text-[#9AA0AE] group-hover:text-white'}`}>
+                        <span className={`text-[12px] font-semibold text-center transition-colors ${isSelected ? 'text-white font-bold' : 'text-[#9AA0AE] group-hover:text-white'}`}>
                           {artist.name}
                         </span>
                       </button>
                     )
                   })}
                 </div>
-                <button
-                  onClick={handleFinalizeRegister}
-                  disabled={isLoading}
-                  className="w-full h-[56px] mt-8 rounded-[16px] bg-[#F51B3D] text-white font-bold text-[15px] hover:bg-gradient-to-r hover:from-[#F51B3D] hover:to-[#FF2347] hover:scale-[1.01] active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2 group"
-                >
-                  {isLoading ? (
-                    <><Loader2 className="w-5 h-5 animate-spin" /> Creating Account...</>
-                  ) : (
-                    <>{selectedArtists.length > 0 ? 'Finish Setup' : 'Skip & Finish'} <ArrowRight className="w-5 h-5 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" /></>
-                  )}
-                </button>
+
+                {/* Sticky Continue / Done Button */}
+                <div className="sticky bottom-0 left-0 right-0 pt-3 pb-4 bg-gradient-to-t from-[#07080C] via-[#07080C]/95 to-transparent z-20">
+                  <button
+                    onClick={handleFinalizeRegister}
+                    disabled={isLoading}
+                    className="w-full h-[56px] rounded-[16px] bg-[#F51B3D] hover:bg-[#d91e32] text-white font-bold text-[15px] shadow-lg shadow-red-500/25 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer group"
+                  >
+                    {isLoading ? (
+                      <><Loader2 className="w-5 h-5 animate-spin" /> Finalizing Setup...</>
+                    ) : (
+                      <>{selectedArtists.length > 0 ? `Continue (${selectedArtists.length} Selected)` : 'Finish Setup'} <ArrowRight className="w-5 h-5 opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-all" /></>
+                    )}
+                  </button>
+                </div>
               </div>
               );
             })()}
