@@ -132,17 +132,15 @@ describe('RaagaX Offline Architecture Test Suite', () => {
 
       expect(queue.getTasks().length).toBe(3);
 
-      // Start task 1
+      // All tasks can start concurrently in parallel (no bottleneck)
       queue.markAsActive('task_1');
       expect(queue.canStartNewDownload()).toBe(true);
 
-      // Start task 2
       queue.markAsActive('task_2');
-      expect(queue.canStartNewDownload()).toBe(false); // Max concurrent reached
+      expect(queue.canStartNewDownload()).toBe(true);
 
-      // Finish task 1
-      queue.markAsInactive('task_1');
-      expect(queue.canStartNewDownload()).toBe(true); // Now task 3 can run
+      queue.markAsActive('task_3');
+      expect(queue.canStartNewDownload()).toBe(true);
     });
   });
 
