@@ -523,6 +523,78 @@ export const usePlaylistStore = create<PlaylistStore>()(
     }),
     {
       name: 'raagax-playlists-store-v2',
+      partialize: (state) => ({
+        playlists: (state.playlists || []).map((pl) => ({
+          id: pl.id,
+          name: pl.name,
+          title: (pl as any).title || pl.name,
+          description: pl.description,
+          coverUrl: pl.coverUrl,
+          cover_url: (pl as any).cover_url || pl.coverUrl,
+          visibility: pl.visibility,
+          ownerId: pl.ownerId,
+          owner_id: (pl as any).owner_id || pl.ownerId,
+          createdAt: pl.createdAt,
+          updatedAt: pl.updatedAt,
+          songIds: pl.songIds || [],
+          songs: (pl.songs || []).slice(0, 50).map((s) => ({
+            id: s.id,
+            title: s.title,
+            artist: s.artist,
+            album: s.album,
+            duration: s.duration,
+            coverUrl: s.coverUrl,
+            audioUrl: s.audioUrl,
+            genre: s.genre,
+            category: s.category,
+          })),
+          likesCount: pl.likesCount,
+          isLikedByMe: pl.isLikedByMe,
+          isCollaborative: pl.isCollaborative,
+        })),
+      }),
+      storage: {
+        getItem: (name) => {
+          if (typeof window === 'undefined') return null;
+          try {
+            const val = window.localStorage.getItem(name);
+            return val ? JSON.parse(val) : null;
+          } catch {
+            return null;
+          }
+        },
+        setItem: (name, value) => {
+          if (typeof window === 'undefined') return;
+          try {
+            window.localStorage.setItem(name, JSON.stringify(value));
+          } catch (err: any) {
+            console.warn('[usePlaylistStore] Quota guard triggered:', err?.message);
+            try {
+              // Store compact ID-only list to stay well under 5MB quota
+              const compact = {
+                state: {
+                  playlists: ((value as any)?.state?.playlists || []).map((p: any) => ({
+                    id: p.id,
+                    name: p.name,
+                    coverUrl: p.coverUrl,
+                    songIds: p.songIds || [],
+                    songs: [],
+                  })),
+                },
+              };
+              window.localStorage.setItem(name, JSON.stringify(compact));
+            } catch {
+              // In-memory store continues safely without crashing
+            }
+          }
+        },
+        removeItem: (name) => {
+          if (typeof window === 'undefined') return;
+          try {
+            window.localStorage.removeItem(name);
+          } catch {}
+        },
+      },
     }
   )
 );
