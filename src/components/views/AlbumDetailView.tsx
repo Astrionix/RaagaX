@@ -43,6 +43,7 @@ export function AlbumDetailView() {
   const {
     tasks,
     nativeDownloadedTracks,
+    isOfflineMode,
     saveForOffline,
     removeDownload,
     downloadAlbum,
@@ -75,8 +76,36 @@ export function AlbumDetailView() {
 
     const loadRealTracks = async () => {
       try {
-        if (selectedAlbumId === 'offline' || selectedAlbumId.startsWith('alb-') || selectedAlbumId === 'unknown') {
-          console.log(`[LIBRARY_ALBUM_ID_MISSING]\ntrackId=\nalbumName=${baseAlbum?.title || ''}\nartist=${baseAlbum?.artist || ''}`);
+        const isOffline = (typeof navigator !== 'undefined' && !navigator.onLine) || isOfflineMode;
+
+        // When offline: skip network requests and display local tracks
+        if (isOffline) {
+          const store = usePlayerStore.getState();
+          const allKnown = Array.from(store.queue || []);
+          const downloadedMatches = allKnown.filter(s =>
+            (s.albumId === selectedAlbumId || s.album?.toLowerCase() === (baseAlbum?.title || selectedAlbumId).toLowerCase())
+          );
+          if (downloadedMatches.length > 0 && isMounted) {
+            setAlbum({
+              id: selectedAlbumId,
+              title: baseAlbum?.title || downloadedMatches[0].album || 'Downloaded Album',
+              artist: baseAlbum?.artist || downloadedMatches[0].artist || 'Various Artists',
+              artistId: baseAlbum?.artistId || downloadedMatches[0].artistId || `art-${selectedAlbumId}`,
+              coverUrl: baseAlbum?.coverUrl || downloadedMatches[0].coverUrl || '/app-icon.png',
+              releaseDate: baseAlbum?.releaseDate || '2024-01-01',
+              releaseYear: baseAlbum?.releaseYear || 2024,
+              trackCount: downloadedMatches.length,
+              durationSec: downloadedMatches.reduce((acc, t) => acc + (t.duration || 210), 0),
+              language: preferredLanguage,
+              albumType: 'album',
+              freshnessScore: 90,
+              trendingScore: 90,
+              topScore: 90,
+              tracks: downloadedMatches,
+            });
+            setIsLoadingTracks(false);
+            return;
+          }
         }
 
         let mappedTracks: Song[] = [];
