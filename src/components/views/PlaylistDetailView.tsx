@@ -584,46 +584,46 @@ export function PlaylistDetailView() {
 
       {/* Action Toolbar */}
       <div className="space-y-4 pt-1">
-        {/* Main Action Buttons Row */}
-        <div className="flex flex-wrap items-center gap-3">
+        {/* Main Action Buttons Row: Play, Shuffle, Save to Library (Always Side-by-Side) */}
+        <div className="flex items-center gap-2 sm:gap-3 flex-nowrap overflow-x-auto no-scrollbar pb-1">
           <button
             onClick={() => handlePlay(false)}
-            className="h-11 px-6 rounded-full bg-[#fa233b] hover:bg-[#d91e32] active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-red-500/25 transition-all cursor-pointer shrink-0 whitespace-nowrap"
+            className="h-10 sm:h-11 px-4 sm:px-6 rounded-full bg-[#fa233b] hover:bg-[#d91e32] active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg shadow-red-500/25 transition-all cursor-pointer shrink-0 whitespace-nowrap"
           >
             <Play className="w-4 h-4 fill-white" />
-            Play
+            <span>Play</span>
           </button>
 
           <button
             onClick={() => handlePlay(true)}
-            className="h-11 px-5 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-white/10 shadow-md transition-all cursor-pointer shrink-0 whitespace-nowrap"
+            className="h-10 sm:h-11 px-3.5 sm:px-5 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2 border border-white/10 shadow-md transition-all cursor-pointer shrink-0 whitespace-nowrap"
           >
             <Shuffle className="w-4 h-4 text-slate-300" />
-            Shuffle
+            <span>Shuffle</span>
           </button>
 
           {isUserOwned ? (
             <button
               onClick={() => setShowAddSongsModal(true)}
-              className="h-11 px-5 rounded-full bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 hover:text-white border border-purple-500/30 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0 whitespace-nowrap"
+              className="h-10 sm:h-11 px-3.5 sm:px-5 rounded-full bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 hover:text-white border border-purple-500/30 text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer shrink-0 whitespace-nowrap"
             >
               <Plus className="w-4 h-4" />
-              Add Songs
+              <span>Add Songs</span>
             </button>
           ) : isSavedInLibrary ? (
             <div
-              className="h-11 px-5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shrink-0 whitespace-nowrap"
+              className="h-10 sm:h-11 px-3.5 sm:px-5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 sm:gap-2 shrink-0 whitespace-nowrap"
             >
               <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
-              In Your Library
+              <span>In Library</span>
             </div>
           ) : (
             <button
               onClick={handleSaveToLibrary}
-              className="h-11 px-5 rounded-full bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 hover:text-white border border-purple-500/30 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0 whitespace-nowrap"
+              className="h-10 sm:h-11 px-3.5 sm:px-5 rounded-full bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 hover:text-white border border-purple-500/30 text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer shrink-0 whitespace-nowrap"
             >
               <Plus className="w-4 h-4" />
-              Save to Library
+              <span>Save to Library</span>
             </button>
           )}
         </div>
