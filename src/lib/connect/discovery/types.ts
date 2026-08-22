@@ -34,6 +34,8 @@ export interface VerifiedDevice {
   isTrusted: boolean;
   isNearby: boolean;
   isAudioOutput: boolean;
+  isSameAccount?: boolean;
+  accountRelationship?: 'SAME_ACCOUNT' | 'OTHER_ACCOUNT';
   activePlaybackSong?: string;
   activePlaybackPositionMs?: number;
   lastSeenTimestamp: number;

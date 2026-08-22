@@ -400,6 +400,17 @@ export class DeviceRegistry {
   }
 
   /**
+   * Synchronously checks if a device ID belongs to the current user's registered devices list.
+   */
+  public isKnownUserDevice(targetDeviceId: string): boolean {
+    if (!targetDeviceId) return false;
+    const store = usePlayerStore.getState();
+    if (targetDeviceId === store.deviceId) return true;
+    const online = store.onlineDevices || [];
+    return online.some(d => d.id === targetDeviceId);
+  }
+
+  /**
    * Cryptographically / account-level verifies that a target device belongs to the same authenticated user.
    */
   public async isDeviceAuthorizedForUser(targetDeviceId: string, targetUserId?: string): Promise<boolean> {

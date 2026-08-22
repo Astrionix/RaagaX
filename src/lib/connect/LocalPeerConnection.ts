@@ -5,6 +5,7 @@ import { PlaybackStateSync } from './PlaybackStateSync';
 import { TransportRouter } from './TransportRouter';
 import { TransportScorer } from './TransportScorer';
 import { TransportHealthMonitor } from './TransportHealthMonitor';
+import { DeviceRegistry } from './DeviceRegistry';
 
 export class LocalPeerConnection {
   private static instance: LocalPeerConnection;
@@ -144,30 +145,63 @@ export class LocalPeerConnection {
         switch (msg.type) {
           case 'CONNECT_REQUEST': {
             console.log(`[LocalPeer] Received CONNECT_REQUEST from ${targetId}`);
-            // Validate incoming connection, then respond with current snapshot and capabilities
-            const store = usePlayerStore.getState();
-            const responseCmd = {
-              commandId: crypto.randomUUID(),
-              sessionId: ConnectManager.getInstance().getSessionId() || 'global',
-              epoch: 0,
-              sequence: 0,
-              sourceDeviceId: store.deviceId,
-              targetDeviceId: targetId,
-              type: 'CONNECT_RESPONSE',
-              sentAt: Date.now(),
-              payload: {
-                snapshot: store.getPlaybackSnapshot(),
-                capabilities: {
-                  audio: true,
-                  seek: true,
-                  volume: true
+            // Verify that incoming connection belongs to the same authorized user account
+            DeviceRegistry.getInstance().isDeviceAuthorizedForUser(targetId).then((isAuthorized) => {
+              const store = usePlayerStore.getState();
+              if (!isAuthorized) {
+                console.warn(`[LocalPeer] Rejecting CONNECT_REQUEST from device on different account: ${targetId}`);
+                const rejectCmd = {
+                  commandId: crypto.randomUUID(),
+                  sessionId: ConnectManager.getInstance().getSessionId() || 'global',
+                  sourceDeviceId: store.deviceId,
+                  targetDeviceId: targetId,
+                  type: 'CONNECT_REJECT',
+                  sentAt: Date.now(),
+                  reason: 'ACCOUNT_MISMATCH_UNAUTHORIZED'
+                };
+                if (dc.readyState === 'open') {
+                  dc.send(JSON.stringify(rejectCmd));
                 }
+                return;
               }
-            };
-            dc.send(JSON.stringify(responseCmd));
-            
-            // Mark direct peer available for routing via TransportRouter
-            TransportRouter.getInstance().onLanChannelAvailable(targetId);
+
+              // Authorized: respond with current snapshot and capabilities
+              const responseCmd = {
+                commandId: crypto.randomUUID(),
+                sessionId: ConnectManager.getInstance().getSessionId() || 'global',
+                epoch: 0,
+                sequence: 0,
+                sourceDeviceId: store.deviceId,
+                targetDeviceId: targetId,
+                type: 'CONNECT_RESPONSE',
+                sentAt: Date.now(),
+                payload: {
+                  snapshot: store.getPlaybackSnapshot(),
+                  capabilities: {
+                    audio: true,
+                    seek: true,
+                    volume: true
+                  }
+                }
+              };
+              if (dc.readyState === 'open') {
+                dc.send(JSON.stringify(responseCmd));
+              }
+              
+              // Mark direct peer available for routing via TransportRouter
+              TransportRouter.getInstance().onLanChannelAvailable(targetId);
+            }).catch(() => {});
+            break;
+          }
+
+          case 'CONNECT_REJECT': {
+            console.warn(`[LocalPeer] Connection rejected by ${targetId}: ${msg.reason || 'Unauthorized'}`);
+            const handshake = this.pendingHandshakes.get(targetId);
+            if (handshake) {
+              clearTimeout(handshake.timeout);
+              this.pendingHandshakes.delete(targetId);
+              handshake.resolve(false);
+            }
             break;
           }
 

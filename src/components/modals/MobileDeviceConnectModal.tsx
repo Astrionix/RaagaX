@@ -287,16 +287,114 @@ export function MobileDeviceConnectModal() {
 
         {/* DEVICE LIST */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
-          {/* 1. THIS DEVICE / CURRENT PLAYBACK */}
-          {currentlyPlayingDevice && (
+          {/* 1. CONNECTED REMOTE OWNER (When this device is acting as a Remote Controller) */}
+          {isRemotePlaying && currentlyPlayingDevice && (
             <div>
               <div className="flex items-center justify-between mb-2 px-1">
                 <span className="text-[11px] font-mono font-bold text-[#FA233B] uppercase tracking-wider flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-[#FA233B] animate-pulse" />
-                  {isRemotePlaying ? 'CONTROLLING REMOTE DEVICE' : 'THIS DEVICE'}
+                  CONNECTED
+                </span>
+                <span className="text-[10px] font-mono text-emerald-400 font-bold">
+                  Remote Controller
+                </span>
+              </div>
+
+              <div className="p-5 rounded-3xl bg-white/[0.04] border border-white/15 space-y-4 shadow-2xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#FA233B] to-purple-800 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+                      <CurrentIcon className="w-6 h-6" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-extrabold text-white leading-tight truncate">
+                          {currentlyPlayingDevice?.name || 'Remote Device'}
+                        </h4>
+                        <Check className="w-4 h-4 text-[#FA233B] flex-shrink-0" />
+                      </div>
+                      <p className="text-xs text-emerald-400 font-medium mt-0.5 flex items-center gap-1.5 truncate">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        <span>Remote Controller Active</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Track Details & Large Transport Controls */}
+                {currentSong && (
+                  <div className="pt-3 border-t border-white/10 space-y-3 text-center">
+                    <div>
+                      <h5 className="text-sm font-bold text-white truncate">{currentSong.title}</h5>
+                      <p className="text-xs text-slate-400 truncate mt-0.5">{currentSong.artist}</p>
+                      <p className="text-[11px] font-mono font-bold text-slate-400 mt-1">
+                        {formatTime(safeCurrentTime)} / {formatTime(safeDuration)}
+                      </p>
+                    </div>
+
+                    <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-[#FA233B] rounded-full transition-all duration-300"
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                    </div>
+
+                    {/* Dedicated ◀ ▶/⏸ ▶ Controls */}
+                    <div className="flex items-center justify-center gap-6 pt-1">
+                      <button 
+                        onClick={() => playPrev()}
+                        className="p-3 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer active:scale-90"
+                        title="Previous Track"
+                      >
+                        <SkipBack className="w-5 h-5 fill-current" />
+                      </button>
+                      <button 
+                        onClick={() => togglePlayPause()}
+                        className="w-12 h-12 rounded-full bg-[#FA233B] hover:bg-[#d91e32] text-white flex items-center justify-center shadow-lg transition-transform active:scale-95 cursor-pointer"
+                        title={isPlaying ? "Pause" : "Play"}
+                      >
+                        {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+                      </button>
+                      <button 
+                        onClick={() => playNext()}
+                        className="p-3 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer active:scale-90"
+                        title="Next Track"
+                      >
+                        <SkipForward className="w-5 h-5 fill-current" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Handoff / Disconnect Actions */}
+                <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-2.5">
+                  <button
+                    onClick={handleDisconnect}
+                    className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold text-slate-300 transition-all cursor-pointer"
+                  >
+                    Disconnect
+                  </button>
+                  <button
+                    onClick={() => handleTransfer(deviceId || '', 'This Device')}
+                    className="flex-1 px-4 py-2 rounded-xl bg-[#FA233B] hover:bg-[#d91e32] text-xs font-bold text-white shadow-md transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    Switch Playback Here
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 2. THIS DEVICE (When playing locally) */}
+          {!isRemotePlaying && currentlyPlayingDevice && (
+            <div>
+              <div className="flex items-center justify-between mb-2 px-1">
+                <span className="text-[11px] font-mono font-bold text-[#FA233B] uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[#FA233B] animate-pulse" />
+                  THIS DEVICE
                 </span>
                 <span className="text-[10px] font-mono text-slate-400 font-bold">
-                  {isRemotePlaying ? 'Remote Controller Active' : 'Playback Owner'}
+                  Playback Owner
                 </span>
               </div>
 
@@ -315,7 +413,7 @@ export function MobileDeviceConnectModal() {
                       </div>
                       <p className="text-xs text-slate-300 font-medium mt-0.5 truncate flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                        <span>{isRemotePlaying ? 'Controlling over Wi-Fi' : 'Playing locally on this device'}</span>
+                        <span>Playing locally</span>
                       </p>
                     </div>
                   </div>
@@ -381,15 +479,15 @@ export function MobileDeviceConnectModal() {
             </div>
           )}
 
-          {/* 2. AVAILABLE ON THIS WI-FI */}
+          {/* 3. DEVICES ON THIS WI-FI (ALL RaagaX devices on LAN: Your Account & Other Accounts) */}
           {nearbyDevices.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2 px-1">
                 <span className="text-[11px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                   <Wifi className="w-3.5 h-3.5 text-[#FA233B]" />
-                  AVAILABLE ON THIS WI-FI
+                  DEVICES ON THIS WI-FI
                 </span>
-                <span className="text-[10px] font-mono text-emerald-400 font-bold">Same Account & LAN</span>
+                <span className="text-[10px] font-mono text-slate-400">All Nearby Devices</span>
               </div>
 
               <div className="space-y-2.5">
@@ -399,24 +497,37 @@ export function MobileDeviceConnectModal() {
                   const liveState = (usePlayerStore.getState().availableDevicePlaybackStates || {})[device.deviceId];
                   const liveSongTitle = liveState?.songTitle || device.activePlaybackSong;
                   const isDevicePlaying = Boolean(liveState?.isPlaying || device.reachabilityState === 'CURRENTLY_PLAYING');
+                  const isOwnAccount = device.isSameAccount !== false && device.accountRelationship !== 'OTHER_ACCOUNT';
 
                   return (
                     <div 
                       key={device.deviceId}
-                      className="p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 hover:border-white/20 flex flex-col gap-3 transition-all group"
+                      className={`p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border ${isOwnAccount ? 'border-white/10 hover:border-white/20' : 'border-white/5 opacity-80'} flex flex-col gap-3 transition-all group`}
                     >
                       <div className="flex items-center justify-between min-w-0">
                         <div className="flex items-center gap-3.5 min-w-0">
-                          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white/80 group-hover:text-white group-hover:bg-[#FA233B]/20 group-hover:text-[#FA233B] transition-all flex-shrink-0">
+                          <div className={`w-10 h-10 rounded-xl ${isOwnAccount ? 'bg-white/10 group-hover:bg-[#FA233B]/20 group-hover:text-[#FA233B]' : 'bg-white/5 text-white/50'} flex items-center justify-center text-white/80 transition-all flex-shrink-0`}>
                             <DeviceIcon className="w-5 h-5" />
                           </div>
                           <div className="min-w-0">
-                            <h4 className="text-xs font-bold text-white truncate group-hover:text-[#FA233B] transition-colors">
-                              {device.name || 'Nearby Device'}
-                            </h4>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-xs font-bold text-white truncate group-hover:text-[#FA233B] transition-colors">
+                                {device.name || 'Nearby Device'}
+                              </h4>
+                              {/* Account Relationship Badge */}
+                              {isOwnAccount ? (
+                                <span className="text-[9px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 flex-shrink-0">
+                                  Your account
+                                </span>
+                              ) : (
+                                <span className="text-[9px] font-mono text-slate-400 bg-white/5 px-1.5 py-0.5 rounded border border-white/10 flex-shrink-0">
+                                  Other account
+                                </span>
+                              )}
+                            </div>
                             <p className="text-[10px] text-slate-400 font-medium mt-0.5 flex items-center gap-1.5 truncate">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                              <span>Online on Wi-Fi</span>
+                              <span className={`w-1.5 h-1.5 rounded-full ${isDevicePlaying ? 'bg-[#FA233B] animate-pulse' : 'bg-emerald-400'}`} />
+                              <span>{isDevicePlaying ? 'Playing' : 'Available'}</span>
                             </p>
                           </div>
                         </div>
@@ -433,36 +544,43 @@ export function MobileDeviceConnectModal() {
                       {liveSongTitle && (
                         <div className="px-3 py-2 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between text-[11px]">
                           <span className="text-white font-medium truncate max-w-[240px] flex items-center gap-1.5">
-                            <span className="text-[#FA233B]">♪</span> {liveSongTitle} {liveState?.artist ? `· ${liveState.artist}` : ''}
+                            <span className="text-[#FA233B]">🎵</span> {liveSongTitle} {liveState?.artist ? `· ${liveState.artist}` : ''}
                           </span>
                         </div>
                       )}
 
-                      {/* Dual Action Buttons: [ Control ] and [ Switch ] */}
-                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/5">
-                        <button
-                          type="button"
-                          disabled={isBusy}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleControl(device.deviceId, device.name || 'Device');
-                          }}
-                          className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white/90 hover:text-white transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
-                        >
-                          <span>Control</span>
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isBusy}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleTransfer(device.deviceId, device.name || 'Device');
-                          }}
-                          className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#FA233B] hover:bg-[#d91e32] text-white shadow-md transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
-                        >
-                          {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>Switch</span>}
-                        </button>
-                      </div>
+                      {/* Actions: Same-Account -> [ Control ] & [ Switch ], Other-Account -> View Only */}
+                      {isOwnAccount ? (
+                        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/5">
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleControl(device.deviceId, device.name || 'Device');
+                            }}
+                            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white/90 hover:text-white transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                          >
+                            <span>Control</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleTransfer(device.deviceId, device.name || 'Device');
+                            }}
+                            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#FA233B] hover:bg-[#d91e32] text-white shadow-md transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                          >
+                            {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>Switch</span>}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="pt-1 border-t border-white/5 flex items-center justify-between text-[10px] text-slate-500 font-mono">
+                          <span>Sign in to same account to control</span>
+                          <span className="bg-white/5 px-2 py-0.5 rounded text-slate-400">View only</span>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

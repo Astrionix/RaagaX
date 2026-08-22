@@ -158,6 +158,8 @@ export class DeviceDiscoveryEngine {
         isTrusted: true,
         isNearby: true,
         isAudioOutput: false,
+        isSameAccount: true,
+        accountRelationship: 'SAME_ACCOUNT',
         activePlaybackSong: store.currentSong?.title,
         activePlaybackPositionMs: (store.currentTime || 0) * 1000,
         lastSeenTimestamp: Date.now(),
@@ -197,6 +199,8 @@ export class DeviceDiscoveryEngine {
           : new Set<DiscoverySource>();
         sources.add('CLOUD');
 
+        const isUserAccountDevice = DeviceRegistry.getInstance().isKnownUserDevice(record.id);
+
         const devRecord = record as any;
         const updated: VerifiedDevice = {
           deviceId: record.id,
@@ -223,6 +227,8 @@ export class DeviceDiscoveryEngine {
           isTrusted: true,
           isNearby: sources.has('LAN'),
           isAudioOutput: false,
+          isSameAccount: isUserAccountDevice,
+          accountRelationship: isUserAccountDevice ? 'SAME_ACCOUNT' : 'OTHER_ACCOUNT',
           activePlaybackSong: isRemoteActive ? store.currentSong?.title : undefined,
           activePlaybackPositionMs: isRemoteActive ? (store.currentTime || 0) * 1000 : undefined,
           lastSeenTimestamp: isOnline ? Date.now() : existing?.lastSeenTimestamp || Date.now() - 300000,
@@ -238,9 +244,8 @@ export class DeviceDiscoveryEngine {
   }
 
   private async ingestLocalLANDevices(localDeviceId: string) {
-    // Attempt local peer discovery / mDNS abstraction
+    // Ingest all local peer discovery / mDNS LAN devices without filtering out other accounts
     try {
-      // For any peers with active direct WebRTC data channels, mark as LAN_REACHABLE
       this.verifiedDevices.forEach((device) => {
         if (device && device.deviceId !== localDeviceId && device.reachabilityState !== 'OFFLINE') {
           if (device.discoverySources instanceof Set) {
@@ -249,6 +254,10 @@ export class DeviceDiscoveryEngine {
             device.discoverySources = new Set(['LAN']);
           }
           device.isNearby = true;
+          // Dynamically resolve account relationship for LAN peers
+          const isOwn = DeviceRegistry.getInstance().isKnownUserDevice(device.deviceId);
+          device.isSameAccount = isOwn;
+          device.accountRelationship = isOwn ? 'SAME_ACCOUNT' : 'OTHER_ACCOUNT';
         }
       });
     } catch {}
