@@ -626,45 +626,6 @@ export function PlaylistDetailView() {
               Save to Library
             </button>
           )}
-
-          {/* Main Download All Action Button */}
-          {playlist && playlist.songs && playlist.songs.length > 0 && (
-            <button
-              onClick={isAllDownloaded ? handleRemoveAllDownloads : handleDownloadAll}
-              className={`h-11 px-5 rounded-full text-xs sm:text-sm font-bold flex items-center justify-center gap-2 border shadow-md transition-all active:scale-95 cursor-pointer shrink-0 whitespace-nowrap ${
-                isAllDownloaded
-                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                  : isDownloading
-                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
-                  : hasFailures
-                  ? 'bg-red-500/15 border-red-500/30 text-red-400'
-                  : 'bg-white/10 hover:bg-white/15 text-white border-white/10'
-              }`}
-              title={isAllDownloaded ? "All songs downloaded (Click to manage)" : "Download All Songs"}
-            >
-              {isAllDownloaded ? (
-                <>
-                  <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
-                  <span>Downloaded</span>
-                </>
-              ) : isDownloading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
-                  <span className="font-mono">Downloading {downloadedSongsInPlaylist.length} of {playlist.songs.length}</span>
-                </>
-              ) : hasFailures ? (
-                <>
-                  <Download className="w-4 h-4 text-red-400" />
-                  <span>Downloaded {downloadedSongsInPlaylist.length} of {playlist.songs.length} ({failedCount} failed)</span>
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4 text-emerald-400" />
-                  <span>{downloadedSongsInPlaylist.length > 0 ? `Downloaded ${downloadedSongsInPlaylist.length}/${playlist.songs.length}` : 'Download All'}</span>
-                </>
-              )}
-            </button>
-          )}
         </div>
 
         {/* Secondary Toolbar: Sort & Compact Download All */}
@@ -690,45 +651,6 @@ export function PlaylistDetailView() {
               className="px-4 py-1.5 rounded-full bg-[#fa233b] text-white text-xs font-bold shadow transition-all cursor-pointer"
             >
               Done Reordering
-            </button>
-          )}
-
-          {/* Compact Download All Button (Mobile Toolbar) */}
-          {isNative && (
-            <button
-              onClick={isAllDownloaded ? handleRemoveAllDownloads : handleDownloadAll}
-              className={`md:hidden flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all active:scale-95 cursor-pointer ${
-                isAllDownloaded
-                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                  : isDownloading
-                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
-                  : hasFailures
-                  ? 'bg-red-500/15 border-red-500/30 text-red-400'
-                  : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300 hover:text-white'
-              }`}
-              title={isAllDownloaded ? "All songs downloaded (Click to manage)" : "Download All Songs"}
-            >
-              {isAllDownloaded ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
-                  <span>{downloadedSongsInPlaylist.length}/{playlist.songs.length}</span>
-                </>
-              ) : isDownloading ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
-                  <span className="font-mono">{downloadedSongsInPlaylist.length}/{playlist.songs.length}</span>
-                </>
-              ) : hasFailures ? (
-                <>
-                  <Download className="w-3.5 h-3.5 text-red-400" />
-                  <span>{downloadedSongsInPlaylist.length}/{playlist.songs.length}</span>
-                </>
-              ) : (
-                <>
-                  <Download className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{downloadedSongsInPlaylist.length > 0 ? `${downloadedSongsInPlaylist.length}/${playlist.songs.length}` : 'Download All'}</span>
-                </>
-              )}
             </button>
           )}
         </div>
