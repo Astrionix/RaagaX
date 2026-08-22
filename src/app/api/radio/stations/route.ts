@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Endpoints } from '@/common/constants';
-import { ApiContextEnum } from '@/common/enums';
-import { apiFetch } from '@/common/helpers';
+import { getStationCatalog } from '@/lib/radio/radioCatalog';
 
 export interface RadioStationMetadata {
   id: string;
@@ -540,13 +538,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const language = searchParams.get('language') || 'Telugu';
 
-    let stations: RadioStationMetadata[] = [];
-
-    if (language === 'All') {
-      stations = Object.values(STATION_CATALOG_DATA).flat();
-    } else {
-      stations = STATION_CATALOG_DATA[language] || STATION_CATALOG_DATA.Telugu || [];
-    }
+    const stations = getStationCatalog(language);
 
     return NextResponse.json({
       success: true,

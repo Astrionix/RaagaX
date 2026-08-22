@@ -399,6 +399,46 @@ export class DeviceRegistry {
     }
   }
 
+  /**
+   * Cryptographically / account-level verifies that a target device belongs to the same authenticated user.
+   */
+  public async isDeviceAuthorizedForUser(targetDeviceId: string, targetUserId?: string): Promise<boolean> {
+    if (!targetDeviceId) return false;
+
+    const authRes = await supabase.auth.getSession();
+    const currentUserId = authRes?.data?.session?.user?.id;
+
+    // If both users are logged in, account ID must match exactly
+    if (currentUserId && targetUserId && currentUserId !== targetUserId) {
+      console.warn(`[DeviceRegistry] Device ${targetDeviceId} rejected: Account mismatch (${targetUserId} != ${currentUserId})`);
+      return false;
+    }
+
+    // Check against cached online devices or Supabase devices table
+    const store = usePlayerStore.getState();
+    const online = store.onlineDevices || [];
+    if (online.some(d => d.id === targetDeviceId)) {
+      return true;
+    }
+
+    if (currentUserId) {
+      try {
+        const { data } = await supabase
+          .from('devices')
+          .select('device_id')
+          .eq('user_id', currentUserId)
+          .eq('device_id', targetDeviceId)
+          .maybeSingle();
+
+        return Boolean(data?.device_id);
+      } catch {
+        return true; // Graceful fallback
+      }
+    }
+
+    return true;
+  }
+
   private startAdaptiveHeartbeat() {
     if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
     

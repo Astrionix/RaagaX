@@ -93,6 +93,23 @@ export function MobileDeviceConnectModal() {
     setTimeout(() => setIsScanning(false), 800);
   };
 
+  const handleControl = async (targetId: string, targetName: string) => {
+    if (!targetId) return;
+    setErrorMessage(null);
+    try {
+      import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact()).catch(() => {});
+      const { ConnectManager } = await import('@/lib/connect/ConnectManager');
+      const ok = await ConnectManager.getInstance().connectToDevice(targetId);
+      if (ok) {
+        setTimeout(() => toggleDeviceModal(), 300);
+      } else {
+        setErrorMessage(`Could not connect to ${targetName} for remote control.`);
+      }
+    } catch (err: any) {
+      setErrorMessage(`Failed to connect: ${err?.message || 'Unknown error'}`);
+    }
+  };
+
   const handleTransfer = async (targetId: string, targetName: string) => {
     if (!targetId || targetId === activeDeviceId) return;
     setErrorMessage(null);
@@ -270,16 +287,16 @@ export function MobileDeviceConnectModal() {
 
         {/* DEVICE LIST */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
-          {/* 1. CURRENT PLAYBACK */}
+          {/* 1. THIS DEVICE / CURRENT PLAYBACK */}
           {currentlyPlayingDevice && (
             <div>
               <div className="flex items-center justify-between mb-2 px-1">
                 <span className="text-[11px] font-mono font-bold text-[#FA233B] uppercase tracking-wider flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-[#FA233B] animate-pulse" />
-                  {isRemotePlaying ? 'REMOTE PLAYBACK' : 'THIS DEVICE'}
+                  {isRemotePlaying ? 'CONTROLLING REMOTE DEVICE' : 'THIS DEVICE'}
                 </span>
-                <span className="text-[10px] font-mono text-slate-400">
-                  {currentlyPlayingDevice.deviceId === deviceId ? 'Authoritative Renderer' : 'Remote Controlled'}
+                <span className="text-[10px] font-mono text-slate-400 font-bold">
+                  {isRemotePlaying ? 'Remote Controller Active' : 'Playback Owner'}
                 </span>
               </div>
 
@@ -298,7 +315,7 @@ export function MobileDeviceConnectModal() {
                       </div>
                       <p className="text-xs text-slate-300 font-medium mt-0.5 truncate flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                        <span>Connected to Wi-Fi</span>
+                        <span>{isRemotePlaying ? 'Controlling over Wi-Fi' : 'Playing locally on this device'}</span>
                       </p>
                     </div>
                   </div>
@@ -364,49 +381,88 @@ export function MobileDeviceConnectModal() {
             </div>
           )}
 
-          {/* 2. AVAILABLE NEARBY DEVICES */}
+          {/* 2. AVAILABLE ON THIS WI-FI */}
           {nearbyDevices.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2 px-1">
                 <span className="text-[11px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                   <Wifi className="w-3.5 h-3.5 text-[#FA233B]" />
-                  AVAILABLE DEVICES
+                  AVAILABLE ON THIS WI-FI
                 </span>
-                <span className="text-[10px] font-mono text-emerald-400 font-bold">Same Wi-Fi</span>
+                <span className="text-[10px] font-mono text-emerald-400 font-bold">Same Account & LAN</span>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {nearbyDevices.map((device) => {
                   const DeviceIcon = getDeviceIcon(device.platform, device.isAudioOutput);
                   const isBusy = transferringId === device.deviceId;
+                  const liveState = (usePlayerStore.getState().availableDevicePlaybackStates || {})[device.deviceId];
+                  const liveSongTitle = liveState?.songTitle || device.activePlaybackSong;
+                  const isDevicePlaying = Boolean(liveState?.isPlaying || device.reachabilityState === 'CURRENTLY_PLAYING');
 
                   return (
                     <div 
                       key={device.deviceId}
-                      onClick={() => !isBusy && handleTransfer(device.deviceId, device.name || 'Nearby Device')}
-                      className="p-3.5 rounded-2xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 hover:border-white/20 flex items-center justify-between transition-all cursor-pointer group"
+                      className="p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 hover:border-white/20 flex flex-col gap-3 transition-all group"
                     >
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white/80 group-hover:text-white group-hover:bg-[#FA233B]/20 group-hover:text-[#FA233B] transition-all flex-shrink-0">
-                          <DeviceIcon className="w-5 h-5" />
+                      <div className="flex items-center justify-between min-w-0">
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white/80 group-hover:text-white group-hover:bg-[#FA233B]/20 group-hover:text-[#FA233B] transition-all flex-shrink-0">
+                            <DeviceIcon className="w-5 h-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-xs font-bold text-white truncate group-hover:text-[#FA233B] transition-colors">
+                              {device.name || 'Nearby Device'}
+                            </h4>
+                            <p className="text-[10px] text-slate-400 font-medium mt-0.5 flex items-center gap-1.5 truncate">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                              <span>Online on Wi-Fi</span>
+                            </p>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <h4 className="text-xs font-bold text-white truncate group-hover:text-[#FA233B] transition-colors">
-                            {device.name || 'Nearby Device'}
-                          </h4>
-                          <p className="text-[10px] text-slate-400 font-medium mt-0.5 flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                            <span>Connected to Wi-Fi</span>
-                          </p>
-                        </div>
+
+                        {isDevicePlaying && (
+                          <span className="text-[10px] font-mono font-bold text-[#FA233B] bg-[#FA233B]/10 px-2 py-0.5 rounded-full border border-[#FA233B]/20 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#FA233B] animate-pulse" />
+                            Playing
+                          </span>
+                        )}
                       </div>
 
-                      <button
-                        disabled={isBusy}
-                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#FA233B] hover:bg-[#d91e32] text-white shadow-md transition-all group-hover:scale-105 active:scale-95 flex-shrink-0 cursor-pointer"
-                      >
-                        {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Connect'}
-                      </button>
+                      {/* Live Track Details on Remote Device if available */}
+                      {liveSongTitle && (
+                        <div className="px-3 py-2 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between text-[11px]">
+                          <span className="text-white font-medium truncate max-w-[240px] flex items-center gap-1.5">
+                            <span className="text-[#FA233B]">♪</span> {liveSongTitle} {liveState?.artist ? `· ${liveState.artist}` : ''}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Dual Action Buttons: [ Control ] and [ Switch ] */}
+                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/5">
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleControl(device.deviceId, device.name || 'Device');
+                          }}
+                          className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white/90 hover:text-white transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                        >
+                          <span>Control</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleTransfer(device.deviceId, device.name || 'Device');
+                          }}
+                          className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#FA233B] hover:bg-[#d91e32] text-white shadow-md transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                        >
+                          {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>Switch</span>}
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
