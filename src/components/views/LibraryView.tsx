@@ -448,7 +448,7 @@ export function LibraryView() {
             <span className="truncate">Shuffle</span>
           </button>
 
-          {tab === 'liked' && (
+          {isNative && tab === 'liked' && (
             <button
               onClick={handleDownloadAll}
               disabled={isAllDownloaded || isDownloading}

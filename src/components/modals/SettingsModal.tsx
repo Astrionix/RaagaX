@@ -186,8 +186,8 @@ export function SettingsModal() {
             </div>
           </div>
 
-          {/* Automatic Downloads */}
-          <div className="space-y-3">
+          {/* Automatic Downloads (Mobile Only) */}
+          <div className="md:hidden space-y-3">
             <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-2">
               <Download className="w-3.5 h-3.5 text-[#EF233C]" /> Automatic Downloads
             </label>
@@ -238,6 +238,100 @@ export function SettingsModal() {
                   {m.label}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Connect to Devices & Permissions */}
+          <div className="space-y-3 border-t border-white/5 pt-4">
+            <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Shield className="w-3.5 h-3.5 text-emerald-400" /> Connect to Devices & Trust
+              </span>
+            </label>
+
+            <div className="space-y-2">
+              <div className="text-xs text-neutral-300 font-medium">Who can control this device?</div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { id: 'ASK_EVERY_TIME', label: 'Ask every time' },
+                  { id: 'TRUSTED_ONLY', label: 'Trusted only' },
+                  { id: 'ANYONE_ON_WIFI', label: 'Anyone on Wi-Fi' },
+                  { id: 'NOBODY', label: 'Nobody' },
+                ].map((opt) => {
+                  const currentPolicy = typeof window !== 'undefined' ? (require('@/lib/connect/lan/ConnectAuthManager').ConnectAuthManager.getInstance().getControlPolicy()) : 'ASK_EVERY_TIME';
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => {
+                        const { ConnectAuthManager } = require('@/lib/connect/lan/ConnectAuthManager');
+                        ConnectAuthManager.getInstance().setPolicies(opt.id);
+                        setMounted((m: any) => !m); // force re-render
+                      }}
+                      className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all text-left ${
+                        currentPolicy === opt.id
+                          ? 'bg-emerald-500/20 border-emerald-500/50 text-white shadow-sm'
+                          : 'bg-white/[0.02] border-white/5 text-neutral-400 hover:border-white/10 hover:text-white'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Trusted Devices List & Kill Switch */}
+            <div className="pt-2">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold text-neutral-400">Trusted Devices</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const { ConnectAuthManager } = require('@/lib/connect/lan/ConnectAuthManager');
+                    ConnectAuthManager.getInstance().removeAllTrustedPeers();
+                    setMounted((m: any) => !m);
+                  }}
+                  className="text-[10px] font-bold text-red-400 hover:text-red-300 uppercase tracking-wider"
+                >
+                  Remove All Devices
+                </button>
+              </div>
+
+              <div className="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
+                {(() => {
+                  const { ConnectAuthManager } = require('@/lib/connect/lan/ConnectAuthManager');
+                  const peers = ConnectAuthManager.getInstance().getTrustedPeers();
+                  if (peers.length === 0) {
+                    return (
+                      <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 text-center text-xs text-neutral-500">
+                        No paired devices yet.
+                      </div>
+                    );
+                  }
+                  return peers.map((peer: any) => (
+                    <div key={peer.deviceId} className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-between">
+                      <div>
+                        <div className="text-xs font-bold text-white">{peer.deviceName}</div>
+                        <div className="text-[10px] text-neutral-400">
+                          {peer.permissions.allowControl ? 'Control ✓ ' : ''}
+                          {peer.permissions.allowSwitch ? 'Switch ✓' : ''}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          ConnectAuthManager.getInstance().removeTrustedPeer(peer.deviceId);
+                          setMounted((m: any) => !m);
+                        }}
+                        className="p-1 text-neutral-400 hover:text-red-400 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ));
+                })()}
+              </div>
             </div>
           </div>
 
