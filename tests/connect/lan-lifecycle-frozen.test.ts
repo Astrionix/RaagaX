@@ -396,7 +396,7 @@ describe('RaagaX Connect V2: Frozen Architecture Lifecycle Verification (Tests A
     // Mobile target simulates failure (e.g. stream load error / offline cache missing)
     vi.spyOn(transport, 'sendMessage').mockImplementation((targetId, msg) => {
       setTimeout(() => {
-        if (msg.type === 'SWITCH_REQUEST') {
+        if (msg.type === 'SWITCH_OFFER' || msg.type === 'SWITCH_REQUEST') {
           transport.handleIncomingMessage({
             id: 'fail_f',
             type: 'SWITCH_FAILED',
