@@ -141,7 +141,7 @@ export function SwipeableSongRow({
       if (actionType === 'remove_download') {
         // Require lightweight confirmation before deleting local physical file
         setShowConfirmModal(true);
-        haptics.warningImpact();
+        haptics.warningNotification();
       } else {
         executeAction();
       }
@@ -188,7 +188,7 @@ export function SwipeableSongRow({
             e.stopPropagation();
             if (actionType === 'remove_download') {
               setShowConfirmModal(true);
-              haptics.warningImpact();
+              haptics.warningNotification();
             } else {
               executeAction();
             }

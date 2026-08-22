@@ -101,6 +101,7 @@ interface DownloadStore {
   offlineSettings: {
     audioQuality: '128 kbps' | '192 kbps' | '320 kbps' | 'High' | 'Standard' | 'Lossless';
     autoDeleteTemp: boolean;
+    smartDownloads?: boolean;
     autoDownloadLikedSongs: boolean; // Setting: Automatic Downloads -> Download Liked Songs
     autoDownloadPlaylists: boolean;
     autoDownloadFavorites: boolean;

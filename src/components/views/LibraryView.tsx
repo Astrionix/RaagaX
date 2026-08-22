@@ -18,6 +18,7 @@ import { OfflineCatalog } from '@/lib/offline/OfflineCatalog';
 import { DownloadStorage } from '@/lib/offline/DownloadStorage';
 import { useAuthStore } from '@/context/useAuthStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
+import { AlbumCatalogEngine } from '@/lib/albumCatalog';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 import { Song } from '@/types/music';
 import { getCuratedPlaylists, LANGUAGE_PLAYLIST_MAP } from '@/constants/playlists';

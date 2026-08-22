@@ -189,7 +189,9 @@ export function AudioPlayerController() {
             id: incomingId || `native-${Date.now()}`,
             title: data.title || 'RaagaX Music',
             artist: data.artist || 'Unknown Artist',
+            artistId: `art-${incomingId || Date.now()}`,
             album: 'RaagaX Music',
+            albumId: `alb-${incomingId || Date.now()}`,
             coverUrl: data.artworkUrl || '/app-icon.png',
             duration: data.durationMs && data.durationMs > 0 ? Math.round(data.durationMs / 1000) : 180,
             audioUrl: data.url || '',
@@ -202,13 +204,14 @@ export function AudioPlayerController() {
           matchIdx = typeof data.queueIndex === 'number' ? data.queueIndex : store.queueIndex;
         }
 
+        const validTrack: Song = track;
         const durationSec = data.durationMs && data.durationMs > 0 
           ? (data.durationMs / 1000) 
-          : (track.duration || 0);
+          : (validTrack.duration || 0);
 
         // Single atomic state update to prevent UI flickering / mixed metadata
         usePlayerStore.setState({
-          currentSong: track,
+          currentSong: validTrack,
           queueIndex: matchIdx !== -1 ? matchIdx : store.queueIndex,
           isPlaying: data.isPlaying !== undefined ? data.isPlaying : true,
           playbackIntent: 'PLAYING',
@@ -216,7 +219,7 @@ export function AudioPlayerController() {
           duration: durationSec,
         });
 
-        console.log(`[PLAYBACK_STATE_PUBLISHED]\ntrackId=${track.id}\ntitle=${track.title}\nartist=${track.artist}\nartwork=${track.coverUrl}\ndurationMs=${durationSec * 1000}\npositionMs=${data.positionMs || 0}\nisPlaying=true`);
+        console.log(`[PLAYBACK_STATE_PUBLISHED]\ntrackId=${validTrack.id}\ntitle=${validTrack.title}\nartist=${validTrack.artist}\nartwork=${validTrack.coverUrl}\ndurationMs=${durationSec * 1000}\npositionMs=${data.positionMs || 0}\nisPlaying=true`);
 
         import('@/lib/playback/MediaSessionManager').then(({ MediaSessionManager }) => {
           MediaSessionManager.getInstance().updateSongMetadata(track!);
