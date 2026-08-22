@@ -321,12 +321,11 @@ function throttlePersistSession(state: any, force = false) {
   }
 }
 
-// Initial sync session hydration for zero-flicker startup (only if valid/under 4 hours old)
 const getInitialSession = () => {
   if (typeof window === 'undefined') return null;
   try {
     const session = LocalDatabase.getInstance().getSyncPlaybackSession();
-    if (session && session.timestamp && (Date.now() - session.timestamp < 4 * 60 * 60 * 1000)) {
+    if (session && session.timestamp && (Date.now() - session.timestamp < 7 * 24 * 60 * 60 * 1000)) {
       return session;
     }
   } catch { }
@@ -474,8 +473,8 @@ export const usePlayerStore = create<PlayerState>()(
       volume: 0.8,
       isMuted: false,
 
-      queue: initialSession?.queue || [],
-      queueIndex: initialSession?.queueIndex || 0,
+      queue: (initialSession?.queue && initialSession.queue.length > 0) ? initialSession.queue : (initialSession?.currentSong ? [initialSession.currentSong] : []),
+      queueIndex: Math.max(0, initialSession?.queueIndex || 0),
       shuffleMode: 'OFF',
       repeatMode: 'off',
       isRefillingQueue: false,
@@ -853,8 +852,8 @@ export const usePlayerStore = create<PlayerState>()(
         }
 
         // Case 2: Cold boot / Fresh App Session — PASSIVE restoration (isPlaying = false, DO NOT AUTOPLAY)
-        // Sourced strictly from the most recent session if it's still valid/active (less than 4 hours old)
-        const isSessionValid = session && session.timestamp && (Date.now() - session.timestamp < 4 * 60 * 60 * 1000);
+        // Sourced strictly from the most recent session if it's still valid/active (less than 7 days old)
+        const isSessionValid = session && session.timestamp && (Date.now() - session.timestamp < 7 * 24 * 60 * 60 * 1000);
         if (isSessionValid && session && session.currentSong) {
           const candidateSong = session.currentSong;
           const rawQueue = (session.queue && session.queue.length > 0) ? session.queue : [session.currentSong];
