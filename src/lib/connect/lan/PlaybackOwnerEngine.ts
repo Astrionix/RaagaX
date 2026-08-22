@@ -184,11 +184,22 @@ export class PlaybackOwnerEngine {
       case 'CMD_SEEK':
         if (cmd.payload?.positionMs !== undefined) {
           const seekSec = cmd.payload.positionMs / 1000;
+          // Snapshot the current isPlaying BEFORE seeking — must be preserved.
+          // A paused seek stays paused. A playing seek stays playing.
+          const wasPlaying = Boolean(store.isPlaying);
           usePlayerStore.setState({ currentTime: seekSec });
           try {
             const { PlaybackService } = await import('@/lib/playback/PlaybackService');
             PlaybackService.getInstance().seek(seekSec);
+            // If was paused, explicitly pause after seek so the player doesn't auto-resume
+            if (!wasPlaying) {
+              PlaybackService.getInstance().pause();
+            }
           } catch {}
+          // Immediately broadcast authoritative state so the controller
+          // snaps to the confirmed position (not a delayed periodic update)
+          this.stateVersion++;
+          this.broadcastStateImmediately();
         }
         break;
 
