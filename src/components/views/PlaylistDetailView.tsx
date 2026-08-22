@@ -55,6 +55,7 @@ export function PlaylistDetailView() {
 
   const {
     tasks,
+    nativeDownloadedTracks,
     saveForOffline,
     removeDownload,
     downloadAlbum,
@@ -163,8 +164,12 @@ export function PlaylistDetailView() {
   // Download counts and sizes
   const downloadedSongsInPlaylist = useMemo(() => {
     if (!playlist || !playlist.songs) return [];
-    return playlist.songs.filter(s => downloadedSongIds.includes(s.id));
-  }, [playlist, downloadedSongIds]);
+    return playlist.songs.filter(s => {
+      const isDownloaded = downloadedSongIds.includes(s.id) || !!nativeDownloadedTracks?.[s.id];
+      const isTaskCompleted = tasks[s.id]?.status === 'COMPLETED';
+      return isDownloaded || isTaskCompleted;
+    });
+  }, [playlist, downloadedSongIds, nativeDownloadedTracks, tasks]);
 
   const pendingDownloadsCount = useMemo(() => {
     if (!playlist || !playlist.songs) return 0;
@@ -184,7 +189,7 @@ export function PlaylistDetailView() {
     }).length;
   }, [playlist, tasks]);
 
-  const isDownloading = downloadingCount > 0;
+  const isDownloading = downloadingCount > 0 && !isAllDownloaded;
 
   const isUserOwned = useMemo(() => {
     if (!playlist) return false;
@@ -638,15 +643,15 @@ export function PlaylistDetailView() {
               }`}
               title={isAllDownloaded ? "All songs downloaded (Click to manage)" : "Download All Songs"}
             >
-              {isDownloading ? (
+              {isAllDownloaded ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
+                  <span>{downloadedSongsInPlaylist.length}/{playlist.songs.length}</span>
+                </>
+              ) : isDownloading ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
                   <span className="font-mono">{downloadedSongsInPlaylist.length}/{playlist.songs.length}</span>
-                </>
-              ) : isAllDownloaded ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
-                  <span className="hidden sm:inline">Downloaded</span>
                 </>
               ) : (
                 <>
@@ -663,7 +668,7 @@ export function PlaylistDetailView() {
       {displaySongs.length > 0 ? (
         <div className="space-y-2 pt-2">
           {displaySongs.map((song, index) => {
-            const isDownloaded = downloadedSongIds.includes(song.id);
+            const isDownloaded = downloadedSongIds.includes(song.id) || !!nativeDownloadedTracks?.[song.id] || tasks[song.id]?.status === 'COMPLETED';
             const task = tasks[song.id];
             const isDownloading = task && (task.status === 'DOWNLOADING' || task.status === 'QUEUED' || task.status === 'VERIFYING');
             const isBrowserOffline = typeof navigator !== 'undefined' && !navigator.onLine;

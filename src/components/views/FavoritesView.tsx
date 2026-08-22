@@ -26,7 +26,7 @@ export function FavoritesView() {
     downloadedSongIds = [],
   } = usePlayerStore();
 
-  const { downloadAlbum, removeDownload, tasks, isOfflineMode } = useDownloadStore();
+  const { downloadAlbum, removeDownload, tasks, isOfflineMode, nativeDownloadedTracks } = useDownloadStore();
 
   const [offlineTracks, setOfflineTracks] = useState<Song[]>([]);
   const [resolvedSongsMap, setResolvedSongsMap] = useState<Record<string, Song>>({});
@@ -161,8 +161,12 @@ export function FavoritesView() {
   const isLikedListPlaying = isPlaying && currentSong && resolvedLikedSongs.some((s) => s.id === currentSong.id);
 
   const downloadedSongsInFavorites = useMemo(() => {
-    return resolvedLikedSongs.filter(s => downloadedSongIds.includes(s.id));
-  }, [resolvedLikedSongs, downloadedSongIds]);
+    return resolvedLikedSongs.filter(s => {
+      const isDownloaded = downloadedSongIds.includes(s.id) || !!nativeDownloadedTracks?.[s.id];
+      const isTaskCompleted = tasks[s.id]?.status === 'COMPLETED';
+      return isDownloaded || isTaskCompleted;
+    });
+  }, [resolvedLikedSongs, downloadedSongIds, nativeDownloadedTracks, tasks]);
 
   const pendingDownloadsCount = useMemo(() => {
     return resolvedLikedSongs.length - downloadedSongsInFavorites.length;

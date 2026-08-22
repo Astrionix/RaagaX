@@ -42,6 +42,7 @@ export function AlbumDetailView() {
 
   const {
     tasks,
+    nativeDownloadedTracks,
     saveForOffline,
     removeDownload,
     downloadAlbum,
@@ -272,14 +273,18 @@ export function AlbumDetailView() {
   }
 
   const tracks = album.tracks || [];
-  const downloadedCount = tracks.filter(t => downloadedSongIds.includes(t.id)).length;
+  const downloadedCount = tracks.filter(t => {
+    const isDownloaded = downloadedSongIds.includes(t.id) || !!nativeDownloadedTracks?.[t.id];
+    const isTaskCompleted = tasks[t.id]?.status === 'COMPLETED';
+    return isDownloaded || isTaskCompleted;
+  }).length;
   const isAllDownloaded = tracks.length > 0 && downloadedCount === tracks.length;
   const isPartialDownloaded = downloadedCount > 0 && !isAllDownloaded;
   const downloadingCount = tracks.filter(t => {
     const task = tasks[t.id];
-    return task && (task.status === 'DOWNLOADING' || task.status === 'QUEUED');
+    return task && (task.status === 'DOWNLOADING' || task.status === 'QUEUED' || task.status === 'VERIFYING');
   }).length;
-  const isDownloadingAlbum = downloadingCount > 0;
+  const isDownloadingAlbum = downloadingCount > 0 && !isAllDownloaded;
 
   const isCurrentAlbumPlaying = tracks.some(t => t.id === currentSong?.id) && isPlaying;
 
