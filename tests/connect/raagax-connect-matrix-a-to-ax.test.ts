@@ -21,7 +21,7 @@ const makeSong = (id: string, title: string, artist = `Artist of ${title}`, dura
   duration,
   audioUrl: `https://audio.test/${id}.mp3`,
   genre: 'Trending',
-  category: 'hits',
+  category: 'latest_telugu',
   releaseYear: 2026,
   plays: 5000,
   likes: 1200,
@@ -38,7 +38,7 @@ const USER_B_ID = 'user_u456_friend';
 const MOBILE_ID = 'dev_mobile_m1';
 const LAPTOP_ID = 'dev_laptop_d1';
 const FRIEND_PHONE_ID = 'dev_friend_m2';
-const PHONE_B_ID = 'dev_phone_b_m3';
+const PHONE_B_ID = 'dev_phone_b';
 
 describe('RaagaX Connect: Complete Scenario Matrix (A through AX Specification)', () => {
   beforeEach(() => {
@@ -70,21 +70,21 @@ describe('RaagaX Connect: Complete Scenario Matrix (A through AX Specification)'
     usePlayerStore.setState({
       deviceId: LAPTOP_ID,
       isActiveDevice: true,
-      connectedDeviceId: null,
       activeDeviceId: LAPTOP_ID,
+      connectedDeviceId: null,
+      onlineDevices: [],
+      currentSong: null,
+      queue: [],
+      queueIndex: 0,
       isPlaying: false,
       playbackIntent: 'PAUSED',
       currentTime: 0,
       duration: 240,
-      currentSong: null,
-      queue: [],
-      queueIndex: 0,
-      onlineDevices: [],
     });
   });
 
   // ════════════════════════════════════════════════════════════════════════════
-  // A. IDENTITY / DISCOVERY MATRIX
+  // A. IDENTITY / DISCOVERY MATRIX (A1 to A4)
   // ════════════════════════════════════════════════════════════════════════════
   describe('A. Identity / Discovery Matrix', () => {
     it('A1: Same Account + Same LAN -> Discovered, Authorized, Connectable, Control & Switch Allowed', () => {
@@ -97,13 +97,16 @@ describe('RaagaX Connect: Complete Scenario Matrix (A through AX Specification)'
         clientIdentity: {
           deviceId: MOBILE_ID,
           deviceName: 'Ram Phone',
-          deviceType: 'MOBILE',
+          deviceType: 'mobile',
           platform: 'android',
           userId: USER_A_ID,
           accountName: 'Ram',
+          host: '192.168.1.10',
           port: 47104,
-          capabilities: { canRenderAudio: true, canActAsController: true, supportsP2PStream: true },
+          capabilities: ['playback', 'remote_control', 'lossless_stream'],
+          currentActivity: 'idle',
           protocolVersion: '2.0.0',
+          timestamp: Date.now(),
         },
         clientNonce: 'n_a1',
         timestamp: Date.now(),
@@ -124,13 +127,16 @@ describe('RaagaX Connect: Complete Scenario Matrix (A through AX Specification)'
         clientIdentity: {
           deviceId: FRIEND_PHONE_ID,
           deviceName: "Friend's Phone",
-          deviceType: 'MOBILE',
+          deviceType: 'mobile',
           platform: 'android',
           userId: USER_B_ID,
           accountName: 'Hostel Friend',
+          host: '192.168.1.11',
           port: 47104,
-          capabilities: { canRenderAudio: true, canActAsController: true, supportsP2PStream: true },
+          capabilities: ['playback', 'remote_control', 'lossless_stream'],
+          currentActivity: 'idle',
           protocolVersion: '2.0.0',
+          timestamp: Date.now(),
         },
         clientNonce: 'n_a2',
         timestamp: Date.now(),
@@ -159,13 +165,16 @@ describe('RaagaX Connect: Complete Scenario Matrix (A through AX Specification)'
         clientIdentity: {
           deviceId: 'dev_guest',
           deviceName: 'Guest Phone',
-          deviceType: 'MOBILE',
+          deviceType: 'mobile',
           platform: 'android',
           userId: undefined,
           accountName: 'Guest',
+          host: '192.168.1.12',
           port: 47104,
-          capabilities: { canRenderAudio: true, canActAsController: true, supportsP2PStream: true },
+          capabilities: ['playback', 'remote_control', 'lossless_stream'],
+          currentActivity: 'idle',
           protocolVersion: '2.0.0',
+          timestamp: Date.now(),
         },
         clientNonce: 'n_a4',
         timestamp: Date.now(),
@@ -708,13 +717,16 @@ describe('RaagaX Connect: Complete Scenario Matrix (A through AX Specification)'
         clientIdentity: {
           deviceId: MOBILE_ID,
           deviceName: 'Ram Phone',
-          deviceType: 'MOBILE',
+          deviceType: 'mobile',
           platform: 'android',
           userId: USER_A_ID,
           accountName: 'Ram',
+          host: '192.168.1.10',
           port: 47104,
-          capabilities: { canRenderAudio: true, canActAsController: true, supportsP2PStream: true },
+          capabilities: ['playback', 'remote_control', 'lossless_stream'],
+          currentActivity: 'idle',
           protocolVersion: '2.0.0',
+          timestamp: Date.now(),
         },
         clientNonce: 'n_ax',
         timestamp: Date.now(),
@@ -731,13 +743,16 @@ describe('RaagaX Connect: Complete Scenario Matrix (A through AX Specification)'
         clientIdentity: {
           deviceId: FRIEND_PHONE_ID,
           deviceName: 'Friend Phone',
-          deviceType: 'MOBILE',
+          deviceType: 'mobile',
           platform: 'android',
           userId: USER_B_ID,
           accountName: 'Friend',
+          host: '192.168.1.11',
           port: 47104,
-          capabilities: { canRenderAudio: true, canActAsController: true, supportsP2PStream: true },
+          capabilities: ['playback', 'remote_control', 'lossless_stream'],
+          currentActivity: 'idle',
           protocolVersion: '2.0.0',
+          timestamp: Date.now(),
         },
         clientNonce: 'n_ax2',
         timestamp: Date.now(),
@@ -830,13 +845,16 @@ describe('RaagaX Connect: Complete Scenario Matrix (A through AX Specification)'
         clientIdentity: {
           deviceId: 'dev_hacker',
           deviceName: 'Hacker Phone',
-          deviceType: 'MOBILE',
+          deviceType: 'mobile',
           platform: 'android',
           userId: 'forged_user_xyz',
           accountName: 'Hacker',
+          host: '192.168.1.99',
           port: 47104,
-          capabilities: { canRenderAudio: true, canActAsController: true, supportsP2PStream: true },
+          capabilities: ['playback', 'remote_control', 'lossless_stream'],
+          currentActivity: 'idle',
           protocolVersion: '2.0.0',
+          timestamp: Date.now(),
         },
         clientNonce: 'nonce_hack',
         timestamp: Date.now(),

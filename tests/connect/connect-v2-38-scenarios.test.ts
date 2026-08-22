@@ -19,7 +19,7 @@ const makeSong = (id: string, title: string, artist = `Artist of ${title}`, dura
   duration,
   audioUrl: `https://audio.test/${id}.mp3`,
   genre: 'Tollywood Hits',
-  category: 'trending',
+  category: 'latest_telugu',
   releaseYear: 2026,
   plays: 5000,
   likes: 1200,
@@ -970,11 +970,13 @@ describe('RaagaX Connect V2: 38 Exhaustive State Synchronization Scenarios', () 
       positionMs: 0,
       durationMs: SONG_Z.duration * 1000,
       isPlaying: true,
+      volume: 0.8,
+      isMuted: false,
       queue: [PUSHPA_SONG, SONG_Z],
       queueIndex: 1,
       epoch: 1,
       revision: 405,
-      timestamp: Date.now(),
+      serverTimestamp: Date.now(),
     });
 
     const mobileState = usePlayerStore.getState();

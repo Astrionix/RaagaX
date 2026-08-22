@@ -86,11 +86,11 @@ describe('RaagaX Connect V2: Authoritative Seek & Symmetrical Precision Suite', 
     ownerEngine.setOwner('dev_desktop_owner', true);
     ConnectAuthManager.getInstance().addTrustedPeer({
       deviceId: 'dev_mobile_controller',
+      deviceName: 'Mobile Controller',
       accountName: 'Same User',
-      isSameAccount: true,
       permissions: { allowControl: true, allowSwitch: true },
-      trustedAt: Date.now(),
-      trustTier: 'SAME_ACCOUNT',
+      pairedAt: Date.now(),
+      expiresAt: null,
     });
 
     await ownerEngine.handleRemoteCommand({
@@ -148,11 +148,11 @@ describe('RaagaX Connect V2: Authoritative Seek & Symmetrical Precision Suite', 
     ownerEngine.setOwner('dev_desktop_owner', true);
     ConnectAuthManager.getInstance().addTrustedPeer({
       deviceId: 'dev_mobile_controller',
+      deviceName: 'Mobile Controller',
       accountName: 'Same User',
-      isSameAccount: true,
       permissions: { allowControl: true, allowSwitch: true },
-      trustedAt: Date.now(),
-      trustTier: 'SAME_ACCOUNT',
+      pairedAt: Date.now(),
+      expiresAt: null,
     });
 
     await ownerEngine.handleRemoteCommand({
@@ -175,11 +175,11 @@ describe('RaagaX Connect V2: Authoritative Seek & Symmetrical Precision Suite', 
     ownerEngine.setOwner('dev_mobile_owner', true);
     ConnectAuthManager.getInstance().addTrustedPeer({
       deviceId: 'dev_desktop_controller',
+      deviceName: 'Desktop Controller',
       accountName: 'Same User',
-      isSameAccount: true,
       permissions: { allowControl: true, allowSwitch: true },
-      trustedAt: Date.now(),
-      trustTier: 'SAME_ACCOUNT',
+      pairedAt: Date.now(),
+      expiresAt: null,
     });
 
     await ownerEngine.handleRemoteCommand({

@@ -1096,7 +1096,7 @@ export const usePlayerStore = create<PlayerState>()(
           } catch { }
           try {
             const { ConnectManager } = await import('@/lib/connect/ConnectManager');
-            ConnectManager.getInstance().dispatchPlaybackCommand('PLAY_TRACK', {
+            ConnectManager.getInstance().dispatchPlaybackCommand('PLAY', {
               song: track,
               queue: get().queue,
               queueIndex: index,
@@ -1642,7 +1642,7 @@ export const usePlayerStore = create<PlayerState>()(
           } catch { }
           try {
             const { ConnectManager } = await import('@/lib/connect/ConnectManager');
-            ConnectManager.getInstance().dispatchPlaybackCommand('SHUFFLE');
+            ConnectManager.getInstance().dispatchPlaybackCommand('SET_SHUFFLE');
           } catch { }
         }
       },
@@ -1670,7 +1670,7 @@ export const usePlayerStore = create<PlayerState>()(
           } catch { }
           try {
             import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-              ConnectManager.getInstance().dispatchPlaybackCommand('REPEAT');
+              ConnectManager.getInstance().dispatchPlaybackCommand('SET_REPEAT');
             });
           } catch { }
         }
