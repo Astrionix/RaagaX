@@ -4,7 +4,7 @@ export class DownloadQueue {
   private static instance: DownloadQueue;
   private queue: DownloadTask[] = [];
   private activeDownloads: Set<string> = new Set();
-  private maxConcurrentDownloads = 3;
+  // No concurrent limit — all queued downloads run in parallel
   private listeners: Set<(queue: DownloadTask[]) => void> = new Set();
 
   public static getInstance(): DownloadQueue {
@@ -14,9 +14,8 @@ export class DownloadQueue {
     return DownloadQueue.instance;
   }
 
-  public setMaxConcurrent(max: number) {
-    this.maxConcurrentDownloads = max;
-  }
+  /** No-op kept for API compatibility — limit is removed. */
+  public setMaxConcurrent(_max: number) {}
 
   public getTasks(): DownloadTask[] {
     return [...this.queue];
@@ -55,8 +54,9 @@ export class DownloadQueue {
     return this.queue.find((t) => t.status === 'queued') || null;
   }
 
+  /** Always true — all downloads run in parallel with no concurrency cap. */
   public canStartNewDownload(): boolean {
-    return this.activeDownloads.size < this.maxConcurrentDownloads;
+    return true;
   }
 
   public markAsActive(taskId: string) {

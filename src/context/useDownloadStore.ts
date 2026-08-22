@@ -149,7 +149,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
   nativeDownloadedTracks: {},
   playlistDownloadProgress: null,
   activeCount: 0,
-  maxConcurrent: 2,
+  maxConcurrent: Infinity,
   wifiOnly: false,
   isHydrated: false,
   isOfflineStorageEnabled: true,
@@ -181,9 +181,8 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
       RaagaXNativeDownload.setPreference('autoDownloadLikedSongs', settings.autoDownloadLikedSongs);
     }
   },
-  setMaxConcurrent: (count) => {
-    set({ maxConcurrent: count });
-  },
+  /** No-op: concurrency is now unlimited. Kept for API compatibility. */
+  setMaxConcurrent: (_count: number) => {},
 
   fetchStorageInfo: async () => {
     try {
@@ -1130,133 +1129,129 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     // If native Android, WorkManager processes queue natively in background
     if (RaagaXNativeDownload.isNative()) return;
 
+    if (typeof window !== 'undefined' && !window.navigator.onLine) return;
+
     const state = get();
-    const { tasks, activeCount, maxConcurrent, updateProgress, setStatus } = state;
+    const { tasks, updateProgress, setStatus } = state;
 
-    if (typeof window !== 'undefined' && !window.navigator.onLine) {
-      return;
-    }
-
-    if (activeCount >= maxConcurrent) return;
-
-    const nextTaskId = Object.keys(tasks).find(id => tasks[id].status === 'QUEUED');
-    if (!nextTaskId) return;
-
-    const task = tasks[nextTaskId];
-    const abortController = new AbortController();
-
-    set((s) => ({
-      activeCount: s.activeCount + 1,
-      tasks: { ...s.tasks, [nextTaskId]: { ...task, status: 'DOWNLOADING', abortController } }
-    }));
+    // Start ALL queued tasks immediately in parallel — no concurrency cap.
+    const queuedIds = Object.keys(tasks).filter(id => tasks[id].status === 'QUEUED');
+    if (queuedIds.length === 0) return;
 
     const downloader = AtomicDownloader.getInstance();
-
     const sanitizeName = (str: string) => str.replace(/[/\\?%*:|"<>]/g, '').trim();
-    const filename = `${sanitizeName(task.song.title)} - ${sanitizeName(task.song.artist || 'Artist')}.mp3`;
-    
-    let targetUrl = task.song.audioUrl;
-    if (!targetUrl || targetUrl.includes('pixabay.com')) {
-      targetUrl = getApiUrl(`/api/download?id=${encodeURIComponent(task.song.id)}&name=${encodeURIComponent(filename)}`);
-    } else {
-      targetUrl = getApiUrl(`/api/download?url=${encodeURIComponent(targetUrl)}&name=${encodeURIComponent(filename)}`);
-    }
 
-    downloader.download({
-      url: targetUrl,
-      trackId: task.song.id,
-      quality: (task.quality as DownloadQuality) || 'HIGH',
-      startOffset: task.downloadedBytes > 0 ? task.downloadedBytes : 0,
-      signal: abortController.signal,
-      onProgress: (progress: number, downloadedBytes: number, totalBytes: number, speed: number) => {
-        updateProgress(nextTaskId, progress, downloadedBytes, totalBytes, speed);
-      },
-      onStateChange: (downloadState: string) => {
-        if (downloadState === 'VERIFYING') {
-          setStatus(nextTaskId, 'VERIFYING');
-        }
-      }
-    }).then(async (result: any) => {
-      await DownloadStorage.getInstance().saveMedia(
-        task.song.id, 
-        result.blob, 
-        result.mimeType, 
-        'liked_songs',
-        { checksum: result.checksum, quality: (task.quality as DownloadQuality) || 'HIGH' }
-      );
+    for (const nextTaskId of queuedIds) {
+      const task = tasks[nextTaskId];
+      if (!task) continue;
 
-      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-      await OfflineCatalog.getInstance().addTrack({
-        trackId: task.song.id,
-        localMediaId: task.song.id,
-        title: task.song.title,
-        artist: task.song.artist || 'Unknown Artist',
-        album: task.song.album,
-        artworkUrl: task.song.coverUrl,
-        duration: task.song.duration || 0,
-        durationMs: (task.song.duration || 0) * 1000,
-        mimeType: result.mimeType,
-        quality: (task.quality as DownloadQuality) || 'HIGH',
-        fileSizeBytes: result.totalBytes,
-        checksum: result.checksum,
-        leaseExpiresAt: Date.now() + thirtyDaysMs,
-        downloadedAt: Date.now(),
-        version: '2'
-      });
+      const abortController = new AbortController();
 
-      usePlayerStore.setState(s => ({
-        downloadedSongIds: [...new Set([...s.downloadedSongIds, nextTaskId])],
-        cloudDownloadedSongIds: [...new Set([...s.cloudDownloadedSongIds, nextTaskId])]
+      set((s) => ({
+        activeCount: s.activeCount + 1,
+        tasks: { ...s.tasks, [nextTaskId]: { ...task, status: 'DOWNLOADING', abortController } }
       }));
-      await get().fetchStorageInfo();
 
-      setStatus(nextTaskId, 'COMPLETED');
+      const filename = `${sanitizeName(task.song.title)} - ${sanitizeName(task.song.artist || 'Artist')}.mp3`;
 
-      setTimeout(() => {
-        set((s) => {
-          const newTasks = { ...s.tasks };
-          delete newTasks[nextTaskId];
-          return { tasks: newTasks };
-        });
-        get()._persistTasks();
-      }, 2500);
-
-      set((s) => ({ activeCount: Math.max(0, s.activeCount - 1) }));
-      get()._processQueue();
-    }).catch((err: any) => {
-      if (err.name === 'AbortError') {
-        set((s) => ({ activeCount: Math.max(0, s.activeCount - 1) }));
-        get()._processQueue();
-        return;
+      let targetUrl = task.song.audioUrl;
+      if (!targetUrl || targetUrl.includes('pixabay.com')) {
+        targetUrl = getApiUrl(`/api/download?id=${encodeURIComponent(task.song.id)}&name=${encodeURIComponent(filename)}`);
+      } else {
+        targetUrl = getApiUrl(`/api/download?url=${encodeURIComponent(targetUrl)}&name=${encodeURIComponent(filename)}`);
       }
 
-      const currentTask = get().tasks[nextTaskId];
-      if (currentTask && currentTask.status !== 'PAUSED' && currentTask.status !== 'CANCELLED') {
-        if (currentTask.retryCount < 3) {
-          const nextRetry = currentTask.retryCount + 1;
-          const delay = nextRetry * 1500;
-          set((s) => ({
-            activeCount: Math.max(0, s.activeCount - 1),
-            tasks: { 
-              ...s.tasks, 
-              [nextTaskId]: { 
-                ...currentTask, 
-                status: 'QUEUED', 
-                retryCount: nextRetry,
-                error: `Retrying (${nextRetry}/3)...` 
-              } 
-            }
-          }));
-          setTimeout(() => get()._processQueue(), delay);
-        } else {
-          setStatus(nextTaskId, 'FAILED', err.message || 'Download failed after 3 attempts');
-          set((s) => ({ activeCount: Math.max(0, s.activeCount - 1) }));
-          get()._processQueue();
+      downloader.download({
+        url: targetUrl,
+        trackId: task.song.id,
+        quality: (task.quality as DownloadQuality) || 'HIGH',
+        startOffset: task.downloadedBytes > 0 ? task.downloadedBytes : 0,
+        signal: abortController.signal,
+        onProgress: (progress: number, downloadedBytes: number, totalBytes: number, speed: number) => {
+          updateProgress(nextTaskId, progress, downloadedBytes, totalBytes, speed);
+        },
+        onStateChange: (downloadState: string) => {
+          if (downloadState === 'VERIFYING') {
+            setStatus(nextTaskId, 'VERIFYING');
+          }
         }
-      }
-    });
+      }).then(async (result: any) => {
+        await DownloadStorage.getInstance().saveMedia(
+          task.song.id,
+          result.blob,
+          result.mimeType,
+          'liked_songs',
+          { checksum: result.checksum, quality: (task.quality as DownloadQuality) || 'HIGH' }
+        );
 
-    get()._processQueue();
+        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+        await OfflineCatalog.getInstance().addTrack({
+          trackId: task.song.id,
+          localMediaId: task.song.id,
+          title: task.song.title,
+          artist: task.song.artist || 'Unknown Artist',
+          album: task.song.album,
+          artworkUrl: task.song.coverUrl,
+          duration: task.song.duration || 0,
+          durationMs: (task.song.duration || 0) * 1000,
+          mimeType: result.mimeType,
+          quality: (task.quality as DownloadQuality) || 'HIGH',
+          fileSizeBytes: result.totalBytes,
+          checksum: result.checksum,
+          leaseExpiresAt: Date.now() + thirtyDaysMs,
+          downloadedAt: Date.now(),
+          version: '2'
+        });
+
+        usePlayerStore.setState(s => ({
+          downloadedSongIds: [...new Set([...s.downloadedSongIds, nextTaskId])],
+          cloudDownloadedSongIds: [...new Set([...s.cloudDownloadedSongIds, nextTaskId])]
+        }));
+        await get().fetchStorageInfo();
+
+        setStatus(nextTaskId, 'COMPLETED');
+
+        setTimeout(() => {
+          set((s) => {
+            const newTasks = { ...s.tasks };
+            delete newTasks[nextTaskId];
+            return { tasks: newTasks };
+          });
+          get()._persistTasks();
+        }, 2500);
+
+        set((s) => ({ activeCount: Math.max(0, s.activeCount - 1) }));
+      }).catch((err: any) => {
+        if (err.name === 'AbortError') {
+          set((s) => ({ activeCount: Math.max(0, s.activeCount - 1) }));
+          return;
+        }
+
+        const currentTask = get().tasks[nextTaskId];
+        if (currentTask && currentTask.status !== 'PAUSED' && currentTask.status !== 'CANCELLED') {
+          if (currentTask.retryCount < 3) {
+            const nextRetry = currentTask.retryCount + 1;
+            const delay = nextRetry * 1500;
+            set((s) => ({
+              activeCount: Math.max(0, s.activeCount - 1),
+              tasks: {
+                ...s.tasks,
+                [nextTaskId]: {
+                  ...currentTask,
+                  status: 'QUEUED',
+                  retryCount: nextRetry,
+                  error: `Retrying (${nextRetry}/3)...`
+                }
+              }
+            }));
+            setTimeout(() => get()._processQueue(), delay);
+          } else {
+            setStatus(nextTaskId, 'FAILED', err.message || 'Download failed after 3 attempts');
+            set((s) => ({ activeCount: Math.max(0, s.activeCount - 1) }));
+          }
+        }
+      });
+    }
   },
 
   /**
