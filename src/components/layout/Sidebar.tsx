@@ -11,7 +11,6 @@ import {
   Music,
   ListMusic,
   Plus,
-  Download,
   Heart,
   LogOut,
   LogIn,
@@ -158,23 +157,6 @@ export function Sidebar() {
           >
             <Heart className="w-4 h-4 text-red-400" />
             <span>Liked Songs</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('downloads')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-semibold transition-all ${
-              activeTab === 'downloads' ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] font-bold shadow-sm' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <Download className="w-4 h-4 text-emerald-400" />
-              <span>Downloaded</span>
-            </div>
-            {downloadedSongIds && downloadedSongIds.length > 0 && (
-              <span className="text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded-full">
-                {downloadedSongIds.length}
-              </span>
-            )}
           </button>
 
           <button

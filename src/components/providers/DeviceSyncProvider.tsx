@@ -46,6 +46,10 @@ export function DeviceSyncProvider({ children }: { children: React.ReactNode }) 
       }
       lastInitializedUserIdRef.current = userId;
 
+      // Initialize RaagaX Connect V2 (Local LAN Direct Architecture)
+      const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
+      await RaagaXConnectV2.getInstance().init();
+
       // ConnectManager.init now handles the full bootstrap:
       // inbox subscription → session create/join → lease → session subscribe → CommandBus/PSM init
       await ConnectManager.getInstance().init(userId, deviceId);

@@ -654,8 +654,8 @@ export function PlaylistDetailView() {
             </button>
           )}
 
-          {/* Right of Sort: Small Download All Button */}
-          {playlist && playlist.songs && playlist.songs.length > 0 && (
+          {/* Right of Sort: Small Download All Button (Mobile only) */}
+          {isNative && playlist && playlist.songs && playlist.songs.length > 0 && (
             <button
               onClick={isAllDownloaded ? handleRemoveAllDownloads : handleDownloadAll}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all active:scale-95 cursor-pointer ${

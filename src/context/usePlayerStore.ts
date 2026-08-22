@@ -1360,6 +1360,13 @@ export const usePlayerStore = create<PlayerState>()(
           return;
         }
 
+        try {
+          const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
+          RaagaXConnectV2.getInstance().sendCommand(isNowPlaying ? 'CMD_PLAY' : 'CMD_PAUSE', {
+            positionMs: get().currentTime * 1000,
+          });
+        } catch { }
+
         const res = await ConnectManager.getInstance().dispatchPlaybackCommand(isNowPlaying ? 'PLAY' : 'PAUSE', { positionMs: get().currentTime * 1000 });
         if (res && !res.success) {
           console.warn('[ZUSTAND] Play/Pause command rejected or timed out. Rolling back UI...');
@@ -1412,6 +1419,13 @@ export const usePlayerStore = create<PlayerState>()(
         }
 
         if (!fromRemote) {
+          try {
+            const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
+            RaagaXConnectV2.getInstance().sendCommand(playing ? 'CMD_PLAY' : 'CMD_PAUSE', {
+              positionMs: get().currentTime * 1000,
+            });
+          } catch { }
+
           const res = await ConnectManager.getInstance().dispatchPlaybackCommand(playing ? 'PLAY' : 'PAUSE', { positionMs: get().currentTime * 1000 });
           if (res && !res.success) {
             console.warn('[ZUSTAND] setIsPlaying command failed. Rolling back UI...');
@@ -1440,6 +1454,12 @@ export const usePlayerStore = create<PlayerState>()(
         const state = get();
         if (state.isActiveDevice && state.currentSong) {
           throttlePersistSession(state, fromRemote);
+        } else if (!fromRemote) {
+          try {
+            import('@/lib/connect/lan/RaagaXConnectV2').then(({ RaagaXConnectV2 }) => {
+              RaagaXConnectV2.getInstance().sendCommand('CMD_SEEK', { positionMs: time * 1000 });
+            });
+          } catch { }
         }
       },
       setDuration: (dur) => {
@@ -1456,6 +1476,11 @@ export const usePlayerStore = create<PlayerState>()(
           } catch { }
         } else {
           try {
+            import('@/lib/connect/lan/RaagaXConnectV2').then(({ RaagaXConnectV2 }) => {
+              RaagaXConnectV2.getInstance().sendCommand('CMD_VOLUME', { volume: safeVol });
+            });
+          } catch { }
+          try {
             ConnectManager.getInstance().dispatchPlaybackCommand('SET_VOLUME', { volume: safeVol });
           } catch { }
         }
@@ -1464,6 +1489,17 @@ export const usePlayerStore = create<PlayerState>()(
       toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 
       playNext: async () => {
+        if (!get().isActiveDevice) {
+          try {
+            const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
+            RaagaXConnectV2.getInstance().sendCommand('CMD_NEXT');
+          } catch { }
+          try {
+            ConnectManager.getInstance().dispatchPlaybackCommand('NEXT', {});
+          } catch { }
+          return;
+        }
+
         const { duration, currentTime, isPlaying, playbackIntent } = get();
         const isComplete = duration > 0 && currentTime >= duration - 5;
         get().logCurrentTelemetry(isComplete ? 'complete' : 'skip');
@@ -1502,6 +1538,17 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       playPrev: async () => {
+        if (!get().isActiveDevice) {
+          try {
+            const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
+            RaagaXConnectV2.getInstance().sendCommand('CMD_PREV');
+          } catch { }
+          try {
+            ConnectManager.getInstance().dispatchPlaybackCommand('PREV', {});
+          } catch { }
+          return;
+        }
+
         const { queue, queueIndex, currentTime, currentSong, repeatMode, isPlaying, playbackIntent } = get();
 
         // If track played more than 3 seconds, restart current track at 0:00 and keep current playing state
@@ -1540,7 +1587,7 @@ export const usePlayerStore = create<PlayerState>()(
 
       toggleShuffle: async () => {
         const manager = QueueManager.getInstance();
-        await manager.toggleShuffle();
+        manager.toggleShuffle();
         const snapshot = manager.getSnapshot();
         const syncedQueue = snapshot.items.map((i: any) => i.song);
         const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
@@ -1561,6 +1608,10 @@ export const usePlayerStore = create<PlayerState>()(
             PlaybackStateSync.getInstance().broadcastState(true);
           } catch { }
         } else {
+          try {
+            const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
+            RaagaXConnectV2.getInstance().sendCommand('CMD_SHUFFLE');
+          } catch { }
           try {
             ConnectManager.getInstance().dispatchPlaybackCommand('SET_SHUFFLE', {
               shuffleMode: snapshot.shuffleMode || 'STANDARD',
@@ -1585,6 +1636,11 @@ export const usePlayerStore = create<PlayerState>()(
             PlaybackStateSync.getInstance().broadcastState(true);
           } catch { }
         } else {
+          try {
+            import('@/lib/connect/lan/RaagaXConnectV2').then(({ RaagaXConnectV2 }) => {
+              RaagaXConnectV2.getInstance().sendCommand('CMD_REPEAT');
+            });
+          } catch { }
           try {
             ConnectManager.getInstance().dispatchPlaybackCommand('SET_REPEAT', {
               repeatMode: normalized,

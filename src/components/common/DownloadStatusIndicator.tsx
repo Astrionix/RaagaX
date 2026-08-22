@@ -85,7 +85,7 @@ export function DownloadStatusIndicator({
       <div
         onClick={handleClick}
         title="Downloaded to this device (Music/RaagaX)"
-        className={`inline-flex items-center justify-center rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold transition-all flex-shrink-0 ${containerSizes[size]} ${className}`}
+        className={`md:hidden inline-flex items-center justify-center rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold transition-all flex-shrink-0 ${containerSizes[size]} ${className}`}
       >
         <Check className={`${iconSizes[size]} stroke-[3]`} />
       </div>
@@ -103,7 +103,7 @@ export function DownloadStatusIndicator({
       <div
         onClick={handleClick}
         title={isVerifying ? 'Verifying tags...' : `Downloading • ${progress}%`}
-        className={`inline-flex items-center gap-1 text-[#fa233b] font-mono font-bold transition-all flex-shrink-0 ${className}`}
+        className={`md:hidden inline-flex items-center gap-1 text-[#fa233b] font-mono font-bold transition-all flex-shrink-0 ${className}`}
       >
         <div className={`relative flex items-center justify-center ${containerSizes[size]}`}>
           <svg className="w-full h-full -rotate-90" viewBox="0 0 22 22">
@@ -141,7 +141,7 @@ export function DownloadStatusIndicator({
       <div
         onClick={handleClick}
         title="Waiting in download queue"
-        className={`inline-flex items-center justify-center rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 transition-all flex-shrink-0 ${containerSizes[size]} ${className}`}
+        className={`md:hidden inline-flex items-center justify-center rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 transition-all flex-shrink-0 ${containerSizes[size]} ${className}`}
       >
         <Loader2 className={`${iconSizes[size]} animate-spin`} />
       </div>
@@ -154,7 +154,7 @@ export function DownloadStatusIndicator({
       <div
         onClick={handleClick}
         title="Download paused — tap to resume"
-        className={`inline-flex items-center justify-center rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 transition-all flex-shrink-0 ${containerSizes[size]} ${className}`}
+        className={`md:hidden inline-flex items-center justify-center rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 transition-all flex-shrink-0 ${containerSizes[size]} ${className}`}
       >
         <Pause className={`${iconSizes[size]}`} />
       </div>
@@ -167,7 +167,7 @@ export function DownloadStatusIndicator({
       <button
         onClick={handleClick}
         title={`Download failed: ${task?.error || 'Tap to retry'}`}
-        className={`inline-flex items-center justify-center rounded-full bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 transition-all flex-shrink-0 cursor-pointer ${containerSizes[size]} ${className}`}
+        className={`md:hidden inline-flex items-center justify-center rounded-full bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 transition-all flex-shrink-0 cursor-pointer ${containerSizes[size]} ${className}`}
       >
         <AlertCircle className={`${iconSizes[size]}`} />
       </button>
@@ -180,7 +180,7 @@ export function DownloadStatusIndicator({
       <button
         onClick={handleClick}
         title="In your library — tap to download for offline listening"
-        className={`inline-flex items-center justify-center rounded-full text-blue-400/70 hover:text-blue-300 hover:bg-blue-500/10 transition-colors flex-shrink-0 cursor-pointer ${containerSizes[size]} ${className}`}
+        className={`md:hidden inline-flex items-center justify-center rounded-full text-blue-400/70 hover:text-blue-300 hover:bg-blue-500/10 transition-colors flex-shrink-0 cursor-pointer ${containerSizes[size]} ${className}`}
       >
         <Cloud className={`${iconSizes[size]}`} />
       </button>
@@ -192,7 +192,7 @@ export function DownloadStatusIndicator({
     <button
       onClick={handleClick}
       title="Download to device for offline listening"
-      className={`inline-flex items-center justify-center rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0 cursor-pointer ${containerSizes[size]} ${className}`}
+      className={`md:hidden inline-flex items-center justify-center rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0 cursor-pointer ${containerSizes[size]} ${className}`}
     >
       <ArrowDownToLine className={`${iconSizes[size]}`} />
     </button>

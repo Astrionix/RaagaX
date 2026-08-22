@@ -17,7 +17,6 @@ import {
   Disc3,
   Moon,
   Heart,
-  Download,
   Maximize2,
   Tv,
   Music,

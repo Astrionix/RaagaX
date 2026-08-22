@@ -32,6 +32,7 @@ import { NotificationCenterModal } from '@/components/modals/NotificationCenterM
 import { WrappedModal } from '@/components/modals/WrappedModal';
 import { EqualizerModal } from '@/components/modals/EqualizerModal';
 import { CarModeModal } from '@/components/modals/CarModeModal';
+import { ConnectPairingRequestModal } from '@/components/modals/ConnectPairingRequestModal';
 
 import { Toast } from '@/components/ui/Toast';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
@@ -305,6 +306,9 @@ export default function Page() {
       </ErrorBoundary>
       <ErrorBoundary name="NotificationCenterModal">
         <NotificationCenterModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="ConnectPairingRequestModal">
+        <ConnectPairingRequestModal />
       </ErrorBoundary>
 
       {/* ── Native Android Connected Surfaces ── */}

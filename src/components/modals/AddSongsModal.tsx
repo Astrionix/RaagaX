@@ -140,7 +140,7 @@ export function AddSongsModal({ isOpen, onClose, playlist }: AddSongsModalProps)
           {[
             { id: 'all', label: 'All Songs', icon: Music },
             { id: 'favorites', label: 'Favorites', icon: Heart },
-            { id: 'downloaded', label: 'Downloaded', icon: Download },
+            { id: 'downloaded', label: 'Downloaded', icon: Download, mobileOnly: true },
             { id: 'history', label: 'Recent', icon: Clock },
           ].map((f) => {
             const Icon = f.icon;
@@ -149,7 +149,7 @@ export function AddSongsModal({ isOpen, onClose, playlist }: AddSongsModalProps)
               <button
                 key={f.id}
                 onClick={() => setSelectedFilter(f.id as any)}
-                className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                className={`${f.mobileOnly ? 'md:hidden ' : ''}px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
                   isSelected
                     ? 'bg-[#fa233b] text-white shadow-sm shadow-red-500/25'
                     : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/5'

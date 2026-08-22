@@ -356,8 +356,8 @@ export function ContextMenuModal() {
                 </span>
               </button>
 
-              {/* Download / Remove Download */}
-              <div>
+              {/* Download / Remove Download (Mobile only) */}
+              <div className="md:hidden">
                 {isDownloaded ? (
                   <button
                     onClick={() => handleAction(async () => {

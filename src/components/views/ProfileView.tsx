@@ -633,7 +633,7 @@ export function ProfileView() {
 
               <button
                 onClick={() => setActiveTab('downloads')}
-                className="w-full py-4 px-4 flex items-center justify-between hover:bg-white/5 transition-colors text-left"
+                className="md:hidden w-full py-4 px-4 flex items-center justify-between hover:bg-white/5 transition-colors text-left"
               >
                 <div className="flex items-center gap-3.5">
                   <Download className="w-5 h-5 text-emerald-400" />
