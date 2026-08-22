@@ -59,6 +59,7 @@ export function PlaylistDetailView() {
     saveForOffline,
     removeDownload,
     downloadAlbum,
+    downloadPlaylist,
     pauseAll,
     resumeAll,
     cancelAll,
@@ -263,11 +264,10 @@ export function PlaylistDetailView() {
   };
 
   const executeBulkDownload = async () => {
-    if (!playlist || !playlist.songs) return;
+    if (!playlist || !playlist.songs || playlist.songs.length === 0) return;
     setShowDownloadConfirmModal(false);
-    // Use the concurrency-controlled downloadAlbum engine (playlist reuses same logic)
-    downloadAlbum(playlist.id, playlist.songs);
-    setToastMessage(`Queuing ${pendingDownloadsCount} tracks for offline listening...`);
+    haptics.mediumImpact();
+    downloadPlaylist(playlist.songs, '320 kbps', playlist.title, playlist.id);
   };
 
   const handleRemoveAllDownloads = async () => {

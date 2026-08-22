@@ -240,7 +240,24 @@ export const RaagaXNativeDownload = {
         musicFolderPath: 'Music/RaagaX',
       };
     }
-    return plugin.checkStorage({ requiredBytes });
+    try {
+      const res = await plugin.checkStorage({ requiredBytes });
+      return {
+        hasSpace: res?.hasSpace ?? true,
+        availableBytes: res?.availableBytes ?? (64 * 1024 * 1024 * 1024),
+        totalBytes: res?.totalBytes ?? (128 * 1024 * 1024 * 1024),
+        requiredBytes: res?.requiredBytes ?? requiredBytes,
+        musicFolderPath: res?.musicFolderPath ?? 'Music/RaagaX',
+      };
+    } catch {
+      return {
+        hasSpace: true,
+        availableBytes: 64 * 1024 * 1024 * 1024,
+        totalBytes: 128 * 1024 * 1024 * 1024,
+        requiredBytes,
+        musicFolderPath: 'Music/RaagaX',
+      };
+    }
   },
 
   async verifyAndSyncLibrary(): Promise<string[]> {

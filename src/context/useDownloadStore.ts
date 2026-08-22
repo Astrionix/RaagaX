@@ -524,16 +524,20 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     const targetQuality = quality || get().offlineSettings.audioQuality || '320 kbps';
     
     // Check if already verified on device
-    const alreadyDownloaded = usePlayerStore.getState().downloadedSongIds.includes(song.id);
-    if (alreadyDownloaded) return true;
+    const isAlreadyOnDevice = usePlayerStore.getState().downloadedSongIds.includes(song.id) || !!get().nativeDownloadedTracks?.[song.id];
+    if (isAlreadyOnDevice) return true;
 
-    // Check device storage availability
+    // Check device storage availability (best effort check)
     if (RaagaXNativeDownload.isNative()) {
-      const storage = await RaagaXNativeDownload.checkStorage(15 * 1024 * 1024);
-      if (!storage.hasSpace) {
-        get().setStatus(song.id, 'FAILED', `Not enough storage. Required: 15 MB, Available: ${Math.round(storage.availableBytes / (1024 * 1024))} MB. Free some storage and try again.`);
-        usePlayerStore.getState().setToastMessage(`Not enough storage. Required: 15 MB, Available: ${Math.round(storage.availableBytes / (1024 * 1024))} MB`);
-        return false;
+      try {
+        const storage = await RaagaXNativeDownload.checkStorage(15 * 1024 * 1024);
+        if (storage && storage.hasSpace === false && typeof storage.availableBytes === 'number' && storage.availableBytes < 10 * 1024 * 1024) {
+          get().setStatus(song.id, 'FAILED', `Not enough storage. Available: ${Math.round(storage.availableBytes / (1024 * 1024))} MB. Free some storage and try again.`);
+          usePlayerStore.getState().setToastMessage(`Not enough storage. Available: ${Math.round(storage.availableBytes / (1024 * 1024))} MB`);
+          return false;
+        }
+      } catch (err) {
+        console.warn('[saveForOffline] checkStorage skipped:', err);
       }
     } else {
       const quotaCheck = await DownloadStorage.getInstance().checkStorageAvailable(10 * 1024 * 1024);
@@ -717,7 +721,8 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
   downloadPlaylist: (songs, quality = '320 kbps', playlistTitle = 'Playlist', playlistId = 'pl_custom') => {
     const state = get();
     const downloadedIds = usePlayerStore.getState().downloadedSongIds;
-    const toDownload = songs.filter(s => s && s.id && !downloadedIds.includes(s.id));
+    const nativeTracks = state.nativeDownloadedTracks || {};
+    const toDownload = songs.filter(s => s && s.id && !downloadedIds.includes(s.id) && !nativeTracks[s.id]);
     
     if (toDownload.length === 0) {
       usePlayerStore.getState().setToastMessage('All songs in this playlist are already downloaded.');
