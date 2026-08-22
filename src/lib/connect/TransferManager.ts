@@ -591,6 +591,19 @@ export class TransferManager {
         transferringDeviceId: null
       });
 
+      import('./lan/PlaybackOwnerEngine').then(({ PlaybackOwnerEngine }) => {
+        PlaybackOwnerEngine.getInstance().setOwner(store.deviceId, true);
+      }).catch(() => {});
+      import('./lan/ConnectAuthManager').then(({ ConnectAuthManager }) => {
+        ConnectAuthManager.getInstance().addTrustedPeer({
+          deviceId: command.sourceDeviceId,
+          deviceName: 'Paired Controller',
+          permissions: { allowControl: true, allowSwitch: true },
+          pairedAt: Date.now(),
+          expiresAt: null,
+        });
+      }).catch(() => {});
+
       // 3. Reconcile explicit user intent (NEXT, PREV, SEEK, PLAY, PAUSE)
       const queueDelta = typeof payload?.queueDelta === 'number' ? payload.queueDelta : (payload?.targetAction === 'NEXT' ? 1 : (payload?.targetAction === 'PREV' ? -1 : 0));
       
@@ -745,6 +758,19 @@ export class TransferManager {
       isTransferring: false,
       transferringDeviceId: null
     });
+
+    import('./lan/PlaybackOwnerEngine').then(({ PlaybackOwnerEngine }) => {
+      PlaybackOwnerEngine.getInstance().setOwner(command.sourceDeviceId, false);
+    }).catch(() => {});
+    import('./lan/ConnectAuthManager').then(({ ConnectAuthManager }) => {
+      ConnectAuthManager.getInstance().addTrustedPeer({
+        deviceId: command.sourceDeviceId,
+        deviceName: 'Paired Owner',
+        permissions: { allowControl: true, allowSwitch: true },
+        pairedAt: Date.now(),
+        expiresAt: null,
+      });
+    }).catch(() => {});
 
     this.recordTimeline('ACTIVE_OWNER_CHANGED', { newOwnerId: command.sourceDeviceId });
 

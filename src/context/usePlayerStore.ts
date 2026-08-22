@@ -1085,13 +1085,15 @@ export const usePlayerStore = create<PlayerState>()(
 
         // If remote device (Connect / Cast)
         if (!get().isActiveDevice && get().connectedDeviceId) {
-          const res = await ConnectManager.getInstance().dispatchPlaybackCommand('PLAY', {
-            trackId: track.id,
-            songData: track,
-            queue: get().queue,
-            queueIndex: index,
-            positionMs: 0,
-          });
+          try {
+            const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
+            RaagaXConnectV2.getInstance().sendCommand('CMD_LOAD_TRACK', {
+              song: track,
+              queue: get().queue,
+              queueIndex: index,
+              positionMs: 0,
+            });
+          } catch { }
           return requestId === globalPlaybackRequestId;
         }
 
@@ -1366,13 +1368,6 @@ export const usePlayerStore = create<PlayerState>()(
             positionMs: get().currentTime * 1000,
           });
         } catch { }
-
-        const res = await ConnectManager.getInstance().dispatchPlaybackCommand(isNowPlaying ? 'PLAY' : 'PAUSE', { positionMs: get().currentTime * 1000 });
-        if (res && !res.success) {
-          console.warn('[ZUSTAND] Play/Pause command rejected or timed out. Rolling back UI...');
-          set({ isPlaying: oldIsPlaying, playbackIntent: oldPlaybackIntent });
-          persistSessionHelper({ ...get() });
-        }
       },
       setIsPlaying: async (playing, fromRemote = false) => {
         if (get().isTransferring && !fromRemote) {
@@ -1425,13 +1420,6 @@ export const usePlayerStore = create<PlayerState>()(
               positionMs: get().currentTime * 1000,
             });
           } catch { }
-
-          const res = await ConnectManager.getInstance().dispatchPlaybackCommand(playing ? 'PLAY' : 'PAUSE', { positionMs: get().currentTime * 1000 });
-          if (res && !res.success) {
-            console.warn('[ZUSTAND] setIsPlaying command failed. Rolling back UI...');
-            set({ isPlaying: oldIsPlaying, playbackIntent: oldPlaybackIntent });
-            persistSessionHelper({ ...get() });
-          }
         }
       },
       setCurrentTime: (time, fromRemote = false) => {
@@ -1480,9 +1468,6 @@ export const usePlayerStore = create<PlayerState>()(
               RaagaXConnectV2.getInstance().sendCommand('CMD_VOLUME', { volume: safeVol });
             });
           } catch { }
-          try {
-            ConnectManager.getInstance().dispatchPlaybackCommand('SET_VOLUME', { volume: safeVol });
-          } catch { }
         }
         persistSessionHelper(get());
       },
@@ -1493,9 +1478,6 @@ export const usePlayerStore = create<PlayerState>()(
           try {
             const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
             RaagaXConnectV2.getInstance().sendCommand('CMD_NEXT');
-          } catch { }
-          try {
-            ConnectManager.getInstance().dispatchPlaybackCommand('NEXT', {});
           } catch { }
           return;
         }
@@ -1542,9 +1524,6 @@ export const usePlayerStore = create<PlayerState>()(
           try {
             const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
             RaagaXConnectV2.getInstance().sendCommand('CMD_PREV');
-          } catch { }
-          try {
-            ConnectManager.getInstance().dispatchPlaybackCommand('PREV', {});
           } catch { }
           return;
         }
@@ -1612,11 +1591,6 @@ export const usePlayerStore = create<PlayerState>()(
             const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
             RaagaXConnectV2.getInstance().sendCommand('CMD_SHUFFLE');
           } catch { }
-          try {
-            ConnectManager.getInstance().dispatchPlaybackCommand('SET_SHUFFLE', {
-              shuffleMode: snapshot.shuffleMode || 'STANDARD',
-            });
-          } catch { }
         }
       },
       setRepeatMode: (mode) => {
@@ -1639,11 +1613,6 @@ export const usePlayerStore = create<PlayerState>()(
           try {
             import('@/lib/connect/lan/RaagaXConnectV2').then(({ RaagaXConnectV2 }) => {
               RaagaXConnectV2.getInstance().sendCommand('CMD_REPEAT');
-            });
-          } catch { }
-          try {
-            ConnectManager.getInstance().dispatchPlaybackCommand('SET_REPEAT', {
-              repeatMode: normalized,
             });
           } catch { }
         }
