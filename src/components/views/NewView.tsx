@@ -296,7 +296,7 @@ export function NewView() {
   );
 
   return (
-    <div className="space-y-7 pb-24 text-white select-none animate-in fade-in duration-200 max-w-5xl mx-auto">
+    <div className="space-y-4 pb-8 text-white select-none animate-in fade-in duration-200 max-w-5xl mx-auto">
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* 1. HEADER + LANGUAGE FILTER                                            */}
@@ -548,12 +548,12 @@ export function NewView() {
       {/* 10. NEW ARTISTS — Artists appearing recently in new releases           */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {newArtists.length > 0 && (
-        <section className="space-y-3">
+        <section className="space-y-2">
           <SectionHeader
             icon={<User className="w-3.5 h-3.5 text-violet-400" />}
             title="New Artists"
           />
-          <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+          <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1">
             {newArtists.map((item, idx) => (
               <div
                 key={`artist-${item.artistId || item.id || 'artist'}-${idx}`}
@@ -561,12 +561,12 @@ export function NewView() {
                   haptics.lightImpact();
                   setSelectedArtistId(item.artistId || item.id || item.artist);
                 }}
-                className="w-24 flex-shrink-0 text-center cursor-pointer group"
+                className="w-20 flex-shrink-0 text-center cursor-pointer group"
               >
-                <div className="w-24 h-24 rounded-full overflow-hidden mb-2 border-2 border-white/10 group-hover:border-[#FA233B] transition-all shadow-md mx-auto">
+                <div className="w-20 h-20 rounded-full overflow-hidden mb-1.5 border-2 border-white/10 group-hover:border-[#FA233B] transition-all shadow-md mx-auto">
                   <OptimizedImage src={item.coverUrl} alt={item.artist} size="thumb" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                 </div>
-                <h4 className="text-xs font-bold text-white truncate group-hover:text-[#FA233B] transition-colors">{item.artist}</h4>
+                <h4 className="text-[11px] font-bold text-white truncate group-hover:text-[#FA233B] transition-colors">{item.artist}</h4>
               </div>
             ))}
           </div>
