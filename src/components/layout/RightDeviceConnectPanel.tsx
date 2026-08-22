@@ -70,6 +70,10 @@ export function RightDeviceConnectPanel() {
     setHandoverStep(1); // 1: Song
 
     try {
+      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+        ConnectManager.getInstance().connectToDevice(target.deviceId);
+      }).catch(() => {});
+
       await new Promise(r => setTimeout(r, 120));
       setHandoverStep(2); // 2: Position
 
@@ -101,6 +105,10 @@ export function RightDeviceConnectPanel() {
 
   const handleDeviceControl = async (target: DiscoveredLANDevice) => {
     try {
+      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+        ConnectManager.getInstance().connectToDevice(target.deviceId);
+      }).catch(() => {});
+
       const success = await RaagaXConnectV2.getInstance().connectAndControl(target.deviceId);
       if (!success) {
         usePlayerStore.setState({

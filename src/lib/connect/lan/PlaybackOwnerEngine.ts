@@ -65,11 +65,14 @@ export class PlaybackOwnerEngine {
   }
 
   public isOwner(): boolean {
-    return this.isLocalOwner;
+    const s = usePlayerStore.getState();
+    return Boolean(s.isActiveDevice && !s.connectedDeviceId);
   }
 
   public getActiveOwnerId(): string {
-    return this.activeOwnerDeviceId;
+    const s = usePlayerStore.getState();
+    const localId = LocalDiscoveryService.getInstance().getLocalIdentity().deviceId;
+    return s.connectedDeviceId || s.activeDeviceId || this.activeOwnerDeviceId || localId;
   }
 
   public setOwner(deviceId: string, isLocal: boolean) {
