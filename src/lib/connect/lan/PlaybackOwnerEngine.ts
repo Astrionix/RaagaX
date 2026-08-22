@@ -136,6 +136,7 @@ export class PlaybackOwnerEngine {
       return;
     }
 
+    const receiveTimestamp = Date.now();
     console.log(`[PlaybackOwnerEngine] Executing authoritative command ${cmd.type} from ${cmd.sourceDeviceId}`);
     const store = usePlayerStore.getState();
 
@@ -200,7 +201,29 @@ export class PlaybackOwnerEngine {
         break;
     }
 
+    const executeTimestamp = Date.now();
     this.stateVersion++;
     this.broadcastState();
+
+    // Send Authoritative Command ACK with round-trip telemetry
+    try {
+      DirectLANTransport.getInstance().sendMessage(cmd.sourceDeviceId, {
+        id: 'ack_' + cmd.commandId,
+        type: 'CMD_ACK',
+        sourceDeviceId: this.activeOwnerDeviceId,
+        targetDeviceId: cmd.sourceDeviceId,
+        commandId: cmd.commandId,
+        success: true,
+        stateVersion: this.stateVersion,
+        timing: {
+          tapTimestamp: cmd.timing?.tapTimestamp,
+          sendTimestamp: cmd.timing?.sendTimestamp || cmd.timestamp,
+          receiveTimestamp,
+          executeTimestamp,
+          ackTimestamp: Date.now(),
+        },
+        timestamp: Date.now(),
+      });
+    } catch {}
   }
 }

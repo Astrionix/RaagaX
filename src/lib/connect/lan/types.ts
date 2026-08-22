@@ -74,6 +74,7 @@ export type LANMessageType =
   | 'CMD_REPEAT'
   | 'CMD_LOAD_TRACK'
   | 'CMD_QUEUE_CHANGE'
+  | 'CMD_ACK'
   | 'SWITCH_REQUEST'
   | 'SWITCH_OFFER'
   | 'SWITCH_READY'
@@ -154,6 +155,14 @@ export interface LANPlaybackStateMessage extends LANBaseMessage {
   payload: LANPlaybackStatePayload;
 }
 
+export interface LANCommandTiming {
+  tapTimestamp?: number;
+  sendTimestamp: number;
+  receiveTimestamp?: number;
+  executeTimestamp?: number;
+  ackTimestamp?: number;
+}
+
 export interface LANRemoteCommandMessage extends LANBaseMessage {
   type:
     | 'CMD_PLAY'
@@ -169,6 +178,7 @@ export interface LANRemoteCommandMessage extends LANBaseMessage {
   commandId: string;
   sequence?: number;
   expectedStateVersion?: number;
+  timing?: LANCommandTiming;
   payload?: {
     positionMs?: number;
     volume?: number;
@@ -179,6 +189,14 @@ export interface LANRemoteCommandMessage extends LANBaseMessage {
     queue?: Song[];
     queueIndex?: number;
   };
+}
+
+export interface LANCommandAckMessage extends LANBaseMessage {
+  type: 'CMD_ACK';
+  commandId: string;
+  success: boolean;
+  stateVersion: number;
+  timing: LANCommandTiming;
 }
 
 export interface LANSwitchRequestMessage extends LANBaseMessage {
@@ -233,6 +251,7 @@ export type LANMessage =
   | LANHeartbeatMessage
   | LANPlaybackStateMessage
   | LANRemoteCommandMessage
+  | LANCommandAckMessage
   | LANSwitchRequestMessage
   | LANSwitchOfferMessage
   | LANSwitchReadyMessage
