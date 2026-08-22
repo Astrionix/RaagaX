@@ -98,17 +98,20 @@ export class NavigationStack {
     if (!current?.isPlayerExpanded) {
       this.push({
         activeTab: current?.activeTab || 'home',
-        selectedAlbumId: current?.selectedAlbumId || null,
-        selectedArtistId: current?.selectedArtistId || null,
+        selectedAlbumId: current?.selectedAlbumId && current.selectedAlbumId !== 'offline' ? current.selectedAlbumId : null,
+        selectedArtistId: current?.selectedArtistId && current.selectedArtistId !== 'offline' ? current.selectedArtistId : null,
         selectedPlaylistId: current?.selectedPlaylistId || null,
         isPlayerExpanded: true,
       });
     }
 
+    const cleanAlbumId = destination.albumId && destination.albumId !== 'offline' ? destination.albumId : null;
+    const cleanArtistId = destination.artistId && destination.artistId !== 'offline' ? destination.artistId : null;
+
     this.push({
       activeTab: destination.tab,
-      selectedAlbumId: destination.albumId || null,
-      selectedArtistId: destination.artistId || null,
+      selectedAlbumId: cleanAlbumId,
+      selectedArtistId: cleanArtistId,
       selectedPlaylistId: destination.playlistId || null,
       isPlayerExpanded: false,
       fromPlayer: true,

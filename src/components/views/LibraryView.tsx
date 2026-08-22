@@ -1483,9 +1483,13 @@ export function LibraryView() {
       } catch {}
     }
 
-    console.log(`[LIBRARY_ALBUM_RESOLVE]\nalbumId=${realAlbumId}`);
-    setSelectedAlbumId(realAlbumId);
-    setActiveTab('album');
+    if (realAlbumId && realAlbumId !== 'offline') {
+      console.log(`[LIBRARY_ALBUM_RESOLVE]\nalbumId=${realAlbumId}`);
+      setSelectedAlbumId(realAlbumId);
+      setActiveTab('album');
+    } else {
+      console.warn(`[LIBRARY_ALBUM_RESOLVE_FAILED] Could not resolve real album ID for: ${album.title}`);
+    }
   };
 
   return (

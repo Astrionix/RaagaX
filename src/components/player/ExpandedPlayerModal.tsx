@@ -203,11 +203,17 @@ export function ExpandedPlayerModal() {
 
   const exactAlbumId = useMemo(() => {
     if (!currentSong) return null;
-    if (currentSong.albumId) return currentSong.albumId;
+    if (currentSong.albumId && currentSong.albumId !== 'offline' && currentSong.albumId !== 'unknown' && !currentSong.albumId.startsWith('alb-')) {
+      return currentSong.albumId;
+    }
     const match = AlbumCatalogEngine.getAllAlbums().find(
       (a) => a.title.toLowerCase() === currentSong.album?.toLowerCase()
     );
-    return match?.id || null;
+    if (match?.id && match.id !== 'offline') return match.id;
+    if (currentSong.album && currentSong.album !== 'Downloaded' && currentSong.album !== 'RaagaX Music' && currentSong.album !== 'offline') {
+      return currentSong.album;
+    }
+    return null;
   }, [currentSong]);
 
   // Extract dominant colors from current artwork

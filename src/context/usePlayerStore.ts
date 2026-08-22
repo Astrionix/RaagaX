@@ -1985,20 +1985,22 @@ export const usePlayerStore = create<PlayerState>()(
         });
       },
       setSelectedArtistId: (id) => {
-        set({ selectedArtistId: id, activeTab: 'artist' });
+        const safeId = id && id !== 'offline' ? id : null;
+        set({ selectedArtistId: safeId, activeTab: 'artist' });
         NavigationStack.getInstance().push({
           activeTab: 'artist',
           selectedAlbumId: null,
-          selectedArtistId: id,
+          selectedArtistId: safeId,
           selectedPlaylistId: null,
           isPlayerExpanded: get().isPlayerExpanded,
         });
       },
       setSelectedAlbumId: (id) => {
-        set({ selectedAlbumId: id, activeTab: 'album' });
+        const safeId = id && id !== 'offline' ? id : null;
+        set({ selectedAlbumId: safeId, activeTab: 'album' });
         NavigationStack.getInstance().push({
           activeTab: 'album',
-          selectedAlbumId: id,
+          selectedAlbumId: safeId,
           selectedArtistId: null,
           selectedPlaylistId: null,
           isPlayerExpanded: get().isPlayerExpanded,
@@ -2015,11 +2017,17 @@ export const usePlayerStore = create<PlayerState>()(
         });
       },
       navigateFromPlayer: (destination) => {
-        NavigationStack.getInstance().navigateFromPlayer(destination);
+        const safeAlbumId = destination.albumId && destination.albumId !== 'offline' ? destination.albumId : null;
+        const safeArtistId = destination.artistId && destination.artistId !== 'offline' ? destination.artistId : null;
+        NavigationStack.getInstance().navigateFromPlayer({
+          ...destination,
+          albumId: safeAlbumId,
+          artistId: safeArtistId,
+        });
         set({
           activeTab: destination.tab,
-          selectedAlbumId: destination.albumId || null,
-          selectedArtistId: destination.artistId || null,
+          selectedAlbumId: safeAlbumId,
+          selectedArtistId: safeArtistId,
           selectedPlaylistId: destination.playlistId || null,
           isPlayerExpanded: false,
         });

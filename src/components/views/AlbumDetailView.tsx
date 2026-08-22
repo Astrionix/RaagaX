@@ -50,7 +50,7 @@ export function AlbumDetailView() {
   } = useDownloadStore();
 
   const [album, setAlbum] = useState<AlbumItem | null>(() => {
-    if (!selectedAlbumId) return null;
+    if (!selectedAlbumId || selectedAlbumId === 'offline') return null;
     return AlbumCatalogEngine.getAlbumById(selectedAlbumId, preferredLanguage) || null;
   });
 
@@ -62,7 +62,10 @@ export function AlbumDetailView() {
   const isLikedAlbum = selectedAlbumId ? favoriteAlbumIds.includes(selectedAlbumId) : false;
 
   useEffect(() => {
-    if (!selectedAlbumId) return;
+    if (!selectedAlbumId || selectedAlbumId === 'offline') {
+      setIsLoadingTracks(false);
+      return;
+    }
 
     let isMounted = true;
     const baseAlbum = AlbumCatalogEngine.getAlbumById(selectedAlbumId, preferredLanguage);
