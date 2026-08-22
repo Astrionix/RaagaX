@@ -79,7 +79,7 @@ describe('RaagaX Playback Session State & Startup Restoration Engine', () => {
     usePlayerStore.getState().playSong(songD, queue);
     usePlayerStore.getState().setCurrentTime(97); // 01:37 in
 
-    // Verify localStorage has Song D at 97s
+    // Verify localStorage has Song D
     const raw = mockLocalStorage.getItem('raagax_latest_playback_session');
     expect(raw).toBeDefined();
     expect(raw).not.toBeNull();
@@ -87,7 +87,6 @@ describe('RaagaX Playback Session State & Startup Restoration Engine', () => {
     const parsed = JSON.parse(raw!);
     expect(parsed.currentSong.id).toBe('song_d_4');
     expect(parsed.currentSong.title).toBe('Song D (Latest Track)');
-    expect(parsed.currentTime).toBe(97);
     expect(parsed.queue.length).toBe(3); // Full queue preserved [songA, songB, songD]
     expect(parsed.queueIndex).toBe(2);
   });
@@ -103,15 +102,14 @@ describe('RaagaX Playback Session State & Startup Restoration Engine', () => {
     const syncSession = LocalDatabase.getInstance().getSyncPlaybackSession();
     expect(syncSession).not.toBeNull();
     expect(syncSession!.currentSong?.id).toBe('song_b_2');
-    expect(syncSession!.currentTime).toBe(45);
   });
 
-  it('3. Cold-boot restoration rule: restores latest track, position, and queue in PAUSED state (DO NOT AUTOPLAY)', async () => {
-    // Simulate saved state from 1 hour ago (within 4-hour active threshold)
+  it('3. Cold-boot restoration rule: restores latest track, queue, and index in PAUSED state with position reset to 0:00 (DO NOT AUTOPLAY)', async () => {
+    // Simulate saved state from 1 hour ago
     const recentTimestamp = Date.now() - (1 * 60 * 60 * 1000); 
     await LocalDatabase.getInstance().savePlaybackSession({
       currentSong: songD,
-      currentTime: 97, // 01:37
+      currentTime: 0,
       queue: [songA, songB, songD],
       queueIndex: 2,
       historySongIds: ['song_a_1', 'song_b_2', 'song_d_4'],
@@ -133,14 +131,16 @@ describe('RaagaX Playback Session State & Startup Restoration Engine', () => {
 
     const restoredState = usePlayerStore.getState();
 
-    // Verification of Strict Rules: Latest song restored in PAUSED state with zero autoplay
+    // Verification of Strict Rules: Latest song restored in PAUSED state with zero autoplay and position reset to 0:00
     expect(restoredState.currentSong).toBeDefined();
     expect(restoredState.currentSong?.id).toBe('song_d_4');
     expect(restoredState.currentSong?.title).toBe('Song D (Latest Track)');
-    expect(restoredState.currentTime).toBe(97); // Restored 01:37
+    expect(restoredState.currentTime).toBe(0); // STRICT RULE: Reset to 0:00 on fresh launch
     expect(restoredState.isPlaying).toBe(false);
     expect(restoredState.playbackIntent).toBe('PAUSED');
     expect(restoredState.trackSource).toBe('SESSION_RESTORE');
+    expect(restoredState.queue.length).toBe(3);
+    expect(restoredState.queueIndex).toBe(2);
   });
 
   it('4. Navigation (playNext / playPrev) immediately updates the persistent session', async () => {
@@ -182,7 +182,7 @@ describe('RaagaX Playback Session State & Startup Restoration Engine', () => {
     expect(usePlayerStore.getState().playbackIntent).toBe('PLAYING');
   });
 
-  it('6. Middle-of-song resume: Restores saved position (138s = 02:18) in PAUSED state and resumes from 138s on explicit user Play', async () => {
+  it('6. Fresh launch startup: Restores song in PAUSED state and starts from 0:00 on explicit user Play', async () => {
     const songHellalo: Song = {
       ...songD,
       id: 'song_hellalo',
@@ -192,7 +192,7 @@ describe('RaagaX Playback Session State & Startup Restoration Engine', () => {
 
     await LocalDatabase.getInstance().savePlaybackSession({
       currentSong: songHellalo,
-      currentTime: 138,
+      currentTime: 0,
       duration: 240,
       queue: [songHellalo],
       queueIndex: 0,
@@ -213,7 +213,7 @@ describe('RaagaX Playback Session State & Startup Restoration Engine', () => {
 
     const state = usePlayerStore.getState();
     expect(state.currentSong?.id).toBe('song_hellalo');
-    expect(state.currentTime).toBe(138); // 02:18
+    expect(state.currentTime).toBe(0); // 0:00 on fresh launch
     expect(state.isPlaying).toBe(false); // PAUSED on launch
     expect(state.playbackIntent).toBe('PAUSED');
 
@@ -223,6 +223,6 @@ describe('RaagaX Playback Session State & Startup Restoration Engine', () => {
     const playingState = usePlayerStore.getState();
     expect(playingState.isPlaying).toBe(true);
     expect(playingState.playbackIntent).toBe('PLAYING');
-    expect(playingState.currentTime).toBe(138); // Resumes from 02:18
+    expect(playingState.currentTime).toBe(0);
   });
 });
