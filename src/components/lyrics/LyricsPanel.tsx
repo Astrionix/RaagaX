@@ -146,9 +146,11 @@ export function LyricsPanel() {
                     import('@/lib/lyrics/LyricsEngine').then(({ LyricsEngine }) => {
                       LyricsEngine.getInstance().seek(line.startMs);
                     }).catch(() => {});
-                    import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-                      ConnectManager.getInstance().dispatchPlaybackCommand('SEEK', { positionMs: line.startMs });
-                    }).catch(() => {});
+                    if (!usePlayerStore.getState().isActiveDevice) {
+                      import('@/lib/connect/lan/RaagaXConnectV2').then(({ RaagaXConnectV2 }) => {
+                        RaagaXConnectV2.getInstance().sendCommand('CMD_SEEK', { positionMs: line.startMs });
+                      }).catch(() => {});
+                    }
                   }
                 }}
               >

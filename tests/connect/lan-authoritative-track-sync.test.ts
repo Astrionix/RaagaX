@@ -61,7 +61,7 @@ describe('RaagaX Connect V2: Authoritative Track Transitions & Symmetric UI Sync
   beforeEach(() => {
     vi.restoreAllMocks();
     ConnectAuthManager.getInstance().removeAllTrustedPeers();
-    ConnectAuthManager.getInstance().setPolicies('ANYONE_ON_WIFI', 'ANYONE_ON_WIFI');
+    ConnectAuthManager.getInstance().setPolicies('ANYONE_ON_WIFI', 'ASK_EVERY_TIME');
   });
 
   // TEST 1: Mobile (Controller) -> Desktop (Owner) NEXT transition

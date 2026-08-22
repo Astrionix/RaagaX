@@ -143,9 +143,11 @@ export function SeekBar({
       setSeekTarget(newTime);
 
       // Cross-device: broadcast SEEK so the remote device (Laptop/Phone) also seeks
-      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-        ConnectManager.getInstance().dispatchPlaybackCommand('SEEK', { positionMs: Math.round(newTime * 1000) });
-      });
+      if (!usePlayerStore.getState().isActiveDevice) {
+        import('@/lib/connect/lan/RaagaXConnectV2').then(({ RaagaXConnectV2 }) => {
+          RaagaXConnectV2.getInstance().sendCommand('CMD_SEEK', { positionMs: Math.round(newTime * 1000) });
+        }).catch(() => {});
+      }
 
       setTimeout(() => {
         setIsSeekSettling(false);

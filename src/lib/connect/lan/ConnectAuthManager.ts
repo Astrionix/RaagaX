@@ -545,6 +545,11 @@ export class ConnectAuthManager {
   // Permission Checks (Granular Control & Switch Verification)
   // ─────────────────────────────────────────────────────────────────────────────
 
+  public addTrustedPeer(peer: TrustedPeer) {
+    this.trustedPeers.set(peer.deviceId, peer);
+    this.persistState();
+  }
+
   public isPaired(deviceId: string): boolean {
     const peer = this.trustedPeers.get(deviceId);
     if (!peer) return false;
@@ -557,13 +562,25 @@ export class ConnectAuthManager {
   }
 
   public canControl(deviceId: string): boolean {
+    if (!deviceId || deviceId === 'local' || deviceId === 'local_device' || deviceId === 'broadcast') {
+      return true;
+    }
+    const localId = LocalDiscoveryService.getInstance().getLocalIdentity().deviceId;
+    if (deviceId === localId) return true;
+
     // 1. Same account is automatically authorized
     if (this.getAuthTier(deviceId) === 'SAME_ACCOUNT') return true;
 
     // 2. Open Wi-Fi policy allows all local peers
     if (this.controlPolicy === 'ANYONE_ON_WIFI') return true;
 
-    // 3. Explicitly paired with allowControl permission
+    // 3. Authorized handshake sessions
+    const session = this.authorizedSessions.get(deviceId);
+    if (session && session.authTier === 'SAME_ACCOUNT') {
+      return true;
+    }
+
+    // 4. Explicitly paired with allowControl permission
     const peer = this.trustedPeers.get(deviceId);
     if (peer) {
       if (peer.expiresAt && peer.expiresAt <= Date.now()) {
@@ -578,13 +595,25 @@ export class ConnectAuthManager {
   }
 
   public canSwitch(deviceId: string): boolean {
+    if (!deviceId || deviceId === 'local' || deviceId === 'local_device' || deviceId === 'broadcast') {
+      return true;
+    }
+    const localId = LocalDiscoveryService.getInstance().getLocalIdentity().deviceId;
+    if (deviceId === localId) return true;
+
     // 1. Same account is automatically authorized
     if (this.getAuthTier(deviceId) === 'SAME_ACCOUNT') return true;
 
     // 2. Open Wi-Fi policy allows switching
     if (this.controlPolicy === 'ANYONE_ON_WIFI') return true;
 
-    // 3. Explicitly paired with allowSwitch permission
+    // 3. Authorized handshake sessions
+    const session = this.authorizedSessions.get(deviceId);
+    if (session && session.authTier === 'SAME_ACCOUNT') {
+      return true;
+    }
+
+    // 4. Explicitly paired with allowSwitch permission
     const peer = this.trustedPeers.get(deviceId);
     if (peer) {
       if (peer.expiresAt && peer.expiresAt <= Date.now()) {

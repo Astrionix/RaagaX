@@ -141,19 +141,19 @@ describe('RaagaX Cross-Device Sync — Safe Incremental Architecture Tests', () 
       isPlaying: true,
     });
 
-    const dispatchSpy = vi.spyOn(ConnectManager.getInstance(), 'dispatchPlaybackCommand')
-      .mockResolvedValue({ success: true });
+    const { RaagaXConnectV2 } = await import('../../src/lib/connect/lan/RaagaXConnectV2');
+    const sendSpy = vi.spyOn(RaagaXConnectV2.getInstance(), 'sendCommand');
 
     // 1. Mobile user taps PAUSE
     await usePlayerStore.getState().togglePlayPause();
     expect(usePlayerStore.getState().isPlaying).toBe(false); // 0ms perceived pause
-    expect(dispatchSpy).toHaveBeenCalledWith('PAUSE', { positionMs: 92000 });
+    expect(sendSpy).toHaveBeenCalledWith('CMD_PAUSE', { positionMs: 92000 });
 
     // 2. Mobile user seeks to 134s (02:14)
     usePlayerStore.getState().setCurrentTime(134);
     expect(usePlayerStore.getState().currentTime).toBe(134); // 0ms perceived seek
 
-    dispatchSpy.mockRestore();
+    sendSpy.mockRestore();
   });
 
   // ── TEST 4: Seek Safety & Transient 0ms Stale State Protection ───────────────

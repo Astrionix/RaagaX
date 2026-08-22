@@ -217,6 +217,15 @@ export class OwnershipSwitchProtocol {
 
     // 2. Transition this device from OWNER to CONTROLLER
     PlaybackOwnerEngine.getInstance().setOwner(ready.sourceDeviceId, false);
+    
+    // Authorize new owner for reciprocal control & state updates
+    ConnectAuthManager.getInstance().addTrustedPeer({
+      deviceId: ready.sourceDeviceId,
+      deviceName: 'Paired Owner',
+      permissions: { allowControl: true, allowSwitch: true },
+      pairedAt: Date.now(),
+      expiresAt: null,
+    });
 
     // 3. Send commit to target
     const commitMsg: LANSwitchCommitMessage = {
@@ -249,6 +258,15 @@ export class OwnershipSwitchProtocol {
 
     // 1. Become active owner
     PlaybackOwnerEngine.getInstance().setOwner(localId, true);
+
+    // Authorize previous owner as active controller
+    ConnectAuthManager.getInstance().addTrustedPeer({
+      deviceId: commit.sourceDeviceId,
+      deviceName: 'Paired Controller',
+      permissions: { allowControl: true, allowSwitch: true },
+      pairedAt: Date.now(),
+      expiresAt: null,
+    });
 
     // 2. Start native playback at exact target position
     try {

@@ -278,41 +278,8 @@ export class PlaybackStateSync {
       }
     }
 
-    // 2. Apply command-specific shielding for PLAY, PAUSE, NEXT, PREV
-    if (this.activeCommandShield && now - this.activeCommandShield.startedAt < 3000) {
-      const shield = this.activeCommandShield;
-      if (shield.type === 'PLAY' || shield.type === 'NEXT' || shield.type === 'PREV') {
-        const isSongMatched = !shield.songId || remoteState.songId === shield.songId;
-        const isPlayingMatched = remoteState.isPlaying === true;
-        if (isSongMatched && isPlayingMatched) {
-          // Renderer has caught up to the matching command state, release shield immediately!
-          console.log(`[PlaybackStateSync] Remote player caught up to ${shield.type} (songId=${remoteState.songId}, isPlaying=true). Released command shield.`);
-          this.activeCommandShield = null;
-        } else {
-          console.log(`[PlaybackStateSync] Shielding optimistic play/song state. Incoming: isPlaying=${remoteState.isPlaying}, songId=${remoteState.songId}. Preserving optimistic isPlaying=true`);
-          remoteState.isPlaying = true;
-          if (shield.songId && store.currentSong && store.currentSong.id === shield.songId) {
-            remoteState.songId = shield.songId;
-            remoteState.songData = store.currentSong;
-            if (shield.queueIndex !== null) {
-              remoteState.queueIndex = shield.queueIndex;
-            }
-          }
-        }
-      } else if (shield.type === 'PAUSE') {
-        if (remoteState.isPlaying === false) {
-          // Renderer caught up to pause, release shield immediately!
-          console.log(`[PlaybackStateSync] Remote player caught up to PAUSE. Released command shield.`);
-          this.activeCommandShield = null;
-        } else {
-          console.log(`[PlaybackStateSync] Shielding optimistic pause state. Incoming: isPlaying=true. Preserving optimistic isPlaying=false`);
-          remoteState.isPlaying = false;
-        }
-      }
-    } else if (this.activeCommandShield) {
-      // Shield expired
-      this.activeCommandShield = null;
-    }
+    // 2. Clear command shield - Authoritative Owner's incoming state ALWAYS wins for track identity and playback state!
+    this.activeCommandShield = null;
 
     console.log(`[PlaybackStateSync] Received remote state from ${remoteState.activeDeviceName} (${remoteState.activeDeviceId}):`, {
       song: remoteState.songData?.title,
