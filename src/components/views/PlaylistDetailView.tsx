@@ -196,13 +196,19 @@ export function PlaylistDetailView() {
     return playlist.ownerId !== 'curated' && (playlist.ownerId === activeUserId || playlist.ownerId === 'guest' || !playlist.ownerId);
   }, [playlist, activeUserId]);
 
+  const isSavedInLibrary = useMemo(() => {
+    if (!playlist) return false;
+    return playlists.some((p) => p.id === playlist.id || (p.title === playlist.title && (p.ownerId === activeUserId || p.ownerId === 'guest')));
+  }, [playlist, playlists, activeUserId]);
+
   const handleSaveToLibrary = async () => {
     if (!playlist) return;
+    haptics.mediumImpact();
     // Pass the locally-resolved playlist as a fallback — needed for curated/editorial playlists
     // that are not stored in the usePlaylistStore (only in PlaylistDetailView local state).
     const cloned = await clonePlaylistToLibrary(playlist.id, playlist);
     if (cloned) {
-      setToastMessage(`Saved "${playlist.title}" to Your Playlists!`);
+      setToastMessage(`Saved "${playlist.title}" to Your Playlists! ✓`);
       setSelectedPlaylistId(cloned.id);
     }
   };
@@ -593,6 +599,13 @@ export function PlaylistDetailView() {
               <Plus className="w-4 h-4" />
               Add Songs
             </button>
+          ) : isSavedInLibrary ? (
+            <div
+              className="h-11 px-5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shrink-0 whitespace-nowrap"
+            >
+              <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
+              In Your Library
+            </div>
           ) : (
             <button
               onClick={handleSaveToLibrary}

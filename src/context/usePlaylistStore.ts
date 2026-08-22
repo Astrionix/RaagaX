@@ -433,20 +433,68 @@ export const usePlaylistStore = create<PlaylistStore>()(
         const source = get().playlists.find((p) => p.id === playlistId) ?? sourcePlaylist;
         if (!source) return null;
 
-        const clone = await get().createPlaylist(
-          `Copy of ${source.title}`,
-          `Cloned from your library • ${source.songs.length} tracks`,
-          'private',
-          source.coverUrl
-        );
+        const songs = Array.isArray(source.songs) ? [...source.songs] : [];
+        const songIds = Array.isArray(source.songIds) && source.songIds.length > 0
+          ? [...source.songIds]
+          : songs.map((s) => s.id);
 
-        if (clone) {
-          for (const s of source.songs) {
-            await get().addSongToPlaylist(clone.id, s);
+        const id = crypto.randomUUID();
+        let authUserId = 'guest';
+        let authUserName = 'You';
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            authUserId = session.user.id;
+            authUserName = session.user.user_metadata?.full_name || 'You';
           }
+        } catch { }
+
+        const now = new Date().toISOString();
+        const newPl: UserPlaylist = {
+          id,
+          title: source.title,
+          description: source.description || `Saved from catalog • ${songs.length} tracks`,
+          coverUrl: source.coverUrl || (songs.length > 0 ? songs[0].coverUrl : ''),
+          visibility: 'private',
+          ownerId: authUserId,
+          ownerName: authUserName,
+          creator: 'You',
+          createdAt: now,
+          updatedAt: now,
+          songIds,
+          songs,
+        };
+
+        // 1. Atomic UI update: insert playlist with all songs already populated
+        set((state) => ({ playlists: [newPl, ...state.playlists] }));
+
+        // 2. Batch persist to Supabase if user is logged in
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            const { error: plError } = await supabase.from('playlists').insert({
+              id,
+              name: newPl.title,
+              description: newPl.description || '',
+              cover_url: newPl.coverUrl || null,
+              visibility: 'private',
+              owner_id: session.user.id,
+            });
+
+            if (!plError && songIds.length > 0) {
+              const rows = songIds.map((songId, idx) => ({
+                playlist_id: id,
+                song_id: songId,
+                position: idx + 1,
+              }));
+              await supabase.from('playlist_songs').insert(rows);
+            }
+          }
+        } catch (err) {
+          console.warn('[usePlaylistStore] Cloud sync failed for saved playlist, stored locally:', err);
         }
 
-        return clone;
+        return newPl;
       },
 
       toggleLikePlaylist: async (playlistId) => {
