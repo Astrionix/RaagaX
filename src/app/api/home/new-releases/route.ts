@@ -112,11 +112,25 @@ export async function GET(request: Request) {
 
       if (songs.length > 0) {
         songs.sort((a, b) => new Date(b.releaseDate || 0).getTime() - new Date(a.releaseDate || 0).getTime());
-        return NextResponse.json({ success: true, data: songs.slice(0, limit) });
+        return NextResponse.json(
+          { success: true, data: songs.slice(0, limit) },
+          {
+            headers: {
+              'Cache-Control': 'public, s-maxage=10800, stale-while-revalidate=3600',
+            },
+          }
+        );
       }
     }
 
-    return NextResponse.json({ success: true, data: [] });
+    return NextResponse.json(
+      { success: true, data: [] },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=10800, stale-while-revalidate=3600',
+        },
+      }
+    );
   } catch (error: any) {
     console.error('Error fetching new releases:', error);
     return NextResponse.json({ success: false, data: [] }, { status: 500 });

@@ -193,14 +193,22 @@ export function NewView() {
   const [fallbackSongs, setFallbackSongs] = useState<Song[]>([]);
   const [isFallbackLoading, setIsFallbackLoading] = useState(false);
 
+  const THREE_HOURS_MS = 3 * 60 * 60 * 1000; // 10,800,000 ms
+
   // ── Fetch strictly date-ordered new releases for the selected language from API (Every 3 Hours)
-  const { data: newReleasesData, isLoading: isSwrLoading } = useSWR(
+  const { data: newReleasesData, isLoading: isSwrLoading, mutate: revalidateNewReleases } = useSWR(
     `/api/home/new-releases?lang=${encodeURIComponent(lang)}&limit=50`,
     fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 60000, refreshInterval: 10800000 }
+    { 
+      revalidateOnFocus: false, 
+      revalidateIfStale: true,
+      revalidateOnMount: true,
+      dedupingInterval: 60000, 
+      refreshInterval: THREE_HOURS_MS 
+    }
   );
 
-  // ── Fallback fetch for native Android / offline environments
+  // ── Fallback fetch for native Android / offline environments (refreshes every 3 hours)
   useEffect(() => {
     let isCancelled = false;
     const loadFallback = async () => {
@@ -225,8 +233,11 @@ export function NewView() {
     };
 
     loadFallback();
+    const interval = setInterval(loadFallback, THREE_HOURS_MS);
+
     return () => {
       isCancelled = true;
+      clearInterval(interval);
     };
   }, [lang]);
 
