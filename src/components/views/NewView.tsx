@@ -13,7 +13,6 @@ import {
   Film,
   TrendingUp,
   User,
-  ListMusic,
   ChevronRight,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
@@ -281,7 +280,6 @@ export function NewView() {
     });
     return Array.from(seen.values()).slice(0, 8);
   }, [allSongs]);
-  const updatedPlaylists = useMemo(() => allSongs.slice(0, 6), [allSongs]);
 
   const handlePlayAll = (shuffle = false) => {
     if (!allSongs.length) return;
@@ -569,39 +567,6 @@ export function NewView() {
                   <OptimizedImage src={item.coverUrl} alt={item.artist} size="thumb" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                 </div>
                 <h4 className="text-xs font-bold text-white truncate group-hover:text-[#FA233B] transition-colors">{item.artist}</h4>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 11. RECENTLY UPDATED PLAYLISTS — Editorial playlists with new songs   */}
-      {/* ══════════════════════════════════════════════════════════════════════ */}
-      {updatedPlaylists.length > 0 && (
-        <section className="space-y-3">
-          <SectionHeader
-            icon={<ListMusic className="w-3.5 h-3.5 text-pink-400" />}
-            title="Recently Updated Playlists"
-          />
-          <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-            {updatedPlaylists.map((item, idx) => (
-              <div
-                key={`pl-${item.id || 'item'}-${idx}`}
-                onClick={() => {
-                  haptics.lightImpact();
-                  setSelectedPlaylistId(item.id);
-                }}
-                className="w-36 flex-shrink-0 cursor-pointer group"
-              >
-                <div className="relative aspect-square rounded-2xl overflow-hidden mb-2 bg-slate-800 shadow-md border border-white/5">
-                  <OptimizedImage src={item.coverUrl} alt={item.title} size="card" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                  <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-pink-500/80 text-[9px] font-bold text-white uppercase tracking-wide">
-                    Updated
-                  </div>
-                </div>
-                <h4 className="text-xs font-bold text-white truncate group-hover:text-[#FA233B] transition-colors">{item.title}</h4>
-                <p className="text-[10px] text-slate-400 truncate mt-0.5">{item.artist}</p>
               </div>
             ))}
           </div>
