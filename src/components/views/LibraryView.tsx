@@ -503,7 +503,7 @@ export function LibraryView() {
                 }}
               >
                 <div
-                  className={`p-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 hover:bg-white/5 transition-all flex items-center justify-between group ${
+                  className={`py-2.5 px-3 sm:px-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-white/10 hover:bg-white/[0.06] transition-all flex items-center justify-between group min-h-[64px] sm:min-h-[68px] ${
                     isSongOfflineUnavailable ? 'opacity-40 pointer-events-none select-none' : ''
                   }`}
                 >
@@ -517,7 +517,7 @@ export function LibraryView() {
                       onError={(e) => {
                         (e.currentTarget as HTMLImageElement).src = '/app-icon.png';
                       }}
-                      className="w-11 h-11 rounded-xl object-cover shadow-sm flex-shrink-0 bg-slate-800"
+                      className="w-12 h-12 rounded-xl object-cover shadow-sm flex-shrink-0 bg-slate-800"
                     />
                     <div className="min-w-0 flex-1">
                       <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-[#F51B3D] transition-colors truncate">
@@ -633,13 +633,13 @@ export function LibraryView() {
                     onSwipeAction={() => removeDownload(song.id)}
                   >
                     <div
-                      className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-emerald-500/30 hover:bg-white/5 transition-all flex items-center justify-between group"
+                      className="py-2.5 px-3 sm:px-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-emerald-500/30 hover:bg-white/[0.06] transition-all flex items-center justify-between group min-h-[64px] sm:min-h-[68px]"
                     >
                       <div
-                        className="flex items-center gap-3.5 cursor-pointer flex-1 min-w-0"
+                        className="flex items-center gap-3.5 cursor-pointer flex-1 min-w-0 pr-3"
                         onClick={() => playSong(song, downloadedSongs)}
                       >
-                        <div className="relative w-11 h-11 rounded-xl overflow-hidden shadow-sm flex-shrink-0 bg-slate-800">
+                        <div className="relative w-12 h-12 rounded-xl overflow-hidden shadow-sm flex-shrink-0 bg-slate-800">
                           <img
                             src={song.coverUrl || '/app-icon.png'}
                             alt={song.title}
@@ -653,7 +653,7 @@ export function LibraryView() {
                           </div>
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h4 className="text-xs font-bold text-white group-hover:text-emerald-400 transition-colors truncate">
+                          <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-emerald-400 transition-colors truncate">
                             {song.title}
                           </h4>
                           <div className="flex items-center gap-2 mt-0.5">
@@ -664,7 +664,7 @@ export function LibraryView() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
                         <DownloadStatusIndicator song={song} size="sm" showPercentage />
                         <SongActionMenu song={song} />
                       </div>

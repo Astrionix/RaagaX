@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   MoreVertical, MoreHorizontal, ListPlus, FastForward, Heart, Play, Share2, Plus, 
   Download, PauseCircle, XCircle, ChevronRight, ChevronLeft, Info, Trash2, 
-  Check, User, Disc, Ban, Bookmark, Flag, Library, CloudDownload
+  Check, User, Disc, Ban, Bookmark, Flag, Library, CloudDownload, X
 } from 'lucide-react';
 import { Song } from '@/types/music';
 import { usePlayerStore } from '@/context/usePlayerStore';
@@ -25,7 +26,12 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
   const [currentView, setCurrentView] = useState<'main' | 'playlist' | 'more'>('main');
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   
   const { 
     playSong, 
@@ -117,43 +123,68 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
 
   return (
     <>
-      <div className="relative" ref={menuRef}>
+      <div className="relative flex-shrink-0" ref={menuRef}>
         <button 
           onClick={(e) => {
             e.stopPropagation();
             setIsOpen(!isOpen);
             setCurrentView('main');
           }}
-          className="p-2 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+          className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white rounded-full hover:bg-white/10 active:scale-90 transition-all cursor-pointer flex-shrink-0"
           aria-label="Track actions"
         >
           <MoreVertical className="w-4 h-4" />
         </button>
 
-        {isOpen && (
+        {isOpen && mounted && typeof document !== 'undefined' && createPortal(
           <div 
-            onClick={(e) => e.stopPropagation()}
-            className="absolute right-0 top-full mt-2 w-64 bg-[#14151a]/95 border border-white/10 rounded-2xl shadow-2xl p-2 z-50 text-sm backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-150 divide-y divide-white/5"
+            className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/65 backdrop-blur-sm animate-in fade-in duration-150"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsOpen(false);
+              setCurrentView('main');
+            }}
           >
-            {/* Song Header Preview Banner */}
-            <div className="flex items-center gap-3 p-2.5 mb-1 rounded-xl bg-white/5 border border-white/5">
-              <img 
-                src={song.coverUrl || '/app-icon.png'} 
-                alt={song.title} 
-                onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                className="w-10 h-10 rounded-lg object-cover flex-shrink-0 shadow-md bg-slate-800"
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-h-[85vh] sm:max-w-sm bg-[#14151e] border-t sm:border border-white/10 rounded-t-[28px] sm:rounded-3xl shadow-2xl p-4 sm:p-5 flex flex-col backdrop-blur-2xl animate-in slide-in-from-bottom duration-200 divide-y divide-white/10 text-white overflow-hidden pb-8 sm:pb-5"
+            >
+              {/* Top Drag Handle on Mobile */}
+              <div 
+                className="w-12 h-1.5 bg-white/20 hover:bg-white/40 rounded-full mx-auto mb-3 flex-shrink-0 cursor-pointer sm:hidden" 
+                onClick={() => setIsOpen(false)} 
               />
-              <div className="min-w-0 flex-1">
-                <h4 className="font-bold text-white truncate text-xs leading-snug">{song.title}</h4>
-                <p className="text-[11px] text-slate-400 truncate mt-0.5">{song.artist}</p>
-              </div>
-            </div>
 
-            {currentView === 'main' && (
-              <div className="space-y-0.5 pt-1">
-                {/* 1. Play */}
-                <button 
-                  onClick={() => handleAction(() => playSong(song))}
+              {/* Song Header Preview Banner */}
+              <div className="flex items-center justify-between gap-3 pb-3 mb-1">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <img 
+                    src={song.coverUrl || '/app-icon.png'} 
+                    alt={song.title} 
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+                    className="w-12 h-12 rounded-xl object-cover flex-shrink-0 shadow-md bg-slate-800"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-bold text-white truncate text-sm leading-snug">{song.title}</h4>
+                    <p className="text-xs text-slate-400 truncate mt-0.5">{song.artist}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setIsOpen(false); setCurrentView('main'); }}
+                  className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center flex-shrink-0 transition-colors cursor-pointer"
+                  aria-label="Close menu"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Scrolling Actions Body (Height-Adjustable) */}
+              <div className="flex-1 overflow-y-auto overscroll-contain no-scrollbar pt-2 space-y-0.5">
+                {currentView === 'main' && (
+                  <div className="space-y-0.5">
+                    {/* 1. Play */}
+                    <button 
+                      onClick={() => handleAction(() => playSong(song))}
                   className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
                 >
                   <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-[#EF233C] group-hover:bg-[#EF233C] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
@@ -545,7 +576,10 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
                 </button>
               </div>
             )}
-          </div>
+              </div>
+            </div>
+          </div>,
+          document.body
         )}
       </div>
 

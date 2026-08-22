@@ -278,7 +278,7 @@ export function FavoritesView() {
                   onSwipeAction={() => toggleLikeSong(song.id)}
                 >
                   <div
-                    className={`p-3 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] transition-all flex items-center justify-between group shadow-sm ${
+                    className={`py-2.5 px-3 sm:px-4 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] transition-all flex items-center justify-between group shadow-sm min-h-[64px] sm:min-h-[68px] ${
                       isCurrent ? 'border-red-500/40 ring-1 ring-red-500/20' : ''
                     } ${isSongOfflineUnavailable ? 'opacity-40 pointer-events-none select-none' : ''}`}
                   >
