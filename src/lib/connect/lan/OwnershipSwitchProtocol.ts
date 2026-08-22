@@ -307,4 +307,37 @@ export class OwnershipSwitchProtocol {
       this.activeTransfers.delete(failed.transferId);
     }
   }
+
+  /**
+   * Cancel all in-flight switches on disconnect.
+   * Only transfers in REQUESTED or OFFERED phase are cancelled — READY→COMMIT is atomic
+   * and has already executed, so we never undo a completed handover.
+   * The current owner retains playback and the session remains unchanged.
+   */
+  public cancelAllTransfers() {
+    for (const [transferId, transfer] of this.activeTransfers.entries()) {
+      if (transfer.status === 'REQUESTED' || transfer.status === 'OFFERED') {
+        console.log(`[OwnershipSwitchProtocol] Cancelling in-flight transfer ${transferId} (status: ${transfer.status}) due to disconnect`);
+        clearTimeout(transfer.timeout);
+        transfer.resolve?.(false);
+
+        // Notify the remote device to cancel as well if we are the initiator
+        const localId = LocalDiscoveryService.getInstance().getLocalIdentity().deviceId;
+        try {
+          const cancelMsg = {
+            id: 'sw_cancel_' + Date.now(),
+            type: 'SWITCH_CANCEL' as const,
+            sourceDeviceId: localId,
+            targetDeviceId: transfer.targetDeviceId,
+            transferId,
+            timestamp: Date.now(),
+          };
+          DirectLANTransport.getInstance().sendMessage(transfer.targetDeviceId, cancelMsg as any);
+        } catch {}
+
+        this.activeTransfers.delete(transferId);
+      }
+    }
+  }
 }
+

@@ -336,9 +336,16 @@ export class CommandBus {
             break;
           }
 
+          // Snapshot isPlaying BEFORE seeking — paused seek stays paused, playing seek stays playing
+          const wasPlayingSeek = Boolean(store.isPlaying);
           store.setCurrentTime(p.positionMs / 1000, true);
           if (store.isActiveDevice) {
             PlaybackService.getInstance().seek(p.positionMs / 1000, true);
+            // If was paused, re-pause explicitly (some audio engines auto-resume on seek)
+            if (!wasPlayingSeek) {
+              PlaybackService.getInstance().pause();
+            }
+            // Immediately broadcast authoritative state so controller confirms the new position
             import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
               PlaybackStateSync.getInstance().broadcastState(true);
             });

@@ -122,6 +122,13 @@ export class RaagaXConnectV2 {
   }
 
   public disconnect() {
+    // Cancel any in-flight ownership switch — only REQUESTED/OFFERED phases are cancelled.
+    // A READY→COMMIT transfer that already completed is never undone.
+    try {
+      const { OwnershipSwitchProtocol } = require('./OwnershipSwitchProtocol');
+      OwnershipSwitchProtocol.getInstance().cancelAllTransfers();
+    } catch {}
+
     const ownerId = PlaybackOwnerEngine.getInstance().getActiveOwnerId();
     DirectLANTransport.getInstance().disconnectFromDevice(ownerId);
 
