@@ -299,7 +299,7 @@ function persistSessionHelper(state: {
   if (!state.currentSong) return;
   const payload = {
     currentSong: state.currentSong,
-    currentTime: Math.max(0, state.currentTime || 0),
+    currentTime: 0, // Reset to 0:00 for fresh process restart after kill
     duration: state.duration || state.currentSong?.duration || 0,
     queue: state.queue || [],
     queueIndex: Math.max(0, state.queueIndex || 0),
@@ -469,7 +469,7 @@ export const usePlayerStore = create<PlayerState>()(
       trackSource: (initialSession?.currentSong ? 'SESSION_RESTORE' : null) as any,
       setPlaybackIntent: (intent) => set({ playbackIntent: intent }),
       setTrackSource: (source) => set({ trackSource: source }),
-      currentTime: initialSession?.currentTime || 0,
+      currentTime: 0, // Fresh process always starts at 0:00
       duration: initialSession?.currentSong?.duration || 0,
       volume: 0.8,
       isMuted: false,
@@ -867,13 +867,7 @@ export const usePlayerStore = create<PlayerState>()(
             let safeIndex = cleanQueue.findIndex(s => s.id === activeSong.id);
             if (safeIndex === -1) safeIndex = Math.min(session.queueIndex || 0, Math.max(0, cleanQueue.length - 1));
 
-            let restoredTime = session.currentTime || 0;
             const totalDuration = activeSong.duration || session.duration || 0;
-
-            // ── NEAR-END RULE: If saved position is within 5 seconds of the end, reset to 0:00 ──
-            if (totalDuration > 0 && restoredTime >= (totalDuration - 5)) {
-              restoredTime = 0;
-            }
 
             manager.replaceQueue(cleanQueue, safeIndex);
 
@@ -882,14 +876,14 @@ export const usePlayerStore = create<PlayerState>()(
               playbackIntent: 'PAUSED',
               trackSource: 'SESSION_RESTORE',
               currentSong: activeSong,
-              currentTime: restoredTime,
+              currentTime: 0, // Reset to 0:00 on fresh process launch
               duration: totalDuration,
               queue: cleanQueue,
               queueIndex: safeIndex,
             });
 
-            await PlaybackService.getInstance().prepareTrack(activeSong, restoredTime);
-            await PlaybackService.getInstance().loadQueueContext(cleanQueue, safeIndex, false, Math.round(restoredTime * 1000));
+            await PlaybackService.getInstance().prepareTrack(activeSong, 0);
+            await PlaybackService.getInstance().loadQueueContext(cleanQueue, safeIndex, false, 0);
           }
         } else {
           // Clear/Reset current store state if session is stale/invalid to prevent resurrected stale state

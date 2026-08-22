@@ -348,16 +348,15 @@ public class RaagaXCapacitorPlugin extends Plugin {
                 }
             });
         } else {
-            // Service was stopped (e.g. user swiped app away from Recents)
-            // Return persisted position and ensure isPlaying is strictly false (DO NOT AUTOPLAY)
+            // Service was stopped (e.g. user swiped app away from Recents / fresh boot)
+            // Return restored track metadata with position strictly reset to 0:00
             try {
                 android.content.SharedPreferences prefs = getContext().getSharedPreferences("raagax_native_playback", Context.MODE_PRIVATE);
-                long pos = prefs.getLong("last_position_ms", 0L);
                 String title = prefs.getString("last_title", "");
                 String artist = prefs.getString("last_artist", "");
                 JSObject result = new JSObject();
                 result.put("isPlaying", false);
-                result.put("positionMs", pos);
+                result.put("positionMs", 0L); // Position resets to 0:00 on fresh process launch
                 result.put("durationMs", 0L);
                 result.put("bufferedPositionMs", 0L);
                 result.put("title", title);

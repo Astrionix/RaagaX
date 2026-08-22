@@ -808,7 +808,7 @@ public class RaagaXPlaybackService extends Service {
             try {
                 android.content.SharedPreferences prefs = getSharedPreferences("raagax_native_playback", android.content.Context.MODE_PRIVATE);
                 android.content.SharedPreferences.Editor editor = prefs.edit();
-                editor.putLong("last_position_ms", Math.max(0, player.getCurrentPosition()));
+                editor.putLong("last_position_ms", 0L); // Reset position to 0:00 on process termination
                 editor.putInt("last_index", player.getCurrentMediaItemIndex());
                 editor.putString("last_title", currentTitle);
                 editor.putString("last_artist", currentArtist);
