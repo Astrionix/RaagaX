@@ -100,8 +100,8 @@ export function LibraryView() {
               coverUrl: t.artworkUrl || t.coverUrl || '/app-icon.png',
               duration: 180,
               audioUrl: t.localPath || '',
-              artistId: 'offline',
-              albumId: 'offline',
+              artistId: (t as any).artistId || '',
+              albumId: (t as any).albumId || '',
               genre: 'Various',
               category: 'global_trending',
               year: new Date(t.completedAt || Date.now()).getFullYear().toString(),
@@ -140,8 +140,8 @@ export function LibraryView() {
             coverUrl: t.artworkUrl || '/app-icon.png',
             duration: t.duration || Math.round(t.durationMs / 1000),
             audioUrl: '',
-            artistId: 'offline',
-            albumId: 'offline',
+            artistId: (t as any).artistId || '',
+            albumId: (t as any).albumId || '',
             genre: 'Various',
             category: 'global_trending',
             year: new Date(t.downloadedAt).getFullYear().toString(),
@@ -983,51 +983,117 @@ export function LibraryView() {
     return Array.from(knownSongsMap.values());
   }, [knownSongsMap]);
 
+  const [resolvedLibraryAlbums, setResolvedLibraryAlbums] = useState<any[]>([]);
+
+  // Dynamically resolve real album entities for all saved albums & real liked album IDs
+  useEffect(() => {
+    let isMounted = true;
+    const resolved: any[] = [];
+    const missingIds: string[] = [];
+
+    // 1. Gather all candidate album IDs from favoriteAlbumIds and likedSongs
+    const candidateIds: string[] = [];
+
+    favoriteAlbumIds.forEach((id) => {
+      if (id && id !== 'offline' && id !== 'unknown' && !id.startsWith('alb-') && !candidateIds.includes(id)) {
+        candidateIds.push(id);
+      }
+    });
+
+    likedSongs.forEach((s) => {
+      if (s.albumId && s.albumId !== 'offline' && s.albumId !== 'unknown' && !s.albumId.startsWith('alb-') && !candidateIds.includes(s.albumId)) {
+        candidateIds.push(s.albumId);
+      }
+    });
+
+    for (const albumId of candidateIds) {
+      const known = AlbumCatalogEngine.getAlbumById(albumId, preferredLanguage);
+      if (known) {
+        resolved.push(known);
+      } else {
+        missingIds.push(albumId);
+      }
+    }
+
+    if (missingIds.length === 0) {
+      if (isMounted) setResolvedLibraryAlbums(resolved);
+      return;
+    }
+
+    Promise.all(
+      missingIds.slice(0, 10).map(async (id) => {
+        try {
+          const { RealMusicEngine } = await import('@/lib/realMusicEngine');
+          const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${id}`);
+          if (details && details.title && !details.title.toLowerCase().includes('offline')) {
+            return {
+              id,
+              title: details.title,
+              artist: details.songs?.[0]?.artist || 'Various Artists',
+              artistId: `art-${id}`,
+              coverUrl: details.coverUrl || '/app-icon.png',
+              releaseDate: '2024-01-01',
+              releaseYear: 2024,
+              trackCount: details.songs?.length || 6,
+              durationSec: (details.songs?.length || 6) * 210,
+              language: preferredLanguage,
+              albumType: 'soundtrack' as const,
+              freshnessScore: 90,
+              trendingScore: 90,
+              topScore: 90,
+              tracks: details.songs || [],
+            };
+          }
+        } catch {}
+        return null;
+      })
+    ).then((fetched) => {
+      if (!isMounted) return;
+      const valid = fetched.filter((a): a is any => Boolean(a && a.id && a.id !== 'offline'));
+      setResolvedLibraryAlbums([...resolved, ...valid]);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [favoriteAlbumIds, likedSongs, preferredLanguage]);
+
   const recentlyAddedAlbums = useMemo(() => {
-    const map = new Map<string, { id: string; title: string; artist: string; coverUrl: string; year?: string }>();
-    
-    // Add downloaded albums first
-    downloadedAlbums.forEach((alb) => {
-      const first = alb.tracks[0];
-      if (first && !map.has(alb.album)) {
-        map.set(alb.album, {
-          id: first.albumId || alb.album,
-          title: alb.album,
+    const map = new Map<string, { id: string; title: string; artist: string; coverUrl: string; year?: string; trackCount?: number }>();
+
+    // 1. Primary: Real resolved library albums (favoriteAlbumIds & liked songs)
+    resolvedLibraryAlbums.forEach((alb) => {
+      if (alb.id && alb.id !== 'offline' && !alb.title.toLowerCase().includes('offline') && !map.has(alb.id)) {
+        map.set(alb.id, {
+          id: alb.id,
+          title: alb.title,
           artist: alb.artist || 'Various Artists',
-          coverUrl: alb.coverUrl || first.coverUrl || '/app-icon.png',
-          year: (first as any).releaseYear?.toString() || (first as any).year || '2024',
+          coverUrl: alb.coverUrl || '/app-icon.png',
+          year: alb.releaseYear?.toString() || '2024',
+          trackCount: alb.trackCount || alb.tracks?.length || 6,
         });
       }
     });
 
-    // Add albums from liked songs
-    likedSongs.forEach((song) => {
-      if (song.album && !map.has(song.album)) {
-        map.set(song.album, {
-          id: song.albumId || song.album,
-          title: song.album,
-          artist: song.artist || 'Various Artists',
-          coverUrl: song.coverUrl || '/app-icon.png',
-          year: (song as any).releaseYear?.toString() || (song as any).year || '2024',
-        });
-      }
-    });
-
-    // Add albums from history
-    historySongs.forEach((song) => {
-      if (song.album && !map.has(song.album)) {
-        map.set(song.album, {
-          id: song.albumId || song.album,
-          title: song.album,
-          artist: song.artist || 'Various Artists',
-          coverUrl: song.coverUrl || '/app-icon.png',
-          year: (song as any).releaseYear?.toString() || (song as any).year || '2024',
-        });
-      }
-    });
+    // 2. Secondary: If fewer than 8 albums, populate with real curated seed albums for preferredLanguage
+    if (map.size < 8) {
+      const seedAlbums = AlbumCatalogEngine.getAlbumsForLanguage(preferredLanguage);
+      seedAlbums.forEach((alb) => {
+        if (alb.id && alb.id !== 'offline' && !map.has(alb.id) && map.size < 8) {
+          map.set(alb.id, {
+            id: alb.id,
+            title: alb.title,
+            artist: alb.artist,
+            coverUrl: alb.coverUrl,
+            year: alb.releaseYear?.toString() || '2024',
+            trackCount: alb.trackCount || 6,
+          });
+        }
+      });
+    }
 
     return Array.from(map.values()).slice(0, 8);
-  }, [downloadedAlbums, likedSongs, historySongs]);
+  }, [resolvedLibraryAlbums, preferredLanguage]);
 
   if (tab !== 'menu') {
     let activeLabel = 'Collection';
@@ -1290,6 +1356,30 @@ export function LibraryView() {
     );
   }
 
+  const handleAlbumClick = async (album: { id: string; title: string; artist: string }) => {
+    let realAlbumId = album.id;
+    console.log(`[LIBRARY_ALBUM_CLICK]\nalbumId=${realAlbumId}\nalbumName=${album.title}\nartist=${album.artist}`);
+
+    if (!realAlbumId || realAlbumId === 'offline' || realAlbumId.startsWith('alb-') || realAlbumId === 'unknown') {
+      console.log(`[LIBRARY_ALBUM_ID_MISSING]\ntrackId=\nalbumName=${album.title}\nartist=${album.artist}`);
+      try {
+        const { RealMusicEngine } = await import('@/lib/realMusicEngine');
+        const searchResults = await RealMusicEngine.getInstance().searchRealAlbums(album.title, 5);
+        const match = searchResults.find(a => 
+          a.title.toLowerCase() === album.title.toLowerCase() ||
+          a.artist.toLowerCase().includes(album.artist.toLowerCase())
+        ) || searchResults[0];
+        if (match?.id && match.id !== 'offline') {
+          realAlbumId = match.id;
+        }
+      } catch {}
+    }
+
+    console.log(`[LIBRARY_ALBUM_RESOLVE]\nalbumId=${realAlbumId}`);
+    setSelectedAlbumId(realAlbumId);
+    setActiveTab('album');
+  };
+
   return (
     <div className="space-y-3.5 pb-2 text-white select-none animate-in fade-in duration-200 max-w-5xl mx-auto">
       {/* Library Header */}
@@ -1422,7 +1512,7 @@ export function LibraryView() {
         {[
           { id: 'made_for_you', label: 'Made For You', icon: Sparkles, color: 'text-amber-400', subtitle: 'Personalized mixes' },
           { id: 'genres', label: 'Genres', icon: Layers, color: 'text-indigo-400', subtitle: '50 Indian & Global genres' },
-          { id: 'history', label: 'Listening History', icon: Clock, color: 'text-orange-400', subtitle: `${historySongIds.length} tracks` },
+          { id: 'history', label: 'Listening History', icon: Clock, color: 'text-orange-400', subtitle: `${historySongs.length} tracks` },
           { id: 'insights', label: 'Music Insights', icon: BarChart3, color: 'text-pink-400', subtitle: 'Analytics' },
         ].map((item) => {
           const Icon = item.icon;
@@ -1470,10 +1560,7 @@ export function LibraryView() {
             {recentlyAddedAlbums.map((album) => (
               <div
                 key={album.id}
-                onClick={() => {
-                  setSelectedAlbumId(album.id);
-                  setActiveTab('album');
-                }}
+                onClick={() => handleAlbumClick(album)}
                 className="p-2.5 rounded-xl bg-white/[0.03] border border-white/8 hover:border-white/20 hover:bg-white/[0.06] transition-all cursor-pointer group flex flex-col"
               >
                 <div className="w-full aspect-square rounded-lg overflow-hidden mb-2 bg-slate-800 relative shadow-sm">

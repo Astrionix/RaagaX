@@ -72,70 +72,77 @@ export function AlbumDetailView() {
 
     const loadRealTracks = async () => {
       try {
+        if (selectedAlbumId === 'offline' || selectedAlbumId.startsWith('alb-') || selectedAlbumId === 'unknown') {
+          console.log(`[LIBRARY_ALBUM_ID_MISSING]\ntrackId=\nalbumName=${baseAlbum?.title || ''}\nartist=${baseAlbum?.artist || ''}`);
+        }
+
         let mappedTracks: Song[] = [];
-        let albName = baseAlbum?.title || album?.title || '';
+        let albName = (baseAlbum?.title || album?.title || '').trim();
+        if (albName.toLowerCase() === 'offline') albName = '';
         let primaryArtist = baseAlbum?.artist || album?.artist || 'Various Artists';
         let albCover = baseAlbum?.coverUrl || album?.coverUrl || '/app-icon.png';
         let albYear = baseAlbum?.releaseYear || album?.releaseYear || 2024;
         let albReleaseDate = baseAlbum?.releaseDate || album?.releaseDate || `${albYear}-01-01`;
 
         // ── Tier 1: Fetch via local/hosted API endpoint with getApiUrl & direct upstream fallback ──
-        const endpoints = [
-          getApiUrl(`/api/albums?id=${encodeURIComponent(selectedAlbumId)}`),
-          `https://saavn.dev/api/albums?id=${encodeURIComponent(selectedAlbumId)}`,
-        ];
+        if (selectedAlbumId && selectedAlbumId !== 'offline' && !selectedAlbumId.startsWith('alb-')) {
+          const endpoints = [
+            getApiUrl(`/api/albums?id=${encodeURIComponent(selectedAlbumId)}`),
+            `https://saavn.dev/api/albums?id=${encodeURIComponent(selectedAlbumId)}`,
+          ];
 
-        for (const ep of endpoints) {
-          if (mappedTracks.length > 0) break;
-          try {
-            const apiRes = await fetch(ep, { signal: AbortSignal.timeout(6000) }).catch(() => null);
-            if (apiRes && apiRes.ok) {
-              const apiJson = await apiRes.json();
-              const albData = apiJson?.data || apiJson;
-              if (albData && Array.isArray(albData.songs) && albData.songs.length > 0) {
-                primaryArtist =
-                  albData.artists?.primary?.map((a: any) => a.name).join(', ') ||
-                  albData.primaryArtists ||
-                  albData.artist ||
-                  primaryArtist;
-                albCover =
-                  albData.image?.find?.((i: any) => i.quality === '500x500')?.url ||
-                  albData.image?.[albData.image?.length - 1]?.url ||
-                  albCover;
-                albYear = Number(albData.year) || albYear;
-                albReleaseDate = albData.releaseDate || (albYear ? `${albYear}-01-01` : albReleaseDate);
-                albName = albData.name || albData.title || albName;
+          for (const ep of endpoints) {
+            if (mappedTracks.length > 0) break;
+            try {
+              const apiRes = await fetch(ep, { signal: AbortSignal.timeout(6000) }).catch(() => null);
+              if (apiRes && apiRes.ok) {
+                const apiJson = await apiRes.json();
+                const albData = apiJson?.data || apiJson;
+                if (albData && Array.isArray(albData.songs) && albData.songs.length > 0) {
+                  primaryArtist =
+                    albData.artists?.primary?.map((a: any) => a.name).join(', ') ||
+                    albData.primaryArtists ||
+                    albData.artist ||
+                    primaryArtist;
+                  albCover =
+                    albData.image?.find?.((i: any) => i.quality === '500x500')?.url ||
+                    albData.image?.[albData.image?.length - 1]?.url ||
+                    albCover;
+                  albYear = Number(albData.year) || albYear;
+                  albReleaseDate = albData.releaseDate || (albYear ? `${albYear}-01-01` : albReleaseDate);
+                  albName = albData.name || albData.title || albName;
 
-                mappedTracks = albData.songs.map((s: any) => ({
-                  id: s.id,
-                  title: s.name || s.title || 'Unknown Title',
-                  artist: s.artists?.primary?.map((a: any) => a.name).join(', ') || s.primaryArtists || primaryArtist,
-                  artistId: s.artists?.primary?.[0]?.id || '',
-                  album: albData.name || albData.title || albName,
-                  albumId: albData.id || selectedAlbumId,
-                  duration: Number(s.duration) || 210,
-                  coverUrl:
-                    s.image?.find?.((i: any) => i.quality === '500x500')?.url ||
-                    s.image?.[s.image?.length - 1]?.url ||
-                    albCover,
-                  audioUrl:
-                    s.downloadUrl?.find?.((d: any) => d.quality === '320kbps')?.url ||
-                    s.downloadUrl?.[s.downloadUrl?.length - 1]?.url ||
-                    '',
-                  genre: s.language || albData.language || 'Music',
-                  category: 'global_trending' as const,
-                  releaseYear: albYear,
-                  plays: Number(s.playCount) || 0,
-                  likes: 0,
-                }));
-                break;
+                  mappedTracks = albData.songs.map((s: any) => ({
+                    id: s.id,
+                    title: s.name || s.title || 'Unknown Title',
+                    artist: s.artists?.primary?.map((a: any) => a.name).join(', ') || s.primaryArtists || primaryArtist,
+                    artistId: s.artists?.primary?.[0]?.id || '',
+                    album: albData.name || albData.title || albName,
+                    albumId: albData.id || selectedAlbumId,
+                    duration: Number(s.duration) || 210,
+                    coverUrl:
+                      s.image?.find?.((i: any) => i.quality === '500x500')?.url ||
+                      s.image?.[s.image?.length - 1]?.url ||
+                      albCover,
+                    audioUrl:
+                      s.downloadUrl?.find?.((d: any) => d.quality === '320kbps')?.url ||
+                      s.downloadUrl?.[s.downloadUrl?.length - 1]?.url ||
+                      '',
+                    genre: s.language || albData.language || 'Music',
+                    category: 'global_trending' as const,
+                    releaseYear: albYear,
+                    plays: Number(s.playCount) || 0,
+                    likes: 0,
+                  }));
+                  break;
+                }
               }
-            }
-          } catch {}
+            } catch {}
+          }
         }
 
         // ── Tier 2: RealMusicEngine playlist / album resolver ──
-        if (mappedTracks.length === 0) {
+        if (mappedTracks.length === 0 && selectedAlbumId && selectedAlbumId !== 'offline' && !selectedAlbumId.startsWith('alb-')) {
           try {
             const { RealMusicEngine } = await import('@/lib/realMusicEngine');
             const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${selectedAlbumId}`);
@@ -149,8 +156,8 @@ export function AlbumDetailView() {
 
         // ── Tier 3: Search by Album / Movie Name (Direct + RealMusicEngine) ──
         // Guarantees all movie albums display their complete real song list on Android!
-        const searchCandidate = (albName || baseAlbum?.title || selectedAlbumId || '').trim();
-        if (mappedTracks.length === 0 && searchCandidate) {
+        const searchCandidate = (albName || baseAlbum?.title || (selectedAlbumId !== 'offline' && !selectedAlbumId.startsWith('alb-') ? selectedAlbumId : '') || '').trim();
+        if (mappedTracks.length === 0 && searchCandidate && searchCandidate.toLowerCase() !== 'offline') {
           const searchUrls = [
             `https://saavn.dev/api/search/songs?query=${encodeURIComponent(searchCandidate)}&limit=30`,
             getApiUrl(`/api/search/songs?query=${encodeURIComponent(searchCandidate)}&limit=30`),
@@ -194,7 +201,7 @@ export function AlbumDetailView() {
         }
 
         // ── Tier 4: Fallback to RealMusicEngine.searchRealSongs ──
-        if (mappedTracks.length === 0 && searchCandidate) {
+        if (mappedTracks.length === 0 && searchCandidate && searchCandidate.toLowerCase() !== 'offline') {
           try {
             const { RealMusicEngine } = await import('@/lib/realMusicEngine');
             const searchSongs = await RealMusicEngine.getInstance().searchRealSongs(searchCandidate, 30);
@@ -205,9 +212,12 @@ export function AlbumDetailView() {
         }
 
         if (isMounted && mappedTracks.length > 0) {
+          const finalTitle = albName || baseAlbum?.title || searchCandidate || 'Album Details';
+          console.log(`[LIBRARY_ALBUM_RESOLVED]\nalbumId=${selectedAlbumId}\nalbumName=${finalTitle}\nartist=${primaryArtist}\nreleaseYear=${albYear}\ntrackCount=${mappedTracks.length}`);
+
           setAlbum({
             id: selectedAlbumId,
-            title: albName || baseAlbum?.title || searchCandidate || 'Album Details',
+            title: finalTitle,
             artist: primaryArtist,
             artistId: primaryArtist,
             coverUrl: albCover,
