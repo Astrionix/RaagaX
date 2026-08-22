@@ -16,6 +16,14 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         setupCrashHandler();
+        try {
+            SharedPreferences prefs = getSharedPreferences("CrashLog", Context.MODE_PRIVATE);
+            String lastCrash = prefs.getString("last_crash", null);
+            if (lastCrash != null) {
+                Log.e("RaagaXCrash", "=== PREVIOUS CRASH LOG DETECTED ===\n" + lastCrash);
+            }
+        } catch (Exception ignored) {}
+
         registerPlugin(RaagaXCapacitorPlugin.class);
         registerPlugin(RaagaXPermissionsPlugin.class);
         registerPlugin(RaagaXDownloadPlugin.class);

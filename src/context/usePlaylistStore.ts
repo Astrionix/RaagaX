@@ -38,7 +38,7 @@ interface PlaylistStore {
     updates: { title?: string; description?: string; coverUrl?: string; visibility?: 'public' | 'private' }
   ) => Promise<boolean>;
   clearPlaylist: (playlistId: string) => Promise<boolean>;
-  clonePlaylistToLibrary: (playlistId: string) => Promise<UserPlaylist | null>;
+  clonePlaylistToLibrary: (playlistId: string, sourcePlaylist?: UserPlaylist) => Promise<UserPlaylist | null>;
   toggleLikePlaylist: (playlistId: string) => Promise<boolean>;
   generateInviteLink: (playlistId: string) => string;
   joinCollaborativePlaylist: (inviteCodeOrId: string) => Promise<UserPlaylist | null>;
@@ -427,8 +427,10 @@ export const usePlaylistStore = create<PlaylistStore>()(
         }
       },
 
-      clonePlaylistToLibrary: async (playlistId) => {
-        const source = get().playlists.find((p) => p.id === playlistId);
+      clonePlaylistToLibrary: async (playlistId, sourcePlaylist) => {
+        // First check the local store; fall back to the provided sourcePlaylist
+        // (needed for curated/editorial playlists that only live in PlaylistDetailView state)
+        const source = get().playlists.find((p) => p.id === playlistId) ?? sourcePlaylist;
         if (!source) return null;
 
         const clone = await get().createPlaylist(

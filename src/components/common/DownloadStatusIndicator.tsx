@@ -63,12 +63,17 @@ export function DownloadStatusIndicator({
     lg: 'w-8 h-8 text-sm',
   };
 
+  const resumeDownload = useDownloadStore((s) => s.resumeDownload);
+  const cancelDownload = useDownloadStore((s) => s.cancelDownload);
+
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (status === 'NOT_DOWNLOADED') {
       saveForOffline(song);
     } else if (status === 'FAILED') {
       retryDownload(song.id);
+    } else if (status === 'PAUSED') {
+      resumeDownload(song.id);
     } else if (status === 'COMPLETED' && onDownloadedClick) {
       onDownloadedClick();
     }

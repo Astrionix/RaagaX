@@ -22,7 +22,7 @@ import com.raagax.music.data.db.entity.TrackEntity;
         PlaylistTrackCrossRef.class,
         OutboxEntity.class
     },
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 public abstract class RaagaXDatabase extends RoomDatabase {
@@ -44,6 +44,7 @@ public abstract class RaagaXDatabase extends RoomDatabase {
                         DATABASE_NAME
                     )
                     .fallbackToDestructiveMigration()
+                    .allowMainThreadQueries()
                     .build();
                 }
             }

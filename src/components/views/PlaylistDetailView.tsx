@@ -193,7 +193,9 @@ export function PlaylistDetailView() {
 
   const handleSaveToLibrary = async () => {
     if (!playlist) return;
-    const cloned = await clonePlaylistToLibrary(playlist.id);
+    // Pass the locally-resolved playlist as a fallback — needed for curated/editorial playlists
+    // that are not stored in the usePlaylistStore (only in PlaylistDetailView local state).
+    const cloned = await clonePlaylistToLibrary(playlist.id, playlist);
     if (cloned) {
       setToastMessage(`Saved "${playlist.title}" to Your Playlists!`);
       setSelectedPlaylistId(cloned.id);

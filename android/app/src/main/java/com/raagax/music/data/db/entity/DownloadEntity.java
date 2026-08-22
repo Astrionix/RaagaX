@@ -25,6 +25,7 @@ public class DownloadEntity {
     public String localPath;
     public String fileName;
     public String mimeType;
+    public String streamUrl;
     public String quality;      // e.g. "320 kbps", "192 kbps", "128 kbps"
     public long duration;       // duration in seconds
     public String source;       // e.g. "jiosaavn", "saavn"

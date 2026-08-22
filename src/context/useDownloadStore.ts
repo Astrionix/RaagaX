@@ -624,43 +624,74 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
 
     // If native Android, resolve real playable source and delegate to RaagaXNativeDownload WorkManager
     if (RaagaXNativeDownload.isNative()) {
-      console.log('[DownloadManager] addDownload(' + song.id + ') → resolving playable source for WorkManager');
-      
+      console.log('[DOWNLOAD_UI_CLICK] addDownload(' + song.id + ') → handing off to native bridge');
+
+      // Set task as QUEUED immediately so UI shows the spinner
+      set((state) => ({
+        tasks: {
+          ...state.tasks,
+          [song.id]: {
+            song,
+            mode: 'offline_sandboxed',
+            quality,
+            status: 'QUEUED',
+            progress: 0,
+            downloadedBytes: 0,
+            totalBytes: 0,
+            retryCount: 0,
+          }
+        }
+      }));
+      _persistTasks();
+
+      // Try to resolve a stream URL as a hint for the Java side.
+      // Even if this fails, we still call the native bridge — Java's
+      // SaavnMusicProvider.getTrackDetails() will resolve the URL from songId.
       import('@/lib/playbackSourceResolver').then(async ({ PlaybackSourceResolver }) => {
+        let streamUrl = '';
         try {
-          let streamUrl = '';
           const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
           if (source?.url && !source.url.startsWith('file://') && !source.url.startsWith('blob:')) {
             streamUrl = source.url;
-          } else if (song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
+          } else if (song.audioUrl && !song.audioUrl.includes('pixabay.com') && !song.audioUrl.startsWith('blob:')) {
             streamUrl = song.audioUrl;
           }
+        } catch (resolveErr) {
+          console.warn('[DownloadManager] PlaybackSourceResolver failed for', song.id, '— Java will resolve URL natively');
+        }
 
-          if (!streamUrl) {
-            console.error('[DownloadManager] No playable source available for download:', song.title);
-            get().setStatus(song.id, 'FAILED', 'No playable source available');
-            return;
-          }
-
+        // Always call native bridge. Java side handles empty streamUrl via SaavnMusicProvider.
+        try {
           await RaagaXNativeDownload.downloadTrack({
             songId: song.id,
             title: song.title,
             artist: song.artist,
             album: song.album || 'RaagaX Music',
             artworkUrl: song.coverUrl || '',
-            streamUrl: streamUrl,
+            streamUrl: streamUrl,    // may be '' — Java resolves it
             quality,
             duration: song.duration || 180,
           });
-
-          console.log('[DownloadManager] WorkManager download job accepted for ' + song.id + ' with resolved streamUrl');
+          console.log('[DownloadManager] Native bridge accepted download for', song.id, streamUrl ? '(with URL hint)' : '(URL will be resolved natively)');
           _persistTasks();
         } catch (err: any) {
-          console.error('[DownloadManager] downloadTrack error for ' + song.id + ':', err);
+          console.error('[DownloadManager] downloadTrack bridge error for', song.id, ':', err);
           get().setStatus(song.id, 'FAILED', err?.message || 'Download failed');
         }
-      }).catch((err) => {
-        get().setStatus(song.id, 'FAILED', err?.message || 'Download failed');
+      }).catch((importErr) => {
+        // Module import failed — still attempt native bridge with no URL hint
+        RaagaXNativeDownload.downloadTrack({
+          songId: song.id,
+          title: song.title,
+          artist: song.artist,
+          album: song.album || 'RaagaX Music',
+          artworkUrl: song.coverUrl || '',
+          streamUrl: '',
+          quality,
+          duration: song.duration || 180,
+        }).catch((err: any) => {
+          get().setStatus(song.id, 'FAILED', err?.message || 'Download failed');
+        });
       });
 
       _persistTasks();
@@ -988,6 +1019,12 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
 
   setStatus: (songId, status, error) => {
     set((state) => {
+      if (status === 'CANCELLED') {
+        const newTasks = { ...state.tasks };
+        delete newTasks[songId];
+        return { tasks: newTasks, activeCount: Math.max(0, state.activeCount - 1) };
+      }
+
       const task = state.tasks[songId];
       if (!task) {
         // Root Cause 2 fix: broadcast arrived for a song not in the JS store.
@@ -1219,8 +1256,14 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
 if (typeof window !== 'undefined') {
   window.addEventListener('offline', () => {
     console.log('[DownloadManager] Device went offline.');
-    useDownloadStore.getState().pauseAll();
     usePlayerStore.getState().setNetworkMode('offline');
+    // On native Android, Media3 DownloadManager handles network availability internally.
+    // Calling pauseAll() here would kill in-flight downloads unnecessarily.
+    // Only pause for web/PWA where the browser cannot retry network requests.
+    const { RaagaXNativeDownload } = require('@/lib/playback/native/RaagaXNativeDownload');
+    if (!RaagaXNativeDownload.isNative()) {
+      useDownloadStore.getState().pauseAll();
+    }
   });
 
   window.addEventListener('online', () => {

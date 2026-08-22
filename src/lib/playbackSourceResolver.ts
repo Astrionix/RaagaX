@@ -31,7 +31,7 @@ export class PlaybackSourceResolver {
 
     // ── OFFLINE MODE: Resolve ONLY from RaagaX Local Downloads ─────────────
     if (isOffline) {
-      // 1. Check Native Android Physical Music/RaagaX/Songs Storage
+      // 1. Check Native Android Media3 Managed Download Cache
       try {
         const { RaagaXNativeDownload } = await import('@/lib/playback/native/RaagaXNativeDownload');
         if (RaagaXNativeDownload.isNative()) {
@@ -52,18 +52,17 @@ export class PlaybackSourceResolver {
             usePlayerStore.setState(s => ({ downloadedSongIds: Array.from(new Set([...s.downloadedSongIds, ...verifiedIds])) }));
             nativeTrack = trackMap[song.id] || allNative.find(t => t.songId === song.id || t.id === song.id);
           }
-          if (nativeTrack?.localPath) {
-            const rawPath = nativeTrack.localPath;
-            const fileUri = rawPath.startsWith('file://') ? rawPath : `file://${rawPath}`;
-            console.log(`[PlaybackSourceResolver] Playing verified native offline MP3: "${rawPath}" -> "${fileUri}"`);
+          if (nativeTrack || usePlayerStore.getState().downloadedSongIds.includes(song.id)) {
+            const canonicalStreamUrl = song.audioUrl || (nativeTrack as any)?.streamUrl || `media3://${song.id}`;
+            console.log(`[PlaybackSourceResolver] Playing verified native offline track via Media3 CacheDataSource: "${song.title}" (${song.id})`);
             return {
               type: 'offline',
-              url: fileUri,
-              canonicalUrl: fileUri,
+              url: canonicalStreamUrl,
+              canonicalUrl: canonicalStreamUrl,
               mediaId: song.id,
               localId: song.id,
               isLocalBlob: false,
-              isCached: false,
+              isCached: true,
             };
           }
         }

@@ -51,6 +51,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
         android:requestLegacyExternalStorage="true"
         android:theme="@style/AppTheme">
 
@@ -77,6 +78,10 @@
         <service
             android:name=".RaagaXPlaybackService"
             android:foregroundServiceType="mediaPlayback"
+            android:exported="false" />
+
+        <service
+            android:name=".download.RaagaXDownloadService"
             android:exported="false" />
 
         <provider

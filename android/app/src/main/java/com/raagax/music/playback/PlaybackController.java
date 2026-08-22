@@ -220,20 +220,22 @@ public class PlaybackController {
     }
 
     /**
-     * Resolves playable audio URI with strict priority:
-     * 1. Local downloaded file (Room & Disk) -> File URI
-     * 2. Online stream (if network available) -> Direct CDN URL
-     * 3. None (offline & undownloaded) -> null
+     * Resolves playable audio URI:
+     * 1. If downloaded in Media3 cache -> canonical stream URI (CacheDataSource serves locally)
+     * 2. If online -> CDN stream URL
+     * 3. If offline and undownloaded -> null
      */
     public String resolvePlayableUri(MusicTrack track, boolean isOnline) {
         if (track == null || track.id == null) return null;
 
-        // 1. Check local download storage
+        // 1. Check local Media3 download cache
         DownloadEntity dl = database.downloadDao().getDownloadByTrackId(track.id);
-        if (dl != null && "COMPLETED".equals(dl.downloadState) && dl.localPath != null) {
-            File file = new File(dl.localPath);
-            if (file.exists() && file.length() > 0) {
-                return file.getAbsolutePath();
+        if (dl != null && "COMPLETED".equalsIgnoreCase(dl.downloadState)) {
+            if (dl.streamUrl != null && !dl.streamUrl.isEmpty()) {
+                return dl.streamUrl;
+            }
+            if (track.streamUrl != null && !track.streamUrl.isEmpty()) {
+                return track.streamUrl;
             }
         }
 
