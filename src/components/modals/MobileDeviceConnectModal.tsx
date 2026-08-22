@@ -633,6 +633,21 @@ export function MobileDeviceConnectModal() {
                               </span>
                             </div>
                           )}
+
+                          <div className="pt-1 border-t border-white/5 flex items-center justify-between">
+                            <span className="text-[10px] text-slate-400">Requires authorization</span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleControl(device.deviceId, device.name || 'RaagaX Device');
+                              }}
+                              className="px-3 py-1 rounded-xl text-xs font-semibold bg-white/10 hover:bg-emerald-500/20 hover:text-emerald-300 text-slate-200 border border-white/10 hover:border-emerald-500/30 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                            >
+                              <ShieldCheck className="w-3.5 h-3.5" />
+                              <span>Request Control</span>
+                            </button>
+                          </div>
                         </div>
                       );
                     })}

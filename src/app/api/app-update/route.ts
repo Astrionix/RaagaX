@@ -4,9 +4,9 @@ import { NextResponse } from 'next/server';
 // When you release a new APK, update the 'latestVersion' string here.
 export async function GET() {
   return NextResponse.json({
-    latestVersion: '1.0.1', // Update this when you release a new version
-    downloadUrl: '/RaagaX.apk', // Ensure this file exists in your public/ folder
-    releaseNotes: 'Performance improvements and cross-device sync fixes.',
-    forceUpdate: false // Set to true to prevent closing the update modal
+    latestVersion: '1.0.2',
+    downloadUrl: '/RaagaX.apk',
+    releaseNotes: 'RaagaX Connect V2: Full Spotify-grade LAN Connect with atomic track sync, shared seek control, and non-interruptive disconnect.',
+    forceUpdate: false
   });
 }

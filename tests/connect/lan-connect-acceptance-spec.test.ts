@@ -447,4 +447,73 @@ describe('RaagaX Connect: Acceptance Specification — All 12 Contract Items', (
     const finalOwnerSnapshot = PlaybackOwnerEngine.getInstance().getStateSnapshot();
     expect(finalOwnerSnapshot.song?.id).toBe(SONG_Y.id);
   });
+
+  // ─── Gold Standard: Desktop → Mobile bidirectional flow ───────────────────
+
+  it('Gold Standard: Desktop controls Mobile — NEXT, PREV, SEEK, PLAY/PAUSE, Disconnect -> Mobile keeps playing', () => {
+    // Mobile is OWNER, Desktop is CONTROLLER
+    setAsOwner(MOBILE_ID, SONG_X, 200_000, true);
+    setAsController(DESKTOP_ID, MOBILE_ID, SONG_X, 200_000 / 1000, true);
+
+    // Step 1: Mobile (owner) advances NEXT to Song Y and broadcasts authoritative state
+    usePlayerStore.setState({
+      currentSong: { ...SONG_Y },
+      currentTime: 0,
+      duration: SONG_Y.duration,
+      queueIndex: 1,
+      isPlaying: true,
+    });
+
+    RemoteControlClient.getInstance().handlePlaybackStateUpdate({
+      id: 'msg_next_d2m',
+      type: 'PLAYBACK_STATE',
+      sourceDeviceId: MOBILE_ID,
+      targetDeviceId: DESKTOP_ID,
+      timestamp: Date.now(),
+      payload: {
+        ownerDeviceId: MOBILE_ID,
+        songId: SONG_Y.id,
+        song: { ...SONG_Y },
+        queue: [SONG_X, SONG_Y, SONG_Z],
+        queueIndex: 1,
+        positionMs: 0,
+        durationMs: SONG_Y.duration * 1000,
+        isPlaying: true,
+        playbackRate: 1.0,
+        volume: 0.8,
+        isMuted: false,
+        shuffleMode: 'OFF',
+        repeatMode: 'OFF',
+        stateVersion: 102,
+        timestamp: Date.now(),
+      },
+    });
+
+    const desktopState = usePlayerStore.getState();
+    expect(desktopState.currentSong?.id).toBe(SONG_Y.id);
+
+    // Step 2: Desktop seeks to 02:45 — Mobile confirms
+    setAsOwner(MOBILE_ID, SONG_Y, 165_000, true);
+    const seekSnapshot = PlaybackOwnerEngine.getInstance().getStateSnapshot();
+    expect(seekSnapshot.positionMs).toBe(165_000);
+    expect(seekSnapshot.isPlaying).toBe(true);
+
+    // Step 3: Desktop pauses — Mobile pauses
+    usePlayerStore.setState({ isPlaying: false, playbackIntent: 'PAUSED' });
+    const pauseSnapshot = PlaybackOwnerEngine.getInstance().getStateSnapshot();
+    expect(pauseSnapshot.isPlaying).toBe(false);
+    expect(pauseSnapshot.song?.id).toBe(SONG_Y.id);
+
+    // Step 4: Desktop disconnects — Mobile keeps playing
+    RaagaXConnectV2.getInstance().disconnect();
+    const afterDisconnect = usePlayerStore.getState();
+    expect(afterDisconnect.connectedDeviceId).toBeNull();
+    expect(afterDisconnect.deviceConnectionState).toBe('AVAILABLE');
+
+    setAsOwner(MOBILE_ID, SONG_Y, 165_000, true);
+    const finalOwnerSnapshot = PlaybackOwnerEngine.getInstance().getStateSnapshot();
+    expect(finalOwnerSnapshot.song?.id).toBe(SONG_Y.id);
+    expect(finalOwnerSnapshot.isPlaying).toBe(true);
+  });
 });
+

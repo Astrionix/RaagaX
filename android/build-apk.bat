@@ -9,5 +9,7 @@ if exist "app\build\outputs\apk\debug\app-debug.apk" (
     copy /Y "app\build\outputs\apk\debug\app-debug.apk" "..\Raaga.apk"
     copy /Y "app\build\outputs\apk\debug\app-debug.apk" "..\Raaga-debug.apk"
     copy /Y "app\build\outputs\apk\debug\app-debug.apk" "..\RaagaX-debug.apk"
+    copy /Y "app\build\outputs\apk\debug\app-debug.apk" "..\RaagaX.apk"
+    copy /Y "app\build\outputs\apk\debug\app-debug.apk" "..\public\RaagaX.apk"
     echo APK successfully generated and copied to Desktop as Raaga.apk at: %TIME%
 )
