@@ -353,13 +353,16 @@ export class PlaybackStateSync {
     // else: large drift → hard snap to incomingMs (user performed explicit seek, track changed, etc.)
 
     // 2. Adopt remote state into local store for display in MiniPlayer / PlayerBar / SeekBar
+    // Always spread songData into a NEW object so React detects the reference change
+    // and every UI component (cover, title, artist, SeekBar) re-renders atomically.
+    const newSong = remoteState.songData ? { ...remoteState.songData } : null;
     usePlayerStore.setState({
       isActiveDevice: false,
       activeDeviceId: remoteState.activeDeviceId,
       connectedDeviceId: remoteState.activeDeviceId,
       remoteDeviceName: remoteState.activeDeviceName,
       deviceConnectionState: 'CONNECTED',
-      currentSong: remoteState.songData,
+      currentSong: newSong,
       currentTime: finalPositionMs / 1000,
       duration: remoteState.durationMs / 1000,
       isPlaying: remoteState.isPlaying,

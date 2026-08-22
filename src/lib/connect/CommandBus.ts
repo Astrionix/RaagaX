@@ -255,59 +255,73 @@ export class CommandBus {
         break;
 
       case 'NEXT': {
+        // AUTHORITATIVE OWNER ONLY: Non-owner controllers must NOT advance local queue.
+        // They will receive the authoritative track metadata via PLAYBACK_STATE broadcast from the owner.
+        const isOwner = store.isActiveDevice && !store.connectedDeviceId;
+        if (!isOwner) {
+          console.log('[CommandBus] NEXT received on non-owner controller — skipping local queue advance, awaiting owner PLAYBACK_STATE');
+          break;
+        }
         const manager = QueueManager.getInstance();
         const nextItem = manager.getNext(false);
         if (nextItem && nextItem.song) {
           const snapshot = manager.getSnapshot();
+          // Immediately apply the full authoritative track metadata (title, artist, cover, duration, position)
           usePlayerStore.setState({
-            currentSong: nextItem.song,
+            currentSong: { ...nextItem.song },
             queue: snapshot.items.map((i: any) => i.song),
             queueIndex: snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0,
             isPlaying: true,
             playbackIntent: 'PLAYING',
             currentTime: 0
           });
-          if (store.isActiveDevice) {
-            import('../playback/native/RaagaXNativePlayer').then(async ({ RaagaXNativePlayer }) => {
-              if (RaagaXNativePlayer.isNative()) {
-                await RaagaXNativePlayer.next();
-              } else {
-                await PlaybackService.getInstance().playTrack(nextItem.song, true);
-              }
-              import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
-                PlaybackStateSync.getInstance().broadcastState(true);
-              });
+          import('../playback/native/RaagaXNativePlayer').then(async ({ RaagaXNativePlayer }) => {
+            if (RaagaXNativePlayer.isNative()) {
+              await RaagaXNativePlayer.next();
+            } else {
+              await PlaybackService.getInstance().playTrack(nextItem.song, true);
+            }
+            // Broadcast the complete authoritative state so all controllers atomically update
+            import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+              PlaybackStateSync.getInstance().broadcastState(true);
             });
-          }
+          });
         }
         break;
       }
 
       case 'PREV': {
+        // AUTHORITATIVE OWNER ONLY: Non-owner controllers must NOT advance local queue.
+        // They will receive the authoritative track metadata via PLAYBACK_STATE broadcast from the owner.
+        const isOwner = store.isActiveDevice && !store.connectedDeviceId;
+        if (!isOwner) {
+          console.log('[CommandBus] PREV received on non-owner controller — skipping local queue advance, awaiting owner PLAYBACK_STATE');
+          break;
+        }
         const manager = QueueManager.getInstance();
         const prevItem = manager.getPrevious();
         if (prevItem && prevItem.song) {
           const snapshot = manager.getSnapshot();
+          // Immediately apply the full authoritative track metadata (title, artist, cover, duration, position)
           usePlayerStore.setState({
-            currentSong: prevItem.song,
+            currentSong: { ...prevItem.song },
             queue: snapshot.items.map((i: any) => i.song),
             queueIndex: snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0,
             isPlaying: true,
             playbackIntent: 'PLAYING',
             currentTime: 0
           });
-          if (store.isActiveDevice) {
-            import('../playback/native/RaagaXNativePlayer').then(async ({ RaagaXNativePlayer }) => {
-              if (RaagaXNativePlayer.isNative()) {
-                await RaagaXNativePlayer.previous();
-              } else {
-                await PlaybackService.getInstance().playTrack(prevItem.song, true);
-              }
-              import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
-                PlaybackStateSync.getInstance().broadcastState(true);
-              });
+          import('../playback/native/RaagaXNativePlayer').then(async ({ RaagaXNativePlayer }) => {
+            if (RaagaXNativePlayer.isNative()) {
+              await RaagaXNativePlayer.previous();
+            } else {
+              await PlaybackService.getInstance().playTrack(prevItem.song, true);
+            }
+            // Broadcast the complete authoritative state so all controllers atomically update
+            import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+              PlaybackStateSync.getInstance().broadcastState(true);
             });
-          }
+          });
         }
         break;
       }
