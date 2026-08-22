@@ -10,7 +10,9 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.util.Log;
 import android.util.LruCache;
 
@@ -72,6 +74,46 @@ public class RaagaXPlaybackService extends Service {
     private boolean   isCurrentLocalPlayback = false;
     private long      lastReportedDurationMs = 0L;
     private volatile boolean isPreparingNewTrack = false;
+    private final Runnable progressTicker = new Runnable() {
+        @Override
+        public void run() {
+            if (player != null && (player.isPlaying() || player.getPlayWhenReady())) {
+                long pos = player.getCurrentPosition();
+                long dur = (player.getDuration() > 0 && player.getDuration() != C.TIME_UNSET)
+                        ? player.getDuration()
+                        : lastReportedDurationMs;
+
+                if (dur <= 0L && currentTrackId != null && !currentTrackId.isEmpty()) {
+                    try {
+                        com.raagax.music.data.db.RaagaXDatabase db = com.raagax.music.data.db.RaagaXDatabase.getInstance(RaagaXPlaybackService.this);
+                        com.raagax.music.data.db.entity.DownloadEntity entity = db.downloadDao().getDownloadByTrackId(currentTrackId);
+                        if (entity != null && entity.duration > 0) {
+                            dur = entity.duration * 1000L;
+                            lastReportedDurationMs = dur;
+                        }
+                    } catch (Exception ignored) {}
+                }
+
+                Intent i = new Intent("com.raagax.music.PLAYBACK_STATE");
+                i.putExtra("isPlaying", true);
+                i.putExtra("positionMs", pos);
+                i.putExtra("durationMs", dur);
+                i.putExtra("timestamp", System.currentTimeMillis());
+                sendBroadcast(i);
+
+                mainHandler.postDelayed(this, 500);
+            }
+        }
+    };
+
+    private void startProgressTicker() {
+        mainHandler.removeCallbacks(progressTicker);
+        mainHandler.post(progressTicker);
+    }
+
+    private void stopProgressTicker() {
+        mainHandler.removeCallbacks(progressTicker);
+    }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -109,64 +151,94 @@ public class RaagaXPlaybackService extends Service {
 
             // ── Track changed (auto-advance or manual next/prev) ──────────────
             @Override
-            public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
-                // If the reason is a seek within the track, ignore to prevent restarting or resetting state
-                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) {
-                    return;
-                }
+            public void onMediaItemTransition(androidx.media3.common.MediaItem mediaItem, int reason) {
+                if (mediaItem == null) return;
+                long now = System.currentTimeMillis();
 
-                if (mediaItem != null && mediaItem.mediaMetadata != null) {
-                    String itemTrackId = mediaItem.mediaId != null ? mediaItem.mediaId : "";
-                    if (!itemTrackId.isEmpty()) {
-                        if (!currentTrackId.isEmpty() && !currentTrackId.equals(itemTrackId)) {
-                            Log.w(TAG, "[ANDROID_PLAYBACK_DESYNC] currentTrackId=" + currentTrackId + " != mediaItem.mediaId=" + itemTrackId);
+                // Read trackId from mediaId (set by setQueue/setOfflineQueue/playUrl)
+                String newTrackId = mediaItem.mediaId != null ? mediaItem.mediaId : "";
+                String newTitle   = (mediaItem.mediaMetadata != null && mediaItem.mediaMetadata.title != null)
+                                    ? mediaItem.mediaMetadata.title.toString() : "RaagaX";
+                String newArtist  = (mediaItem.mediaMetadata != null && mediaItem.mediaMetadata.artist != null)
+                                    ? mediaItem.mediaMetadata.artist.toString() : "";
+                String newArt     = (mediaItem.mediaMetadata != null && mediaItem.mediaMetadata.artworkUri != null)
+                                    ? mediaItem.mediaMetadata.artworkUri.toString() : "";
+
+                Log.d(TAG, "[MEDIA_ITEM_TRANSITION] reason=" + reason
+                        + " | trackId=" + newTrackId
+                        + " | title=" + newTitle
+                        + " | prevTrack=" + currentTitle
+                        + " | timestamp=" + now);
+
+                currentTrackId    = newTrackId;
+                currentTitle      = newTitle;
+                currentArtist     = newArtist;
+                currentArtworkUrl = newArt;
+                loadArtworkAsync(newArt);
+
+                long pos = player != null ? player.getCurrentPosition() : 0L;
+                long dur = (player != null && player.getDuration() > 0 && player.getDuration() != C.TIME_UNSET)
+                           ? player.getDuration() : 0L;
+
+                if (dur <= 0L && !currentTrackId.isEmpty()) {
+                    try {
+                        com.raagax.music.data.db.RaagaXDatabase db = com.raagax.music.data.db.RaagaXDatabase.getInstance(RaagaXPlaybackService.this);
+                        com.raagax.music.data.db.entity.DownloadEntity entity = db.downloadDao().getDownloadByTrackId(currentTrackId);
+                        if (entity != null && entity.duration > 0) {
+                            dur = entity.duration * 1000L;
                         }
-                        currentTrackId = itemTrackId;
-                    }
-
-                    currentTitle  = mediaItem.mediaMetadata.title  != null ? mediaItem.mediaMetadata.title.toString()  : "RaagaX";
-                    currentArtist = mediaItem.mediaMetadata.artist != null ? mediaItem.mediaMetadata.artist.toString() : "";
-                    Uri artUri = mediaItem.mediaMetadata.artworkUri;
-                    String artUrl = artUri != null ? artUri.toString() : "";
-                    loadArtworkAsync(artUrl);
-                    updateNotification();
-
-                    Intent i = new Intent("com.raagax.music.TRACK_CHANGED");
-                    i.putExtra("trackId",    currentTrackId);
-                    i.putExtra("title",      currentTitle);
-                    i.putExtra("artist",     currentArtist);
-                    i.putExtra("artworkUrl", artUrl);
-                    i.putExtra("index",      player.getCurrentMediaItemIndex());
-                    i.putExtra("reason",     reason);
-                    i.putExtra("requestId",  activeRequestId);
-                    if (mediaItem.localConfiguration != null) {
-                        i.putExtra("url", mediaItem.localConfiguration.uri.toString());
-                    }
-                    sendBroadcast(i);
+                    } catch (Exception ignored) {}
                 }
+
+                if (dur > 0L) {
+                    lastReportedDurationMs = dur;
+                }
+
+                int queueIndex = player != null ? player.getCurrentMediaItemIndex() : 0;
+                int totalItems = player != null ? player.getMediaItemCount() : 0;
+
+                Intent syncIntent = new Intent("com.raagax.music.TRACK_CHANGED");
+                syncIntent.putExtra("trackId",    currentTrackId);
+                syncIntent.putExtra("title",      currentTitle);
+                syncIntent.putExtra("artist",     currentArtist);
+                syncIntent.putExtra("artworkUrl", currentArtworkUrl);
+                syncIntent.putExtra("queueIndex", queueIndex);
+                syncIntent.putExtra("totalItems", totalItems);
+                syncIntent.putExtra("positionMs", pos);
+                syncIntent.putExtra("durationMs", dur);
+                syncIntent.putExtra("reason",     reason);
+                syncIntent.putExtra("timestamp",  now);
+                sendBroadcast(syncIntent);
+
+                updateNotification();
             }
 
-            // ── Native Seek Confirmation from ExoPlayer read head ─────────────
+            // ── Discontinuity & Seek Confirmation ─────────────────────────────
             @Override
-            public void onPositionDiscontinuity(Player.PositionInfo oldPosition, Player.PositionInfo newPosition, int reason) {
+            public void onPositionDiscontinuity(
+                    androidx.media3.common.Player.PositionInfo oldPosition,
+                    androidx.media3.common.Player.PositionInfo newPosition,
+                    int reason
+            ) {
                 if (reason == Player.DISCONTINUITY_REASON_SEEK) {
                     long confirmedPos = newPosition.positionMs;
                     boolean isPlaying = player != null && player.isPlaying();
                     Log.d(TAG, "[SEEK_CONFIRMED] ExoPlayer discontinuity settled: old=" + oldPosition.positionMs + "ms -> confirmed=" + confirmedPos + "ms | isPlaying=" + isPlaying);
 
-                    Intent seekDone = new Intent("com.raagax.music.SEEK_COMPLETE");
-                    seekDone.putExtra("positionMs", confirmedPos);
-                    seekDone.putExtra("wasPlaying", isPlaying);
-                    sendBroadcast(seekDone);
+                    Intent i = new Intent("com.raagax.music.SEEK_COMPLETE");
+                    i.putExtra("positionMs", confirmedPos);
+                    i.putExtra("wasPlaying", isPlaying);
+                    sendBroadcast(i);
                 }
             }
 
-            // ── Playback state ────────────────────────────────────────────────
+            // ── State changed: BUFFERING / READY / ENDED ───────────────────────
             @Override
             public void onPlaybackStateChanged(int state) {
                 if (state == Player.STATE_ENDED) {
+                    stopProgressTicker();
                     if (isPreparingNewTrack) {
-                        Log.w(TAG, "onPlaybackStateChanged: STATE_ENDED suppressed during new track preparation");
+                        Log.w(TAG, "onPlaybackStateChanged: STATE_ENDED received while isPreparingNewTrack=true (suppressing spurious transition on track swap)");
                         return;
                     }
                     long pos = player != null ? player.getCurrentPosition() : 0L;
@@ -181,38 +253,32 @@ public class RaagaXPlaybackService extends Service {
                 } else if (state == Player.STATE_READY) {
                     isPreparingNewTrack = false;
                     boolean isPlaying = player != null && (player.isPlaying() || player.getPlayWhenReady());
-                    long dur = player != null && player.getDuration() > 0 ? player.getDuration() : 0L;
+                    long dur = (player != null && player.getDuration() > 0 && player.getDuration() != C.TIME_UNSET)
+                               ? player.getDuration() : 0L;
                     long pos = player != null ? player.getCurrentPosition() : 0L;
-                    if (dur == 0L && lastReportedDurationMs > 0L) {
-                        Log.w(TAG, "[PLAYBACK_STATE_RESET] trackId=" + currentTrackId + " oldDuration=" + lastReportedDurationMs + " newDuration=0 reason=ready_state_reset");
+
+                    if (dur <= 0L && currentTrackId != null && !currentTrackId.isEmpty()) {
+                        try {
+                            com.raagax.music.data.db.RaagaXDatabase db = com.raagax.music.data.db.RaagaXDatabase.getInstance(RaagaXPlaybackService.this);
+                            com.raagax.music.data.db.entity.DownloadEntity entity = db.downloadDao().getDownloadByTrackId(currentTrackId);
+                            if (entity != null && entity.duration > 0) {
+                                dur = entity.duration * 1000L;
+                                Log.d(TAG, "[MEDIA3_DB_DURATION] Loaded DB duration: " + dur + "ms");
+                            }
+                        } catch (Exception ignored) {}
                     }
+
                     if (dur > 0L) {
                         lastReportedDurationMs = dur;
+                    } else if (lastReportedDurationMs > 0L) {
+                        dur = lastReportedDurationMs;
                     }
-                    Log.d(TAG, "[EXOPLAYER] STATE_READY duration=" + dur);
-                    Log.d(TAG, "[PLAYBACK] trackId=" + currentTrackId + " isPlaying=" + isPlaying + " position=" + pos);
-                    Log.d(TAG, "[EXOPLAYER_READY] trackId=" + currentTrackId + " duration=" + dur);
-                    Log.d(TAG, "[PLAYBACK_STATE] trackId=" + currentTrackId + " isPlaying=" + isPlaying + " position=" + pos + " duration=" + dur + " source=" + (isCurrentLocalPlayback ? "LOCAL" : "NETWORK"));
-                    Log.d(TAG, "[RAAGAX_LOCAL_PLAYBACK_READY] songId=" + currentTrackId + " state=READY duration=" + dur + " isPlaying=" + isPlaying);
-                    Log.d(TAG, "[DIRECT_LOCAL_TEST] STATE_READY duration=" + dur);
 
-                    if (isCurrentLocalPlayback) {
-                        Log.d(TAG, "[DIRECT_LOCAL_TEST] PLAY_STARTED");
-                        mainHandler.postDelayed(() -> {
-                            if (player != null && isCurrentLocalPlayback) {
-                                Log.d(TAG, "[DIRECT_LOCAL_TEST] PROGRESS (500ms) pos=" + player.getCurrentPosition() + " isPlaying=" + player.isPlaying());
-                            }
-                        }, 500);
-                        mainHandler.postDelayed(() -> {
-                            if (player != null && isCurrentLocalPlayback) {
-                                Log.d(TAG, "[DIRECT_LOCAL_TEST] PROGRESS (1000ms) pos=" + player.getCurrentPosition() + " isPlaying=" + player.isPlaying());
-                            }
-                        }, 1000);
-                        mainHandler.postDelayed(() -> {
-                            if (player != null && isCurrentLocalPlayback) {
-                                Log.d(TAG, "[DIRECT_LOCAL_TEST] PROGRESS (2000ms) pos=" + player.getCurrentPosition() + " isPlaying=" + player.isPlaying());
-                            }
-                        }, 2000);
+                    Log.d(TAG, "[MEDIA3] STATE_READY duration=" + dur + " position=" + pos + " isPlaying=" + isPlaying);
+                    Log.d(TAG, "[PLAYBACK_STATE] trackId=" + currentTrackId + " isPlaying=" + isPlaying + " position=" + pos + " duration=" + dur + " source=" + (isCurrentLocalPlayback ? "LOCAL" : "NETWORK"));
+
+                    if (isPlaying) {
+                        startProgressTicker();
                     }
 
                     Intent i = new Intent("com.raagax.music.PLAYBACK_STATE");
@@ -261,25 +327,34 @@ public class RaagaXPlaybackService extends Service {
                 long now = System.currentTimeMillis();
                 int state = player != null ? player.getPlaybackState() : -1;
                 long pos = player != null ? player.getCurrentPosition() : 0L;
-                long dur = player != null && player.getDuration() > 0 ? player.getDuration() : (lastReportedDurationMs > 0 ? lastReportedDurationMs : 0L);
+                long dur = (player != null && player.getDuration() > 0 && player.getDuration() != C.TIME_UNSET)
+                           ? player.getDuration() : (lastReportedDurationMs > 0 ? lastReportedDurationMs : 0L);
                 boolean playWhenReady = player != null && player.getPlayWhenReady();
-                if (dur == 0L && lastReportedDurationMs > 0L) {
-                    Log.w(TAG, "[PLAYBACK_STATE_RESET] trackId=" + currentTrackId + " oldDuration=" + lastReportedDurationMs + " newDuration=0 reason=is_playing_changed_reset");
+
+                if (dur <= 0L && currentTrackId != null && !currentTrackId.isEmpty()) {
+                    try {
+                        com.raagax.music.data.db.RaagaXDatabase db = com.raagax.music.data.db.RaagaXDatabase.getInstance(RaagaXPlaybackService.this);
+                        com.raagax.music.data.db.entity.DownloadEntity entity = db.downloadDao().getDownloadByTrackId(currentTrackId);
+                        if (entity != null && entity.duration > 0) {
+                            dur = entity.duration * 1000L;
+                        }
+                    } catch (Exception ignored) {}
                 }
+
                 if (dur > 0L) {
                     lastReportedDurationMs = dur;
                 }
-                Log.d(TAG, "[PLAYBACK_TRANSITION] isPlaying=" + isPlaying + " | exoplayerState=" + state + " | playWhenReady=" + playWhenReady + " | positionMs=" + pos + " | durationMs=" + dur + " | timestamp=" + now + " | title=" + currentTitle);
 
-                if (isPlaying) {
-                    Log.d(TAG, "[PLAYBACK] trackId=" + currentTrackId + " isPlaying=true position=" + pos);
-                    Log.d(TAG, "[EXOPLAYER_STARTED] trackId=" + currentTrackId + " position=" + pos + " duration=" + dur);
-                    Log.d(TAG, "[PLAYBACK_STATE] trackId=" + currentTrackId + " isPlaying=true position=" + pos + " duration=" + dur + " source=" + (isCurrentLocalPlayback ? "LOCAL" : "NETWORK"));
-                    Log.d(TAG, "[RAAGAX_LOCAL_PLAYBACK_STARTED] songId=" + currentTrackId + " positionMs=" + pos + " durationMs=" + dur);
-                }
+                Log.d(TAG, "[PLAYBACK_TRANSITION] isPlaying=" + isPlaying + " | exoplayerState=" + state + " | playWhenReady=" + playWhenReady + " | positionMs=" + pos + " | durationMs=" + dur + " | timestamp=" + now + " | title=" + currentTitle);
 
                 // During BUFFERING or READY before first audio render, if playWhenReady is true, playback intent is PLAYING
                 boolean effectivePlaying = isPlaying || ((state == Player.STATE_BUFFERING || state == Player.STATE_READY) && playWhenReady);
+
+                if (effectivePlaying) {
+                    startProgressTicker();
+                } else {
+                    stopProgressTicker();
+                }
 
                 Intent i = new Intent("com.raagax.music.PLAYBACK_STATE");
                 i.putExtra("isPlaying", effectivePlaying);
@@ -594,9 +669,55 @@ public class RaagaXPlaybackService extends Service {
                     } catch (Exception ignored) {}
                 }
 
-                Uri itemUri = parsePlayableUri(u);
+                Uri itemUri = null;
+                if (!id.isEmpty()) {
+                    try {
+                        com.raagax.music.data.db.RaagaXDatabase db = com.raagax.music.data.db.RaagaXDatabase.getInstance(this);
+                        com.raagax.music.data.db.entity.DownloadEntity entity = db.downloadDao().getDownloadByTrackId(id);
+                        if (entity != null && "COMPLETED".equalsIgnoreCase(entity.downloadState)) {
+                            if (entity.localPath != null && !entity.localPath.isEmpty() && !entity.localPath.contains("media3_cache://")) {
+                                java.io.File f = new java.io.File(entity.localPath);
+                                if (f.exists() && f.length() > 0) {
+                                    itemUri = Uri.fromFile(f);
+                                }
+                            }
+                            if (itemUri == null && entity.streamUrl != null && !entity.streamUrl.isEmpty()) {
+                                itemUri = Uri.parse(entity.streamUrl);
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+
+                if (itemUri == null) {
+                    String cleanU = u;
+                    if (cleanU.startsWith("file://media3_cache://")) {
+                        String subId = cleanU.substring("file://media3_cache://".length());
+                        try {
+                            com.raagax.music.data.db.RaagaXDatabase db = com.raagax.music.data.db.RaagaXDatabase.getInstance(this);
+                            com.raagax.music.data.db.entity.DownloadEntity entity = db.downloadDao().getDownloadByTrackId(subId);
+                            if (entity != null && entity.streamUrl != null && !entity.streamUrl.isEmpty()) {
+                                itemUri = Uri.parse(entity.streamUrl);
+                            }
+                        } catch (Exception ignored) {}
+                    } else if (cleanU.startsWith("media3_cache://")) {
+                        String subId = cleanU.substring("media3_cache://".length());
+                        try {
+                            com.raagax.music.data.db.RaagaXDatabase db = com.raagax.music.data.db.RaagaXDatabase.getInstance(this);
+                            com.raagax.music.data.db.entity.DownloadEntity entity = db.downloadDao().getDownloadByTrackId(subId);
+                            if (entity != null && entity.streamUrl != null && !entity.streamUrl.isEmpty()) {
+                                itemUri = Uri.parse(entity.streamUrl);
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
+
+                if (itemUri == null) {
+                    itemUri = parsePlayableUri(u);
+                }
+
                 MediaItem.Builder miBuilder = new MediaItem.Builder()
                         .setUri(itemUri)
+                        .setMimeType(Media3DownloadHelper.detectMimeType(itemUri))
                         .setMediaMetadata(metaBuilder.build());
                 if (!id.isEmpty()) {
                     miBuilder.setMediaId(id);
@@ -880,7 +1001,19 @@ public class RaagaXPlaybackService extends Service {
             if (player == null) return;
 
             isPreparingNewTrack = true;
-            currentTrackId = trackId != null ? trackId : "";
+            String cleanTrackId = trackId != null ? trackId.trim() : "";
+            String cleanUrl = url != null ? url.trim() : "";
+
+            // Unwrap any media3_cache:// or file://media3_cache:// schemes
+            if (cleanUrl.startsWith("file://media3_cache://")) {
+                cleanUrl = cleanUrl.substring("file://media3_cache://".length());
+                if (cleanTrackId.isEmpty()) cleanTrackId = cleanUrl;
+            } else if (cleanUrl.startsWith("media3_cache://")) {
+                cleanUrl = cleanUrl.substring("media3_cache://".length());
+                if (cleanTrackId.isEmpty()) cleanTrackId = cleanUrl;
+            }
+
+            currentTrackId = cleanTrackId;
             currentTitle  = title  != null ? title  : "RaagaX";
             currentArtist = artist != null ? artist : "";
             currentArtworkUrl = artworkUrl != null ? artworkUrl : "";
@@ -893,20 +1026,32 @@ public class RaagaXPlaybackService extends Service {
 
             Uri playableUri = null;
             boolean isLocal = false;
+            java.io.File localFile = null;
 
             // 1. Check Room database for verified completed download
-            java.io.File localFile = null;
             if (!currentTrackId.isEmpty()) {
                 try {
                     com.raagax.music.data.db.RaagaXDatabase db = com.raagax.music.data.db.RaagaXDatabase.getInstance(this);
                     com.raagax.music.data.db.entity.DownloadEntity entity = db.downloadDao().getDownloadByTrackId(currentTrackId);
-                    if (entity != null && "COMPLETED".equalsIgnoreCase(entity.downloadState) && entity.localPath != null && !entity.localPath.isEmpty()) {
-                        java.io.File f = new java.io.File(entity.localPath);
-                        if (f.exists() && f.length() > 0) {
-                            localFile = f;
-                            playableUri = Uri.fromFile(f);
+                    if (entity != null && "COMPLETED".equalsIgnoreCase(entity.downloadState)) {
+                        if (entity.duration > 0) {
+                            lastReportedDurationMs = entity.duration * 1000L;
+                        }
+                        // A. Check if a physical audio file is stored on disk
+                        if (entity.localPath != null && !entity.localPath.isEmpty() && !entity.localPath.contains("media3_cache://")) {
+                            java.io.File f = new java.io.File(entity.localPath);
+                            if (f.exists() && f.length() > 0) {
+                                localFile = f;
+                                playableUri = Uri.fromFile(f);
+                                isLocal = true;
+                                Log.d(TAG, "[OFFLINE] trackId=" + currentTrackId + " localFile=" + f.getAbsolutePath() + " exists=true size=" + f.length());
+                            }
+                        }
+                        // B. Check if cached in Media3 SimpleCache under original streamUrl
+                        if (!isLocal && entity.streamUrl != null && !entity.streamUrl.isEmpty()) {
+                            playableUri = Uri.parse(entity.streamUrl);
                             isLocal = true;
-                            Log.d(TAG, "[LOCAL_RESOLUTION] trackId=" + currentTrackId + " file=" + localFile.getAbsolutePath() + " exists=true size=" + localFile.length());
+                            Log.d(TAG, "[OFFLINE] trackId=" + currentTrackId + " streamUrl=" + entity.streamUrl + " inMedia3Cache=true");
                         }
                     }
                 } catch (Exception e) {
@@ -914,47 +1059,40 @@ public class RaagaXPlaybackService extends Service {
                 }
             }
 
-            // 2. Check if the provided url points to a local file
-            if (!isLocal && url != null && !url.isEmpty()) {
-                String cleanPath = url.trim();
-                if (cleanPath.startsWith("file://")) {
-                    cleanPath = cleanPath.substring(7);
-                    try {
-                        cleanPath = java.net.URLDecoder.decode(cleanPath, "UTF-8");
-                    } catch (Exception ignored) {}
+            // 2. Check if cleanUrl is a physical file path on disk
+            if (!isLocal && !cleanUrl.isEmpty()) {
+                String checkPath = cleanUrl;
+                if (checkPath.startsWith("file://")) {
+                    checkPath = checkPath.substring(7);
+                    try { checkPath = java.net.URLDecoder.decode(checkPath, "UTF-8"); } catch (Exception ignored) {}
                 }
-                if (cleanPath.startsWith("/") || cleanPath.startsWith("/storage/") || cleanPath.startsWith("/data/")) {
-                    java.io.File f = new java.io.File(cleanPath);
+                if (checkPath.startsWith("/") || checkPath.startsWith("/storage/") || checkPath.startsWith("/data/")) {
+                    java.io.File f = new java.io.File(checkPath);
                     if (f.exists() && f.length() > 0) {
                         localFile = f;
                         playableUri = Uri.fromFile(f);
                         isLocal = true;
-                        Log.d(TAG, "[LOCAL_RESOLUTION] trackId=" + currentTrackId + " file=" + localFile.getAbsolutePath() + " exists=true size=" + localFile.length());
+                        Log.d(TAG, "[OFFLINE] trackId=" + currentTrackId + " localFile=" + f.getAbsolutePath() + " exists=true size=" + f.length());
                     }
                 }
             }
 
             // 3. Fall back to standard network URI parser
-            if (playableUri == null && url != null && !url.isEmpty()) {
-                playableUri = parsePlayableUri(url);
+            if (playableUri == null && !cleanUrl.isEmpty()) {
+                playableUri = parsePlayableUri(cleanUrl);
                 if ("file".equalsIgnoreCase(playableUri.getScheme())) {
                     isLocal = true;
                 }
             }
 
             if (playableUri == null || playableUri.equals(Uri.EMPTY)) {
-                Log.e(TAG, "[LOCAL_PLAYBACK_ERROR] error=No playable URI could be constructed for url: " + url);
+                Log.e(TAG, "[LOCAL_PLAYBACK_ERROR] error=No playable URI could be constructed for trackId=" + currentTrackId + " url=" + url);
                 return;
             }
 
             isCurrentLocalPlayback = isLocal;
 
-            if (isLocal && localFile != null) {
-                Log.d(TAG, "[DIRECT_LOCAL_TEST] path=" + localFile.getAbsolutePath() + " exists=" + localFile.exists() + " size=" + localFile.length());
-                Log.d(TAG, "[DIRECT_LOCAL_TEST] uri=" + playableUri);
-                Log.d(TAG, "[LOCAL_PLAYBACK] trackId=" + currentTrackId + " uri=" + playableUri);
-                Log.d(TAG, "[LOCAL_PLAYBACK] trackId=" + currentTrackId + " path=" + localFile.getAbsolutePath() + " exists=" + localFile.exists() + " size=" + localFile.length());
-            }
+            Log.d(TAG, "[MEDIA3] setMediaItem trackId=" + currentTrackId + " isLocal=" + isLocal + " uri=" + playableUri);
 
             MediaMetadata.Builder metaBuilder = new MediaMetadata.Builder()
                     .setTitle(currentTitle)
@@ -969,6 +1107,7 @@ public class RaagaXPlaybackService extends Service {
             MediaItem mediaItem = new MediaItem.Builder()
                     .setMediaId(currentTrackId)
                     .setUri(playableUri)
+                    .setMimeType(Media3DownloadHelper.detectMimeType(playableUri))
                     .setMediaMetadata(metaBuilder.build())
                     .build();
 
@@ -978,12 +1117,13 @@ public class RaagaXPlaybackService extends Service {
             androidx.media3.exoplayer.source.MediaSource localSource =
                     mediaSourceFactory.createMediaSource(mediaItem);
 
+            Log.d(TAG, "[MEDIA3] prepare");
             player.setMediaSource(localSource);
             player.prepare();
             player.setPlayWhenReady(true);
             player.play();
+            Log.d(TAG, "[MEDIA3] PLAY isPlaying=true duration=" + lastReportedDurationMs);
             updateNotification();
-            Log.d(TAG, "playUrl: trackId=" + currentTrackId + " | title=" + currentTitle + " | artist=" + currentArtist + " | uri=" + playableUri + " | isLocal=" + isLocal);
         });
     }
 

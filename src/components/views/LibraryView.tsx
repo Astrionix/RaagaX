@@ -22,6 +22,7 @@ import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 import { Song } from '@/types/music';
 import { getCuratedPlaylists, LANGUAGE_PLAYLIST_MAP } from '@/constants/playlists';
 import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
+import { SwipeableSongRow } from '@/components/common/SwipeableSongRow';
 import { haptics } from '@/lib/haptics/HapticEngine';
 
 export function LibraryView() {
@@ -436,40 +437,51 @@ export function LibraryView() {
             const isSongOfflineUnavailable = isAppOffline && !isSongDownloaded;
 
             return (
-              <div
+              <SwipeableSongRow
                 key={`${song.id}-${index}`}
-                className={`p-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 hover:bg-white/5 transition-all flex items-center justify-between group ${
-                  isSongOfflineUnavailable ? 'opacity-40 pointer-events-none select-none' : ''
-                }`}
+                song={song}
+                actionType={tab === 'liked' ? 'unlike' : 'remove'}
+                actionLabel={tab === 'liked' ? 'Unlike' : 'Remove'}
+                onSwipeAction={() => {
+                  if (tab === 'liked') {
+                    toggleLikeSong(song.id);
+                  }
+                }}
               >
                 <div
-                  className="flex items-center gap-3.5 cursor-pointer flex-1 min-w-0 pr-3"
-                  onClick={() => { if (!isSongOfflineUnavailable) playSong(song, songs); }}
+                  className={`p-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 hover:bg-white/5 transition-all flex items-center justify-between group ${
+                    isSongOfflineUnavailable ? 'opacity-40 pointer-events-none select-none' : ''
+                  }`}
                 >
-                  <img
-                    src={song.coverUrl || '/app-icon.png'}
-                    alt={song.title}
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = '/app-icon.png';
-                    }}
-                    className="w-11 h-11 rounded-xl object-cover shadow-sm flex-shrink-0 bg-slate-800"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-[#F51B3D] transition-colors truncate">
-                      {song.title}
-                    </h4>
-                    <p className="text-[11px] text-[#8E92A4] truncate mt-0.5">{song.artist}</p>
+                  <div
+                    className="flex items-center gap-3.5 cursor-pointer flex-1 min-w-0 pr-3"
+                    onClick={() => { if (!isSongOfflineUnavailable) playSong(song, songs); }}
+                  >
+                    <img
+                      src={song.coverUrl || '/app-icon.png'}
+                      alt={song.title}
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = '/app-icon.png';
+                      }}
+                      className="w-11 h-11 rounded-xl object-cover shadow-sm flex-shrink-0 bg-slate-800"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-[#F51B3D] transition-colors truncate">
+                        {song.title}
+                      </h4>
+                      <p className="text-[11px] text-[#8E92A4] truncate mt-0.5">{song.artist}</p>
+                    </div>
                   </div>
-                </div>
 
-                {/* Fixed Right-Side Action Column */}
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
-                    <DownloadStatusIndicator song={song} size="sm" />
+                  {/* Fixed Right-Side Action Column */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                      <DownloadStatusIndicator song={song} size="sm" />
+                    </div>
+                    <SongActionMenu song={song} />
                   </div>
-                  <SongActionMenu song={song} />
                 </div>
-              </div>
+              </SwipeableSongRow>
             );
           })}
         </div>
@@ -583,44 +595,51 @@ export function LibraryView() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                 {downloadedSongs.map((song, idx) => (
-                  <div
+                  <SwipeableSongRow
                     key={`${song.id}-${idx}`}
-                    className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-emerald-500/30 hover:bg-white/5 transition-all flex items-center justify-between group"
+                    song={song}
+                    actionType="remove_download"
+                    actionLabel="Delete"
+                    onSwipeAction={() => removeDownload(song.id)}
                   >
                     <div
-                      className="flex items-center gap-3.5 cursor-pointer flex-1 min-w-0"
-                      onClick={() => playSong(song, downloadedSongs)}
+                      className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-emerald-500/30 hover:bg-white/5 transition-all flex items-center justify-between group"
                     >
-                      <div className="relative w-11 h-11 rounded-xl overflow-hidden shadow-sm flex-shrink-0 bg-slate-800">
-                        <img
-                          src={song.coverUrl || '/app-icon.png'}
-                          alt={song.title}
-                          onError={(e) => {
-                            (e.currentTarget as HTMLImageElement).src = '/app-icon.png';
-                          }}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute bottom-0.5 right-0.5 bg-emerald-500 text-slate-950 rounded-full p-0.5">
-                          <CheckCircle2 className="w-2.5 h-2.5 fill-current" />
+                      <div
+                        className="flex items-center gap-3.5 cursor-pointer flex-1 min-w-0"
+                        onClick={() => playSong(song, downloadedSongs)}
+                      >
+                        <div className="relative w-11 h-11 rounded-xl overflow-hidden shadow-sm flex-shrink-0 bg-slate-800">
+                          <img
+                            src={song.coverUrl || '/app-icon.png'}
+                            alt={song.title}
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = '/app-icon.png';
+                            }}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute bottom-0.5 right-0.5 bg-emerald-500 text-slate-950 rounded-full p-0.5">
+                            <CheckCircle2 className="w-2.5 h-2.5 fill-current" />
+                          </div>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-xs font-bold text-white group-hover:text-emerald-400 transition-colors truncate">
+                            {song.title}
+                          </h4>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[10px] font-medium text-emerald-400/80 bg-emerald-500/10 px-1.5 py-0.2 rounded font-mono">
+                              Offline FLAC
+                            </span>
+                            <span className="text-[11px] text-[#8E92A4] truncate">{song.artist}</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <h4 className="text-xs font-bold text-white group-hover:text-emerald-400 transition-colors truncate">
-                          {song.title}
-                        </h4>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[10px] font-medium text-emerald-400/80 bg-emerald-500/10 px-1.5 py-0.2 rounded font-mono">
-                            Offline FLAC
-                          </span>
-                          <span className="text-[11px] text-[#8E92A4] truncate">{song.artist}</span>
-                        </div>
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                        <DownloadStatusIndicator song={song} size="sm" showPercentage />
+                        <SongActionMenu song={song} />
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                      <DownloadStatusIndicator song={song} size="sm" showPercentage />
-                      <SongActionMenu song={song} />
-                    </div>
-                  </div>
+                  </SwipeableSongRow>
                 ))}
               </div>
             )}

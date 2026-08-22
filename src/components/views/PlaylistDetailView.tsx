@@ -17,6 +17,7 @@ import { useDownloadStore } from '@/context/useDownloadStore';
 import { useAuthStore } from '@/context/useAuthStore';
 import { AddSongsModal } from '@/components/modals/AddSongsModal';
 import { DynamicArtworkAtmosphere } from '@/components/common/DynamicArtworkAtmosphere';
+import { SwipeableSongRow } from '@/components/common/SwipeableSongRow';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
 import { haptics } from '@/lib/haptics/HapticEngine';
 
@@ -745,91 +746,99 @@ export function PlaylistDetailView() {
             const isSongOfflineUnavailable = isAppOffline && !isDownloaded;
 
             return (
-              <div
+              <SwipeableSongRow
                 key={`${song.id}-${index}`}
-                className={`p-3 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-white/20 hover:bg-[var(--bg-surface)] transition-all flex items-center justify-between gap-3 group ${
-                  isSongOfflineUnavailable ? 'opacity-40 pointer-events-none select-none' : ''
-                }`}
+                song={song}
+                disabled={!isUserOwned || isEditOrderMode}
+                actionType="remove_playlist"
+                actionLabel="Remove"
+                onSwipeAction={() => removeSongFromPlaylist(playlist.id, song.id)}
               >
-                {/* Track Number / Drag handles in edit order mode */}
-                <div className="w-8 text-center flex-shrink-0">
-                  {isEditOrderMode ? (
-                    <div className="flex flex-col items-center gap-1">
-                      <button
-                        onClick={() => handleMoveSong(index, 'up')}
-                        disabled={index === 0}
-                        className="p-1 text-slate-400 hover:text-white disabled:opacity-20 cursor-pointer"
-                      >
-                        <MoveUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleMoveSong(index, 'down')}
-                        disabled={index === displaySongs.length - 1}
-                        className="p-1 text-slate-400 hover:text-white disabled:opacity-20 cursor-pointer"
-                      >
-                        <MoveDown className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="text-xs font-mono text-slate-500 font-bold group-hover:hidden">
-                      {index + 1}
-                    </span>
-                  )}
-                  {!isEditOrderMode && (
-                    <button
-                      onClick={() => playSong(song, playlist.songs, { type: 'playlist', id: playlist.id, title: playlist.title })}
-                      className="hidden group-hover:inline-flex p-1 text-[#fa233b] hover:scale-110 transition-transform cursor-pointer"
-                    >
-                      <Play className="w-4 h-4 fill-current" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Cover & Title */}
                 <div
-                  className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
-                  onClick={() => playSong(song, playlist.songs, { type: 'playlist', id: playlist.id, title: playlist.title })}
+                  className={`p-3 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-white/20 hover:bg-[var(--bg-surface)] transition-all flex items-center justify-between gap-3 group ${
+                    isSongOfflineUnavailable ? 'opacity-40 pointer-events-none select-none' : ''
+                  }`}
                 >
-                  <img
-                    src={song.coverUrl || '/app-icon.png'}
-                    alt={song.title}
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                    className="w-11 h-11 rounded-xl object-cover bg-slate-800 flex-shrink-0 shadow-sm"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <h4 className="text-xs sm:text-sm font-bold text-[var(--text-primary)] group-hover:text-[#fa233b] transition-colors truncate">
-                      {song.title}
-                    </h4>
-                    <p className="text-[11px] text-[var(--text-secondary)] truncate mt-0.5">
-                      {song.artist}
-                    </p>
+                  {/* Track Number / Drag handles in edit order mode */}
+                  <div className="w-8 text-center flex-shrink-0">
+                    {isEditOrderMode ? (
+                      <div className="flex flex-col items-center gap-1">
+                        <button
+                          onClick={() => handleMoveSong(index, 'up')}
+                          disabled={index === 0}
+                          className="p-1 text-slate-400 hover:text-white disabled:opacity-20 cursor-pointer"
+                        >
+                          <MoveUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleMoveSong(index, 'down')}
+                          disabled={index === displaySongs.length - 1}
+                          className="p-1 text-slate-400 hover:text-white disabled:opacity-20 cursor-pointer"
+                        >
+                          <MoveDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs font-mono text-slate-500 font-bold group-hover:hidden">
+                        {index + 1}
+                      </span>
+                    )}
+                    {!isEditOrderMode && (
+                      <button
+                        onClick={() => playSong(song, playlist.songs, { type: 'playlist', id: playlist.id, title: playlist.title })}
+                        className="hidden group-hover:inline-flex p-1 text-[#fa233b] hover:scale-110 transition-transform cursor-pointer"
+                      >
+                        <Play className="w-4 h-4 fill-current" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Cover & Title */}
+                  <div
+                    className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
+                    onClick={() => playSong(song, playlist.songs, { type: 'playlist', id: playlist.id, title: playlist.title })}
+                  >
+                    <img
+                      src={song.coverUrl || '/app-icon.png'}
+                      alt={song.title}
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+                      className="w-11 h-11 rounded-xl object-cover bg-slate-800 flex-shrink-0 shadow-sm"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-xs sm:text-sm font-bold text-[var(--text-primary)] group-hover:text-[#fa233b] transition-colors truncate">
+                        {song.title}
+                      </h4>
+                      <p className="text-[11px] text-[var(--text-secondary)] truncate mt-0.5">
+                        {song.artist}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Fixed Download Action Column */}
+                  <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                    <DownloadStatusIndicator
+                      song={song}
+                      size="sm"
+                      showCloudIcon
+                      className=""
+                    />
+                  </div>
+
+                  {/* Duration */}
+                  <span className="text-[11px] font-mono text-slate-400 hidden sm:inline-block w-10 text-right flex-shrink-0">
+                    {Math.floor((song.duration || 180) / 60)}:{((song.duration || 180) % 60).toString().padStart(2, '0')}
+                  </span>
+
+                  {/* Song 3-dot Menu */}
+                  <div className="flex-shrink-0">
+                    <SongActionMenu 
+                      song={song} 
+                      playlistId={playlist.id}
+                      onRemoveFromPlaylist={() => removeSongFromPlaylist(playlist.id, song.id)}
+                    />
                   </div>
                 </div>
-
-                {/* Fixed Download Action Column */}
-                <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
-                  <DownloadStatusIndicator
-                    song={song}
-                    size="sm"
-                    showCloudIcon
-                    className=""
-                  />
-                </div>
-
-                {/* Duration */}
-                <span className="text-[11px] font-mono text-slate-400 hidden sm:inline-block w-10 text-right flex-shrink-0">
-                  {Math.floor((song.duration || 180) / 60)}:{((song.duration || 180) % 60).toString().padStart(2, '0')}
-                </span>
-
-                {/* Song 3-dot Menu */}
-                <div className="flex-shrink-0">
-                  <SongActionMenu 
-                    song={song} 
-                    playlistId={playlist.id}
-                    onRemoveFromPlaylist={() => removeSongFromPlaylist(playlist.id, song.id)}
-                  />
-                </div>
-              </div>
+              </SwipeableSongRow>
             );
           })}
         </div>

@@ -54,6 +54,9 @@ export class LyricsResolver {
     metadata: { title: string; artist: string; album?: string; durationMs?: number }
   ): Promise<LyricsData | null> {
     try {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        return null;
+      }
       // 2. Fetch through centralized RaagaX API proxy (handles CORS & fallback providers)
       const endpoint = getApiUrl('/api/lyrics');
       const url = new URL(endpoint, typeof window !== 'undefined' ? window.location.origin : undefined);

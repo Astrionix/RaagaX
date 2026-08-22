@@ -34,6 +34,9 @@ export class ClockSynchronizer {
    */
   public async synchronize(endpoint: string = '/api/time', burstCount: number = 4): Promise<void> {
     if (this.isSyncing) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      return;
+    }
     this.isSyncing = true;
 
     try {

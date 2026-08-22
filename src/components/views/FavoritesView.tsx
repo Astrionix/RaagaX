@@ -10,6 +10,7 @@ import { SongResolver } from '@/lib/discovery/SongResolver';
 import { Song } from '@/types/music';
 import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
+import { SwipeableSongRow } from '@/components/common/SwipeableSongRow';
 import { haptics } from '@/lib/haptics/HapticEngine';
 
 export function FavoritesView() {
@@ -269,69 +270,76 @@ export function FavoritesView() {
               const isSongOfflineUnavailable = isAppOffline && !isDownloaded;
 
               return (
-                <div
+                <SwipeableSongRow
                   key={`${song.id}-${idx}`}
-                  className={`p-3 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] transition-all flex items-center justify-between group shadow-sm ${
-                    isCurrent ? 'border-red-500/40 ring-1 ring-red-500/20' : ''
-                  } ${isSongOfflineUnavailable ? 'opacity-40 pointer-events-none select-none' : ''}`}
+                  song={song}
+                  actionType="unlike"
+                  actionLabel="Unlike"
+                  onSwipeAction={() => toggleLikeSong(song.id)}
                 >
                   <div
-                    className="flex items-center gap-3.5 cursor-pointer min-w-0 flex-1"
-                    onClick={() => {
-                      if (isSongOfflineUnavailable) return;
-                      haptics.lightImpact();
-                      usePlayerStore.getState().playSong(song, resolvedLikedSongs, {
-                        contextType: 'LIKED_SONGS',
-                        contextUri: 'raagax:liked-songs',
-                        title: 'Liked Songs',
-                      });
-                    }}
+                    className={`p-3 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] transition-all flex items-center justify-between group shadow-sm ${
+                      isCurrent ? 'border-red-500/40 ring-1 ring-red-500/20' : ''
+                    } ${isSongOfflineUnavailable ? 'opacity-40 pointer-events-none select-none' : ''}`}
                   >
-                    <div className="w-12 h-12 rounded-xl overflow-hidden shadow-sm flex-shrink-0 bg-slate-800 relative">
-                      <OptimizedImage
-                        src={song.coverUrl}
-                        alt={song.title}
-                        size="thumb"
-                        className="w-full h-full object-cover"
-                      />
-                      {isCurrent && isPlaying && (
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                          <Disc className="w-5 h-5 text-red-500 animate-spin" />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1 pr-2">
-                      <h4 className={`text-xs sm:text-sm font-bold truncate group-hover:text-[#FA233B] transition-colors ${
-                        isCurrent ? 'text-red-400 font-black' : 'text-[var(--text-primary)]'
-                      }`}>
-                        {song.title}
-                      </h4>
-                      <p className="text-[11px] text-[var(--text-secondary)] truncate mt-0.5">
-                        {song.artist}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Fixed Right-Side Action Column */}
-                  <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                    <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
-                      <DownloadStatusIndicator song={song} size="sm" />
-                    </div>
-                    <button
+                    <div
+                      className="flex items-center gap-3.5 cursor-pointer min-w-0 flex-1"
                       onClick={() => {
+                        if (isSongOfflineUnavailable) return;
                         haptics.lightImpact();
-                        toggleLikeSong(song.id);
+                        usePlayerStore.getState().playSong(song, resolvedLikedSongs, {
+                          contextType: 'LIKED_SONGS',
+                          contextUri: 'raagax:liked-songs',
+                          title: 'Liked Songs',
+                        });
                       }}
-                      aria-label="Unlike song"
-                      className="w-8 h-8 flex items-center justify-center text-[#FA233B] hover:scale-110 active:scale-95 transition-transform cursor-pointer flex-shrink-0"
-                      title="Remove from Liked Songs"
                     >
-                      <Heart className="w-4 h-4 fill-current" />
-                    </button>
-                    <SongActionMenu song={song} />
+                      <div className="w-12 h-12 rounded-xl overflow-hidden shadow-sm flex-shrink-0 bg-slate-800 relative">
+                        <OptimizedImage
+                          src={song.coverUrl}
+                          alt={song.title}
+                          size="thumb"
+                          className="w-full h-full object-cover"
+                        />
+                        {isCurrent && isPlaying && (
+                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                            <Disc className="w-5 h-5 text-red-500 animate-spin" />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1 pr-2">
+                        <h4 className={`text-xs sm:text-sm font-bold truncate group-hover:text-[#FA233B] transition-colors ${
+                          isCurrent ? 'text-red-400 font-black' : 'text-[var(--text-primary)]'
+                        }`}>
+                          {song.title}
+                        </h4>
+                        <p className="text-[11px] text-[var(--text-secondary)] truncate mt-0.5">
+                          {song.artist}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Fixed Right-Side Action Column */}
+                    <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                      <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                        <DownloadStatusIndicator song={song} size="sm" />
+                      </div>
+                      <button
+                        onClick={() => {
+                          haptics.lightImpact();
+                          toggleLikeSong(song.id);
+                        }}
+                        aria-label="Unlike song"
+                        className="w-8 h-8 flex items-center justify-center text-[#FA233B] hover:scale-110 active:scale-95 transition-transform cursor-pointer flex-shrink-0"
+                        title="Remove from Liked Songs"
+                      >
+                        <Heart className="w-4 h-4 fill-current" />
+                      </button>
+                      <SongActionMenu song={song} />
+                    </div>
                   </div>
-                </div>
+                </SwipeableSongRow>
               );
             })}
           </div>
