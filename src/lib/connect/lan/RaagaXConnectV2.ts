@@ -58,16 +58,18 @@ export class RaagaXConnectV2 {
     }
 
     // 1. Connect direct LAN socket
-    const connected = await DirectLANTransport.getInstance().connectToDevice(target);
-    if (!connected) return false;
+    await DirectLANTransport.getInstance().connectToDevice(target);
 
     // 2. Initiate cryptographic / session handshake
     const authTier = await ConnectAuthManager.getInstance().initiateHandshake(targetDeviceId);
 
-    if (authTier === 'SAME_ACCOUNT') {
+    const canControl = authTier === 'SAME_ACCOUNT' || ConnectAuthManager.getInstance().canControl(targetDeviceId);
+    if (canControl) {
       // Set as remote controller
       PlaybackOwnerEngine.getInstance().setOwner(targetDeviceId, false);
       usePlayerStore.setState({
+        isActiveDevice: false,
+        activeDeviceId: targetDeviceId,
         connectedDeviceId: targetDeviceId,
         remoteDeviceName: target.deviceName,
       });

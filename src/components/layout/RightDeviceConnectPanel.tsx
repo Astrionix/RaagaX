@@ -100,11 +100,24 @@ export function RightDeviceConnectPanel() {
   };
 
   const handleDeviceControl = async (target: DiscoveredLANDevice) => {
-    usePlayerStore.setState({
-      isActiveDevice: false,
-      connectedDeviceId: target.deviceId,
-      remoteDeviceName: target.deviceName,
-    });
+    try {
+      const success = await RaagaXConnectV2.getInstance().connectAndControl(target.deviceId);
+      if (!success) {
+        usePlayerStore.setState({
+          isActiveDevice: false,
+          activeDeviceId: target.deviceId,
+          connectedDeviceId: target.deviceId,
+          remoteDeviceName: target.deviceName,
+        });
+      }
+    } catch {
+      usePlayerStore.setState({
+        isActiveDevice: false,
+        activeDeviceId: target.deviceId,
+        connectedDeviceId: target.deviceId,
+        remoteDeviceName: target.deviceName,
+      });
+    }
   };
 
   const handleRequestPairing = async (target: DiscoveredLANDevice) => {
