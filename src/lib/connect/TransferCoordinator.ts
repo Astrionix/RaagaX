@@ -81,6 +81,10 @@ export class TransferCoordinator {
    */
   public async initiateTransfer(targetDeviceId: string, rttMs: number = 20): Promise<boolean> {
     const store = usePlayerStore.getState();
+    if (targetDeviceId === store.deviceId) {
+      console.log(`[TransferManager] TRANSFER_SKIPPED_CURRENT_DEVICE: targetDeviceId (${targetDeviceId}) === currentDeviceId (${store.deviceId})`);
+      return true;
+    }
     const clock = ClockSynchronizer.getInstance();
     const serverNow = clock.getEstimatedServerNow();
 

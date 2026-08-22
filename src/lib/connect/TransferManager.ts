@@ -212,8 +212,8 @@ export class TransferManager {
   public async initiateTransfer(targetDeviceId: string): Promise<string> {
     const store = usePlayerStore.getState();
     if (targetDeviceId === store.deviceId) {
-      console.warn(`[TransferManager] Cannot transfer playback to the current device (${targetDeviceId})`);
-      throw new Error('Cannot transfer playback to the current device');
+      console.log(`[TransferManager] TRANSFER_SKIPPED_CURRENT_DEVICE: targetDeviceId (${targetDeviceId}) === currentDeviceId (${store.deviceId})`);
+      return '';
     }
 
     if (this.isTransferInProgress() && this.activeTransitionId) {
@@ -707,6 +707,13 @@ export class TransferManager {
     }
 
     this.clearStageTimeout();
+    const store = usePlayerStore.getState();
+    const activeOwnerId = (command.payload as any)?.rendererDeviceId || command.sourceDeviceId;
+    if (activeOwnerId === store.deviceId || command.sourceDeviceId === store.deviceId) {
+      console.log(`[TransferManager] TRANSFER_SKIPPED_CURRENT_DEVICE: activeOwnerId === currentDeviceId (${store.deviceId}). Preserving local playback.`);
+      return;
+    }
+
     this.recordTimeline('TRANSFER_COMPLETED', { targetDeviceId: command.sourceDeviceId });
     console.log(`[TransferManager] [TRANSFER ${command.transitionId || 'unknown'}] COMMITTED by target ${command.sourceDeviceId}. Relinquishing local renderer.`);
 

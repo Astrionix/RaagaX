@@ -717,7 +717,12 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       transferPlayback: async (targetDeviceId: string) => {
-        const { currentSong } = get();
+        const { currentSong, deviceId } = get();
+        if (targetDeviceId === deviceId) {
+          console.log(`[TransferManager] TRANSFER_SKIPPED_CURRENT_DEVICE: targetDeviceId (${targetDeviceId}) === currentDeviceId (${deviceId})`);
+          return;
+        }
+
         if (!currentSong) {
           // If no song is playing locally, connect to the target device as a remote controller
           return get().connectToDevice(targetDeviceId);

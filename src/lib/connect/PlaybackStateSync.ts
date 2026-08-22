@@ -207,11 +207,19 @@ export class PlaybackStateSync {
     };
     usePlayerStore.setState({ availableDevicePlaybackStates: currentPreviews });
 
+    // CRITICAL: Local Device Priority Guard
+    // If the local device is actively playing locally and NOT connected to a remote device,
+    // local Android/desktop playback remains authoritative.
+    // Remote state must NOT force pause(), track replacement, queue replacement, or isPlaying=false.
+    if (store.isActiveDevice && !store.connectedDeviceId) {
+      return;
+    }
+
     // CRITICAL: Connection Gating
     // Only adopt remote state into the active player store if the user has explicitly connected to this device,
     // or this device is in follower/remote-controller mode targeting this device.
-    const isConnectedToThisDevice = store.connectedDeviceId === remoteState.activeDeviceId;
-    const isRemoteFollowerOfThis = !store.isActiveDevice && (store.activeDeviceId === remoteState.activeDeviceId || store.connectedDeviceId === remoteState.activeDeviceId);
+    const isConnectedToThisDevice = Boolean(!store.isActiveDevice && store.connectedDeviceId === remoteState.activeDeviceId);
+    const isRemoteFollowerOfThis = Boolean(!store.isActiveDevice && (store.activeDeviceId === remoteState.activeDeviceId || store.connectedDeviceId === remoteState.activeDeviceId));
 
     if (!isConnectedToThisDevice && !isRemoteFollowerOfThis) {
       // Not connected to this device — discovery only. Do not touch local player!
@@ -323,6 +331,11 @@ export class PlaybackStateSync {
   public adoptRemoteState(remoteState: RemotePlaybackState, revision?: number) {
     const store = usePlayerStore.getState();
     const now = Date.now();
+
+    // Local Device Priority: If the local device is actively playing locally and not connected to a remote device, local player remains authoritative.
+    if (store.isActiveDevice && !store.connectedDeviceId) {
+      return;
+    }
 
     // 1. Controller MUST NOT output audio locally ONLY when following a remote device
     const isFollowing = !store.isActiveDevice || (store.connectedDeviceId === remoteState.activeDeviceId && remoteState.activeDeviceId !== store.deviceId);

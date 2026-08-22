@@ -376,6 +376,10 @@ export class CommandBus {
         
       case 'TRANSFER_REQUEST': {
         const storeDeviceId = usePlayerStore.getState().deviceId;
+        if (command.sourceDeviceId === storeDeviceId) {
+          console.log(`[CommandBus] TRANSFER_SKIPPED_CURRENT_DEVICE: ignoring loopback TRANSFER_REQUEST from self (${storeDeviceId})`);
+          break;
+        }
         if (!command.targetDeviceId || command.targetDeviceId === this.localDeviceId || command.targetDeviceId === storeDeviceId) {
            console.log(`[CommandBus] Received TRANSFER_REQUEST for this device (${storeDeviceId || this.localDeviceId})`);
            TransferManager.getInstance().handleIncomingTransferRequest(command);
@@ -399,6 +403,10 @@ export class CommandBus {
 
       case 'TRANSFER_COMMIT': {
         const storeDeviceId = usePlayerStore.getState().deviceId;
+        if (command.sourceDeviceId === storeDeviceId) {
+          console.log(`[CommandBus] TRANSFER_SKIPPED_CURRENT_DEVICE: ignoring loopback TRANSFER_COMMIT from self (${storeDeviceId})`);
+          break;
+        }
         if (!command.targetDeviceId || command.targetDeviceId === this.localDeviceId || command.targetDeviceId === storeDeviceId) {
           console.log(`[CommandBus] Received TRANSFER_COMMIT for this device (${storeDeviceId || this.localDeviceId})`);
           TransferManager.getInstance().handleIncomingTransferCommit(command);
