@@ -125,6 +125,12 @@ export class RaagaXConnectV2 {
     const ownerId = PlaybackOwnerEngine.getInstance().getActiveOwnerId();
     DirectLANTransport.getInstance().disconnectFromDevice(ownerId);
 
+    try {
+      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+        ConnectManager.getInstance().manualDisconnect();
+      }).catch(() => {});
+    } catch {}
+
     const localId = LocalDiscoveryService.getInstance().getLocalIdentity().deviceId;
     PlaybackOwnerEngine.getInstance().setOwner(localId, true);
 
@@ -133,6 +139,7 @@ export class RaagaXConnectV2 {
       activeDeviceId: localId,
       isActiveDevice: true,
       remoteDeviceName: undefined,
+      deviceConnectionState: 'AVAILABLE',
     });
   }
 
