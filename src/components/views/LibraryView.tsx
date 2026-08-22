@@ -27,7 +27,7 @@ import { haptics } from '@/lib/haptics/HapticEngine';
 
 export function LibraryView() {
   const [tab, setTab] = useState<string>('menu');
-  const [downloadSubTab, setDownloadSubTab] = useState<'songs' | 'albums' | 'artists' | 'playlists' | 'storage'>('songs');
+  const [downloadSubTab, setDownloadSubTab] = useState<'menu' | 'songs' | 'albums' | 'artists' | 'playlists' | 'made_for_you' | 'genres' | 'storage'>('menu');
   const [offlineTrackList, setOfflineTrackList] = useState<Song[]>([]);
   const [selectedPlaylistLang, setSelectedPlaylistLang] = useState<string | null>(null);
   const [resolvedSongsMap, setResolvedSongsMap] = useState<Record<string, Song>>({});
@@ -61,6 +61,7 @@ export function LibraryView() {
     setSelectedPlaylistId,
     setActiveTab,
     setCreatePlaylistModalOpen,
+    toggleLikeSong,
   } = usePlayerStore();
 
   const {
@@ -440,11 +441,13 @@ export function LibraryView() {
               <SwipeableSongRow
                 key={`${song.id}-${index}`}
                 song={song}
-                actionType={tab === 'liked' ? 'unlike' : 'remove'}
-                actionLabel={tab === 'liked' ? 'Unlike' : 'Remove'}
+                actionType={tab === 'liked' ? 'unlike' : (tab === 'songs' ? 'remove_download' : 'remove')}
+                actionLabel={tab === 'liked' ? 'Unlike' : (tab === 'songs' ? 'Delete' : 'Remove')}
                 onSwipeAction={() => {
                   if (tab === 'liked') {
                     toggleLikeSong(song.id);
+                  } else if (tab === 'songs') {
+                    removeDownload(song.id);
                   }
                 }}
               >
@@ -491,95 +494,111 @@ export function LibraryView() {
 
   // Render Apple Music Style Downloaded Section
   const renderDownloadedSection = () => {
-    return (
-      <div className="space-y-6">
-        {/* Top Actions: Play All & Shuffle Offline */}
-        {downloadedSongs.length > 0 && (
-          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2.5 w-full sm:w-auto pt-1 pb-1">
-            <button
-              onClick={() => handlePlayAll(downloadedSongs, false)}
-              className="h-11 sm:h-10 px-5 rounded-full bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-slate-950 text-xs sm:text-sm font-black flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition-all cursor-pointer"
-            >
-              <Play className="w-4 h-4 fill-current" />
-              Play All
-            </button>
-            <button
-              onClick={() => handlePlayAll(downloadedSongs, true)}
-              className="h-11 sm:h-10 px-4 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 border border-white/15 shadow-md transition-all cursor-pointer"
-            >
-              <Shuffle className="w-4 h-4 text-slate-200" />
-              Shuffle
-            </button>
-          </div>
-        )}
-
-        {/* Recently Downloaded Shelf (Apple Music Style) */}
-        {downloadedAlbums.length > 0 && (
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between px-1">
-              <h3 className="text-xs font-black text-white tracking-tight uppercase flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-emerald-400" /> Recently Downloaded
-              </h3>
+    if (downloadSubTab === 'menu') {
+      return (
+        <div className="space-y-6">
+          {/* Top Actions: Play All & Shuffle Offline */}
+          {downloadedSongs.length > 0 && (
+            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2.5 w-full sm:w-auto pt-1 pb-1">
+              <button
+                onClick={() => handlePlayAll(downloadedSongs, false)}
+                className="h-11 sm:h-10 px-5 rounded-full bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-slate-950 text-xs sm:text-sm font-black flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition-all cursor-pointer"
+              >
+                <Play className="w-4 h-4 fill-current" />
+                Play All
+              </button>
+              <button
+                onClick={() => handlePlayAll(downloadedSongs, true)}
+                className="h-11 sm:h-10 px-4 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 border border-white/15 shadow-md transition-all cursor-pointer"
+              >
+                <Shuffle className="w-4 h-4 text-slate-200" />
+                Shuffle
+              </button>
             </div>
-            <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-2 pt-1">
-              {downloadedAlbums.slice(0, 8).map((alb) => (
-                <div
-                  key={`recent-${alb.album}`}
-                  onClick={() => handlePlayAll(alb.tracks)}
-                  className="w-32 sm:w-36 shrink-0 p-2 rounded-xl bg-white/[0.02] border border-white/5 hover:border-emerald-500/30 hover:bg-white/5 transition-all cursor-pointer group"
+          )}
+
+          {/* Apple Music Style vertical sub-navigation */}
+          <div className="rounded-2xl glass-deep border border-white/10 overflow-hidden divide-y divide-white/5 select-none shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+            {[
+              { id: 'playlists', label: 'Playlists', icon: ListMusic, color: 'text-purple-400', count: downloadedPlaylists.length },
+              { id: 'artists', label: 'Artists', icon: User, color: 'text-blue-400', count: downloadedArtists.length },
+              { id: 'albums', label: 'Albums', icon: Disc, color: 'text-rose-400', count: downloadedAlbums.length },
+              { id: 'songs', label: 'Songs', icon: Music, color: 'text-cyan-400', count: downloadedSongs.length },
+              { id: 'made_for_you', label: 'Made for You', icon: Sparkles, color: 'text-amber-400', count: null },
+              { id: 'genres', label: 'Genres', icon: Layers, color: 'text-indigo-400', count: null },
+              { id: 'storage', label: 'Storage & Settings', icon: HardDrive, color: 'text-emerald-400', count: null }
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setDownloadSubTab(item.id as any)}
+                  className="w-full py-3.5 px-4 flex items-center justify-between hover:bg-white/5 active:bg-white/10 transition-colors text-left group cursor-pointer"
                 >
-                  <div className="w-full aspect-square rounded-lg overflow-hidden bg-slate-800 mb-2 relative shadow-sm">
-                    <img
-                      src={alb.coverUrl}
-                      alt={alb.album}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <div className="w-8 h-8 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow-md">
-                        <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-7 h-7 rounded-lg bg-white/[0.04] border border-white/5 flex items-center justify-center flex-shrink-0 group-hover:bg-white/10 transition-colors">
+                      <Icon className={`w-3.5 h-3.5 ${item.color}`} />
+                    </div>
+                    <span className="text-xs sm:text-sm font-bold text-white group-hover:text-white transition-colors">
+                      {item.label}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-slate-400">
+                    {item.count !== null && (
+                      <span className="text-[11px] font-mono text-slate-500 font-semibold">{item.count}</span>
+                    )}
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Recently Downloaded Shelf (Apple Music Style) */}
+          {downloadedAlbums.length > 0 && (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-xs font-black text-white tracking-tight uppercase flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" /> Recently Downloaded
+                </h3>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3 pt-1">
+                {downloadedAlbums.slice(0, 8).map((alb) => (
+                  <div
+                    key={`recent-${alb.album}`}
+                    onClick={() => handlePlayAll(alb.tracks)}
+                    className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 hover:border-emerald-500/30 hover:bg-white/5 transition-all cursor-pointer group flex flex-col"
+                  >
+                    <div className="w-full aspect-square rounded-lg overflow-hidden bg-slate-800 mb-2 relative shadow-sm">
+                      <img
+                        src={alb.coverUrl}
+                        alt={alb.album}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow-md">
+                          <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                        </div>
+                      </div>
+                      <div className="absolute bottom-1 right-1 bg-emerald-500/90 text-slate-950 text-[8px] font-black px-1.5 py-0.5 rounded-full shadow">
+                        {alb.tracks.length}
                       </div>
                     </div>
-                    <div className="absolute bottom-1 right-1 bg-emerald-500/90 text-slate-950 text-[8px] font-black px-1.5 py-0.5 rounded-full shadow">
-                      {alb.tracks.length}
-                    </div>
+                    <h4 className="text-[11px] font-bold text-white truncate group-hover:text-emerald-400 transition-colors">
+                      {alb.album}
+                    </h4>
+                    <p className="text-[10px] text-[#8E92A4] truncate">{alb.artist}</p>
                   </div>
-                  <h4 className="text-[11px] font-bold text-white truncate group-hover:text-emerald-400 transition-colors">
-                    {alb.album}
-                  </h4>
-                  <p className="text-[10px] text-[#8E92A4] truncate">{alb.artist}</p>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* Apple Music Style Sub-Navigation */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 border-b border-white/5 pt-1">
-          {[
-            { id: 'songs', label: `Songs (${downloadedSongs.length})`, icon: Music },
-            { id: 'albums', label: `Albums (${downloadedAlbums.length})`, icon: Disc },
-            { id: 'artists', label: `Artists (${downloadedArtists.length})`, icon: User },
-            { id: 'playlists', label: `Playlists (${downloadedPlaylists.length})`, icon: ListMusic },
-            { id: 'storage', label: 'Storage', icon: HardDrive },
-          ].map((sub) => {
-            const Icon = sub.icon;
-            const isSelected = downloadSubTab === sub.id;
-            return (
-              <button
-                key={sub.id}
-                onClick={() => setDownloadSubTab(sub.id as any)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
-                  isSelected
-                    ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25'
-                    : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/5'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {sub.label}
-              </button>
-            );
-          })}
+          )}
         </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
 
         {/* 1. Downloaded Songs Tab */}
         {downloadSubTab === 'songs' && (
@@ -777,6 +796,28 @@ export function LibraryView() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* 4b. Downloaded Made for You Tab */}
+        {downloadSubTab === 'made_for_you' && (
+          <div className="flex flex-col items-center justify-center py-20 text-[#8E92A4] bg-white/[0.01] border border-dashed border-white/10 rounded-2xl">
+            <Sparkles className="w-12 h-12 mb-3 opacity-40 text-amber-400" />
+            <h3 className="text-sm font-bold text-white">No Offline Mixes</h3>
+            <p className="text-xs text-[#8E92A4] mt-1 text-center max-w-xs px-4">
+              Your personalized Made for You mixes will automatically be cached for offline playback when you listen to them.
+            </p>
+          </div>
+        )}
+
+        {/* 4c. Downloaded Genres Tab */}
+        {downloadSubTab === 'genres' && (
+          <div className="flex flex-col items-center justify-center py-20 text-[#8E92A4] bg-white/[0.01] border border-dashed border-white/10 rounded-2xl">
+            <Layers className="w-12 h-12 mb-3 opacity-40 text-indigo-400" />
+            <h3 className="text-sm font-bold text-white">No Offline Genres</h3>
+            <p className="text-xs text-[#8E92A4] mt-1 text-center max-w-xs px-4">
+              Downloaded tracks will group by genre automatically once saved locally.
+            </p>
           </div>
         )}
 
@@ -1001,8 +1042,8 @@ export function LibraryView() {
         break;
       case 'songs':
         activeLabel = 'Songs';
-        activeSubtitle = `${allSavedSongs.length} songs in library`;
-        content = renderSongList(allSavedSongs, 'Songs');
+        activeSubtitle = `${downloadedSongs.length} downloaded songs`;
+        content = renderSongList(downloadedSongs, 'Songs');
         break;
       case 'history':
         activeLabel = 'Listening History';
@@ -1010,8 +1051,22 @@ export function LibraryView() {
         content = renderSongList(historySongs, 'Listening History');
         break;
       case 'downloads':
-        activeLabel = 'Downloads';
-        activeSubtitle = 'Offline verified audio files';
+        activeLabel = downloadSubTab === 'menu' ? 'Downloaded' : (
+          downloadSubTab === 'songs' ? 'Songs' :
+          downloadSubTab === 'albums' ? 'Albums' :
+          downloadSubTab === 'artists' ? 'Artists' :
+          downloadSubTab === 'playlists' ? 'Playlists' :
+          downloadSubTab === 'made_for_you' ? 'Made for You' :
+          downloadSubTab === 'genres' ? 'Genres' : 'Storage'
+        );
+        activeSubtitle = downloadSubTab === 'menu' ? 'Offline verified audio files' : (
+          downloadSubTab === 'songs' ? `${downloadedSongs.length} downloaded songs` :
+          downloadSubTab === 'albums' ? `${downloadedAlbums.length} downloaded albums` :
+          downloadSubTab === 'artists' ? `${downloadedArtists.length} downloaded artists` :
+          downloadSubTab === 'playlists' ? `${downloadedPlaylists.length} downloaded playlists` :
+          downloadSubTab === 'made_for_you' ? 'Offline mixes' :
+          downloadSubTab === 'genres' ? 'Offline genres' : 'Storage options'
+        );
         content = renderDownloadedSection();
         break;
       case 'insights':
@@ -1214,7 +1269,13 @@ export function LibraryView() {
       <div className="space-y-6 pb-6 text-white select-none animate-in fade-in duration-200">
         <div className="flex items-center gap-3 pt-1">
           <button
-            onClick={() => setTab('menu')}
+            onClick={() => {
+              if (tab === 'downloads' && downloadSubTab !== 'menu') {
+                setDownloadSubTab('menu');
+              } else {
+                setTab('menu');
+              }
+            }}
             className="p-2 -ml-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer"
           >
             <ChevronLeft className="w-5 h-5" />
@@ -1328,7 +1389,7 @@ export function LibraryView() {
       <div className="rounded-2xl glass-deep border border-white/10 overflow-hidden divide-y divide-white/5">
         {[
           { id: 'playlists', label: 'Playlists', icon: ListMusic, color: 'text-purple-400', count: `${userPlaylists.length}` },
-          { id: 'songs', label: 'Songs', icon: Music, color: 'text-cyan-400', count: `${knownSongsMap.size}` },
+          { id: 'songs', label: 'Songs', icon: Music, color: 'text-cyan-400', count: `${downloadedSongs.length}` },
           { id: 'albums', label: 'Albums', icon: Disc, color: 'text-rose-400', count: `${recentlyAddedAlbums.length}` },
           { id: 'artists', label: 'Artists', icon: User, color: 'text-blue-400', count: `${favoriteArtistIds.length || POPULAR_ARTISTS.length}` },
         ].map((item) => {
