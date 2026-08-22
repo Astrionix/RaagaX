@@ -97,6 +97,10 @@ export function MobileDeviceConnectModal() {
 
   const handleControl = async (targetId: string, targetName: string) => {
     if (!targetId) return;
+    if (targetId === deviceId) {
+      handleDisconnect();
+      return;
+    }
     setErrorMessage(null);
     try {
       import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact()).catch(() => {});
@@ -113,7 +117,10 @@ export function MobileDeviceConnectModal() {
   };
 
   const handleTransfer = async (targetId: string, targetName: string) => {
-    if (!targetId || targetId === activeDeviceId) return;
+    if (!targetId) return;
+    const isCurrentActiveOwner = targetId === activeDeviceId && !connectedDeviceId;
+    if (isCurrentActiveOwner) return;
+
     setErrorMessage(null);
     setTransferringId(targetId);
     setHandoverTarget(targetName);

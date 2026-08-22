@@ -85,14 +85,33 @@ export class RaagaXConnectV2 {
     targetDeviceId: string,
     onProgress?: SwitchProgressCallback
   ): Promise<boolean> {
+    const store = usePlayerStore.getState();
+    const localId = LocalDiscoveryService.getInstance().getLocalIdentity().deviceId;
+    const isThisDevice =
+      targetDeviceId === localId ||
+      targetDeviceId === store.deviceId ||
+      targetDeviceId === 'THIS_DEVICE' ||
+      targetDeviceId === 'local' ||
+      !targetDeviceId;
+
+    // Case 1: Switching to THIS LOCAL DEVICE (Takeover / Pull context from remote owner)
+    if (isThisDevice) {
+      if (store.isActiveDevice && !store.connectedDeviceId) {
+        // Already playing locally
+        return true;
+      }
+      return OwnershipSwitchProtocol.getInstance().switchPlayback(localId, onProgress);
+    }
+
+    // Case 2: Switching to REMOTE DEVICE
     const devices = this.getDiscoveredDevices();
     const target = devices.find((d) => d.deviceId === targetDeviceId);
-    if (!target) return false;
-
-    // Ensure connected first
-    if (!DirectLANTransport.getInstance().isConnected(targetDeviceId)) {
-      await DirectLANTransport.getInstance().connectToDevice(target);
-      await ConnectAuthManager.getInstance().initiateHandshake(targetDeviceId);
+    if (target) {
+      // Ensure connected first
+      if (!DirectLANTransport.getInstance().isConnected(targetDeviceId)) {
+        await DirectLANTransport.getInstance().connectToDevice(target);
+        await ConnectAuthManager.getInstance().initiateHandshake(targetDeviceId);
+      }
     }
 
     return OwnershipSwitchProtocol.getInstance().switchPlayback(targetDeviceId, onProgress);
