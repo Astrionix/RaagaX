@@ -526,8 +526,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
       partialize: (state) => ({
         playlists: (state.playlists || []).map((pl) => ({
           id: pl.id,
-          name: pl.name,
-          title: (pl as any).title || pl.name,
+          title: pl.title,
           description: pl.description,
           coverUrl: pl.coverUrl,
           cover_url: (pl as any).cover_url || pl.coverUrl,
@@ -575,7 +574,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
                 state: {
                   playlists: ((value as any)?.state?.playlists || []).map((p: any) => ({
                     id: p.id,
-                    name: p.name,
+                    title: p.title || p.name || 'Playlist',
                     coverUrl: p.coverUrl,
                     songIds: p.songIds || [],
                     songs: [],

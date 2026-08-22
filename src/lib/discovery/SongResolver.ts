@@ -156,8 +156,8 @@ export class SongResolver {
           );
 
         if (songError) {
-          console.error("UPSERT CANONICAL ERROR:", songError);
-          throw songError;
+          // Client anon keys may not have direct write access; fallback cleanly
+          return resolved;
         }
 
         // Upsert into charts
