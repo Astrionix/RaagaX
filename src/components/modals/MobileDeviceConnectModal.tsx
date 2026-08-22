@@ -81,6 +81,8 @@ export function MobileDeviceConnectModal() {
   const isRemotePlaying = Boolean(activeDeviceId && activeDeviceId !== deviceId);
   const currentlyPlayingDevice = filteredDevices.find(d => d?.reachabilityState === 'CURRENTLY_PLAYING') || filteredDevices.find(d => d?.deviceId === (activeDeviceId || deviceId)) || filteredDevices[0] || null;
   const nearbyDevices = filteredDevices.filter(d => d && d.deviceId !== currentlyPlayingDevice?.deviceId && d.isNearby && !d.isAudioOutput && d.reachabilityState !== 'OFFLINE');
+  const yourNearbyDevices = nearbyDevices.filter(d => d.isSameAccount !== false && d.accountRelationship !== 'OTHER_ACCOUNT');
+  const otherNearbyDevices = nearbyDevices.filter(d => d.isSameAccount === false || d.accountRelationship === 'OTHER_ACCOUNT');
   const audioOutputs = filteredDevices.filter(d => d && d.isAudioOutput);
   const otherDevices = filteredDevices.filter(d => d && d.deviceId !== currentlyPlayingDevice?.deviceId && !d.isNearby && !d.isAudioOutput && d.reachabilityState !== 'OFFLINE');
   const offlineDevices = filteredDevices.filter(d => d && (d.reachabilityState === 'OFFLINE' || d.reachabilityState === 'STALE'));
@@ -481,8 +483,8 @@ export function MobileDeviceConnectModal() {
 
           {/* 3. DEVICES ON THIS WI-FI (ALL RaagaX devices on LAN: Your Account & Other Accounts) */}
           {nearbyDevices.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-2 px-1">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between px-1">
                 <span className="text-[11px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                   <Wifi className="w-3.5 h-3.5 text-[#FA233B]" />
                   DEVICES ON THIS WI-FI
@@ -490,101 +492,153 @@ export function MobileDeviceConnectModal() {
                 <span className="text-[10px] font-mono text-slate-400">All Nearby Devices</span>
               </div>
 
-              <div className="space-y-2.5">
-                {nearbyDevices.map((device) => {
-                  const DeviceIcon = getDeviceIcon(device.platform, device.isAudioOutput);
-                  const isBusy = transferringId === device.deviceId;
-                  const liveState = (usePlayerStore.getState().availableDevicePlaybackStates || {})[device.deviceId];
-                  const liveSongTitle = liveState?.songTitle || device.activePlaybackSong;
-                  const isDevicePlaying = Boolean(liveState?.isPlaying || device.reachabilityState === 'CURRENTLY_PLAYING');
-                  const isOwnAccount = device.isSameAccount !== false && device.accountRelationship !== 'OTHER_ACCOUNT';
+              {/* YOUR DEVICES (Same Account) */}
+              {yourNearbyDevices.length > 0 && (
+                <div className="space-y-2.5">
+                  <div className="px-1 text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                    <span>YOUR DEVICES</span>
+                  </div>
+                  <div className="space-y-2">
+                    {yourNearbyDevices.map((device) => {
+                      const DeviceIcon = getDeviceIcon(device.platform, device.isAudioOutput);
+                      const isBusy = transferringId === device.deviceId;
+                      const liveState = (usePlayerStore.getState().availableDevicePlaybackStates || {})[device.deviceId];
+                      const liveSongTitle = liveState?.songTitle || device.activePlaybackSong;
+                      const isDevicePlaying = Boolean(liveState?.isPlaying || device.reachabilityState === 'CURRENTLY_PLAYING');
 
-                  return (
-                    <div 
-                      key={device.deviceId}
-                      className={`p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border ${isOwnAccount ? 'border-white/10 hover:border-white/20' : 'border-white/5 opacity-80'} flex flex-col gap-3 transition-all group`}
-                    >
-                      <div className="flex items-center justify-between min-w-0">
-                        <div className="flex items-center gap-3.5 min-w-0">
-                          <div className={`w-10 h-10 rounded-xl ${isOwnAccount ? 'bg-white/10 group-hover:bg-[#FA233B]/20 group-hover:text-[#FA233B]' : 'bg-white/5 text-white/50'} flex items-center justify-center text-white/80 transition-all flex-shrink-0`}>
-                            <DeviceIcon className="w-5 h-5" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <h4 className="text-xs font-bold text-white truncate group-hover:text-[#FA233B] transition-colors">
-                                {device.name || 'Nearby Device'}
-                              </h4>
-                              {/* Account Relationship Badge */}
-                              {isOwnAccount ? (
-                                <span className="text-[9px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 flex-shrink-0">
-                                  Your account
-                                </span>
-                              ) : (
-                                <span className="text-[9px] font-mono text-slate-400 bg-white/5 px-1.5 py-0.5 rounded border border-white/10 flex-shrink-0">
-                                  Other account
-                                </span>
-                              )}
+                      return (
+                        <div 
+                          key={device.deviceId}
+                          className="p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 hover:border-white/20 flex flex-col gap-3 transition-all group"
+                        >
+                          <div className="flex items-center justify-between min-w-0">
+                            <div className="flex items-center gap-3.5 min-w-0">
+                              <div className="w-10 h-10 rounded-xl bg-white/10 group-hover:bg-[#FA233B]/20 group-hover:text-[#FA233B] flex items-center justify-center text-white/80 transition-all flex-shrink-0">
+                                <DeviceIcon className="w-5 h-5" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="text-xs font-bold text-white truncate group-hover:text-[#FA233B] transition-colors">
+                                    {device.name || 'Nearby Device'}
+                                  </h4>
+                                  <span className="text-[9px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 flex-shrink-0">
+                                    Your account
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-slate-400 font-medium mt-0.5 flex items-center gap-1.5 truncate">
+                                  <span className={`w-1.5 h-1.5 rounded-full ${isDevicePlaying ? 'bg-[#FA233B] animate-pulse' : 'bg-emerald-400'}`} />
+                                  <span>{isDevicePlaying ? 'Playing' : 'Available'}</span>
+                                </p>
+                              </div>
                             </div>
-                            <p className="text-[10px] text-slate-400 font-medium mt-0.5 flex items-center gap-1.5 truncate">
-                              <span className={`w-1.5 h-1.5 rounded-full ${isDevicePlaying ? 'bg-[#FA233B] animate-pulse' : 'bg-emerald-400'}`} />
-                              <span>{isDevicePlaying ? 'Playing' : 'Available'}</span>
-                            </p>
+
+                            {isDevicePlaying && (
+                              <span className="text-[10px] font-mono font-bold text-[#FA233B] bg-[#FA233B]/10 px-2 py-0.5 rounded-full border border-[#FA233B]/20 flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#FA233B] animate-pulse" />
+                                Playing
+                              </span>
+                            )}
+                          </div>
+
+                          {liveSongTitle && (
+                            <div className="px-3 py-2 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between text-[11px]">
+                              <span className="text-white font-medium truncate max-w-[240px] flex items-center gap-1.5">
+                                <span className="text-[#FA233B]">🎵</span> {liveSongTitle} {liveState?.artist ? `· ${liveState.artist}` : ''}
+                              </span>
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/5">
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleControl(device.deviceId, device.name || 'Device');
+                              }}
+                              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white/90 hover:text-white transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                            >
+                              <span>Control</span>
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleTransfer(device.deviceId, device.name || 'Device');
+                              }}
+                              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#FA233B] hover:bg-[#d91e32] text-white shadow-md transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                            >
+                              {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>Switch to this device</span>}
+                            </button>
                           </div>
                         </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
-                        {isDevicePlaying && (
-                          <span className="text-[10px] font-mono font-bold text-[#FA233B] bg-[#FA233B]/10 px-2 py-0.5 rounded-full border border-[#FA233B]/20 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#FA233B] animate-pulse" />
-                            Playing
-                          </span>
-                        )}
-                      </div>
+              {/* OTHER RAAGAX DEVICES (Different Accounts) */}
+              {otherNearbyDevices.length > 0 && (
+                <div className="space-y-2.5 pt-1">
+                  <div className="px-1 text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                    <span>OTHER RAAGAX DEVICES</span>
+                  </div>
+                  <div className="space-y-2">
+                    {otherNearbyDevices.map((device) => {
+                      const DeviceIcon = getDeviceIcon(device.platform, device.isAudioOutput);
+                      const liveState = (usePlayerStore.getState().availableDevicePlaybackStates || {})[device.deviceId];
+                      const liveSongTitle = liveState?.songTitle || device.activePlaybackSong;
+                      const isDevicePlaying = Boolean(liveState?.isPlaying || device.reachabilityState === 'CURRENTLY_PLAYING');
 
-                      {/* Live Track Details on Remote Device if available */}
-                      {liveSongTitle && (
-                        <div className="px-3 py-2 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between text-[11px]">
-                          <span className="text-white font-medium truncate max-w-[240px] flex items-center gap-1.5">
-                            <span className="text-[#FA233B]">🎵</span> {liveSongTitle} {liveState?.artist ? `· ${liveState.artist}` : ''}
-                          </span>
-                        </div>
-                      )}
+                      return (
+                        <div 
+                          key={device.deviceId}
+                          className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 opacity-80 flex flex-col gap-2.5 transition-all"
+                        >
+                          <div className="flex items-center justify-between min-w-0">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-9 h-9 rounded-xl bg-white/5 text-white/40 flex items-center justify-center flex-shrink-0">
+                                <DeviceIcon className="w-4 h-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="text-xs font-bold text-white/90 truncate">
+                                    {device.name || 'RaagaX Device'}
+                                  </h4>
+                                  <span className="text-[9px] font-mono text-slate-400 bg-white/5 px-1.5 py-0.5 rounded border border-white/10 flex-shrink-0">
+                                    Different account
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1.5 truncate">
+                                  <span className={`w-1.5 h-1.5 rounded-full ${isDevicePlaying ? 'bg-[#FA233B] animate-pulse' : 'bg-emerald-400'}`} />
+                                  <span>{isDevicePlaying ? 'Playing' : 'Available'}</span>
+                                </p>
+                              </div>
+                            </div>
 
-                      {/* Actions: Same-Account -> [ Control ] & [ Switch ], Other-Account -> View Only */}
-                      {isOwnAccount ? (
-                        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/5">
-                          <button
-                            type="button"
-                            disabled={isBusy}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleControl(device.deviceId, device.name || 'Device');
-                            }}
-                            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white/90 hover:text-white transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
-                          >
-                            <span>Control</span>
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isBusy}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleTransfer(device.deviceId, device.name || 'Device');
-                            }}
-                            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#FA233B] hover:bg-[#d91e32] text-white shadow-md transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
-                          >
-                            {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>Switch</span>}
-                          </button>
+                            {isDevicePlaying && (
+                              <span className="text-[10px] font-mono font-bold text-[#FA233B] bg-[#FA233B]/10 px-2 py-0.5 rounded-full border border-[#FA233B]/20 flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#FA233B] animate-pulse" />
+                                Playing
+                              </span>
+                            )}
+                          </div>
+
+                          {liveSongTitle && (
+                            <div className="px-3 py-1.5 rounded-xl bg-black/30 border border-white/5 flex items-center justify-between text-[11px] text-slate-300">
+                              <span className="truncate max-w-[240px] flex items-center gap-1.5">
+                                <span className="text-[#FA233B]">🎵</span> {liveSongTitle}
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      ) : (
-                        <div className="pt-1 border-t border-white/5 flex items-center justify-between text-[10px] text-slate-500 font-mono">
-                          <span>Sign in to same account to control</span>
-                          <span className="bg-white/5 px-2 py-0.5 rounded text-slate-400">View only</span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
