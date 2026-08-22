@@ -39,7 +39,12 @@ export class PlaybackOwnerEngine {
 
       if (songChanged || playingChanged || queueChanged || volumeChanged || modesChanged) {
         this.stateVersion++;
-        this.scheduleStateBroadcast();
+        if (songChanged || queueChanged) {
+          // Track and queue transitions must broadcast immediately without throttling
+          this.broadcastStateImmediately();
+        } else {
+          this.scheduleStateBroadcast();
+        }
       }
     });
   }
@@ -75,8 +80,8 @@ export class PlaybackOwnerEngine {
     return {
       ownerDeviceId: this.isLocalOwner ? localId : this.activeOwnerDeviceId,
       songId: s.currentSong?.id || null,
-      song: s.currentSong || null,
-      queue: s.queue || [],
+      song: s.currentSong ? { ...s.currentSong } : null,
+      queue: s.queue ? [...s.queue] : [],
       queueIndex: s.queueIndex || 0,
       positionMs: Math.round((s.currentTime || 0) * 1000),
       durationMs: Math.round((s.duration || s.currentSong?.duration || 0) * 1000),
@@ -89,6 +94,14 @@ export class PlaybackOwnerEngine {
       stateVersion: this.stateVersion,
       timestamp: Date.now(),
     };
+  }
+
+  public broadcastStateImmediately() {
+    if (this.broadcastThrottleTimer) {
+      clearTimeout(this.broadcastThrottleTimer);
+      this.broadcastThrottleTimer = null;
+    }
+    this.broadcastState();
   }
 
   public broadcastState() {
@@ -150,11 +163,11 @@ export class PlaybackOwnerEngine {
         break;
 
       case 'CMD_NEXT':
-        store.playNext();
+        await store.playNext();
         break;
 
       case 'CMD_PREV':
-        store.playPrev();
+        await store.playPrev();
         break;
 
       case 'CMD_SEEK':
@@ -187,7 +200,7 @@ export class PlaybackOwnerEngine {
 
       case 'CMD_LOAD_TRACK':
         if (cmd.payload?.song) {
-          store.playSong(cmd.payload.song, cmd.payload.queue || [cmd.payload.song]);
+          await store.playSong(cmd.payload.song, cmd.payload.queue || [cmd.payload.song]);
         }
         break;
 
@@ -203,7 +216,7 @@ export class PlaybackOwnerEngine {
 
     const executeTimestamp = Date.now();
     this.stateVersion++;
-    this.broadcastState();
+    this.broadcastStateImmediately();
 
     // Send Authoritative Command ACK with round-trip telemetry
     try {

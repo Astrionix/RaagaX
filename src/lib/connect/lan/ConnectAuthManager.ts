@@ -560,7 +560,10 @@ export class ConnectAuthManager {
     // 1. Same account is automatically authorized
     if (this.getAuthTier(deviceId) === 'SAME_ACCOUNT') return true;
 
-    // 2. Explicitly paired with allowControl permission
+    // 2. Open Wi-Fi policy allows all local peers
+    if (this.controlPolicy === 'ANYONE_ON_WIFI') return true;
+
+    // 3. Explicitly paired with allowControl permission
     const peer = this.trustedPeers.get(deviceId);
     if (peer) {
       if (peer.expiresAt && peer.expiresAt <= Date.now()) {
@@ -578,7 +581,10 @@ export class ConnectAuthManager {
     // 1. Same account is automatically authorized
     if (this.getAuthTier(deviceId) === 'SAME_ACCOUNT') return true;
 
-    // 2. Explicitly paired with allowSwitch permission
+    // 2. Open Wi-Fi policy allows switching
+    if (this.controlPolicy === 'ANYONE_ON_WIFI') return true;
+
+    // 3. Explicitly paired with allowSwitch permission
     const peer = this.trustedPeers.get(deviceId);
     if (peer) {
       if (peer.expiresAt && peer.expiresAt <= Date.now()) {

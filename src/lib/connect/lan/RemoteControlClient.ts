@@ -4,13 +4,14 @@ import {
   LANPlaybackStatePayload, 
   LANPlaybackStateMessage, 
   LANRemoteCommandMessage,
-  LANCommandAckMessage
+  LANCommandAckMessage 
 } from './types';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { DirectLANTransport } from './DirectLANTransport';
 import { LocalDiscoveryService } from './LocalDiscoveryService';
 import { PlaybackOwnerEngine } from './PlaybackOwnerEngine';
 import { ConnectTelemetry } from './ConnectTelemetry';
+import { MediaSessionManager } from '@/lib/playback/MediaSessionManager';
 
 export class RemoteControlClient {
   private static instance: RemoteControlClient;
@@ -49,7 +50,7 @@ export class RemoteControlClient {
     const commandId = 'c_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
     this.sequenceCounter++;
 
-    // 1. Optimistic Local UI Execution (~0ms perceived latency)
+    // 1. Optimistic Local UI Execution for instant touch feel (0ms perceived latency)
     this.applyOptimisticUpdate(type, payload);
 
     // 2. Track pending command for telemetry reconciliation
@@ -77,8 +78,6 @@ export class RemoteControlClient {
   }
 
   private applyOptimisticUpdate(type: LANRemoteCommandMessage['type'], payload?: LANRemoteCommandMessage['payload']) {
-    const store = usePlayerStore.getState();
-
     switch (type) {
       case 'CMD_PLAY':
         usePlayerStore.setState({ isPlaying: true });
@@ -99,12 +98,8 @@ export class RemoteControlClient {
           usePlayerStore.setState({ isMuted: payload.isMuted });
         }
         break;
-      case 'CMD_NEXT':
-        store.playNext();
-        break;
-      case 'CMD_PREV':
-        store.playPrev();
-        break;
+      // Note: CMD_NEXT and CMD_PREV are NOT optimistically updated from local queue
+      // to guarantee absolute fidelity with the Authoritative Owner's queue!
     }
   }
 
@@ -134,34 +129,53 @@ export class RemoteControlClient {
     // Ignore if this device is the local owner (owner is authoritative)
     if (PlaybackOwnerEngine.getInstance().isOwner()) return;
 
-    // Ignore older or out-of-order state versions
+    // Ignore stale or out-of-order state versions
     if (this.currentOwnerState && payload.stateVersion < this.currentOwnerState.stateVersion) {
       return;
     }
+
+    const previousSongId = this.currentOwnerState?.songId || this.currentOwnerState?.song?.id;
+    const newSongId = payload.songId || payload.song?.id;
+    const isTrackChange = Boolean(newSongId && previousSongId !== newSongId);
 
     this.currentOwnerState = payload;
 
     // Extrapolate position accurately from timestamp
     const now = Date.now();
-    const elapsedSec = payload.isPlaying ? (now - payload.timestamp) / 1000 * payload.playbackRate : 0;
-    const currentSec = Math.min((payload.durationMs / 1000) || 0, (payload.positionMs / 1000) + elapsedSec);
+    const elapsedSec = (payload.isPlaying && !isTrackChange)
+      ? ((now - payload.timestamp) / 1000) * payload.playbackRate
+      : 0;
+    const currentSec = isTrackChange 
+      ? (payload.positionMs / 1000)
+      : Math.min((payload.durationMs / 1000) || 0, (payload.positionMs / 1000) + elapsedSec);
 
-    // Sync into player store as remote controller
+    // ATOMIC SYNCHRONOUS STATE REPLACEMENT
+    // Artwork, title, artist, duration, position, queue, and index update in ONE unified atomic transaction!
     usePlayerStore.setState({
       activeDeviceId: payload.ownerDeviceId,
       connectedDeviceId: payload.ownerDeviceId,
       isActiveDevice: false,
-      currentSong: payload.song,
+      currentSong: payload.song ? { ...payload.song } : null,
       isPlaying: payload.isPlaying,
       currentTime: currentSec,
-      duration: payload.durationMs ? payload.durationMs / 1000 : 0,
-      queue: payload.queue || [],
-      queueIndex: payload.queueIndex || 0,
+      duration: payload.durationMs ? payload.durationMs / 1000 : (payload.song?.duration || 0),
+      queue: payload.queue ? [...payload.queue] : [],
+      queueIndex: payload.queueIndex ?? 0,
       volume: payload.volume,
       isMuted: payload.isMuted,
       shuffleMode: (payload.shuffleMode as any) || 'OFF',
       repeatMode: (payload.repeatMode as any) || 'OFF',
     });
+
+    // Update native Android lockscreen & notification media metadata
+    if (payload.song) {
+      MediaSessionManager.getInstance().updateSongMetadata(payload.song);
+      MediaSessionManager.getInstance().setPlaybackState(payload.isPlaying ? 'playing' : 'paused');
+      MediaSessionManager.getInstance().setPositionState({
+        duration: payload.durationMs ? payload.durationMs / 1000 : (payload.song.duration || 0),
+        position: currentSec,
+      });
+    }
   }
 
   public getEstimatedPositionMs(): number {
