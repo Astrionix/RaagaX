@@ -5,6 +5,7 @@ import {
   Download, 
   HardDrive, 
   Play, 
+  Pause,
   Trash2, 
   CheckCircle2, 
   Music, 
@@ -480,19 +481,22 @@ export function DownloadsView() {
           </div>
         </div>
 
-        {/* Action Buttons Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-white/5 text-xs">
-          <div className="flex items-center gap-2 text-emerald-400 font-bold text-[11px]">
-            <CheckCircle2 className="w-4 h-4" /> App-Private Offline Storage • Zero Permissions Needed
+        {/* Action Buttons Bar: Clear Cache & Purge All Downloads */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-white/5">
+          <div>
+            <div className="flex items-center gap-2 text-white font-bold text-xs">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" /> App-Private Offline Storage
+            </div>
+            <p className="text-[11px] text-slate-400 mt-0.5">Zero Permissions Needed</p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <button
               onClick={async () => {
                 await useDownloadStore.getState().clearStreamingCache();
                 await refreshCatalog();
               }}
-              className="px-3.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-[11px] transition-colors flex items-center gap-1.5"
+              className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 font-bold text-xs transition-colors flex items-center gap-2 border border-white/10 active:scale-95 cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Clear Cache</span>
@@ -502,7 +506,7 @@ export function DownloadsView() {
                 await useDownloadStore.getState().purgeOfflineDownloads();
                 await refreshCatalog();
               }}
-              className="px-3.5 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold text-[11px] transition-colors flex items-center gap-1.5"
+              className="px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold text-xs transition-colors flex items-center gap-2 border border-red-500/20 active:scale-95 cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Purge All Downloads</span>
@@ -543,17 +547,35 @@ export function DownloadsView() {
         </div>
       )}
 
-      {/* Active & Queued Tasks */}
+      {/* Active & Queued Tasks: Pause All, Resume All, Cancel All */}
       {activeTasks.length > 0 && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-2">
-              <Download className="w-4 h-4 text-[#fa233b]" /> Currently Downloading ({downloadingTasks.length})
+              <Download className="w-4 h-4 text-[#fa233b]" /> CURRENTLY DOWNLOADING ({downloadingTasks.length})
             </h3>
-            <div className="flex gap-2">
-              <button onClick={pauseAll} className="text-[10px] uppercase font-bold text-slate-400 hover:text-white px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">Pause All</button>
-              <button onClick={resumeAll} className="text-[10px] uppercase font-bold text-slate-400 hover:text-white px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">Resume All</button>
-              <button onClick={cancelAll} className="text-[10px] uppercase font-bold text-red-400 hover:text-red-300 px-2.5 py-1 rounded-lg bg-red-400/10 hover:bg-red-400/20 transition-colors">Cancel All</button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={pauseAll}
+                className="text-xs font-bold text-slate-300 hover:text-white px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-colors active:scale-95 cursor-pointer flex items-center gap-1.5"
+              >
+                <Pause className="w-3.5 h-3.5" />
+                <span>Pause All</span>
+              </button>
+              <button
+                onClick={resumeAll}
+                className="text-xs font-bold text-emerald-300 hover:text-white px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors active:scale-95 cursor-pointer flex items-center gap-1.5"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>Resume All</span>
+              </button>
+              <button
+                onClick={cancelAll}
+                className="text-xs font-bold text-red-400 hover:text-red-300 px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 transition-colors active:scale-95 cursor-pointer flex items-center gap-1.5"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Cancel All</span>
+              </button>
             </div>
           </div>
 
