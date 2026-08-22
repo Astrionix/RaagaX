@@ -127,8 +127,10 @@ export class RemoteControlClient {
     const payload = msg.payload;
     if (!payload) return;
 
-    // Ignore if this device is the local owner (owner is authoritative)
-    if (PlaybackOwnerEngine.getInstance().isOwner()) return;
+    // Ignore if this device is currently the active playback owner
+    const store = usePlayerStore.getState();
+    const isOwner = store.isActiveDevice && !store.connectedDeviceId;
+    if (isOwner) return;
 
     // Ignore stale or out-of-order state versions
     if (this.currentOwnerState && payload.stateVersion < this.currentOwnerState.stateVersion) {
@@ -151,15 +153,18 @@ export class RemoteControlClient {
       : Math.min((payload.durationMs / 1000) || 0, (payload.positionMs / 1000) + elapsedSec);
 
     // ATOMIC SYNCHRONOUS STATE REPLACEMENT
-    // Artwork, title, artist, duration, position, queue, and index update in ONE unified atomic transaction!
+    // Artwork, title, artist, duration, position, anchors, queue, and index update in ONE unified atomic transaction!
     usePlayerStore.setState({
       activeDeviceId: payload.ownerDeviceId,
       connectedDeviceId: payload.ownerDeviceId,
       isActiveDevice: false,
       currentSong: payload.song ? { ...payload.song } : null,
       isPlaying: payload.isPlaying,
+      playbackIntent: payload.isPlaying ? 'PLAYING' : 'PAUSED',
       currentTime: currentSec,
       duration: payload.durationMs ? payload.durationMs / 1000 : (payload.song?.duration || 0),
+      remoteAnchorPositionMs: payload.positionMs,
+      remoteAnchorTimeMs: payload.timestamp || now,
       queue: payload.queue ? [...payload.queue] : [],
       queueIndex: payload.queueIndex ?? 0,
       volume: payload.volume,
@@ -191,7 +196,9 @@ export class RemoteControlClient {
     if (this.positionTicker) clearInterval(this.positionTicker);
 
     this.positionTicker = setInterval(() => {
-      if (this.currentOwnerState && this.currentOwnerState.isPlaying && !PlaybackOwnerEngine.getInstance().isOwner()) {
+      const store = usePlayerStore.getState();
+      const isOwner = store.isActiveDevice && !store.connectedDeviceId;
+      if (this.currentOwnerState && this.currentOwnerState.isPlaying && !isOwner) {
         const estimatedSec = this.getEstimatedPositionMs() / 1000;
         usePlayerStore.setState({ currentTime: estimatedSec });
       }

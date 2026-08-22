@@ -385,6 +385,19 @@ export class PlaybackStateSync {
         manager.setShuffleMode(remoteState.shuffleMode as any);
       }
     } catch {}
+
+    // 4. Keep native Android lock screen & notification media controls synced
+    if (remoteState.songData) {
+      try {
+        const { MediaSessionManager } = require('../playback/MediaSessionManager');
+        MediaSessionManager.getInstance().updateSongMetadata(remoteState.songData);
+        MediaSessionManager.getInstance().setPlaybackState(remoteState.isPlaying ? 'playing' : 'paused');
+        MediaSessionManager.getInstance().setPositionState({
+          duration: remoteState.durationMs / 1000,
+          position: finalPositionMs / 1000,
+        });
+      } catch {}
+    }
   }
 
   /**
