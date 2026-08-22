@@ -287,9 +287,33 @@ export class QueueEngine {
   }
 
   public playNow(item: QueueItem) {
-    // Current -> selected song -> remaining existing queue
-    this.items.splice(this.currentIndex + 1, 0, item);
-    this.currentIndex++;
+    if (this.items.length === 0 || this.currentIndex < 0) {
+      this.items = [item];
+      this.currentIndex = 0;
+      this.mutate();
+      return;
+    }
+
+    // If the song is already currently playing, keep position
+    if (this.items[this.currentIndex]?.song?.id === item.song.id) {
+      this.mutate();
+      return;
+    }
+
+    // Check if the track already exists in upcoming queue ahead of currentIndex
+    const existingUpcomingIndex = this.items.findIndex(
+      (it, idx) => idx > this.currentIndex && it.song.id === item.song.id
+    );
+
+    if (existingUpcomingIndex !== -1) {
+      // If it's already upcoming in the queue, skip directly to it
+      this.currentIndex = existingUpcomingIndex;
+    } else {
+      // Ad-hoc selection: Insert immediately after current song and make active
+      // When this song finishes, playback will naturally resume at the original upcoming track
+      this.items.splice(this.currentIndex + 1, 0, item);
+      this.currentIndex++;
+    }
     this.mutate();
   }
 

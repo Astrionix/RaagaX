@@ -383,6 +383,9 @@ export class PlaybackService {
         } catch {}
       }
     });
+    if (RaagaXNativePlayer.isNative()) {
+      RaagaXNativePlayer.pause().catch(() => {});
+    }
     PreloadManager.getInstance().reset();
     if (this.audioA && this.audioB) {
       TransitionManager.getInstance().cancelTransition(this.audioA, this.audioB);

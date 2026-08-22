@@ -1118,6 +1118,10 @@ public class RaagaXPlaybackService extends Service {
                     mediaSourceFactory.createMediaSource(mediaItem);
 
             Log.d(TAG, "[MEDIA3] prepare");
+            try {
+                player.stop();
+                player.clearMediaItems();
+            } catch (Exception ignored) {}
             player.setMediaSource(localSource);
             player.prepare();
             player.setPlayWhenReady(true);
