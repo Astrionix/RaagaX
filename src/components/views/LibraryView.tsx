@@ -554,46 +554,6 @@ export function LibraryView() {
               );
             })}
           </div>
-
-          {/* Recently Downloaded Shelf (Apple Music Style) */}
-          {downloadedAlbums.length > 0 && (
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between px-1">
-                <h3 className="text-xs font-black text-white tracking-tight uppercase flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" /> Recently Downloaded
-                </h3>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3 pt-1">
-                {downloadedAlbums.slice(0, 8).map((alb) => (
-                  <div
-                    key={`recent-${alb.album}`}
-                    onClick={() => handlePlayAll(alb.tracks)}
-                    className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 hover:border-emerald-500/30 hover:bg-white/5 transition-all cursor-pointer group flex flex-col"
-                  >
-                    <div className="w-full aspect-square rounded-lg overflow-hidden bg-slate-800 mb-2 relative shadow-sm">
-                      <img
-                        src={alb.coverUrl}
-                        alt={alb.album}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                      />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <div className="w-8 h-8 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow-md">
-                          <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
-                        </div>
-                      </div>
-                      <div className="absolute bottom-1 right-1 bg-emerald-500/90 text-slate-950 text-[8px] font-black px-1.5 py-0.5 rounded-full shadow">
-                        {alb.tracks.length}
-                      </div>
-                    </div>
-                    <h4 className="text-[11px] font-bold text-white truncate group-hover:text-emerald-400 transition-colors">
-                      {alb.album}
-                    </h4>
-                    <p className="text-[10px] text-[#8E92A4] truncate">{alb.artist}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       );
     }

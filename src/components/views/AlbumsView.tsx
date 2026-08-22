@@ -385,30 +385,7 @@ export function AlbumsView() {
             </div>
           )}
 
-          {/* SECTION 2: RECENTLY ADDED */}
-          {(activeFilterTab === 'all' || activeFilterTab === 'recent') && recentlyReleased.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                <h3 className="text-sm font-black uppercase tracking-wider text-white flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-purple-400" /> Recently Added {preferredLanguage} Soundtracks
-                </h3>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                {recentlyReleased.map((album) => (
-                  <AlbumCard
-                    key={`recent-alb-${album.id}`}
-                    album={album}
-                    isSaved={favoriteAlbumIds.includes(album.id)}
-                    onOpen={() => handleOpenAlbum(album)}
-                    onPlay={(shuffle) => handlePlayAlbum(album, shuffle)}
-                    onToggleSave={() => handleToggleSave(album)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* SECTION 3: TRENDING SOUNDTRACKS */}
+          {/* SECTION 2: TRENDING SOUNDTRACKS */}
           {(activeFilterTab === 'all' || activeFilterTab === 'trending') && trending.length > 0 && (
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-white/10 pb-2">
