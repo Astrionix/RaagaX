@@ -713,13 +713,53 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       disconnectDevice: () => {
-        ConnectManager.getInstance().disconnectFromDevice();
+        set({
+          connectedDeviceId: null,
+          activeDeviceId: null,
+          remoteDeviceName: null,
+          isActiveDevice: true,
+          deviceConnectionState: 'AVAILABLE',
+        });
+        import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+          ConnectManager.getInstance().disconnectFromDevice();
+        }).catch(() => {});
       },
 
       transferPlayback: async (targetDeviceId: string) => {
-        const { currentSong, deviceId } = get();
-        if (targetDeviceId === deviceId) {
-          console.log(`[TransferManager] TRANSFER_SKIPPED_CURRENT_DEVICE: targetDeviceId (${targetDeviceId}) === currentDeviceId (${deviceId})`);
+        const { currentSong, deviceId, isActiveDevice, connectedDeviceId } = get();
+
+        // 1. Target is THIS device and already active locally: skip redundant transfer
+        if (targetDeviceId === deviceId && isActiveDevice && !connectedDeviceId) {
+          console.log(`[TransferManager] TRANSFER_SKIPPED_CURRENT_DEVICE: targetDeviceId (${targetDeviceId}) is already active locally`);
+          return;
+        }
+
+        // 2. Target is THIS device and we are currently controlling a remote device:
+        // Transfer playback FROM remote device BACK TO THIS DEVICE!
+        if (targetDeviceId === deviceId && (!isActiveDevice || connectedDeviceId)) {
+          console.log(`[TransferManager] Transferring playback BACK to local device (${deviceId}) from remote (${connectedDeviceId})`);
+          const { ConnectManager } = await import('@/lib/connect/ConnectManager');
+          ConnectManager.getInstance().disconnectFromDevice();
+
+          set({
+            isActiveDevice: true,
+            activeDeviceId: deviceId,
+            connectedDeviceId: null,
+            remoteDeviceName: null,
+            deviceConnectionState: 'AVAILABLE',
+          });
+
+          // Acquire local lease
+          try {
+            const { DeviceLeaseManager } = await import('@/lib/connect/DeviceLeaseManager');
+            await DeviceLeaseManager.getInstance().acquireLease(ConnectManager.getInstance().getSessionId() || 'local_session', true);
+          } catch {}
+
+          // Resume playback locally if there is an active song
+          const activeSong = get().currentSong;
+          if (activeSong) {
+            await get().switchTrack(activeSong, get().queueIndex, true);
+          }
           return;
         }
 
@@ -733,8 +773,6 @@ export const usePlayerStore = create<PlayerState>()(
         try {
           const { TransferManager } = await import('@/lib/connect/TransferManager');
           await TransferManager.getInstance().initiateTransfer(targetDeviceId);
-          // Note: TransferManager's 3-way handshake will update isActiveDevice and connectedDeviceId
-          // in handleTransferCommitted (on success) or handleTransferRollback (on timeout/failure).
         } catch (e) {
           console.error('[ZUSTAND] Playback transfer failed:', e);
           set({ isTransferring: false, transferringDeviceId: null });

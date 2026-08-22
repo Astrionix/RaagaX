@@ -118,6 +118,14 @@ export class DeviceLeaseManager {
       }
  
       const store = usePlayerStore.getState();
+      if (!store.isActiveDevice || store.connectedDeviceId) {
+        this.currentLeaseToken = null;
+        this.leaseExpiresAt = 0;
+        clearInterval(this.leaseInterval!);
+        this.leaseInterval = null;
+        return;
+      }
+
       const expiresAtMs = Date.now() + 60000;
       const expiresAt = new Date(expiresAtMs).toISOString();
  

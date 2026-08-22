@@ -640,7 +640,7 @@ export class ConnectManager {
     this.transitionState('DISCONNECTED');
   }
 
-  public disconnectFromDevice() {
+  public async disconnectFromDevice(): Promise<void> {
     usePlayerStore.setState({
       connectedDeviceId: null,
       activeDeviceId: null,
@@ -648,7 +648,7 @@ export class ConnectManager {
       isActiveDevice: true,
       deviceConnectionState: 'AVAILABLE',
     });
-    this.manualDisconnect();
+    await this.manualDisconnect();
   }
 
   public async dispatchPlaybackCommand(type: ConnectCommand['type'], payload: any = {}): Promise<{ success: boolean; reason?: string }> {
