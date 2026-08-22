@@ -45,7 +45,8 @@ export class RemoteControlClient {
     tapTimestamp?: number
   ) {
     const tap = tapTimestamp || Date.now();
-    const ownerId = PlaybackOwnerEngine.getInstance().getActiveOwnerId();
+    const store = usePlayerStore.getState();
+    const ownerId = store.connectedDeviceId || store.activeDeviceId || PlaybackOwnerEngine.getInstance().getActiveOwnerId();
     const localId = LocalDiscoveryService.getInstance().getLocalIdentity().deviceId;
     const commandId = 'c_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
     this.sequenceCounter++;

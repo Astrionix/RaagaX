@@ -29,6 +29,14 @@ export class PlaybackOwnerEngine {
 
     // Subscribe to store state changes to broadcast when this device is owner
     usePlayerStore.subscribe((state, prevState) => {
+      // Synchronize ownership state dynamically
+      if (state.isActiveDevice !== this.isLocalOwner) {
+        this.isLocalOwner = Boolean(state.isActiveDevice);
+      }
+      if (state.activeDeviceId && state.activeDeviceId !== this.activeOwnerDeviceId) {
+        this.activeOwnerDeviceId = state.activeDeviceId;
+      }
+
       if (!this.isLocalOwner) return;
 
       const songChanged = state.currentSong?.id !== prevState.currentSong?.id;
@@ -39,8 +47,8 @@ export class PlaybackOwnerEngine {
 
       if (songChanged || playingChanged || queueChanged || volumeChanged || modesChanged) {
         this.stateVersion++;
-        if (songChanged || queueChanged) {
-          // Track and queue transitions must broadcast immediately without throttling
+        if (songChanged || queueChanged || playingChanged) {
+          // Track, queue, and play/pause transitions must broadcast immediately without throttling
           this.broadcastStateImmediately();
         } else {
           this.scheduleStateBroadcast();
@@ -155,11 +163,11 @@ export class PlaybackOwnerEngine {
 
     switch (cmd.type) {
       case 'CMD_PLAY':
-        store.setIsPlaying(true);
+        await store.setIsPlaying(true);
         break;
 
       case 'CMD_PAUSE':
-        store.setIsPlaying(false);
+        await store.setIsPlaying(false);
         break;
 
       case 'CMD_NEXT':

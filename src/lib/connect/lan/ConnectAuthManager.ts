@@ -168,6 +168,8 @@ export class ConnectAuthManager {
   public removeAllTrustedPeers() {
     const peerIds = Array.from(this.trustedPeers.keys());
     this.trustedPeers.clear();
+    this.lastSequences.clear();
+    this.processedCommandIds.clear();
     this.persistState();
 
     const localIdentity = LocalDiscoveryService.getInstance().getLocalIdentity();
@@ -638,9 +640,9 @@ export class ConnectAuthManager {
       return false;
     }
 
-    // 2. Check timestamp freshness (within 10s skew)
+    // 2. Check timestamp freshness (within 10s window)
     const now = Date.now();
-    if (Math.abs(now - cmd.timestamp) > 10000) {
+    if (cmd.timestamp && Math.abs(now - cmd.timestamp) > 10000) {
       console.warn(`[ConnectAuthManager] Stale timestamp for command ${cmd.commandId}: ${cmd.timestamp} (now: ${now})`);
       return false;
     }
