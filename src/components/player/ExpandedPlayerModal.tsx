@@ -883,7 +883,7 @@ export function ExpandedPlayerModal() {
               title="Playback Queue (Q)"
             >
               <ListMusic className="w-3.5 h-3.5" />
-              <span>Queue ({upNextTracks.length})</span>
+              <span>Queue</span>
             </button>
 
             {/* Sleep Timer Button */}
