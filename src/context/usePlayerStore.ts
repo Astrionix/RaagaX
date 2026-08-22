@@ -1029,9 +1029,9 @@ export const usePlayerStore = create<PlayerState>()(
         // Sync QueueManager position
         QueueManager.getInstance().skipTo(index);
 
-        // Update Recently Played history
+        // Update Recently Played history (capped at 100 songs)
         const existingHistory = get().historySongIds.filter((id) => id !== formattedTrack.id);
-        const updatedHistory = [formattedTrack.id, ...existingHistory].slice(0, 50);
+        const updatedHistory = [formattedTrack.id, ...existingHistory].slice(0, 100);
         set({ historySongIds: updatedHistory });
 
         // Persist durable session immediately
@@ -1732,14 +1732,14 @@ export const usePlayerStore = create<PlayerState>()(
             .select('song_id')
             .eq('user_id', userId)
             .order('created_at', { ascending: false })
-            .limit(50);
+            .limit(100);
 
           const historySongIds = historyData ? Array.from(new Set(historyData.map(d => d.song_id))) : [];
 
           set({
             favoriteArtistIds,
             favoriteAlbumIds,
-            historySongIds: Array.from(new Set([...historySongIds, ...get().historySongIds]))
+            historySongIds: Array.from(new Set([...historySongIds, ...get().historySongIds])).slice(0, 100)
           });
         } catch (e) {
           console.error("Failed to sync cloud library:", e);

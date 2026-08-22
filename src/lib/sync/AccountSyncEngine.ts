@@ -421,7 +421,7 @@ export class AccountSyncEngine {
           if (!historyError && historyData && historyData.length > 0) {
             const cloudHistory = Array.from(new Set(historyData.map((d: any) => d.song_id).filter(Boolean)));
             const currentHistory = usePlayerStore.getState().historySongIds || [];
-            const mergedHistory = Array.from(new Set([...cloudHistory, ...currentHistory])).slice(0, 50);
+            const mergedHistory = Array.from(new Set([...cloudHistory, ...currentHistory])).slice(0, 100);
             usePlayerStore.setState({ historySongIds: mergedHistory });
           }
         } catch (historyErr) {
@@ -982,7 +982,7 @@ export class AccountSyncEngine {
       // 4. Merge Guest Listening History
       const guestHistory = usePlayerStore.getState().historySongIds || [];
       if (guestHistory.length > 0) {
-        const historyRows = guestHistory.slice(0, 50).map((songId) => ({
+        const historyRows = guestHistory.slice(0, 100).map((songId) => ({
           user_id: userId,
           song_id: songId,
           event_type: 'PLAY',

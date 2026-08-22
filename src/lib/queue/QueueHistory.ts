@@ -6,8 +6,8 @@ export class QueueHistory {
   private history: QueueHistoryEntry[] = [];
   private loadPromise: Promise<void> | null = null;
   
-  // Keep up to 200 items in memory
-  private readonly MAX_HISTORY_ITEMS = 200;
+  // Keep up to 100 items in memory
+  private readonly MAX_HISTORY_ITEMS = 100;
 
   public static getInstance(): QueueHistory {
     if (!QueueHistory.instance) {

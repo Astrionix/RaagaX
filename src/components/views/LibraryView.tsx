@@ -368,7 +368,7 @@ export function LibraryView() {
   }, [userPlaylists, downloadedSongIds]);
 
   const historySongs = useMemo(() => {
-    return historySongIds.map((id) => knownSongsMap.get(id) || {
+    return historySongIds.slice(0, 100).map((id) => knownSongsMap.get(id) || {
       id,
       title: 'Played Track',
       artist: 'Unknown Artist',
