@@ -306,6 +306,16 @@ export const RaagaXNativeDownload = {
     }
   },
 
+  async setWifiOnly(wifiOnly: boolean): Promise<void> {
+    const plugin = getPlugin();
+    if (!plugin) return;
+    try {
+      await plugin.setWifiOnly({ wifiOnly });
+    } catch (e) {
+      console.warn('[RaagaXNativeDownload] setWifiOnly error:', e);
+    }
+  },
+
   addDownloadProgressListener(callback: (event: NativeDownloadProgressEvent) => void): () => void {
     const plugin = getPlugin();
     if (!plugin) return () => {};

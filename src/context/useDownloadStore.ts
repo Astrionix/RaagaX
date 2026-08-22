@@ -535,12 +535,13 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     set({ wifiOnly });
     if (RaagaXNativeDownload.isNative()) {
       RaagaXNativeDownload.setWifiOnly(wifiOnly);
-    }
-    DownloadManager.getInstance().setWifiOnly(wifiOnly);
-    if (wifiOnly && typeof navigator !== 'undefined') {
-      const conn = (navigator as any).connection;
-      if (conn && conn.type !== 'wifi' && conn.type !== 'ethernet' && conn.type !== 'unknown') {
-        get().pauseAll();
+    } else {
+      DownloadManager.getInstance().setWifiOnly(wifiOnly);
+      if (wifiOnly && typeof navigator !== 'undefined') {
+        const conn = (navigator as any).connection;
+        if (conn && conn.type !== 'wifi' && conn.type !== 'ethernet' && conn.type !== 'unknown') {
+          get().pauseAll();
+        }
       }
     }
   },
