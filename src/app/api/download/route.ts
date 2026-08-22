@@ -56,6 +56,8 @@ export async function GET(req: NextRequest) {
     const clientRange = req.headers.get('range');
     const upstreamHeaders: Record<string, string> = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Referer': 'https://www.jiosaavn.com/',
+      'Origin': 'https://www.jiosaavn.com',
     };
     if (clientRange) {
       upstreamHeaders['Range'] = clientRange;
