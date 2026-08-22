@@ -226,17 +226,13 @@ export class PlaybackStateSync {
       return;
     }
 
-    // Epoch & Revision validation to filter out stale/out-of-order state snapshots
-    const currentEpoch = CommandSequencer.getInstance().getEpoch();
-    if (remoteState.epoch < currentEpoch) {
-      console.log(`[PlaybackStateSync] Ignoring remote state with stale epoch ${remoteState.epoch} < current ${currentEpoch}`);
-      return;
-    }
-
+    // Revision & Track Change validation
     const lastRemoteRevision = store.lastReceivedPlaybackRevision || 0;
     const incomingRevision = remoteState.revision || 0;
-    if (incomingRevision <= lastRemoteRevision && remoteState.epoch === currentEpoch && lastRemoteRevision > 0) {
-      console.log(`[PlaybackStateSync] Ignoring stale remote state revision ${incomingRevision} <= last ${lastRemoteRevision}`);
+    const isTrackChange = Boolean(remoteState.songId && remoteState.songId !== store.currentSong?.id);
+
+    if (incomingRevision <= lastRemoteRevision && lastRemoteRevision > 0 && !isTrackChange) {
+      console.log(`[CONNECT][REMOTE] Ignoring stale remote state revision ${incomingRevision} <= last ${lastRemoteRevision}`);
       return;
     }
 
@@ -281,12 +277,7 @@ export class PlaybackStateSync {
     // 2. Clear command shield - Authoritative Owner's incoming state ALWAYS wins for track identity and playback state!
     this.activeCommandShield = null;
 
-    console.log(`[PlaybackStateSync] Received remote state from ${remoteState.activeDeviceName} (${remoteState.activeDeviceId}):`, {
-      song: remoteState.songData?.title,
-      isPlaying: remoteState.isPlaying,
-      pos: (remoteState.positionMs / 1000).toFixed(1) + 's',
-      revision: incomingRevision
-    });
+    console.log(`[CONNECT][REMOTE] PLAYBACK_STATE_RECEIVED trackId=${remoteState.songId} stateVersion=${incomingRevision}`);
 
     this.adoptRemoteState(remoteState, incomingRevision);
   }
@@ -377,6 +368,8 @@ export class PlaybackStateSync {
       isMuted: remoteState.isMuted ?? false,
       lastReceivedPlaybackRevision: revision ?? (remoteState.revision || 0),
     });
+
+    console.log(`[CONNECT][UI] PLAYBACK_STATE_APPLIED trackId=${newSong?.id} title="${newSong?.title}" artwork=${newSong?.coverUrl}`);
 
     // 3. Keep local QueueManager aligned with remote repeat and shuffle modes
     try {

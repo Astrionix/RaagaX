@@ -123,6 +123,21 @@ export class RemoteControlClient {
     );
   }
 
+  public requestAuthoritativeState(targetOwnerId?: string) {
+    const store = usePlayerStore.getState();
+    const ownerId = targetOwnerId || store.connectedDeviceId || store.activeDeviceId || PlaybackOwnerEngine.getInstance().getActiveOwnerId();
+    const localId = LocalDiscoveryService.getInstance().getLocalIdentity().deviceId;
+
+    console.log(`[CONNECT][REMOTE] Requesting authoritative state from owner ${ownerId}`);
+    DirectLANTransport.getInstance().sendMessage(ownerId, {
+      id: 'req_st_' + Date.now(),
+      type: 'CMD_STATE_REQUEST' as any,
+      sourceDeviceId: localId,
+      targetDeviceId: ownerId,
+      timestamp: Date.now(),
+    } as any);
+  }
+
   public handlePlaybackStateUpdate(msg: LANPlaybackStateMessage) {
     const payload = msg.payload;
     if (!payload) return;
@@ -132,14 +147,17 @@ export class RemoteControlClient {
     const isOwner = store.isActiveDevice && !store.connectedDeviceId;
     if (isOwner) return;
 
-    // Ignore stale or out-of-order state versions
-    if (this.currentOwnerState && payload.stateVersion < this.currentOwnerState.stateVersion) {
-      return;
-    }
-
     const previousSongId = this.currentOwnerState?.songId || this.currentOwnerState?.song?.id;
     const newSongId = payload.songId || payload.song?.id;
     const isTrackChange = Boolean(newSongId && previousSongId !== newSongId);
+
+    // Ignore stale or out-of-order state versions (e.g. late packet with old version)
+    if (this.currentOwnerState && payload.stateVersion < this.currentOwnerState.stateVersion) {
+      console.log(`[CONNECT][REMOTE] Ignored stale stateVersion ${payload.stateVersion} < current ${this.currentOwnerState.stateVersion}`);
+      return;
+    }
+
+    console.log(`[CONNECT][REMOTE] PLAYBACK_STATE_RECEIVED trackId=${newSongId} stateVersion=${payload.stateVersion}`);
 
     this.currentOwnerState = payload;
 
@@ -155,11 +173,13 @@ export class RemoteControlClient {
     // ATOMIC SYNCHRONOUS STATE REPLACEMENT
     // Artwork, title, artist, duration, position, anchors, queue, and index update in ONE unified atomic transaction!
     // Always spread song into a NEW object reference so React detects the change even if only metadata fields differ.
+    const newSong = payload.song ? { ...payload.song } : null;
+
     usePlayerStore.setState({
       activeDeviceId: payload.ownerDeviceId,
       connectedDeviceId: payload.ownerDeviceId,
       isActiveDevice: false,
-      currentSong: payload.song ? { ...payload.song } : null,
+      currentSong: newSong,
       isPlaying: payload.isPlaying,
       playbackIntent: payload.isPlaying ? 'PLAYING' : 'PAUSED',
       currentTime: currentSec,
@@ -174,12 +194,14 @@ export class RemoteControlClient {
       repeatMode: (payload.repeatMode as any) || 'OFF',
     });
 
+    console.log(`[CONNECT][UI] PLAYBACK_STATE_APPLIED trackId=${newSong?.id} title="${newSong?.title}" artwork=${newSong?.coverUrl}`);
+
     // Update native Android lockscreen & notification media metadata
-    if (payload.song) {
-      MediaSessionManager.getInstance().updateSongMetadata(payload.song);
+    if (newSong) {
+      MediaSessionManager.getInstance().updateSongMetadata(newSong);
       MediaSessionManager.getInstance().setPlaybackState(payload.isPlaying ? 'playing' : 'paused');
       MediaSessionManager.getInstance().setPositionState({
-        duration: payload.durationMs ? payload.durationMs / 1000 : (payload.song.duration || 0),
+        duration: payload.durationMs ? payload.durationMs / 1000 : (newSong.duration || 0),
         position: currentSec,
       });
     }

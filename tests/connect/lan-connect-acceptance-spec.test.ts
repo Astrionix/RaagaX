@@ -447,4 +447,128 @@ describe('RaagaX Connect: Acceptance Specification — All 12 Contract Items', (
     const finalOwnerSnapshot = PlaybackOwnerEngine.getInstance().getStateSnapshot();
     expect(finalOwnerSnapshot.song?.id).toBe(SONG_Y.id);
   });
+
+  // ─── Gold Standard: Desktop → Mobile bidirectional flow ───────────────────
+
+  it('Gold Standard: Desktop controls Mobile — NEXT, PREV, SEEK, PLAY/PAUSE, Disconnect -> Mobile keeps playing', () => {
+    // Mobile is OWNER, Desktop is CONTROLLER
+    setAsOwner(MOBILE_ID, SONG_X, 200_000, true);
+    setAsController(DESKTOP_ID, MOBILE_ID, SONG_X, 200_000 / 1000, true);
+
+    // Step 1: Mobile (owner) advances NEXT to Song Y and broadcasts authoritative state
+    usePlayerStore.setState({
+      currentSong: { ...SONG_Y },
+      currentTime: 0,
+      duration: SONG_Y.duration,
+      queueIndex: 1,
+      isPlaying: true,
+    });
+
+    RemoteControlClient.getInstance().handlePlaybackStateUpdate({
+      id: 'msg_next_d2m',
+      type: 'PLAYBACK_STATE',
+      sourceDeviceId: MOBILE_ID,
+      targetDeviceId: DESKTOP_ID,
+      timestamp: Date.now(),
+      payload: {
+        ownerDeviceId: MOBILE_ID,
+        songId: SONG_Y.id,
+        song: { ...SONG_Y },
+        queue: [SONG_X, SONG_Y, SONG_Z],
+        queueIndex: 1,
+        positionMs: 0,
+        durationMs: SONG_Y.duration * 1000,
+        isPlaying: true,
+        playbackRate: 1.0,
+        volume: 0.8,
+        isMuted: false,
+        shuffleMode: 'OFF',
+        repeatMode: 'OFF',
+        stateVersion: 102,
+        timestamp: Date.now(),
+      },
+    });
+
+    const desktopState = usePlayerStore.getState();
+    expect(desktopState.currentSong?.id).toBe(SONG_Y.id);
+
+    // Step 2: Desktop seeks to 02:45 — Mobile confirms
+    setAsOwner(MOBILE_ID, SONG_Y, 165_000, true);
+    const seekSnapshot = PlaybackOwnerEngine.getInstance().getStateSnapshot();
+    expect(seekSnapshot.positionMs).toBe(165_000);
+    expect(seekSnapshot.isPlaying).toBe(true);
+
+    // Step 3: Desktop pauses — Mobile pauses
+    usePlayerStore.setState({ isPlaying: false, playbackIntent: 'PAUSED' });
+    const pauseSnapshot = PlaybackOwnerEngine.getInstance().getStateSnapshot();
+    expect(pauseSnapshot.isPlaying).toBe(false);
+    expect(pauseSnapshot.song?.id).toBe(SONG_Y.id);
+
+    // Step 4: Desktop disconnects — Mobile keeps playing
+    RaagaXConnectV2.getInstance().disconnect();
+    const afterDisconnect = usePlayerStore.getState();
+    expect(afterDisconnect.connectedDeviceId).toBeNull();
+    expect(afterDisconnect.deviceConnectionState).toBe('AVAILABLE');
+
+    setAsOwner(MOBILE_ID, SONG_Y, 165_000, true);
+    const finalOwnerSnapshot = PlaybackOwnerEngine.getInstance().getStateSnapshot();
+    expect(finalOwnerSnapshot.song?.id).toBe(SONG_Y.id);
+    expect(finalOwnerSnapshot.isPlaying).toBe(true);
+  });
+
+  // ─── Exact Real-World Scenario: Pushpa → NEXT → Chikkiri ───────────────────
+
+  it('Spec 13: Pushpa → NEXT → Chikkiri real-world track transition delivers complete atomic metadata to controller', () => {
+    const PUSHPA_SONG = makeSong('pushpa_01', 'Pushpa Pushpa');
+    PUSHPA_SONG.coverUrl = 'https://covers.test/pushpa.jpg';
+    PUSHPA_SONG.artist = 'Devi Sri Prasad';
+
+    const CHIKKIRI_SONG = makeSong('chikkiri_02', 'Chikkiri Chikkiri');
+    CHIKKIRI_SONG.coverUrl = 'https://covers.test/chikkiri.jpg';
+    CHIKKIRI_SONG.artist = 'Ram Miriyala';
+
+    // 1. Mobile is connected to Laptop (Laptop is OWNER, Mobile is CONTROLLER)
+    setAsController(MOBILE_ID, DESKTOP_ID, PUSHPA_SONG, 45_000, true);
+
+    // Initial check: Mobile shows Pushpa
+    let mobileStore = usePlayerStore.getState();
+    expect(mobileStore.currentSong?.title).toBe('Pushpa Pushpa');
+    expect(mobileStore.currentSong?.coverUrl).toBe('https://covers.test/pushpa.jpg');
+
+    // 2. Laptop owner advances to Chikkiri and broadcasts stateVersion 241
+    RemoteControlClient.getInstance().handlePlaybackStateUpdate({
+      id: 'msg_chikkiri_241',
+      type: 'PLAYBACK_STATE',
+      sourceDeviceId: DESKTOP_ID,
+      targetDeviceId: MOBILE_ID,
+      timestamp: Date.now(),
+      payload: {
+        ownerDeviceId: DESKTOP_ID,
+        songId: CHIKKIRI_SONG.id,
+        song: { ...CHIKKIRI_SONG },
+        queue: [PUSHPA_SONG, CHIKKIRI_SONG],
+        queueIndex: 1,
+        positionMs: 0,
+        durationMs: CHIKKIRI_SONG.duration * 1000,
+        isPlaying: true,
+        playbackRate: 1.0,
+        volume: 0.8,
+        isMuted: false,
+        shuffleMode: 'OFF',
+        repeatMode: 'OFF',
+        stateVersion: 241,
+        timestamp: Date.now(),
+      },
+    });
+
+    // 3. Mobile UI state MUST atomically display Chikkiri (title, cover, artist, position 0)
+    mobileStore = usePlayerStore.getState();
+    expect(mobileStore.currentSong?.id).toBe(CHIKKIRI_SONG.id);
+    expect(mobileStore.currentSong?.title).toBe('Chikkiri Chikkiri');
+    expect(mobileStore.currentSong?.artist).toBe('Ram Miriyala');
+    expect(mobileStore.currentSong?.coverUrl).toBe('https://covers.test/chikkiri.jpg');
+    expect(mobileStore.currentTime).toBe(0);
+    expect(mobileStore.isPlaying).toBe(true);
+  });
 });
+

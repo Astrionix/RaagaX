@@ -73,6 +73,7 @@ export class RaagaXConnectV2 {
         connectedDeviceId: targetDeviceId,
         remoteDeviceName: target.deviceName,
       });
+      RemoteControlClient.getInstance().requestAuthoritativeState(targetDeviceId);
       return true;
     }
 
@@ -122,25 +123,18 @@ export class RaagaXConnectV2 {
   }
 
   public disconnect() {
-    // Cancel any in-flight ownership switch — only REQUESTED/OFFERED phases are cancelled.
-    // A READY→COMMIT transfer that already completed is never undone.
-    try {
-      const { OwnershipSwitchProtocol } = require('./OwnershipSwitchProtocol');
-      OwnershipSwitchProtocol.getInstance().cancelAllTransfers();
-    } catch {}
-
-    const ownerId = PlaybackOwnerEngine.getInstance().getActiveOwnerId();
-    DirectLANTransport.getInstance().disconnectFromDevice(ownerId);
-
-    try {
-      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-        ConnectManager.getInstance().manualDisconnect();
-      }).catch(() => {});
-    } catch {}
-
+    const store = usePlayerStore.getState();
     const localId = LocalDiscoveryService.getInstance().getLocalIdentity().deviceId;
-    PlaybackOwnerEngine.getInstance().setOwner(localId, true);
+    const peerId = store.connectedDeviceId || PlaybackOwnerEngine.getInstance().getActiveOwnerId();
 
+    // Idempotent: If already disconnected and in local standalone mode, return immediately
+    if (!store.connectedDeviceId && store.isActiveDevice && store.deviceConnectionState === 'AVAILABLE') {
+      return;
+    }
+
+    console.log('[RaagaXConnectV2] Instant Disconnect triggered');
+
+    // 1. Instantly update local store state (Zero UI lag, no spinners, no blocking)
     usePlayerStore.setState({
       connectedDeviceId: null,
       activeDeviceId: localId,
@@ -148,6 +142,34 @@ export class RaagaXConnectV2 {
       remoteDeviceName: undefined,
       deviceConnectionState: 'AVAILABLE',
     });
+    PlaybackOwnerEngine.getInstance().setOwner(localId, true);
+
+    // 2. Cancel any pending in-flight ownership transfers
+    try {
+      const { OwnershipSwitchProtocol } = require('./OwnershipSwitchProtocol');
+      OwnershipSwitchProtocol.getInstance().cancelAllTransfers();
+    } catch {}
+
+    // 3. Send best-effort remote DISCONNECT notification over LAN
+    if (peerId && peerId !== localId) {
+      try {
+        DirectLANTransport.getInstance().sendMessage(peerId, {
+          id: 'disc_' + Date.now(),
+          type: 'DISCONNECT' as any,
+          sourceDeviceId: localId,
+          targetDeviceId: peerId,
+          timestamp: Date.now(),
+        } as any);
+      } catch {}
+      DirectLANTransport.getInstance().disconnectFromDevice(peerId);
+    }
+
+    // 4. Clean up cloud/WebRTC session if active
+    try {
+      import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+        ConnectManager.getInstance().manualDisconnect();
+      }).catch(() => {});
+    } catch {}
   }
 
   private syncDiscoveredDevicesToStore(devices: DiscoveredLANDevice[]) {
