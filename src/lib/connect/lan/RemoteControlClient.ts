@@ -154,6 +154,7 @@ export class RemoteControlClient {
 
     // ATOMIC SYNCHRONOUS STATE REPLACEMENT
     // Artwork, title, artist, duration, position, anchors, queue, and index update in ONE unified atomic transaction!
+    // Always spread song into a NEW object reference so React detects the change even if only metadata fields differ.
     usePlayerStore.setState({
       activeDeviceId: payload.ownerDeviceId,
       connectedDeviceId: payload.ownerDeviceId,
