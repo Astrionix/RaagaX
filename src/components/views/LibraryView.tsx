@@ -985,13 +985,14 @@ export function LibraryView() {
 
   const [resolvedLibraryAlbums, setResolvedLibraryAlbums] = useState<any[]>([]);
 
-  // Dynamically resolve real album entities for all saved albums & real liked album IDs
+  // Dynamically resolve real album entities for all saved albums, liked albums & downloaded albums (e.g. Chirutha, Court)
   useEffect(() => {
     let isMounted = true;
     const resolved: any[] = [];
     const missingIds: string[] = [];
+    const candidateNames: { name: string; artist?: string; coverUrl?: string }[] = [];
 
-    // 1. Gather all candidate album IDs from favoriteAlbumIds and likedSongs
+    // 1. Gather all candidate album IDs from favoriteAlbumIds
     const candidateIds: string[] = [];
 
     favoriteAlbumIds.forEach((id) => {
@@ -1003,6 +1004,22 @@ export function LibraryView() {
     likedSongs.forEach((s) => {
       if (s.albumId && s.albumId !== 'offline' && s.albumId !== 'unknown' && !s.albumId.startsWith('alb-') && !candidateIds.includes(s.albumId)) {
         candidateIds.push(s.albumId);
+      } else if (s.album && s.album !== 'Liked Songs' && s.album !== 'Downloaded' && s.album !== 'RaagaX Music' && s.album !== 'offline') {
+        if (!candidateNames.some(c => c.name.toLowerCase() === s.album.toLowerCase())) {
+          candidateNames.push({ name: s.album, artist: s.artist, coverUrl: s.coverUrl });
+        }
+      }
+    });
+
+    downloadedAlbums.forEach((alb) => {
+      if (alb.album && alb.album !== 'Downloaded' && alb.album !== 'RaagaX Music' && alb.album !== 'offline') {
+        const first = alb.tracks[0];
+        const existingId = first?.albumId;
+        if (existingId && existingId !== 'offline' && !existingId.startsWith('alb-') && !candidateIds.includes(existingId)) {
+          candidateIds.push(existingId);
+        } else if (!candidateNames.some(c => c.name.toLowerCase() === alb.album.toLowerCase())) {
+          candidateNames.push({ name: alb.album, artist: alb.artist, coverUrl: alb.coverUrl });
+        }
       }
     });
 
@@ -1011,52 +1028,141 @@ export function LibraryView() {
       if (known) {
         resolved.push(known);
       } else {
-        missingIds.push(albumId);
+        // Also check if knownSongsMap has album info for this albumId
+        const matchSong = Array.from(knownSongsMap.values()).find(s => s.albumId === albumId);
+        if (matchSong && matchSong.album && matchSong.album !== 'Downloaded' && matchSong.album !== 'RaagaX Music') {
+          resolved.push({
+            id: albumId,
+            title: matchSong.album,
+            artist: matchSong.artist || 'Various Artists',
+            artistId: matchSong.artistId || `art-${albumId}`,
+            coverUrl: matchSong.coverUrl || '/app-icon.png',
+            releaseDate: `${matchSong.releaseYear || 2024}-01-01`,
+            releaseYear: matchSong.releaseYear || 2024,
+            trackCount: 6,
+            durationSec: 1200,
+            language: preferredLanguage,
+            albumType: 'album' as const,
+            freshnessScore: 90,
+            trendingScore: 90,
+            topScore: 90,
+            tracks: [],
+          });
+        } else {
+          missingIds.push(albumId);
+        }
       }
     }
 
-    if (missingIds.length === 0) {
-      if (isMounted) setResolvedLibraryAlbums(resolved);
-      return;
-    }
+    const fetchAll = async () => {
+      const fetchedItems: any[] = [];
 
-    Promise.all(
-      missingIds.slice(0, 10).map(async (id) => {
-        try {
-          const { RealMusicEngine } = await import('@/lib/realMusicEngine');
-          const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${id}`);
-          if (details && details.title && !details.title.toLowerCase().includes('offline')) {
+      // Fetch missing IDs
+      if (missingIds.length > 0) {
+        const fromIds = await Promise.all(
+          missingIds.slice(0, 10).map(async (id) => {
+            try {
+              const { RealMusicEngine } = await import('@/lib/realMusicEngine');
+              const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${id}`);
+              if (details && details.title && !details.title.toLowerCase().includes('offline')) {
+                return {
+                  id,
+                  title: details.title,
+                  artist: details.songs?.[0]?.artist || 'Various Artists',
+                  artistId: `art-${id}`,
+                  coverUrl: details.coverUrl || '/app-icon.png',
+                  releaseDate: '2024-01-01',
+                  releaseYear: 2024,
+                  trackCount: details.songs?.length || 6,
+                  durationSec: (details.songs?.length || 6) * 210,
+                  language: preferredLanguage,
+                  albumType: 'soundtrack' as const,
+                  freshnessScore: 90,
+                  trendingScore: 90,
+                  topScore: 90,
+                  tracks: details.songs || [],
+                };
+              }
+            } catch {}
+            return null;
+          })
+        );
+        fetchedItems.push(...fromIds.filter(Boolean));
+      }
+
+      // Search real album IDs for candidate names (like Chirutha, Court)
+      if (candidateNames.length > 0) {
+        const fromNames = await Promise.all(
+          candidateNames.slice(0, 10).map(async (c) => {
+            try {
+              const { RealMusicEngine } = await import('@/lib/realMusicEngine');
+              const searchResults = await RealMusicEngine.getInstance().searchRealAlbums(c.name, 3);
+              const match = searchResults.find(a => 
+                a.title.toLowerCase() === c.name.toLowerCase() ||
+                c.name.toLowerCase().includes(a.title.toLowerCase())
+              ) || searchResults[0];
+
+              if (match?.id && match.id !== 'offline') {
+                return {
+                  id: match.id,
+                  title: match.title || c.name,
+                  artist: match.artist || c.artist || 'Various Artists',
+                  artistId: match.artistId || `art-${match.id}`,
+                  coverUrl: match.coverUrl || c.coverUrl || '/app-icon.png',
+                  releaseDate: match.releaseDate || '2024-01-01',
+                  releaseYear: match.releaseYear || 2024,
+                  trackCount: match.trackCount || 6,
+                  durationSec: match.durationSec || 1200,
+                  language: preferredLanguage,
+                  albumType: 'album' as const,
+                  freshnessScore: 85,
+                  trendingScore: 85,
+                  topScore: 85,
+                  tracks: [],
+                };
+              }
+            } catch {}
             return {
-              id,
-              title: details.title,
-              artist: details.songs?.[0]?.artist || 'Various Artists',
-              artistId: `art-${id}`,
-              coverUrl: details.coverUrl || '/app-icon.png',
+              id: c.name,
+              title: c.name,
+              artist: c.artist || 'Various Artists',
+              artistId: `art-${c.name}`,
+              coverUrl: c.coverUrl || '/app-icon.png',
               releaseDate: '2024-01-01',
               releaseYear: 2024,
-              trackCount: details.songs?.length || 6,
-              durationSec: (details.songs?.length || 6) * 210,
+              trackCount: 6,
+              durationSec: 1200,
               language: preferredLanguage,
-              albumType: 'soundtrack' as const,
-              freshnessScore: 90,
-              trendingScore: 90,
-              topScore: 90,
-              tracks: details.songs || [],
+              albumType: 'album' as const,
+              freshnessScore: 80,
+              trendingScore: 80,
+              topScore: 80,
+              tracks: [],
             };
+          })
+        );
+        fetchedItems.push(...fromNames.filter(Boolean));
+      }
+
+      if (isMounted) {
+        const valid = fetchedItems.filter((a): a is any => Boolean(a && a.id && a.id !== 'offline'));
+        const combined = [...resolved, ...valid];
+        const unique = new Map<string, any>();
+        combined.forEach(a => {
+          if (!unique.has(a.id) && !unique.has(a.title.toLowerCase())) {
+            unique.set(a.id, a);
           }
-        } catch {}
-        return null;
-      })
-    ).then((fetched) => {
-      if (!isMounted) return;
-      const valid = fetched.filter((a): a is any => Boolean(a && a.id && a.id !== 'offline'));
-      setResolvedLibraryAlbums([...resolved, ...valid]);
-    });
+        });
+        setResolvedLibraryAlbums(Array.from(unique.values()));
+      }
+    };
+
+    fetchAll();
 
     return () => {
       isMounted = false;
     };
-  }, [favoriteAlbumIds, likedSongs, preferredLanguage]);
+  }, [favoriteAlbumIds, likedSongs, downloadedAlbums, preferredLanguage]);
 
   const recentlyAddedAlbums = useMemo(() => {
     const map = new Map<string, { id: string; title: string; artist: string; coverUrl: string; year?: string; trackCount?: number }>();
@@ -1360,13 +1466,14 @@ export function LibraryView() {
     let realAlbumId = album.id;
     console.log(`[LIBRARY_ALBUM_CLICK]\nalbumId=${realAlbumId}\nalbumName=${album.title}\nartist=${album.artist}`);
 
-    if (!realAlbumId || realAlbumId === 'offline' || realAlbumId.startsWith('alb-') || realAlbumId === 'unknown') {
+    if (!realAlbumId || realAlbumId === 'offline' || realAlbumId.startsWith('alb-') || realAlbumId === 'unknown' || realAlbumId === album.title || isNaN(Number(realAlbumId))) {
       console.log(`[LIBRARY_ALBUM_ID_MISSING]\ntrackId=\nalbumName=${album.title}\nartist=${album.artist}`);
       try {
         const { RealMusicEngine } = await import('@/lib/realMusicEngine');
         const searchResults = await RealMusicEngine.getInstance().searchRealAlbums(album.title, 5);
         const match = searchResults.find(a => 
           a.title.toLowerCase() === album.title.toLowerCase() ||
+          album.title.toLowerCase().includes(a.title.toLowerCase()) ||
           a.artist.toLowerCase().includes(album.artist.toLowerCase())
         ) || searchResults[0];
         if (match?.id && match.id !== 'offline') {

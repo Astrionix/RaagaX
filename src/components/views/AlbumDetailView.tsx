@@ -154,9 +154,31 @@ export function AlbumDetailView() {
           } catch {}
         }
 
-        // ── Tier 3: Search by Album / Movie Name (Direct + RealMusicEngine) ──
-        // Guarantees all movie albums display their complete real song list on Android!
+        // ── Tier 3: Search by Real Album Name on JioSaavn (e.g. Chirutha, Court) ──
         const searchCandidate = (albName || baseAlbum?.title || (selectedAlbumId !== 'offline' && !selectedAlbumId.startsWith('alb-') ? selectedAlbumId : '') || '').trim();
+        if (mappedTracks.length === 0 && searchCandidate && searchCandidate.toLowerCase() !== 'offline') {
+          try {
+            const { RealMusicEngine } = await import('@/lib/realMusicEngine');
+            const searchAlbums = await RealMusicEngine.getInstance().searchRealAlbums(searchCandidate, 5);
+            const match = searchAlbums.find(a => 
+              a.title?.toLowerCase() === searchCandidate.toLowerCase() ||
+              searchCandidate.toLowerCase().includes(a.title?.toLowerCase())
+            ) || searchAlbums[0];
+
+            if (match?.id) {
+              const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${match.id}`);
+              if (details && details.songs && details.songs.length > 0) {
+                mappedTracks = details.songs;
+                albName = details.title || match.title || albName;
+                albCover = details.coverUrl || match.coverUrl || albCover;
+                primaryArtist = details.songs[0]?.artist || match.artist || primaryArtist;
+                albYear = details.songs[0]?.releaseYear || match.releaseYear || albYear;
+              }
+            }
+          } catch {}
+        }
+
+        // ── Tier 4: Search by Songs by Movie Name ──
         if (mappedTracks.length === 0 && searchCandidate && searchCandidate.toLowerCase() !== 'offline') {
           const searchUrls = [
             `https://saavn.dev/api/search/songs?query=${encodeURIComponent(searchCandidate)}&limit=30`,
@@ -200,7 +222,7 @@ export function AlbumDetailView() {
           }
         }
 
-        // ── Tier 4: Fallback to RealMusicEngine.searchRealSongs ──
+        // ── Tier 5: Fallback to RealMusicEngine.searchRealSongs ──
         if (mappedTracks.length === 0 && searchCandidate && searchCandidate.toLowerCase() !== 'offline') {
           try {
             const { RealMusicEngine } = await import('@/lib/realMusicEngine');
