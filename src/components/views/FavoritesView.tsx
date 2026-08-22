@@ -215,40 +215,40 @@ export function FavoritesView() {
 
         {/* Play All, Shuffle & Download All Buttons */}
         {resolvedLikedSongs.length > 0 && (
-          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
-            {isNative && pendingDownloadsCount > 0 && (
-              <button
-                onClick={handleDownloadAll}
-                className="h-11 px-4 rounded-full bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/25 transition-all cursor-pointer"
-                title="Download all liked songs for offline listening"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Download All ({pendingDownloadsCount})</span>
-              </button>
-            )}
-            {isNative && pendingDownloadsCount === 0 && (
-              <div className="h-11 px-4 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5">
-                <Check className="w-3.5 h-3.5 stroke-[3]" />
-                <span>Offline Available</span>
-              </div>
-            )}
+          <div className="grid grid-cols-3 gap-2 w-full max-w-md">
             <button
               onClick={() => handlePlayAll(false)}
-              className="h-11 px-6 rounded-full bg-[#FA233B] hover:bg-[#D90429] active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xl shadow-[#FA233B]/30 transition-all cursor-pointer"
+              className="h-10 px-2 sm:px-4 rounded-full bg-[#FA233B] hover:bg-[#D90429] active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-[#FA233B]/25 transition-all cursor-pointer min-w-0"
               aria-label="Play all liked songs"
               title="Play Liked Songs from Track 1"
             >
-              <Play className="w-4 h-4 fill-white ml-0.5" />
-              <span>Play</span>
+              <Play className="w-3.5 h-3.5 fill-white flex-shrink-0" />
+              <span className="truncate">Play All</span>
             </button>
             <button
               onClick={() => handlePlayAll(true)}
-              className="h-11 px-5 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-white/15 shadow-md transition-all cursor-pointer"
+              className="h-10 px-2 sm:px-4 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 border border-white/15 shadow-md transition-all cursor-pointer min-w-0"
               aria-label="Shuffle liked songs"
             >
-              <Shuffle className="w-4 h-4 text-slate-200" />
-              <span>Shuffle</span>
+              <Shuffle className="w-3.5 h-3.5 text-slate-200 flex-shrink-0" />
+              <span className="truncate">Shuffle</span>
             </button>
+            {isNative && pendingDownloadsCount > 0 && (
+              <button
+                onClick={handleDownloadAll}
+                className="h-10 px-1.5 sm:px-3 rounded-full bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-slate-950 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/25 transition-all cursor-pointer min-w-0"
+                title="Download all liked songs for offline listening"
+              >
+                <Download className="w-3.5 h-3.5 stroke-[2.5] flex-shrink-0" />
+                <span className="truncate">Download ({pendingDownloadsCount})</span>
+              </button>
+            )}
+            {isNative && pendingDownloadsCount === 0 && (
+              <div className="h-10 px-1.5 sm:px-3 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 min-w-0">
+                <Check className="w-3.5 h-3.5 stroke-[2.5] flex-shrink-0" />
+                <span className="truncate">Downloaded</span>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -431,50 +431,50 @@ export function LibraryView() {
 
     return (
       <div className="space-y-4">
-        {/* Play, Shuffle & Download All Header Actions */}
-        <div className="flex flex-wrap items-center gap-2.5 w-full pt-2 pb-1">
+        {/* Play, Shuffle & Download All Header Actions (3 Side-by-Side) */}
+        <div className={`grid gap-2 w-full pt-2 pb-1 ${tab === 'liked' ? 'grid-cols-3' : 'grid-cols-2 max-w-xs'}`}>
           <button
             onClick={() => handlePlayAll(songs, false)}
-            className="h-11 sm:h-10 px-5 rounded-full bg-[#FA233B] hover:bg-[#D90429] active:scale-95 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-[#FA233B]/25 transition-all cursor-pointer"
+            className="h-10 px-2 sm:px-4 rounded-full bg-[#FA233B] hover:bg-[#D90429] active:scale-95 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-[#FA233B]/25 transition-all cursor-pointer min-w-0"
           >
-            <Play className="w-4 h-4 fill-white" />
-            Play All
+            <Play className="w-3.5 h-3.5 fill-white flex-shrink-0" />
+            <span className="truncate">Play All</span>
           </button>
           <button
             onClick={() => handlePlayAll(songs, true)}
-            className="h-11 sm:h-10 px-4 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 border border-white/15 shadow-md transition-all cursor-pointer"
+            className="h-10 px-2 sm:px-4 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 border border-white/15 shadow-md transition-all cursor-pointer min-w-0"
           >
-            <Shuffle className="w-4 h-4 text-slate-200" />
-            Shuffle
+            <Shuffle className="w-3.5 h-3.5 text-slate-200 flex-shrink-0" />
+            <span className="truncate">Shuffle</span>
           </button>
 
           {tab === 'liked' && (
             <button
               onClick={handleDownloadAll}
               disabled={isAllDownloaded || isDownloading}
-              className={`h-11 sm:h-10 px-4 rounded-full font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+              className={`h-10 px-1.5 sm:px-3 rounded-full font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 border transition-all cursor-pointer min-w-0 ${
                 isAllDownloaded
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 opacity-90 cursor-default'
                   : isDownloading
                   ? 'bg-white/10 border-white/20 text-emerald-400 cursor-wait'
                   : 'bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-slate-950 border-emerald-500 shadow-md shadow-emerald-500/25'
               }`}
-              title={isAllDownloaded ? 'All liked songs downloaded' : 'Download all liked songs for offline listening'}
+              title={isAllDownloaded ? 'All liked songs downloaded' : `Download all (${pendingDownloads.length}) liked songs`}
             >
               {isAllDownloaded ? (
                 <>
-                  <Check className="w-4 h-4 text-emerald-400 stroke-[2.5]" />
-                  <span>Downloaded</span>
+                  <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5] flex-shrink-0" />
+                  <span className="truncate">Downloaded</span>
                 </>
               ) : isDownloading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
-                  <span>Downloading...</span>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400 flex-shrink-0" />
+                  <span className="truncate">Downloading</span>
                 </>
               ) : (
                 <>
-                  <Download className="w-4 h-4 text-slate-950 stroke-[2.5]" />
-                  <span>Download All ({pendingDownloads.length})</span>
+                  <Download className="w-3.5 h-3.5 text-slate-950 stroke-[2.5] flex-shrink-0" />
+                  <span className="truncate">Download ({pendingDownloads.length})</span>
                 </>
               )}
             </button>
