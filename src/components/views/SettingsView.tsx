@@ -828,7 +828,7 @@ export function SettingsView() {
                   <select
                     value={streamingQuality}
                     onChange={(e) => {
-                      usePlayerStore.setState({ streamingQuality: e.target.value as AudioQuality });
+                      usePlayerStore.getState().setStreamingQuality(e.target.value as AudioQuality);
                       showToast(`Wi-Fi Quality: ${e.target.value}`);
                     }}
                     className="bg-[#171922] border border-white/10 text-white text-xs rounded-xl px-3 py-2 outline-none focus:border-[#F51B3D]"
@@ -893,7 +893,7 @@ export function SettingsView() {
                     <select
                       value={downloadQuality}
                       onChange={(e) => {
-                        usePlayerStore.setState({ downloadQuality: e.target.value as AudioQuality });
+                        usePlayerStore.getState().setDownloadQuality(e.target.value as AudioQuality);
                         showToast(`Download Quality: ${e.target.value}`);
                       }}
                       className="bg-[#171922] border border-white/10 text-white text-xs rounded-xl px-3 py-2 outline-none focus:border-[#F51B3D]"

@@ -2211,6 +2211,7 @@ export const usePlayerStore = create<PlayerState>()(
             favoriteArtistIds: Array.isArray(persistedState.favoriteArtistIds) ? persistedState.favoriteArtistIds : [],
             favoriteAlbumIds: Array.isArray(persistedState.favoriteAlbumIds) ? persistedState.favoriteAlbumIds : [],
             streamingQuality: persistedState.streamingQuality || 'AUTO',
+            downloadQuality: persistedState.downloadQuality || 'HIGH',
           };
         }
         return persistedState;
@@ -2224,6 +2225,7 @@ export const usePlayerStore = create<PlayerState>()(
         preferredLanguage: state.preferredLanguage,
         crossfadeSec: state.crossfadeSec,
         streamingQuality: state.streamingQuality,
+        downloadQuality: state.downloadQuality,
         isAutoplayEnabled: state.isAutoplayEnabled,
       }),
     }
