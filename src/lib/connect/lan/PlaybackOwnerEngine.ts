@@ -23,7 +23,7 @@ export class PlaybackOwnerEngine {
 
     // Listen for incoming commands from controllers
     DirectLANTransport.getInstance().onMessage((msg) => {
-      if (msg.type.startsWith('CMD_') || msg.type === 'STATE_REQUEST') {
+      if (msg && typeof msg.type === 'string' && (msg.type.startsWith('CMD_') || msg.type === 'STATE_REQUEST' || msg.type === 'CMD_STATE_REQUEST')) {
         this.handleRemoteCommand(msg as LANRemoteCommandMessage);
       }
     });
