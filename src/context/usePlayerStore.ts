@@ -1222,6 +1222,10 @@ export const usePlayerStore = create<PlayerState>()(
         }
 
         await get().switchTrack(activePlaySong, targetIndex, true);
+
+        if (RaagaXNativePlayer.isNative() && syncedQueue && syncedQueue.length > 0) {
+          PlaybackService.getInstance().loadQueueContext(syncedQueue, targetIndex, true, 0, get().playbackRequestId);
+        }
       },
 
       shufflePlay: async (songs, context) => {
@@ -1245,6 +1249,10 @@ export const usePlayerStore = create<PlayerState>()(
         });
 
         await get().switchTrack(firstSong, 0, true);
+
+        if (RaagaXNativePlayer.isNative() && syncedQueue && syncedQueue.length > 0) {
+          PlaybackService.getInstance().loadQueueContext(syncedQueue, 0, true, 0, get().playbackRequestId);
+        }
       },
 
       togglePlayPause: async () => {

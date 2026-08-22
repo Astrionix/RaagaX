@@ -219,15 +219,17 @@ export function AudioPlayerController() {
           duration: durationSec,
         });
 
+        console.log(`[QUEUE_AUTO_ADVANCE]\noldTrackId=${oldTrackId}\nnewTrackId=${validTrack.id}\noldQueueIndex=${typeof data.queueIndex === 'number' && data.queueIndex > 0 ? data.queueIndex - 1 : 0}\nnewQueueIndex=${matchIdx !== -1 ? matchIdx : data.queueIndex || 0}`);
+        console.log(`[QUEUE_TRACK_PLAYING]\ntrackId=${validTrack.id}\nisPlaying=true\nposition=0`);
         console.log(`[PLAYBACK_STATE_PUBLISHED]\ntrackId=${validTrack.id}\ntitle=${validTrack.title}\nartist=${validTrack.artist}\nartwork=${validTrack.coverUrl}\ndurationMs=${durationSec * 1000}\npositionMs=${data.positionMs || 0}\nisPlaying=true`);
 
         import('@/lib/playback/MediaSessionManager').then(({ MediaSessionManager }) => {
-          MediaSessionManager.getInstance().updateSongMetadata(track!);
+          MediaSessionManager.getInstance().updateSongMetadata(validTrack);
         });
 
         import('@/lib/playback/PlaybackSession').then(({ SessionManager }) => {
           SessionManager.getInstance().updateSession({
-            currentTrack: track!,
+            currentTrack: validTrack,
             currentTrackId: track!.id,
             currentQueueIndex: matchIdx !== -1 ? matchIdx : store.queueIndex,
             position: data.positionMs ? (data.positionMs / 1000) : 0,

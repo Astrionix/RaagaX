@@ -193,6 +193,15 @@ public class RaagaXPlaybackService extends Service {
                 int queueIndex = player != null ? player.getCurrentMediaItemIndex() : 0;
                 int totalItems = player != null ? player.getMediaItemCount() : 0;
                 boolean isPlaying = player != null && (player.isPlaying() || player.getPlayWhenReady());
+                int oldQueueIndex = (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && queueIndex > 0) ? queueIndex - 1 : queueIndex;
+
+                Log.d(TAG, "[QUEUE_AUTO_ADVANCE]\noldTrackId=" + oldTrackId
+                        + "\nnewTrackId=" + currentTrackId
+                        + "\noldQueueIndex=" + oldQueueIndex
+                        + "\nnewQueueIndex=" + queueIndex);
+
+                Log.d(TAG, "[QUEUE_TRACK_PLAYING]\ntrackId=" + currentTrackId
+                        + "\nisPlaying=true\nposition=0");
 
                 Log.d(TAG, "[TRACK_TRANSITION] oldTrackId=" + oldTrackId
                         + " newTrackId=" + currentTrackId
@@ -307,6 +316,7 @@ public class RaagaXPlaybackService extends Service {
 
             @Override
             public void onPlayerError(androidx.media3.common.PlaybackException error) {
+                Log.e(TAG, "[QUEUE_TRACK_FAILED]\ntrackId=" + currentTrackId + "\nerror=" + (error != null ? error.getMessage() : "unknown"));
                 Log.e(TAG, "[RAAGAX_LOCAL_PLAYBACK_ERROR] songId=" + currentTrackId + " errorCode=" + error.errorCode + " message=" + error.getMessage() + " cause=" + error.getCause());
                 android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(android.content.Context.CONNECTIVITY_SERVICE);
                 android.net.NetworkInfo activeNetwork = cm != null ? cm.getActiveNetworkInfo() : null;
@@ -328,11 +338,30 @@ public class RaagaXPlaybackService extends Service {
                                 runOnMainThread(() -> {
                                     playUrl(fallbackTrackId, track.streamUrl, fallbackTitle, fallbackArtist, fallbackArt);
                                 });
+                                return;
                             }
                         } catch (Exception ex) {
                             Log.e(TAG, "[RAAGAX_LOCAL_FALLBACK] Online fallback resolution failed: " + ex.getMessage());
                         }
+
+                        // If online fallback resolution failed, safely attempt the next playable queue item
+                        runOnMainThread(() -> {
+                            if (player != null && player.hasNextMediaItem()) {
+                                Log.w(TAG, "[QUEUE_TRACK_FAILED] Skipping to next playable queue item after fallback failure...");
+                                player.seekToNextMediaItem();
+                                player.prepare();
+                                player.play();
+                            }
+                        });
                     }).start();
+                } else {
+                    // Directly attempt next playable queue item
+                    if (player != null && player.hasNextMediaItem()) {
+                        Log.w(TAG, "[QUEUE_TRACK_FAILED] Skipping to next playable queue item...");
+                        player.seekToNextMediaItem();
+                        player.prepare();
+                        player.play();
+                    }
                 }
             }
 
