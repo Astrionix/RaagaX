@@ -442,6 +442,77 @@ public class RaagaXDownloadPlugin extends Plugin {
         }
     }
 
+    @PluginMethod
+    public void getPreference(PluginCall call) {
+        try {
+            String key = call.getString("key");
+            if (key == null || key.isEmpty()) {
+                call.reject("key is required");
+                return;
+            }
+
+            android.content.SharedPreferences prefs = getContext().getSharedPreferences("raagax_preferences", Context.MODE_PRIVATE);
+            JSObject res = new JSObject();
+            if (prefs.contains(key)) {
+                // Try boolean first, then string
+                try {
+                    boolean boolVal = prefs.getBoolean(key, false);
+                    res.put("value", boolVal);
+                    res.put("exists", true);
+                } catch (ClassCastException cce) {
+                    String strVal = prefs.getString(key, "");
+                    res.put("value", strVal);
+                    res.put("exists", true);
+                }
+            } else {
+                res.put("exists", false);
+                res.put("value", call.getData().opt("defaultValue"));
+            }
+            call.resolve(res);
+        } catch (Exception e) {
+            JSObject res = new JSObject();
+            res.put("exists", false);
+            res.put("value", call.getData().opt("defaultValue"));
+            call.resolve(res);
+        }
+    }
+
+    @PluginMethod
+    public void setPreference(PluginCall call) {
+        try {
+            String key = call.getString("key");
+            if (key == null || key.isEmpty()) {
+                call.reject("key is required");
+                return;
+            }
+
+            android.content.SharedPreferences prefs = getContext().getSharedPreferences("raagax_preferences", Context.MODE_PRIVATE);
+            android.content.SharedPreferences.Editor editor = prefs.edit();
+
+            if (call.getData().has("value")) {
+                Object val = call.getData().get("value");
+                if (val instanceof Boolean) {
+                    editor.putBoolean(key, (Boolean) val);
+                } else if (val instanceof Integer) {
+                    editor.putInt(key, (Integer) val);
+                } else if (val instanceof Long) {
+                    editor.putLong(key, (Long) val);
+                } else if (val instanceof Float || val instanceof Double) {
+                    editor.putFloat(key, ((Number) val).floatValue());
+                } else {
+                    editor.putString(key, String.valueOf(val));
+                }
+                editor.apply();
+            }
+
+            JSObject res = new JSObject();
+            res.put("success", true);
+            call.resolve(res);
+        } catch (Exception e) {
+            call.resolve(new JSObject().put("success", false).put("error", e.getMessage()));
+        }
+    }
+
     @Override
     protected void handleOnDestroy() {
         try {

@@ -284,10 +284,26 @@ export const RaagaXNativeDownload = {
     }
   },
 
-  async setWifiOnly(wifiOnly: boolean): Promise<void> {
+  async getPreference<T = any>(key: string, defaultValue?: T): Promise<T> {
     const plugin = getPlugin();
-    if (!plugin) return;
-    await plugin.setWifiOnly({ wifiOnly });
+    if (!plugin) return defaultValue as T;
+    try {
+      const res = await plugin.getPreference({ key, defaultValue });
+      return res?.exists ? (res.value as T) : (defaultValue as T);
+    } catch {
+      return defaultValue as T;
+    }
+  },
+
+  async setPreference(key: string, value: any): Promise<boolean> {
+    const plugin = getPlugin();
+    if (!plugin) return false;
+    try {
+      const res = await plugin.setPreference({ key, value });
+      return Boolean(res?.success);
+    } catch {
+      return false;
+    }
   },
 
   addDownloadProgressListener(callback: (event: NativeDownloadProgressEvent) => void): () => void {

@@ -4,6 +4,7 @@ import React from 'react';
 import { X, Settings, Sliders, Disc, Shield, Download, Trash2, LogOut, User, Moon, Sun, Monitor, Palette } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useThemeStore } from '@/context/useThemeStore';
+import { useDownloadStore } from '@/context/useDownloadStore';
 
 export function SettingsModal() {
   const {
@@ -17,6 +18,8 @@ export function SettingsModal() {
     preferredLanguage,
     setPreferredLanguage,
   } = usePlayerStore();
+
+  const { offlineSettings, setOfflineSettings } = useDownloadStore();
 
   const { theme, resolvedTheme, setTheme } = useThemeStore();
   const [mounted, setMounted] = React.useState(false);
@@ -180,6 +183,34 @@ export function SettingsModal() {
             />
             <div className="flex justify-between text-[10px] text-slate-500 font-mono">
               <span>0s (Off)</span><span>6s</span><span>12s (Smooth)</span>
+            </div>
+          </div>
+
+          {/* Automatic Downloads */}
+          <div className="space-y-3">
+            <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+              <Download className="w-3.5 h-3.5 text-[#EF233C]" /> Automatic Downloads
+            </label>
+            <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1 pr-2">
+                <h4 className="text-xs font-bold text-white">Download Liked Songs</h4>
+                <p className="text-[11px] text-slate-400 mt-0.5">Automatically save songs for offline listening when you add them to Liked Songs.</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={Boolean(offlineSettings.autoDownloadLikedSongs)}
+                onClick={() => setOfflineSettings({ autoDownloadLikedSongs: !offlineSettings.autoDownloadLikedSongs })}
+                className={`w-12 h-6.5 rounded-full transition-colors relative flex items-center p-0.5 cursor-pointer flex-shrink-0 ${
+                  offlineSettings.autoDownloadLikedSongs ? 'bg-emerald-500' : 'bg-white/20'
+                }`}
+              >
+                <div
+                  className={`w-5.5 h-5.5 rounded-full bg-white shadow-md transform transition-transform ${
+                    offlineSettings.autoDownloadLikedSongs ? 'translate-x-5.5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
             </div>
           </div>
 

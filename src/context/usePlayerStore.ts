@@ -1767,21 +1767,49 @@ export const usePlayerStore = create<PlayerState>()(
           get().recordLanguageInterest(songLang, 0.35);
         }
 
-        // Smart Download Rules Hook for Favorites
+        // Automatic Download for Liked Songs (Setting: autoDownloadLikedSongs)
         if (!isLiked) {
-          import('@/lib/offline/SmartDownloadEngine').then(async ({ SmartDownloadEngine }) => {
+          import('@/context/useDownloadStore').then(async ({ useDownloadStore }) => {
             try {
+              const downloadState = useDownloadStore.getState();
+              const isAutoDownloadOn = Boolean(
+                downloadState.offlineSettings.autoDownloadLikedSongs ||
+                downloadState.offlineSettings.autoDownloadFavorites
+              );
+
+              if (!isAutoDownloadOn) return;
+
+              // Duplicate Protection using songId / trackId
+              const downloadedSongIds = get().downloadedSongIds || [];
+              const nativeTracks = downloadState.nativeDownloadedTracks || {};
+              const tasks = downloadState.tasks || {};
+
+              const isAlreadyDownloaded = downloadedSongIds.includes(songId) || Boolean(nativeTracks[songId]);
+              const currentTask = tasks[songId];
+              const isAlreadyInProgress = currentTask && ['QUEUED', 'DOWNLOADING', 'VERIFYING', 'COMPLETED'].includes(currentTask.status);
+
+              if (isAlreadyDownloaded || isAlreadyInProgress) {
+                return; // Duplicate protection: do nothing
+              }
+
+              // Resolve complete Song metadata
               let songToDownload = targetSong;
+              if (!songToDownload) {
+                const inLiked = get().likedSongs.find((s) => s.id === songId);
+                if (inLiked) songToDownload = inLiked;
+              }
               if (!songToDownload) {
                 const { SongResolver } = await import('@/lib/discovery/SongResolver');
                 const resolved = await SongResolver.resolveSongs([songId]);
                 if (resolved.length > 0) songToDownload = resolved[0];
               }
+
               if (songToDownload) {
-                await SmartDownloadEngine.getInstance().evaluateAndDownload(songToDownload, { trigger: 'FAVORITE_ADD' });
+                console.log('[AutoDownloadLikedSongs] Enqueueing automatic download for liked track:', songId, songToDownload.title);
+                await downloadState.saveForOffline(songToDownload);
               }
-            } catch (favErr) {
-              console.warn('[SmartDownloadEngine] Error evaluating favorite download rule:', favErr);
+            } catch (err) {
+              console.warn('[AutoDownloadLikedSongs] Failed to evaluate auto-download for', songId, err);
             }
           });
         }

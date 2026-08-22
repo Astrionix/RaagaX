@@ -279,15 +279,6 @@ export const usePlaylistStore = create<PlaylistStore>()(
             usePlayerStore.getState().setToastMessage(`Added "${song.title}" to "${targetPl.title}"`);
           });
 
-          // Smart Download auto-evaluation
-          try {
-            const { SmartDownloadEngine } = await import('@/lib/offline/SmartDownloadEngine');
-            SmartDownloadEngine.getInstance().evaluateAndDownload(song, {
-              trigger: 'PLAYLIST_ADD',
-              playlistId,
-            }).catch(() => {});
-          } catch {}
-
           return true;
         } catch (e) {
           console.error('[usePlaylistStore] Failed to add song to playlist in cloud, rolling back:', e);

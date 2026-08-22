@@ -101,7 +101,7 @@ interface DownloadStore {
   offlineSettings: {
     audioQuality: '128 kbps' | '192 kbps' | '320 kbps' | 'High' | 'Standard' | 'Lossless';
     autoDeleteTemp: boolean;
-    smartDownloads: boolean;
+    autoDownloadLikedSongs: boolean; // Setting: Automatic Downloads -> Download Liked Songs
     autoDownloadPlaylists: boolean;
     autoDownloadFavorites: boolean;
     autoDownloadFollowedPlaylists: boolean;
@@ -157,6 +157,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     audioQuality: '320 kbps',
     autoDeleteTemp: false,
     smartDownloads: false,
+    autoDownloadLikedSongs: false,
     autoDownloadPlaylists: false,
     autoDownloadFavorites: false,
     autoDownloadFollowedPlaylists: false,
@@ -171,7 +172,13 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     usePlayerStore.getState().setNetworkMode(enabled ? 'offline_forced' : 'online');
     get()._persistTasks(); 
   },
-  setOfflineSettings: (settings) => { set((state) => ({ offlineSettings: { ...state.offlineSettings, ...settings } })); get()._persistTasks(); },
+  setOfflineSettings: (settings) => { 
+    set((state) => ({ offlineSettings: { ...state.offlineSettings, ...settings } })); 
+    get()._persistTasks();
+    if (settings.autoDownloadLikedSongs !== undefined && RaagaXNativeDownload.isNative()) {
+      RaagaXNativeDownload.setPreference('autoDownloadLikedSongs', settings.autoDownloadLikedSongs);
+    }
+  },
   setMaxConcurrent: (count) => {
     set({ maxConcurrent: count });
   },
@@ -402,9 +409,28 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
         const storedSettings = localStorage.getItem('offlineSettings');
         if (storedSettings) {
           try {
-            set({ offlineSettings: JSON.parse(storedSettings) });
+            const parsed = JSON.parse(storedSettings);
+            set({ offlineSettings: { ...get().offlineSettings, ...parsed } });
           } catch (e) {}
         }
+      }
+
+      // Check native persistent Android SharedPreferences for autoDownloadLikedSongs
+      if (RaagaXNativeDownload.isNative()) {
+        try {
+          const nativeAutoDownload = await RaagaXNativeDownload.getPreference<boolean>(
+            'autoDownloadLikedSongs',
+            get().offlineSettings.autoDownloadLikedSongs
+          );
+          if (typeof nativeAutoDownload === 'boolean') {
+            set((state) => ({
+              offlineSettings: {
+                ...state.offlineSettings,
+                autoDownloadLikedSongs: nativeAutoDownload,
+              }
+            }));
+          }
+        } catch {}
       }
 
       // Setup Native Download Event Listeners
