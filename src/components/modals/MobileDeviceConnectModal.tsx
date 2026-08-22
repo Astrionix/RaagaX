@@ -123,10 +123,8 @@ export function MobileDeviceConnectModal() {
       import('@/lib/haptics/HapticEngine').then(m => m.haptics.mediumImpact()).catch(() => {});
       const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
       setHandoverStep(2);
-      const ok = await RaagaXConnectV2.getInstance().switchPlaybackTo(targetId, (step) => {
-        if (step === 'OFFERED') setHandoverStep(3);
-        if (step === 'READY') setHandoverStep(4);
-        if (step === 'COMMITTED') setHandoverStep(5);
+      const ok = await RaagaXConnectV2.getInstance().switchPlaybackTo(targetId, (step: number) => {
+        setHandoverStep(step);
       });
 
       if (ok) {
