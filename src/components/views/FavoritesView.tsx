@@ -274,7 +274,7 @@ export function FavoritesView() {
                   key={`${song.id}-${idx}`}
                   song={song}
                   actionType="unlike"
-                  actionLabel="Unlike"
+                  actionLabel="Remove"
                   onSwipeAction={() => toggleLikeSong(song.id)}
                 >
                   <div

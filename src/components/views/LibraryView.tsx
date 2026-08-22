@@ -442,7 +442,7 @@ export function LibraryView() {
                 key={`${song.id}-${index}`}
                 song={song}
                 actionType={tab === 'liked' ? 'unlike' : (tab === 'songs' ? 'remove_download' : 'remove')}
-                actionLabel={tab === 'liked' ? 'Unlike' : (tab === 'songs' ? 'Delete' : 'Remove')}
+                actionLabel={tab === 'liked' ? 'Remove' : (tab === 'songs' ? 'Remove Download' : 'Remove')}
                 onSwipeAction={() => {
                   if (tab === 'liked') {
                     toggleLikeSong(song.id);
@@ -618,7 +618,7 @@ export function LibraryView() {
                     key={`${song.id}-${idx}`}
                     song={song}
                     actionType="remove_download"
-                    actionLabel="Delete"
+                    actionLabel="Remove Download"
                     onSwipeAction={() => removeDownload(song.id)}
                   >
                     <div
