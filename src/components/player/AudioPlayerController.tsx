@@ -240,9 +240,12 @@ export function AudioPlayerController() {
 
         // Broadcast to follower devices in Spotify Connect session
         if (store.isActiveDevice) {
+          import('@/lib/connect/lan/PlaybackOwnerEngine').then(({ PlaybackOwnerEngine }) => {
+            PlaybackOwnerEngine.getInstance().publishAuthoritativePlaybackState();
+          }).catch(() => {});
           import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
             PlaybackStateSync.getInstance().broadcastState(true);
-          });
+          }).catch(() => {});
         }
       }
 
@@ -276,9 +279,12 @@ export function AudioPlayerController() {
       });
       // Immediately broadcast authoritative state to followers
       if (usePlayerStore.getState().isActiveDevice) {
+        import('@/lib/connect/lan/PlaybackOwnerEngine').then(({ PlaybackOwnerEngine }) => {
+          PlaybackOwnerEngine.getInstance().publishAuthoritativePlaybackState();
+        }).catch(() => {});
         import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
           PlaybackStateSync.getInstance().broadcastState(true);
-        });
+        }).catch(() => {});
       }
     });
 

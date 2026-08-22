@@ -515,5 +515,60 @@ describe('RaagaX Connect: Acceptance Specification — All 12 Contract Items', (
     expect(finalOwnerSnapshot.song?.id).toBe(SONG_Y.id);
     expect(finalOwnerSnapshot.isPlaying).toBe(true);
   });
+
+  // ─── Exact Real-World Scenario: Pushpa → NEXT → Chikkiri ───────────────────
+
+  it('Spec 13: Pushpa → NEXT → Chikkiri real-world track transition delivers complete atomic metadata to controller', () => {
+    const PUSHPA_SONG = makeSong('pushpa_01', 'Pushpa Pushpa');
+    PUSHPA_SONG.coverUrl = 'https://covers.test/pushpa.jpg';
+    PUSHPA_SONG.artist = 'Devi Sri Prasad';
+
+    const CHIKKIRI_SONG = makeSong('chikkiri_02', 'Chikkiri Chikkiri');
+    CHIKKIRI_SONG.coverUrl = 'https://covers.test/chikkiri.jpg';
+    CHIKKIRI_SONG.artist = 'Ram Miriyala';
+
+    // 1. Mobile is connected to Laptop (Laptop is OWNER, Mobile is CONTROLLER)
+    setAsController(MOBILE_ID, DESKTOP_ID, PUSHPA_SONG, 45_000, true);
+
+    // Initial check: Mobile shows Pushpa
+    let mobileStore = usePlayerStore.getState();
+    expect(mobileStore.currentSong?.title).toBe('Pushpa Pushpa');
+    expect(mobileStore.currentSong?.coverUrl).toBe('https://covers.test/pushpa.jpg');
+
+    // 2. Laptop owner advances to Chikkiri and broadcasts stateVersion 241
+    RemoteControlClient.getInstance().handlePlaybackStateUpdate({
+      id: 'msg_chikkiri_241',
+      type: 'PLAYBACK_STATE',
+      sourceDeviceId: DESKTOP_ID,
+      targetDeviceId: MOBILE_ID,
+      timestamp: Date.now(),
+      payload: {
+        ownerDeviceId: DESKTOP_ID,
+        songId: CHIKKIRI_SONG.id,
+        song: { ...CHIKKIRI_SONG },
+        queue: [PUSHPA_SONG, CHIKKIRI_SONG],
+        queueIndex: 1,
+        positionMs: 0,
+        durationMs: CHIKKIRI_SONG.duration * 1000,
+        isPlaying: true,
+        playbackRate: 1.0,
+        volume: 0.8,
+        isMuted: false,
+        shuffleMode: 'OFF',
+        repeatMode: 'OFF',
+        stateVersion: 241,
+        timestamp: Date.now(),
+      },
+    });
+
+    // 3. Mobile UI state MUST atomically display Chikkiri (title, cover, artist, position 0)
+    mobileStore = usePlayerStore.getState();
+    expect(mobileStore.currentSong?.id).toBe(CHIKKIRI_SONG.id);
+    expect(mobileStore.currentSong?.title).toBe('Chikkiri Chikkiri');
+    expect(mobileStore.currentSong?.artist).toBe('Ram Miriyala');
+    expect(mobileStore.currentSong?.coverUrl).toBe('https://covers.test/chikkiri.jpg');
+    expect(mobileStore.currentTime).toBe(0);
+    expect(mobileStore.isPlaying).toBe(true);
+  });
 });
 

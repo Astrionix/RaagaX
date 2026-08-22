@@ -117,6 +117,22 @@ export class DirectLANTransport {
   }
 
   public sendMessage(targetDeviceId: string, msg: LANMessage): boolean {
+    if (targetDeviceId === 'broadcast' || msg.targetDeviceId === 'broadcast') {
+      let sentCount = 0;
+      for (const [peerId, peer] of this.connectedPeers.entries()) {
+        if (peer?.socket && peer.socket.readyState === WebSocket.OPEN) {
+          try {
+            peer.socket.send(JSON.stringify(msg));
+            sentCount++;
+          } catch (e) {
+            console.warn(`[DirectLANTransport] Broadcast send failed to ${peerId}:`, e);
+          }
+        }
+      }
+      LocalServerBridge.getInstance().broadcastToMesh(msg);
+      return true;
+    }
+
     const peer = this.connectedPeers.get(targetDeviceId);
 
     // Direct socket if available
@@ -156,6 +172,28 @@ export class DirectLANTransport {
         peer.rtt = Math.max(1, peer.lastPong - peer.lastPing);
       }
       return;
+    }
+
+    if (msg.type === 'DISCONNECT' as any || msg.type === 'DISCONNECT_REQUEST' as any) {
+      console.log(`[DirectLANTransport] Received peer disconnect notice from ${msg.sourceDeviceId}`);
+      this.disconnectFromDevice(msg.sourceDeviceId);
+      try {
+        const { usePlayerStore } = require('@/context/usePlayerStore');
+        const { PlaybackOwnerEngine } = require('./PlaybackOwnerEngine');
+        const store = usePlayerStore.getState();
+        if (store.connectedDeviceId === msg.sourceDeviceId) {
+          const { LocalDiscoveryService } = require('./LocalDiscoveryService');
+          const localId = LocalDiscoveryService.getInstance().getLocalIdentity().deviceId;
+          usePlayerStore.setState({
+            connectedDeviceId: null,
+            activeDeviceId: localId,
+            isActiveDevice: true,
+            remoteDeviceName: undefined,
+            deviceConnectionState: 'AVAILABLE',
+          });
+          PlaybackOwnerEngine.getInstance().setOwner(localId, true);
+        }
+      } catch {}
     }
 
     for (const listener of this.messageListeners) {

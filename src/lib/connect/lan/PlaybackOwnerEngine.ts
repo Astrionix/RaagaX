@@ -16,13 +16,14 @@ export class PlaybackOwnerEngine {
   private activeOwnerDeviceId: string;
   private isLocalOwner: boolean = true;
   private broadcastThrottleTimer: NodeJS.Timeout | null = null;
+  private heartbeatIntervalTimer: NodeJS.Timeout | null = null;
 
   private constructor() {
     this.activeOwnerDeviceId = LocalDiscoveryService.getInstance().getLocalIdentity().deviceId;
 
     // Listen for incoming commands from controllers
     DirectLANTransport.getInstance().onMessage((msg) => {
-      if (msg.type.startsWith('CMD_')) {
+      if (msg.type.startsWith('CMD_') || msg.type === 'STATE_REQUEST') {
         this.handleRemoteCommand(msg as LANRemoteCommandMessage);
       }
     });
@@ -47,6 +48,9 @@ export class PlaybackOwnerEngine {
 
       if (songChanged || playingChanged || queueChanged || volumeChanged || modesChanged) {
         this.stateVersion++;
+        if (songChanged) {
+          console.log(`[CONNECT][OWNER] TRACK_CHANGED oldTrackId=${prevState.currentSong?.id || 'none'} newTrackId=${state.currentSong?.id || 'none'}`);
+        }
         if (songChanged || queueChanged || playingChanged) {
           // Track, queue, and play/pause transitions must broadcast immediately without throttling
           this.broadcastStateImmediately();
@@ -55,6 +59,8 @@ export class PlaybackOwnerEngine {
         }
       }
     });
+
+    this.startOwnerHeartbeat();
   }
 
   public static getInstance(): PlaybackOwnerEngine {
@@ -82,6 +88,11 @@ export class PlaybackOwnerEngine {
       isActiveDevice: isLocal,
       activeDeviceId: deviceId,
     });
+  }
+
+  public publishAuthoritativePlaybackState() {
+    this.stateVersion++;
+    this.broadcastStateImmediately();
   }
 
   public getStateSnapshot(): LANPlaybackStatePayload {
@@ -121,6 +132,9 @@ export class PlaybackOwnerEngine {
     const payload = this.getStateSnapshot();
     const localId = LocalDiscoveryService.getInstance().getLocalIdentity().deviceId;
 
+    console.log(`[CONNECT][OWNER] BUILD_STATE trackId=${payload.songId} title="${payload.song?.title}" artwork=${payload.song?.coverUrl} positionMs=${payload.positionMs} isPlaying=${payload.isPlaying} stateVersion=${payload.stateVersion}`);
+    console.log(`[CONNECT][TX] PLAYBACK_STATE target=broadcast stateVersion=${payload.stateVersion}`);
+
     const stateMsg: LANPlaybackStateMessage = {
       id: 'st_' + Math.random().toString(36).substring(2, 10),
       type: 'PLAYBACK_STATE',
@@ -131,6 +145,13 @@ export class PlaybackOwnerEngine {
     };
 
     DirectLANTransport.getInstance().sendMessage('broadcast', stateMsg);
+
+    // Also mirror broadcast via cloud & WebRTC session sync
+    try {
+      import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+        PlaybackStateSync.getInstance().broadcastState(true);
+      });
+    } catch {}
   }
 
   private scheduleStateBroadcast() {
@@ -141,10 +162,26 @@ export class PlaybackOwnerEngine {
     }, 100);
   }
 
+  private startOwnerHeartbeat() {
+    if (this.heartbeatIntervalTimer) clearInterval(this.heartbeatIntervalTimer);
+    this.heartbeatIntervalTimer = setInterval(() => {
+      if (this.isLocalOwner) {
+        this.broadcastState();
+      }
+    }, 2000);
+  }
+
   public async handleRemoteCommand(cmd: LANRemoteCommandMessage) {
     // Only the authoritative owner executes player commands
     if (!this.isLocalOwner) {
       console.warn('[PlaybackOwnerEngine] Ignored command: this device is not the active playback owner');
+      return;
+    }
+
+    // STATE_REQUEST can be responded to directly without requiring prior permissions
+    if (cmd.type === 'CMD_STATE_REQUEST' as any || cmd.type === 'STATE_REQUEST' as any) {
+      console.log(`[PlaybackOwnerEngine] Received STATE_REQUEST from ${cmd.sourceDeviceId}, replying with authoritative state snapshot`);
+      this.broadcastStateImmediately();
       return;
     }
 

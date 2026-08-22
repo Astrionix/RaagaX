@@ -1149,7 +1149,11 @@ export const usePlayerStore = create<PlayerState>()(
           });
         }
 
-        // Broadcast to peers
+        // Broadcast to peers across all transport layers
+        try {
+          const { PlaybackOwnerEngine } = await import('@/lib/connect/lan/PlaybackOwnerEngine');
+          PlaybackOwnerEngine.getInstance().publishAuthoritativePlaybackState();
+        } catch {}
         try {
           PlaybackStateSync.getInstance().broadcastState(true);
         } catch {}
