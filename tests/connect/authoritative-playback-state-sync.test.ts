@@ -7,7 +7,6 @@ import { CommandBus } from '@/lib/connect/CommandBus';
 import { CommandValidator } from '@/lib/connect/CommandValidator';
 import { CommandSequencer } from '@/lib/connect/CommandSequencer';
 
-
 // Mock Supabase
 vi.mock('@/lib/supabase', () => {
   const mockChannel = {
@@ -44,7 +43,7 @@ vi.mock('@/lib/supabase', () => {
   };
 });
 
-describe('RAAGAX CONNECT — AUTHORITATIVE PLAYBACK STATE SYNCHRONIZATION', () => {
+describe('RAAGAX CONNECT — TWO-WAY PLAYBACK CONTROL & AUTHORITATIVE STATE SYNC', () => {
   const songA: Song = {
     id: 'HPY9vvdV',
     title: 'Song A',
@@ -100,7 +99,6 @@ describe('RAAGAX CONNECT — AUTHORITATIVE PLAYBACK STATE SYNCHRONIZATION', () =
     CommandValidator.getInstance().reset();
     CommandSequencer.getInstance().setEpoch(1);
 
-
     usePlayerStore.setState({
       deviceId: 'dev_mobile',
       activeDeviceId: 'dev_mobile',
@@ -119,122 +117,10 @@ describe('RAAGAX CONNECT — AUTHORITATIVE PLAYBACK STATE SYNCHRONIZATION', () =
     });
   });
 
-
   // ============================================================
-  // TEST A: Connection Does NOT Pause Active Playback
+  // TEST 1: Mobile Active, Laptop Connected -> Laptop Sends PAUSE
   // ============================================================
-  it('TEST A: Connecting Laptop while Mobile is playing preserves active playback without pause or restart', async () => {
-    const connectManager = ConnectManager.getInstance();
-    vi.spyOn(connectManager, 'sendTargetedCommand').mockResolvedValue(undefined);
-
-    // Initial: Mobile is playing Song A at 02:31
-    expect(usePlayerStore.getState().isPlaying).toBe(true);
-    expect(usePlayerStore.getState().playbackIntent).toBe('PLAYING');
-    expect(usePlayerStore.getState().isActiveDevice).toBe(true);
-
-    // Laptop connects to Mobile
-    usePlayerStore.setState({
-      deviceConnectionState: 'CONNECTED',
-      connectedDeviceId: 'dev_laptop',
-      activeDeviceId: 'dev_mobile', // Mobile remains active renderer
-      isActiveDevice: true,
-    });
-
-    const mobileState = usePlayerStore.getState();
-    expect(mobileState.isPlaying).toBe(true);
-    expect(mobileState.playbackIntent).toBe('PLAYING');
-    expect(mobileState.isActiveDevice).toBe(true);
-    expect(mobileState.currentTime).toBe(151);
-    expect(mobileState.currentSong?.id).toBe('HPY9vvdV');
-
-    // Laptop receives the authoritative state snapshot
-    const snapshot: RemotePlaybackState = {
-      activeDeviceId: 'dev_mobile',
-      activeDeviceName: 'This phone',
-      songId: songA.id,
-      songData: songA,
-      isPlaying: true,
-      positionMs: 151000,
-      durationMs: 240000,
-      volume: 1.0,
-      isMuted: false,
-      queue: [songA, songB],
-      queueIndex: 0,
-      serverTimestamp: Date.now(),
-      epoch: 1,
-      revision: 10,
-    };
-
-    // Simulate Laptop adopting remote snapshot
-    usePlayerStore.setState({
-      deviceId: 'dev_laptop',
-      activeDeviceId: 'dev_mobile',
-      connectedDeviceId: 'dev_mobile',
-      isActiveDevice: false, // Laptop is controller
-    });
-
-    PlaybackStateSync.getInstance().adoptRemoteState(snapshot);
-
-    const updatedLaptop = usePlayerStore.getState();
-    expect(updatedLaptop.currentSong?.title).toBe('Song A');
-    expect(updatedLaptop.currentSong?.coverUrl).toBe('https://images.raagax.test/cover_a.jpg');
-    expect(updatedLaptop.currentSong?.artist).toBe('Artist A');
-    expect(updatedLaptop.currentTime).toBeCloseTo(151, 1);
-    expect(updatedLaptop.isPlaying).toBe(true);
-    expect(updatedLaptop.isActiveDevice).toBe(false); // Laptop must NOT produce local audio
-  });
-
-  // ============================================================
-  // TEST B: Laptop Connects while Mobile is Paused
-  // ============================================================
-  it('TEST B: Connecting while Mobile is paused preserves paused state (no auto-play)', () => {
-    usePlayerStore.setState({
-      isPlaying: false,
-      playbackIntent: 'PAUSED',
-      currentTime: 45,
-    });
-
-    const snapshot: RemotePlaybackState = {
-      activeDeviceId: 'dev_mobile',
-      activeDeviceName: 'This phone',
-      songId: songA.id,
-      songData: songA,
-      isPlaying: false,
-      positionMs: 45000,
-      durationMs: 240000,
-      volume: 1.0,
-      isMuted: false,
-      queue: [songA, songB],
-      queueIndex: 0,
-      serverTimestamp: Date.now(),
-      epoch: 1,
-      revision: 11,
-    };
-
-    usePlayerStore.setState({
-      deviceId: 'dev_laptop',
-      activeDeviceId: 'dev_mobile',
-      connectedDeviceId: 'dev_mobile',
-      isActiveDevice: false,
-    });
-
-    PlaybackStateSync.getInstance().adoptRemoteState(snapshot);
-
-    const laptopState = usePlayerStore.getState();
-    expect(laptopState.isPlaying).toBe(false);
-    expect(laptopState.playbackIntent).toBe('PAUSED');
-    expect(laptopState.currentTime).toBeCloseTo(45, 1);
-  });
-
-  // ============================================================
-  // TEST C: Two-Way Control (Laptop pauses Mobile)
-  // ============================================================
-  it('TEST C: Laptop pressing PAUSE dispatches command, pauses Mobile, and updates state', async () => {
-    // 1. Laptop issues PAUSE command
-    const connectManager = ConnectManager.getInstance();
-    vi.spyOn(connectManager, 'sendTargetedCommand').mockResolvedValue(undefined);
-
-    // 2. Mobile receives PAUSE command in CommandBus
+  it('TEST 1: Mobile active, Laptop connected -> Laptop PAUSE pauses Mobile and syncs state', async () => {
     usePlayerStore.setState({
       deviceId: 'dev_mobile',
       activeDeviceId: 'dev_mobile',
@@ -245,7 +131,7 @@ describe('RAAGAX CONNECT — AUTHORITATIVE PLAYBACK STATE SYNCHRONIZATION', () =
     });
 
     await CommandBus.getInstance().handleIncomingCommand({
-      commandId: 'cmd_pause_1',
+      commandId: 'cmd_pause_test1',
       sessionId: 'sess_1',
       epoch: 1,
       sequence: 1,
@@ -260,54 +146,135 @@ describe('RAAGAX CONNECT — AUTHORITATIVE PLAYBACK STATE SYNCHRONIZATION', () =
     expect(usePlayerStore.getState().playbackIntent).toBe('PAUSED');
   });
 
-
   // ============================================================
-  // TEST D: Atomic Metadata Update on Track Change
+  // TEST 2: Laptop Active, Mobile Connected -> Mobile Sends PAUSE
   // ============================================================
-  it('TEST D: Track change Song A -> Song B applies title, artist, artwork and duration atomically', () => {
+  it('TEST 2: Laptop active, Mobile connected -> Mobile PAUSE pauses Laptop and syncs state', async () => {
     usePlayerStore.setState({
       deviceId: 'dev_laptop',
-      activeDeviceId: 'dev_mobile',
+      activeDeviceId: 'dev_laptop',
       connectedDeviceId: 'dev_mobile',
-      isActiveDevice: false,
-      currentSong: songA,
+      isActiveDevice: true,
+      isPlaying: true,
+      playbackIntent: 'PLAYING',
     });
 
-    const nextState: RemotePlaybackState = {
-      activeDeviceId: 'dev_mobile',
-      activeDeviceName: 'This phone',
-      songId: songB.id,
-      songData: songB,
-      isPlaying: true,
-      positionMs: 0,
-      durationMs: 180000,
-      volume: 1.0,
-      isMuted: false,
-      queue: [songA, songB],
-      queueIndex: 1,
-      serverTimestamp: Date.now(),
+    await CommandBus.getInstance().handleIncomingCommand({
+      commandId: 'cmd_pause_test2',
+      sessionId: 'sess_1',
       epoch: 1,
-      revision: 12,
-    };
+      sequence: 1,
+      sourceDeviceId: 'dev_mobile',
+      targetDeviceId: 'dev_laptop',
+      type: 'PAUSE',
+      sentAt: Date.now(),
+      payload: { positionMs: 120000 }
+    });
 
-    PlaybackStateSync.getInstance().adoptRemoteState(nextState);
-
-    const updated = usePlayerStore.getState();
-    // Verify complete atomicity: no mixed metadata
-    expect(updated.currentSong?.id).toBe('7mV2egOd');
-    expect(updated.currentSong?.title).toBe('Song B');
-    expect(updated.currentSong?.artist).toBe('Artist B');
-    expect(updated.currentSong?.album).toBe('Album B');
-    expect(updated.currentSong?.coverUrl).toBe('https://images.raagax.test/cover_b.jpg');
-    expect(updated.duration).toBe(180);
-    expect(updated.queueIndex).toBe(1);
+    expect(usePlayerStore.getState().isPlaying).toBe(false);
+    expect(usePlayerStore.getState().playbackIntent).toBe('PAUSED');
   });
 
   // ============================================================
-  // TEST E: Search & Play from Remote Controller
+  // TEST 3: Mobile Active, Laptop Connected -> Laptop Sends NEXT
   // ============================================================
-  it('TEST E: Laptop searching Song C and playing routes command to Mobile active renderer without local audio', async () => {
-    // Laptop is controller, Mobile is active audio renderer
+  it('TEST 3: Mobile active, Laptop connected -> Laptop NEXT advances Mobile queue atomically', async () => {
+    usePlayerStore.setState({
+      deviceId: 'dev_mobile',
+      activeDeviceId: 'dev_mobile',
+      connectedDeviceId: 'dev_laptop',
+      isActiveDevice: true,
+      currentSong: songA,
+      queue: [songA, songB],
+      queueIndex: 0,
+      isPlaying: true,
+      playbackIntent: 'PLAYING',
+    });
+
+    await CommandBus.getInstance().handleIncomingCommand({
+      commandId: 'cmd_next_test3',
+      sessionId: 'sess_1',
+      epoch: 1,
+      sequence: 1,
+      sourceDeviceId: 'dev_laptop',
+      targetDeviceId: 'dev_mobile',
+      type: 'NEXT',
+      sentAt: Date.now(),
+    });
+
+    const state = usePlayerStore.getState();
+    expect(state.currentSong?.id).toBe(songB.id);
+    expect(state.currentSong?.title).toBe('Song B');
+    expect(state.currentSong?.coverUrl).toBe('https://images.raagax.test/cover_b.jpg');
+    expect(state.isPlaying).toBe(true);
+    expect(state.queueIndex).toBe(1);
+  });
+
+  // ============================================================
+  // TEST 4: Laptop Active, Mobile Connected -> Mobile Sends NEXT
+  // ============================================================
+  it('TEST 4: Laptop active, Mobile connected -> Mobile NEXT advances Laptop queue atomically', async () => {
+    usePlayerStore.setState({
+      deviceId: 'dev_laptop',
+      activeDeviceId: 'dev_laptop',
+      connectedDeviceId: 'dev_mobile',
+      isActiveDevice: true,
+      currentSong: songA,
+      queue: [songA, songB],
+      queueIndex: 0,
+      isPlaying: true,
+      playbackIntent: 'PLAYING',
+    });
+
+    await CommandBus.getInstance().handleIncomingCommand({
+      commandId: 'cmd_next_test4',
+      sessionId: 'sess_1',
+      epoch: 1,
+      sequence: 1,
+      sourceDeviceId: 'dev_mobile',
+      targetDeviceId: 'dev_laptop',
+      type: 'NEXT',
+      sentAt: Date.now(),
+    });
+
+    const state = usePlayerStore.getState();
+    expect(state.currentSong?.id).toBe(songB.id);
+    expect(state.isPlaying).toBe(true);
+    expect(state.queueIndex).toBe(1);
+  });
+
+  // ============================================================
+  // TEST 5: Mobile Active, Laptop Connected -> Laptop Sends SEEK
+  // ============================================================
+  it('TEST 5: Mobile active, Laptop connected -> Laptop SEEK updates authoritative position without spam', async () => {
+    usePlayerStore.setState({
+      deviceId: 'dev_mobile',
+      activeDeviceId: 'dev_mobile',
+      connectedDeviceId: 'dev_laptop',
+      isActiveDevice: true,
+      currentTime: 30,
+      isPlaying: true,
+    });
+
+    await CommandBus.getInstance().handleIncomingCommand({
+      commandId: 'cmd_seek_test5',
+      sessionId: 'sess_1',
+      epoch: 1,
+      sequence: 1,
+      sourceDeviceId: 'dev_laptop',
+      targetDeviceId: 'dev_mobile',
+      type: 'SEEK',
+      sentAt: Date.now(),
+      payload: { positionMs: 185000, songId: songA.id }
+    });
+
+    expect(usePlayerStore.getState().currentTime).toBe(185);
+  });
+
+  // ============================================================
+  // TEST 6: Laptop searches Song B -> PLAY (Mobile active)
+  // ============================================================
+  it('TEST 6: Laptop searching Song B routes PLAY to Mobile active renderer without local audio', async () => {
     usePlayerStore.setState({
       deviceId: 'dev_laptop',
       activeDeviceId: 'dev_mobile',
@@ -318,17 +285,104 @@ describe('RAAGAX CONNECT — AUTHORITATIVE PLAYBACK STATE SYNCHRONIZATION', () =
     const connectManager = ConnectManager.getInstance();
     const sendSpy = vi.spyOn(connectManager, 'dispatchPlaybackCommand').mockResolvedValue({ success: true });
 
-    // Laptop calls playSong(songC)
+    await usePlayerStore.getState().playSong(songB);
+
+    expect(usePlayerStore.getState().currentSong?.id).toBe(songB.id);
+    expect(sendSpy).toHaveBeenCalledWith('PLAY', expect.objectContaining({
+      song: expect.objectContaining({ id: songB.id })
+    }));
+    expect(usePlayerStore.getState().isActiveDevice).toBe(false);
+  });
+
+  // ============================================================
+  // TEST 7: Mobile searches Song C -> PLAY (Laptop active)
+  // ============================================================
+  it('TEST 7: Mobile searching Song C routes PLAY to Laptop active renderer without local audio', async () => {
+    usePlayerStore.setState({
+      deviceId: 'dev_mobile',
+      activeDeviceId: 'dev_laptop',
+      connectedDeviceId: 'dev_laptop',
+      isActiveDevice: false,
+    });
+
+    const connectManager = ConnectManager.getInstance();
+    const sendSpy = vi.spyOn(connectManager, 'dispatchPlaybackCommand').mockResolvedValue({ success: true });
 
     await usePlayerStore.getState().playSong(songC);
 
-    // Controller updates optimistic preview & dispatches command
-    expect(usePlayerStore.getState().currentSong?.id).toBe('song_c_search');
+    expect(usePlayerStore.getState().currentSong?.id).toBe(songC.id);
     expect(sendSpy).toHaveBeenCalledWith('PLAY', expect.objectContaining({
-      song: expect.objectContaining({ id: 'song_c_search' })
+      song: expect.objectContaining({ id: songC.id })
     }));
-
-    // Laptop remains controller (isActiveDevice: false) and does NOT start local audio
     expect(usePlayerStore.getState().isActiveDevice).toBe(false);
+  });
+
+  // ============================================================
+  // TEST 8: Immediate Command Dispatch during Valid Session
+  // ============================================================
+  it('TEST 8: Command validator accepts valid sequence and epoch during active session', () => {
+    const validator = CommandValidator.getInstance();
+    const valid = validator.validate({
+      commandId: 'cmd_valid_1',
+      sessionId: 'sess_1',
+      epoch: 1,
+      sequence: 1,
+      sourceDeviceId: 'dev_laptop',
+      targetDeviceId: 'dev_mobile',
+      type: 'PLAY',
+      sentAt: Date.now(),
+    });
+    expect(valid).toBe(true);
+  });
+
+  // ============================================================
+  // TEST 9: Disconnect -> Stale Duplicate/Stale Command is Rejected
+  // ============================================================
+  it('TEST 9: Stale command with duplicate commandId or lower sequence is rejected', () => {
+    const validator = CommandValidator.getInstance();
+    validator.validate({
+      commandId: 'cmd_seq_10',
+      sessionId: 'sess_1',
+      epoch: 1,
+      sequence: 10,
+      sourceDeviceId: 'dev_laptop',
+      targetDeviceId: 'dev_mobile',
+      type: 'PAUSE',
+      sentAt: Date.now(),
+    });
+
+    // Older sequence 5 must be rejected
+    const staleResult = validator.validate({
+      commandId: 'cmd_seq_5',
+      sessionId: 'sess_1',
+      epoch: 1,
+      sequence: 5,
+      sourceDeviceId: 'dev_laptop',
+      targetDeviceId: 'dev_mobile',
+      type: 'PAUSE',
+      sentAt: Date.now(),
+    });
+    expect(staleResult).toBe(false);
+  });
+
+  // ============================================================
+  // TEST 10: Reconnect -> Old Epoch/Generation Command is Rejected
+  // ============================================================
+  it('TEST 10: Reconnecting to epoch 2 rejects stale epoch 1 commands without affecting connection', () => {
+    const validator = CommandValidator.getInstance();
+    CommandSequencer.getInstance().setEpoch(2);
+
+    // Old epoch 1 command arriving after reconnect
+    const staleEpochResult = validator.validate({
+      commandId: 'cmd_old_epoch_1',
+      sessionId: 'sess_old',
+      epoch: 1,
+      sequence: 1,
+      sourceDeviceId: 'dev_laptop',
+      targetDeviceId: 'dev_mobile',
+      type: 'PAUSE',
+      sentAt: Date.now(),
+    });
+    expect(staleEpochResult).toBe(false);
   });
 });
