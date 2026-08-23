@@ -797,18 +797,32 @@ export const usePlayerStore = create<PlayerState>()(
 
       getPlaybackSnapshot: () => {
         const state = get();
+        const deviceName = typeof window !== 'undefined' ? (localStorage.getItem('raagax_device_name') || 'RaagaX Player') : 'RaagaX Player';
         return {
           sessionId: state.playbackSession?.sessionId || 'local_session',
           deviceId: state.deviceId || 'local_device',
+          activeDeviceId: state.activeDeviceId || state.deviceId || 'local_device',
+          activeDeviceName: deviceName,
           currentTrackId: state.currentSong?.id || null,
-          positionMs: state.currentTime * 1000,
+          songId: state.currentSong?.id || null,
+          songData: state.currentSong ? { ...state.currentSong } : null,
+          positionMs: Math.round(state.currentTime * 1000),
           timestampMs: state.serverTimestamp || Date.now(),
+          serverTimestamp: Date.now(),
           isPlaying: state.isPlaying,
           sequence: state.playbackSession?.revision || 1,
+          revision: state.localPlaybackRevision || 1,
           context: state.playbackContext || undefined,
-          durationMs: state.duration * 1000,
+          durationMs: Math.round(state.duration * 1000),
+          queue: state.queue || [],
+          queueIndex: state.queueIndex || 0,
+          shuffleMode: state.shuffleMode,
+          repeatMode: state.repeatMode,
+          volume: state.volume,
+          isMuted: state.isMuted,
         };
       },
+
 
       calculateLiveTime: () => {
         const { calculateLivePositionMs } = require('@/lib/connect/types');

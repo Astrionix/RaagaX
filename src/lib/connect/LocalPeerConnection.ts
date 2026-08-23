@@ -248,9 +248,15 @@ export class LocalPeerConnection {
               
               // Mark direct peer available for routing via TransportRouter
               TransportRouter.getInstance().onLanChannelAvailable(targetId);
+
+              // Broadcast live state immediately upon accepting connection
+              if (store.isActiveDevice) {
+                PlaybackStateSync.getInstance().broadcastState(true);
+              }
             }).catch(() => {});
             break;
           }
+
 
           case 'CONNECT_REJECT': {
             console.warn(`[LocalPeer][gen=${generation}] Connection rejected by ${targetId}: ${msg.reason || 'Unauthorized'}`);

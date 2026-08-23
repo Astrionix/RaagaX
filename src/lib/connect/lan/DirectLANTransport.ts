@@ -243,7 +243,19 @@ export class DirectLANTransport {
       return;
     }
 
+    if (msg.type === 'CMD_STATE_REQUEST' as any || msg.type === 'STATE_REQUEST' as any || msg.type === 'GET_STATE' as any) {
+      try {
+        const { usePlayerStore } = require('@/context/usePlayerStore');
+        const store = usePlayerStore.getState();
+        if (store.isActiveDevice) {
+          const { PlaybackStateSync } = require('../PlaybackStateSync');
+          PlaybackStateSync.getInstance().broadcastState(true);
+        }
+      } catch {}
+    }
+
     if (msg.type === 'DISCONNECT' as any || msg.type === 'DISCONNECT_REQUEST' as any) {
+
       console.log(`[DirectLANTransport] Received peer disconnect notice from ${msg.sourceDeviceId}`);
       this.disconnectFromDevice(msg.sourceDeviceId);
       try {

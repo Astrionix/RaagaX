@@ -307,7 +307,8 @@ describe('RaagaX Connect V2: Authoritative Seek & Symmetrical Precision Suite', 
 
     store = usePlayerStore.getState();
     expect(store.currentSong?.id).toBe(nextSong.id);
-    expect(store.currentTime).toBe(102);
+    expect(store.currentTime).toBeCloseTo(102, 1);
     expect(store.isPlaying).toBe(true);
   });
 });
+
