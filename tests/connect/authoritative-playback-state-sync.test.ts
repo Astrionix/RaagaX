@@ -200,6 +200,7 @@ describe('RAAGAX CONNECT — TWO-WAY PLAYBACK CONTROL & AUTHORITATIVE STATE SYNC
       targetDeviceId: 'dev_mobile',
       type: 'NEXT',
       sentAt: Date.now(),
+      payload: {}
     });
 
     const state = usePlayerStore.getState();
@@ -235,6 +236,7 @@ describe('RAAGAX CONNECT — TWO-WAY PLAYBACK CONTROL & AUTHORITATIVE STATE SYNC
       targetDeviceId: 'dev_laptop',
       type: 'NEXT',
       sentAt: Date.now(),
+      payload: {}
     });
 
     const state = usePlayerStore.getState();
@@ -331,6 +333,7 @@ describe('RAAGAX CONNECT — TWO-WAY PLAYBACK CONTROL & AUTHORITATIVE STATE SYNC
       targetDeviceId: 'dev_mobile',
       type: 'PLAY',
       sentAt: Date.now(),
+      payload: {}
     });
     expect(valid).toBe(true);
   });
@@ -349,6 +352,7 @@ describe('RAAGAX CONNECT — TWO-WAY PLAYBACK CONTROL & AUTHORITATIVE STATE SYNC
       targetDeviceId: 'dev_mobile',
       type: 'PAUSE',
       sentAt: Date.now(),
+      payload: {}
     });
 
     // Older sequence 5 must be rejected
@@ -361,6 +365,7 @@ describe('RAAGAX CONNECT — TWO-WAY PLAYBACK CONTROL & AUTHORITATIVE STATE SYNC
       targetDeviceId: 'dev_mobile',
       type: 'PAUSE',
       sentAt: Date.now(),
+      payload: {}
     });
     expect(staleResult).toBe(false);
   });
@@ -382,7 +387,43 @@ describe('RAAGAX CONNECT — TWO-WAY PLAYBACK CONTROL & AUTHORITATIVE STATE SYNC
       targetDeviceId: 'dev_mobile',
       type: 'PAUSE',
       sentAt: Date.now(),
+      payload: {}
     });
     expect(staleEpochResult).toBe(false);
   });
+
+  // ============================================================
+  // TEST 11: Natural Track Transition Protection
+  // ============================================================
+  it('TEST 11: Natural track transition must NOT trigger intermediate pause or set isPlaying=false during loading', async () => {
+    usePlayerStore.setState({
+      isPlaying: true,
+      playbackIntent: 'PLAYING',
+      isActiveDevice: true
+    });
+
+    const { PlaybackService } = await import('@/lib/playback/PlaybackService');
+    const service = PlaybackService.getInstance();
+    
+    // Set activeTag to A
+    (service as any).activeTag = 'A';
+
+    // Simulate active track transition in progress
+    (service as any).isTransitioning = true;
+
+    // Trigger browser pause event on activeTag
+    (service as any).handleNativePlayState('A', false);
+
+    // Verify that the store is STILL playing and the playback intent is still PLAYING
+    expect(usePlayerStore.getState().isPlaying).toBe(true);
+    expect(usePlayerStore.getState().playbackIntent).toBe('PLAYING');
+
+    // Simulate transition end / playback started
+    (service as any).isTransitioning = false;
+    (service as any).handleNativePlayState('A', true);
+
+    expect(usePlayerStore.getState().isPlaying).toBe(true);
+    expect(usePlayerStore.getState().playbackIntent).toBe('PLAYING');
+  });
 });
+

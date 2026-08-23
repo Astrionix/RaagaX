@@ -225,7 +225,8 @@ export class PlaybackService {
     const index = options.startIndex || 0;
     const firstSong = options.songs[index] || options.songs[0];
     
-    const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+    const store = usePlayerStore.getState();
+
     store.playSong(firstSong, options.songs);
     return true;
   }
@@ -851,7 +852,8 @@ export class PlaybackService {
     const active = this.getActiveAudio();
     if (!active) return;
 
-    const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+    const store = usePlayerStore.getState();
+
     if (!isNaN(active.duration) && Number.isFinite(active.duration) && active.duration > 0) {
       store.setDuration(active.duration);
       if (active.dataset.trackId) {
@@ -868,7 +870,7 @@ export class PlaybackService {
     if (RaagaXNativePlayer.isNative()) return;
     if (tag !== this.activeTag) return;
 
-    const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+    const store = usePlayerStore.getState();
     // CRITICAL: If video is the active renderer, the HTML5 audio element's pause event must NOT overwrite store isPlaying!
     if (store.activeRenderer === 'video') {
       return;
@@ -887,10 +889,17 @@ export class PlaybackService {
     }
 
     if (store.isActiveDevice) {
+      // Guard: Ignore browser pause events during active track transitions/loading to prevent fake pause broadcasts
+      if (this.isTransitioning && !livePlaying) {
+        console.log(`[PlaybackService] Guarded handleNativePlayState pause event during active track transition for tag ${tag}`);
+        return;
+      }
+
       if (store.isPlaying !== livePlaying) {
         store.setIsPlaying(livePlaying, true);
       }
     }
+
   }
 
   private handleNativeEnded(tag: 'A' | 'B') {
@@ -902,7 +911,7 @@ export class PlaybackService {
 
     const generation = Number(active.dataset.playbackRequestId || active.dataset.playbackGeneration || 0);
     const endedTrackId = active.dataset.trackId;
-    const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+    const store = usePlayerStore.getState();
     const currentReq = this.playbackRequestId || this.playbackGeneration;
 
     // Idempotency check: ignore stale or duplicate ended events
@@ -981,7 +990,8 @@ export class PlaybackService {
 
     console.warn(`[PLAYBACK PIPELINE] Audio stream error on audio ${tag}:`, e);
 
-    const store = require('@/context/usePlayerStore').usePlayerStore.getState();
+    const store = usePlayerStore.getState();
+
     const currentSong = store.currentSong;
     const shouldResume = store.isPlaying && store.playbackIntent === 'PLAYING';
 
