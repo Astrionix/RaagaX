@@ -60,8 +60,6 @@ export class PlaybackOwnerEngine {
         }
       }
     });
-
-    this.startOwnerHeartbeat();
   }
 
   public static getInstance(): PlaybackOwnerEngine {

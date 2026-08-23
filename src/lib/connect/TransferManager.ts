@@ -528,6 +528,10 @@ export class TransferManager {
       }
     }
 
+    if (typeof targetPositionMs !== 'number') {
+      targetPositionMs = PlaybackEngine.getInstance().getCanonicalPositionMs();
+    }
+
     const commitPayload: TransferCommitPayload = {
       transactionId: command.transitionId || (command.payload as any)?.transactionId || this.activeTransitionId || 'tr_commit',
       shouldResume,
@@ -553,7 +557,19 @@ export class TransferManager {
       payload: commitPayload
     };
 
-    console.log(`[TransferManager] [TRANSFER ${command.transitionId}] Dispatching TRANSFER_COMMIT to ${command.sourceDeviceId}`, commitPayload);
+    console.log(`[TransferManager] [TRANSFER ${command.transitionId}] Dispatching TRANSFER_COMMIT to ${command.sourceDeviceId} (Live Pos: ${targetPositionMs}ms)`, commitPayload);
+    
+    // Atomic handoff: pause source audio renderer immediately upon committing
+    try {
+      const { PlaybackService } = await import('@/lib/playback/PlaybackService');
+      const { RaagaXNativePlayer } = await import('../playback/native/RaagaXNativePlayer');
+      if (RaagaXNativePlayer.isNative()) {
+        RaagaXNativePlayer.pause();
+      } else {
+        PlaybackService.getInstance().pause();
+      }
+    } catch {}
+
     await ConnectManager.getInstance().sendTargetedCommand(command.sourceDeviceId, commitCommand);
 
     this.clearStageTimeout();
@@ -648,6 +664,12 @@ export class TransferManager {
         PlaybackService.getInstance().seek(seekSec, true);
         if (payload.shouldResume) PlaybackService.getInstance().play();
       } else if (payload?.shouldResume) {
+        if (typeof payload.targetPositionMs === 'number' && payload.targetPositionMs > 0) {
+          const seekSec = payload.targetPositionMs / 1000;
+          usePlayerStore.setState({ currentTime: seekSec, isPlaying: true });
+          const { PlaybackService } = await import('@/lib/playback/PlaybackService');
+          PlaybackService.getInstance().seek(seekSec, true);
+        }
         const { RaagaXNativePlayer } = await import('../playback/native/RaagaXNativePlayer');
         if (RaagaXNativePlayer.isNative()) {
           console.log('[TransferReceiver] Resuming native Android ExoPlayer on commit');
