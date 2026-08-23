@@ -739,7 +739,7 @@ export const usePlayerStore = create<PlayerState>()(
         if (targetDeviceId === deviceId && (!isActiveDevice || connectedDeviceId)) {
           console.log(`[TransferManager] Transferring playback BACK to local device (${deviceId}) from remote (${connectedDeviceId})`);
           const { ConnectManager } = await import('@/lib/connect/ConnectManager');
-          ConnectManager.getInstance().disconnectFromDevice();
+          await ConnectManager.getInstance().disconnectFromDevice();
 
           set({
             isActiveDevice: true,
@@ -1684,6 +1684,16 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       addToQueue: (song) => {
+        const isRemote = !get().isActiveDevice && Boolean(get().connectedDeviceId);
+        if (isRemote) {
+          try {
+            import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+              ConnectManager.getInstance().dispatchPlaybackCommand('ADD_TO_QUEUE', { song, playNext: false });
+            }).catch(() => {});
+          } catch {}
+          return;
+        }
+
         const manager = QueueManager.getInstance();
         manager.addToQueue(song);
         const snapshot = manager.getSnapshot();
@@ -1692,8 +1702,23 @@ export const usePlayerStore = create<PlayerState>()(
         set({ queue: syncedQueue, queueIndex: syncedIndex });
 
         PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
+        if (get().isActiveDevice) {
+          import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+            PlaybackStateSync.getInstance().broadcastState(true);
+          }).catch(() => {});
+        }
       },
       playNextInQueue: (song) => {
+        const isRemote = !get().isActiveDevice && Boolean(get().connectedDeviceId);
+        if (isRemote) {
+          try {
+            import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+              ConnectManager.getInstance().dispatchPlaybackCommand('ADD_TO_QUEUE', { song, playNext: true });
+            }).catch(() => {});
+          } catch {}
+          return;
+        }
+
         const manager = QueueManager.getInstance();
         manager.playNext(song);
         const snapshot = manager.getSnapshot();
@@ -1702,18 +1727,26 @@ export const usePlayerStore = create<PlayerState>()(
         set({ queue: syncedQueue, queueIndex: syncedIndex });
 
         PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
+        if (get().isActiveDevice) {
+          import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+            PlaybackStateSync.getInstance().broadcastState(true);
+          }).catch(() => {});
+        }
       },
       playLastInQueue: (song) => {
-        const manager = QueueManager.getInstance();
-        manager.addToQueue(song);
-        const snapshot = manager.getSnapshot();
-        const syncedQueue = snapshot.items.map((i: any) => i.song);
-        const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
-        set({ queue: syncedQueue, queueIndex: syncedIndex });
-
-        PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
+        get().addToQueue(song);
       },
       removeFromQueue: (songId) => {
+        const isRemote = !get().isActiveDevice && Boolean(get().connectedDeviceId);
+        if (isRemote) {
+          try {
+            import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+              ConnectManager.getInstance().dispatchPlaybackCommand('REMOVE_FROM_QUEUE', { songId });
+            }).catch(() => {});
+          } catch {}
+          return;
+        }
+
         const manager = QueueManager.getInstance();
         const items = manager.getAllItems();
         const target = items.find((i: any) => i.trackId === songId);
@@ -1725,16 +1758,46 @@ export const usePlayerStore = create<PlayerState>()(
           set({ queue: syncedQueue, queueIndex: syncedIndex });
 
           PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
+          if (get().isActiveDevice) {
+            import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+              PlaybackStateSync.getInstance().broadcastState(true);
+            }).catch(() => {});
+          }
         }
       },
       reorderQueue: (newQueue) => {
+        const isRemote = !get().isActiveDevice && Boolean(get().connectedDeviceId);
+        if (isRemote) {
+          try {
+            import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+              ConnectManager.getInstance().dispatchPlaybackCommand('QUEUE_SHUFFLE_COMMIT', { queue: newQueue });
+            }).catch(() => {});
+          } catch {}
+          return;
+        }
+
         const manager = QueueManager.getInstance();
         manager.replaceQueue(newQueue, get().queueIndex, 'USER');
         set({ queue: newQueue });
 
         PlaybackService.getInstance().loadQueueContext(newQueue, get().queueIndex);
+        if (get().isActiveDevice) {
+          import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+            PlaybackStateSync.getInstance().broadcastState(true);
+          }).catch(() => {});
+        }
       },
       clearQueue: () => {
+        const isRemote = !get().isActiveDevice && Boolean(get().connectedDeviceId);
+        if (isRemote) {
+          try {
+            import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+              ConnectManager.getInstance().dispatchPlaybackCommand('CLEAR_QUEUE');
+            }).catch(() => {});
+          } catch {}
+          return;
+        }
+
         const { queue, queueIndex } = get();
         // Keep active song and past history, remove only upcoming tracks
         const remainingQueue = queue.slice(0, queueIndex + 1);
@@ -1743,8 +1806,23 @@ export const usePlayerStore = create<PlayerState>()(
         set({ queue: remainingQueue });
 
         PlaybackService.getInstance().loadQueueContext(remainingQueue, queueIndex);
+        if (get().isActiveDevice) {
+          import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+            PlaybackStateSync.getInstance().broadcastState(true);
+          }).catch(() => {});
+        }
       },
       moveQueueItem: (fromUpNextIndex: number, toUpNextIndex: number) => {
+        const isRemote = !get().isActiveDevice && Boolean(get().connectedDeviceId);
+        if (isRemote) {
+          try {
+            import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
+              ConnectManager.getInstance().dispatchPlaybackCommand('MOVE_QUEUE_ITEM', { fromUpNextIndex, toUpNextIndex });
+            }).catch(() => {});
+          } catch {}
+          return;
+        }
+
         const { queue, queueIndex } = get();
         const pastAndCurrent = queue.slice(0, queueIndex + 1);
         const upNext = [...queue.slice(queueIndex + 1)];
@@ -1764,6 +1842,11 @@ export const usePlayerStore = create<PlayerState>()(
         set({ queue: newQueue });
 
         PlaybackService.getInstance().loadQueueContext(newQueue, queueIndex);
+        if (get().isActiveDevice) {
+          import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+            PlaybackStateSync.getInstance().broadcastState(true);
+          }).catch(() => {});
+        }
       },
 
       playNextSequence: (songs: Song[]) => {
@@ -1778,6 +1861,11 @@ export const usePlayerStore = create<PlayerState>()(
         set({ queue: newQueue });
 
         PlaybackService.getInstance().loadQueueContext(newQueue, queueIndex);
+        if (get().isActiveDevice) {
+          import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
+            PlaybackStateSync.getInstance().broadcastState(true);
+          }).catch(() => {});
+        }
       },
 
       deduplicateQueue: () => {

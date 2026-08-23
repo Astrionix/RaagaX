@@ -670,7 +670,7 @@ export class ConnectManager {
       return { success: false, reason: 'offline_state' };
     }
     
-    if (targetDeviceId && ['PLAY', 'PAUSE', 'NEXT', 'PREV', 'SEEK'].includes(type)) {
+    if (targetDeviceId && ['PLAY', 'PAUSE', 'NEXT', 'PREV', 'PREVIOUS', 'SEEK', 'SET_VOLUME', 'ADD_TO_QUEUE', 'REMOVE_FROM_QUEUE', 'MOVE_QUEUE_ITEM', 'CLEAR_QUEUE', 'PLAY_TRACK', 'STOP'].includes(type)) {
       const { SingleFlightCommandQueue } = await import('./SingleFlightCommandQueue');
       return SingleFlightCommandQueue.getInstance().executeSingleFlight(
         targetDeviceId,
@@ -709,7 +709,7 @@ export class ConnectManager {
       }
     };
 
-    if (type === 'PLAY' || type === 'PAUSE' || type === 'SEEK' || type === 'NEXT' || type === 'PREV' || type === 'SET_VOLUME') {
+    if (type === 'PLAY' || type === 'PAUSE' || type === 'SEEK' || type === 'NEXT' || type === 'PREV' || type === 'PREVIOUS' || type === 'SET_VOLUME' || type === 'ADD_TO_QUEUE' || type === 'REMOVE_FROM_QUEUE' || type === 'MOVE_QUEUE_ITEM' || type === 'CLEAR_QUEUE' || type === 'PLAY_TRACK' || type === 'STOP') {
       const { PlaybackStateSync } = await import('./PlaybackStateSync');
       PlaybackStateSync.getInstance().recordSentCommand(
         type,
@@ -748,8 +748,8 @@ export class ConnectManager {
           );
 
           if (result.sent && result.via !== 'CLOUD_RELAY') {
-            // LAN delivery: optimistically resolve playback control commands immediately
-            if (['PLAY', 'PAUSE', 'SEEK', 'SET_VOLUME', 'NEXT', 'PREV'].includes(type)) {
+            // LAN delivery: optimistically resolve playback and queue commands immediately
+            if (['PLAY', 'PAUSE', 'SEEK', 'SET_VOLUME', 'NEXT', 'PREV', 'PREVIOUS', 'ADD_TO_QUEUE', 'REMOVE_FROM_QUEUE', 'MOVE_QUEUE_ITEM', 'CLEAR_QUEUE', 'PLAY_TRACK', 'STOP'].includes(type)) {
               clearTimeout(timeout);
               this.pendingCommandResolvers.delete(commandId);
               resolve({ success: true });

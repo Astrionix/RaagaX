@@ -58,9 +58,17 @@ export type ConnectCommandType =
   | "POSITION_PREVIEW"  // HIGH_FREQUENCY: local only, never sent  
   | "NEXT"
   | "PREV"
+  | "PREVIOUS"
   | "SET_VOLUME"
   | "SET_SHUFFLE"
   | "SET_REPEAT"
+  | "ADD_TO_QUEUE"
+  | "REMOVE_FROM_QUEUE"
+  | "MOVE_QUEUE_ITEM"
+  | "CLEAR_QUEUE"
+  | "PLAY_TRACK"
+  | "STOP"
+  | "TRANSFER_PLAYBACK"
   | "TRANSFER_REQUEST"
   | "TRANSFER_ACCEPTED"
   | "TRANSFER_PREPARING"
@@ -99,6 +107,14 @@ export const COMMAND_CLASS_MAP: Readonly<Record<ConnectCommandType, CommandClass
   SEEK:                'CRITICAL',
   NEXT:                'CRITICAL',
   PREV:                'CRITICAL',
+  PREVIOUS:            'CRITICAL',
+  ADD_TO_QUEUE:        'CRITICAL',
+  REMOVE_FROM_QUEUE:   'CRITICAL',
+  MOVE_QUEUE_ITEM:     'CRITICAL',
+  CLEAR_QUEUE:         'CRITICAL',
+  PLAY_TRACK:          'CRITICAL',
+  STOP:                'CRITICAL',
+  TRANSFER_PLAYBACK:   'CRITICAL',
   TRANSFER_REQUEST:    'CRITICAL',
   TRANSFER_ACCEPTED:   'CRITICAL',
   TRANSFER_PREPARING:  'CRITICAL',

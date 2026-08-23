@@ -290,7 +290,8 @@ export class CommandBus {
         break;
       }
 
-      case 'PREV': {
+      case 'PREV':
+      case 'PREVIOUS': {
         // AUTHORITATIVE OWNER ONLY: Non-owner controllers must NOT advance local queue.
         // They will receive the authoritative track metadata via PLAYBACK_STATE broadcast from the owner.
         const isOwner = store.isActiveDevice && !store.connectedDeviceId;
@@ -322,6 +323,182 @@ export class CommandBus {
               PlaybackStateSync.getInstance().broadcastState(true);
             });
           });
+        }
+        break;
+      }
+
+      case 'ADD_TO_QUEUE': {
+        const p = (command.payload || {}) as any;
+        const song = p.song || p.songData;
+        if (song) {
+          const manager = QueueManager.getInstance();
+          if (p.playNext) {
+            manager.playNext(song);
+          } else {
+            manager.addToQueue(song, p.source || 'USER');
+          }
+          const snapshot = manager.getSnapshot();
+          const syncedQueue = snapshot.items.map((i: any) => i.song);
+          const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
+          usePlayerStore.setState({
+            queue: syncedQueue,
+            queueIndex: syncedIndex
+          });
+          if (store.isActiveDevice) {
+            PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
+            import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+              PlaybackStateSync.getInstance().broadcastState(true);
+            });
+          }
+        }
+        break;
+      }
+
+      case 'REMOVE_FROM_QUEUE': {
+        const p = (command.payload || {}) as any;
+        const songId = p.songId || p.trackId || p.queueItemId;
+        if (songId) {
+          const manager = QueueManager.getInstance();
+          const items = manager.getAllItems();
+          const target = items.find((i: any) => i.trackId === songId || i.queueItemId === songId);
+          if (target) {
+            manager.removeItem(target.queueItemId);
+            const snapshot = manager.getSnapshot();
+            const syncedQueue = snapshot.items.map((i: any) => i.song);
+            const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
+            usePlayerStore.setState({
+              queue: syncedQueue,
+              queueIndex: syncedIndex
+            });
+            if (store.isActiveDevice) {
+              PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
+              import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+                PlaybackStateSync.getInstance().broadcastState(true);
+              });
+            }
+          }
+        }
+        break;
+      }
+
+      case 'MOVE_QUEUE_ITEM': {
+        const p = (command.payload || {}) as any;
+        const fromIdx = p.fromUpNextIndex ?? p.fromIndex;
+        const toIdx = p.toUpNextIndex ?? p.toIndex;
+        const { queue, queueIndex } = usePlayerStore.getState();
+        const pastAndCurrent = queue.slice(0, queueIndex + 1);
+        const upNext = [...queue.slice(queueIndex + 1)];
+        if (fromIdx >= 0 && fromIdx < upNext.length && toIdx >= 0 && toIdx < upNext.length) {
+          const [moved] = upNext.splice(fromIdx, 1);
+          upNext.splice(toIdx, 0, moved);
+          const newQueue = [...pastAndCurrent, ...upNext];
+          const manager = QueueManager.getInstance();
+          manager.replaceQueue(newQueue, queueIndex, 'USER');
+          usePlayerStore.setState({ queue: newQueue });
+          if (store.isActiveDevice) {
+            PlaybackService.getInstance().loadQueueContext(newQueue, queueIndex);
+            import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+              PlaybackStateSync.getInstance().broadcastState(true);
+            });
+          }
+        }
+        break;
+      }
+
+      case 'CLEAR_QUEUE': {
+        const { queue, queueIndex } = usePlayerStore.getState();
+        const remainingQueue = queue.slice(0, queueIndex + 1);
+        const manager = QueueManager.getInstance();
+        manager.replaceQueue(remainingQueue, queueIndex, 'USER');
+        usePlayerStore.setState({ queue: remainingQueue });
+        if (store.isActiveDevice) {
+          PlaybackService.getInstance().loadQueueContext(remainingQueue, queueIndex);
+          import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+            PlaybackStateSync.getInstance().broadcastState(true);
+          });
+        }
+        break;
+      }
+
+      case 'QUEUE_SHUFFLE_COMMIT': {
+        const p = (command.payload || {}) as any;
+        if (p.queue && Array.isArray(p.queue)) {
+          const manager = QueueManager.getInstance();
+          const qIdx = typeof p.queueIndex === 'number' ? p.queueIndex : store.queueIndex;
+          manager.replaceQueue(p.queue, qIdx, 'USER');
+          usePlayerStore.setState({ queue: p.queue, queueIndex: qIdx });
+          if (store.isActiveDevice) {
+            PlaybackService.getInstance().loadQueueContext(p.queue, qIdx);
+            import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+              PlaybackStateSync.getInstance().broadcastState(true);
+            });
+          }
+        }
+        break;
+      }
+
+      case 'PLAY_TRACK': {
+        const p = (command.payload || {}) as any;
+        const songData = p.song || p.songData;
+        if (songData) {
+          const manager = QueueManager.getInstance();
+          if (p.queue && Array.isArray(p.queue)) {
+            const idx = typeof p.queueIndex === 'number' ? p.queueIndex : 0;
+            manager.replaceQueue(p.queue, idx, 'PLAYLIST');
+          } else {
+            manager.playNow(songData);
+          }
+          const snapshot = manager.getSnapshot();
+          const syncedQueue = snapshot.items.map((i: any) => i.song);
+          const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
+          usePlayerStore.setState({
+            currentSong: songData,
+            currentTime: (p.positionMs || 0) / 1000,
+            queue: syncedQueue.length > 0 ? syncedQueue : store.queue,
+            queueIndex: syncedIndex,
+            isPlaying: true,
+            playbackIntent: 'PLAYING'
+          });
+          if (store.isActiveDevice) {
+            PlaybackService.getInstance().playTrack(songData, true).then(() => {
+              if (p.positionMs && p.positionMs > 0) {
+                PlaybackService.getInstance().seek(p.positionMs / 1000, true);
+              }
+              import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+                PlaybackStateSync.getInstance().broadcastState(true);
+              });
+            });
+          }
+        }
+        break;
+      }
+
+      case 'STOP': {
+        if (store.isActiveDevice) {
+          import('../playback/native/RaagaXNativePlayer').then(({ RaagaXNativePlayer }) => {
+            if (RaagaXNativePlayer.isNative()) {
+              RaagaXNativePlayer.pause();
+            } else {
+              PlaybackService.getInstance().pause();
+            }
+          });
+          import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+            PlaybackStateSync.getInstance().broadcastState(true);
+          });
+        }
+        usePlayerStore.setState({
+          isPlaying: false,
+          playbackIntent: 'PAUSED',
+          currentTime: 0
+        });
+        break;
+      }
+
+      case 'TRANSFER_PLAYBACK': {
+        const p = (command.payload || {}) as any;
+        const targetId = p.targetDeviceId || command.targetDeviceId;
+        if (targetId) {
+          TransferManager.getInstance().initiateTransfer(targetId);
         }
         break;
       }

@@ -352,7 +352,7 @@ export function MobileDeviceConnectModal() {
                       />
                     </div>
 
-                    {/* Dedicated ◀ ▶/⏸ ▶ Controls */}
+                    {/* Dedicated ◀ ▶/⏸ ▶ Controls & Volume Slider */}
                     <div className="flex items-center justify-center gap-6 pt-1">
                       <button 
                         onClick={() => playPrev()}
@@ -375,6 +375,22 @@ export function MobileDeviceConnectModal() {
                       >
                         <SkipForward className="w-5 h-5 fill-current" />
                       </button>
+                    </div>
+
+                    <div className="flex items-center justify-center gap-3 pt-2 max-w-xs mx-auto">
+                      <Volume2 className="w-4 h-4 text-slate-400" />
+                      <input 
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={safeVolume}
+                        onChange={(e) => setVolume(parseFloat(e.target.value))}
+                        className="w-48 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-[#FA233B]"
+                      />
+                      <span className="text-[10px] font-mono text-slate-400 w-8 text-right">
+                        {Math.round(safeVolume * 100)}%
+                      </span>
                     </div>
                   </div>
                 )}
