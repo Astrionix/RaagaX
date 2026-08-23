@@ -1532,6 +1532,20 @@ export const usePlayerStore = create<PlayerState>()(
 
       playNext: async () => {
         if (!get().isActiveDevice) {
+          // Optimistic UI for Controller: immediately advance local track preview!
+          const { queue, queueIndex, repeatMode } = get();
+          if (queue && queue.length > 0) {
+            const nextIdx = getNextQueueIndex(queue, queueIndex, repeatMode);
+            if (nextIdx >= 0 && nextIdx < queue.length) {
+              set({
+                currentSong: queue[nextIdx],
+                queueIndex: nextIdx,
+                currentTime: 0,
+                isPlaying: true,
+                playbackIntent: 'PLAYING',
+              });
+            }
+          }
           try {
             const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
             RaagaXConnectV2.getInstance().sendCommand('CMD_NEXT');
@@ -1582,6 +1596,22 @@ export const usePlayerStore = create<PlayerState>()(
 
       playPrev: async () => {
         if (!get().isActiveDevice) {
+          // Optimistic UI for Controller: immediately advance local track preview!
+          const { queue, queueIndex, repeatMode, currentTime } = get();
+          if (currentTime > 3) {
+            set({ currentTime: 0 });
+          } else if (queue && queue.length > 0) {
+            const prevIdx = getPreviousQueueIndex(queue, queueIndex, repeatMode);
+            if (prevIdx >= 0 && prevIdx < queue.length) {
+              set({
+                currentSong: queue[prevIdx],
+                queueIndex: prevIdx,
+                currentTime: 0,
+                isPlaying: true,
+                playbackIntent: 'PLAYING',
+              });
+            }
+          }
           try {
             const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
             RaagaXConnectV2.getInstance().sendCommand('CMD_PREV');

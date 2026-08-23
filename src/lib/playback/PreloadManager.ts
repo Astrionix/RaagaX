@@ -182,12 +182,24 @@ export class PreloadManager {
     }
   }
 
+  public preloadArtwork(url?: string | null) {
+    if (!url || typeof window === 'undefined') return;
+    try {
+      const img = new Image();
+      img.src = url;
+    } catch {}
+  }
+
   /**
    * evaluatePreload — Evaluates the queue and triggers preload for upcoming tracks
    */
   public async evaluatePreload(standbyElement: HTMLAudioElement | null) {
     const nextItem = QueueManager.getInstance().peekNext();
     if (!nextItem || !nextItem.song) return;
+
+    if (nextItem.song.coverUrl) {
+      this.preloadArtwork(nextItem.song.coverUrl);
+    }
 
     this.currentQueueItemId = nextItem.queueItemId;
 
