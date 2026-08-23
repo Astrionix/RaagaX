@@ -1102,6 +1102,10 @@ export const usePlayerStore = create<PlayerState>()(
         // If remote device (Connect / Cast)
         if (!get().isActiveDevice && get().connectedDeviceId) {
           try {
+            const { TrackChangeLock } = await import('@/lib/playback/TrackChangeLock');
+            TrackChangeLock.lock(track.id);
+          } catch {}
+          try {
             const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
             RaagaXConnectV2.getInstance().sendCommand('CMD_LOAD_TRACK', {
               song: track,

@@ -6,6 +6,7 @@ import { DeviceRegistry } from './DeviceRegistry';
 import { RaagaXNativePlayer } from '../playback/native/RaagaXNativePlayer';
 import { PlaybackService } from '../playback/PlaybackService';
 import { SeekLock } from '../playback/SeekLock';
+import { TrackChangeLock } from '../playback/TrackChangeLock';
 import { ClockSynchronizer } from './ClockSynchronizer';
 import { QueueManager } from '../queue/QueueManager';
 
@@ -239,6 +240,14 @@ export class PlaybackStateSync {
     const lastRemoteRevision = store.lastReceivedPlaybackRevision || 0;
     const incomingRevision = remoteState.revision || 0;
     const isTrackChange = Boolean(remoteState.songId && remoteState.songId !== store.currentSong?.id);
+
+    // TrackChangeLock Shielding: if the remote device hasn't loaded our optimistically switched song yet, ignore the old state
+    if (TrackChangeLock.isLocked(remoteState.songId)) {
+      console.log(`[PlaybackStateSync] Shielding remote state for song ${remoteState.songId} - waiting for target track: ${TrackChangeLock.lockedTrackId}`);
+      return;
+    } else if (remoteState.songId) {
+      TrackChangeLock.unlock();
+    }
 
     if (incomingRevision <= lastRemoteRevision && lastRemoteRevision > 0 && !isTrackChange) {
       console.log(`[CONNECT][REMOTE] Ignoring stale remote state revision ${incomingRevision} <= last ${lastRemoteRevision}`);
