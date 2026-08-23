@@ -45,6 +45,7 @@ export class DeviceDiscoveryEngine {
 
     console.log('[DeviceDiscoveryEngine] Starting Multi-Layer Discovery Engine...');
     try {
+      DeviceRegistry.getInstance().sendDiscoveryPing();
       this.runDiscoveryCycle();
     } catch (err) {
       console.warn('[DeviceDiscoveryEngine] Discovery initial cycle error:', err);
@@ -52,11 +53,12 @@ export class DeviceDiscoveryEngine {
 
     this.discoveryInterval = setInterval(() => {
       try {
+        DeviceRegistry.getInstance().sendDiscoveryPing();
         this.runDiscoveryCycle();
       } catch (err) {
         console.warn('[DeviceDiscoveryEngine] Discovery interval cycle error:', err);
       }
-    }, 4000);
+    }, 3000);
 
     // Heartbeat monitor for stale device cleanup
     this.heartbeatInterval = setInterval(() => {
@@ -82,6 +84,7 @@ export class DeviceDiscoveryEngine {
 
   public refreshDiscovery() {
     try {
+      DeviceRegistry.getInstance().sendDiscoveryPing();
       this.runDiscoveryCycle();
     } catch (err) {
       console.warn('[DeviceDiscoveryEngine] Refresh discovery error:', err);
@@ -198,6 +201,7 @@ export class DeviceDiscoveryEngine {
           ? existing.discoverySources
           : new Set<DiscoverySource>();
         sources.add('CLOUD');
+        sources.add('LAN');
 
         const isUserAccountDevice = DeviceRegistry.getInstance().isKnownUserDevice(record.id);
 
@@ -225,15 +229,15 @@ export class DeviceDiscoveryEngine {
           reachabilityState: state,
           discoverySources: sources,
           isTrusted: true,
-          isNearby: sources.has('LAN'),
+          isNearby: true,
           isAudioOutput: false,
           isSameAccount: isUserAccountDevice,
           accountRelationship: isUserAccountDevice ? 'SAME_ACCOUNT' : 'OTHER_ACCOUNT',
-          activePlaybackSong: isRemoteActive ? store.currentSong?.title : undefined,
+          activePlaybackSong: isRemoteActive ? store.currentSong?.title : devRecord.currentSongTitle,
           activePlaybackPositionMs: isRemoteActive ? (store.currentTime || 0) * 1000 : undefined,
           lastSeenTimestamp: isOnline ? Date.now() : existing?.lastSeenTimestamp || Date.now() - 300000,
           verifiedAtTimestamp: Date.now(),
-          rankingScore: isRemoteActive ? 900 : isOnline ? 500 : 100,
+          rankingScore: isRemoteActive ? 900 : isOnline ? 600 : 100,
         };
 
         this.verifiedDevices.set(record.id, updated);
@@ -244,8 +248,47 @@ export class DeviceDiscoveryEngine {
   }
 
   private async ingestLocalLANDevices(localDeviceId: string) {
-    // Ingest all local peer discovery / mDNS LAN devices without filtering out other accounts
     try {
+      const { LocalDiscoveryService } = await import('../lan/LocalDiscoveryService');
+      const lanDevices = LocalDiscoveryService.getInstance().getDiscoveredDevices();
+      for (const lan of lanDevices) {
+        if (!lan || lan.deviceId === localDeviceId) continue;
+        const isRemoteActive = usePlayerStore.getState().activeDeviceId === lan.deviceId;
+        const updated: VerifiedDevice = {
+          deviceId: lan.deviceId,
+          installationId: 'inst_' + lan.deviceId,
+          name: lan.deviceName || 'RaagaX Device',
+          type: (lan.deviceType as any) || 'desktop',
+          platform: (lan.platform as any) || 'Windows',
+          appVersion: lan.protocolVersion || '2.0.0',
+          protocolVersion: 2,
+          capabilities: {
+            audio: true,
+            video: false,
+            seek: true,
+            volume: true,
+            backgroundPlayback: lan.deviceType === 'mobile',
+            remoteControl: true,
+            offline: false,
+            connect: true,
+            queue: true,
+            transfer: true,
+          },
+          reachabilityState: isRemoteActive && usePlayerStore.getState().isPlaying ? 'CURRENTLY_PLAYING' : 'PLAYBACK_READY',
+          discoverySources: new Set(['LAN', 'TRUSTED']),
+          isTrusted: true,
+          isNearby: true,
+          isAudioOutput: false,
+          isSameAccount: lan.isSameAccount,
+          accountRelationship: lan.isSameAccount ? 'SAME_ACCOUNT' : 'OTHER_ACCOUNT',
+          activePlaybackSong: lan.activeSongTitle || (isRemoteActive ? usePlayerStore.getState().currentSong?.title : undefined),
+          lastSeenTimestamp: lan.lastSeen || Date.now(),
+          verifiedAtTimestamp: Date.now(),
+          rankingScore: isRemoteActive ? 950 : 700,
+        };
+        this.verifiedDevices.set(lan.deviceId, updated);
+      }
+
       this.verifiedDevices.forEach((device) => {
         if (device && device.deviceId !== localDeviceId && device.reachabilityState !== 'OFFLINE') {
           if (device.discoverySources instanceof Set) {
@@ -254,10 +297,6 @@ export class DeviceDiscoveryEngine {
             device.discoverySources = new Set(['LAN']);
           }
           device.isNearby = true;
-          // Dynamically resolve account relationship for LAN peers
-          const isOwn = DeviceRegistry.getInstance().isKnownUserDevice(device.deviceId);
-          device.isSameAccount = isOwn;
-          device.accountRelationship = isOwn ? 'SAME_ACCOUNT' : 'OTHER_ACCOUNT';
         }
       });
     } catch {}

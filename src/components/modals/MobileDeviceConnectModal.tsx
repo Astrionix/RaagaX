@@ -92,7 +92,7 @@ export function MobileDeviceConnectModal() {
     try {
       DeviceDiscoveryEngine.getInstance().refreshDiscovery();
     } catch {}
-    setTimeout(() => setIsScanning(false), 800);
+    setTimeout(() => setIsScanning(false), 500);
   };
 
   const handleControl = async (targetId: string, targetName: string) => {
@@ -104,10 +104,9 @@ export function MobileDeviceConnectModal() {
     setErrorMessage(null);
     try {
       import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact()).catch(() => {});
-      const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
-      const ok = await RaagaXConnectV2.getInstance().connectAndControl(targetId);
+      const ok = await usePlayerStore.getState().connectToDevice(targetId);
       if (ok) {
-        setTimeout(() => toggleDeviceModal(), 200);
+        toggleDeviceModal();
       } else {
         setErrorMessage(`Could not connect to ${targetName} for remote control.`);
       }
@@ -128,23 +127,15 @@ export function MobileDeviceConnectModal() {
 
     try {
       import('@/lib/haptics/HapticEngine').then(m => m.haptics.mediumImpact()).catch(() => {});
-      const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
       setHandoverStep(2);
-      const ok = await RaagaXConnectV2.getInstance().switchPlaybackTo(targetId, (step: number) => {
-        setHandoverStep(step);
-      });
-
-      if (ok) {
-        setHandoverStep(5);
-        setTimeout(() => {
-          setTransferringId(null);
-          setHandoverTarget(null);
-          setHandoverStep(0);
-          toggleDeviceModal();
-        }, 300);
-      } else {
-        throw new Error('Playback switch rejected by target device');
-      }
+      
+      await usePlayerStore.getState().transferPlayback(targetId);
+      setHandoverStep(5);
+      
+      setTransferringId(null);
+      setHandoverTarget(null);
+      setHandoverStep(0);
+      toggleDeviceModal();
     } catch (err: any) {
       setTransferringId(null);
       setHandoverTarget(null);
@@ -153,12 +144,12 @@ export function MobileDeviceConnectModal() {
     }
   };
 
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
     setErrorMessage(null);
     try {
-      import('@/lib/connect/lan/RaagaXConnectV2').then(({ RaagaXConnectV2 }) => {
-        RaagaXConnectV2.getInstance().disconnect();
-      }).catch(() => {});
+      import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact()).catch(() => {});
+      const { ConnectManager } = await import('@/lib/connect/ConnectManager');
+      await ConnectManager.getInstance().disconnectFromDevice();
       toggleDeviceModal();
     } catch {
       setErrorMessage('Could not disconnect from remote device.');

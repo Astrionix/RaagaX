@@ -252,12 +252,116 @@ export class DeviceRegistry {
     await this.fetchAndPublishOnlineDevices(userId);
   }
 
+  private globalPresenceChannel: any = null;
+
+  /**
+   * Broadcasts device presence beacon to all nearby / connected devices via Realtime channel
+   */
+  public broadcastPresenceBeacon(): void {
+    try {
+      const store = usePlayerStore.getState();
+      const friendly = this.getFriendlyDeviceName();
+      const payload = {
+        id: store.deviceId,
+        name: friendly.name,
+        type: friendly.type,
+        platform: friendly.platform,
+        isOnline: true,
+        isPlaying: store.isActiveDevice && store.isPlaying,
+        currentSongTitle: store.currentSong?.title,
+        timestamp: Date.now(),
+      };
+
+      if (!this.globalPresenceChannel) {
+        this.initGlobalPresenceChannel();
+      }
+
+      this.globalPresenceChannel?.send({
+        type: 'broadcast',
+        event: 'device_beacon',
+        payload
+      });
+    } catch {}
+  }
+
+  /**
+   * Sends a discovery ping asking all online devices to immediately respond with their presence beacons
+   */
+  public sendDiscoveryPing(): void {
+    try {
+      if (!this.globalPresenceChannel) {
+        this.initGlobalPresenceChannel();
+      }
+      this.globalPresenceChannel?.send({
+        type: 'broadcast',
+        event: 'discovery_ping',
+        payload: { senderDeviceId: usePlayerStore.getState().deviceId, timestamp: Date.now() }
+      });
+      // Also broadcast own beacon immediately in response to scan
+      this.broadcastPresenceBeacon();
+    } catch {}
+  }
+
+  public initGlobalPresenceChannel(): void {
+    if (this.globalPresenceChannel) return;
+    try {
+      this.globalPresenceChannel = supabase.channel('raagax:device_presence', {
+        config: { broadcast: { self: false } }
+      })
+      .on('broadcast', { event: 'device_beacon' }, (msg: any) => {
+        const payload = msg?.payload;
+        if (!payload || !payload.id || payload.id === usePlayerStore.getState().deviceId) return;
+
+        const store = usePlayerStore.getState();
+        const currentList = store.onlineDevices || [];
+        const existingIdx = currentList.findIndex((d: any) => d.id === payload.id);
+
+        const newRecord = {
+          id: payload.id,
+          name: payload.name || 'RaagaX Device',
+          type: payload.type || 'desktop',
+          platform: payload.platform || 'Windows',
+          isOnline: payload.isOnline !== false,
+          lastSeen: new Date().toISOString(),
+          isPlaying: payload.isPlaying,
+          currentSongTitle: payload.currentSongTitle,
+        };
+
+        let updatedList;
+        if (existingIdx >= 0) {
+          updatedList = [...currentList];
+          updatedList[existingIdx] = { ...updatedList[existingIdx], ...newRecord };
+        } else {
+          updatedList = [...currentList, newRecord];
+        }
+
+        store.setOnlineDevices(updatedList);
+        import('./discovery/DeviceDiscoveryEngine').then(({ DeviceDiscoveryEngine }) => {
+          DeviceDiscoveryEngine.getInstance().refreshDiscovery();
+        }).catch(() => {});
+      })
+      .on('broadcast', { event: 'discovery_ping' }, (msg: any) => {
+        const senderId = msg?.payload?.senderDeviceId;
+        if (senderId && senderId !== usePlayerStore.getState().deviceId) {
+          this.broadcastPresenceBeacon();
+        }
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          this.broadcastPresenceBeacon();
+        }
+      });
+    } catch {}
+  }
+
   /**
    * Subscribes to Supabase Realtime changes on public:devices for the current user.
    */
   public async subscribeToUserDevices(userId: string): Promise<void> {
+    this.initGlobalPresenceChannel();
+    this.broadcastPresenceBeacon();
+
     if (this.presenceChannel) {
-      // Channel is already subscribed and listening for this user
       await this.fetchAndPublishOnlineDevices(userId);
       return;
     }
@@ -282,14 +386,12 @@ export class DeviceRegistry {
         table: 'devices',
         filter: `user_id=eq.${userId}`
       }, (payload: any) => {
-        // Distinguish pure heartbeat updates (only last_seen changed) from meaningful presence state changes
         const now = Date.now();
         if (payload?.eventType === 'UPDATE' && payload.new && payload.old) {
           const isOnlyHeartbeat = payload.new.is_online === payload.old.is_online &&
                                   payload.new.device_name === payload.old.device_name &&
                                   payload.new.device_type === payload.old.device_type;
           if (isOnlyHeartbeat && (now - lastEventProcessedAt < 10000)) {
-            // Heartbeat update without meaningful change - suppress excessive re-fetch
             return;
           }
         }
