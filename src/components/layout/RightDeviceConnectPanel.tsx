@@ -103,6 +103,18 @@ export function RightDeviceConnectPanel() {
     }
   };
 
+  const handleDeviceConnect = async (target: DiscoveredLANDevice) => {
+    if (target.deviceId === activeDeviceId && isActiveDevice) return;
+    const store = usePlayerStore.getState();
+    const isLocalPlaying = Boolean(store.isPlaying && store.isActiveDevice);
+
+    if (isLocalPlaying) {
+      await handleDeviceSwitch(target);
+    } else {
+      await handleDeviceControl(target);
+    }
+  };
+
   const handleDeviceControl = async (target: DiscoveredLANDevice) => {
     try {
       import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
@@ -378,40 +390,13 @@ export function RightDeviceConnectPanel() {
 
                   {/* Actions based on Account & Pairing Permissions */}
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {isSameAccount ? (
-                      <>
-                        <button
-                          onClick={() => handleDeviceControl(device)}
-                          className="text-[10px] font-bold text-slate-300 hover:text-white px-2.5 py-1 bg-white/5 hover:bg-white/15 rounded-xl border border-white/10 transition-all cursor-pointer"
-                        >
-                          Control
-                        </button>
-                        <button
-                          onClick={() => handleDeviceSwitch(device)}
-                          className="text-[10px] font-bold text-black px-2.5 py-1 bg-emerald-400 hover:bg-emerald-300 rounded-xl shadow-md transition-all cursor-pointer"
-                        >
-                          Switch
-                        </button>
-                      </>
-                    ) : isPaired ? (
-                      <>
-                        {canControl && (
-                          <button
-                            onClick={() => handleDeviceControl(device)}
-                            className="text-[10px] font-bold text-slate-300 hover:text-white px-2.5 py-1 bg-white/5 hover:bg-white/15 rounded-xl border border-white/10 transition-all cursor-pointer"
-                          >
-                            Control
-                          </button>
-                        )}
-                        {canSwitch && (
-                          <button
-                            onClick={() => handleDeviceSwitch(device)}
-                            className="text-[10px] font-bold text-black px-2.5 py-1 bg-emerald-400 hover:bg-emerald-300 rounded-xl shadow-md transition-all cursor-pointer"
-                          >
-                            Switch
-                          </button>
-                        )}
-                      </>
+                    {isSameAccount || (isPaired && (canControl || canSwitch)) ? (
+                      <button
+                        onClick={() => handleDeviceConnect(device)}
+                        className="text-[11px] font-bold text-white px-3.5 py-1.5 bg-[#FA233B] hover:bg-[#d91e32] rounded-xl shadow-md transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+                      >
+                        Connect
+                      </button>
                     ) : (
                       <button
                         onClick={() => handleRequestPairing(device)}
@@ -426,7 +411,7 @@ export function RightDeviceConnectPanel() {
                         ) : (
                           <>
                             <KeyRound className="w-3 h-3" />
-                            <span>Request Control</span>
+                            <span>Request Pair</span>
                           </>
                         )}
                       </button>

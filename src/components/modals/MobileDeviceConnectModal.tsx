@@ -95,31 +95,12 @@ export function MobileDeviceConnectModal() {
     setTimeout(() => setIsScanning(false), 500);
   };
 
-  const handleControl = async (targetId: string, targetName: string) => {
+  const handleConnect = async (targetId: string, targetName: string) => {
     if (!targetId) return;
     if (targetId === deviceId) {
       handleDisconnect();
       return;
     }
-    setErrorMessage(null);
-    try {
-      import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact()).catch(() => {});
-      const ok = await usePlayerStore.getState().connectToDevice(targetId);
-      if (ok) {
-        toggleDeviceModal();
-      } else {
-        setErrorMessage(`Could not connect to ${targetName} for remote control.`);
-      }
-    } catch (err: any) {
-      setErrorMessage(`Failed to connect: ${err?.message || 'Unknown error'}`);
-    }
-  };
-
-  const handleTransfer = async (targetId: string, targetName: string) => {
-    if (!targetId) return;
-    const isCurrentActiveOwner = targetId === activeDeviceId && !connectedDeviceId;
-    if (isCurrentActiveOwner) return;
-
     setErrorMessage(null);
     setTransferringId(targetId);
     setHandoverTarget(targetName);
@@ -127,11 +108,20 @@ export function MobileDeviceConnectModal() {
 
     try {
       import('@/lib/haptics/HapticEngine').then(m => m.haptics.mediumImpact()).catch(() => {});
-      setHandoverStep(2);
-      
-      await usePlayerStore.getState().transferPlayback(targetId);
-      setHandoverStep(5);
-      
+      const store = usePlayerStore.getState();
+      const isLocalPlaying = Boolean(store.isPlaying && store.isActiveDevice);
+
+      if (isLocalPlaying) {
+        setHandoverStep(2);
+        await store.transferPlayback(targetId);
+        setHandoverStep(5);
+      } else {
+        const ok = await store.connectToDevice(targetId);
+        if (!ok) {
+          throw new Error('Connection failed');
+        }
+      }
+
       setTransferringId(null);
       setHandoverTarget(null);
       setHandoverStep(0);
@@ -140,8 +130,16 @@ export function MobileDeviceConnectModal() {
       setTransferringId(null);
       setHandoverTarget(null);
       setHandoverStep(0);
-      setErrorMessage(`Couldn't switch to ${targetName || 'device'}. Current playback continued.`);
+      setErrorMessage(`Could not connect to ${targetName || 'device'}.`);
     }
+  };
+
+  const handleTransfer = async (targetId: string, targetName: string) => {
+    return handleConnect(targetId, targetName);
+  };
+
+  const handleControl = async (targetId: string, targetName: string) => {
+    return handleConnect(targetId, targetName);
   };
 
   const handleDisconnect = async () => {
@@ -300,7 +298,7 @@ export function MobileDeviceConnectModal() {
                   CONNECTED
                 </span>
                 <span className="text-[10px] font-mono text-emerald-400 font-bold">
-                  Remote Controller
+                  ✓ Connected
                 </span>
               </div>
 
@@ -319,7 +317,7 @@ export function MobileDeviceConnectModal() {
                       </div>
                       <p className="text-xs text-emerald-400 font-medium mt-0.5 flex items-center gap-1.5 truncate">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                        <span>Remote Controller Active</span>
+                        <span>Playing on {currentlyPlayingDevice?.name || 'Remote Device'}</span>
                       </p>
                     </div>
                   </div>
@@ -395,10 +393,10 @@ export function MobileDeviceConnectModal() {
                     Disconnect
                   </button>
                   <button
-                    onClick={() => handleTransfer(deviceId || '', 'This Device')}
+                    onClick={() => handleConnect(deviceId || '', 'This Device')}
                     className="flex-1 px-4 py-2 rounded-xl bg-[#FA233B] hover:bg-[#d91e32] text-xs font-bold text-white shadow-md transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
                   >
-                    Switch Playback Here
+                    Play on This Device
                   </button>
                 </div>
               </div>
@@ -566,39 +564,21 @@ export function MobileDeviceConnectModal() {
                             </div>
                           )}
 
-                          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/5">
-                            <div className="flex flex-col gap-1.5">
-                              <button
-                                type="button"
-                                disabled={isBusy}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleControl(device.deviceId, device.name || 'Device');
-                                }}
-                                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white/90 hover:text-white transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 w-full"
-                              >
-                                <span>Control</span>
-                              </button>
-                              <span className="text-[9px] text-slate-400 font-medium leading-normal text-center">
-                                Control this device. Audio stays there.
-                              </span>
-                            </div>
-                            <div className="flex flex-col gap-1.5">
-                              <button
-                                type="button"
-                                disabled={isBusy}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleTransfer(device.deviceId, device.name || 'Device');
-                                }}
-                                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#FA233B] hover:bg-[#d91e32] text-white shadow-md transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 w-full"
-                              >
-                                {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>Switch playback here</span>}
-                              </button>
-                              <span className="text-[9px] text-slate-400 font-medium leading-normal text-center">
-                                Move playback here. Audio plays here.
-                              </span>
-                            </div>
+                          <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-3">
+                            <span className="text-[11px] text-slate-400 font-medium truncate">
+                              {isDevicePlaying ? 'Playing audio' : 'Available on your account'}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleConnect(device.deviceId, device.name || 'Device');
+                              }}
+                              className="px-4 py-1.5 rounded-xl text-xs font-bold bg-[#FA233B] hover:bg-[#d91e32] text-white shadow-md transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 min-w-[90px]"
+                            >
+                              {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>Connect</span>}
+                            </button>
                           </div>
                         </div>
                       );
