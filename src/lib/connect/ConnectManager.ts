@@ -653,42 +653,64 @@ export class ConnectManager {
       attempt.status = lanConnected ? 'LOCAL_CONNECTED' : 'CLOUD_CONNECTED';
       this.transitionState('READY');
 
-      usePlayerStore.setState({
-        deviceConnectionState: 'CONNECTED',
-        connectedDeviceId: targetDeviceId,
-        activeDeviceId: targetDeviceId,
-        isActiveDevice: false,
-      });
+      const currentStore = usePlayerStore.getState();
+      const targetPreview = currentStore.availableDevicePlaybackStates[targetDeviceId];
+      const isTargetPlaying = Boolean(targetPreview?.isPlaying);
+      const isLocalPlaying = Boolean(currentStore.currentSong && currentStore.isPlaying && !isTargetPlaying);
 
-      console.log(`[ConnectManager][gen=${gen}] Connection READY`);
+      if (isLocalPlaying) {
+        // Local device is actively playing audio -> remains authoritative active renderer!
+        usePlayerStore.setState({
+          deviceConnectionState: 'CONNECTED',
+          connectedDeviceId: targetDeviceId,
+          activeDeviceId: currentStore.deviceId,
+          isActiveDevice: true,
+        });
+        console.log(`[ConnectManager][gen=${gen}] Connection READY (Local device is active audio output)`);
 
-      // Request state snapshot over the established transport path
-      if (!lanConnected) {
-        this.sendTargetedCommand(targetDeviceId, {
-          commandId: 'cmd_state_' + Date.now(),
-          sessionId: this.sessionId || 'local_session',
-          sourceDeviceId: store.deviceId,
-          targetDeviceId,
-          type: 'GET_STATE' as any,
-          epoch: 1,
-          sequence: 1,
-          revision: 1,
-          sentAt: Date.now(),
-          payload: { generation: gen },
-        }).catch(() => {});
+        // Immediately broadcast authoritative state to the newly connected remote device
+        const { PlaybackStateSync } = await import('./PlaybackStateSync');
+        PlaybackStateSync.getInstance().broadcastState(true);
       } else {
-        try {
-          const { DirectLANTransport } = await import('./lan/DirectLANTransport');
-          DirectLANTransport.getInstance().sendMessage(targetDeviceId, {
-            id: 'lan_state_req_' + Date.now(),
-            type: 'CMD_STATE_REQUEST' as any,
+        // Local device is not playing or target is playing -> becomes follower / remote controller of target device
+        usePlayerStore.setState({
+          deviceConnectionState: 'CONNECTED',
+          connectedDeviceId: targetDeviceId,
+          activeDeviceId: targetDeviceId,
+          isActiveDevice: false,
+        });
+        console.log(`[ConnectManager][gen=${gen}] Connection READY (Remote device is active audio output)`);
+
+
+        // Request state snapshot over the established transport path
+        if (!lanConnected) {
+          this.sendTargetedCommand(targetDeviceId, {
+            commandId: 'cmd_state_' + Date.now(),
+            sessionId: this.sessionId || 'local_session',
             sourceDeviceId: store.deviceId,
             targetDeviceId,
-            timestamp: Date.now(),
-            generation: gen,
-          } as any);
-        } catch {}
+            type: 'GET_STATE' as any,
+            epoch: 1,
+            sequence: 1,
+            revision: 1,
+            sentAt: Date.now(),
+            payload: { generation: gen },
+          }).catch(() => {});
+        } else {
+          try {
+            const { DirectLANTransport } = await import('./lan/DirectLANTransport');
+            DirectLANTransport.getInstance().sendMessage(targetDeviceId, {
+              id: 'lan_state_req_' + Date.now(),
+              type: 'CMD_STATE_REQUEST' as any,
+              sourceDeviceId: store.deviceId,
+              targetDeviceId,
+              timestamp: Date.now(),
+              generation: gen,
+            } as any);
+          } catch {}
+        }
       }
+
 
       return true;
     } catch (e) {

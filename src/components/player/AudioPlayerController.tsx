@@ -493,24 +493,28 @@ export function AudioPlayerController() {
 
     if (RaagaXNativePlayer.isNative()) {
       if (!shouldRenderAudio) {
-        RaagaXNativePlayer.pause();
+        const store = usePlayerStore.getState();
+        if (store.playbackIntent === 'PAUSED' || (!store.isActiveDevice && store.connectedDeviceId)) {
+          RaagaXNativePlayer.pause().catch(() => {});
+        }
         LyricsEngine.getInstance().setPlaying(false);
       } else {
         if (canPlay) {
-          RaagaXNativePlayer.resume();
+          RaagaXNativePlayer.resume().catch(() => {});
           LyricsEngine.getInstance().setPlaying(true);
         } else {
           // Strict Guard: Only pause native player if playbackIntent is explicitly PAUSED
           // A transient isPlaying=false during buffering or track transition MUST NOT issue pause()
           const intent = usePlayerStore.getState().playbackIntent;
           if (intent === 'PAUSED') {
-            RaagaXNativePlayer.pause();
+            RaagaXNativePlayer.pause().catch(() => {});
             LyricsEngine.getInstance().setPlaying(false);
           }
         }
       }
       return;
     }
+
 
     // Web path: PlaybackService is the single authority over the HTMLAudioElement.
     // React controller strictly syncs non-audio side-effects (e.g. LyricsEngine).

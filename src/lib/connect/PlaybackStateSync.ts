@@ -164,12 +164,15 @@ export class PlaybackStateSync {
     const nextRevision = (store.localPlaybackRevision || 0) + 1;
     usePlayerStore.setState({ localPlaybackRevision: nextRevision });
 
+    const effectiveIsPlaying = Boolean(store.isPlaying || store.playbackIntent === 'PLAYING');
+
+
     const payload: RemotePlaybackState = {
       activeDeviceId: store.deviceId,
       activeDeviceName: deviceName,
       songId: store.currentSong?.id || null,
       songData: store.currentSong || null,
-      isPlaying: store.isPlaying,
+      isPlaying: effectiveIsPlaying,
       positionMs: Math.round(store.currentTime * 1000),
       durationMs: Math.round(store.duration * 1000),
       volume: store.volume,
@@ -182,6 +185,7 @@ export class PlaybackStateSync {
       epoch: sequencer.getEpoch(),
       revision: nextRevision,
     };
+
 
     import('./ConnectManager').then(({ ConnectManager }) => {
       ConnectManager.getInstance().broadcastSessionState(payload);

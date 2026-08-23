@@ -98,6 +98,9 @@ export class PlaybackOwnerEngine {
     const s = usePlayerStore.getState();
     const localId = LocalDiscoveryService.getInstance().getLocalIdentity().deviceId;
 
+    const effectiveIsPlaying = Boolean(s.isPlaying || s.playbackIntent === 'PLAYING');
+
+
     return {
       ownerDeviceId: this.isLocalOwner ? localId : this.activeOwnerDeviceId,
       songId: s.currentSong?.id || null,
@@ -106,7 +109,7 @@ export class PlaybackOwnerEngine {
       queueIndex: s.queueIndex || 0,
       positionMs: Math.round((s.currentTime || 0) * 1000),
       durationMs: Math.round((s.duration || s.currentSong?.duration || 0) * 1000),
-      isPlaying: Boolean(s.isPlaying),
+      isPlaying: effectiveIsPlaying,
       playbackRate: 1.0,
       volume: s.volume,
       isMuted: s.isMuted,
@@ -116,6 +119,7 @@ export class PlaybackOwnerEngine {
       timestamp: Date.now(),
     };
   }
+
 
   public broadcastStateImmediately() {
     if (this.broadcastThrottleTimer) {

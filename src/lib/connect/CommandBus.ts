@@ -64,9 +64,10 @@ export class CommandBus {
     }
   }
 
-  public handleIncomingCommand(command: ConnectCommand) {
+  public async handleIncomingCommand(command: ConnectCommand) {
     const store = usePlayerStore.getState();
     const localId = this.localDeviceId || store.deviceId;
+
     const sequencer = CommandSequencer.getInstance();
     
     // Ignore loopback broadcasts sent by this device itself
@@ -124,7 +125,7 @@ export class CommandBus {
       }
     }
 
-    this.applyCommand(command);
+    await this.applyCommand(command);
 
     // Automatically send COMMAND_ACK back to the sender if we are the active renderer device (exclude transfer protocol control commands)
     if (store.isActiveDevice && command.type !== 'COMMAND_ACK' && !command.type.startsWith('TRANSFER_')) {
