@@ -498,15 +498,17 @@ export class ConnectManager {
       this.initGlobalPlaybackStateChannel();
     }
 
-    try {
-      this.globalPlaybackStateChannel?.send({
-        type: 'broadcast',
-        event: 'STATE_UPDATE',
-        payload: statePayload
-      });
-    } catch {}
+    if (this.globalPlaybackStateChannel && this.globalPlaybackStateChannel.state === 'joined') {
+      try {
+        this.globalPlaybackStateChannel.send({
+          type: 'broadcast',
+          event: 'STATE_UPDATE',
+          payload: statePayload
+        });
+      } catch {}
+    }
 
-    if (this.sessionChannel) {
+    if (this.sessionChannel && this.sessionChannel.state === 'joined') {
       try {
         await this.sessionChannel.send({
           type: 'broadcast',

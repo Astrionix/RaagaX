@@ -146,13 +146,6 @@ export class PlaybackOwnerEngine {
     };
 
     DirectLANTransport.getInstance().sendMessage('broadcast', stateMsg);
-
-    // Also mirror broadcast via cloud & WebRTC session sync
-    try {
-      import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
-        PlaybackStateSync.getInstance().broadcastState(true);
-      });
-    } catch {}
   }
 
   private scheduleStateBroadcast() {

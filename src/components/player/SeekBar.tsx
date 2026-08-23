@@ -34,6 +34,8 @@ export function SeekBar({
     ? duration 
     : (currentSong && Number.isFinite(currentSong.duration) && (currentSong.duration || 0) > 0 ? (currentSong.duration || 0) : 0);
 
+  const prevProgressRef = useRef(0);
+
   // 60 FPS ultra-smooth local progress prediction driven by PlaybackEngine & Remote Anchor Clock
   useEffect(() => {
     let animFrame: number;
@@ -41,11 +43,12 @@ export function SeekBar({
     const tick = () => {
       if (!isSeeking && !isSeekSettling && effectiveDuration > 0) {
         const store = usePlayerStore.getState();
+        let validSec = 0;
+
         if (store.isActiveDevice) {
           const engine = PlaybackEngine.getInstance();
           const liveSec = engine.isPlayingLocally() ? engine.getCanonicalPositionMs() / 1000 : store.currentTime;
-          const validSec = Number.isFinite(liveSec) && !isNaN(liveSec) && liveSec >= 0 ? liveSec : 0;
-          setLocalProgress(Math.min(1, Math.max(0, validSec / effectiveDuration)));
+          validSec = Number.isFinite(liveSec) && !isNaN(liveSec) && liveSec >= 0 ? liveSec : 0;
         } else {
           // Remote follower: interpolate smoothly from remote anchor timestamp
           let liveSec = store.currentTime;
@@ -53,8 +56,13 @@ export function SeekBar({
             const elapsed = (Date.now() - store.remoteAnchorTimeMs) / 1000;
             liveSec = Math.min(effectiveDuration, (store.remoteAnchorPositionMs / 1000) + elapsed);
           }
-          const validSec = Number.isFinite(liveSec) && !isNaN(liveSec) && liveSec >= 0 ? liveSec : 0;
-          setLocalProgress(Math.min(1, Math.max(0, validSec / effectiveDuration)));
+          validSec = Number.isFinite(liveSec) && !isNaN(liveSec) && liveSec >= 0 ? liveSec : 0;
+        }
+
+        const newProgress = Math.min(1, Math.max(0, validSec / effectiveDuration));
+        if (Math.abs(newProgress - prevProgressRef.current) >= 0.0005) {
+          prevProgressRef.current = newProgress;
+          setLocalProgress(newProgress);
         }
       }
       animFrame = requestAnimationFrame(tick);
@@ -63,7 +71,7 @@ export function SeekBar({
     animFrame = requestAnimationFrame(tick);
 
     return () => cancelAnimationFrame(animFrame);
-  }, [currentTime, duration, effectiveDuration, isSeeking, isSeekSettling]);
+  }, [effectiveDuration, isSeeking, isSeekSettling]);
 
   const calculateProgressFromEvent = (e: React.PointerEvent) => {
     if (!trackRef.current) return 0;

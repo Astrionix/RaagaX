@@ -53,12 +53,11 @@ export class DeviceDiscoveryEngine {
 
     this.discoveryInterval = setInterval(() => {
       try {
-        DeviceRegistry.getInstance().sendDiscoveryPing();
         this.runDiscoveryCycle();
       } catch (err) {
         console.warn('[DeviceDiscoveryEngine] Discovery interval cycle error:', err);
       }
-    }, 3000);
+    }, 4000);
 
     // Heartbeat monitor for stale device cleanup
     this.heartbeatInterval = setInterval(() => {

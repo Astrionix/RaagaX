@@ -706,7 +706,16 @@ export const usePlayerStore = create<PlayerState>()(
       onlineDevices: [],
       rightPanelMode: 'queue',
 
-      setOnlineDevices: (devices) => set({ onlineDevices: devices }),
+      setOnlineDevices: (devices) => {
+        const current = get().onlineDevices || [];
+        if (
+          current.length === devices.length &&
+          current.every((d, i) => d.id === devices[i]?.id && d.isOnline === devices[i]?.isOnline && d.name === devices[i]?.name)
+        ) {
+          return;
+        }
+        set({ onlineDevices: devices });
+      },
 
       connectToDevice: async (targetDeviceId: string) => {
         return ConnectManager.getInstance().connectToDevice(targetDeviceId);

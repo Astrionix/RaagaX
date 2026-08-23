@@ -284,10 +284,19 @@ export class DeviceRegistry {
     } catch {}
   }
 
+  private lastDiscoveryPingTime = 0;
+  private lastBeaconResponseTime = 0;
+
   /**
    * Sends a discovery ping asking all online devices to immediately respond with their presence beacons
    */
   public sendDiscoveryPing(): void {
+    const now = Date.now();
+    if (now - this.lastDiscoveryPingTime < 4000) {
+      return; // Throttled to prevent flooding
+    }
+    this.lastDiscoveryPingTime = now;
+
     try {
       if (!this.globalPresenceChannel) {
         this.initGlobalPresenceChannel();
@@ -295,10 +304,8 @@ export class DeviceRegistry {
       this.globalPresenceChannel?.send({
         type: 'broadcast',
         event: 'discovery_ping',
-        payload: { senderDeviceId: usePlayerStore.getState().deviceId, timestamp: Date.now() }
+        payload: { senderDeviceId: usePlayerStore.getState().deviceId, timestamp: now }
       });
-      // Also broadcast own beacon immediately in response to scan
-      this.broadcastPresenceBeacon();
     } catch {}
   }
 
@@ -327,22 +334,31 @@ export class DeviceRegistry {
           currentSongTitle: payload.currentSongTitle,
         };
 
-        let updatedList;
+        // Check if anything actually changed to avoid triggering unnecessary re-renders
         if (existingIdx >= 0) {
-          updatedList = [...currentList];
-          updatedList[existingIdx] = { ...updatedList[existingIdx], ...newRecord };
+          const old = currentList[existingIdx];
+          if (
+            old.name === newRecord.name &&
+            old.type === newRecord.type &&
+            old.isOnline === newRecord.isOnline &&
+            old.isPlaying === newRecord.isPlaying &&
+            old.currentSongTitle === newRecord.currentSongTitle
+          ) {
+            return; // No meaningful change
+          }
+          const updatedList = [...currentList];
+          updatedList[existingIdx] = { ...old, ...newRecord };
+          store.setOnlineDevices(updatedList);
         } else {
-          updatedList = [...currentList, newRecord];
+          const updatedList = [...currentList, newRecord];
+          store.setOnlineDevices(updatedList);
         }
-
-        store.setOnlineDevices(updatedList);
-        import('./discovery/DeviceDiscoveryEngine').then(({ DeviceDiscoveryEngine }) => {
-          DeviceDiscoveryEngine.getInstance().refreshDiscovery();
-        }).catch(() => {});
       })
       .on('broadcast', { event: 'discovery_ping' }, (msg: any) => {
         const senderId = msg?.payload?.senderDeviceId;
-        if (senderId && senderId !== usePlayerStore.getState().deviceId) {
+        const now = Date.now();
+        if (senderId && senderId !== usePlayerStore.getState().deviceId && (now - this.lastBeaconResponseTime > 3000)) {
+          this.lastBeaconResponseTime = now;
           this.broadcastPresenceBeacon();
         }
       })

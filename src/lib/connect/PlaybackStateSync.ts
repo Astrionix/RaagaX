@@ -122,6 +122,9 @@ export class PlaybackStateSync {
     }
   }
 
+  private lastBroadcastSongId: string | null = null;
+  private lastBroadcastIsPlaying: boolean | null = null;
+
   /**
    * Broadcasts the authoritative playback state to all connected devices in the session.
    * Called only by the active renderer device.
@@ -131,13 +134,16 @@ export class PlaybackStateSync {
     if (!store.isActiveDevice) return; // Only active renderer broadcasts state
 
     const now = Date.now();
-    if (!immediate && now - this.lastPublishTime < 1500) {
-      // Throttle rapid time updates
+    const isTrackChange = store.currentSong?.id !== this.lastBroadcastSongId;
+    const isPlayingChange = store.isPlaying !== this.lastBroadcastIsPlaying;
+    const isCritical = isTrackChange || isPlayingChange;
+
+    if (!isCritical && !immediate && (now - this.lastPublishTime < 1000)) {
       if (!this.publishTimer) {
         this.publishTimer = setTimeout(() => {
           this.publishTimer = null;
-          this.broadcastState(true);
-        }, 1500);
+          this.broadcastState(false);
+        }, 1000);
       }
       return;
     }
@@ -148,6 +154,9 @@ export class PlaybackStateSync {
     }
 
     this.lastPublishTime = now;
+    this.lastBroadcastSongId = store.currentSong?.id || null;
+    this.lastBroadcastIsPlaying = store.isPlaying;
+
     const sequencer = CommandSequencer.getInstance();
     const deviceName = typeof window !== 'undefined' ? (localStorage.getItem('raagax_device_name') || 'RaagaX Player') : 'RaagaX Player';
 
