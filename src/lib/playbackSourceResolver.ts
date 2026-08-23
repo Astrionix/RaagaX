@@ -154,8 +154,9 @@ export class PlaybackSourceResolver {
     // ── 6. Direct Valid HTTPS Stream Check & Dynamic Lookup ──────────────────
     let validAudioUrl = song.audioUrl ? song.audioUrl.replace('http://', 'https://') : '';
     const isPixabay = validAudioUrl.includes('pixabay.com');
+    const isNonHttpScheme = !validAudioUrl.startsWith('https://') && !validAudioUrl.startsWith('http://');
 
-    if (!validAudioUrl || isPixabay || bypassCache) {
+    if (!validAudioUrl || isPixabay || isNonHttpScheme || bypassCache) {
       try {
         const query = `${song.title} ${song.artist || ''}`.trim();
         console.log(`[PlaybackSourceResolver] Resolving real audio stream for: "${query}" (bypassCache=${bypassCache})`);

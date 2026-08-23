@@ -987,7 +987,9 @@ export class AccountSyncEngine {
           song_id: songId,
           event_type: 'PLAY',
         }));
-        await supabase.from('listening_events').upsert(historyRows, { onConflict: 'user_id,song_id', ignoreDuplicates: true });
+        try {
+          await supabase.from('listening_events').insert(historyRows);
+        } catch {}
       }
 
       // 5. Reconcile back to ensure local state has full union of cloud + guest
