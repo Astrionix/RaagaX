@@ -252,6 +252,11 @@ export class PlaybackService {
     if (requestId !== undefined && requestId !== this.playbackRequestId) return;
 
     const store = usePlayerStore.getState();
+    if (!store.isActiveDevice && store.connectedDeviceId) {
+      console.log('[PlaybackService] Skipping local loadQueueContext — device is acting as a remote controller');
+      return;
+    }
+
     const isActuallyOffline =
       store.networkMode === 'offline' ||
       store.networkMode === 'offline_forced';
