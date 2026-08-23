@@ -185,7 +185,7 @@ describe('RaagaX Hybrid LAN + Cloud Transport Router Tests', () => {
     const success = await connectManager.connectToDevice('dev_laptop_1');
     
     expect(success).toBe(true);
-    expect(handshakeSpy).toHaveBeenCalledWith('dev_laptop_1');
+    expect(handshakeSpy).toHaveBeenCalledWith('dev_laptop_1', expect.anything());
     expect(usePlayerStore.getState().deviceConnectionState).toBe('CONNECTED');
     expect(usePlayerStore.getState().connectedDeviceId).toBe('dev_laptop_1');
     expect(usePlayerStore.getState().currentSong?.title).toBe('Inthandham');

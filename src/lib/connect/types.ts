@@ -40,6 +40,10 @@ export type SeekTransactionState =
 export type ConnectState =
   | "OFFLINE"
   | "CONNECTING"
+  | "LOCAL_CONNECTING"
+  | "LOCAL_CONNECTED"
+  | "CLOUD_CONNECTING"
+  | "CLOUD_CONNECTED"
   | "SUBSCRIBING"
   | "CONNECTED"
   | "RECOVERING"
@@ -48,7 +52,25 @@ export type ConnectState =
   | "STALE"
   | "TAKEOVER_PENDING"
   | "DISCONNECTING"
-  | "DISCONNECTED";
+  | "DISCONNECTED"
+  | "FAILED"
+  | "CANCELLED";
+
+
+export interface ConnectionAttempt {
+  id: string;
+  generation: number;
+  deviceId: string;
+  startedAt: number;
+  transport: TransportMode | 'NONE';
+  status: ConnectState;
+  completed: boolean;
+  failed: boolean;
+  fallbackStarted: boolean;
+  cancelled: boolean;
+  cleanedUp: boolean;
+}
+
 
 export type ConnectCommandType = 
   | "PLAY"
@@ -84,8 +106,10 @@ export type ConnectCommandType =
   | "HEARTBEAT"
   | "HEARTBEAT_ACK"
   | "COMMAND_ACK"
+  | "DEVICE_REVOKED"
   | "CONTROLLER_REQUEST"  // Request control of a renderer
   | "CONTROLLER_RELEASE"; // Release controller role
+
 
 /**
  * Command delivery class — determines how TransportRouter handles each command type.
@@ -126,7 +150,9 @@ export const COMMAND_CLASS_MAP: Readonly<Record<ConnectCommandType, CommandClass
   CONTROLLER_REQUEST:  'CRITICAL',
   CONTROLLER_RELEASE:  'CRITICAL',
   COMMAND_ACK:         'CRITICAL',
+  DEVICE_REVOKED:      'CRITICAL',
   // Interactive — LAN-preferred, coalesceable
+
   SET_VOLUME:          'INTERACTIVE',
   SET_SHUFFLE:         'INTERACTIVE',
   SET_REPEAT:          'INTERACTIVE',

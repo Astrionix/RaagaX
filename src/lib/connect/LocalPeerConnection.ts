@@ -7,13 +7,21 @@ import { TransportScorer } from './TransportScorer';
 import { TransportHealthMonitor } from './TransportHealthMonitor';
 import { DeviceRegistry } from './DeviceRegistry';
 
+export type LocalPeerCleanupReason =
+  | 'MANUAL_DISCONNECT'
+  | 'LOCAL_CONNECTION_FAILED'
+  | 'CHANNEL_CLOSED'
+  | 'HEARTBEAT_TIMEOUT'
+  | 'RECONNECT_RESET';
+
 export class LocalPeerConnection {
   private static instance: LocalPeerConnection;
   private peerConnections = new Map<string, RTCPeerConnection>();
   private dataChannels = new Map<string, RTCDataChannel>();
+  private activeGenerations = new Map<string, number>();
   
   // Handshake and Heartbeat state
-  private pendingHandshakes = new Map<string, { resolve: (val: boolean) => void; timeout: NodeJS.Timeout }>();
+  private pendingHandshakes = new Map<string, { resolve: (val: boolean) => void; timeout: NodeJS.Timeout; generation: number }>();
   private heartbeatIntervals = new Map<string, NodeJS.Timeout>();
   private missedHeartbeats = new Map<string, number>();
   // Tracks the sentAt timestamp of the last HEARTBEAT sent to each peer for RTT measurement
@@ -40,33 +48,53 @@ export class LocalPeerConnection {
    * Manually initiates a LAN WebRTC direct connection to a target device.
    * Returns a promise that resolves when the local handshake completes successfully.
    */
-  public connectToDevice(targetId: string): Promise<boolean> {
-    console.log(`[LocalPeer] Manually connecting to target: ${targetId}`);
+  public connectToDevice(targetId: string, generation?: number): Promise<boolean> {
+    const gen = generation !== undefined ? generation : ConnectManager.getInstance().getConnectionGeneration();
+    console.log(`[LocalPeer][gen=${gen}] Manually connecting to target: ${targetId}`);
     
-    // Clear any existing connection to this device first
-    this.cleanup(targetId);
+    // Clear any existing connection for this target device without triggering cloud fallback
+    this.cleanup(targetId, gen, 'RECONNECT_RESET');
+    this.activeGenerations.set(targetId, gen);
 
     return new Promise((resolve) => {
       const timeout = setTimeout(() => {
-        console.warn(`[LocalPeer] Connection handshake timed out for device ${targetId}`);
+        const currentGen = ConnectManager.getInstance().getConnectionGeneration();
+        if (gen !== currentGen) {
+          console.log(`[LocalPeer][gen=${gen}] Ignoring stale handshake timeout; current generation = ${currentGen}`);
+          return;
+        }
+
+        console.warn(`[LocalPeer][gen=${gen}] Connection handshake timed out for device ${targetId}`);
         this.pendingHandshakes.delete(targetId);
-        this.cleanup(targetId);
+        this.cleanup(targetId, gen, 'LOCAL_CONNECTION_FAILED');
         resolve(false);
       }, 6000);
 
-      this.pendingHandshakes.set(targetId, { resolve, timeout });
-      this.initiateConnection(targetId).catch((err) => {
-        console.error(`[LocalPeer] Initiate connection failed for ${targetId}:`, err);
+      this.pendingHandshakes.set(targetId, { resolve, timeout, generation: gen });
+      this.initiateConnection(targetId, gen).catch((err) => {
+        const currentGen = ConnectManager.getInstance().getConnectionGeneration();
+        if (gen !== currentGen) {
+          console.log(`[LocalPeer][gen=${gen}] Ignoring stale initiation error; current generation = ${currentGen}`);
+          return;
+        }
+
+        console.error(`[LocalPeer][gen=${gen}] Initiate connection failed for ${targetId}:`, err);
         clearTimeout(timeout);
         this.pendingHandshakes.delete(targetId);
-        this.cleanup(targetId);
+        this.cleanup(targetId, gen, 'LOCAL_CONNECTION_FAILED');
         resolve(false);
       });
     });
   }
 
-  private async initiateConnection(targetId: string) {
-    console.log(`[LocalPeer] Initiating direct WebRTC connection to ${targetId}`);
+  private async initiateConnection(targetId: string, generation: number) {
+    const currentGen = ConnectManager.getInstance().getConnectionGeneration();
+    if (generation !== currentGen) {
+      console.log(`[LocalPeer][gen=${generation}] Aborting stale initiateConnection; current generation = ${currentGen}`);
+      return;
+    }
+
+    console.log(`[LocalPeer][gen=${generation}] Initiating direct WebRTC connection to ${targetId}`);
     
     const configuration: RTCConfiguration = {
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -76,37 +104,53 @@ export class LocalPeerConnection {
     this.peerConnections.set(targetId, pc);
 
     const dc = pc.createDataChannel('raagax-control');
-    this.setupDataChannel(targetId, dc, true);
+    this.setupDataChannel(targetId, dc, true, generation);
 
     pc.onicecandidate = (event) => {
+      const liveGen = ConnectManager.getInstance().getConnectionGeneration();
+      if (generation !== liveGen) return;
+
       if (event.candidate) {
         this.sendSignal(targetId, {
           type: 'candidate',
           candidate: event.candidate
-        });
+        }, generation);
       }
     };
 
     try {
       const offer = await pc.createOffer();
+      const liveGen = ConnectManager.getInstance().getConnectionGeneration();
+      if (generation !== liveGen) {
+        try { pc.close(); } catch {}
+        return;
+      }
+
       await pc.setLocalDescription(offer);
       
       this.sendSignal(targetId, {
         type: 'offer',
         sdp: offer
-      });
+      }, generation);
     } catch (e) {
-      console.error(`[LocalPeer] Failed to create offer to ${targetId}:`, e);
-      this.cleanup(targetId);
+      console.error(`[LocalPeer][gen=${generation}] Failed to create offer to ${targetId}:`, e);
+      this.cleanup(targetId, generation, 'LOCAL_CONNECTION_FAILED');
       throw e;
     }
   }
 
-  private setupDataChannel(targetId: string, dc: RTCDataChannel, isInitiator: boolean) {
+  private setupDataChannel(targetId: string, dc: RTCDataChannel, isInitiator: boolean, generation: number) {
     this.dataChannels.set(targetId, dc);
 
     dc.onopen = () => {
-      console.log(`[LocalPeer] Data channel opened with ${targetId}. Initiator: ${isInitiator}`);
+      const currentGen = ConnectManager.getInstance().getConnectionGeneration();
+      if (generation !== currentGen) {
+        console.log(`[LocalPeer][gen=${generation}] Ignoring stale data channel onopen; current generation = ${currentGen}`);
+        try { dc.close(); } catch {}
+        return;
+      }
+
+      console.log(`[LocalPeer][gen=${generation}] Data channel opened with ${targetId}. Initiator: ${isInitiator}`);
       if (isInitiator) {
         // Send connect handshake request
         const store = usePlayerStore.getState();
@@ -121,35 +165,48 @@ export class LocalPeerConnection {
           sentAt: Date.now(),
           payload: {
             deviceId: store.deviceId,
-            deviceName: localStorage.getItem('raagax_device_name') || 'RaagaX Controller'
+            deviceName: localStorage.getItem('raagax_device_name') || 'RaagaX Controller',
+            generation
           }
         };
         try {
           dc.send(JSON.stringify(requestCmd));
         } catch (err) {
-          console.error(`[LocalPeer] Failed to send CONNECT_REQUEST to ${targetId}:`, err);
+          console.error(`[LocalPeer][gen=${generation}] Failed to send CONNECT_REQUEST to ${targetId}:`, err);
         }
       }
     };
 
     dc.onclose = () => {
-      console.log(`[LocalPeer] Direct LAN channel closed with device: ${targetId}`);
-      this.cleanup(targetId);
+      const currentGen = ConnectManager.getInstance().getConnectionGeneration();
+      if (generation !== currentGen) {
+        console.log(`[LocalPeer][gen=${generation}] Ignoring stale data channel onclose; current generation = ${currentGen}`);
+        return;
+      }
+
+      console.log(`[LocalPeer][gen=${generation}] Direct LAN channel closed with device: ${targetId}`);
+      this.cleanup(targetId, generation, 'CHANNEL_CLOSED');
     };
 
     dc.onmessage = (event) => {
+      const currentGen = ConnectManager.getInstance().getConnectionGeneration();
+      if (generation !== currentGen) {
+        console.log(`[LocalPeer][gen=${generation}] Ignoring stale data channel onmessage; current generation = ${currentGen}`);
+        return;
+      }
+
       try {
         const msg = JSON.parse(event.data);
         if (!msg || !msg.type) return;
 
         switch (msg.type) {
           case 'CONNECT_REQUEST': {
-            console.log(`[LocalPeer] Received CONNECT_REQUEST from ${targetId}`);
+            console.log(`[LocalPeer][gen=${generation}] Received CONNECT_REQUEST from ${targetId}`);
             // Verify that incoming connection belongs to the same authorized user account
             DeviceRegistry.getInstance().isDeviceAuthorizedForUser(targetId).then((isAuthorized) => {
               const store = usePlayerStore.getState();
               if (!isAuthorized) {
-                console.warn(`[LocalPeer] Rejecting CONNECT_REQUEST from device on different account: ${targetId}`);
+                console.warn(`[LocalPeer][gen=${generation}] Rejecting CONNECT_REQUEST from device on different account: ${targetId}`);
                 const rejectCmd = {
                   commandId: crypto.randomUUID(),
                   sessionId: ConnectManager.getInstance().getSessionId() || 'global',
@@ -181,7 +238,8 @@ export class LocalPeerConnection {
                     audio: true,
                     seek: true,
                     volume: true
-                  }
+                  },
+                  generation
                 }
               };
               if (dc.readyState === 'open') {
@@ -195,9 +253,9 @@ export class LocalPeerConnection {
           }
 
           case 'CONNECT_REJECT': {
-            console.warn(`[LocalPeer] Connection rejected by ${targetId}: ${msg.reason || 'Unauthorized'}`);
+            console.warn(`[LocalPeer][gen=${generation}] Connection rejected by ${targetId}: ${msg.reason || 'Unauthorized'}`);
             const handshake = this.pendingHandshakes.get(targetId);
-            if (handshake) {
+            if (handshake && handshake.generation === generation) {
               clearTimeout(handshake.timeout);
               this.pendingHandshakes.delete(targetId);
               handshake.resolve(false);
@@ -206,9 +264,9 @@ export class LocalPeerConnection {
           }
 
           case 'CONNECT_RESPONSE': {
-            console.log(`[LocalPeer] Received CONNECT_RESPONSE from ${targetId}`);
+            console.log(`[LocalPeer][gen=${generation}] Received CONNECT_RESPONSE from ${targetId}`);
             const handshake = this.pendingHandshakes.get(targetId);
-            if (handshake) {
+            if (handshake && handshake.generation === generation) {
               clearTimeout(handshake.timeout);
               this.pendingHandshakes.delete(targetId);
 
@@ -218,7 +276,7 @@ export class LocalPeerConnection {
               }
 
               TransportRouter.getInstance().onLanChannelAvailable(targetId);
-              this.startHeartbeatLoop(targetId);
+              this.startHeartbeatLoop(targetId, generation);
               handshake.resolve(true);
             }
             break;
@@ -248,13 +306,13 @@ export class LocalPeerConnection {
           }
 
           case 'STATE_UPDATE': {
-            console.log(`[LocalPeer] Received direct state update`);
+            console.log(`[LocalPeer][gen=${generation}] Received direct state update`);
             PlaybackStateSync.getInstance().handleRemoteStateUpdate(msg.payload);
             break;
           }
 
           default: {
-            console.log(`[LocalPeer] Received direct command: ${msg.type}`);
+            console.log(`[LocalPeer][gen=${generation}] Received direct command: ${msg.type}`);
             import('./CommandBus').then(({ CommandBus }) => {
               CommandBus.getInstance().handleIncomingCommand(msg);
             });
@@ -262,27 +320,34 @@ export class LocalPeerConnection {
           }
         }
       } catch (e) {
-        console.error('[LocalPeer] Failed to process message:', e);
+        console.error(`[LocalPeer][gen=${generation}] Failed to process message:`, e);
       }
     };
   }
 
-  private startHeartbeatLoop(targetId: string) {
+  private startHeartbeatLoop(targetId: string, generation?: number) {
+    const boundGen = generation !== undefined ? generation : ConnectManager.getInstance().getConnectionGeneration();
     this.stopHeartbeatLoop(targetId);
     this.missedHeartbeats.set(targetId, 0);
 
     const timer = setInterval(() => {
+      const currentGen = ConnectManager.getInstance().getConnectionGeneration();
+      if (boundGen !== undefined && boundGen < currentGen) {
+        this.stopHeartbeatLoop(targetId);
+        return;
+      }
+
       const dc = this.dataChannels.get(targetId);
       if (!dc || dc.readyState !== 'open') {
-        this.handleHeartbeatTimeout(targetId);
+        this.handleHeartbeatTimeout(targetId, boundGen);
         return;
       }
 
       // Check missed heartbeat count
       const missed = this.missedHeartbeats.get(targetId) || 0;
       if (missed >= 2) {
-        console.warn(`[LocalPeer] Heartbeat timeout for device: ${targetId}`);
-        this.handleHeartbeatTimeout(targetId);
+        console.warn(`[LocalPeer][gen=${boundGen}] Heartbeat timeout for device: ${targetId}`);
+        this.handleHeartbeatTimeout(targetId, boundGen);
         return;
       }
 
@@ -295,12 +360,13 @@ export class LocalPeerConnection {
         // Notify TransportHealthMonitor on each cycle for predictive trend analysis
         TransportHealthMonitor.getInstance().onHeartbeatCycle(targetId);
       } catch {
-        this.handleHeartbeatTimeout(targetId);
+        this.handleHeartbeatTimeout(targetId, boundGen);
       }
     }, 3000);
 
     this.heartbeatIntervals.set(targetId, timer);
   }
+
 
   private stopHeartbeatLoop(targetId: string) {
     const timer = this.heartbeatIntervals.get(targetId);
@@ -312,22 +378,30 @@ export class LocalPeerConnection {
     this.lastHeartbeatSentAt.delete(targetId);
   }
 
-  private handleHeartbeatTimeout(targetId: string) {
-    console.warn(`[LocalPeer] Lost LAN channel due to heartbeat timeout with device: ${targetId}`);
-    // Record miss in scorer before cleanup so the score degrades before the transport fully drops
+  private handleHeartbeatTimeout(targetId: string, generation: number) {
+    const currentGen = ConnectManager.getInstance().getConnectionGeneration();
+    if (generation !== currentGen) return;
+
+    console.warn(`[LocalPeer][gen=${generation}] Lost established LAN channel due to heartbeat timeout with device: ${targetId}`);
+    // Record miss in scorer before cleanup
     TransportScorer.getInstance().recordMiss('LOCAL_DIRECT');
-    this.cleanup(targetId);
+    this.cleanup(targetId, generation, 'HEARTBEAT_TIMEOUT');
   }
 
   public async handleIncomingSignal(command: ConnectCommand) {
+    if (ConnectManager.getInstance().isManualDisconnectRequested()) {
+      return;
+    }
+
+    const currentGen = ConnectManager.getInstance().getConnectionGeneration();
     const senderId = command.sourceDeviceId;
     const signal = command.payload as any;
 
     let pc = this.peerConnections.get(senderId);
 
     if (signal.type === 'offer') {
-      console.log(`[LocalPeer] Received offer from ${senderId}`);
-      if (pc) this.cleanup(senderId);
+      console.log(`[LocalPeer][gen=${currentGen}] Received offer from ${senderId}`);
+      if (pc) this.cleanup(senderId, currentGen, 'RECONNECT_RESET');
 
       const configuration: RTCConfiguration = {
         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -335,46 +409,57 @@ export class LocalPeerConnection {
       
       pc = new RTCPeerConnection(configuration);
       this.peerConnections.set(senderId, pc);
+      this.activeGenerations.set(senderId, currentGen);
 
       pc.ondatachannel = (event) => {
-        this.setupDataChannel(senderId, event.channel, false);
+        this.setupDataChannel(senderId, event.channel, false, currentGen);
       };
 
       pc.onicecandidate = (event) => {
+        const liveGen = ConnectManager.getInstance().getConnectionGeneration();
+        if (currentGen !== liveGen) return;
+
         if (event.candidate) {
           this.sendSignal(senderId, {
             type: 'candidate',
             candidate: event.candidate
-          });
+          }, currentGen);
         }
       };
 
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
         const answer = await pc.createAnswer();
+        
+        const liveGen = ConnectManager.getInstance().getConnectionGeneration();
+        if (currentGen !== liveGen) {
+          try { pc.close(); } catch {}
+          return;
+        }
+
         await pc.setLocalDescription(answer);
 
         this.sendSignal(senderId, {
           type: 'answer',
           sdp: answer
-        });
+        }, currentGen);
       } catch (err) {
-        console.warn(`[LocalPeer] Error creating answer for ${senderId}:`, err);
+        console.warn(`[LocalPeer][gen=${currentGen}] Error creating answer for ${senderId}:`, err);
       }
 
     } else if (signal.type === 'answer') {
-      console.log(`[LocalPeer] Received answer from ${senderId}`);
+      console.log(`[LocalPeer][gen=${currentGen}] Received answer from ${senderId}`);
       if (pc) {
         try {
           if (pc.signalingState === 'have-local-offer' || pc.signalingState === 'have-remote-pranswer') {
             await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
           } else if (pc.signalingState === 'stable') {
-            console.debug(`[LocalPeer] Ignoring redundant answer SDP for ${senderId} - connection is already stable.`);
+            console.debug(`[LocalPeer][gen=${currentGen}] Ignoring redundant answer SDP for ${senderId} - connection is already stable.`);
           } else {
-            console.warn(`[LocalPeer] Skipping setRemoteDescription in state: ${pc.signalingState}`);
+            console.warn(`[LocalPeer][gen=${currentGen}] Skipping setRemoteDescription in state: ${pc.signalingState}`);
           }
         } catch (err) {
-          console.warn(`[LocalPeer] Error applying remote answer SDP from ${senderId}:`, err);
+          console.warn(`[LocalPeer][gen=${currentGen}] Error applying remote answer SDP from ${senderId}:`, err);
         }
       }
     } else if (signal.type === 'candidate') {
@@ -384,13 +469,14 @@ export class LocalPeerConnection {
             await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
           }
         } catch (err) {
-          console.debug(`[LocalPeer] ICE candidate ignored for ${senderId}:`, err);
+          console.debug(`[LocalPeer][gen=${currentGen}] ICE candidate ignored for ${senderId}:`, err);
         }
       }
     }
   }
 
-  private sendSignal(targetId: string, payload: any) {
+  private sendSignal(targetId: string, payload: any, generation?: number) {
+    const gen = generation !== undefined ? generation : ConnectManager.getInstance().getConnectionGeneration();
     const store = usePlayerStore.getState();
     const command: ConnectCommand = {
       commandId: crypto.randomUUID(),
@@ -401,7 +487,10 @@ export class LocalPeerConnection {
       targetDeviceId: targetId,
       type: 'WEBRTC_SIGNAL',
       sentAt: Date.now(),
-      payload
+      payload: {
+        ...payload,
+        generation: gen
+      }
     };
     
     ConnectManager.getInstance().sendTargetedCommand(targetId, command);
@@ -433,15 +522,34 @@ export class LocalPeerConnection {
     return sentCount > 0;
   }
 
-  public cleanup(deviceId: string) {
+  /**
+   * Idempotent cleanup of local peer connection resources.
+   * Only active established channels that drop unexpectedly report channel lost.
+   * Manual disconnect, initiation failure, and reconnect resets do NOT trigger false fallbacks.
+   */
+  public cleanup(
+    deviceId: string, 
+    generation?: number, 
+    reason: LocalPeerCleanupReason = 'MANUAL_DISCONNECT'
+  ) {
+    const boundGen = this.activeGenerations.get(deviceId);
+    if (generation !== undefined && boundGen !== undefined && generation < boundGen) {
+      console.log(`[LocalPeer][gen=${generation}] Ignoring stale cleanup for device ${deviceId}; active generation is ${boundGen}`);
+      return;
+    }
+
     this.stopHeartbeatLoop(deviceId);
 
     const handshake = this.pendingHandshakes.get(deviceId);
     if (handshake) {
-      clearTimeout(handshake.timeout);
-      this.pendingHandshakes.delete(deviceId);
-      handshake.resolve(false);
+      if (generation === undefined || handshake.generation === generation) {
+        clearTimeout(handshake.timeout);
+        this.pendingHandshakes.delete(deviceId);
+        handshake.resolve(false);
+      }
     }
+
+    const hadOpenChannel = this.dataChannels.get(deviceId)?.readyState === 'open';
 
     const pc = this.peerConnections.get(deviceId);
     if (pc) {
@@ -449,14 +557,10 @@ export class LocalPeerConnection {
       this.peerConnections.delete(deviceId);
     }
     this.dataChannels.delete(deviceId);
+    this.activeGenerations.delete(deviceId);
 
-    // If no more open direct connections remain, notify TransportRouter to fall back to Cloud
-    let anyOpen = false;
-    this.dataChannels.forEach((dc) => {
-      if (dc.readyState === 'open') anyOpen = true;
-    });
-    
-    if (!anyOpen) {
+    // Only notify TransportRouter of channel loss if an established channel dropped unexpectedly
+    if (reason === 'HEARTBEAT_TIMEOUT' && hadOpenChannel) {
       TransportRouter.getInstance().onLanChannelLost(deviceId);
     }
   }

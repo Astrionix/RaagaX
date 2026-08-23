@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
-import { ConnectCommand, ConnectState } from './types';
+import { ConnectCommand, ConnectState, ConnectionAttempt } from './types';
 import { CommandBus } from './CommandBus';
 import { NetworkManager } from '../offline/NetworkManager';
 import { DeviceRegistry } from './DeviceRegistry';
@@ -31,6 +31,7 @@ export class ConnectManager {
   // Strict Manual Disconnect & Generation Token System
   private manualDisconnectRequested: boolean = false;
   private connectionGeneration: number = 0;
+  private currentAttempt: ConnectionAttempt | null = null;
   private recoveryTimer: NodeJS.Timeout | null = null;
 
   private constructor() {
@@ -56,6 +57,10 @@ export class ConnectManager {
 
   public getConnectionGeneration(): number {
     return this.connectionGeneration;
+  }
+
+  public getCurrentAttempt(): ConnectionAttempt | null {
+    return this.currentAttempt;
   }
 
   private stateChangeListeners: Array<(state: ConnectState) => void> = [];
@@ -435,8 +440,13 @@ export class ConnectManager {
     if (command.type === 'WEBRTC_SIGNAL') {
       try {
         const channel = await this.getOrCreateTargetChannel(targetDeviceId);
-        if (channel && channel.state === 'joined') {
-          await channel.send({ type: 'broadcast', event: 'COMMAND', payload: command });
+        if (channel) {
+          const payload = { type: 'broadcast' as const, event: 'COMMAND', payload: command };
+          if (channel.state === 'joined') {
+            await channel.send(payload).catch(() => {});
+          } else if (typeof (channel as any).httpSend === 'function') {
+            await (channel as any).httpSend('COMMAND', command).catch(() => {});
+          }
         }
       } catch (e) {
         console.warn('[ConnectManager] Failed to send WebRTC signal:', e);
@@ -448,8 +458,15 @@ export class ConnectManager {
     const { TransportRouter } = await import('./TransportRouter');
     const cloudFallback = async (cmd: ConnectCommand) => {
       const channel = await this.getOrCreateTargetChannel(targetDeviceId);
-      if (channel && channel.state === 'joined') {
-        await channel.send({ type: 'broadcast', event: 'COMMAND', payload: cmd });
+      if (channel) {
+        const payload = { type: 'broadcast' as const, event: 'COMMAND', payload: cmd };
+        if (channel.state === 'joined') {
+          console.log('[Transport] Using realtime channel');
+          await channel.send(payload).catch(() => {});
+        } else if (typeof (channel as any).httpSend === 'function') {
+          console.log('[Transport] Using explicit HTTP delivery');
+          await (channel as any).httpSend('COMMAND', cmd).catch(() => {});
+        }
       }
     };
     const result = await TransportRouter.getInstance().dispatchTargeted(
@@ -469,7 +486,14 @@ export class ConnectManager {
     const { TransportRouter } = await import('./TransportRouter');
     const cloudFallback = async (cmd: ConnectCommand) => {
       if (!this.sessionChannel) return;
-      await this.sessionChannel.send({ type: 'broadcast', event: 'COMMAND', payload: cmd });
+      const payload = { type: 'broadcast' as const, event: 'COMMAND', payload: cmd };
+      if (this.sessionChannel.state === 'joined') {
+        console.log('[Transport] Using realtime channel');
+        await this.sessionChannel.send(payload).catch(() => {});
+      } else if (typeof (this.sessionChannel as any).httpSend === 'function') {
+        console.log('[Transport] Using explicit HTTP delivery');
+        await (this.sessionChannel as any).httpSend('COMMAND', cmd).catch(() => {});
+      }
     };
     await TransportRouter.getInstance().dispatchBroadcast(command, cloudFallback);
   }
@@ -494,26 +518,35 @@ export class ConnectManager {
       this.initGlobalPlaybackStateChannel();
     }
 
-    if (this.globalPlaybackStateChannel && this.globalPlaybackStateChannel.state === 'joined') {
+    const payload = {
+      type: 'broadcast' as const,
+      event: 'STATE_UPDATE',
+      payload: statePayload
+    };
+
+    if (this.globalPlaybackStateChannel) {
       try {
-        this.globalPlaybackStateChannel.send({
-          type: 'broadcast',
-          event: 'STATE_UPDATE',
-          payload: statePayload
-        });
+        if (this.globalPlaybackStateChannel.state === 'joined') {
+          this.globalPlaybackStateChannel.send(payload).catch(() => {});
+        } else if (typeof (this.globalPlaybackStateChannel as any).httpSend === 'function') {
+          (this.globalPlaybackStateChannel as any).httpSend('STATE_UPDATE', statePayload).catch(() => {});
+        }
       } catch {}
     }
 
-    if (this.sessionChannel && this.sessionChannel.state === 'joined') {
+    if (this.sessionChannel) {
       try {
-        await this.sessionChannel.send({
-          type: 'broadcast',
-          event: 'STATE_UPDATE',
-          payload: statePayload
-        });
+        if (this.sessionChannel.state === 'joined') {
+          await this.sessionChannel.send(payload).catch(() => {});
+        } else if (typeof (this.sessionChannel as any).httpSend === 'function') {
+          await (this.sessionChannel as any).httpSend('STATE_UPDATE', statePayload).catch(() => {});
+        }
       } catch {}
     }
   }
+
+
+
 
   public handleCommandAck(payload: any) {
     const resolver = this.pendingCommandResolvers.get(payload.commandId);
@@ -536,29 +569,73 @@ export class ConnectManager {
   }
 
   public async connectToDevice(targetDeviceId: string): Promise<boolean> {
-    console.log(`[ConnectManager] Connecting to remote device: ${targetDeviceId}`);
     const store = usePlayerStore.getState();
     if (targetDeviceId === store.deviceId) {
       console.log('[ConnectManager] Target is local device — skipping remote connect');
       return true;
     }
 
+    this.manualDisconnectRequested = false;
+    if (this.currentAttempt) {
+      this.currentAttempt.cancelled = true;
+    }
+
+    const gen = ++this.connectionGeneration;
+    const attempt: ConnectionAttempt = {
+      id: crypto.randomUUID(),
+      generation: gen,
+      deviceId: targetDeviceId,
+      startedAt: Date.now(),
+      transport: 'NONE',
+      status: 'LOCAL_CONNECTING',
+      completed: false,
+      failed: false,
+      fallbackStarted: false,
+      cancelled: false,
+      cleanedUp: false,
+    };
+    this.currentAttempt = attempt;
+
+    console.log(`[ConnectManager][gen=${gen}][device=${targetDeviceId}] Starting connection`);
+
     usePlayerStore.setState({
       deviceConnectionState: 'CONNECTING',
       connectedDeviceId: targetDeviceId,
     });
+    this.transitionState('LOCAL_CONNECTING');
 
     try {
       const { LocalPeerConnection } = await import('./LocalPeerConnection');
-      // Attempt fast direct LAN connection handshake
-      const lanConnected = await LocalPeerConnection.getInstance().connectToDevice(targetDeviceId);
+      console.log(`[LocalPeer][gen=${gen}] Starting LAN handshake`);
       
+      const lanConnected = await LocalPeerConnection.getInstance().connectToDevice(targetDeviceId, gen);
+
+      // Check if attempt was cancelled or superseded by a newer generation or manual disconnect
+      if (this.connectionGeneration !== gen || attempt.cancelled || this.manualDisconnectRequested) {
+        console.log(`[ConnectManager][gen=${gen}] Ignoring stale connection result; current generation = ${this.connectionGeneration}`);
+        return false;
+      }
+
       if (lanConnected) {
-        console.log(`[ConnectManager] Fast local LAN channel established with ${targetDeviceId}`);
+        console.log(`[LocalPeer][gen=${gen}] Handshake successful`);
+        attempt.status = 'LOCAL_CONNECTED';
+        attempt.transport = 'LOCAL_DIRECT';
         const { ConnectivityRouter } = await import('./ConnectivityRouter');
         ConnectivityRouter.getInstance().setLocalPeerAvailable(true);
+        console.log(`[TransportRouter][gen=${gen}] Active transport = LOCAL`);
       } else {
-        console.warn(`[ConnectManager] Direct LAN channel failed. Falling back to Cloud Relay for ${targetDeviceId}`);
+        // Single owner transport fallback
+        if (attempt.fallbackStarted) {
+          return false;
+        }
+        attempt.fallbackStarted = true;
+        attempt.status = 'CLOUD_CONNECTING';
+        console.warn(`[TransportRouter][gen=${gen}] LOCAL failed; starting CLOUD fallback`);
+        
+        const { ConnectivityRouter } = await import('./ConnectivityRouter');
+        ConnectivityRouter.getInstance().setLocalPeerAvailable(false);
+        console.log(`[TransportRouter][gen=${gen}] Active transport = CLOUD`);
+
         // Fallback: adopt optimistic state from cache
         const { PlaybackStateSync } = await import('./PlaybackStateSync');
         const cached = PlaybackStateSync.getInstance().getCachedRemoteState(targetDeviceId);
@@ -572,12 +649,18 @@ export class ConnectManager {
         this.subscribeSession(this.sessionId);
       }
 
+      attempt.completed = true;
+      attempt.status = lanConnected ? 'LOCAL_CONNECTED' : 'CLOUD_CONNECTED';
+      this.transitionState('READY');
+
       usePlayerStore.setState({
         deviceConnectionState: 'CONNECTED',
         connectedDeviceId: targetDeviceId,
         activeDeviceId: targetDeviceId,
         isActiveDevice: false,
       });
+
+      console.log(`[ConnectManager][gen=${gen}] Connection READY`);
 
       // Request state snapshot over the established transport path
       if (!lanConnected) {
@@ -591,7 +674,7 @@ export class ConnectManager {
           sequence: 1,
           revision: 1,
           sentAt: Date.now(),
-          payload: {},
+          payload: { generation: gen },
         }).catch(() => {});
       } else {
         try {
@@ -602,35 +685,47 @@ export class ConnectManager {
             sourceDeviceId: store.deviceId,
             targetDeviceId,
             timestamp: Date.now(),
+            generation: gen,
           } as any);
         } catch {}
       }
 
       return true;
     } catch (e) {
-      console.error('[ConnectManager] Failed to connect to device:', e);
+      if (this.connectionGeneration !== gen) {
+        console.log(`[ConnectManager][gen=${gen}] Ignoring error from obsolete generation; current generation = ${this.connectionGeneration}`);
+        return false;
+      }
+
+      console.error(`[ConnectManager][gen=${gen}] Failed to connect to device:`, e);
+      attempt.failed = true;
+      attempt.status = 'FAILED';
+
       usePlayerStore.setState({
         deviceConnectionState: 'AVAILABLE',
         connectedDeviceId: null,
       });
+      this.transitionState('DISCONNECTED');
       return false;
     }
   }
 
   public async manualDisconnect(): Promise<void> {
-    console.log('[ConnectManager] Manual disconnect requested');
+    const oldGen = this.connectionGeneration;
+    console.log(`[ConnectManager][gen=${oldGen}] Manual disconnect requested`);
     this.manualDisconnectRequested = true;
 
+    if (this.currentAttempt) {
+      this.currentAttempt.cancelled = true;
+      this.currentAttempt.status = 'DISCONNECTING';
+    }
+
     this.connectionGeneration++;
-    console.log('[ConnectManager] Old connection generation invalidated');
+    console.log(`[ConnectManager][gen=${oldGen}] Invalidating generation`);
 
     this.transitionState('DISCONNECTING');
 
-    // 1. Cancel all reconnect and recovery timers
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
+    // 1. Cancel all recovery timers
     if (this.recoveryTimer) {
       clearTimeout(this.recoveryTimer);
       this.recoveryTimer = null;
@@ -650,7 +745,7 @@ export class ConnectManager {
     this.recoveryQueue = [];
 
     // 3. Release device lease if this device currently owns it
-    console.log('[ConnectManager] Releasing device lease');
+    console.log(`[ConnectManager][gen=${oldGen}] Releasing device lease`);
     try {
       const { DeviceLeaseManager } = await import('./DeviceLeaseManager');
       await DeviceLeaseManager.getInstance().releaseLease(this.sessionId || undefined);
@@ -659,31 +754,31 @@ export class ConnectManager {
     }
 
     // 4. Unsubscribe inbox channel
-    console.log('[ConnectManager] Unsubscribing inbox');
+    console.log(`[ConnectManager][gen=${oldGen}] Unsubscribing inbox`);
     if (this.inboxChannel) {
       try { supabase.removeChannel(this.inboxChannel); } catch (e) {}
       this.inboxChannel = null;
     }
 
     // 5. Unsubscribe session channel and target channels
-    console.log('[ConnectManager] Unsubscribing session and target channels');
+    console.log(`[ConnectManager][gen=${oldGen}] Unsubscribing session and target channels`);
     this.unsubscribeSession();
     for (const [devId, ch] of this.targetChannels.entries()) {
       try { supabase.removeChannel(ch); } catch {}
     }
     this.targetChannels.clear();
 
-    // 6. Cleanup local peer connections if any
+    // 6. Cleanup local peer connections (without triggering false fallbacks!)
     const store = usePlayerStore.getState();
     const targetId = store.connectedDeviceId;
     if (targetId) {
       try {
         const { LocalPeerConnection } = await import('./LocalPeerConnection');
-        LocalPeerConnection.getInstance().cleanup(targetId);
+        LocalPeerConnection.getInstance().cleanup(targetId, oldGen, 'MANUAL_DISCONNECT');
       } catch {}
       try {
-        const { TransportRouter } = await import('./TransportRouter');
-        TransportRouter.getInstance().onLanChannelLost(targetId);
+        const { ConnectivityRouter } = await import('./ConnectivityRouter');
+        ConnectivityRouter.getInstance().setLocalPeerAvailable(false);
       } catch {}
     }
 
@@ -706,6 +801,11 @@ export class ConnectManager {
     CommandBus.getInstance().reset();
 
     // 10. Transition to DISCONNECTED
+    if (this.currentAttempt) {
+      this.currentAttempt.status = 'DISCONNECTED';
+      this.currentAttempt.cleanedUp = true;
+      this.currentAttempt = null;
+    }
     this.transitionState('DISCONNECTED');
   }
 
@@ -719,6 +819,7 @@ export class ConnectManager {
     });
     await this.manualDisconnect();
   }
+
 
   public async dispatchPlaybackCommand(type: ConnectCommand['type'], payload: any = {}): Promise<{ success: boolean; reason?: string }> {
     const store = usePlayerStore.getState();

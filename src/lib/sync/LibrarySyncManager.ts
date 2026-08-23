@@ -312,8 +312,8 @@ export class LibrarySyncManager {
   private async broadcastMutation(type: 'LIKE' | 'UNLIKE', songId: string, revision: number) {
     if (!this.channel) return;
 
-    this.channel.send({
-      type: 'broadcast',
+    const payload = {
+      type: 'broadcast' as const,
       event: 'LIBRARY_MUTATION',
       payload: {
         type,
@@ -321,6 +321,15 @@ export class LibrarySyncManager {
         deviceId: this.deviceId,
         revision
       }
-    });
+    };
+
+
+    if (this.channel.state === 'joined') {
+      this.channel.send(payload).catch(() => {});
+    } else if (typeof (this.channel as any).httpSend === 'function') {
+      (this.channel as any).httpSend('LIBRARY_MUTATION', payload.payload).catch(() => {});
+    }
   }
 }
+
+

@@ -142,7 +142,36 @@ public class RaagaXPlaybackService extends Service {
         player.setPlayWhenReady(false);
 
         try {
-            mediaSession = new androidx.media3.session.MediaSession.Builder(this, player).build();
+            Intent launchIntent = new Intent(this, MainActivity.class);
+            launchIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            PendingIntent sessionActivityPi = PendingIntent.getActivity(this, 0, launchIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+            mediaSession = new androidx.media3.session.MediaSession.Builder(this, player)
+                    .setSessionActivity(sessionActivityPi)
+                    .setCallback(new androidx.media3.session.MediaSession.Callback() {
+                        @Override
+                        public androidx.media3.session.MediaSession.ConnectionResult onConnect(
+                                androidx.media3.session.MediaSession session,
+                                androidx.media3.session.MediaSession.ControllerInfo controller) {
+                            androidx.media3.session.MediaSession.ConnectionResult connectionResult =
+                                    androidx.media3.session.MediaSession.Callback.super.onConnect(session, controller);
+                            androidx.media3.session.MediaSession.ConnectionResult.AcceptedResultBuilder acceptedBuilder =
+                                    new androidx.media3.session.MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                                            .setAvailablePlayerCommands(
+                                                    connectionResult.availablePlayerCommands
+                                                            .buildUpon()
+                                                            .add(Player.COMMAND_SEEK_TO_NEXT)
+                                                            .add(Player.COMMAND_SEEK_TO_PREVIOUS)
+                                                            .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
+                                                            .add(Player.COMMAND_PLAY_PAUSE)
+                                                            .add(Player.COMMAND_STOP)
+                                                            .build()
+                                            );
+                            return acceptedBuilder.build();
+                        }
+                    })
+                    .build();
         } catch (Exception e) {
             Log.e(TAG, "Failed to create MediaSession: " + e.getMessage());
         }
@@ -170,6 +199,17 @@ public class RaagaXPlaybackService extends Service {
                 currentArtist     = newArtist;
                 currentArtworkUrl = newArt;
                 loadArtworkAsync(newArt, newTrackId);
+
+                // Proactively prefetch artwork of the next track in queue
+                if (player != null && player.hasNextMediaItem()) {
+                    int nextIdx = player.getCurrentMediaItemIndex() + 1;
+                    if (nextIdx < player.getMediaItemCount()) {
+                        androidx.media3.common.MediaItem nextItem = player.getMediaItemAt(nextIdx);
+                        if (nextItem != null && nextItem.mediaMetadata != null && nextItem.mediaMetadata.artworkUri != null) {
+                            prefetchArtwork(nextItem.mediaMetadata.artworkUri.toString());
+                        }
+                    }
+                }
 
                 // Reset position to 0 upon transition
                 long pos = 0L;
@@ -418,6 +458,26 @@ public class RaagaXPlaybackService extends Service {
         });
     }
 
+    private void prefetchArtwork(String url) {
+        if (url == null || url.isEmpty()) return;
+        if (artworkCache.get(url) != null) return;
+        new Thread(() -> {
+            try {
+                URL u = new URL(url);
+                HttpURLConnection conn = (HttpURLConnection) u.openConnection();
+                conn.setConnectTimeout(4000);
+                conn.setReadTimeout(4000);
+                conn.setDoInput(true);
+                conn.connect();
+                InputStream in = conn.getInputStream();
+                Bitmap b = BitmapFactory.decodeStream(in);
+                if (b != null) {
+                    artworkCache.put(url, b);
+                }
+            } catch (Exception ignored) {}
+        }).start();
+    }
+
     private void loadArtworkAsync(String url) {
         loadArtworkAsync(url, currentTrackId);
     }
@@ -439,6 +499,10 @@ public class RaagaXPlaybackService extends Service {
             updateNotification();
             return;
         }
+        // Atomic Transition Guard: Never show previous song's cover with new track metadata
+        currentArtworkBitmap = null;
+        updateNotification();
+
         final String requestTrackId = trackId;
         new Thread(() -> {
             try {
@@ -853,7 +917,12 @@ public class RaagaXPlaybackService extends Service {
                 player.pause();
             }
             if (artworks != null && safeIndex < artworks.length) {
-                loadArtworkAsync(artworks[safeIndex]);
+                String curArt = artworks[safeIndex];
+                loadArtworkAsync(curArt, trackIds != null && safeIndex < trackIds.length ? trackIds[safeIndex] : "");
+                // Proactively prefetch next tracks in queue into memory cache
+                for (int nextI = safeIndex + 1; nextI < Math.min(artworks.length, safeIndex + 4); nextI++) {
+                    prefetchArtwork(artworks[nextI]);
+                }
             }
             saveNativeQueueToPrefs(urls, titles, artists, safeIndex);
             updateNotification();
@@ -1025,8 +1094,19 @@ public class RaagaXPlaybackService extends Service {
     @Override
     public void onTaskRemoved(Intent rootIntent) {
         super.onTaskRemoved(rootIntent);
-        Log.d(TAG, "onTaskRemoved: Activity swiped away from Recents. Terminating playback and saving session.");
+        Log.d(TAG, "onTaskRemoved: Activity swiped away from Recents.");
 
+        // Continuous Background Audio Guard:
+        // If music is actively playing or intended to play, DO NOT kill playback.
+        // Foreground service keeps audio running with system notification as primary surface.
+        boolean isPlaying = player != null && (player.isPlaying() || player.getPlayWhenReady());
+        if (isPlaying) {
+            Log.d(TAG, "onTaskRemoved: Audio is active — continuing in background as foreground service.");
+            updateNotification();
+            return;
+        }
+
+        Log.d(TAG, "onTaskRemoved: Audio is paused/idle — saving snapshot and stopping foreground service.");
         // 1. Save current playback snapshot to SharedPreferences before shutdown
         if (player != null) {
             try {
@@ -1046,7 +1126,6 @@ public class RaagaXPlaybackService extends Service {
                 Log.e(TAG, "Failed to save state onTaskRemoved: " + e.getMessage());
             }
 
-            // 2. STOP AUDIO IMMEDIATELY — Swiping app from recents terminates playback
             try {
                 player.setPlayWhenReady(false);
                 player.pause();
@@ -1406,12 +1485,12 @@ public class RaagaXPlaybackService extends Service {
                 new Intent(this, RaagaXPlaybackService.class).setAction("NEXT"),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        boolean isPlaying = player != null && player.isPlaying();
+        boolean isPlaying = player != null && (player.isPlaying() || player.getPlayWhenReady());
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentTitle(currentTitle)
-                .setContentText(currentArtist)
+                .setContentTitle(currentTitle != null && !currentTitle.isEmpty() ? currentTitle : "RaagaX")
+                .setContentText(currentArtist != null ? currentArtist : "")
                 .setContentIntent(pi)
                 .setOngoing(isPlaying)
                 .setSilent(true)
@@ -1426,10 +1505,26 @@ public class RaagaXPlaybackService extends Service {
                        isPlaying ? "Pause" : "Play", playPausePending)
                .addAction(android.R.drawable.ic_media_next, "Next", nextPending);
 
-        androidx.media.app.NotificationCompat.MediaStyle mediaStyle = new androidx.media.app.NotificationCompat.MediaStyle()
-                .setShowActionsInCompactView(0, 1, 2);
+        if (mediaSession != null) {
+            try {
+                androidx.media3.session.MediaStyleNotificationHelper.MediaStyle mediaStyle =
+                        new androidx.media3.session.MediaStyleNotificationHelper.MediaStyle(mediaSession)
+                                .setShowActionsInCompactView(0, 1, 2);
+                builder.setStyle(mediaStyle);
+            } catch (Exception e) {
+                Log.w(TAG, "Failed to set MediaStyleNotificationHelper: " + e.getMessage());
+                androidx.media.app.NotificationCompat.MediaStyle fallbackMediaStyle =
+                        new androidx.media.app.NotificationCompat.MediaStyle()
+                                .setShowActionsInCompactView(0, 1, 2);
+                builder.setStyle(fallbackMediaStyle);
+            }
+        } else {
+            androidx.media.app.NotificationCompat.MediaStyle mediaStyle =
+                    new androidx.media.app.NotificationCompat.MediaStyle()
+                            .setShowActionsInCompactView(0, 1, 2);
+            builder.setStyle(mediaStyle);
+        }
 
-        builder.setStyle(mediaStyle);
         return builder.build();
     }
 

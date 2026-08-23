@@ -209,9 +209,18 @@ export class TransportRouter {
    * LAN → Cloud automatic failover path.
    */
   public onLanChannelLost(deviceId: string) {
-    console.warn(`[TransportRouter] LAN channel lost for ${deviceId}. Falling back to CLOUD_RELAY.`);
-    ConnectivityRouter.getInstance().setLocalPeerAvailable(false);
+    import('./ConnectManager').then(({ ConnectManager }) => {
+      if (ConnectManager.getInstance().isManualDisconnectRequested()) {
+        return;
+      }
+      const gen = ConnectManager.getInstance().getConnectionGeneration();
+      console.warn(`[TransportRouter][gen=${gen}] Established LAN channel lost for ${deviceId}. Falling back to CLOUD_RELAY.`);
+      ConnectivityRouter.getInstance().setLocalPeerAvailable(false);
+    }).catch(() => {
+      ConnectivityRouter.getInstance().setLocalPeerAvailable(false);
+    });
   }
+
 
   /**
    * Returns a human-friendly connection label (for diagnostics/debug only, not user-facing).

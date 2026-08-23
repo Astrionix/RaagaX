@@ -276,13 +276,22 @@ export class DeviceRegistry {
         this.initGlobalPresenceChannel();
       }
 
-      this.globalPresenceChannel?.send({
-        type: 'broadcast',
+      const beaconPayload = {
+        type: 'broadcast' as const,
         event: 'device_beacon',
         payload
-      });
+      };
+
+      if (this.globalPresenceChannel) {
+        if (this.globalPresenceChannel.state === 'joined') {
+          this.globalPresenceChannel.send(beaconPayload).catch(() => {});
+        } else if (typeof (this.globalPresenceChannel as any).httpSend === 'function') {
+          (this.globalPresenceChannel as any).httpSend('device_beacon', payload).catch(() => {});
+        }
+      }
     } catch {}
   }
+
 
   private lastDiscoveryPingTime = 0;
   private lastBeaconResponseTime = 0;
@@ -301,13 +310,23 @@ export class DeviceRegistry {
       if (!this.globalPresenceChannel) {
         this.initGlobalPresenceChannel();
       }
-      this.globalPresenceChannel?.send({
-        type: 'broadcast',
+      const pingPayload = {
+        type: 'broadcast' as const,
         event: 'discovery_ping',
         payload: { senderDeviceId: usePlayerStore.getState().deviceId, timestamp: now }
-      });
+      };
+
+      if (this.globalPresenceChannel) {
+        if (this.globalPresenceChannel.state === 'joined') {
+          this.globalPresenceChannel.send(pingPayload).catch(() => {});
+        } else if (typeof (this.globalPresenceChannel as any).httpSend === 'function') {
+          (this.globalPresenceChannel as any).httpSend('discovery_ping', pingPayload.payload).catch(() => {});
+        }
+      }
     } catch {}
   }
+
+
 
   public initGlobalPresenceChannel(): void {
     if (this.globalPresenceChannel) return;
@@ -365,6 +384,24 @@ export class DeviceRegistry {
           this.broadcastPresenceBeacon();
         }
       })
+      .on('broadcast', { event: 'device_revoked' }, (msg: any) => {
+        const payload = msg?.payload;
+        if (!payload || !payload.deviceId) return;
+        const store = usePlayerStore.getState();
+        if (payload.deviceId === store.deviceId) {
+          console.warn(`[DeviceRegistry] Remote session revocation received for this device. Signing out...`);
+          import('./ConnectManager').then(({ ConnectManager }) => {
+            ConnectManager.getInstance().manualDisconnect();
+          });
+          import('@/context/useAuthStore').then(({ useAuthStore }) => {
+            useAuthStore.getState().signOut();
+          });
+        } else {
+          const currentList = store.onlineDevices || [];
+          const updated = currentList.filter((d: any) => d.id !== payload.deviceId);
+          store.setOnlineDevices(updated);
+        }
+      })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           this.broadcastPresenceBeacon();
@@ -372,6 +409,7 @@ export class DeviceRegistry {
       });
     } catch {}
   }
+
 
   /**
    * Subscribes to Supabase Realtime changes on public:devices for the current user.
@@ -570,6 +608,92 @@ export class DeviceRegistry {
 
     return true;
   }
+
+  /**
+   * Revokes remote device authorization and session for a same-account device.
+   * Emits a revocation command to the target device, deletes its registration record,
+   * disconnects any active Connect session, and removes it from online devices.
+   */
+  public async revokeRemoteDevice(targetDeviceId: string): Promise<boolean> {
+    if (!targetDeviceId) return false;
+    console.log(`[DeviceRegistry] Revoking authorization for remote device: ${targetDeviceId}`);
+
+    const authRes = await supabase.auth.getSession();
+    const currentUserId = authRes?.data?.session?.user?.id;
+
+    // 1. Notify target device via direct targeted command so it immediately signs out
+    try {
+      const { ConnectManager } = await import('./ConnectManager');
+      const store = usePlayerStore.getState();
+      const command = {
+        commandId: crypto.randomUUID(),
+        sessionId: ConnectManager.getInstance().getSessionId() || 'global',
+        epoch: 0,
+        sequence: 0,
+        sourceDeviceId: store.deviceId,
+        targetDeviceId: targetDeviceId,
+        type: 'DEVICE_REVOKED' as any,
+        sentAt: Date.now(),
+        payload: {
+          revokedDeviceId: targetDeviceId,
+          revokedByUserId: currentUserId || store.deviceId,
+          timestamp: Date.now(),
+        }
+      };
+
+      await ConnectManager.getInstance().sendTargetedCommand(targetDeviceId, command);
+    } catch (e) {
+      console.warn(`[DeviceRegistry] Failed to dispatch DEVICE_REVOKED command to ${targetDeviceId}:`, e);
+    }
+
+    // 2. If target device was currently connected, disconnect cleanly without stopping playback on remaining device
+    const store = usePlayerStore.getState();
+    if (store.connectedDeviceId === targetDeviceId || store.activeDeviceId === targetDeviceId) {
+      try {
+        const { ConnectManager } = await import('./ConnectManager');
+        await ConnectManager.getInstance().manualDisconnect();
+      } catch {}
+    }
+
+    // 3. Remove target device from Supabase devices table for this user
+    if (currentUserId) {
+      try {
+        await supabase
+          .from('devices')
+          .delete()
+          .eq('user_id', currentUserId)
+          .eq('device_id', targetDeviceId);
+      } catch (e) {
+        console.warn('[DeviceRegistry] Failed to delete device row from Supabase:', e);
+      }
+    }
+
+
+    // 4. Immediately remove from local onlineDevices Zustand state
+    const currentList = usePlayerStore.getState().onlineDevices || [];
+    const filtered = currentList.filter(d => d.id !== targetDeviceId);
+    usePlayerStore.getState().setOnlineDevices(filtered);
+
+    // 5. Broadcast device removal on presence channel
+    try {
+      if (this.globalPresenceChannel) {
+        const payload = {
+          type: 'broadcast' as const,
+          event: 'device_revoked',
+          payload: { deviceId: targetDeviceId, timestamp: Date.now() }
+        };
+        if (this.globalPresenceChannel.state === 'joined') {
+          this.globalPresenceChannel.send(payload).catch(() => {});
+        } else if (typeof (this.globalPresenceChannel as any).httpSend === 'function') {
+          (this.globalPresenceChannel as any).httpSend('device_revoked', payload.payload).catch(() => {});
+        }
+      }
+    } catch {}
+
+    return true;
+  }
+
+
 
   private startAdaptiveHeartbeat() {
     if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);

@@ -190,17 +190,31 @@ export class DirectLANTransport {
       try {
         const { supabase } = require('@/lib/supabase');
         if (supabase) {
-          supabase
-            .channel(`rx_lan_relay_${targetDeviceId}`)
-            .send({
-              type: 'broadcast',
-              event: 'lan_msg',
-              payload: msg,
-            })
-            .catch(() => {});
+          const ch = supabase.channel(`rx_lan_relay_${targetDeviceId}`);
+          const payload = {
+            type: 'broadcast',
+            event: 'lan_msg',
+            payload: msg,
+          };
+          if (typeof ch.httpSend === 'function') {
+            console.log('[Transport] Using explicit HTTP delivery');
+            ch.httpSend('lan_msg', msg).catch(() => {});
+          } else if (ch.state === 'joined') {
+
+            console.log('[Transport] Using realtime channel');
+            ch.send(payload).catch(() => {});
+          } else {
+            ch.subscribe((status: string) => {
+              if (status === 'SUBSCRIBED') {
+                console.log('[Transport] Using realtime channel');
+                ch.send(payload).catch(() => {});
+              }
+            });
+          }
         }
       } catch {}
     }
+
 
     return true;
   }

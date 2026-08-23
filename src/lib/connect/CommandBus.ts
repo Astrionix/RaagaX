@@ -644,8 +644,25 @@ export class CommandBus {
         });
         break;
 
+      case 'DEVICE_REVOKED': {
+        const p = (command.payload || {}) as any;
+        const targetDevId = command.targetDeviceId || p.revokedDeviceId;
+        const storeDeviceId = usePlayerStore.getState().deviceId;
+        if (targetDevId === storeDeviceId || targetDevId === this.localDeviceId) {
+          console.warn(`[CommandBus] Remote session revocation received for this device. Signing out...`);
+          import('./ConnectManager').then(({ ConnectManager }) => {
+            ConnectManager.getInstance().manualDisconnect();
+          });
+          import('@/context/useAuthStore').then(({ useAuthStore }) => {
+            useAuthStore.getState().signOut();
+          });
+        }
+        break;
+      }
+
       default:
         console.warn(`[CommandBus] Unhandled command type: ${command.type}`);
     }
   }
 }
+
