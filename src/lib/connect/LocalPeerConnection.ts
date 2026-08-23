@@ -222,6 +222,32 @@ export class LocalPeerConnection {
                 return;
               }
 
+              // ── Build a RemotePlaybackState-compatible snapshot for the connecting device ─────────
+              // getPlaybackSnapshot() is designed for local session use and may lack epoch/activeDeviceId.
+              // We build a full RemotePlaybackState object here so adoptRemoteState() works correctly.
+              const deviceName = typeof window !== 'undefined'
+                ? (localStorage.getItem('raagax_device_name') || 'RaagaX Player')
+                : 'RaagaX Player';
+              const fullSnapshot = {
+                activeDeviceId: store.deviceId,           // THIS device is the renderer
+                activeDeviceName: deviceName,
+                songId: store.currentSong?.id || null,
+                songData: store.currentSong ? { ...store.currentSong } : null,
+                isPlaying: store.isPlaying,
+                isBuffering: false,
+                positionMs: Math.round(store.currentTime * 1000),
+                durationMs: Math.round(store.duration * 1000),
+                volume: store.volume,
+                isMuted: store.isMuted,
+                queue: store.queue || [],
+                queueIndex: store.queueIndex || 0,
+                shuffleMode: store.shuffleMode,
+                repeatMode: store.repeatMode,
+                serverTimestamp: Date.now(),
+                epoch: 1,
+                revision: store.localPlaybackRevision || 1,
+              };
+
               // Authorized: respond with current snapshot and capabilities
               const responseCmd = {
                 commandId: crypto.randomUUID(),
@@ -233,7 +259,7 @@ export class LocalPeerConnection {
                 type: 'CONNECT_RESPONSE',
                 sentAt: Date.now(),
                 payload: {
-                  snapshot: store.getPlaybackSnapshot(),
+                  snapshot: fullSnapshot,
                   capabilities: {
                     audio: true,
                     seek: true,
@@ -244,15 +270,25 @@ export class LocalPeerConnection {
               };
               if (dc.readyState === 'open') {
                 dc.send(JSON.stringify(responseCmd));
+                console.log(`[LocalPeer][gen=${generation}] Sent CONNECT_RESPONSE to ${targetId} — snapshot: trackId=${fullSnapshot.songId} isPlaying=${fullSnapshot.isPlaying} pos=${fullSnapshot.positionMs}ms`);
               }
               
               // Mark direct peer available for routing via TransportRouter
               TransportRouter.getInstance().onLanChannelAvailable(targetId);
 
-              // Broadcast live state immediately upon accepting connection
+              // Broadcast live STATE_UPDATE immediately (primary delivery)
               if (store.isActiveDevice) {
                 PlaybackStateSync.getInstance().broadcastState(true);
               }
+
+              // Broadcast again after a short delay as a reliability safety net
+              // (covers the window where the connecting device hasn't finished registering its channel yet)
+              setTimeout(() => {
+                const currentStore = usePlayerStore.getState();
+                if (currentStore.isActiveDevice) {
+                  PlaybackStateSync.getInstance().broadcastState(true);
+                }
+              }, 150);
             }).catch(() => {});
             break;
           }
@@ -276,9 +312,13 @@ export class LocalPeerConnection {
               clearTimeout(handshake.timeout);
               this.pendingHandshakes.delete(targetId);
 
-              // Adopt remote state snapshot immediately
+              // Adopt remote state snapshot immediately.
+              // The store already has isActiveDevice=false (set before the LAN attempt),
+              // so adoptRemoteState will apply the state without dropping it.
               if (msg.payload && msg.payload.snapshot) {
-                PlaybackStateSync.getInstance().adoptRemoteState(msg.payload.snapshot);
+                const snap = msg.payload.snapshot;
+                console.log(`[LocalPeer][gen=${generation}] Adopting CONNECT_RESPONSE snapshot: trackId=${snap.songId || snap.currentTrackId} isPlaying=${snap.isPlaying} pos=${snap.positionMs}ms`);
+                PlaybackStateSync.getInstance().adoptRemoteState(snap);
               }
 
               TransportRouter.getInstance().onLanChannelAvailable(targetId);

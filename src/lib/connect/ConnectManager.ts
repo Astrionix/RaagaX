@@ -598,15 +598,44 @@ export class ConnectManager {
 
     console.log(`[ConnectManager][gen=${gen}][device=${targetDeviceId}] Starting connection`);
 
+    // ── CRITICAL: Pre-assign follower role BEFORE the LAN handshake ──────────────
+    // When THIS device actively connects TO another device it is ALWAYS the follower
+    // (controller/mirror). The connected device is the authoritative audio renderer.
+    // We commit isActiveDevice=false NOW so that:
+    //   1. CONNECT_RESPONSE snapshot (arriving mid-handshake) lands with correct role.
+    //   2. STATE_UPDATE Supabase messages are not dropped by the isActiveDevice gate.
+    // The only time a device stays isActiveDevice=true post-connect is when ANOTHER
+    // device connects TO IT (handled on the other side via CONNECT_REQUEST flow).
     usePlayerStore.setState({
       deviceConnectionState: 'CONNECTING',
       connectedDeviceId: targetDeviceId,
+      activeDeviceId: targetDeviceId,   // target is the authoritative renderer
+      isActiveDevice: false,             // we are the follower/controller
     });
+
+    // ── SILENCE LOCAL AUDIO IMMEDIATELY ─────────────────────────────────────────
+    // The target device ALWAYS owns audio after Connect is initiated.
+    // Even if this device was playing Song A before connecting, its audio output
+    // must be silenced immediately — do not wait for adoptRemoteState to arrive.
+    // We use pauseAudioElementOnly() (not pause()) to avoid writing isPlaying=false
+    // to the store; that field will be overwritten by the remote state snapshot.
+    try {
+      const { RaagaXNativePlayer } = await import('../playback/native/RaagaXNativePlayer');
+      if (RaagaXNativePlayer.isNative()) {
+        RaagaXNativePlayer.pause().catch(() => {});
+        console.log(`[ConnectManager][gen=${gen}] Native audio silenced (follower role)`);
+      } else {
+        const { PlaybackService } = await import('../playback/PlaybackService');
+        PlaybackService.getInstance().pauseAudioElementOnly();
+        console.log(`[ConnectManager][gen=${gen}] HTML5 audio silenced (follower role)`);
+      }
+    } catch {}
+
     this.transitionState('LOCAL_CONNECTING');
 
     try {
       const { LocalPeerConnection } = await import('./LocalPeerConnection');
-      console.log(`[LocalPeer][gen=${gen}] Starting LAN handshake`);
+      console.log(`[LocalPeer][gen=${gen}] Starting LAN handshake (role=FOLLOWER pre-assigned)`);
       
       const lanConnected = await LocalPeerConnection.getInstance().connectToDevice(targetDeviceId, gen);
 
@@ -653,64 +682,45 @@ export class ConnectManager {
       attempt.status = lanConnected ? 'LOCAL_CONNECTED' : 'CLOUD_CONNECTED';
       this.transitionState('READY');
 
-      const currentStore = usePlayerStore.getState();
-      const targetPreview = currentStore.availableDevicePlaybackStates[targetDeviceId];
-      const isTargetPlaying = Boolean(targetPreview?.isPlaying);
-      const isLocalPlaying = Boolean(currentStore.currentSong && currentStore.isPlaying && !isTargetPlaying);
+      // Finalize CONNECTED state — follower role was already written above.
+      usePlayerStore.setState({
+        deviceConnectionState: 'CONNECTED',
+        connectedDeviceId: targetDeviceId,
+        activeDeviceId: targetDeviceId,
+        isActiveDevice: false,
+      });
+      console.log(`[ConnectManager][gen=${gen}] Connection READY (role=FOLLOWER, renderer=${targetDeviceId})`);
 
-      if (isLocalPlaying) {
-        // Local device is actively playing audio -> remains authoritative active renderer!
-        usePlayerStore.setState({
-          deviceConnectionState: 'CONNECTED',
-          connectedDeviceId: targetDeviceId,
-          activeDeviceId: currentStore.deviceId,
-          isActiveDevice: true,
-        });
-        console.log(`[ConnectManager][gen=${gen}] Connection READY (Local device is active audio output)`);
-
-        // Immediately broadcast authoritative state to the newly connected remote device
-        const { PlaybackStateSync } = await import('./PlaybackStateSync');
-        PlaybackStateSync.getInstance().broadcastState(true);
-      } else {
-        // Local device is not playing or target is playing -> becomes follower / remote controller of target device
-        usePlayerStore.setState({
-          deviceConnectionState: 'CONNECTED',
-          connectedDeviceId: targetDeviceId,
-          activeDeviceId: targetDeviceId,
-          isActiveDevice: false,
-        });
-        console.log(`[ConnectManager][gen=${gen}] Connection READY (Remote device is active audio output)`);
-
-
-        // Request state snapshot over the established transport path
-        if (!lanConnected) {
-          this.sendTargetedCommand(targetDeviceId, {
-            commandId: 'cmd_state_' + Date.now(),
-            sessionId: this.sessionId || 'local_session',
+      // Request an immediate full state snapshot from the renderer over the active transport.
+      if (lanConnected) {
+        // LAN: CONNECT_RESPONSE already delivers a snapshot; also send CMD_STATE_REQUEST
+        // for a fresh authoritative STATE_UPDATE broadcast from the renderer.
+        try {
+          const { DirectLANTransport } = await import('./lan/DirectLANTransport');
+          DirectLANTransport.getInstance().sendMessage(targetDeviceId, {
+            id: 'lan_state_req_' + Date.now(),
+            type: 'CMD_STATE_REQUEST' as any,
             sourceDeviceId: store.deviceId,
             targetDeviceId,
-            type: 'GET_STATE' as any,
-            epoch: 1,
-            sequence: 1,
-            revision: 1,
-            sentAt: Date.now(),
-            payload: { generation: gen },
-          }).catch(() => {});
-        } else {
-          try {
-            const { DirectLANTransport } = await import('./lan/DirectLANTransport');
-            DirectLANTransport.getInstance().sendMessage(targetDeviceId, {
-              id: 'lan_state_req_' + Date.now(),
-              type: 'CMD_STATE_REQUEST' as any,
-              sourceDeviceId: store.deviceId,
-              targetDeviceId,
-              timestamp: Date.now(),
-              generation: gen,
-            } as any);
-          } catch {}
-        }
+            timestamp: Date.now(),
+            generation: gen,
+          } as any);
+        } catch {}
+      } else {
+        // Cloud: request full authoritative snapshot from the renderer.
+        this.sendTargetedCommand(targetDeviceId, {
+          commandId: 'cmd_state_' + Date.now(),
+          sessionId: this.sessionId || 'local_session',
+          sourceDeviceId: store.deviceId,
+          targetDeviceId,
+          type: 'GET_STATE' as any,
+          epoch: 1,
+          sequence: 1,
+          revision: 1,
+          sentAt: Date.now(),
+          payload: { generation: gen },
+        }).catch(() => {});
       }
-
 
       return true;
     } catch (e) {

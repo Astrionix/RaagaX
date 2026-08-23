@@ -221,22 +221,28 @@ export class PlaybackStateSync {
     };
     usePlayerStore.setState({ availableDevicePlaybackStates: currentPreviews });
 
-    // CRITICAL: Local Device Priority Guard
-    // If the local device is actively playing locally and NOT connected to a remote device,
-    // local Android/desktop playback remains authoritative.
-    // Remote state must NOT force pause(), track replacement, queue replacement, or isPlaying=false.
+    // ── Connection Gating ─────────────────────────────────────────────────────────
+    // Use connectedDeviceId as the PRIMARY gate, NOT isActiveDevice.
+    // Reason: isActiveDevice transitions to false AFTER the handshake, but STATE_UPDATE
+    // messages can arrive during the handshake window (race). Using connectedDeviceId
+    // avoids that race — it is written BEFORE the LAN connect attempt begins.
+    //
+    // Accept state if:
+    //   a) we are explicitly connected to this remote device, OR
+    //   b) our activeDeviceId points at this remote device (following it)
+    const isFollowingThisDevice = (
+      store.connectedDeviceId === remoteState.activeDeviceId ||
+      (!store.isActiveDevice && store.activeDeviceId === remoteState.activeDeviceId)
+    );
+
+    // Local Device Priority Guard: if this device is the authoritative renderer
+    // and has NO connection to a remote device, remote state must NOT override local playback.
     if (store.isActiveDevice && !store.connectedDeviceId) {
       return;
     }
 
-    // CRITICAL: Connection Gating
-    // Only adopt remote state into the active player store if the user has explicitly connected to this device,
-    // or this device is in follower/remote-controller mode targeting this device.
-    const isConnectedToThisDevice = Boolean(!store.isActiveDevice && store.connectedDeviceId === remoteState.activeDeviceId);
-    const isRemoteFollowerOfThis = Boolean(!store.isActiveDevice && (store.activeDeviceId === remoteState.activeDeviceId || store.connectedDeviceId === remoteState.activeDeviceId));
-
-    if (!isConnectedToThisDevice && !isRemoteFollowerOfThis) {
-      // Not connected to this device — discovery only. Do not touch local player!
+    if (!isFollowingThisDevice) {
+      // Not connected to this device — discovery-only update. Do NOT touch local player.
       return;
     }
 
@@ -312,21 +318,27 @@ export class PlaybackStateSync {
     const store = usePlayerStore.getState();
     const now = Date.now();
 
+    // Echo-loop guard: never adopt state that identifies THIS device as the active renderer.
+    // This prevents the laptop from accidentally pausing its own audio when it receives
+    // an echo of its own broadcast (e.g. via the global playback state channel).
+    if (remoteState.activeDeviceId === store.deviceId) {
+      console.log(`[PlaybackStateSync] Ignoring self-echo: remote state claims this device (${store.deviceId}) is active renderer`);
+      return;
+    }
+
     // Local Device Priority: If the local device is actively playing locally and not connected to a remote device, local player remains authoritative.
     if (store.isActiveDevice && !store.connectedDeviceId) {
       return;
     }
 
-    // 1. Controller MUST NOT output audio locally ONLY when following a remote device
-    const isFollowing = !store.isActiveDevice || (store.connectedDeviceId === remoteState.activeDeviceId && remoteState.activeDeviceId !== store.deviceId);
-    if (isFollowing && remoteState.activeDeviceId !== store.deviceId) {
-      if (RaagaXNativePlayer.isNative()) {
-        RaagaXNativePlayer.pause().catch(() => {});
-      } else {
-        const active = PlaybackService.getInstance().getActiveAudio();
-        if (active && !active.paused) {
-          active.pause();
-        }
+    // 1. Silence local audio output — this device is the follower/controller, not the renderer.
+    // Use remoteState.activeDeviceId !== store.deviceId (already guaranteed above) to decide.
+    if (RaagaXNativePlayer.isNative()) {
+      RaagaXNativePlayer.pause().catch(() => {});
+    } else {
+      const active = PlaybackService.getInstance().getActiveAudio();
+      if (active && !active.paused) {
+        active.pause();
       }
     }
 
