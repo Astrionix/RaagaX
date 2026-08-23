@@ -73,10 +73,22 @@ export class PlaybackRecoveryEngine {
         updatedAt: Date.now(),
       };
 
-      localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot));
-    } catch (err) {
-      console.warn('[PlaybackRecoveryEngine] Error saving snapshot:', err);
-    }
+      try {
+        localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot));
+      } catch (err: any) {
+        if (err?.name === 'QuotaExceededError' || err?.code === 22) {
+          try {
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+              const key = localStorage.key(i);
+              if (key && (key.startsWith('search_cache_') || key.startsWith('lyrics_cache_') || key.startsWith('trend_') || key.startsWith('temp_'))) {
+                localStorage.removeItem(key);
+              }
+            }
+            localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot));
+          } catch {}
+        }
+      }
+    } catch {}
   }
 
   public restoreSnapshot(): PlaybackSnapshot | null {
