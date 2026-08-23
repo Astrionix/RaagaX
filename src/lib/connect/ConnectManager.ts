@@ -200,6 +200,24 @@ export class ConnectManager {
   }
 
   private reconnectTimer: NodeJS.Timeout | null = null;
+  private globalPlaybackStateChannel: any = null;
+
+  public initGlobalPlaybackStateChannel() {
+    if (this.globalPlaybackStateChannel) return;
+    try {
+      this.globalPlaybackStateChannel = supabase.channel('raagax:playback_state', {
+        config: { broadcast: { self: false } }
+      })
+      .on('broadcast', { event: 'STATE_UPDATE' }, (payload: any) => {
+        if (payload && payload.payload) {
+          import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+            PlaybackStateSync.getInstance().handleRemoteStateUpdate(payload.payload);
+          });
+        }
+      })
+      .subscribe();
+    } catch {}
+  }
 
   private scheduleReconnect() {
     if (this.manualDisconnectRequested) {
@@ -218,21 +236,26 @@ export class ConnectManager {
   }
 
   private subscribeInbox() {
-    if (!this.userId || !this.deviceId) return;
     if (this.manualDisconnectRequested) {
       console.log('[ConnectManager] Reconnect cancelled: manual disconnect');
       return;
     }
-    if (this.inboxChannel && (this.currentState === 'CONNECTED' || this.currentState === 'SUBSCRIBING' || this.currentState === 'READY')) {
-       return; // Already connecting or connected
+    if (this.inboxChannel && (this.inboxChannel.state === 'joined' || this.inboxChannel.state === 'joining')) {
+      return; // Already subscribed
     }
+    
+    this.initGlobalPlaybackStateChannel();
+
     if (this.inboxChannel) {
       const ch = this.inboxChannel;
       this.inboxChannel = null;
       try { supabase.removeChannel(ch); } catch (e) {}
     }
 
-    const inboxTopic = `user:${this.userId}:device:${this.deviceId}`;
+    const inboxTopic = this.userId 
+      ? `user:${this.userId}:device:${this.deviceId}` 
+      : `device:${this.deviceId}:inbox`;
+
     const rawChannels = typeof supabase.getChannels === 'function' ? supabase.getChannels() : [];
     const channels = Array.isArray(rawChannels) ? rawChannels : [];
     const existing = channels.find((c: any) => c.topic === `realtime:${inboxTopic}` || c.topic === inboxTopic);
@@ -286,10 +309,14 @@ export class ConnectManager {
     
     this.unsubscribeSession();
     this.sessionId = sessionId;
+    this.initGlobalPlaybackStateChannel();
     
     if (!this.userId) return;
 
-    const sessionTopic = `user:${this.userId}:session:${sessionId}`;
+    const sessionTopic = this.userId 
+      ? `user:${this.userId}:session:${sessionId}` 
+      : `session:${sessionId}`;
+      
     const rawChannels = typeof supabase.getChannels === 'function' ? supabase.getChannels() : [];
     const channels = Array.isArray(rawChannels) ? rawChannels : [];
     const existing = channels.find((c: any) => c.topic === `realtime:${sessionTopic}` || c.topic === sessionTopic);
@@ -467,12 +494,27 @@ export class ConnectManager {
       return;
     }
 
-    if (!this.sessionChannel) return;
-    await this.sessionChannel.send({
-      type: 'broadcast',
-      event: 'STATE_UPDATE',
-      payload: statePayload
-    });
+    if (!this.globalPlaybackStateChannel) {
+      this.initGlobalPlaybackStateChannel();
+    }
+
+    try {
+      this.globalPlaybackStateChannel?.send({
+        type: 'broadcast',
+        event: 'STATE_UPDATE',
+        payload: statePayload
+      });
+    } catch {}
+
+    if (this.sessionChannel) {
+      try {
+        await this.sessionChannel.send({
+          type: 'broadcast',
+          event: 'STATE_UPDATE',
+          payload: statePayload
+        });
+      } catch {}
+    }
   }
 
   public handleCommandAck(payload: any) {
@@ -536,6 +578,21 @@ export class ConnectManager {
         activeDeviceId: targetDeviceId,
         isActiveDevice: false,
       });
+
+      // Immediately request state snapshot from target device
+      this.sendTargetedCommand(targetDeviceId, {
+        type: 'GET_STATE' as any,
+        commandId: 'cmd_state_' + Date.now(),
+        sourceDeviceId: store.deviceId,
+        targetDeviceId,
+        epoch: 1,
+        sequence: 1,
+        revision: 1,
+        timestamp: Date.now(),
+        idempotencyKey: 'state_' + Date.now(),
+        commandHash: 'h_state',
+        signature: 'sig_state',
+      }).catch(() => {});
 
       return true;
     } catch (e) {

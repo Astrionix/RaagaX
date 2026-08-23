@@ -503,6 +503,16 @@ export class CommandBus {
         break;
       }
 
+      case 'GET_STATE' as any:
+      case 'REQUEST_STATE' as any: {
+        if (store.isActiveDevice) {
+          import('./PlaybackStateSync').then(({ PlaybackStateSync }) => {
+            PlaybackStateSync.getInstance().broadcastState(true);
+          }).catch(() => {});
+        }
+        break;
+      }
+
       case 'SEEK':
         if (command.payload && typeof command.payload === 'object' && 'positionMs' in command.payload) {
           const p = command.payload as { positionMs: number; songId?: string };
