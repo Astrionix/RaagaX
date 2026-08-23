@@ -336,14 +336,17 @@ export class DeviceRegistry {
 
         // Check if anything actually changed to avoid triggering unnecessary re-renders
         if (existingIdx >= 0) {
-          const old = currentList[existingIdx];
-          if (
+          const old = currentList[existingIdx] as any;
+          const isSame = 
+            old &&
             old.name === newRecord.name &&
             old.type === newRecord.type &&
-            old.isOnline === newRecord.isOnline &&
-            old.isPlaying === newRecord.isPlaying &&
-            old.currentSongTitle === newRecord.currentSongTitle
-          ) {
+            old.platform === newRecord.platform &&
+            Boolean(old.isOnline) === Boolean(newRecord.isOnline) &&
+            Boolean(old.isPlaying) === Boolean(newRecord.isPlaying) &&
+            old.currentSongTitle === newRecord.currentSongTitle;
+
+          if (isSame) {
             return; // No meaningful change
           }
           const updatedList = [...currentList];

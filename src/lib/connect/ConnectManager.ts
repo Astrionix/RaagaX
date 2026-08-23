@@ -398,8 +398,7 @@ export class ConnectManager {
   }
 
   private async getOrCreateTargetChannel(targetDeviceId: string): Promise<RealtimeChannel | null> {
-    if (!this.userId) return null;
-    const targetTopic = `user:${this.userId}:device:${targetDeviceId}`;
+    const targetTopic = this.userId ? `user:${this.userId}:device:${targetDeviceId}` : `device:${targetDeviceId}:inbox`;
     let channel = this.targetChannels.get(targetDeviceId);
     if (channel && (channel.state === 'joined' || channel.state === 'joining')) {
       return channel;
@@ -432,13 +431,11 @@ export class ConnectManager {
   }
 
   public async sendTargetedCommand(targetDeviceId: string, command: ConnectCommand) {
-    if (!this.userId) return;
-
     // WebRTC signals are routed directly
     if (command.type === 'WEBRTC_SIGNAL') {
       try {
         const channel = await this.getOrCreateTargetChannel(targetDeviceId);
-        if (channel) {
+        if (channel && channel.state === 'joined') {
           await channel.send({ type: 'broadcast', event: 'COMMAND', payload: command });
         }
       } catch (e) {
@@ -451,11 +448,10 @@ export class ConnectManager {
     const { TransportRouter } = await import('./TransportRouter');
     const cloudFallback = async (cmd: ConnectCommand) => {
       const channel = await this.getOrCreateTargetChannel(targetDeviceId);
-      if (channel) {
+      if (channel && channel.state === 'joined') {
         await channel.send({ type: 'broadcast', event: 'COMMAND', payload: cmd });
       }
     };
-
     const result = await TransportRouter.getInstance().dispatchTargeted(
       targetDeviceId,
       command,
@@ -559,6 +555,8 @@ export class ConnectManager {
       
       if (lanConnected) {
         console.log(`[ConnectManager] Fast local LAN channel established with ${targetDeviceId}`);
+        const { ConnectivityRouter } = await import('./ConnectivityRouter');
+        ConnectivityRouter.getInstance().setLocalPeerAvailable(true);
       } else {
         console.warn(`[ConnectManager] Direct LAN channel failed. Falling back to Cloud Relay for ${targetDeviceId}`);
         // Fallback: adopt optimistic state from cache
@@ -581,20 +579,32 @@ export class ConnectManager {
         isActiveDevice: false,
       });
 
-      // Immediately request state snapshot from target device
-      this.sendTargetedCommand(targetDeviceId, {
-        type: 'GET_STATE' as any,
-        commandId: 'cmd_state_' + Date.now(),
-        sourceDeviceId: store.deviceId,
-        targetDeviceId,
-        epoch: 1,
-        sequence: 1,
-        revision: 1,
-        timestamp: Date.now(),
-        idempotencyKey: 'state_' + Date.now(),
-        commandHash: 'h_state',
-        signature: 'sig_state',
-      }).catch(() => {});
+      // Request state snapshot over the established transport path
+      if (!lanConnected) {
+        this.sendTargetedCommand(targetDeviceId, {
+          commandId: 'cmd_state_' + Date.now(),
+          sessionId: this.sessionId || 'local_session',
+          sourceDeviceId: store.deviceId,
+          targetDeviceId,
+          type: 'GET_STATE' as any,
+          epoch: 1,
+          sequence: 1,
+          revision: 1,
+          sentAt: Date.now(),
+          payload: {},
+        }).catch(() => {});
+      } else {
+        try {
+          const { DirectLANTransport } = await import('./lan/DirectLANTransport');
+          DirectLANTransport.getInstance().sendMessage(targetDeviceId, {
+            id: 'lan_state_req_' + Date.now(),
+            type: 'CMD_STATE_REQUEST' as any,
+            sourceDeviceId: store.deviceId,
+            targetDeviceId,
+            timestamp: Date.now(),
+          } as any);
+        } catch {}
+      }
 
       return true;
     } catch (e) {

@@ -710,7 +710,14 @@ export const usePlayerStore = create<PlayerState>()(
         const current = get().onlineDevices || [];
         if (
           current.length === devices.length &&
-          current.every((d, i) => d.id === devices[i]?.id && d.isOnline === devices[i]?.isOnline && d.name === devices[i]?.name)
+          current.every(
+            (d, i) =>
+              d.id === devices[i]?.id &&
+              Boolean(d.isOnline) === Boolean(devices[i]?.isOnline) &&
+              d.name === devices[i]?.name &&
+              (d as any).isPlaying === (devices[i] as any)?.isPlaying &&
+              (d as any).currentSongTitle === (devices[i] as any)?.currentSongTitle
+          )
         ) {
           return;
         }
