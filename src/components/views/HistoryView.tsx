@@ -11,7 +11,7 @@ import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { Song } from '@/types/music';
 import { haptics } from '@/lib/haptics/HapticEngine';
 
-type HistorySort = 'latest' | 'oldest' | 'az' | 'za';
+type HistorySort = 'recently_played' | 'oldest_played' | 'az' | 'artist' | 'album' | 'most_played';
 
 export function HistoryView() {
   const {
@@ -29,8 +29,22 @@ export function HistoryView() {
   const [historySongs, setHistorySongs] = useState<{ song: Song; playedAt?: number }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortOrder, setSortOrder] = useState<HistorySort>('latest');
+  const [sortOrder, setSortOrder] = useState<HistorySort>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('history_sort');
+      if (saved) return saved as HistorySort;
+    }
+    return 'recently_played';
+  });
+  const [showSortMenu, setShowSortMenu] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  const handleSortChange = (opt: HistorySort) => {
+    setSortOrder(opt);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('history_sort', opt);
+    }
+  };
 
   useEffect(() => {
     let isCancelled = false;
@@ -67,8 +81,41 @@ export function HistoryView() {
     };
   }, [historySongIds]);
 
+  // Load original history logs (with duplicates), compute play counts and latest played timestamps, then deduplicate
+  const processedHistory = useMemo(() => {
+    const playCounts = new Map<string, number>();
+    const latestPlays = new Map<string, number>();
+    const uniqueMap = new Map<string, { song: Song; playedAt?: number }>();
+    
+    // historySongs is sorted by playedAt descending (from useEffect)
+    historySongs.forEach((item) => {
+      const songId = item.song.id;
+      if (songId) {
+        playCounts.set(songId, (playCounts.get(songId) || 0) + 1);
+        
+        const entryPlayedAt = item.playedAt || 0;
+        const currentLatest = latestPlays.get(songId) || 0;
+        if (entryPlayedAt > currentLatest) {
+          latestPlays.set(songId, entryPlayedAt);
+        }
+        
+        if (!uniqueMap.has(songId) || entryPlayedAt > (uniqueMap.get(songId)?.playedAt || 0)) {
+          uniqueMap.set(songId, item);
+        }
+      }
+    });
+
+    return {
+      uniqueEntries: Array.from(uniqueMap.values()),
+      playCounts,
+      latestPlays
+    };
+  }, [historySongs]);
+
   const sortedHistory = useMemo(() => {
-    let list = [...historySongs];
+    const { uniqueEntries, playCounts, latestPlays } = processedHistory;
+    let list = [...uniqueEntries];
+    
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter(
@@ -79,61 +126,85 @@ export function HistoryView() {
       );
     }
 
-    if (sortOrder === 'latest') {
-      return list.sort((a, b) => (b.playedAt || 0) - (a.playedAt || 0));
+    switch (sortOrder) {
+      case 'recently_played':
+        return list.sort((a, b) => {
+          const timeA = latestPlays.get(a.song.id) || 0;
+          const timeB = latestPlays.get(b.song.id) || 0;
+          const diff = timeB - timeA;
+          return diff !== 0 ? diff : a.song.id.localeCompare(b.song.id);
+        });
+      case 'oldest_played':
+        return list.sort((a, b) => {
+          const timeA = latestPlays.get(a.song.id) || 0;
+          const timeB = latestPlays.get(b.song.id) || 0;
+          const diff = timeA - timeB;
+          return diff !== 0 ? diff : a.song.id.localeCompare(b.song.id);
+        });
+      case 'az':
+        return list.sort((a, b) => {
+          const diff = (a.song.title || '').toLowerCase().localeCompare((b.song.title || '').toLowerCase());
+          return diff !== 0 ? diff : a.song.id.localeCompare(b.song.id);
+        });
+      case 'artist':
+        return list.sort((a, b) => {
+          const artistDiff = (a.song.artist || '').toLowerCase().localeCompare((b.song.artist || '').toLowerCase());
+          if (artistDiff !== 0) return artistDiff;
+          const titleDiff = (a.song.title || '').toLowerCase().localeCompare((b.song.title || '').toLowerCase());
+          return titleDiff !== 0 ? titleDiff : a.song.id.localeCompare(b.song.id);
+        });
+      case 'album':
+        return list.sort((a, b) => {
+          const albumDiff = (a.song.album || '').toLowerCase().localeCompare((b.song.album || '').toLowerCase());
+          if (albumDiff !== 0) return albumDiff;
+          const titleDiff = (a.song.title || '').toLowerCase().localeCompare((b.song.title || '').toLowerCase());
+          return titleDiff !== 0 ? titleDiff : a.song.id.localeCompare(b.song.id);
+        });
+      case 'most_played':
+        return list.sort((a, b) => {
+          const countA = playCounts.get(a.song.id) || 0;
+          const countB = playCounts.get(b.song.id) || 0;
+          const diff = countB - countA;
+          if (diff !== 0) return diff;
+          const titleDiff = (a.song.title || '').toLowerCase().localeCompare((b.song.title || '').toLowerCase());
+          return titleDiff !== 0 ? titleDiff : a.song.id.localeCompare(b.song.id);
+        });
+      default:
+        return list;
     }
-    if (sortOrder === 'oldest') {
-      return list.sort((a, b) => (a.playedAt || 0) - (b.playedAt || 0));
-    }
-    if (sortOrder === 'az') {
-      return list.sort((a, b) => a.song.title.localeCompare(b.song.title));
-    }
-    if (sortOrder === 'za') {
-      return list.sort((a, b) => b.song.title.localeCompare(a.song.title));
-    }
-    return list;
-  }, [historySongs, searchQuery, sortOrder]);
+  }, [processedHistory, searchQuery, sortOrder]);
 
-  // Group into Today, Yesterday, Earlier This Week, and Older (preserving latest-to-oldest ordering)
+  // Group into Today, Yesterday, Earlier (preserving latest-to-oldest ordering)
   const groupedHistory = useMemo(() => {
-    if (sortOrder === 'az' || sortOrder === 'za') {
-      return [{ title: sortOrder === 'az' ? 'Alphabetical (A → Z)' : 'Alphabetical (Z → A)', items: sortedHistory }];
+    if (sortOrder === 'recently_played') {
+      const today: { song: Song; playedAt?: number }[] = [];
+      const yesterday: { song: Song; playedAt?: number }[] = [];
+      const earlier: { song: Song; playedAt?: number }[] = [];
+
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const startOfYesterday = startOfToday - 86400000;
+
+      sortedHistory.forEach((item) => {
+        const time = item.playedAt || Date.now();
+        if (time >= startOfToday) {
+          today.push(item);
+        } else if (time >= startOfYesterday) {
+          yesterday.push(item);
+        } else {
+          earlier.push(item);
+        }
+      });
+
+      return [
+        { title: 'Today', items: today },
+        { title: 'Yesterday', items: yesterday },
+        { title: 'Earlier', items: earlier },
+      ].filter((group) => group.items.length > 0);
     }
 
-    const today: { song: Song; playedAt?: number }[] = [];
-    const yesterday: { song: Song; playedAt?: number }[] = [];
-    const earlierThisWeek: { song: Song; playedAt?: number }[] = [];
-    const older: { song: Song; playedAt?: number }[] = [];
-
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const startOfYesterday = startOfToday - 86400000;
-    const startOfWeek = startOfToday - 86400000 * 6;
-
-    sortedHistory.forEach((item) => {
-      const time = item.playedAt || Date.now();
-      if (time >= startOfToday) {
-        today.push(item);
-      } else if (time >= startOfYesterday) {
-        yesterday.push(item);
-      } else if (time >= startOfWeek) {
-        earlierThisWeek.push(item);
-      } else {
-        older.push(item);
-      }
-    });
-
-    const groups = [
-      { title: 'Today', items: today },
-      { title: 'Yesterday', items: yesterday },
-      { title: 'Earlier This Week', items: earlierThisWeek },
-      { title: 'Older', items: older },
-    ].filter((group) => group.items.length > 0);
-
-    if (sortOrder === 'oldest') {
-      return groups.reverse();
-    }
-    return groups;
+    // Flat list layout for other sorting options (no group title headers)
+    return [{ title: '', items: sortedHistory }];
   }, [sortedHistory, sortOrder]);
 
   const handlePlayAll = (shuffle = false) => {
@@ -250,32 +321,60 @@ export function HistoryView() {
             />
           </div>
 
-          {/* Unified Horizontally Scrollable Quick Sort Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full py-0.5 flex-1 min-w-0 pr-2">
-            {[
-              { id: 'latest', label: 'Latest First' },
-              { id: 'oldest', label: 'Oldest First' },
-              { id: 'az', label: 'A → Z' },
-              { id: 'za', label: 'Z → A' },
-            ].map((opt) => {
-              const isActive = sortOrder === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  onClick={() => {
-                    haptics.lightImpact();
-                    setSortOrder(opt.id as HistorySort);
-                  }}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-shrink-0 ${
-                    isActive
-                      ? 'bg-amber-400 text-slate-950 shadow-sm shadow-amber-400/20'
-                      : 'bg-white/[0.04] text-slate-400 hover:text-white hover:bg-white/[0.08] border border-white/5'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
+          {/* Custom Compact Sort Selector Dropdown */}
+          <div className="relative z-20 self-start sm:self-auto">
+            <button
+              onClick={() => setShowSortMenu(!showSortMenu)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer"
+            >
+              <ArrowUpDown className="w-3.5 h-3.5 text-amber-400" />
+              <span>
+                Sort: {
+                  sortOrder === 'recently_played' ? 'Recently Played' :
+                  sortOrder === 'oldest_played' ? 'Oldest Played' :
+                  sortOrder === 'az' ? 'Title — A–Z' :
+                  sortOrder === 'artist' ? 'Artist — A–Z' :
+                  sortOrder === 'album' ? 'Album — A–Z' :
+                  'Most Played'
+                } ▾
+              </span>
+            </button>
+
+            {showSortMenu && (
+              <>
+                <div 
+                  className="fixed inset-0 z-20" 
+                  onClick={() => setShowSortMenu(false)} 
+                />
+                <div className="absolute right-0 top-full mt-1.5 w-56 bg-[#141520] border border-white/15 rounded-xl p-1.5 shadow-2xl z-30 text-xs animate-in zoom-in-95 duration-100">
+                  {[
+                    { value: 'recently_played', label: 'Recently Played' },
+                    { value: 'oldest_played', label: 'Oldest Played' },
+                    { value: 'az', label: 'Title — A–Z' },
+                    { value: 'artist', label: 'Artist — A–Z' },
+                    { value: 'album', label: 'Album — A–Z' },
+                    { value: 'most_played', label: 'Most Played' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => {
+                        haptics.lightImpact();
+                        handleSortChange(opt.value as HistorySort);
+                        setShowSortMenu(false);
+                      }}
+                      className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors flex items-center justify-between cursor-pointer ${
+                        sortOrder === opt.value
+                          ? 'bg-amber-400/20 text-amber-300 font-bold'
+                          : 'hover:bg-white/10 text-slate-300 hover:text-white'
+                      }`}
+                    >
+                      <span>{opt.label}</span>
+                      {sortOrder === opt.value && <Check className="w-3.5 h-3.5 text-amber-400 stroke-[3]" />}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -315,9 +414,11 @@ export function HistoryView() {
         <div className="space-y-8">
           {groupedHistory.map((group) => (
             <div key={group.title} className="space-y-3">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 px-1 border-b border-white/5 pb-2">
-                {group.title}
-              </h3>
+              {group.title && (
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 px-1 border-b border-white/5 pb-2">
+                  {group.title}
+                </h3>
+              )}
               <div className="space-y-1.5">
                 {group.items.map((item, idx) => {
                   const song = item.song;

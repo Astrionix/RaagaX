@@ -12,8 +12,9 @@ import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndic
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { SwipeableSongRow } from '@/components/common/SwipeableSongRow';
 import { haptics } from '@/lib/haptics/HapticEngine';
+import { QueueHistory } from '@/lib/queue/QueueHistory';
 
-export type LikedSongSortOption = 'newest' | 'oldest' | 'az' | 'za' | 'artist' | 'duration';
+export type LikedSongSortOption = 'recently_liked' | 'recently_played' | 'az' | 'artist' | 'album' | 'release_newest' | 'release_oldest';
 
 export function FavoritesView() {
   const {
@@ -37,8 +38,29 @@ export function FavoritesView() {
   const resolvingRef = useRef<boolean>(false);
 
   // Sorting & Filtering state
-  const [sortBy, setSortBy] = useState<LikedSongSortOption>('newest');
+  const [sortBy, setSortBy] = useState<LikedSongSortOption>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('liked_songs_sort');
+      if (saved) return saved as LikedSongSortOption;
+    }
+    return 'recently_liked';
+  });
+  const [showSortMenu, setShowSortMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [historyEntries, setHistoryEntries] = useState<any[]>([]);
+
+  useEffect(() => {
+    QueueHistory.getInstance().ensureLoaded().then((entries) => {
+      setHistoryEntries(entries);
+    });
+  }, []);
+
+  const handleSortChange = (opt: LikedSongSortOption) => {
+    setSortBy(opt);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('liked_songs_sort', opt);
+    }
+  };
 
   useEffect(() => {
     const loadOffline = async () => {
@@ -167,27 +189,69 @@ export function FavoritesView() {
       });
   }, [likedSongIds, resolvedSongsMap, offlineTracks, likedSongs]);
 
+  // Generate play history metadata map for Liked Songs sorting
+  const { lastPlayedMap } = useMemo(() => {
+    const lastPlayed = new Map<string, number>();
+    historyEntries.forEach((entry) => {
+      if (entry.trackId) {
+        lastPlayed.set(entry.trackId, entry.startedAt);
+      }
+    });
+    return { lastPlayedMap: lastPlayed };
+  }, [historyEntries]);
+
   // Apply active sort order
   const sortedSongs: Song[] = useMemo(() => {
     if (!resolvedLikedSongs.length) return [];
     const list = [...resolvedLikedSongs];
     switch (sortBy) {
-      case 'newest':
+      case 'recently_liked':
+        // The store's likedSongIds list is already stored in reverse chronological order
         return list;
-      case 'oldest':
-        return list.reverse();
+      case 'recently_played':
+        return list.sort((a, b) => {
+          const timeA = lastPlayedMap.get(a.id) || 0;
+          const timeB = lastPlayedMap.get(b.id) || 0;
+          const diff = timeB - timeA;
+          return diff !== 0 ? diff : a.id.localeCompare(b.id);
+        });
       case 'az':
-        return list.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
-      case 'za':
-        return list.sort((a, b) => (b.title || '').localeCompare(a.title || ''));
+        return list.sort((a, b) => {
+          const diff = (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase());
+          return diff !== 0 ? diff : a.id.localeCompare(b.id);
+        });
       case 'artist':
-        return list.sort((a, b) => (a.artist || '').localeCompare(b.artist || ''));
-      case 'duration':
-        return list.sort((a, b) => (b.duration || 0) - (a.duration || 0));
+        return list.sort((a, b) => {
+          const artistDiff = (a.artist || '').toLowerCase().localeCompare((b.artist || '').toLowerCase());
+          if (artistDiff !== 0) return artistDiff;
+          const titleDiff = (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase());
+          return titleDiff !== 0 ? titleDiff : a.id.localeCompare(b.id);
+        });
+      case 'album':
+        return list.sort((a, b) => {
+          const albumDiff = (a.album || '').toLowerCase().localeCompare((b.album || '').toLowerCase());
+          if (albumDiff !== 0) return albumDiff;
+          const titleDiff = (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase());
+          return titleDiff !== 0 ? titleDiff : a.id.localeCompare(b.id);
+        });
+      case 'release_newest':
+        return list.sort((a, b) => {
+          const dateA = a.releaseDate || `${a.releaseYear || 2024}-01-01`;
+          const dateB = b.releaseDate || `${b.releaseYear || 2024}-01-01`;
+          const diff = dateB.localeCompare(dateA);
+          return diff !== 0 ? diff : a.id.localeCompare(b.id);
+        });
+      case 'release_oldest':
+        return list.sort((a, b) => {
+          const dateA = a.releaseDate || `${a.releaseYear || 2024}-01-01`;
+          const dateB = b.releaseDate || `${b.releaseYear || 2024}-01-01`;
+          const diff = dateA.localeCompare(dateB);
+          return diff !== 0 ? diff : a.id.localeCompare(b.id);
+        });
       default:
         return list;
     }
-  }, [resolvedLikedSongs, sortBy]);
+  }, [resolvedLikedSongs, sortBy, lastPlayedMap]);
 
   // Apply search query filter if entered
   const displaySongs: Song[] = useMemo(() => {
@@ -237,14 +301,7 @@ export function FavoritesView() {
   const totalDurationSec = displaySongs.reduce((acc, s) => acc + (s.duration || 180), 0);
   const totalMins = Math.round(totalDurationSec / 60);
 
-  const sortOptions: { value: LikedSongSortOption; label: string; shortLabel: string }[] = [
-    { value: 'newest', label: 'Recently Added', shortLabel: 'Recent' },
-    { value: 'oldest', label: 'Oldest First', shortLabel: 'Oldest' },
-    { value: 'az', label: 'Title: A → Z', shortLabel: 'A → Z' },
-    { value: 'za', label: 'Title: Z → A', shortLabel: 'Z → A' },
-    { value: 'artist', label: 'Artist: A → Z', shortLabel: 'Artist' },
-    { value: 'duration', label: 'Duration (Longest)', shortLabel: 'Duration' },
-  ];
+
 
   return (
     <div className="space-y-5 pb-28 text-white select-none animate-in fade-in duration-200 max-w-7xl mx-auto">
@@ -309,27 +366,62 @@ export function FavoritesView() {
       {/* ── SORT & FILTER CONTROLS TOOLBAR (Mobile & Desktop) ────────────────── */}
       {resolvedLikedSongs.length > 0 && (
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pb-2">
-          {/* Unified Horizontally Scrollable Quick Sort Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full py-0.5 flex-1 min-w-0 pr-2">
-            {sortOptions.map((opt) => {
-              const isActive = sortBy === opt.value;
-              return (
-                <button
-                  key={opt.value}
-                  onClick={() => {
-                    haptics.lightImpact();
-                    setSortBy(opt.value);
-                  }}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-shrink-0 ${
-                    isActive
-                      ? 'bg-[#FA233B] text-white shadow-sm shadow-[#FA233B]/20'
-                      : 'bg-white/[0.04] text-slate-400 hover:text-white hover:bg-white/[0.08] border border-white/5'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
+          {/* Custom Compact Sort Selector Dropdown */}
+          <div className="relative z-20 self-start sm:self-auto">
+            <button
+              onClick={() => setShowSortMenu(!showSortMenu)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer"
+            >
+              <ArrowUpDown className="w-3.5 h-3.5 text-[#FA233B]" />
+              <span>
+                Sort: {
+                  sortBy === 'recently_liked' ? 'Recently Liked' :
+                  sortBy === 'recently_played' ? 'Recently Played' :
+                  sortBy === 'az' ? 'Title — A–Z' :
+                  sortBy === 'artist' ? 'Artist — A–Z' :
+                  sortBy === 'album' ? 'Album — A–Z' :
+                  sortBy === 'release_newest' ? 'Release Date — Newest' :
+                  'Release Date — Oldest'
+                } ▾
+              </span>
+            </button>
+
+            {showSortMenu && (
+              <>
+                <div 
+                  className="fixed inset-0 z-20" 
+                  onClick={() => setShowSortMenu(false)} 
+                />
+                <div className="absolute left-0 top-full mt-1.5 w-56 bg-[#141520] border border-white/15 rounded-xl p-1.5 shadow-2xl z-30 text-xs animate-in zoom-in-95 duration-100">
+                  {[
+                    { value: 'recently_liked', label: 'Recently Liked' },
+                    { value: 'recently_played', label: 'Recently Played' },
+                    { value: 'az', label: 'Title — A–Z' },
+                    { value: 'artist', label: 'Artist — A–Z' },
+                    { value: 'album', label: 'Album — A–Z' },
+                    { value: 'release_newest', label: 'Release Date — Newest' },
+                    { value: 'release_oldest', label: 'Release Date — Oldest' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => {
+                        haptics.lightImpact();
+                        handleSortChange(opt.value as LikedSongSortOption);
+                        setShowSortMenu(false);
+                      }}
+                      className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors flex items-center justify-between cursor-pointer ${
+                        sortBy === opt.value
+                          ? 'bg-[#FA233B]/20 text-red-400 font-bold'
+                          : 'hover:bg-white/10 text-slate-300 hover:text-white'
+                      }`}
+                    >
+                      <span>{opt.label}</span>
+                      {sortBy === opt.value && <Check className="w-3.5 h-3.5 text-[#FA233B] stroke-[3]" />}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Right: Quick Filter / Search in Liked Songs */}
