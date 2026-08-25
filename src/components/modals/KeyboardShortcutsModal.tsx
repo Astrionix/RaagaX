@@ -67,6 +67,14 @@ export function KeyboardShortcutsModal() {
         toggleLyrics();
       } else if (e.key === 'Q' || e.key === 'q') {
         toggleQueue();
+      } else if (e.key === '/') {
+        e.preventDefault();
+        const searchInput = document.getElementById('sidebar-search-input') as HTMLInputElement | null;
+        if (searchInput) {
+          usePlayerStore.getState().setActiveTab('search');
+          searchInput.focus();
+          searchInput.select();
+        }
       }
     };
 

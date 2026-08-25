@@ -480,22 +480,6 @@ export function HomeView() {
       {/* 1. HEADER — "Home" + greeting + profile avatar                        */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       <section className="pt-0 flex flex-col gap-2">
-        {/* Currently Playing Pill */}
-        {isMounted && currentSong && (
-          <div
-            onClick={() => usePlayerStore.getState().togglePlayerExpanded()}
-            className="self-start flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.07] border border-white/20 cursor-pointer shadow-md transition-all hover:bg-white/10 active:scale-[0.98]"
-          >
-            <span className="relative flex h-2 w-2 flex-shrink-0">
-              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${isPlaying ? 'bg-[#FA233B] opacity-75' : 'bg-slate-400 opacity-40'}`} />
-              <span className={`relative inline-flex rounded-full h-2 w-2 ${isPlaying ? 'bg-[#FA233B]' : 'bg-slate-400'}`} />
-            </span>
-            <span className="text-[11px] font-bold text-white truncate max-w-[220px] sm:max-w-[340px]">
-              {isPlaying ? `▶ ${currentSong.title} · ${currentSong.artist}` : `Ⅱ ${currentSong.title} · Paused`}
-            </span>
-          </div>
-        )}
-
         {/* Page title + greeting */}
         <div className="pt-1">
           <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">Home</h1>

@@ -223,7 +223,7 @@ export function QueueModal() {
               </span>
               {currentSong?.album && (
                 <span className="text-[10px] text-white/40 truncate max-w-[200px]">
-                  Playing from {SongFormatter.cleanAlbumTitle(currentSong.album)}
+                  Playing from {SongFormatter.decodeHtml(currentSong.album) || currentSong.album}
                 </span>
               )}
             </div>

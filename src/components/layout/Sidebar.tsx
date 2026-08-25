@@ -62,35 +62,35 @@ export function Sidebar() {
     <aside className="hidden md:flex fixed left-0 top-0 bottom-20 z-30 w-64 p-4 pb-6 flex-col justify-between select-none bg-[var(--sidebar-bg)] backdrop-blur-3xl border-r border-[var(--border-subtle)] text-[var(--text-primary)] text-xs transition-colors duration-200">
       <div className="space-y-5 overflow-y-auto no-scrollbar pr-1">
         {/* Brand Header */}
-        <div className="flex items-center justify-between px-2 pt-1 pb-2">
-          <div className="flex items-center gap-3">
-            <RaagaXLogo variant="full" size={36} />
-            <RaagaXWordmark size="md" subEdition="Studio Edition" />
-          </div>
-          <button
-            onClick={() => {
-              import('@/context/useNotificationStore').then(({ useNotificationStore }) => {
-                useNotificationStore.getState().toggleOpen();
-              });
-            }}
-            aria-label="Notifications"
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors relative cursor-pointer"
-            title="Notifications"
+        <div className="px-1 pt-1 pb-1">
+          <div
+            onClick={() => setActiveTab('home')}
+            className="flex items-center cursor-pointer select-none group rounded-xl overflow-hidden"
+            title="RaagaX — Music Beyond Limits"
           >
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#E50914] rounded-full" />
-          </button>
+            <img
+              src="/brand/raagax-banner-logo.png"
+              alt="RaagaX - Music Beyond Limits"
+              className="w-full h-auto max-h-12 object-contain group-hover:scale-[1.02] transition-transform duration-300"
+            />
+          </div>
         </div>
 
         {/* Quick Search */}
         <div className="relative px-1">
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
+            id="sidebar-search-input"
             type="text"
             value={searchQuery}
+            onFocus={() => {
+              if (activeTab !== 'search') {
+                setActiveTab('search');
+              }
+            }}
             onChange={(e) => {
               setSearchQuery(e.target.value);
-              if (e.target.value.trim() !== '') {
+              if (activeTab !== 'search') {
                 setActiveTab('search');
               }
             }}
@@ -117,16 +117,6 @@ export function Sidebar() {
           >
             <Flame className="w-4 h-4" />
             <span>New</span>
-          </button>
-
-
-          <button
-            onClick={() => setActiveTab('search')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold transition-all ${activeTab === 'search' ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
-              }`}
-          >
-            <Search className="w-4 h-4" />
-            <span>Search</span>
           </button>
         </div>
 

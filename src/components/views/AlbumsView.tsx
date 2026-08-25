@@ -27,9 +27,7 @@ export function AlbumsView() {
   } = usePlayerStore();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilterTab, setActiveFilterTab] = useState<'saved' | 'all' | 'recent' | 'trending' | 'top'>(
-    favoriteAlbumIds.length > 0 ? 'saved' : 'all'
-  );
+  const [activeFilterTab, setActiveFilterTab] = useState<'all' | 'saved' | 'recent' | 'trending' | 'top'>('all');
   const [realAlbums, setRealAlbums] = useState<AlbumItem[]>([]);
   const [resolvedSavedAlbums, setResolvedSavedAlbums] = useState<AlbumItem[]>([]);
   const [isLoadingSaved, setIsLoadingSaved] = useState(false);
@@ -194,6 +192,13 @@ export function AlbumsView() {
     setToastMessage(isSaved ? `Removed "${album.title}" from Library` : `Saved "${album.title}" to Library (Albums)`);
   };
 
+  const handleClearAllSaved = () => {
+    haptics.mediumImpact();
+    usePlayerStore.setState({ favoriteAlbumIds: [] });
+    setResolvedSavedAlbums([]);
+    setToastMessage('Cleared all saved albums');
+  };
+
   const handleOpenAlbum = (album: AlbumItem) => {
     haptics.lightImpact();
     setSelectedAlbumId(album.id);
@@ -328,8 +333,8 @@ export function AlbumsView() {
       ) : (
         /* ── DEDICATED LIBRARY ALBUMS VIEW ────────────────────────────────────── */
         <div className="space-y-10">
-          {/* SECTION 1: YOUR SAVED ALBUMS (Primary Hero Shelf) */}
-          {(activeFilterTab === 'saved' || activeFilterTab === 'all') && (
+          {/* SECTION 1: YOUR SAVED ALBUMS */}
+          {((activeFilterTab === 'saved') || (activeFilterTab === 'all' && resolvedSavedAlbums.length > 0)) && (
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-white/10 pb-2">
                 <div className="flex items-center gap-2.5">
@@ -338,15 +343,26 @@ export function AlbumsView() {
                     Your Saved Albums ({resolvedSavedAlbums.length})
                   </h3>
                 </div>
-                {resolvedSavedAlbums.length > 0 && activeFilterTab !== 'saved' && (
-                  <button
-                    onClick={() => setActiveFilterTab('saved')}
-                    className="text-xs font-bold text-slate-400 hover:text-purple-400 transition-colors flex items-center gap-1"
-                  >
-                    <span>View All Saved</span>
-                    <ArrowRight className="w-3 h-3" />
-                  </button>
-                )}
+                <div className="flex items-center gap-3">
+                  {resolvedSavedAlbums.length > 0 && activeFilterTab === 'saved' && (
+                    <button
+                      onClick={handleClearAllSaved}
+                      className="text-xs font-semibold text-slate-400 hover:text-rose-400 transition-colors flex items-center gap-1 cursor-pointer"
+                      title="Remove all albums from saved collection"
+                    >
+                      <span>Clear All</span>
+                    </button>
+                  )}
+                  {resolvedSavedAlbums.length > 0 && activeFilterTab !== 'saved' && (
+                    <button
+                      onClick={() => setActiveFilterTab('saved')}
+                      className="text-xs font-bold text-slate-400 hover:text-purple-400 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>View All Saved</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {isLoadingSaved ? (
@@ -355,17 +371,17 @@ export function AlbumsView() {
                   <p className="text-xs font-bold">Loading your saved albums...</p>
                 </div>
               ) : resolvedSavedAlbums.length === 0 ? (
-                <div className="py-16 text-center text-slate-400 space-y-3 bg-purple-950/10 rounded-3xl border border-purple-500/20 p-8">
-                  <Disc className="w-12 h-12 text-purple-400/50 mx-auto" />
-                  <h4 className="text-base font-bold text-white">No Saved Albums in Library Yet</h4>
+                <div className="py-16 text-center text-slate-400 space-y-3 bg-white/[0.02] rounded-3xl border border-white/10 p-8">
+                  <Disc className="w-12 h-12 text-slate-600 mx-auto" />
+                  <h4 className="text-base font-bold text-white">No Saved Albums in Library</h4>
                   <p className="text-xs text-slate-400 max-w-md mx-auto">
-                    When you tap <span className="text-purple-300 font-bold">＋ Add to Library</span> on an album page, it will appear here in your personal collection.
+                    Browse albums below and tap <span className="text-purple-300 font-bold">＋ Save</span> or the bookmark icon on any album page to build your collection.
                   </p>
                   <button
-                    onClick={() => setActiveFilterTab('recent')}
+                    onClick={() => setActiveFilterTab('all')}
                     className="mt-2 px-5 py-2 rounded-full bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-md"
                   >
-                    Browse New Releases →
+                    Explore All Albums →
                   </button>
                 </div>
               ) : (

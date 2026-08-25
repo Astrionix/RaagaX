@@ -439,13 +439,13 @@ export function ExpandedPlayerModal() {
           <ChevronDown className="w-5 h-5 sm:w-6 sm:h-6" />
         </button>
 
-        {/* Center: Context Info (Playing from Playlist / Album) */}
+        {/* Center: Context Info (Always raw album name) */}
         <div className="flex flex-col items-center justify-center text-center px-2 min-w-0">
           <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-white/50 font-sans">
             Playing From
           </span>
           <span className="text-xs sm:text-sm font-semibold text-white/90 truncate max-w-[200px] sm:max-w-[340px]">
-            {SongFormatter.cleanAlbumTitle(playbackContext?.title || currentSong.album || '') || 'Library'}
+            {SongFormatter.decodeHtml(currentSong.album) || currentSong.album || 'Single'}
           </span>
         </div>
 
@@ -716,33 +716,6 @@ export function ExpandedPlayerModal() {
                   <Mic2 className="w-3.5 h-3.5" />
                   <span>Lyrics</span>
                 </button>
-
-                <button
-                  onClick={() => {
-                    haptics.lightImpact();
-                    setDesktopView('upnext');
-                    setDesktopTab('upnext');
-                  }}
-                  className="px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10"
-                >
-                  <ListMusic className="w-3.5 h-3.5" />
-                  <span>Queue</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    haptics.lightImpact();
-                    toggleSleepTimerModal();
-                  }}
-                  className={`px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    sleepTimerEndsAt || sleepTimerMode
-                      ? 'bg-purple-500/20 text-purple-300 border-purple-500/40 shadow-sm shadow-purple-500/20'
-                      : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
-                  }`}
-                >
-                  <Moon className={`w-3.5 h-3.5 ${sleepTimerEndsAt || sleepTimerMode ? 'text-purple-400 fill-purple-400/30' : ''}`} />
-                  <span>{sleepTimerEndsAt ? 'Timer On' : 'Timer'}</span>
-                </button>
               </div>
             </div>
           </div>
@@ -935,41 +908,6 @@ export function ExpandedPlayerModal() {
                 >
                   <Mic2 className="w-3.5 h-3.5" />
                   <span>Lyrics</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    haptics.lightImpact();
-                    if (desktopTab === 'upnext') {
-                      setDesktopView('info');
-                    } else {
-                      setDesktopTab('upnext');
-                    }
-                  }}
-                  className={`px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    desktopTab === 'upnext'
-                      ? 'bg-white/20 text-white border-white/30 shadow-sm'
-                      : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
-                  }`}
-                  title="Queue (Q)"
-                >
-                  <ListMusic className="w-3.5 h-3.5" />
-                  <span>Queue</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    haptics.lightImpact();
-                    toggleSleepTimerModal();
-                  }}
-                  className={`px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    sleepTimerEndsAt || sleepTimerMode
-                      ? 'bg-purple-500/20 text-purple-300 border-purple-500/40 shadow-sm shadow-purple-500/20'
-                      : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
-                  }`}
-                >
-                  <Moon className={`w-3.5 h-3.5 ${sleepTimerEndsAt || sleepTimerMode ? 'text-purple-400 fill-purple-400/30' : ''}`} />
-                  <span>{sleepTimerEndsAt ? 'Timer On' : 'Timer'}</span>
                 </button>
               </div>
             </div>
@@ -1509,36 +1447,6 @@ export function ExpandedPlayerModal() {
             >
               <Mic2 className="w-3.5 h-3.5" />
               <span>Lyrics</span>
-            </button>
-
-            {/* Queue Button */}
-            <button
-              onClick={() => {
-                haptics.lightImpact();
-                toggleQueue();
-              }}
-              className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10`}
-              title="Playback Queue (Q)"
-            >
-              <ListMusic className="w-3.5 h-3.5" />
-              <span>Queue</span>
-            </button>
-
-            {/* Sleep Timer Button */}
-            <button
-              onClick={() => {
-                haptics.lightImpact();
-                toggleSleepTimerModal();
-              }}
-              className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                sleepTimerEndsAt || sleepTimerMode
-                  ? 'bg-purple-500/20 text-purple-300 border-purple-500/40 shadow-sm shadow-purple-500/20'
-                  : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
-              }`}
-              title={sleepTimerEndsAt ? "Sleep timer active" : "Sleep Timer"}
-            >
-              <Moon className={`w-3.5 h-3.5 ${sleepTimerEndsAt || sleepTimerMode ? 'text-purple-400 fill-purple-400/30' : ''}`} />
-              <span>{sleepTimerEndsAt ? 'Timer On' : 'Timer'}</span>
             </button>
           </div>
         </div>
