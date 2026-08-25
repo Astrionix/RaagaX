@@ -206,9 +206,9 @@ export function ArtistDetailView() {
 
   return (
     <DynamicArtworkAtmosphere artworkUrl={artistAvatarUrl} isPlaying={isCurrentArtistPlaying}>
-      <div className="relative min-h-screen text-white pb-36 select-none animate-in fade-in duration-300">
+      <div className="-mx-3.5 sm:-mx-8 -mt-14 md:-mt-4 relative min-h-screen text-white pb-36 select-none animate-in fade-in duration-300">
         {/* ── TOP NAVIGATION BAR ────────────────────────────────────────────── */}
-        <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-4 backdrop-blur-xl bg-[#08090d]/80 border-b border-white/5">
+        <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-3.5 sm:py-4 backdrop-blur-xl bg-[#08090d]/85 border-b border-white/10 shadow-md">
         <button
           onClick={() => {
             haptics.lightImpact();
@@ -340,9 +340,9 @@ export function ArtistDetailView() {
         </div>
       </div>
 
-      {/* ── 6 STRUCTURED TABS (Popular, Songs, Albums, Videos, Playlists, About) ── */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-8 mb-8">
-        <div className="flex items-center gap-2 border-b border-white/10 overflow-x-auto no-scrollbar pb-1">
+      {/* ── 5 STRUCTURED TABS (Popular, Songs, Albums, Playlists, About) ── */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-8 mb-6 sm:mb-8">
+        <div className="flex items-center gap-2.5 border-b border-white/10 overflow-x-auto no-scrollbar pb-3">
           {[
             { id: 'popular', label: 'Popular', icon: Sparkles },
             { id: 'songs', label: 'Songs', icon: Music },
@@ -359,7 +359,7 @@ export function ArtistDetailView() {
                 className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
                   isActive
                     ? 'bg-white/15 text-white border border-white/20 shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
@@ -538,27 +538,27 @@ export function ArtistDetailView() {
         </div>
       )}
 
-      {/* ── TAB 6: ABOUT ─────────────────────────────────────────────────── */}
+      {/* ── TAB 5: ABOUT ─────────────────────────────────────────────────── */}
       {activeSubTab === 'about' && (
-        <div className="max-w-6xl mx-auto px-4 sm:px-8 space-y-6">
-          <div className="p-6 rounded-3xl bg-white/5 border border-white/10 space-y-4">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 pt-2 sm:pt-4 space-y-6">
+          <div className="p-6 sm:p-7 rounded-3xl bg-white/[0.04] border border-white/10 space-y-4 shadow-xl backdrop-blur-sm">
             <h3 className="text-base font-black text-white flex items-center gap-2">
               <Info className="w-5 h-5 text-[#fa233b]" /> About {artist.name}
             </h3>
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-normal">
               {formattedBio}
             </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-white/10">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-5 border-t border-white/10">
               <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Monthly Listeners</span>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Monthly Listeners</span>
                 <span className="text-base font-mono font-black text-white">{((artist.followerCount || 12400000) / 1000000).toFixed(1)}M</span>
               </div>
               <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Primary Region</span>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Primary Region</span>
                 <span className="text-base font-bold text-white capitalize">{preferredLanguage || 'Global'}</span>
               </div>
               <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Status</span>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Status</span>
                 <span className="text-base font-bold text-emerald-400">Verified Artist</span>
               </div>
             </div>
