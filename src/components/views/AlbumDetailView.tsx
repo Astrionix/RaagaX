@@ -13,8 +13,10 @@ import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndic
 import { Song } from '@/types/music';
 import { haptics } from '@/lib/haptics/HapticEngine';
 import { DynamicArtworkAtmosphere } from '@/components/common/DynamicArtworkAtmosphere';
+import { ArtworkColorExtractor, ChameleonPalette } from '@/lib/theme/ArtworkColorExtractor';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
+import { RealMusicEngine } from '@/lib/realMusicEngine';
 
 import { getApiUrl } from '@/lib/config/apiConfig';
 
@@ -176,7 +178,6 @@ export function AlbumDetailView() {
         // ── Tier 2: RealMusicEngine playlist / album resolver ──
         if (mappedTracks.length === 0 && selectedAlbumId && selectedAlbumId !== 'offline' && !selectedAlbumId.startsWith('alb-')) {
           try {
-            const { RealMusicEngine } = await import('@/lib/realMusicEngine');
             const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${selectedAlbumId}`);
             if (details && details.songs && details.songs.length > 0) {
               mappedTracks = details.songs;
@@ -190,7 +191,6 @@ export function AlbumDetailView() {
         const searchCandidate = (albName || baseAlbum?.title || (selectedAlbumId !== 'offline' && !selectedAlbumId.startsWith('alb-') ? selectedAlbumId : '') || '').trim();
         if (mappedTracks.length === 0 && searchCandidate && searchCandidate.toLowerCase() !== 'offline') {
           try {
-            const { RealMusicEngine } = await import('@/lib/realMusicEngine');
             const searchAlbums = await RealMusicEngine.getInstance().searchRealAlbums(searchCandidate, 5);
             const match = searchAlbums.find(a => 
               a.title?.toLowerCase() === searchCandidate.toLowerCase() ||
@@ -210,7 +210,16 @@ export function AlbumDetailView() {
           } catch {}
         }
 
-        // ── Tier 4: Search by Songs by Movie Name ──
+        // ── Tier 4: Fallback to Catalog Mock Tracks ──
+        if (mappedTracks.length === 0 && baseAlbum?.tracks && baseAlbum.tracks.length > 0) {
+          mappedTracks = baseAlbum.tracks;
+          albName = baseAlbum.title;
+          albCover = baseAlbum.coverUrl;
+          primaryArtist = baseAlbum.artist;
+          albYear = baseAlbum.releaseYear;
+        }
+
+        // ── Tier 5: Search by Songs by Movie Name ──
         if (mappedTracks.length === 0 && searchCandidate && searchCandidate.toLowerCase() !== 'offline') {
           const searchUrls = [
             `https://saavn.dev/api/search/songs?query=${encodeURIComponent(searchCandidate)}&limit=30`,
@@ -398,9 +407,35 @@ export function AlbumDetailView() {
 
   const totalMin = Math.round((album.durationSec || 0) / 60);
 
-  const coverUrl = album.coverUrl && !album.coverUrl.includes('/null/')
+  const [palette, setPalette] = useState<ChameleonPalette | null>(null);
+
+  const coverUrl = album?.coverUrl && !album.coverUrl.includes('/null/')
     ? album.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500')
     : '/app-icon.png';
+
+  useEffect(() => {
+    let isMounted = true;
+    if (coverUrl && coverUrl !== '/app-icon.png') {
+      ArtworkColorExtractor.getInstance()
+        .extractPalette(coverUrl)
+        .then((p) => {
+          if (isMounted) setPalette(p);
+        });
+    } else {
+      setPalette(null);
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [coverUrl]);
+
+  // Derive a single unified monochromatic shade for all album UI elements
+  const themeColor = palette?.highlight || palette?.accent || palette?.primary || '#FA233B';
+  const glowColor = palette?.glow || 'rgba(250, 35, 59, 0.35)';
+  const bgTint = palette?.refractionRgba || 'rgba(250, 35, 59, 0.12)';
+  const borderTint = palette?.primary
+    ? palette.primary.replace('rgb', 'rgba').replace(')', ', 0.35)')
+    : 'rgba(255,255,255,0.15)';
 
   return (
     <DynamicArtworkAtmosphere artworkUrl={coverUrl} isPlaying={isPlaying}>
@@ -456,7 +491,7 @@ export function AlbumDetailView() {
                 }}
                 className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 font-bold"
               >
-                <Play className="w-4 h-4 text-[#fa233b] fill-current" /> Play Album
+                <Play className="w-4 h-4 fill-current" style={{ color: themeColor }} /> Play Album
               </button>
               <button
                 onClick={() => {
@@ -526,8 +561,15 @@ export function AlbumDetailView() {
 
           {/* Album Information */}
           <div className="flex-1 min-w-0 space-y-2.5">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-[11px] font-bold uppercase tracking-wider text-slate-300">
-              <Disc className="w-3.5 h-3.5 text-[#fa233b]" />
+            <div
+              className="inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-bold uppercase tracking-wider transition-all"
+              style={{
+                backgroundColor: bgTint,
+                borderColor: borderTint,
+                color: themeColor,
+              }}
+            >
+              <Disc className="w-3.5 h-3.5" style={{ color: themeColor }} />
               <span>{album.albumType === 'ep' ? 'EP' : 'Album'}</span>
             </div>
 
@@ -545,7 +587,8 @@ export function AlbumDetailView() {
                   setActiveTab('artist');
                 }
               }}
-              className="text-base sm:text-lg font-bold text-slate-300 hover:text-white transition-colors cursor-pointer inline-block"
+              className="text-base sm:text-lg font-bold transition-colors cursor-pointer inline-block"
+              style={{ color: themeColor }}
             >
               {album.artist}
             </p>
@@ -571,7 +614,11 @@ export function AlbumDetailView() {
         <div className="flex flex-nowrap items-center justify-center md:justify-start gap-2 sm:gap-3 mt-8 pt-6 border-t border-white/10 w-full overflow-x-auto no-scrollbar py-1">
           <button
             onClick={handlePlayAll}
-            className="h-10 sm:h-11 px-4 sm:px-6 rounded-full bg-[#fa233b] hover:bg-[#d91e32] text-white font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2 shadow-xl shadow-red-500/25 active:scale-95 transition-all cursor-pointer shrink-0 whitespace-nowrap"
+            className="h-10 sm:h-11 px-4 sm:px-6 rounded-full text-white font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2 active:scale-95 transition-all cursor-pointer shrink-0 whitespace-nowrap shadow-xl"
+            style={{
+              backgroundColor: themeColor,
+              boxShadow: `0 10px 25px ${glowColor}`,
+            }}
             title="Play Album from Track 1"
           >
             <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-white ml-0.5" /> Play
@@ -593,16 +640,21 @@ export function AlbumDetailView() {
                 setToastMessage(isLikedAlbum ? 'Removed album from Library' : 'Added album to Library (Albums)');
               }
             }}
-            className={`h-10 sm:h-11 px-3.5 sm:px-5 rounded-full font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2 border transition-all active:scale-95 cursor-pointer shrink-0 whitespace-nowrap ${
-              isLikedAlbum
-                ? 'bg-purple-500/20 border-purple-500/40 text-purple-300 shadow-lg shadow-purple-500/20'
-                : 'bg-white/10 hover:bg-white/20 border-white/15 text-white'
-            }`}
+            className="h-10 sm:h-11 px-3.5 sm:px-5 rounded-full font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2 border transition-all active:scale-95 cursor-pointer shrink-0 whitespace-nowrap"
+            style={isLikedAlbum ? {
+              backgroundColor: bgTint,
+              borderColor: borderTint,
+              color: themeColor,
+            } : {
+              backgroundColor: 'rgba(255,255,255,0.1)',
+              borderColor: 'rgba(255,255,255,0.15)',
+              color: '#ffffff',
+            }}
             title={isLikedAlbum ? 'Remove from Library' : 'Add to Library'}
           >
             {isLikedAlbum ? (
               <>
-                <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400 stroke-[3]" />
+                <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[3]" style={{ color: themeColor }} />
                 <span>In Library</span>
               </>
             ) : (
@@ -622,14 +674,19 @@ export function AlbumDetailView() {
                 setToastMessage(isLikedAlbum ? 'Removed from Favorites' : 'Liked album');
               }
             }}
-            className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center border transition-all active:scale-95 cursor-pointer shrink-0 ${
-              isLikedAlbum
-                ? 'bg-red-500/15 border-red-500/30 text-[#fa233b]'
-                : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white'
-            }`}
+            className="w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center border transition-all active:scale-95 cursor-pointer shrink-0"
+            style={isLikedAlbum ? {
+              backgroundColor: bgTint,
+              borderColor: borderTint,
+              color: themeColor,
+            } : {
+              backgroundColor: 'rgba(255,255,255,0.05)',
+              borderColor: 'rgba(255,255,255,0.1)',
+              color: 'rgba(255,255,255,0.7)',
+            }}
             title={isLikedAlbum ? 'Unlike Album' : 'Like Album'}
           >
-            <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isLikedAlbum ? 'fill-current text-[#fa233b]' : ''}`} />
+            <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4" style={isLikedAlbum ? { fill: themeColor, color: themeColor } : undefined} />
           </button>
         </div>
       </div>
@@ -663,8 +720,12 @@ export function AlbumDetailView() {
                       setShowSortMenu(false);
                     }}
                     className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors ${
-                      sortOption === opt ? 'bg-[#fa233b]/20 text-[#fa233b] font-bold' : 'hover:bg-white/10 text-slate-300 hover:text-white'
+                      sortOption === opt ? 'font-bold' : 'hover:bg-white/10 text-slate-300 hover:text-white'
                     }`}
+                    style={sortOption === opt ? {
+                      backgroundColor: bgTint,
+                      color: themeColor,
+                    } : undefined}
                   >
                     {opt === 'default' ? 'Track Order' : opt === 'az' ? 'A → Z' : opt === 'za' ? 'Z → A' : 'Most Popular'}
                   </button>
@@ -727,20 +788,25 @@ export function AlbumDetailView() {
                 <div
                   key={track.id}
                   onClick={() => playSong(track, sortedTracks, { type: 'album', id: album.id, title: album.title, name: album.title })}
-                  className={`group flex items-center justify-between gap-3 p-3 rounded-2xl transition-all cursor-pointer select-none ${
+                  className={`group flex items-center justify-between gap-3 p-3 rounded-2xl transition-all cursor-pointer select-none border ${
                     isPlayingCurrent
-                      ? 'bg-white/[0.08] border border-white/15 text-white'
-                      : 'hover:bg-white/5 text-slate-300 hover:text-white border border-transparent'
+                      ? 'text-white'
+                      : 'hover:bg-white/5 text-slate-300 hover:text-white border-transparent'
                   }`}
+                  style={isPlayingCurrent ? {
+                    backgroundColor: bgTint,
+                    borderColor: borderTint,
+                    boxShadow: `0 6px 20px ${glowColor.replace('0.35', '0.12')}`,
+                  } : undefined}
                 >
                   {/* Left: Track Number / Waveform */}
                   <div className="flex items-center gap-3.5 min-w-0 flex-1">
                     <div className="w-7 text-center flex-shrink-0 flex items-center justify-center">
                       {isPlayingCurrent ? (
                         <div className="flex items-end gap-[2px] h-4">
-                          <span className={`w-1 bg-[#fa233b] rounded-full ${isPlaying ? 'animate-pulse' : ''} h-4`} />
-                          <span className={`w-1 bg-[#fa233b] rounded-full ${isPlaying ? 'animate-pulse' : ''} h-2.5`} style={{ animationDelay: '150ms' }} />
-                          <span className={`w-1 bg-[#fa233b] rounded-full ${isPlaying ? 'animate-pulse' : ''} h-3.5`} style={{ animationDelay: '300ms' }} />
+                          <span className={`w-1 rounded-full ${isPlaying ? 'animate-pulse' : ''} h-4`} style={{ backgroundColor: themeColor }} />
+                          <span className={`w-1 rounded-full ${isPlaying ? 'animate-pulse' : ''} h-2.5`} style={{ backgroundColor: themeColor, animationDelay: '150ms' }} />
+                          <span className={`w-1 rounded-full ${isPlaying ? 'animate-pulse' : ''} h-3.5`} style={{ backgroundColor: themeColor, animationDelay: '300ms' }} />
                         </div>
                       ) : (
                         <span className="text-xs font-mono font-bold text-slate-500 group-hover:text-slate-300">
@@ -750,7 +816,7 @@ export function AlbumDetailView() {
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <h4 className="text-sm font-bold truncate leading-snug text-white">
+                      <h4 className="text-sm font-bold truncate leading-snug" style={isPlayingCurrent ? { color: themeColor } : { color: '#ffffff' }}>
                         {track.title}
                       </h4>
                       <p className="text-xs text-slate-400 truncate mt-0.5">

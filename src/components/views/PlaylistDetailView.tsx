@@ -19,6 +19,7 @@ import { AddSongsModal } from '@/components/modals/AddSongsModal';
 import { DynamicArtworkAtmosphere } from '@/components/common/DynamicArtworkAtmosphere';
 import { SwipeableSongRow } from '@/components/common/SwipeableSongRow';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
+import { PlaylistDetailResolver } from '@/lib/playlist/PlaylistDetailResolver';
 import { haptics } from '@/lib/haptics/HapticEngine';
 
 type SortOption = 'newest' | 'oldest' | 'az' | 'za' | 'duration';
@@ -114,9 +115,9 @@ export function PlaylistDetailView() {
     }
 
     // 3. Resolve curated / editorial / external playlist from catalog
-    import('@/lib/playlist/PlaylistDetailResolver').then(async ({ PlaylistDetailResolver }) => {
-      try {
-        const resolved = await PlaylistDetailResolver.getInstance().resolve(selectedPlaylistId, preferredLanguage);
+    PlaylistDetailResolver.getInstance()
+      .resolve(selectedPlaylistId, preferredLanguage)
+      .then((resolved) => {
         if (isMounted && resolved) {
           setPlaylist({
             id: resolved.id,
@@ -137,13 +138,14 @@ export function PlaylistDetailView() {
         } else if (isMounted) {
           setPlaylist(null);
         }
-      } catch (err) {
+      })
+      .catch((err) => {
         console.error('[PlaylistDetailView] Failed to resolve curated playlist:', err);
         if (isMounted) setPlaylist(null);
-      } finally {
+      })
+      .finally(() => {
         if (isMounted) setIsLoading(false);
-      }
-    });
+      });
 
     return () => {
       isMounted = false;

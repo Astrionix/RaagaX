@@ -101,22 +101,14 @@ export function DynamicArtworkAtmosphere({
           <div className="absolute inset-0 bg-gradient-to-b from-[#FA233B]/20 via-[#4F46E5]/15 to-[#090A0F] opacity-50 blur-3xl" />
         )}
 
-        {/* Layer 3: Extracted Dominant Color Radial Meshes */}
+        {/* Layer 3: Extracted Single Dominant Color Radial Mesh (Monochromatic Atmosphere) */}
         {palette && (
-          <>
-            <div 
-              className="absolute -top-24 left-1/2 -translate-x-1/2 w-[120%] h-[360px] rounded-full blur-3xl pointer-events-none transition-all duration-700 opacity-60"
-              style={{
-                background: `radial-gradient(ellipse at 50% 30%, ${palette.primary} 0%, transparent 65%)`,
-              }}
-            />
-            <div 
-              className="absolute top-12 -right-20 w-[60%] h-[300px] rounded-full blur-3xl pointer-events-none transition-all duration-700 opacity-40"
-              style={{
-                background: `radial-gradient(circle at 60% 40%, ${palette.secondary} 0%, transparent 70%)`,
-              }}
-            />
-          </>
+          <div 
+            className="absolute -top-24 left-1/2 -translate-x-1/2 w-[120%] h-[420px] rounded-full blur-3xl pointer-events-none transition-all duration-700 opacity-60"
+            style={{
+              background: `radial-gradient(ellipse at 50% 30%, ${palette.primary} 0%, ${palette.primary} 35%, transparent 70%)`,
+            }}
+          />
         )}
 
         {/* Layer 4: Multi-Stop Readability Scrim (Seamless fade to RaagaX page background) */}
