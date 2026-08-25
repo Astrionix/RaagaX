@@ -30,7 +30,6 @@ export function HistoryView() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<HistorySort>('latest');
-  const [showSortMenu, setShowSortMenu] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   useEffect(() => {
@@ -251,52 +250,32 @@ export function HistoryView() {
             />
           </div>
 
-          {/* Sort Selector Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setShowSortMenu(!showSortMenu)}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer"
-            >
-              <ArrowUpDown className="w-3.5 h-3.5 text-amber-400" />
-              <span>
-                Sort: {
-                  sortOrder === 'latest' ? 'Latest to Oldest' :
-                  sortOrder === 'oldest' ? 'Oldest to Latest' :
-                  sortOrder === 'az' ? 'A → Z' : 'Z → A'
-                }
-              </span>
-            </button>
-
-            {showSortMenu && (
-              <div
-                onClick={(e) => e.stopPropagation()}
-                className="absolute right-0 top-full mt-1.5 w-52 bg-[#141520] border border-white/15 rounded-xl p-1.5 shadow-2xl z-30 text-xs animate-in zoom-in-95 duration-100"
-              >
-                {[
-                  { id: 'latest', label: 'Latest to Oldest (Default)' },
-                  { id: 'oldest', label: 'Oldest to Latest' },
-                  { id: 'az', label: 'Song Title (A → Z)' },
-                  { id: 'za', label: 'Song Title (Z → A)' },
-                ].map((opt) => (
-                  <button
-                    key={opt.id}
-                    onClick={() => {
-                      haptics.lightImpact();
-                      setSortOrder(opt.id as HistorySort);
-                      setShowSortMenu(false);
-                    }}
-                    className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors flex items-center justify-between cursor-pointer ${
-                      sortOrder === opt.id
-                        ? 'bg-amber-500/20 text-amber-300 font-bold'
-                        : 'hover:bg-white/10 text-slate-300 hover:text-white'
-                    }`}
-                  >
-                    <span>{opt.label}</span>
-                    {sortOrder === opt.id && <Check className="w-3.5 h-3.5 text-amber-400 stroke-[3]" />}
-                  </button>
-                ))}
-              </div>
-            )}
+          {/* Unified Horizontally Scrollable Quick Sort Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full py-0.5 flex-1 min-w-0 pr-2">
+            {[
+              { id: 'latest', label: 'Latest First' },
+              { id: 'oldest', label: 'Oldest First' },
+              { id: 'az', label: 'A → Z' },
+              { id: 'za', label: 'Z → A' },
+            ].map((opt) => {
+              const isActive = sortOrder === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => {
+                    haptics.lightImpact();
+                    setSortOrder(opt.id as HistorySort);
+                  }}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-shrink-0 ${
+                    isActive
+                      ? 'bg-amber-400 text-slate-950 shadow-sm shadow-amber-400/20'
+                      : 'bg-white/[0.04] text-slate-400 hover:text-white hover:bg-white/[0.08] border border-white/5'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
