@@ -59,8 +59,12 @@ export class SongFormatter {
     if (!title) return 'Unknown Title';
     let clean = this.decodeHtml(title);
 
-    // Remove (From "Movie/Album") or [From "Movie/Album"] or (From Movie)
-    clean = clean.replace(/[\(\[\{]\s*from\b[^\)\]\}]*[\)\]\}]/gi, '');
+    // Remove any leftover HTML quotes or entities
+    clean = clean.replace(/&quot;/gi, '"').replace(/&#039;/gi, "'").replace(/&amp;/gi, '&');
+
+    // Remove (From "Movie/Album") or [From "Movie/Album"] or (From Movie) or - From Movie
+    clean = clean.replace(/[\(\[\{]\s*from\b[^\)\]\}]*[\)\]\}]?/gi, '');
+    clean = clean.replace(/\s*[-–—:]\s*from\s+[\"\'\w\s\-–—\.]+/gi, '');
 
     // Remove language qualifiers: - Telugu, (Telugu), [Telugu], - Hindi, etc.
     clean = clean.replace(/\s*[-–—:]\s*(telugu|hindi|tamil|kannada|malayalam|punjabi|english|bhojpuri|bengali|marathi|gujarati)\b.*/gi, '');
@@ -68,6 +72,10 @@ export class SongFormatter {
 
     // Remove common bracketed audio/video noise
     clean = clean.replace(/[\(\[\{]\s*(original\s+motion\s+picture\s+soundtrack|soundtrack|ost|audio|official|lyrical|video|full\s+song|version|remix|lofi|slowed|reverb|cover|feat\b|with\b|duet|solo)[^\)\]\}]*[\)\]\}]/gi, '');
+
+    // Clean unclosed brackets or trailing dashes
+    clean = clean.replace(/[\(\[\{]\s*[\)\]\}]/g, '');
+    clean = clean.replace(/[-–—]\s*$/, '').trim();
 
     // Clean any remaining quotes
     clean = clean.replace(/[\"\']/g, '').trim();

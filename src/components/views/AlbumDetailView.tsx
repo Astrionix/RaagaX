@@ -17,6 +17,7 @@ import { ArtworkColorExtractor, ChameleonPalette } from '@/lib/theme/ArtworkColo
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 import { RealMusicEngine } from '@/lib/realMusicEngine';
+import { SongFormatter } from '@/lib/music/SongFormatter';
 
 import { getApiUrl } from '@/lib/config/apiConfig';
 
@@ -148,7 +149,7 @@ export function AlbumDetailView() {
 
                   mappedTracks = albData.songs.map((s: any) => ({
                     id: s.id,
-                    title: s.name || s.title || 'Unknown Title',
+                    title: SongFormatter.cleanSongTitle(s.name || s.title || 'Unknown Title'),
                     artist: s.artists?.primary?.map((a: any) => a.name).join(', ') || s.primaryArtists || primaryArtist,
                     artistId: s.artists?.primary?.[0]?.id || '',
                     album: albData.name || albData.title || albName,
@@ -180,7 +181,10 @@ export function AlbumDetailView() {
           try {
             const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${selectedAlbumId}`);
             if (details && details.songs && details.songs.length > 0) {
-              mappedTracks = details.songs;
+              mappedTracks = details.songs.map(s => ({
+                ...s,
+                title: SongFormatter.cleanSongTitle(s.title),
+              }));
               albName = details.title || albName;
               albCover = details.coverUrl || albCover;
             }
@@ -200,7 +204,10 @@ export function AlbumDetailView() {
             if (match?.id) {
               const details = await RealMusicEngine.getInstance().getPlaylistDetails(`album:${match.id}`);
               if (details && details.songs && details.songs.length > 0) {
-                mappedTracks = details.songs;
+                mappedTracks = details.songs.map(s => ({
+                  ...s,
+                  title: SongFormatter.cleanSongTitle(s.title),
+                }));
                 albName = details.title || match.title || albName;
                 albCover = details.coverUrl || match.coverUrl || albCover;
                 primaryArtist = details.songs[0]?.artist || match.artist || primaryArtist;
@@ -212,7 +219,10 @@ export function AlbumDetailView() {
 
         // ── Tier 4: Fallback to Catalog Mock Tracks ──
         if (mappedTracks.length === 0 && baseAlbum?.tracks && baseAlbum.tracks.length > 0) {
-          mappedTracks = baseAlbum.tracks;
+          mappedTracks = baseAlbum.tracks.map(s => ({
+            ...s,
+            title: SongFormatter.cleanSongTitle(s.title),
+          }));
           albName = baseAlbum.title;
           albCover = baseAlbum.coverUrl;
           primaryArtist = baseAlbum.artist;
@@ -236,7 +246,7 @@ export function AlbumDetailView() {
                 if (Array.isArray(results) && results.length > 0) {
                   mappedTracks = results.map((s: any) => ({
                     id: s.id,
-                    title: s.name || s.title || 'Unknown Title',
+                    title: SongFormatter.cleanSongTitle(s.name || s.title || 'Unknown Title'),
                     artist: s.artists?.primary?.map((a: any) => a.name).join(', ') || s.primaryArtists || primaryArtist,
                     artistId: s.artists?.primary?.[0]?.id || '',
                     album: s.album?.name || s.album || searchCandidate,
@@ -779,16 +789,17 @@ export function AlbumDetailView() {
             <p className="text-sm font-semibold">No songs available in this album.</p>
           </div>
         ) : (
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             {sortedTracks.map((track: Song, idx: number) => {
               const isPlayingCurrent = currentSong?.id === track.id;
               const trackNum = (idx + 1).toString().padStart(2, '0');
+              const displayTitle = SongFormatter.cleanSongTitle(track.title);
 
               return (
                 <div
                   key={track.id}
                   onClick={() => playSong(track, sortedTracks, { type: 'album', id: album.id, title: album.title, name: album.title })}
-                  className={`group flex items-center justify-between gap-3 p-3 rounded-2xl transition-all cursor-pointer select-none border ${
+                  className={`group flex items-center justify-between gap-3 px-3 py-3 rounded-2xl transition-all cursor-pointer select-none border ${
                     isPlayingCurrent
                       ? 'text-white'
                       : 'hover:bg-white/5 text-slate-300 hover:text-white border-transparent'
@@ -799,35 +810,35 @@ export function AlbumDetailView() {
                     boxShadow: `0 6px 20px ${glowColor.replace('0.35', '0.12')}`,
                   } : undefined}
                 >
-                  {/* Left: Track Number / Waveform */}
-                  <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                    <div className="w-7 text-center flex-shrink-0 flex items-center justify-center">
+                  {/* Left: Track Number / Waveform + Title */}
+                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <div className="w-6 text-center flex-shrink-0 flex items-center justify-center">
                       {isPlayingCurrent ? (
-                        <div className="flex items-end gap-[2px] h-4">
-                          <span className={`w-1 rounded-full ${isPlaying ? 'animate-pulse' : ''} h-4`} style={{ backgroundColor: themeColor }} />
-                          <span className={`w-1 rounded-full ${isPlaying ? 'animate-pulse' : ''} h-2.5`} style={{ backgroundColor: themeColor, animationDelay: '150ms' }} />
-                          <span className={`w-1 rounded-full ${isPlaying ? 'animate-pulse' : ''} h-3.5`} style={{ backgroundColor: themeColor, animationDelay: '300ms' }} />
+                        <div className="flex items-end gap-[2px] h-3.5">
+                          <span className={`w-1 rounded-full ${isPlaying ? 'animate-pulse' : ''} h-3.5`} style={{ backgroundColor: themeColor }} />
+                          <span className={`w-1 rounded-full ${isPlaying ? 'animate-pulse' : ''} h-2`} style={{ backgroundColor: themeColor, animationDelay: '150ms' }} />
+                          <span className={`w-1 rounded-full ${isPlaying ? 'animate-pulse' : ''} h-3`} style={{ backgroundColor: themeColor, animationDelay: '300ms' }} />
                         </div>
                       ) : (
-                        <span className="text-xs font-mono font-bold text-slate-500 group-hover:text-slate-300">
+                        <span className="text-xs font-mono font-bold text-slate-400 group-hover:text-white transition-colors">
                           {trackNum}
                         </span>
                       )}
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <h4 className="text-sm font-bold truncate leading-snug" style={isPlayingCurrent ? { color: themeColor } : { color: '#ffffff' }}>
-                        {track.title}
+                      <h4
+                        className="text-sm font-bold truncate leading-normal"
+                        style={isPlayingCurrent ? { color: themeColor } : { color: '#ffffff' }}
+                      >
+                        {displayTitle}
                       </h4>
-                      <p className="text-xs text-slate-400 truncate mt-0.5">
-                        {track.artist}
-                      </p>
                     </div>
                   </div>
 
                   {/* Right: Duration + Download Status + Actions Menu */}
                   <div className="flex items-center gap-3 flex-shrink-0">
-                    <span className="text-xs font-mono text-slate-500 hidden sm:inline">
+                    <span className="text-xs font-mono text-slate-400 hidden sm:inline">
                       {formatDuration(track.duration || 210)}
                     </span>
 
