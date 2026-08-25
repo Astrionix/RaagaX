@@ -19,6 +19,12 @@ const nextConfig = {
       { protocol: 'https', hostname: 'i.ytimg.com' },
       { protocol: 'https', hostname: 'yt3.ggpht.com' }
     ]
+  },
+  webpack: (config, { dev }) => {
+    if (dev) {
+      config.cache = false;
+    }
+    return config;
   }
 };
 
