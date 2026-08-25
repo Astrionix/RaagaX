@@ -10,6 +10,38 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { PlayableUrlCache } from '@/lib/playback/PlayableUrlCache';
 import { RaagaXNativePlayer } from '@/lib/playback/native/RaagaXNativePlayer';
 
+function isAudioUrlExpired(url: string): boolean {
+  if (!url) return true;
+  if (url.startsWith('file://') || url.startsWith('media3://') || url.includes('media3_cache')) {
+    return false;
+  }
+  try {
+    const urlObj = new URL(url);
+    const expireParam = urlObj.searchParams.get('expire') || 
+                        urlObj.searchParams.get('expires') || 
+                        urlObj.searchParams.get('expiry');
+    if (expireParam) {
+      const timestamp = parseInt(expireParam);
+      if (!isNaN(timestamp)) {
+        const expiryMs = timestamp < 10000000000 ? timestamp * 1000 : timestamp;
+        return Date.now() >= expiryMs;
+      }
+    }
+    const authParam = urlObj.searchParams.get('auth');
+    if (authParam) {
+      const expiryMatch = authParam.match(/expiry[=:](\d+)/i);
+      if (expiryMatch && expiryMatch[1]) {
+        const timestamp = parseInt(expiryMatch[1]);
+        if (!isNaN(timestamp)) {
+          const expiryMs = timestamp < 10000000000 ? timestamp * 1000 : timestamp;
+          return Date.now() >= expiryMs;
+        }
+      }
+    }
+  } catch {}
+  return false;
+}
+
 export class PlaybackSourceResolver {
   private static instance: PlaybackSourceResolver;
 
@@ -162,7 +194,7 @@ export class PlaybackSourceResolver {
       validAudioUrl.startsWith('file://')
     );
 
-    if (!validAudioUrl || isPixabay || isNonHttpScheme || isMedia3OnWeb || bypassCache) {
+    if (!validAudioUrl || isPixabay || isNonHttpScheme || isMedia3OnWeb || bypassCache || isAudioUrlExpired(validAudioUrl)) {
       try {
         const query = `${song.title} ${song.artist || ''}`.trim();
         console.log(`[PlaybackSourceResolver] Resolving real audio stream for: "${query}" (bypassCache=${bypassCache})`);
