@@ -274,14 +274,33 @@ export class SongResolver {
         if (!foundSet.has(id)) missingIds.push(id);
       });
 
-      // Query /api/songs for missing IDs (JioSaavn provider)
+      // Query /api/songs for missing IDs (JioSaavn provider) in batches of 50
       if (missingIds.length > 0 && typeof window !== 'undefined') {
-        const url = getApiUrl(`/api/songs?ids=${encodeURIComponent(missingIds.join(','))}`);
-        const res = await fetch(url);
-        if (res.ok) {
-          const json = await res.json();
-          const rawTracks = json.data || [];
-          if (Array.isArray(rawTracks) && rawTracks.length > 0) {
+        const BATCH_SIZE = 50;
+        const batches: string[][] = [];
+        for (let i = 0; i < missingIds.length; i += BATCH_SIZE) {
+          batches.push(missingIds.slice(i, i + BATCH_SIZE));
+        }
+
+        try {
+          const fetchPromises = batches.map(async (batch) => {
+            try {
+              const url = getApiUrl(`/api/songs?ids=${encodeURIComponent(batch.join(','))}`);
+              const res = await fetch(url);
+              if (res.ok) {
+                const json = await res.json();
+                return json.data || [];
+              }
+            } catch (err) {
+              console.warn('[SongResolver] Batch resolution failed:', err);
+            }
+            return [];
+          });
+
+          const results = await Promise.all(fetchPromises);
+          const rawTracks = results.flat();
+
+          if (rawTracks.length > 0) {
             const { mapTrackToSong } = await import('@/lib/jioSaavnProvider');
             rawTracks.forEach((track, idx) => {
               const mapped = mapTrackToSong(track, idx);
@@ -291,6 +310,8 @@ export class SongResolver {
               }
             });
           }
+        } catch (err) {
+          console.warn('[SongResolver] Parallel resolution error:', err);
         }
       }
 
