@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { CandidateGenerator } from '@/lib/recommendation/CandidateGenerator';
-import { Ranker } from '@/lib/recommendation/Ranker';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +26,7 @@ export async function GET(req: NextRequest) {
     const cacheKey = `rec_${userId || 'guest'}_${lang.toLowerCase()}_${limit}`;
     const cached = recCache.get(cacheKey);
 
-    // Stale-While-Revalidate: Return cache immediately if within TTL
+    // Return cache immediately if within TTL
     if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
       return NextResponse.json({
         success: true,
@@ -36,9 +35,51 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Generate candidates & rank deterministically
+    // Generate candidates
     const candidates = await CandidateGenerator.generateCandidates(null, [], lang, limit * 2, userId);
-    const rankedSongs = Ranker.rankCandidates(candidates, [], limit);
+
+    // Deterministic Server-side Ranking & Deduplication
+    const seen = new Set<string>();
+    const unique = candidates.filter(s => {
+      if (!s || !s.id) return false;
+      if (seen.has(s.id)) return false;
+      seen.add(s.id);
+      return true;
+    });
+
+    // Score based on source priority and popularity
+    const scored = unique.map(song => {
+      let score = 0;
+      switch (song.candidateSource) {
+        case 'personalized':
+          score += 25;
+          break;
+        case 'similar':
+          score += 20;
+          break;
+        case 'trending':
+          score += 15;
+          break;
+        case 'context':
+          score += 10;
+          break;
+        case 'popular':
+          score += 5;
+          break;
+      }
+      if (song.popularity) score += (song.popularity / 10);
+      return { song, score };
+    });
+
+    // Stable sort
+    scored.sort((a, b) => {
+      if (Math.abs(b.score - a.score) > 0.01) {
+        return b.score - a.score;
+      }
+      return a.song.id.localeCompare(b.song.id);
+    });
+
+    const rankedSongs = scored.map(item => item.song).slice(0, limit);
 
     // Update in-memory cache
     recCache.set(cacheKey, {
@@ -52,7 +93,6 @@ export async function GET(req: NextRequest) {
       source: 'RESOLVED',
     });
   } catch (err) {
-    // Non-blocking fallback
     return NextResponse.json({
       success: true,
       data: [],

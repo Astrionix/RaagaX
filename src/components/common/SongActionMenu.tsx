@@ -532,8 +532,8 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
                 <button 
                   onClick={() => {
                     handleAction(() => {
-                      import('@/lib/recommendation/RecommendationEngine').then(({ RecommendationEngine }) => {
-                        RecommendationEngine.getInstance().markNotInterested(song.id, 'user_action');
+                      import('@/lib/recommendation/PersonalizationEngine').then(({ PersonalizationEngine }) => {
+                        PersonalizationEngine.getInstance().markNotInterested(song.id);
                       });
                       setToastMessage(`We'll recommend fewer songs like "${song.title}"`);
                       onNotInterested?.();

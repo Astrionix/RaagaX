@@ -21,6 +21,7 @@ import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndic
 import { Song } from '@/types/music';
 import { haptics } from '@/lib/haptics/HapticEngine';
 import { useNewReleases } from '@/lib/catalog/useNewReleases';
+import { PersonalizationEngine } from '@/lib/recommendation/PersonalizationEngine';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Language list
@@ -167,25 +168,30 @@ export function NewView() {
 
   const isDataLoading = isLoading && allSongs.length === 0;
 
-  // ── Section slices — purely based on release order, no personalisation
-  const featuredCards    = useMemo(() => allSongs.slice(0,  4),  [allSongs]);
-  const bestNewSongs     = useMemo(() => allSongs.slice(4,  14), [allSongs]);
-  const newThisWeek      = useMemo(() => allSongs.slice(14, 22), [allSongs]);
+  const rankedSongs = useMemo(() => {
+    if (!allSongs || allSongs.length === 0) return [];
+    return PersonalizationEngine.getInstance().rankSongs(allSongs, allSongs.length);
+  }, [allSongs]);
+
+  // ── Section slices — ranked and personalized
+  const featuredCards    = useMemo(() => rankedSongs.slice(0,  4),  [rankedSongs]);
+  const bestNewSongs     = useMemo(() => rankedSongs.slice(4,  14), [rankedSongs]);
+  const newThisWeek      = useMemo(() => rankedSongs.slice(14, 22), [rankedSongs]);
   const newAlbums        = useMemo(() => {
     const seen = new Map<string, Song>();
-    allSongs.forEach((s) => { if (s.album && !seen.has(s.album)) seen.set(s.album, s); });
+    rankedSongs.forEach((s) => { if (s.album && !seen.has(s.album)) seen.set(s.album, s); });
     return Array.from(seen.values()).slice(0, 8);
-  }, [allSongs]);
-  const newSingles       = useMemo(() => allSongs.slice(22, 30), [allSongs]);
-  const newEPs           = useMemo(() => allSongs.slice(30, 36), [allSongs]);
-  const newSoundtracks   = useMemo(() => allSongs.slice(36, 42), [allSongs]);
+  }, [rankedSongs]);
+  const newSingles       = useMemo(() => rankedSongs.slice(22, 30), [rankedSongs]);
+  const newEPs           = useMemo(() => rankedSongs.slice(30, 36), [rankedSongs]);
+  const newSoundtracks   = useMemo(() => rankedSongs.slice(36, 42), [rankedSongs]);
   const trendingNew      = useMemo(() =>
-    [...allSongs].sort((a, b) => (b.plays || 0) - (a.plays || 0)).slice(0, 10),
-    [allSongs]
+    [...rankedSongs].sort((a, b) => (b.plays || 0) - (a.plays || 0)).slice(0, 10),
+    [rankedSongs]
   );
   const newArtists       = useMemo(() => {
     const seen = new Map<string, Song>();
-    allSongs.forEach((s) => {
+    rankedSongs.forEach((s) => {
       if (s.artistId && s.artistId !== 'unknown' && !seen.has(s.artistId)) {
         seen.set(s.artistId, s);
       } else if (s.artist && !seen.has(`name:${s.artist}`)) {
@@ -193,7 +199,7 @@ export function NewView() {
       }
     });
     return Array.from(seen.values()).slice(0, 8);
-  }, [allSongs]);
+  }, [rankedSongs]);
 
   const handlePlayAll = (shuffle = false) => {
     if (!allSongs.length) return;

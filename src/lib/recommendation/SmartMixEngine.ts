@@ -1,7 +1,7 @@
 import { Song } from '@/types/music';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { ListeningDnaEngine } from '../lifecycle/ListeningDnaEngine';
-import { Ranker } from './Ranker';
+import { PersonalizationEngine } from './PersonalizationEngine';
 import { CandidateSong } from './CandidateGenerator';
 
 export interface SmartMix {
@@ -146,6 +146,6 @@ export class SmartMixEngine {
       };
     });
 
-    return Ranker.rankCandidates(scored, [], 30);
+    return PersonalizationEngine.getInstance().rankSongs(scored, 30);
   }
 }

@@ -2,7 +2,8 @@ import { QueueItem } from './types';
 import { QueueHistory } from './QueueHistory';
 import { CandidateGenerator } from '../recommendation/CandidateGenerator';
 import { QueueValidator } from './QueueValidator';
-import { TasteProfileManager } from './TasteProfileManager';
+import { PersonalizationEngine } from '../recommendation/PersonalizationEngine';
+import { Song } from '@/types/music';
 
 export class SmartShuffleEngine {
   
@@ -43,9 +44,9 @@ export class SmartShuffleEngine {
       injectionCount * 3
     );
 
-    const tasteProfile = TasteProfileManager.getInstance().getProfile();
     const recommendedItems: QueueItem[] = [];
     const seenKeys = new Set<string>();
+    const scoredCandidates: Array<{ song: Song, score: number }> = [];
 
     for (const song of candidates) {
       if (!QueueValidator.isValidSong(song)) continue;
@@ -54,26 +55,24 @@ export class SmartShuffleEngine {
       if (seenKeys.has(key)) continue;
       seenKeys.add(key);
 
-      // Score it based on taste
-      let score = 1.0;
-      if (tasteProfile.topArtists.has(song.artist)) {
-        score += (tasteProfile.topArtists.get(song.artist) || 0) * 0.5;
-      }
-      
-      // We could add diversity/penalty tracking here (Artist Diversity step from plan)
-      // but for this implementation we assume the generator already did a good job filtering.
-      
+      const score = PersonalizationEngine.getInstance().scoreTrack(song as Song);
+      scoredCandidates.push({ song, score });
+    }
+
+    // Sort by taste score descending
+    scoredCandidates.sort((a, b) => b.score - a.score);
+
+    // Pick top candidates up to injectionCount
+    for (const item of scoredCandidates.slice(0, injectionCount)) {
       recommendedItems.push({
-        queueItemId: crypto.randomUUID(), // Local deterministic ID could be used instead, but random is fine for UI keys
-        trackId: song.id,
-        song: song,
+        queueItemId: crypto.randomUUID(),
+        trackId: item.song.id,
+        song: item.song,
         source: 'RECOMMENDATION',
         addedAt: Date.now(),
         playable: true,
         offlineAvailable: false
       });
-      
-      if (recommendedItems.length >= injectionCount) break;
     }
 
     // 3. Inject recommended items uniformly into the shuffled queue

@@ -51,7 +51,7 @@ const safeLocalStorage = createJSONStorage(() => ({
     } catch {}
   },
 }));
-import { RecommendationEngine } from '@/lib/recommendationEngine';
+import { PersonalizationEngine } from '@/lib/recommendation/PersonalizationEngine';
 import { LocalDatabase } from '@/lib/localDatabase';
 import { QueueManager } from '@/lib/queue/QueueManager';
 import { LanguageEligibilityEngine } from '@/lib/language/LanguageEligibilityEngine';
@@ -875,7 +875,7 @@ export const usePlayerStore = create<PlayerState>()(
         let finalAction = action;
         if (action === 'skip' && completionPercentage >= 0.95) finalAction = 'complete';
 
-        RecommendationEngine.getInstance().trackEngagement(
+        PersonalizationEngine.getInstance().trackEngagement(
           currentSong,
           finalAction,
           currentTime,

@@ -6,7 +6,7 @@ import { ShelfItem } from '@/types/home';
 import { Headphones } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { CarouselShelf } from './CarouselShelf';
-import { RecommendationEngine } from '@/lib/recommendation/RecommendationEngine';
+import { PersonalizationEngine } from '@/lib/recommendation/PersonalizationEngine';
 
 interface MoreLikeWhatYouHeardShelfProps {
   initialSongs: Song[];
@@ -37,7 +37,7 @@ export function MoreLikeWhatYouHeardShelf({
     const updateContextRecommendations = async () => {
       setIsTransitioning(true);
       try {
-        const engine = RecommendationEngine.getInstance();
+        const engine = PersonalizationEngine.getInstance();
         const freshList = await engine.getContextualRecommendations(currentSong, 'user', 20);
 
         if (!isCancelled && freshList && freshList.length > 0) {

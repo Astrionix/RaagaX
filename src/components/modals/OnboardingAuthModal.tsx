@@ -5,7 +5,7 @@ import { Disc3, Mail, Lock, Eye, EyeOff, ChevronLeft, Loader2, X, Check, ArrowRi
 import { useAuthStore } from '@/context/useAuthStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { supabase } from '@/lib/supabase';
-import { RecommendationEngine } from '@/lib/recommendationEngine';
+import { PersonalizationEngine } from '@/lib/recommendation/PersonalizationEngine';
 import { Song } from '@/types/music';
 
 import { UserLifecycleManager } from '@/lib/lifecycle/UserLifecycleManager';
@@ -211,7 +211,7 @@ export function OnboardingAuthModal() {
     ListeningDnaEngine.getInstance().setInitialLanguages(selectedLanguages);
     
     selectedArtists.forEach(artist => {
-      RecommendationEngine.getInstance().trackEngagement({
+      PersonalizationEngine.getInstance().trackEngagement({
         id: `bootstrap_${artist}`,
         title: 'Bootstrap',
         artist: artist,

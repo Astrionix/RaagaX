@@ -403,8 +403,8 @@ export function ContextMenuModal() {
               <button 
                 onClick={() => {
                   handleAction(() => {
-                    import('@/lib/recommendation/RecommendationEngine').then(({ RecommendationEngine }) => {
-                      RecommendationEngine.getInstance().markNotInterested(contextMenuSong.id, 'user_action');
+                    import('@/lib/recommendation/PersonalizationEngine').then(({ PersonalizationEngine }) => {
+                      PersonalizationEngine.getInstance().markNotInterested(contextMenuSong.id);
                     });
                     setToastMessage(`We'll recommend fewer songs like "${contextMenuSong.title}"`);
                   });

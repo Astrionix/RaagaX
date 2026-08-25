@@ -18,7 +18,7 @@ import { getApiUrl } from '@/lib/config/apiConfig';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { getCuratedPlaylists } from '@/constants/playlists';
-import { RecommendationEngine, PersonalizedHomeFeed } from '@/lib/recommendation/RecommendationEngine';
+import { PersonalizationEngine, PersonalizedHomeFeed } from '@/lib/recommendation/PersonalizationEngine';
 import { HomeFeedGenerator } from '@/lib/home/HomeFeedGenerator';
 import { RecapBanner } from '@/components/home/RecapBanner';
 import { RaagaDB, STORES } from '@/lib/storage/IndexedDB';
@@ -374,7 +374,7 @@ export function HomeView() {
 
   useEffect(() => {
     setIsMounted(true);
-    const cached = RecommendationEngine.getInstance().getCachedHomeFeedSnapshot(activeUserId, currentLang);
+    const cached = PersonalizationEngine.getInstance().getCachedHomeFeedSnapshot(activeUserId, currentLang);
     if (cached) setFeed(cached);
   }, [activeUserId, currentLang]);
 
@@ -382,7 +382,7 @@ export function HomeView() {
     let isCancelled = false;
     const loadPersonalized = async () => {
       try {
-        const data = await RecommendationEngine.getInstance().getPersonalizedHomeFeed(activeUserId, currentLang);
+        const data = await PersonalizationEngine.getInstance().getPersonalizedHomeFeed(activeUserId, currentLang);
         if (!isCancelled) setFeed(data);
       } catch (err) {
         console.warn('[HomeView] Personalized feed error:', err);
@@ -587,7 +587,7 @@ export function HomeView() {
               // If queue is still empty, load live songs
               if (!playableQueue || playableQueue.length === 0) {
                 try {
-                  const fallback = await RecommendationEngine.getInstance().getPersonalizedHomeFeed(activeUserId, currentLang);
+                  const fallback = await PersonalizationEngine.getInstance().getPersonalizedHomeFeed(activeUserId, currentLang);
                   playableQueue = fallback?.topSongs || fallback?.madeForYou || fallback?.trendingSongs || [];
                 } catch (e) {
                   console.warn('Fallback mix fetch failed', e);

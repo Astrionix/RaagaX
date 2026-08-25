@@ -22,6 +22,7 @@ import {
 import { ArtistAvatar } from '@/components/common/ArtistAvatar';
 import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 import { DiscoveryHubView, DiscoveryCategory } from '@/components/views/DiscoveryHubView';
+import { PersonalizationEngine } from '@/lib/recommendation/PersonalizationEngine';
 
 export function SearchView() {
   const {
@@ -206,6 +207,28 @@ export function SearchView() {
   const downloadedOnlyResults = useMemo(() => {
     return searchResults.songs.filter((s) => downloadedSongIds.includes(s.id));
   }, [searchResults.songs, downloadedSongIds]);
+
+  const rankedSearchSongs = useMemo(() => {
+    const list = filterType === 'downloaded' ? downloadedOnlyResults : searchResults.songs;
+    if (!list || list.length === 0) return [];
+    
+    const engine = PersonalizationEngine.getInstance();
+    const scored = list.map((song, index) => {
+      const searchRelevance = 100 - (index * 4);
+      const personalizationScore = engine.scoreTrack(song);
+      const finalScore = searchRelevance + (personalizationScore * 0.15);
+      return { song, finalScore };
+    });
+
+    scored.sort((a, b) => {
+      if (Math.abs(b.finalScore - a.finalScore) > 0.01) {
+        return b.finalScore - a.finalScore;
+      }
+      return a.song.id.localeCompare(b.song.id);
+    });
+
+    return scored.map((item) => item.song);
+  }, [searchResults.songs, downloadedOnlyResults, filterType]);
 
   return (
     <div className="space-y-6 pb-28 text-white select-none">
@@ -635,7 +658,7 @@ export function SearchView() {
                 </span>
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                {(filterType === 'downloaded' ? downloadedOnlyResults : searchResults.songs).map((song) => {
+                {rankedSearchSongs.map((song) => {
                   const isCurrent = currentSong?.id === song.id;
                   const isDownloaded = downloadedSongIds.includes(song.id);
                   const isQueued = queuedSongIds.has(song.id);

@@ -4,6 +4,7 @@ import { Song } from '@/types/music';
 import { CandidateGenerator } from '../recommendation/CandidateGenerator';
 import { QueueValidator } from './QueueValidator';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { PersonalizationEngine } from '../recommendation/PersonalizationEngine';
 
 export class AutoPlayEngine {
   private static instance: AutoPlayEngine;
@@ -113,8 +114,9 @@ export class AutoPlayEngine {
       }
       seenKeys.add(dedupKey);
 
-      // 4. Soft Artist and Album Spacing Penalty
-      let score = 1.0;
+      // 4. Soft Artist and Album Spacing Penalty + Taste Preference
+      const personalizationScore = PersonalizationEngine.getInstance().scoreTrack(song);
+      let score = 1.0 + (personalizationScore / 100);
       let reasonType: import('./types').SmartQueueReasonType = 'DISCOVERY';
 
       if (seedSong && song.artist && song.artist === seedSong.artist) {
