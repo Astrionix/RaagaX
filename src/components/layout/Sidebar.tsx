@@ -62,16 +62,16 @@ export function Sidebar() {
     <aside className="hidden md:flex fixed left-0 top-0 bottom-20 z-30 w-64 p-4 pb-6 flex-col justify-between select-none bg-[var(--sidebar-bg)] backdrop-blur-3xl border-r border-[var(--border-subtle)] text-[var(--text-primary)] text-xs transition-colors duration-200">
       <div className="space-y-5 overflow-y-auto no-scrollbar pr-1">
         {/* Brand Header */}
-        <div className="px-1 pt-1 pb-1">
+        <div className="-mx-1 -mt-1 mb-1 px-1">
           <div
             onClick={() => setActiveTab('home')}
-            className="flex items-center cursor-pointer select-none group rounded-xl overflow-hidden"
+            className="flex items-center justify-center cursor-pointer select-none group rounded-xl overflow-hidden"
             title="RaagaX — Music Beyond Limits"
           >
             <img
               src="/brand/raagax-banner-logo.png"
               alt="RaagaX - Music Beyond Limits"
-              className="w-full h-auto max-h-12 object-contain group-hover:scale-[1.02] transition-transform duration-300"
+              className="w-full h-auto max-h-20 object-contain drop-shadow-[0_4px_20px_rgba(250,35,59,0.3)] group-hover:scale-[1.03] transition-all duration-300"
             />
           </div>
         </div>
