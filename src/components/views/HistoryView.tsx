@@ -2,13 +2,16 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  ArrowLeft, Clock, Play, Pause, Shuffle, Trash2, Heart, Search, Music, Disc, Sparkles
+  ArrowLeft, Clock, Play, Pause, Shuffle, Trash2, Heart, Search, Music, Disc, Sparkles,
+  ArrowUpDown, Check
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { QueueHistory } from '@/lib/queue/QueueHistory';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { Song } from '@/types/music';
 import { haptics } from '@/lib/haptics/HapticEngine';
+
+type HistorySort = 'latest' | 'oldest' | 'az' | 'za';
 
 export function HistoryView() {
   const {
@@ -26,6 +29,8 @@ export function HistoryView() {
   const [historySongs, setHistorySongs] = useState<{ song: Song; playedAt?: number }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState<HistorySort>('latest');
+  const [showSortMenu, setShowSortMenu] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   useEffect(() => {
@@ -44,7 +49,8 @@ export function HistoryView() {
                 song: e.song,
                 playedAt: e.startedAt,
               }))
-              .filter((e) => Boolean(e.song && e.song.id));
+              .filter((e) => Boolean(e.song && e.song.id))
+              .sort((a, b) => (b.playedAt || 0) - (a.playedAt || 0));
             setHistorySongs(mapped);
           } else {
             setHistorySongs([]);
@@ -62,19 +68,39 @@ export function HistoryView() {
     };
   }, [historySongIds]);
 
-  const filteredHistory = useMemo(() => {
-    if (!searchQuery.trim()) return historySongs;
-    const q = searchQuery.toLowerCase();
-    return historySongs.filter(
-      (item) =>
-        item.song.title.toLowerCase().includes(q) ||
-        item.song.artist.toLowerCase().includes(q) ||
-        (item.song.album && item.song.album.toLowerCase().includes(q))
-    );
-  }, [historySongs, searchQuery]);
+  const sortedHistory = useMemo(() => {
+    let list = [...historySongs];
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(
+        (item) =>
+          item.song.title.toLowerCase().includes(q) ||
+          item.song.artist.toLowerCase().includes(q) ||
+          (item.song.album && item.song.album.toLowerCase().includes(q))
+      );
+    }
 
-  // Group into Today, Yesterday, Earlier This Week, and Older
+    if (sortOrder === 'latest') {
+      return list.sort((a, b) => (b.playedAt || 0) - (a.playedAt || 0));
+    }
+    if (sortOrder === 'oldest') {
+      return list.sort((a, b) => (a.playedAt || 0) - (b.playedAt || 0));
+    }
+    if (sortOrder === 'az') {
+      return list.sort((a, b) => a.song.title.localeCompare(b.song.title));
+    }
+    if (sortOrder === 'za') {
+      return list.sort((a, b) => b.song.title.localeCompare(a.song.title));
+    }
+    return list;
+  }, [historySongs, searchQuery, sortOrder]);
+
+  // Group into Today, Yesterday, Earlier This Week, and Older (preserving latest-to-oldest ordering)
   const groupedHistory = useMemo(() => {
+    if (sortOrder === 'az' || sortOrder === 'za') {
+      return [{ title: sortOrder === 'az' ? 'Alphabetical (A → Z)' : 'Alphabetical (Z → A)', items: sortedHistory }];
+    }
+
     const today: { song: Song; playedAt?: number }[] = [];
     const yesterday: { song: Song; playedAt?: number }[] = [];
     const earlierThisWeek: { song: Song; playedAt?: number }[] = [];
@@ -85,7 +111,7 @@ export function HistoryView() {
     const startOfYesterday = startOfToday - 86400000;
     const startOfWeek = startOfToday - 86400000 * 6;
 
-    filteredHistory.forEach((item) => {
+    sortedHistory.forEach((item) => {
       const time = item.playedAt || Date.now();
       if (time >= startOfToday) {
         today.push(item);
@@ -98,17 +124,22 @@ export function HistoryView() {
       }
     });
 
-    return [
+    const groups = [
       { title: 'Today', items: today },
       { title: 'Yesterday', items: yesterday },
       { title: 'Earlier This Week', items: earlierThisWeek },
       { title: 'Older', items: older },
     ].filter((group) => group.items.length > 0);
-  }, [filteredHistory]);
+
+    if (sortOrder === 'oldest') {
+      return groups.reverse();
+    }
+    return groups;
+  }, [sortedHistory, sortOrder]);
 
   const handlePlayAll = (shuffle = false) => {
-    if (filteredHistory.length === 0) return;
-    const songs = filteredHistory.map((h) => h.song);
+    if (sortedHistory.length === 0) return;
+    const songs = sortedHistory.map((h) => h.song);
     const list = shuffle ? [...songs].sort(() => Math.random() - 0.5) : songs;
     playSong(list[0], list);
   };
@@ -169,7 +200,7 @@ export function HistoryView() {
             </h1>
             <p className="text-xs text-slate-400">
               {historySongs.length > 0
-                ? `${historySongs.length} tracks recently played across your devices`
+                ? `${historySongs.length} tracks recently played across your devices (sorted latest to oldest)`
                 : 'Your stream history will automatically show up here as you listen'}
             </p>
           </div>
@@ -206,17 +237,67 @@ export function HistoryView() {
         )}
       </div>
 
-      {/* ── SEARCH FILTER ────────────────────────────────────────────────────── */}
+      {/* ── SEARCH & SORT CONTROLS ───────────────────────────────────────────── */}
       {historySongs.length > 0 && (
-        <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search recent songs or artists..."
-            className="w-full pl-9 pr-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-400 font-medium"
-          />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search recent songs or artists..."
+              className="w-full pl-9 pr-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-400 font-medium"
+            />
+          </div>
+
+          {/* Sort Selector Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowSortMenu(!showSortMenu)}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer"
+            >
+              <ArrowUpDown className="w-3.5 h-3.5 text-amber-400" />
+              <span>
+                Sort: {
+                  sortOrder === 'latest' ? 'Latest to Oldest' :
+                  sortOrder === 'oldest' ? 'Oldest to Latest' :
+                  sortOrder === 'az' ? 'A → Z' : 'Z → A'
+                }
+              </span>
+            </button>
+
+            {showSortMenu && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="absolute right-0 top-full mt-1.5 w-52 bg-[#141520] border border-white/15 rounded-xl p-1.5 shadow-2xl z-30 text-xs animate-in zoom-in-95 duration-100"
+              >
+                {[
+                  { id: 'latest', label: 'Latest to Oldest (Default)' },
+                  { id: 'oldest', label: 'Oldest to Latest' },
+                  { id: 'az', label: 'Song Title (A → Z)' },
+                  { id: 'za', label: 'Song Title (Z → A)' },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    onClick={() => {
+                      haptics.lightImpact();
+                      setSortOrder(opt.id as HistorySort);
+                      setShowSortMenu(false);
+                    }}
+                    className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors flex items-center justify-between cursor-pointer ${
+                      sortOrder === opt.id
+                        ? 'bg-amber-500/20 text-amber-300 font-bold'
+                        : 'hover:bg-white/10 text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                    {sortOrder === opt.id && <Check className="w-3.5 h-3.5 text-amber-400 stroke-[3]" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -227,7 +308,7 @@ export function HistoryView() {
             <div key={i} className="h-16 rounded-2xl bg-white/5 animate-pulse" />
           ))}
         </div>
-      ) : filteredHistory.length === 0 ? (
+      ) : sortedHistory.length === 0 ? (
         <div className="py-24 text-center text-slate-400 space-y-4 bg-white/[0.01] rounded-3xl border border-dashed border-white/10 max-w-md mx-auto p-6">
           <div className="w-16 h-16 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto shadow-lg shadow-amber-500/10">
             <Clock className="w-8 h-8" />
@@ -267,7 +348,7 @@ export function HistoryView() {
                   return (
                     <div
                       key={`${song.id}-${group.title}-${idx}`}
-                      onClick={() => playSong(song, filteredHistory.map(h => h.song))}
+                      onClick={() => playSong(song, sortedHistory.map(h => h.song))}
                       className={`flex items-center justify-between p-3 rounded-2xl transition-all cursor-pointer group select-none ${
                         isPlayingCurrent
                           ? 'bg-white/[0.08] border border-white/15 text-white'

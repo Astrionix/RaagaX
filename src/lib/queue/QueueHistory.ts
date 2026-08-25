@@ -79,7 +79,7 @@ export class QueueHistory {
   }
 
   public getRecentlyPlayed(count: number = 20): QueueHistoryEntry[] {
-    return this.history.slice(-count);
+    return this.history.slice(-count).reverse();
   }
 
   public wasRecentlyPlayed(trackId: string, withinMs: number = 2 * 60 * 60 * 1000): boolean {
