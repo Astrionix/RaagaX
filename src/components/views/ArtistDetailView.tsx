@@ -144,6 +144,21 @@ export function ArtistDetailView() {
     });
   };
 
+  const formattedBio = useMemo(() => {
+    if (!artist) return '';
+    const bio = (artist as any).bio;
+    if (typeof bio === 'string' && bio.trim().length > 0) return bio;
+    if (Array.isArray(bio) && bio.length > 0) {
+      const intro = bio.find((b: any) => b?.title === 'Introduction' || b?.sequence === 1) || bio[0];
+      if (typeof intro === 'string') return intro;
+      if (intro && typeof intro === 'object' && typeof intro.text === 'string') return intro.text;
+    }
+    if (bio && typeof bio === 'object' && typeof bio.text === 'string') {
+      return bio.text;
+    }
+    return `${artist.name} is one of the most prolific and celebrated artists in Indian music, known for iconic melodies and dynamic chart-topping hits across ${preferredLanguage || 'all languages'} and regional cinema.`;
+  }, [artist, preferredLanguage]);
+
   const formatDuration = (sec: number) => {
     const mins = Math.floor(sec / 60);
     const remainingSec = sec % 60;
@@ -531,7 +546,7 @@ export function ArtistDetailView() {
               <Info className="w-5 h-5 text-[#fa233b]" /> About {artist.name}
             </h3>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              {artist.bio || `${artist.name} is one of the most prolific and celebrated artists in Indian music, known for iconic melodies and dynamic chart-topping hits across ${preferredLanguage} and regional cinema.`}
+              {formattedBio}
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-white/10">
               <div>
