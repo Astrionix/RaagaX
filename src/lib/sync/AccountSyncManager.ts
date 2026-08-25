@@ -55,7 +55,18 @@ export class AccountSyncManager {
 
         if (!likesError && likes) {
           const likedIds = likes.map((l: any) => l.song_id);
-          usePlayerStore.getState().setLikedSongIds(likedIds);
+          
+          try {
+            const { SongResolver } = await import('@/lib/discovery/SongResolver');
+            const resolvedSongs = await SongResolver.resolveSongs(likedIds);
+            usePlayerStore.setState({
+              likedSongIds: likedIds,
+              likedSongs: resolvedSongs
+            });
+          } catch (resolveError) {
+            console.error('[AccountSyncManager] Failed to resolve liked songs metadata:', resolveError);
+            usePlayerStore.getState().setLikedSongIds(likedIds);
+          }
           
           // Cache in IndexedDB under user-scoped key
           await db.put(STORES.LIKED_SONGS, {

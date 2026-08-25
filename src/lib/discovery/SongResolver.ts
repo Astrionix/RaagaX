@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'; // Using the client initialized with 
 import { InternetDateScraper } from './InternetDateScraper';
 import { getApiUrl } from '@/lib/config/apiConfig';
 import { isOfflineMode } from '@/context/usePlayerStore';
+import { RaagaDB, STORES } from '@/lib/storage/IndexedDB';
 
 export class SongResolver {
   /**
@@ -208,81 +209,109 @@ export class SongResolver {
   }
 
   /**
-   * Fetches full Song objects from canonical_songs table given an array of song IDs.
+   * Fetches full Song objects from canonical_songs table or local IndexedDB cache given an array of song IDs.
    */
   public static async resolveSongs(songIds: string[]): Promise<Song[]> {
     if (!songIds || songIds.length === 0) return [];
-    
+
+    const db = RaagaDB.getInstance();
+    const resolved: Song[] = [];
+    const missingIds: string[] = [];
+
+    // Try to resolve from local IndexedDB cache first
+    if (typeof window !== 'undefined') {
+      try {
+        for (const id of songIds) {
+          const cachedSong = await db.get<Song>(STORES.SONGS_METADATA, id);
+          if (cachedSong) {
+            resolved.push(cachedSong);
+          } else {
+            missingIds.push(id);
+          }
+        }
+      } catch (err) {
+        console.warn('[SongResolver] IndexedDB cache read failed, falling back:', err);
+        resolved.length = 0;
+        missingIds.push(...songIds);
+      }
+    } else {
+      missingIds.push(...songIds);
+    }
+
+    if (missingIds.length === 0) {
+      // Re-order to match input sequence
+      const resolvedMap = new Map(resolved.map(s => [s.id, s]));
+      return songIds
+        .map(id => resolvedMap.get(id))
+        .filter((s): s is Song => Boolean(s));
+    }
+
+    const newlyResolved: Song[] = [];
+
     if (isOfflineMode()) {
       // Offline mode: resolve from local player store state if available
       try {
         const { usePlayerStore } = await import('@/context/usePlayerStore');
         const store = usePlayerStore.getState();
         const pool = [...(store.queue || []), ...(store.likedSongs || [])];
-        const localFound: Song[] = [];
-        const idSet = new Set(songIds);
+        const idSet = new Set(missingIds);
         for (const s of pool) {
-          if (s?.id && idSet.has(s.id) && !localFound.some(f => f.id === s.id)) {
-            localFound.push(s);
+          if (s?.id && idSet.has(s.id) && !resolved.some(f => f.id === s.id) && !newlyResolved.some(f => f.id === s.id)) {
+            newlyResolved.push(s);
           }
         }
-        return localFound;
-      } catch {
-        return [];
-      }
-    }
+      } catch {}
+    } else {
+      try {
+        const { data, error } = await supabase
+          .from('canonical_songs')
+          .select('*')
+          .in('id', missingIds);
+          
+        if (!error && data) {
+          data.forEach((s: any) => {
+            let audioUrl = '';
+            if (s.raw_data && Array.isArray(s.raw_data)) {
+              const highest = s.raw_data.find((d: any) => d.quality === '320kbps') || s.raw_data[s.raw_data.length - 1];
+              audioUrl = highest?.url || '';
+            }
 
-    const resolved: Song[] = [];
-    const missingIds: string[] = [];
-
-    try {
-      const { data, error } = await supabase
-        .from('canonical_songs')
-        .select('*')
-        .in('id', songIds);
-        
-      if (!error && data) {
-        data.forEach((s: any) => {
-          let audioUrl = '';
-          if (s.raw_data && Array.isArray(s.raw_data)) {
-            const highest = s.raw_data.find((d: any) => d.quality === '320kbps') || s.raw_data[s.raw_data.length - 1];
-            audioUrl = highest?.url || '';
-          }
-
-          resolved.push({
-            id: s.id,
-            title: s.title,
-            artist: s.artist,
-            artistId: s.artist,
-            album: s.album || '',
-            albumId: s.album || '',
-            coverUrl: s.cover_url || s.coverUrl,
-            audioUrl: audioUrl,
-            duration: Number(s.duration) || 0,
-            genre: 'Telugu',
-            category: 'latest_telugu',
-            releaseYear: 2024,
-            plays: 1000,
-            likes: 100,
+            newlyResolved.push({
+              id: s.id,
+              title: s.title,
+              artist: s.artist,
+              artistId: s.artist,
+              album: s.album || '',
+              albumId: s.album || '',
+              coverUrl: s.cover_url || s.coverUrl,
+              audioUrl: audioUrl,
+              duration: Number(s.duration) || 0,
+              genre: 'Telugu',
+              category: 'latest_telugu',
+              releaseYear: 2024,
+              plays: 1000,
+              likes: 100,
+            });
           });
-        });
-      }
-
-      // Check which IDs still need full metadata
-      const foundSet = new Set(resolved.map(s => s.id));
-      songIds.forEach(id => {
-        if (!foundSet.has(id)) missingIds.push(id);
-      });
-
-      // Query /api/songs for missing IDs (JioSaavn provider) in batches of 50
-      if (missingIds.length > 0 && typeof window !== 'undefined') {
-        const BATCH_SIZE = 50;
-        const batches: string[][] = [];
-        for (let i = 0; i < missingIds.length; i += BATCH_SIZE) {
-          batches.push(missingIds.slice(i, i + BATCH_SIZE));
         }
 
-        try {
+        // Check which IDs still need full metadata
+        const foundSet = new Set(newlyResolved.map(s => s.id));
+        const apiMissingIds: string[] = [];
+        missingIds.forEach(id => {
+          if (!foundSet.has(id) && !resolved.some(s => s.id === id)) {
+            apiMissingIds.push(id);
+          }
+        });
+
+        // Query /api/songs for missing IDs (JioSaavn provider) in batches of 50
+        if (apiMissingIds.length > 0 && typeof window !== 'undefined') {
+          const BATCH_SIZE = 50;
+          const batches: string[][] = [];
+          for (let i = 0; i < apiMissingIds.length; i += BATCH_SIZE) {
+            batches.push(apiMissingIds.slice(i, i + BATCH_SIZE));
+          }
+
           const fetchPromises = batches.map(async (batch) => {
             try {
               const url = getApiUrl(`/api/songs?ids=${encodeURIComponent(batch.join(','))}`);
@@ -304,23 +333,39 @@ export class SongResolver {
             const { mapTrackToSong } = await import('@/lib/jioSaavnProvider');
             rawTracks.forEach((track, idx) => {
               const mapped = mapTrackToSong(track, idx);
-              if (mapped?.id && !foundSet.has(mapped.id)) {
-                resolved.push(mapped);
+              if (mapped?.id && !foundSet.has(mapped.id) && !resolved.some(s => s.id === mapped.id)) {
+                newlyResolved.push(mapped);
                 foundSet.add(mapped.id);
               }
             });
           }
-        } catch (err) {
-          console.warn('[SongResolver] Parallel resolution error:', err);
+        }
+      } catch (e) {
+        if (!isOfflineMode()) {
+          console.error("Failed to resolve songs from canonical_songs / API:", e);
         }
       }
-
-      return resolved;
-    } catch (e) {
-      if (!isOfflineMode()) {
-        console.error("Failed to resolve songs from canonical_songs / API:", e);
-      }
-      return resolved;
     }
+
+    // Save newly resolved songs to IndexedDB cache
+    if (newlyResolved.length > 0 && typeof window !== 'undefined') {
+      try {
+        for (const song of newlyResolved) {
+          if (song && song.id) {
+            await db.put(STORES.SONGS_METADATA, song);
+          }
+        }
+      } catch (err) {
+        console.warn('[SongResolver] IndexedDB write failed:', err);
+      }
+    }
+
+    resolved.push(...newlyResolved);
+
+    // Re-order resolved array to match the input songIds sequence
+    const resolvedMap = new Map(resolved.map(s => [s.id, s]));
+    return songIds
+      .map(id => resolvedMap.get(id))
+      .filter((s): s is Song => Boolean(s));
   }
 }

@@ -2014,11 +2014,11 @@ export const usePlayerStore = create<PlayerState>()(
         lastTrackId: state.currentSong?.id || null,
         lastPositionSec: state.lastPositionSec || 0,
         // Tiny bounded sets for offline resilience
-        likedSongIds: (state.likedSongIds || []).slice(-50),
-        librarySongIds: (state.librarySongIds || []).slice(-50),
-        downloadedSongIds: (state.downloadedSongIds || []).slice(-50),
-        favoriteArtistIds: (state.favoriteArtistIds || []).slice(-30),
-        favoriteAlbumIds: (state.favoriteAlbumIds || []).slice(-30),
+        likedSongIds: state.likedSongIds || [],
+        librarySongIds: state.librarySongIds || [],
+        downloadedSongIds: state.downloadedSongIds || [],
+        favoriteArtistIds: state.favoriteArtistIds || [],
+        favoriteAlbumIds: state.favoriteAlbumIds || [],
       }),
     }
   )

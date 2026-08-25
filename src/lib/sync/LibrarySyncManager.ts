@@ -165,14 +165,19 @@ export class LibrarySyncManager {
 
         if (songsResult.data) {
           const cloudLikedSongs = songsResult.data.map(row => row.song_id);
-          usePlayerStore.getState().setLikedSongIds(cloudLikedSongs);
           
           try {
             const { SongResolver } = await import('@/lib/discovery/SongResolver');
             const resolvedSongs = await SongResolver.resolveSongs(cloudLikedSongs);
-            usePlayerStore.getState().setLikedSongs(resolvedSongs);
+            
+            // Set both simultaneously to avoid UI flicker
+            usePlayerStore.setState({
+              likedSongIds: cloudLikedSongs,
+              likedSongs: resolvedSongs
+            });
           } catch (resolveError) {
             console.error('[LibrarySync] Failed to resolve song metadata:', resolveError);
+            usePlayerStore.getState().setLikedSongIds(cloudLikedSongs);
           }
           
           this.localRevision = stateResult.data?.revision || 0;
