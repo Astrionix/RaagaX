@@ -8,6 +8,7 @@ import { QualityManager } from '@/lib/playback/QualityManager';
 import { RealMusicEngine } from '@/lib/realMusicEngine';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { PlayableUrlCache } from '@/lib/playback/PlayableUrlCache';
+import { RaagaXNativePlayer } from '@/lib/playback/native/RaagaXNativePlayer';
 
 export class PlaybackSourceResolver {
   private static instance: PlaybackSourceResolver;
@@ -155,8 +156,13 @@ export class PlaybackSourceResolver {
     let validAudioUrl = song.audioUrl ? song.audioUrl.replace('http://', 'https://') : '';
     const isPixabay = validAudioUrl.includes('pixabay.com');
     const isNonHttpScheme = !validAudioUrl.startsWith('https://') && !validAudioUrl.startsWith('http://');
+    const isMedia3OnWeb = !RaagaXNativePlayer.isNative() && (
+      validAudioUrl.includes('media3_cache') ||
+      validAudioUrl.startsWith('media3://') ||
+      validAudioUrl.startsWith('file://')
+    );
 
-    if (!validAudioUrl || isPixabay || isNonHttpScheme || bypassCache) {
+    if (!validAudioUrl || isPixabay || isNonHttpScheme || isMedia3OnWeb || bypassCache) {
       try {
         const query = `${song.title} ${song.artist || ''}`.trim();
         console.log(`[PlaybackSourceResolver] Resolving real audio stream for: "${query}" (bypassCache=${bypassCache})`);

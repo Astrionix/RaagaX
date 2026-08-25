@@ -502,10 +502,18 @@ export class PlaybackService {
       console.log(`[PLAYBACK_SOURCE_ATTEMPT] trackId=${song.id} sourceType=${isCachedSource ? 'CACHE' : 'DIRECT'}`);
 
       let finalSrc = '';
-      if (resolvedSource?.url) {
+      const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.();
+      const isInvalidWebScheme = !isNative && (
+        Boolean(resolvedSource?.url && (resolvedSource.url.includes('media3_cache') || resolvedSource.url.startsWith('media3://') || resolvedSource.url.startsWith('file://')))
+      );
+
+      if (resolvedSource?.url && !isInvalidWebScheme) {
         finalSrc = resolvedSource.url;
       } else if (song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
-        finalSrc = song.audioUrl.replace(/^http:\/\//, 'https://');
+        const isSongInvalidWeb = !isNative && (song.audioUrl.includes('media3_cache') || song.audioUrl.startsWith('media3://') || song.audioUrl.startsWith('file://'));
+        if (!isSongInvalidWeb) {
+          finalSrc = song.audioUrl.replace(/^http:\/\//, 'https://');
+        }
       }
 
       if (!finalSrc) {

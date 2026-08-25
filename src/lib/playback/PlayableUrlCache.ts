@@ -82,6 +82,14 @@ export class PlayableUrlCache {
       return null;
     }
 
+    // On non-native platforms (Web/Desktop), ignore any media3_cache:// or Android file:// protocols
+    if (typeof window !== 'undefined' && !(window as any).Capacitor?.isNativePlatform?.()) {
+      if (entry.url && (entry.url.includes('media3_cache') || entry.url.startsWith('media3://') || entry.url.startsWith('file://'))) {
+        this.memoryCache.delete(songId);
+        return null;
+      }
+    }
+
     return entry;
   }
 
