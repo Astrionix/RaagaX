@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Heart, Play, Music, Shuffle, Loader2, Disc, Download, Check } from 'lucide-react';
+import { Heart, Play, Music, Shuffle, Loader2, Disc, Download, Check, ArrowUpDown, Search, X, Clock, User, Music2, ArrowDownAZ, ArrowUpAZ } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
@@ -12,6 +12,8 @@ import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndic
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { SwipeableSongRow } from '@/components/common/SwipeableSongRow';
 import { haptics } from '@/lib/haptics/HapticEngine';
+
+export type LikedSongSortOption = 'newest' | 'oldest' | 'az' | 'za' | 'artist' | 'duration';
 
 export function FavoritesView() {
   const {
@@ -33,6 +35,10 @@ export function FavoritesView() {
   const [resolvedSongsMap, setResolvedSongsMap] = useState<Record<string, Song>>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const resolvingRef = useRef<boolean>(false);
+
+  // Sorting & Filtering state
+  const [sortBy, setSortBy] = useState<LikedSongSortOption>('newest');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const loadOffline = async () => {
@@ -148,37 +154,72 @@ export function FavoritesView() {
   }, [likedSongIds]);
 
   // Construct resolved liked songs list in exact reverse chronological order
-  const resolvedLikedSongs: Song[] = likedSongIds
-    .map((id) => knownMap.get(id))
-    .filter((s): s is Song => Boolean(s))
-    .map((song) => {
-      const cover = song.coverUrl && !song.coverUrl.includes('/null/') ? song.coverUrl : '/app-icon.png';
-      return {
-        ...song,
-        coverUrl: cover.replace('http://', 'https://'),
-      };
-    });
+  const resolvedLikedSongs: Song[] = useMemo(() => {
+    return likedSongIds
+      .map((id) => knownMap.get(id))
+      .filter((s): s is Song => Boolean(s))
+      .map((song) => {
+        const cover = song.coverUrl && !song.coverUrl.includes('/null/') ? song.coverUrl : '/app-icon.png';
+        return {
+          ...song,
+          coverUrl: cover.replace('http://', 'https://'),
+        };
+      });
+  }, [likedSongIds, resolvedSongsMap, offlineTracks, likedSongs]);
 
-  const isLikedListPlaying = isPlaying && currentSong && resolvedLikedSongs.some((s) => s.id === currentSong.id);
+  // Apply active sort order
+  const sortedSongs: Song[] = useMemo(() => {
+    if (!resolvedLikedSongs.length) return [];
+    const list = [...resolvedLikedSongs];
+    switch (sortBy) {
+      case 'newest':
+        return list;
+      case 'oldest':
+        return list.reverse();
+      case 'az':
+        return list.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+      case 'za':
+        return list.sort((a, b) => (b.title || '').localeCompare(a.title || ''));
+      case 'artist':
+        return list.sort((a, b) => (a.artist || '').localeCompare(b.artist || ''));
+      case 'duration':
+        return list.sort((a, b) => (b.duration || 0) - (a.duration || 0));
+      default:
+        return list;
+    }
+  }, [resolvedLikedSongs, sortBy]);
+
+  // Apply search query filter if entered
+  const displaySongs: Song[] = useMemo(() => {
+    if (!searchQuery.trim()) return sortedSongs;
+    const q = searchQuery.toLowerCase().trim();
+    return sortedSongs.filter((s) =>
+      (s.title && s.title.toLowerCase().includes(q)) ||
+      (s.artist && s.artist.toLowerCase().includes(q)) ||
+      (s.album && s.album.toLowerCase().includes(q))
+    );
+  }, [sortedSongs, searchQuery]);
+
+  const isLikedListPlaying = isPlaying && currentSong && displaySongs.some((s) => s.id === currentSong.id);
 
   const downloadedSongsInFavorites = useMemo(() => {
-    return resolvedLikedSongs.filter(s => {
+    return displaySongs.filter(s => {
       const isDownloaded = downloadedSongIds.includes(s.id) || !!nativeDownloadedTracks?.[s.id];
       const isTaskCompleted = tasks[s.id]?.status === 'COMPLETED';
       return isDownloaded || isTaskCompleted;
     });
-  }, [resolvedLikedSongs, downloadedSongIds, nativeDownloadedTracks, tasks]);
+  }, [displaySongs, downloadedSongIds, nativeDownloadedTracks, tasks]);
 
   const pendingDownloadsCount = useMemo(() => {
-    return resolvedLikedSongs.length - downloadedSongsInFavorites.length;
-  }, [resolvedLikedSongs, downloadedSongsInFavorites]);
+    return displaySongs.length - downloadedSongsInFavorites.length;
+  }, [displaySongs, downloadedSongsInFavorites]);
 
   const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
 
   const handlePlayAll = (shuffle = false) => {
-    if (resolvedLikedSongs.length === 0) return;
+    if (displaySongs.length === 0) return;
     haptics.mediumImpact();
-    const tracklist = shuffle ? [...resolvedLikedSongs].sort(() => Math.random() - 0.5) : resolvedLikedSongs;
+    const tracklist = shuffle ? [...displaySongs].sort(() => Math.random() - 0.5) : displaySongs;
     usePlayerStore.getState().playSong(tracklist[0], tracklist, {
       contextType: 'LIKED_SONGS',
       contextUri: 'raagax:liked-songs',
@@ -187,19 +228,28 @@ export function FavoritesView() {
   };
 
   const handleDownloadAll = async () => {
-    if (resolvedLikedSongs.length === 0) return;
-    const pending = resolvedLikedSongs.filter(s => !downloadedSongIds.includes(s.id));
+    if (displaySongs.length === 0) return;
+    const pending = displaySongs.filter(s => !downloadedSongIds.includes(s.id));
     if (pending.length === 0) return;
     downloadAlbum('liked-songs', pending);
   };
 
-  const totalDurationSec = resolvedLikedSongs.reduce((acc, s) => acc + (s.duration || 180), 0);
+  const totalDurationSec = displaySongs.reduce((acc, s) => acc + (s.duration || 180), 0);
   const totalMins = Math.round(totalDurationSec / 60);
 
+  const sortOptions: { value: LikedSongSortOption; label: string; shortLabel: string }[] = [
+    { value: 'newest', label: 'Recently Added', shortLabel: 'Recent' },
+    { value: 'oldest', label: 'Oldest First', shortLabel: 'Oldest' },
+    { value: 'az', label: 'Title: A → Z', shortLabel: 'A → Z' },
+    { value: 'za', label: 'Title: Z → A', shortLabel: 'Z → A' },
+    { value: 'artist', label: 'Artist: A → Z', shortLabel: 'Artist' },
+    { value: 'duration', label: 'Duration (Longest)', shortLabel: 'Duration' },
+  ];
+
   return (
-    <div className="space-y-6 pb-28 text-white select-none animate-in fade-in duration-200 max-w-7xl mx-auto">
+    <div className="space-y-5 pb-28 text-white select-none animate-in fade-in duration-200 max-w-7xl mx-auto">
       {/* ── HEADER BANNER: ♡ LIKED SONGS ────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1 border-b border-white/10 pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1 border-b border-white/10 pb-5">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#FA233B] to-[#b01020] flex items-center justify-center text-white shadow-xl shadow-red-500/25 flex-shrink-0">
             <Heart className="w-7 h-7 fill-current" />
@@ -207,20 +257,23 @@ export function FavoritesView() {
           <div>
             <h1 className="text-2xl md:text-4xl font-black text-white tracking-tight">Liked Songs</h1>
             <p className="text-xs sm:text-sm text-[#8E92A4] mt-0.5 font-medium">
-              {resolvedLikedSongs.length} {resolvedLikedSongs.length === 1 ? 'track' : 'tracks'}
+              {displaySongs.length} {displaySongs.length === 1 ? 'track' : 'tracks'}
+              {searchQuery.trim() && resolvedLikedSongs.length !== displaySongs.length && (
+                <span className="text-slate-500 ml-1"> (filtered from {resolvedLikedSongs.length})</span>
+              )}
               {totalMins > 0 && ` • ~${totalMins} min`}
             </p>
           </div>
         </div>
 
         {/* Play All, Shuffle & Download All Buttons */}
-        {resolvedLikedSongs.length > 0 && (
+        {displaySongs.length > 0 && (
           <div className="grid grid-cols-3 gap-2 w-full max-w-md">
             <button
               onClick={() => handlePlayAll(false)}
               className="h-10 px-2 sm:px-4 rounded-full bg-[#FA233B] hover:bg-[#D90429] active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-[#FA233B]/25 transition-all cursor-pointer min-w-0"
               aria-label="Play all liked songs"
-              title="Play Liked Songs from Track 1"
+              title="Play Liked Songs in sorted order"
             >
               <Play className="w-3.5 h-3.5 fill-white flex-shrink-0" />
               <span className="truncate">Play All</span>
@@ -253,6 +306,83 @@ export function FavoritesView() {
         )}
       </div>
 
+      {/* ── SORT & FILTER CONTROLS TOOLBAR (Mobile & Desktop) ────────────────── */}
+      {resolvedLikedSongs.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pb-2">
+          {/* Left: Sort Selector & Desktop Quick Pills */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Native / Mobile-Friendly Styled Dropdown */}
+            <div className="flex items-center gap-2 bg-[var(--bg-surface)] border border-[var(--border-subtle)] px-3 py-1.5 rounded-full text-xs shadow-sm flex-shrink-0">
+              <ArrowUpDown className="w-3.5 h-3.5 text-[#FA233B]" />
+              <span className="text-slate-400 font-semibold hidden sm:inline">Sort:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => {
+                  haptics.lightImpact();
+                  setSortBy(e.target.value as LikedSongSortOption);
+                }}
+                className="bg-transparent text-[var(--text-primary)] text-xs font-bold outline-none cursor-pointer pr-1"
+                aria-label="Sort liked songs"
+              >
+                {sortOptions.map((opt) => (
+                  <option
+                    key={opt.value}
+                    value={opt.value}
+                    className="bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+                  >
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Desktop Quick Sort Pills */}
+            <div className="hidden lg:flex items-center gap-1.5">
+              {sortOptions.map((opt) => {
+                const isActive = sortBy === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => {
+                      haptics.lightImpact();
+                      setSortBy(opt.value);
+                    }}
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-[#FA233B] text-white shadow-sm shadow-[#FA233B]/20'
+                        : 'bg-white/[0.04] text-slate-400 hover:text-white hover:bg-white/[0.08] border border-white/5'
+                    }`}
+                  >
+                    {opt.shortLabel}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Right: Quick Filter / Search in Liked Songs */}
+          <div className="relative min-w-[180px] sm:w-60">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search liked songs..."
+              className="w-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] placeholder-slate-500 rounded-full pl-8 pr-7 py-1.5 outline-none focus:border-[#FA233B]/50 transition-colors"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-white cursor-pointer"
+                title="Clear search"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── LIKED SONGS LIST ────────────────────────────────────────────────── */}
       <div className="space-y-3">
         {isLoading && resolvedLikedSongs.length === 0 ? (
@@ -260,9 +390,9 @@ export function FavoritesView() {
             <Loader2 className="w-8 h-8 text-[#FA233B] animate-spin" />
             <p className="text-xs font-bold text-white">Loading your liked songs...</p>
           </div>
-        ) : resolvedLikedSongs.length > 0 ? (
+        ) : displaySongs.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-            {resolvedLikedSongs.map((song, idx) => {
+            {displaySongs.map((song, idx) => {
               const isCurrent = currentSong?.id === song.id;
               const isDownloaded = downloadedSongIds.includes(song.id);
               const isBrowserOffline = typeof navigator !== 'undefined' && !navigator.onLine;
@@ -287,7 +417,7 @@ export function FavoritesView() {
                       onClick={() => {
                         if (isSongOfflineUnavailable) return;
                         haptics.lightImpact();
-                        usePlayerStore.getState().playSong(song, resolvedLikedSongs, {
+                        usePlayerStore.getState().playSong(song, displaySongs, {
                           contextType: 'LIKED_SONGS',
                           contextUri: 'raagax:liked-songs',
                           title: 'Liked Songs',

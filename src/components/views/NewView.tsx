@@ -1,12 +1,10 @@
 'use client';
 
-import React, { useMemo, useState, useEffect } from 'react';
-import useSWR from 'swr';
+import React, { useMemo, useState } from 'react';
 import {
   Sparkles,
   Flame,
   Play,
-  Shuffle,
   Disc,
   Music,
   Calendar,
@@ -21,45 +19,8 @@ import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 import { Song } from '@/types/music';
-import { getApiUrl } from '@/lib/config/apiConfig';
 import { haptics } from '@/lib/haptics/HapticEngine';
-import { NewReleasesEngine } from '@/lib/catalog/NewReleasesEngine';
-import { RealMusicEngine } from '@/lib/realMusicEngine';
-
-const fetcher = (url: string) =>
-  fetch(getApiUrl(url))
-    .then((res) => res.json())
-    .catch(() => null);
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper: Map already-normalised API song (from /api/home/new-releases) → Song
-// ─────────────────────────────────────────────────────────────────────────────
-function normaliseApiSong(s: any, lang: string): Song {
-  return {
-    id: s.id,
-    title: s.title || s.name || 'New Release',
-    artist: s.artist || s.artists?.primary?.[0]?.name || 'Various Artists',
-    artistId: s.artistId || s.artists?.primary?.[0]?.id || 'unknown',
-    album: s.album || `${lang} New Release`,
-    albumId: s.albumId || s.album?.id || 'unknown',
-    duration: Number(s.duration) || 210,
-    coverUrl:
-      s.coverUrl ||
-      s.image?.find?.((i: any) => i.quality === '500x500')?.url ||
-      s.image?.[s.image?.length - 1]?.url ||
-      '/app-icon.png',
-    audioUrl:
-      s.audioUrl ||
-      s.downloadUrl?.find?.((d: any) => d.quality === '320kbps')?.url ||
-      s.downloadUrl?.[s.downloadUrl?.length - 1]?.url ||
-      '',
-    genre: s.genre || 'New Release',
-    category: 'global_trending' as const,
-    releaseYear: Number(s.releaseYear || s.year) || new Date().getFullYear(),
-    plays: Number(s.plays || s.playCount) || 0,
-    likes: Number(s.likes) || 0,
-  };
-}
+import { useNewReleases } from '@/lib/catalog/useNewReleases';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Language list
@@ -190,89 +151,21 @@ export function NewView() {
 
   const lang = preferredLanguage || 'Telugu';
 
-  const [fallbackSongs, setFallbackSongs] = useState<Song[]>([]);
-  const [isFallbackLoading, setIsFallbackLoading] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const THREE_HOURS_MS = 3 * 60 * 60 * 1000; // 10,800,000 ms
-
-  // ── Fetch strictly date-ordered new releases for the selected language from API (Every 3 Hours)
-  const { data: newReleasesData, isLoading: isSwrLoading, mutate: revalidateNewReleases } = useSWR(
-    `/api/home/new-releases?lang=${encodeURIComponent(lang)}&limit=50`,
-    fetcher,
-    { 
-      revalidateOnFocus: false, 
-      revalidateIfStale: true,
-      revalidateOnMount: true,
-      dedupingInterval: 60000, 
-      refreshInterval: THREE_HOURS_MS 
-    }
-  );
+  // ── Unified Single Source of Truth (Cache-First + Background Revalidation)
+  const { songs: allSongs, isLoading, isRevalidating, refresh } = useNewReleases(lang, 50);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
   const handleRefresh = async () => {
     haptics.mediumImpact();
-    setIsRefreshing(true);
+    setIsManualRefreshing(true);
     try {
-      await Promise.allSettled([
-        revalidateNewReleases(),
-        (async () => {
-          const engine = NewReleasesEngine.getInstance();
-          const results = await engine.getNewReleasesForLanguage(lang, 50);
-          if (results && results.length > 0) {
-            setFallbackSongs(results);
-          }
-        })(),
-      ]);
+      await refresh();
     } finally {
-      setTimeout(() => setIsRefreshing(false), 500);
+      setTimeout(() => setIsManualRefreshing(false), 500);
     }
   };
 
-  // ── Fallback fetch for native Android / offline environments (refreshes every 3 hours)
-  useEffect(() => {
-    let isCancelled = false;
-    const loadFallback = async () => {
-      setIsFallbackLoading(true);
-      try {
-        const engine = NewReleasesEngine.getInstance();
-        const results = await engine.getNewReleasesForLanguage(lang, 50);
-        if (!isCancelled && results && results.length > 0) {
-          setFallbackSongs(results);
-          return;
-        }
-        const realEngine = RealMusicEngine.getInstance();
-        const top = await realEngine.getNewReleases(30, lang);
-        if (!isCancelled && top && top.length > 0) {
-          setFallbackSongs(top);
-        }
-      } catch (e) {
-        console.warn('[NewView] Fallback fetch error:', e);
-      } finally {
-        if (!isCancelled) setIsFallbackLoading(false);
-      }
-    };
-
-    loadFallback();
-    const interval = setInterval(loadFallback, THREE_HOURS_MS);
-
-    return () => {
-      isCancelled = true;
-      clearInterval(interval);
-    };
-  }, [lang]);
-
-  const apiSongs: Song[] = useMemo(() => {
-    const raw = newReleasesData?.data || [];
-    if (!Array.isArray(raw) || raw.length === 0) return [];
-    return raw.map((s: any) => normaliseApiSong(s, lang));
-  }, [newReleasesData, lang]);
-
-  // Use API songs if available, else use direct engine fallback
-  const allSongs: Song[] = useMemo(() => {
-    return apiSongs.length > 0 ? apiSongs : fallbackSongs;
-  }, [apiSongs, fallbackSongs]);
-
-  const isDataLoading = isSwrLoading && allSongs.length === 0 && isFallbackLoading;
+  const isDataLoading = isLoading && allSongs.length === 0;
 
   // ── Section slices — purely based on release order, no personalisation
   const featuredCards    = useMemo(() => allSongs.slice(0,  4),  [allSongs]);
@@ -317,7 +210,7 @@ export function NewView() {
   );
 
   return (
-    <div className={`space-y-4 pb-8 text-white select-none transition-opacity duration-300 ${isRefreshing ? 'opacity-70 pointer-events-none' : 'opacity-100'} animate-in fade-in duration-200 max-w-5xl mx-auto`}>
+    <div className={`space-y-4 pb-8 text-white select-none transition-opacity duration-300 ${isManualRefreshing ? 'opacity-70 pointer-events-none' : 'opacity-100'} animate-in fade-in duration-200 max-w-5xl mx-auto`}>
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* 1. HEADER + LANGUAGE FILTER + REFRESH                                  */}
@@ -334,12 +227,12 @@ export function NewView() {
           {/* Smooth Refresh Button */}
           <button
             onClick={handleRefresh}
-            disabled={isRefreshing}
+            disabled={isManualRefreshing}
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/80 hover:text-white text-xs font-semibold transition-all cursor-pointer hover:scale-105 active:scale-95 disabled:opacity-50"
             title="Refresh New Releases"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#FA233B]' : ''}`} />
-            <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${isManualRefreshing ? 'animate-spin text-[#FA233B]' : ''}`} />
+            <span>{isManualRefreshing ? 'Refreshing...' : 'Refresh'}</span>
           </button>
         </div>
 

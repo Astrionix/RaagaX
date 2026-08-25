@@ -160,6 +160,9 @@ export class DefaultJioSaavnSourceAdapter implements MusicSourceAdapter {
 
 export class NewReleasesEngine {
   private static instance: NewReleasesEngine;
+  private static languageCache = new Map<string, { songs: Song[]; fetchedAt: number }>();
+  private static inFlightRequests = new Map<string, Promise<Song[]>>();
+
   private memoryRegistry = new Map<string, CatalogSongRecord>();
   private albumCache = new Map<string, { fetchedAt: number; data: any }>();
   private initialized = false;
@@ -170,6 +173,143 @@ export class NewReleasesEngine {
       NewReleasesEngine.instance = new NewReleasesEngine();
     }
     return NewReleasesEngine.instance;
+  }
+
+  /**
+   * Synchronously get cached new releases for a language (0ms instant render).
+   */
+  public getCachedSongs(language: string = 'Telugu'): Song[] | null {
+    const cleanLang = (language || 'Telugu').trim().toLowerCase();
+
+    // 1. Check in-memory cache
+    const mem = NewReleasesEngine.languageCache.get(cleanLang);
+    if (mem && Array.isArray(mem.songs) && mem.songs.length > 0) {
+      return mem.songs;
+    }
+
+    // 2. Check persistent localStorage cache
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(`raagax_new_releases_v2_${cleanLang}`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            NewReleasesEngine.languageCache.set(cleanLang, { songs: parsed, fetchedAt: Date.now() });
+            return parsed;
+          }
+        }
+      } catch {}
+    }
+
+    return null;
+  }
+
+  /**
+   * Authoritative Unified Fetcher:
+   * - Request deduplication (single in-flight promise per language)
+   * - Deterministic normalization and sorting
+   * - Persistent and memory caching
+   */
+  public async fetchNewReleases(language: string = 'Telugu', limit = 50, forceRefresh = false): Promise<Song[]> {
+    const cleanLang = (language || 'Telugu').trim().toLowerCase();
+
+    // If cache is fresh (< 15 mins) and not forceRefresh, return immediately
+    if (!forceRefresh) {
+      const mem = NewReleasesEngine.languageCache.get(cleanLang);
+      if (mem && Date.now() - mem.fetchedAt < 900000 && mem.songs.length > 0) {
+        return mem.songs;
+      }
+    }
+
+    // Request deduplication
+    if (NewReleasesEngine.inFlightRequests.has(cleanLang)) {
+      return NewReleasesEngine.inFlightRequests.get(cleanLang)!;
+    }
+
+    const fetchPromise = (async () => {
+      try {
+        let songs: Song[] = [];
+
+        // Tier 1: Try server API route
+        try {
+          const { getApiUrl } = await import('@/lib/config/apiConfig');
+          const apiUrl = getApiUrl(`/api/home/new-releases?lang=${encodeURIComponent(language)}&limit=${limit}`);
+          const res = await fetch(apiUrl, { signal: AbortSignal.timeout(6000) });
+          if (res.ok) {
+            const json = await res.json();
+            if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+              songs = json.data.map((s: any) => ({
+                id: s.id,
+                title: SongFormatter.cleanSongTitle(s.title || s.name),
+                artist: s.artist || s.artists?.primary?.[0]?.name || 'Various Artists',
+                artistId: s.artistId || s.artists?.primary?.[0]?.id || 'unknown',
+                album: SongFormatter.cleanAlbumTitle(s.album || s.title),
+                albumId: s.albumId || 'unknown',
+                duration: Number(s.duration) || 210,
+                coverUrl: s.coverUrl || s.image?.find?.((i: any) => i.quality === '500x500')?.url || s.image?.[s.image?.length - 1]?.url || '/app-icon.png',
+                audioUrl: s.audioUrl || s.downloadUrl?.find?.((d: any) => d.quality === '320kbps')?.url || s.downloadUrl?.[s.downloadUrl?.length - 1]?.url || '',
+                genre: s.genre || `${language} Hits`,
+                category: 'global_trending' as const,
+                releaseYear: Number(s.releaseYear || s.year) || 2026,
+                releaseDate: s.releaseDate,
+                plays: Number(s.plays || s.playCount) || 0,
+                likes: Number(s.likes) || 0,
+              }));
+            }
+          }
+        } catch {}
+
+        // Tier 2: Internal catalog ingestion loop if API is unavailable (static export / offline)
+        if (songs.length === 0) {
+          songs = await this.getNewReleasesForLanguage(language, limit);
+        }
+
+        if (songs.length > 0) {
+          // Canonical deduplication
+          const seenKeys = new Set<string>();
+          const unique = songs.filter((s) => {
+            const key = NewReleasesEngine.generateCanonicalKey(s.title, s.artist, s.album);
+            if (seenKeys.has(key)) return false;
+            seenKeys.add(key);
+            return true;
+          });
+
+          // Strict deterministic date sorting + stable ID tie-breaker
+          const sorted = unique.sort((a, b) => {
+            const dateA = a.releaseDate ? new Date(a.releaseDate).getTime() : 0;
+            const dateB = b.releaseDate ? new Date(b.releaseDate).getTime() : 0;
+            if (dateB !== dateA) return dateB - dateA;
+            return a.id.localeCompare(b.id);
+          });
+
+          const finalResult = sorted.slice(0, limit);
+
+          // Update memory cache
+          NewReleasesEngine.languageCache.set(cleanLang, {
+            songs: finalResult,
+            fetchedAt: Date.now(),
+          });
+
+          // Update persistent cache
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem(`raagax_new_releases_v2_${cleanLang}`, JSON.stringify(finalResult));
+            } catch {}
+          }
+
+          return finalResult;
+        }
+
+        // Return cached songs if network failed
+        const cachedFallback = this.getCachedSongs(language);
+        return cachedFallback || [];
+      } finally {
+        NewReleasesEngine.inFlightRequests.delete(cleanLang);
+      }
+    })();
+
+    NewReleasesEngine.inFlightRequests.set(cleanLang, fetchPromise);
+    return fetchPromise;
   }
 
   public setSourceAdapter(adapter: MusicSourceAdapter): void {

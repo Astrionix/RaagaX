@@ -205,7 +205,11 @@ export default function Page() {
 
       {/* App Layout (Grid after Sidebar) */}
       <div className="flex-1 ml-0 md:ml-64 flex flex-col min-w-0 md:h-[calc(100vh-5rem)] md:overflow-hidden">
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] flex-1 min-h-0 md:h-full">
+        <div className={`grid flex-1 min-h-0 md:h-full ${
+          activeTab === 'album' || activeTab === 'playlist' || (activeTab === 'artist' && selectedArtistId)
+            ? 'grid-cols-1'
+            : 'grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px]'
+        }`}>
           {/* Main Content Column */}
           <div className="main-content min-w-0 flex-1 flex flex-col md:h-full md:overflow-y-auto md:overflow-x-hidden relative">
             {/* Header Bar */}
@@ -238,10 +242,12 @@ export default function Page() {
             <MobileBottomController />
           </div>
 
-          {/* Right Queue Column */}
-          <div className="queue-panel hidden xl:block w-[360px] min-w-[360px] h-full pt-6 pb-8 overflow-y-auto overflow-x-hidden border-l border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-            <RightQueuePanel />
-          </div>
+          {/* Right Queue Column (Hidden on detail views for seamless full-width continuous background) */}
+          {!(activeTab === 'album' || activeTab === 'playlist' || (activeTab === 'artist' && selectedArtistId)) && (
+            <div className="queue-panel hidden xl:block w-[360px] min-w-[360px] h-full pt-6 pb-8 overflow-y-auto overflow-x-hidden border-l border-white/[0.04] bg-[var(--bg-secondary)]">
+              <RightQueuePanel />
+            </div>
+          )}
         </div>
       </div>
 

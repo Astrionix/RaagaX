@@ -37,6 +37,7 @@ export function Header() {
 
   const {
     activeTab,
+    selectedArtistId,
     setActiveTab,
     searchQuery,
     setSearchQuery,
@@ -45,6 +46,16 @@ export function Header() {
 
   const { user, setAuthModalOpen } = useAuthStore();
   const { resolvedTheme } = useThemeStore();
+
+  const isDetailView = activeTab === 'album' || activeTab === 'playlist' || (activeTab === 'artist' && Boolean(selectedArtistId));
+  if (isDetailView) {
+    return (
+      <ProfileMenuModal
+        isOpen={isProfileMenuOpen}
+        onClose={() => setIsProfileMenuOpen(false)}
+      />
+    );
+  }
 
   return (
     <>

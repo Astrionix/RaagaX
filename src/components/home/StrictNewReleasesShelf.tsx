@@ -6,6 +6,7 @@ import { ShelfItem } from '@/types/home';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { NewReleasesEngine, SUPPORTED_LANGUAGES_LIST } from '@/lib/catalog/NewReleasesEngine';
+import { useNewReleases } from '@/lib/catalog/useNewReleases';
 import { CarouselShelf } from './CarouselShelf';
 import { haptics } from '@/lib/haptics/HapticEngine';
 
@@ -21,8 +22,6 @@ export function StrictNewReleasesShelf({
   const { preferredLanguage } = usePlayerStore();
   const [mounted, setMounted] = useState(false);
   const [selectedLang, setSelectedLang] = useState<string>(defaultLanguage || 'All');
-  const [songs, setSongs] = useState<Song[]>(initialSongs);
-  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -31,30 +30,7 @@ export function StrictNewReleasesShelf({
     }
   }, [preferredLanguage]);
 
-  useEffect(() => {
-    let isCancelled = false;
-    const fetchNewReleases = async () => {
-      setIsLoading(true);
-      try {
-        const engine = NewReleasesEngine.getInstance();
-        const results = await engine.getNewReleasesForLanguage(selectedLang, 50);
-        if (!isCancelled) {
-          if (results && results.length > 0) {
-            setSongs(results);
-          }
-        }
-      } catch (err) {
-        console.warn('[StrictNewReleasesShelf] Fetch failed:', err);
-      } finally {
-        if (!isCancelled) setIsLoading(false);
-      }
-    };
-
-    fetchNewReleases();
-    return () => {
-      isCancelled = true;
-    };
-  }, [selectedLang]);
+  const { songs, isLoading } = useNewReleases(selectedLang, 50);
 
   const handleLanguageChange = (codeOrName: string) => {
     haptics.lightImpact();

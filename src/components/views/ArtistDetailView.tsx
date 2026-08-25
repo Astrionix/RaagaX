@@ -206,9 +206,9 @@ export function ArtistDetailView() {
 
   return (
     <DynamicArtworkAtmosphere artworkUrl={artistAvatarUrl} isPlaying={isCurrentArtistPlaying}>
-      <div className="-mx-3.5 sm:-mx-8 -mt-14 md:-mt-4 relative min-h-screen text-white pb-36 select-none animate-in fade-in duration-300">
+      <div className="relative min-h-screen text-white pb-36 select-none animate-in fade-in duration-300">
         {/* ── TOP NAVIGATION BAR ────────────────────────────────────────────── */}
-        <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-3.5 sm:py-4 backdrop-blur-xl bg-[#08090d]/85 border-b border-white/10 shadow-md">
+        <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-3.5 sm:py-4 backdrop-blur-md bg-black/20 border-b border-white/[0.04]">
         <button
           onClick={() => {
             haptics.lightImpact();

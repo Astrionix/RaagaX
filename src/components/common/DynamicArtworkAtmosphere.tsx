@@ -7,26 +7,42 @@ interface DynamicArtworkAtmosphereProps {
   artworkUrl?: string | null;
   isPlaying?: boolean;
   className?: string;
-  height?: string;
   intensity?: 'subtle' | 'medium' | 'deep';
   children?: React.ReactNode;
+}
+
+function toRgba(colorStr?: string, alpha = 1): string {
+  if (!colorStr) return `rgba(250, 35, 59, ${alpha})`;
+  if (colorStr.startsWith('rgb(')) {
+    return colorStr.replace('rgb(', 'rgba(').replace(')', `, ${alpha})`);
+  }
+  if (colorStr.startsWith('rgba(')) {
+    return colorStr.replace(/[\d\.]+\)$/, `${alpha})`);
+  }
+  if (colorStr.startsWith('#')) {
+    let hex = colorStr.replace('#', '');
+    if (hex.length === 3) hex = hex.split('').map((c) => c + c).join('');
+    const r = parseInt(hex.substring(0, 2), 16) || 0;
+    const g = parseInt(hex.substring(2, 4), 16) || 0;
+    const b = parseInt(hex.substring(4, 6), 16) || 0;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  return `rgba(250, 35, 59, ${alpha})`;
 }
 
 /**
  * RaagaX Dynamic Artwork Atmosphere System
  * 
- * Creates a GPU-accelerated, multi-layered ambient background derived from artwork:
- * 1. Base dark foundation (#090A0F)
- * 2. Heavy GPU-blurred scaled artwork with subtle 1% breathing scale when playing
- * 3. Dominant-color radial mesh lighting
- * 4. Multi-stop vertical readability scrim (seamless fade to background with zero hard lines)
- * 5. Instant memory caching for zero dropped frames
+ * Creates ONE continuous, smoothly blended color surface across the entire page:
+ * - Subtle dark artwork-derived tint near the top
+ * - Extremely gradual and soft transition throughout the entire scrollable height
+ * - No horizontal seams, no color bands, no two-tone split
+ * - Full-height coverage so the entire page shares one unified background
  */
 export function DynamicArtworkAtmosphere({
   artworkUrl,
   isPlaying = false,
   className = '',
-  height = 'h-[460px] sm:h-[540px]',
   intensity = 'medium',
   children,
 }: DynamicArtworkAtmosphereProps) {
@@ -61,69 +77,76 @@ export function DynamicArtworkAtmosphere({
     };
   }, [cleanUrl]);
 
+  // Color intensities
+  const baseColor = palette?.primary || 'rgb(140, 28, 48)';
+  const topAlpha = intensity === 'subtle' ? 0.22 : intensity === 'deep' ? 0.35 : 0.28;
+  const midAlpha = intensity === 'subtle' ? 0.12 : intensity === 'deep' ? 0.20 : 0.16;
+  const lowAlpha = intensity === 'subtle' ? 0.05 : intensity === 'deep' ? 0.09 : 0.07;
+  const traceAlpha = 0.02;
+
   return (
-    <div className={`relative w-full ${className}`}>
-      {/* ── BACKGROUND ATMOSPHERE VIEWPORT ── */}
+    <div className={`relative w-full min-h-screen bg-[#07080b] ${className}`}>
+      {/* ── FULL-PAGE CONTINUOUS ATMOSPHERE CANVAS (0 Seams, 1 Surface) ── */}
       <div 
-        className={`absolute top-0 left-0 right-0 ${height} overflow-hidden pointer-events-none z-0 select-none`}
+        className="absolute inset-0 w-full h-full min-h-full overflow-hidden pointer-events-none z-0 select-none"
         aria-hidden="true"
       >
-        {/* Layer 1: Base Dark Canvas */}
-        <div className="absolute inset-0 bg-[#090A0F]" />
+        {/* Layer 1: Base Dark Canvas Foundation */}
+        <div className="absolute inset-0 bg-[#07080b]" />
 
-        {/* Layer 2: Enlarged, Cropped, Heavily-Blurred Artwork */}
-        {cleanUrl ? (
+        {/* Layer 2: Seamless Full-Height Continuous Gradient */}
+        <div 
+          className="absolute inset-0 transition-opacity duration-700 pointer-events-none"
+          style={{
+            background: `linear-gradient(180deg, 
+              ${toRgba(baseColor, topAlpha)} 0%, 
+              ${toRgba(baseColor, midAlpha)} 22%, 
+              ${toRgba(baseColor, lowAlpha)} 45%, 
+              ${toRgba(baseColor, traceAlpha)} 70%, 
+              rgba(7, 8, 11, 0.98) 90%,
+              #07080b 100%
+            )`,
+          }}
+        />
+
+        {/* Layer 3: Ultra-Soft Wide Diffused Ambient Glow (Top Region) */}
+        <div 
+          className="absolute -top-32 left-1/2 -translate-x-1/2 w-[140%] h-[680px] pointer-events-none transition-all duration-1000"
+          style={{
+            background: `radial-gradient(ellipse 65% 50% at 50% 25%, ${toRgba(baseColor, topAlpha * 0.9)} 0%, ${toRgba(baseColor, midAlpha * 0.6)} 45%, transparent 80%)`,
+            filter: 'blur(80px)',
+          }}
+        />
+
+        {/* Layer 4: Feather-Masked Scaled Artwork Blur (Provides natural texture nuances) */}
+        {cleanUrl && (
           <div 
-            className={`absolute -top-12 -left-12 -right-12 bottom-0 transition-transform duration-1000 ease-out ${
-              isPlaying ? 'scale-[1.03]' : 'scale-100'
+            className={`absolute top-0 left-0 right-0 h-[600px] pointer-events-none transition-transform duration-1000 ease-out ${
+              isPlaying ? 'scale-[1.02]' : 'scale-100'
             }`}
+            style={{
+              maskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.08) 40%, transparent 85%)',
+              WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.08) 40%, transparent 85%)',
+            }}
           >
             <img
               src={cleanUrl}
               alt=""
               onLoad={() => setImageLoaded(true)}
               className={`w-full h-full object-cover transition-opacity duration-1000 ${
-                imageLoaded ? 'opacity-40' : 'opacity-0'
+                imageLoaded ? 'opacity-100' : 'opacity-0'
               }`}
               style={{
-                filter: intensity === 'subtle' 
-                  ? 'blur(45px) saturate(140%) brightness(0.6)' 
-                  : intensity === 'deep' 
-                  ? 'blur(75px) saturate(180%) brightness(0.5)' 
-                  : 'blur(60px) saturate(160%) brightness(0.55)',
+                filter: 'blur(90px) saturate(150%) brightness(0.55)',
                 transform: 'translate3d(0, 0, 0)',
                 willChange: 'transform',
               }}
             />
           </div>
-        ) : (
-          /* RaagaX Fallback Atmosphere (when no artwork exists) */
-          <div className="absolute inset-0 bg-gradient-to-b from-[#FA233B]/20 via-[#4F46E5]/15 to-[#090A0F] opacity-50 blur-3xl" />
         )}
-
-        {/* Layer 3: Extracted Single Dominant Color Radial Mesh (Monochromatic Atmosphere) */}
-        {palette && (
-          <div 
-            className="absolute -top-24 left-1/2 -translate-x-1/2 w-[120%] h-[420px] rounded-full blur-3xl pointer-events-none transition-all duration-700 opacity-60"
-            style={{
-              background: `radial-gradient(ellipse at 50% 30%, ${palette.primary} 0%, ${palette.primary} 35%, transparent 70%)`,
-            }}
-          />
-        )}
-
-        {/* Layer 4: Multi-Stop Readability Scrim (Seamless fade to RaagaX page background) */}
-        <div 
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background: 'linear-gradient(180deg, rgba(9,10,15,0.18) 0%, rgba(9,10,15,0.55) 45%, rgba(9,10,15,0.92) 80%, #090A0F 100%)',
-          }}
-        />
-
-        {/* Top Edge Refraction Highlight */}
-        <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/15 to-transparent" />
       </div>
 
-      {/* ── FOREGROUND CONTENT (Rendered with 100% sharp contrast) ── */}
+      {/* ── FOREGROUND CONTENT ── */}
       <div className="relative z-10 w-full">
         {children}
       </div>

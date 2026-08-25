@@ -392,7 +392,7 @@ export function PlaylistDetailView() {
     <DynamicArtworkAtmosphere artworkUrl={playlist.coverUrl} isPlaying={isPlaying}>
       <div className="relative min-h-screen text-white select-none animate-in fade-in duration-200 pb-28">
         {/* Top Sticky Navigation Bar */}
-        <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-3.5 backdrop-blur-xl bg-[#08090d]/80 border-b border-white/5">
+        <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-3.5 backdrop-blur-md bg-black/20 border-b border-white/[0.04]">
           <button
             onClick={() => {
               haptics.lightImpact();
