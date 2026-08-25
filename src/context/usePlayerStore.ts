@@ -66,6 +66,7 @@ import { MediaSessionManager } from '@/lib/playback/MediaSessionManager';
 import { AudioQuality, AudioQualityState } from '@/lib/playback/types';
 import { DownloadStorage } from '@/lib/offline/DownloadStorage';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
+import { ScrollManager } from '@/lib/navigation/ScrollManager';
 import { isKidsOrNurseryTrack } from '@/lib/jioSaavnProvider';
 
 export function isOfflineMode(): boolean {
@@ -282,7 +283,7 @@ interface PlayerState {
   toggleBackupModal: () => void;
   toggleSettingsModal: () => void;
   toggleCastModal: () => void;
-  toggleSleepTimerModal: () => void;
+  toggleSleepTimerModal: (open?: boolean | any) => void;
   setCreatePlaylistModalOpen: (open: boolean) => void;
   openContextMenu: (song: Song) => void;
   closeContextMenu: () => void;
@@ -314,11 +315,16 @@ function persistSessionHelper(state: {
   shuffleMode?: string;
   repeatMode?: string;
   volume?: number;
+  lastPositionSec?: number;
 }) {
   if (!state.currentSong) return;
+  const currentPos = typeof state.currentTime === 'number' && Number.isFinite(state.currentTime) && state.currentTime >= 0
+    ? Math.floor(state.currentTime)
+    : (state.lastPositionSec || 0);
+
   const payload = {
     currentSong: state.currentSong,
-    currentTime: 0, // Reset to 0:00 for fresh process restart after kill
+    currentTime: currentPos, // Persist exact seek timestamp for seamless restore
     duration: state.duration || state.currentSong?.duration || 0,
     queue: state.queue || [],
     queueIndex: Math.max(0, state.queueIndex || 0),
@@ -487,12 +493,12 @@ export const usePlayerStore = create<PlayerState>()(
       trackSource: (initialSession?.currentSong ? 'SESSION_RESTORE' : null) as any,
       setPlaybackIntent: (intent) => set({ playbackIntent: intent }),
       setTrackSource: (source) => set({ trackSource: source }),
-      currentTime: 0, // Fresh process always starts at 0:00
-      duration: initialSession?.currentSong?.duration || 0,
+      currentTime: (initialSession?.currentTime && initialSession.currentTime > 0) ? initialSession.currentTime : 0, // Restore exact position on cold launch
+      duration: initialSession?.duration || initialSession?.currentSong?.duration || 0,
       volume: 0.8,
       isMuted: false,
       lastTrackId: initialSession?.currentSong?.id || null,
-      lastPositionSec: 0,
+      lastPositionSec: (initialSession?.currentTime && initialSession.currentTime > 0) ? initialSession.currentTime : 0,
       checkpointPlaybackPosition: (posSec: number) => {
         if (typeof posSec === 'number' && Number.isFinite(posSec) && posSec >= 0) {
           set({ lastPositionSec: Math.floor(posSec) });
@@ -1795,6 +1801,9 @@ export const usePlayerStore = create<PlayerState>()(
           selectedPlaylistId: get().selectedPlaylistId,
           isPlayerExpanded: get().isPlayerExpanded,
         });
+        if (typeof window !== 'undefined') {
+          ScrollManager.getInstance().navigateTo(`tab:${tab}`);
+        }
       },
       setSelectedArtistId: (id) => {
         const safeId = id && id !== 'offline' ? id : null;
@@ -1806,6 +1815,9 @@ export const usePlayerStore = create<PlayerState>()(
           selectedPlaylistId: null,
           isPlayerExpanded: get().isPlayerExpanded,
         });
+        if (typeof window !== 'undefined') {
+          ScrollManager.getInstance().navigateTo(`artist:${safeId}`);
+        }
       },
       setSelectedAlbumId: (id) => {
         const safeId = id && id !== 'offline' ? id : null;
@@ -1817,6 +1829,9 @@ export const usePlayerStore = create<PlayerState>()(
           selectedPlaylistId: null,
           isPlayerExpanded: get().isPlayerExpanded,
         });
+        if (typeof window !== 'undefined') {
+          ScrollManager.getInstance().navigateTo(`album:${safeId}`);
+        }
       },
       setSelectedPlaylistId: (id) => {
         set({ selectedPlaylistId: id, activeTab: 'playlist' });
@@ -1827,6 +1842,9 @@ export const usePlayerStore = create<PlayerState>()(
           selectedPlaylistId: id,
           isPlayerExpanded: get().isPlayerExpanded,
         });
+        if (typeof window !== 'undefined') {
+          ScrollManager.getInstance().navigateTo(`playlist:${id}`);
+        }
       },
       navigateFromPlayer: (destination) => {
         const safeAlbumId = destination.albumId && destination.albumId !== 'offline' ? destination.albumId : null;
@@ -1843,6 +1861,15 @@ export const usePlayerStore = create<PlayerState>()(
           selectedPlaylistId: destination.playlistId || null,
           isPlayerExpanded: false,
         });
+        if (typeof window !== 'undefined') {
+          const key = ScrollManager.getInstance().getRouteKey({
+            activeTab: destination.tab,
+            selectedAlbumId: safeAlbumId,
+            selectedArtistId: safeArtistId,
+            selectedPlaylistId: destination.playlistId || null,
+          });
+          ScrollManager.getInstance().navigateTo(key);
+        }
       },
       setStreamingQuality: (quality) => set({ streamingQuality: quality }),
       setDownloadQuality: (quality) => set({ downloadQuality: quality }),
@@ -1870,7 +1897,10 @@ export const usePlayerStore = create<PlayerState>()(
       toggleBackupModal: () => set((state) => ({ isBackupOpen: !state.isBackupOpen })),
       toggleSettingsModal: () => set((state) => ({ isSettingsModalOpen: !state.isSettingsModalOpen })),
       toggleCastModal: () => set((state) => ({ isCastModalOpen: !state.isCastModalOpen })),
-      toggleSleepTimerModal: () => set((state) => ({ isSleepTimerModalOpen: !state.isSleepTimerModalOpen })),
+      toggleSleepTimerModal: (open) =>
+        set((state) => ({
+          isSleepTimerModalOpen: typeof open === 'boolean' ? open : !state.isSleepTimerModalOpen,
+        })),
       setCreatePlaylistModalOpen: (open) => set({ createPlaylistModalOpen: open }),
 
       openContextMenu: (song) => set({ contextMenuSong: song }),

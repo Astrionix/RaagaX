@@ -91,6 +91,7 @@ export function OptimizedImage({
         alt={alt}
         loading="eager"
         decoding="async"
+        draggable={false}
         fetchPriority={size === 'thumb' ? 'auto' : 'high'}
         onLoad={() => {
           loadedImageUrls.add(resolvedUrl);
@@ -102,7 +103,7 @@ export function OptimizedImage({
             setIsLoaded(true);
           }
         }}
-        className={`w-full h-full ${imageFit === 'contain' ? 'object-contain' : imageFit === 'fill' ? 'object-fill' : 'object-cover'} transition-transform duration-300`}
+        className={`w-full h-full ${imageFit === 'contain' ? 'object-contain' : imageFit === 'fill' ? 'object-fill' : 'object-cover'} transition-transform duration-300 pointer-events-none select-none`}
         style={style}
         {...props}
       />

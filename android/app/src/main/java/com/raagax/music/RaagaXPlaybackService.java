@@ -1094,31 +1094,23 @@ public class RaagaXPlaybackService extends Service {
     @Override
     public void onTaskRemoved(Intent rootIntent) {
         super.onTaskRemoved(rootIntent);
-        Log.d(TAG, "onTaskRemoved: Activity swiped away from Recents.");
+        Log.d(TAG, "onTaskRemoved: Activity swiped away from Recents. Terminating playback and service.");
 
-        // Continuous Background Audio Guard:
-        // If music is actively playing or intended to play, DO NOT kill playback.
-        // Foreground service keeps audio running with system notification as primary surface.
-        boolean isPlaying = player != null && (player.isPlaying() || player.getPlayWhenReady());
-        if (isPlaying) {
-            Log.d(TAG, "onTaskRemoved: Audio is active — continuing in background as foreground service.");
-            updateNotification();
-            return;
-        }
-
-        Log.d(TAG, "onTaskRemoved: Audio is paused/idle — saving snapshot and stopping foreground service.");
         // 1. Save current playback snapshot to SharedPreferences before shutdown
         if (player != null) {
             try {
+                long currentPos = Math.max(0L, player.getCurrentPosition());
                 android.content.SharedPreferences prefs = getSharedPreferences("raagax_native_playback", android.content.Context.MODE_PRIVATE);
                 android.content.SharedPreferences.Editor editor = prefs.edit();
-                editor.putLong("last_position_ms", 0L); // Reset position to 0:00 on process termination
+                editor.putLong("last_position_ms", currentPos); // Restore exact seek position on next cold launch
                 editor.putInt("last_index", player.getCurrentMediaItemIndex());
+                editor.putString("last_track_id", currentTrackId);
                 editor.putString("last_title", currentTitle);
                 editor.putString("last_artist", currentArtist);
+                editor.putString("last_artwork", currentArtworkUrl);
                 editor.putBoolean("was_playing_when_killed", false); // HARD RULE: Never auto-play on next app launch
                 editor.putBoolean("was_task_removed", true);
-                editor.putString("playback_state", "STOPPED");
+                editor.putString("playback_state", "PAUSED");
                 editor.putString("device_state", "TASK_REMOVED");
                 editor.putLong("saved_timestamp", System.currentTimeMillis());
                 editor.apply();
@@ -1135,6 +1127,9 @@ public class RaagaXPlaybackService extends Service {
                 Log.e(TAG, "Error stopping player onTaskRemoved: " + e.getMessage());
             }
         }
+
+        // 2. Stop progress ticker
+        stopProgressTicker();
 
         // 3. Remove notification and dismiss foreground service
         try {
@@ -1531,18 +1526,5 @@ public class RaagaXPlaybackService extends Service {
     private void updateNotification() {
         NotificationManager nm = getSystemService(NotificationManager.class);
         if (nm != null) nm.notify(NOTIF_ID, buildNotification());
-    }
-
-    @Override
-    public void onTaskRemoved(Intent rootIntent) {
-        super.onTaskRemoved(rootIntent);
-        Log.d(TAG, "onTaskRemoved called");
-        if (player == null || (!player.isPlaying() && !player.getPlayWhenReady())) {
-            Log.d(TAG, "Player is paused/stopped on task removal — stopping foreground service cleanly");
-            stopForeground(true);
-            stopSelf();
-        } else {
-            Log.d(TAG, "Player is actively playing on task removal — continuing foreground playback");
-        }
     }
 }

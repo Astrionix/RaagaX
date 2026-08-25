@@ -69,20 +69,14 @@ try {
     }
   }
 
-  // Step 2: Clean previous export and .next directory if exists
+  // Step 2: Clean previous out/ export directory and isolated .next_export directory
   if (fs.existsSync(outDir)) {
     console.log('[EXPORT] Cleaning previous out/ directory...');
     try { fs.rmSync(outDir, { recursive: true, force: true }); } catch {}
   }
-  const nextDir = path.join(rootDir, '.next');
-  if (fs.existsSync(nextDir)) {
-    try { fs.rmSync(nextDir, { recursive: true, force: true }); } catch {}
+  if (process.platform === 'win32') {
+    try { execSync('cmd.exe /c "if exist .next rmdir /s /q .next & if exist .next_export rmdir /s /q .next_export"', { stdio: 'ignore' }); } catch {}
   }
-
-  // Small delay for Windows file handles to release
-  try {
-    execSync('timeout /t 1 /nobreak', { stdio: 'ignore' });
-  } catch {}
 
   // Step 3: Run Next.js build in static export mode
   console.log('[EXPORT] Running next build (STATIC_EXPORT=true)...');
@@ -96,7 +90,13 @@ try {
     },
   });
 
-  // Step 4: Verify out/index.html was produced
+  // Step 4: Populate out/ directory from .next_export
+  const exportSource = path.join(rootDir, '.next_export');
+  if (fs.existsSync(exportSource)) {
+    copyDir(exportSource, outDir);
+  }
+
+  // Verify out/index.html was produced
   const indexPath = path.join(outDir, 'index.html');
   if (!fs.existsSync(indexPath)) {
     throw new Error(`[EXPORT ERROR] out/index.html was not generated at: ${indexPath}`);

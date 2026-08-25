@@ -58,8 +58,11 @@
 
   html, body {
     width: 100%;
-    max-width: 100%;
+    min-height: 100%;
     overflow-x: hidden;
+    /* Momentum scrolling for the whole page on iOS/Android WebView */
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: none;
   }
 
   body {
@@ -69,7 +72,46 @@
     -webkit-font-smoothing: antialiased;
     transition: background-color 0.25s ease, color 0.25s ease;
   }
+
+  /* Smooth GPU-accelerated momentum scrolling on all scroll containers */
+  .main-content,
+  .overflow-y-auto,
+  .overflow-x-auto,
+  [data-scrollable] {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Virtualized rendering optimization for long song lists (Playlists, Albums, Library, Search, Queue) */
+  .virtualized-song-list > *,
+  .song-row-item,
+  [data-song-row],
+  .swipeable-song-row-item {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 64px;
+  }
+
+  /* Horizontal rails/shelves: allow both horizontal shelf swiping AND vertical page scrolling seamlessly */
+  .overflow-x-auto {
+    touch-action: pan-x pan-y;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Prevent browser from capturing native image drag gestures on album covers, artwork, and svgs */
+  img, svg, picture {
+    -webkit-user-drag: none;
+    user-drag: none;
+    -webkit-touch-callout: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Remove 300ms tap delay on interactive buttons/links */
+  button, a, [role="button"], input, select, label {
+    touch-action: manipulation;
+  }
 }
+
 
 /* ========================================================================== */
 /* LIGHT THEME HIGH-CONTRAST TYPOGRAPHY & COMPONENT SYSTEM                    */

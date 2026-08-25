@@ -90,20 +90,67 @@ export function AudioPlayerController() {
   useEffect(() => {
     if (!RaagaXNativePlayer.isNative()) return;
 
-    // Immediately fetch authoritative native playback state on mount
-    RaagaXNativePlayer.getPlaybackState().then((state) => {
-      if (state) {
-        console.log('[AudioPlayerController] Native initial state on mount:', state);
+    // ── Re-entry sync helper: read live ExoPlayer state and push to store silently.
+    // This implements the Spotify-style foreground re-entry contract:
+    //   App returns from background -> query native -> update UI state -> NO playback restart.
+    const syncNativeStateToUI = async (reason: string) => {
+      try {
+        const state = await RaagaXNativePlayer.getPlaybackState();
+        if (!state) return;
+        console.log(`[AudioPlayerController] Native state re-sync (${reason}): isPlaying=${state.isPlaying} pos=${state.positionMs}ms dur=${state.durationMs}ms title="${state.title ?? ''}"`);
         const store = usePlayerStore.getState();
-        store.setIsPlaying(state.isPlaying, true);
-        if (state.positionMs > 0) {
+
+        // Sync play/pause
+        store.setIsPlaying(state.isPlaying, true /* fromNative */);
+
+        // Sync position (only if meaningful — avoid clobbering a seek in progress)
+        if (typeof state.positionMs === 'number' && state.positionMs >= 0 && !SeekLock.shouldBlockRemoteUpdate) {
           store.setCurrentTime(state.positionMs / 1000, true);
         }
-        if (state.durationMs > 0) {
+
+        // Sync duration
+        if (typeof state.durationMs === 'number' && state.durationMs > 0) {
           store.setDuration(state.durationMs / 1000);
         }
+
+        // If the store has no currentSong but native is reporting a title,
+        // try to reconcile with the session queue so the mini-player renders.
+        if (!store.currentSong && state.title) {
+          const matchedInQueue = store.queue.find(
+            (s) => s.title?.toLowerCase() === state.title?.toLowerCase()
+          );
+          if (matchedInQueue) {
+            usePlayerStore.setState({ currentSong: matchedInQueue });
+            console.log(`[AudioPlayerController] Re-entry reconciled currentSong from queue: "${matchedInQueue.title}"`);
+          }
+        }
+      } catch (err) {
+        console.warn('[AudioPlayerController] syncNativeStateToUI failed:', err);
       }
-    }).catch(() => {});
+    };
+
+    // Immediately fetch authoritative native playback state on mount
+    syncNativeStateToUI('MOUNT');
+
+    // ── Capacitor App lifecycle: foreground re-entry (Spotify-style) ──────────────
+    // When the user opens RaagaX from Recents / Launcher while audio is playing in the
+    // background, Capacitor fires appStateChange { isActive: true }. We re-sync the
+    // native ExoPlayer state into usePlayerStore WITHOUT restarting playback.
+    let appStateHandle: { remove: () => void } | null = null;
+    if (typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()) {
+      import('@capacitor/app').then(({ App }) => {
+        App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) {
+            console.log('[AudioPlayerController] App foregrounded — syncing native ExoPlayer state (re-entry)');
+            syncNativeStateToUI('FOREGROUND_REENTRY');
+          } else {
+            console.log('[AudioPlayerController] App backgrounded');
+          }
+        }).then((handle) => {
+          appStateHandle = handle;
+        }).catch(() => {});
+      }).catch(() => {});
+    }
 
     // playbackStateChanged fires whenever ExoPlayer changes between PLAYING and PAUSED
     const unsubPlaybackState = RaagaXNativePlayer.addPlaybackStateListener((data) => {
@@ -282,6 +329,9 @@ export function AudioPlayerController() {
       unsubSeekComplete();
       unsubActionNext();
       unsubActionPrev();
+      if (appStateHandle) {
+        try { appStateHandle.remove(); } catch {}
+      }
     };
   }, []);
 

@@ -175,7 +175,7 @@ export function SwipeableSongRow({
   }
 
   return (
-    <div className={`relative overflow-hidden rounded-2xl select-none group/swipe ${className}`}>
+    <div className={`swipeable-song-row-item relative overflow-hidden rounded-2xl select-none group/swipe ${className}`}>
       {/* ── Background Action Reveal Panel ── */}
       <div
         className={`absolute inset-0 flex items-center justify-end px-5 rounded-2xl ${config.bgColor} transition-opacity duration-200 ${

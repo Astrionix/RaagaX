@@ -172,7 +172,7 @@ export default function Page() {
   }, []);
 
   return (
-    <div className="min-h-screen w-full max-w-[100vw] overflow-x-hidden bg-[var(--bg-primary)] text-[var(--text-primary)] flex selection:bg-[#EF233C] selection:text-white transition-colors duration-300">
+    <div className="min-h-screen w-full max-w-[100vw] bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col md:flex-row md:h-screen md:overflow-hidden selection:bg-[#EF233C] selection:text-white transition-colors duration-300">
       {/* Audio Engine Controller */}
       <AudioPlayerController />
 
@@ -204,39 +204,40 @@ export default function Page() {
       <Sidebar />
 
       {/* App Layout (Grid after Sidebar) */}
-      <div className="flex-1 ml-0 md:ml-64 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] md:h-[calc(100vh-5rem)] overflow-hidden">
+      <div className="flex-1 ml-0 md:ml-64 flex flex-col min-w-0 md:h-[calc(100vh-5rem)] md:overflow-hidden">
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] flex-1 min-h-0 md:h-full">
+          {/* Main Content Column */}
+          <div className="main-content min-w-0 flex-1 flex flex-col md:h-full md:overflow-y-auto md:overflow-x-hidden relative">
+            {/* Header Bar */}
+            <Header />
 
-        {/* Main Content Column */}
-        <div className="main-content min-w-0 min-h-0 overflow-y-auto overflow-x-hidden relative flex flex-col h-full">
-          {/* Header Bar */}
-          <Header />
+            {/* View Switcher Container */}
+            <main className="flex-1 pt-14 md:pt-4 pb-[calc(8.5rem+env(safe-area-inset-bottom,0px))] md:pb-8 px-3.5 sm:px-8">
+              {activeTab === 'home' && <HomeView />}
+              {activeTab === 'new' && <NewView />}
+              {activeTab === 'search' && <SearchView />}
+              {activeTab === 'library' && <LibraryView />}
+              {activeTab === 'genres' && <GenresView />}
+              {activeTab === 'artist' && (selectedArtistId ? <ArtistDetailView /> : <ArtistsView />)}
+              {activeTab === 'album' && (selectedAlbumId ? <AlbumDetailView /> : <AlbumsView />)}
+              {activeTab === 'playlist' && <PlaylistDetailView />}
+              {activeTab === 'profile' && <ProfileView />}
+              {activeTab === 'downloads' && <DownloadsView />}
+              {activeTab === 'favorites' && <FavoritesView />}
+              {activeTab === 'insights' && <InsightsView />}
+              {activeTab === 'recaps' && <RecapHistoryView />}
+              {activeTab === 'history' && <HistoryView />}
+              {activeTab === 'settings' && <SettingsView />}
+            </main>
 
-          {/* View Switcher Container */}
-          <main className="flex-1 pt-14 md:pt-4 pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-8 px-3.5 sm:px-8">
-            {activeTab === 'home' && <HomeView />}
-            {activeTab === 'new' && <NewView />}
-            {activeTab === 'search' && <SearchView />}
-            {activeTab === 'library' && <LibraryView />}
-            {activeTab === 'genres' && <GenresView />}
-            {activeTab === 'artist' && (selectedArtistId ? <ArtistDetailView /> : <ArtistsView />)}
-            {activeTab === 'album' && (selectedAlbumId ? <AlbumDetailView /> : <AlbumsView />)}
-            {activeTab === 'playlist' && <PlaylistDetailView />}
-            {activeTab === 'profile' && <ProfileView />}
-            {activeTab === 'downloads' && <DownloadsView />}
-            {activeTab === 'favorites' && <FavoritesView />}
-            {activeTab === 'insights' && <InsightsView />}
-            {activeTab === 'recaps' && <RecapHistoryView />}
-            {activeTab === 'history' && <HistoryView />}
-            {activeTab === 'settings' && <SettingsView />}
-          </main>
+            {/* Unified Global Scroll-Aware Mobile Bottom Controller */}
+            <MobileBottomController />
+          </div>
 
-          {/* Unified Global Scroll-Aware Mobile Bottom Controller */}
-          <MobileBottomController />
-        </div>
-
-        {/* Right Queue Column */}
-        <div className="queue-panel hidden xl:block w-[360px] min-w-[360px] h-full pt-6 pb-8 overflow-y-auto overflow-x-hidden border-l border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-          <RightQueuePanel />
+          {/* Right Queue Column */}
+          <div className="queue-panel hidden xl:block w-[360px] min-w-[360px] h-full pt-6 pb-8 overflow-y-auto overflow-x-hidden border-l border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
+            <RightQueuePanel />
+          </div>
         </div>
       </div>
 

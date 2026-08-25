@@ -60,7 +60,7 @@ export function ExpandedPlayerModal() {
   const { saveForOffline } = useDownloadStore();
   const [palette, setPalette] = useState<ChameleonPalette | null>(null);
   const [showPlaylists, setShowPlaylists] = useState(false);
-  const [viewMode, setViewMode] = useState<'art' | 'lyrics'>('art');
+  const [viewMode, setViewMode] = useState<'art' | 'lyrics' | 'queue' | 'timer'>('art');
   const [desktopView, setDesktopView] = useState<'info' | 'lyrics' | 'upnext'>('info');
   const [desktopTab, setDesktopTab] = useState<'lyrics' | 'upnext' | 'related'>('lyrics');
   const [isDesktopQueueOpen, setIsDesktopQueueOpen] = useState(false);
@@ -115,6 +115,9 @@ export function ExpandedPlayerModal() {
     setSelectedPlaylistId,
     toggleQueue,
     toggleSleepTimerModal,
+    setSleepTimer,
+    cancelSleepTimer,
+    sleepTimerMinutes,
     sleepTimerEndsAt,
     sleepTimerMode,
   } = usePlayerStore();
@@ -703,18 +706,59 @@ export function ExpandedPlayerModal() {
                 <Volume2 className="w-4 h-4 text-white/50 flex-shrink-0" />
               </div>
 
-              {/* Bottom Utilities Pills */}
-              <div className="flex items-center justify-center gap-3 pt-1">
+              {/* Bottom Utilities Pills [ Lyrics | Queue | Sleep Timer ] */}
+              <div className="flex items-center justify-center gap-2 sm:gap-3 pt-1">
+                {/* Lyrics Button */}
                 <button
                   onClick={() => {
                     haptics.lightImpact();
                     setDesktopView('lyrics');
                     setDesktopTab('lyrics');
                   }}
-                  className="px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10"
+                  className="px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10"
+                  title="Synchronized Lyrics (L)"
                 >
                   <Mic2 className="w-3.5 h-3.5" />
                   <span>Lyrics</span>
+                </button>
+
+                {/* Queue Button */}
+                <button
+                  onClick={() => {
+                    haptics.lightImpact();
+                    setDesktopView('lyrics');
+                    setDesktopTab('upnext');
+                  }}
+                  className="px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10"
+                  title="Up Next Queue (Q)"
+                >
+                  <ListMusic className="w-3.5 h-3.5" />
+                  <span>Queue</span>
+                  {upNextTracks.length > 0 && (
+                    <span className="px-1.5 py-0.2 text-[10px] font-mono rounded-full bg-white/20 text-white">
+                      {upNextTracks.length}
+                    </span>
+                  )}
+                </button>
+
+                {/* Sleep Timer Button */}
+                <button
+                  onClick={() => {
+                    haptics.lightImpact();
+                    toggleSleepTimerModal(true);
+                  }}
+                  className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    sleepTimerEndsAt || sleepTimerMode
+                      ? 'bg-purple-500/25 text-purple-300 border-purple-400/40 shadow-sm'
+                      : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
+                  }`}
+                  title="Sleep Timer"
+                >
+                  <Moon className="w-3.5 h-3.5" />
+                  <span>Timer</span>
+                  {(sleepTimerEndsAt || sleepTimerMode) && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping" />
+                  )}
                 </button>
               </div>
             </div>
@@ -888,8 +932,9 @@ export function ExpandedPlayerModal() {
                 <Volume2 className="w-4 h-4 text-white/50 flex-shrink-0" />
               </div>
 
-              {/* Mode Pills */}
-              <div className="flex items-center justify-center gap-3 pt-1 flex-shrink-0">
+              {/* Mode Pills [ Lyrics | Queue | Sleep Timer ] */}
+              <div className="flex items-center justify-center gap-2 sm:gap-3 pt-1 flex-shrink-0">
+                {/* Lyrics Button */}
                 <button
                   onClick={() => {
                     haptics.lightImpact();
@@ -899,15 +944,61 @@ export function ExpandedPlayerModal() {
                       setDesktopTab('lyrics');
                     }
                   }}
-                  className={`px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                     desktopTab === 'lyrics'
-                      ? 'bg-[#F0444F]/20 text-[#F0444F] border-[#F0444F]/40 shadow-sm'
+                      ? 'bg-white/20 text-white border-white/30 shadow-sm'
                       : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
                   }`}
                   title="Lyrics (L)"
                 >
                   <Mic2 className="w-3.5 h-3.5" />
                   <span>Lyrics</span>
+                </button>
+
+                {/* Queue Button */}
+                <button
+                  onClick={() => {
+                    haptics.lightImpact();
+                    if (desktopTab === 'upnext') {
+                      setDesktopView('info');
+                    } else {
+                      setDesktopTab('upnext');
+                    }
+                  }}
+                  className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    desktopTab === 'upnext'
+                      ? 'bg-white/20 text-white border-white/30 shadow-sm'
+                      : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
+                  }`}
+                  title="Up Next Queue (Q)"
+                >
+                  <ListMusic className="w-3.5 h-3.5" />
+                  <span>Queue</span>
+                  {upNextTracks.length > 0 && (
+                    <span className="px-1.5 py-0.2 text-[10px] font-mono rounded-full bg-white/20 text-white">
+                      {upNextTracks.length}
+                    </span>
+                  )}
+                </button>
+
+                {/* Sleep Timer Button */}
+                <button
+                  onClick={() => {
+                    haptics.lightImpact();
+                    toggleSleepTimerModal(true);
+                  }}
+                  className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    sleepTimerEndsAt || sleepTimerMode
+                      ? 'bg-purple-500/25 text-purple-300 border-purple-400/40 shadow-sm'
+                      : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
+                  }`}
+                  title="Sleep Timer"
+                >
+                  <Moon className="w-3.5 h-3.5" />
+                  <span>Timer</span>
+                  {(sleepTimerEndsAt || sleepTimerMode) && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping" />
+                  )}
                 </button>
               </div>
             </div>
@@ -1180,7 +1271,7 @@ export function ExpandedPlayerModal() {
         {/* ── MOBILE STAGE (VERTICAL UNBOXED VIEW ON MOBILE < MD) ─────────── */}
         <div className={`flex md:hidden flex-1 flex-col justify-between items-center h-full w-full transition-all duration-300 min-h-0 py-1 sm:py-2 gap-2 sm:gap-4 max-w-[390px] sm:max-w-[440px]`}>
           
-          {/* A. HERO ARTWORK / SYNCHRONIZED LYRICS */}
+          {/* A. HERO ARTWORK / SYNCHRONIZED LYRICS / QUEUE / SLEEP TIMER */}
           {viewMode === 'art' ? (
             /* Large Unboxed Hero Artwork with Deep Cinematic Shadow */
             <div className="w-full flex-1 flex items-center justify-center py-0.5 sm:py-1 min-h-0 overflow-hidden">
@@ -1199,7 +1290,7 @@ export function ExpandedPlayerModal() {
                 <div className="absolute inset-0 rounded-[8px] sm:rounded-[12px] ring-1 ring-inset ring-white/15 pointer-events-none" />
               </div>
             </div>
-          ) : (
+          ) : viewMode === 'lyrics' ? (
             /* SYNCHRONIZED LYRICS STAGE */
             <div className="w-full flex-1 flex flex-col min-h-0 overflow-hidden py-1">
               <div className="flex items-center justify-between px-3 pb-2 mb-1 border-b border-white/10 flex-shrink-0">
@@ -1260,6 +1351,203 @@ export function ExpandedPlayerModal() {
                     );
                   })
                 )}
+              </div>
+            </div>
+          ) : viewMode === 'queue' ? (
+            /* UP NEXT QUEUE STAGE (MOBILE) */
+            <div className="w-full flex-1 flex flex-col min-h-0 overflow-hidden py-1">
+              <div className="flex items-center justify-between px-3 pb-2 mb-1 border-b border-white/10 flex-shrink-0">
+                <div className="flex items-center gap-2 text-xs font-bold text-white">
+                  <ListMusic className="w-4 h-4 text-[#F0444F]" />
+                  <span>Up Next ({upNextTracks.length})</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {upNextTracks.length > 0 && (
+                    <button
+                      onClick={() => {
+                        haptics.lightImpact();
+                        clearQueue();
+                        setToastMessage('Queue cleared');
+                      }}
+                      className="text-xs font-semibold text-red-400 hover:text-red-300 px-2 py-0.5 rounded transition-all cursor-pointer"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setViewMode('art')}
+                    className="text-xs font-semibold text-white/80 hover:text-white px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-all cursor-pointer"
+                  >
+                    Show Artwork
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto no-scrollbar py-2 px-2 space-y-2">
+                {/* Currently playing card */}
+                <div className="p-2.5 rounded-xl bg-white/[0.08] border border-white/15 flex items-center gap-3">
+                  <div className="relative w-11 h-11 rounded-lg overflow-hidden flex-shrink-0 shadow">
+                    <OptimizedImage
+                      src={coverUrl}
+                      alt={currentSong.title}
+                      size="thumb"
+                      className="w-full h-full object-cover"
+                    />
+                    {isPlaying && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <div className="flex items-end gap-0.5 h-3.5">
+                          <span className="w-0.5 h-full bg-[#F0444F] animate-pulse" />
+                          <span className="w-0.5 h-2/3 bg-[#F0444F] animate-pulse delay-75" />
+                          <span className="w-0.5 h-4/5 bg-[#F0444F] animate-pulse delay-150" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[9px] uppercase font-bold tracking-wider text-[#F0444F]">Now Playing</span>
+                    <h4 className="text-xs font-bold text-white truncate">{currentSong.title}</h4>
+                    <p className="text-[11px] text-white/60 truncate">{currentSong.artist}</p>
+                  </div>
+                </div>
+
+                {/* Queue track items */}
+                {upNextTracks.length === 0 ? (
+                  <div className="py-12 text-center text-white/40 text-xs">
+                    Queue is empty. Select more songs to queue.
+                  </div>
+                ) : (
+                  upNextTracks.map((song, idx) => (
+                    <div
+                      key={`${song.id}-${idx}`}
+                      onClick={() => {
+                        haptics.lightImpact();
+                        playSong(song);
+                      }}
+                      className="flex items-center justify-between p-2 rounded-xl hover:bg-white/[0.08] transition-colors cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <span className="w-4 text-[11px] font-mono text-white/30 text-center flex-shrink-0">{idx + 1}</span>
+                        <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0">
+                          <OptimizedImage
+                            src={song.coverUrl}
+                            alt={song.title}
+                            size="thumb"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-white truncate group-hover:text-[#F0444F] transition-colors">
+                            {song.title}
+                          </p>
+                          <p className="text-[11px] text-white/50 truncate">{song.artist}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-[11px] font-mono text-white/40">{formatTime(song.duration)}</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            haptics.lightImpact();
+                            removeFromQueue(song.id);
+                          }}
+                          className="p-1 text-white/40 hover:text-red-400 transition-colors cursor-pointer"
+                          title="Remove from queue"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          ) : (
+            /* SLEEP TIMER STAGE (MOBILE) */
+            <div className="w-full flex-1 flex flex-col min-h-0 overflow-hidden py-1">
+              <div className="flex items-center justify-between px-3 pb-2 mb-1 border-b border-white/10 flex-shrink-0">
+                <div className="flex items-center gap-2 text-xs font-bold text-white">
+                  <Moon className="w-4 h-4 text-purple-400" /> Sleep Timer
+                </div>
+                <button
+                  onClick={() => setViewMode('art')}
+                  className="text-xs font-semibold text-white/80 hover:text-white px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-all cursor-pointer"
+                >
+                  Show Artwork
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto no-scrollbar py-3 px-3 space-y-4 flex flex-col items-center justify-center">
+                {/* Active Timer Countdown Banner */}
+                {(sleepTimerEndsAt || sleepTimerMode) ? (
+                  <div className="w-full p-4 rounded-2xl bg-purple-500/15 border border-purple-500/30 text-center space-y-2">
+                    <div className="flex items-center justify-center gap-2 text-purple-400">
+                      <Clock className="w-4 h-4 animate-spin" />
+                      <span className="text-xs font-bold uppercase tracking-wider">Timer Running</span>
+                    </div>
+                    <p className="text-sm font-bold text-white">
+                      {sleepTimerMode === 'end_of_song'
+                        ? 'Stopping at the end of current track'
+                        : sleepTimerMode === 'end_of_queue'
+                        ? 'Stopping when queue finishes'
+                        : sleepTimerEndsAt
+                        ? `Stopping in ~${Math.max(1, Math.round((sleepTimerEndsAt - Date.now()) / 60000))} minutes`
+                        : 'Active'}
+                    </p>
+                    <div className="flex items-center justify-center gap-2 pt-2">
+                      <button
+                        onClick={() => {
+                          haptics.lightImpact();
+                          cancelSleepTimer();
+                          setToastMessage('Sleep timer turned off');
+                        }}
+                        className="px-4 py-1.5 rounded-full bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 text-xs font-semibold transition-all cursor-pointer"
+                      >
+                        Cancel Timer
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-white/50 text-center">
+                    Select when you want music playback to automatically stop.
+                  </p>
+                )}
+
+                {/* Preset Options Grid */}
+                <div className="w-full grid grid-cols-2 gap-2.5">
+                  {[
+                    { label: '15 Minutes', mins: 15, mode: 'duration' as const },
+                    { label: '30 Minutes', mins: 30, mode: 'duration' as const },
+                    { label: '45 Minutes', mins: 45, mode: 'duration' as const },
+                    { label: '60 Minutes', mins: 60, mode: 'duration' as const },
+                    { label: 'End of Track', mins: -1, mode: 'end_of_song' as const },
+                    { label: 'End of Queue', mins: -1, mode: 'end_of_queue' as const },
+                  ].map((preset, idx) => {
+                    const isSelected =
+                      preset.mode === 'duration'
+                        ? sleepTimerMinutes === preset.mins && (sleepTimerEndsAt || 0) > Date.now()
+                        : sleepTimerMode === preset.mode;
+
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          haptics.lightImpact();
+                          setSleepTimer(preset.mins, preset.mode);
+                          setToastMessage(`Sleep timer set to ${preset.label}`);
+                          setViewMode('art');
+                        }}
+                        className={`p-3 rounded-xl border text-xs font-bold transition-all text-center flex items-center justify-center cursor-pointer ${
+                          isSelected
+                            ? 'bg-purple-500/25 border-purple-400 text-white shadow-lg'
+                            : 'bg-white/[0.06] hover:bg-white/[0.12] border-white/10 text-white/80 hover:text-white'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
@@ -1430,8 +1718,8 @@ export function ExpandedPlayerModal() {
             <Volume2 className="w-4 h-4 text-white/50 flex-shrink-0" />
           </div>
 
-          {/* F. BOTTOM UTILITIES ROW [ Lyrics | Device | Queue | Sleep Timer ] (Unboxed Minimal Pills) */}
-          <div className="w-full flex items-center justify-center gap-2 sm:gap-2.5 pt-1 pb-1 sm:pb-2 px-2 flex-shrink-0">
+          {/* F. BOTTOM UTILITIES ROW [ Lyrics | Queue | Sleep Timer ] (Unboxed Minimal Pills) */}
+          <div className="w-full flex items-center justify-center gap-2 sm:gap-3 pt-1 pb-1 sm:pb-2 px-2 flex-shrink-0">
             {/* Lyrics Button */}
             <button
               onClick={() => {
@@ -1447,6 +1735,48 @@ export function ExpandedPlayerModal() {
             >
               <Mic2 className="w-3.5 h-3.5" />
               <span>Lyrics</span>
+            </button>
+
+            {/* Queue Button */}
+            <button
+              onClick={() => {
+                haptics.lightImpact();
+                setViewMode(viewMode === 'queue' ? 'art' : 'queue');
+              }}
+              className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                viewMode === 'queue'
+                  ? 'bg-white/20 text-white border-white/30 shadow-sm'
+                  : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
+              }`}
+              title="Up Next Queue (Q)"
+            >
+              <ListMusic className="w-3.5 h-3.5" />
+              <span>Queue</span>
+              {upNextTracks.length > 0 && (
+                <span className="px-1.5 py-0.2 text-[10px] font-mono rounded-full bg-white/20 text-white">
+                  {upNextTracks.length}
+                </span>
+              )}
+            </button>
+
+            {/* Sleep Timer Button */}
+            <button
+              onClick={() => {
+                haptics.lightImpact();
+                setViewMode(viewMode === 'timer' ? 'art' : 'timer');
+              }}
+              className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                viewMode === 'timer' || sleepTimerEndsAt || sleepTimerMode
+                  ? 'bg-purple-500/25 text-purple-300 border-purple-400/40 shadow-sm'
+                  : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
+              }`}
+              title="Sleep Timer"
+            >
+              <Moon className="w-3.5 h-3.5" />
+              <span>Timer</span>
+              {(sleepTimerEndsAt || sleepTimerMode) && (
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping" />
+              )}
             </button>
           </div>
         </div>

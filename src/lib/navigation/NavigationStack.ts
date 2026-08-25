@@ -1,6 +1,7 @@
 'use client';
 
 import { ActiveTab } from '@/types/music';
+import { ScrollManager } from './ScrollManager';
 
 export interface NavigationEntry {
   id: string;
@@ -149,6 +150,17 @@ export class NavigationStack {
 
       if (applyStateCallback) {
         applyStateCallback(target);
+      }
+
+      // Restore the target route's exact scroll position (Spotify-style scroll restoration)
+      if (typeof window !== 'undefined') {
+        const targetKey = ScrollManager.getInstance().getRouteKey({
+          activeTab: target.activeTab,
+          selectedAlbumId: target.selectedAlbumId,
+          selectedArtistId: target.selectedArtistId,
+          selectedPlaylistId: target.selectedPlaylistId,
+        });
+        ScrollManager.getInstance().navigateTo(targetKey);
       }
 
       return true;

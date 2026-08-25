@@ -5,6 +5,7 @@
   "description": "RaagaX - Futuristic Music Streaming Platform & High Performance Music API Engine",
   "main": "electron/main.js",
   "scripts": {
+    "predev": "node scripts/clean-dev.js",
     "dev": "next dev",
     "clean": "cmd /c \"if exist .next rmdir /s /q .next\"",
     "build": "next build",

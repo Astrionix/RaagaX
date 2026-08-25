@@ -7,7 +7,7 @@ import {
   Play,
   Volume2,
   ListMusic,
-  Smartphone,
+  Speaker,
   Library,
   Sparkles,
   Bell,
@@ -89,7 +89,7 @@ const SECTIONS: SectionDef[] = [
   { id: 'playback', label: 'Playback', icon: Play, description: 'Autoplay, crossfade, and playback restoration' },
   { id: 'audio-quality', label: 'Audio Quality', icon: Volume2, description: 'Streaming bitrates and download formats' },
   { id: 'queue', label: 'Queue', icon: ListMusic, description: 'Queue persistence, repeat, and completion modes' },
-  { id: 'devices', label: 'Devices', icon: Smartphone, description: 'Active connect sessions and remote handoff' },
+  { id: 'devices', label: 'Audio Outputs', icon: Speaker, description: 'Active audio output, bluetooth, and speaker routing' },
   { id: 'library', label: 'Library', icon: Library, description: 'Cloud synchronization and offline storage' },
   { id: 'recommendations', label: 'Recommendations', icon: Sparkles, description: 'Taste modeling, signals, and language discovery' },
   { id: 'notifications', label: 'Notifications', icon: Bell, description: 'Push alerts, new music, and security pings' },
@@ -305,9 +305,9 @@ export function SettingsView() {
         <aside
           className={`lg:block ${
             mobileDetailOpen ? 'hidden' : 'block'
-          } bg-[#0D0F17]/80 backdrop-blur-md rounded-2xl border border-white/5 p-2 sticky top-4 max-h-[calc(100vh-8rem)] overflow-y-auto`}
+          } bg-[#0D0F17]/80 backdrop-blur-md rounded-2xl border border-white/5 p-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto`}
         >
-          <nav className="space-y-0.5">
+          <nav className="space-y-1">
             {SECTIONS.map((sec) => {
               const Icon = sec.icon;
               const isActive = activeSection === sec.id;
@@ -318,7 +318,7 @@ export function SettingsView() {
                     setActiveSection(sec.id);
                     setMobileDetailOpen(true);
                   }}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-medium transition-all touch-manipulation active:scale-[0.99] cursor-pointer ${
                     isActive
                       ? 'bg-gradient-to-r from-[#F51B3D]/15 to-[#F51B3D]/5 text-white border border-[#F51B3D]/30 shadow-sm'
                       : 'text-[#9AA0AE] hover:text-white hover:bg-white/[0.04]'
