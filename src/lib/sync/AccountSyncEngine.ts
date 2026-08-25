@@ -988,7 +988,7 @@ export class AccountSyncEngine {
         const historyRows = guestHistory.slice(0, 100).map((songId) => ({
           user_id: userId,
           song_id: songId,
-          event_type: 'PLAY',
+          event_type: 'play',
         }));
         try {
           await supabase.from('listening_events').insert(historyRows);

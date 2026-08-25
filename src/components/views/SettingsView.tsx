@@ -264,7 +264,15 @@ export function SettingsView() {
     showToast('Search history cleared');
   };
 
-  const handleClearListeningHistory = () => {
+  const handleClearListeningHistory = async () => {
+    try {
+      const { QueueHistory } = await import('@/lib/queue/QueueHistory');
+      await QueueHistory.getInstance().clear();
+      const { ListeningAnalyticsEngine } = await import('@/lib/analytics/ListeningAnalyticsEngine');
+      await ListeningAnalyticsEngine.getInstance().clearListeningHistory();
+    } catch (e) {
+      console.warn('[SettingsView] Failed to clear listening history:', e);
+    }
     usePlayerStore.setState({ historySongIds: [] });
     showToast('Listening history cleared');
   };
@@ -1359,9 +1367,7 @@ export function SettingsView() {
                   <button
                     onClick={async () => {
                       if (window.confirm("Clear all your listening history? This cannot be undone.")) {
-                        const { ListeningAnalyticsEngine } = await import('@/lib/analytics/ListeningAnalyticsEngine');
-                        await ListeningAnalyticsEngine.getInstance().clearListeningHistory();
-                        showToast("Listening history cleared");
+                        await handleClearListeningHistory();
                       }
                     }}
                     className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs font-bold transition-all cursor-pointer"

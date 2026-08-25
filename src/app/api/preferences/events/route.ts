@@ -38,14 +38,18 @@ export async function POST(req: NextRequest) {
 
     if (validEvents.length > 0 && userId) {
       // Ingest into durable listening_events table
-      const rows = validEvents.map(e => ({
-        user_id: userId,
-        track_id: e.trackId,
-        event_type: e.eventType,
-        position_ms: e.positionMs || 0,
-        duration_ms: e.durationMs || 0,
-        created_at: new Date(e.timestamp || Date.now()).toISOString(),
-      }));
+      const validEventTypes = ['play', 'pause', 'complete', 'skip', 'like', 'unlike', 'replay', 'search', 'add_to_queue'];
+      const rows = validEvents.map(e => {
+        const rawType = (e.eventType || 'play').toLowerCase();
+        const event_type = validEventTypes.includes(rawType) ? rawType : 'play';
+        return {
+          user_id: userId,
+          song_id: e.trackId,
+          event_type,
+          position_ms: e.positionMs || 0,
+          created_at: new Date(e.timestamp || Date.now()).toISOString(),
+        };
+      });
 
       try {
         await supabaseAdmin.from('listening_events').insert(rows);

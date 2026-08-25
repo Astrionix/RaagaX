@@ -113,7 +113,12 @@ export function HistoryView() {
     playSong(list[0], list);
   };
 
-  const handleClearHistory = () => {
+  const handleClearHistory = async () => {
+    try {
+      await QueueHistory.getInstance().clear();
+    } catch (err) {
+      console.warn('[HistoryView] Failed to clear QueueHistory:', err);
+    }
     usePlayerStore.setState({ historySongIds: [] });
     setHistorySongs([]);
     setShowClearConfirm(false);

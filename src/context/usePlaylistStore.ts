@@ -536,17 +536,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
           createdAt: pl.createdAt,
           updatedAt: pl.updatedAt,
           songIds: pl.songIds || [],
-          songs: (pl.songs || []).slice(0, 50).map((s) => ({
-            id: s.id,
-            title: s.title,
-            artist: s.artist,
-            album: s.album,
-            duration: s.duration,
-            coverUrl: s.coverUrl,
-            audioUrl: s.audioUrl,
-            genre: s.genre,
-            category: s.category,
-          })),
+          songs: [], // Hydrated on demand by SongResolver to maintain tiny localStorage footprint
           likesCount: pl.likesCount,
           isLikedByMe: pl.isLikedByMe,
           isCollaborative: pl.isCollaborative,
