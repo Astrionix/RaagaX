@@ -120,16 +120,44 @@ export function OnboardingAuthModal() {
 
   if (!mounted || !isAuthModalOpen) return null;
 
-  const handleLogin = async () => {
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setErrorMsg('');
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setErrorMsg('Please enter a valid email address.');
+      return;
+    }
+    if (!password) {
+      setErrorMsg('Please enter your password.');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
         password,
       });
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('Invalid login credentials')) {
+          setErrorMsg('Incorrect email or password. If you do not have an account yet, click "Create account" below.');
+        } else if (error.message.includes('Email not confirmed')) {
+          setErrorMsg('Please confirm your email address before logging in.');
+        } else {
+          setErrorMsg(error.message);
+        }
+        return;
+      }
+      if (data?.session) {
+        useAuthStore.setState({
+          session: data.session,
+          user: data.session.user,
+          isLoading: false,
+        });
+      }
       localStorage.setItem('raagax_onboarding_done', 'true');
+      setAuthModalOpen(false);
     } catch (err: any) {
       setErrorMsg(err.message || 'Incorrect email or password. Please try again.');
     } finally {
@@ -196,18 +224,33 @@ export function OnboardingAuthModal() {
     });
 
     try {
-      if (email && password) {
+      const cleanEmail = email.trim().toLowerCase();
+      if (cleanEmail && password) {
         try {
-          const { error } = await supabase.auth.signUp({
-            email,
+          const { data, error } = await supabase.auth.signUp({
+            email: cleanEmail,
             password,
             options: { data: { full_name: username || 'RaagaX Listener' } }
           });
           if (error) {
-            console.warn('[Onboarding] Supabase signup note:', error.message);
+            if (error.message.includes('already registered')) {
+              setErrorMsg('An account with this email already exists. Please Sign In.');
+              setMode('login');
+              return;
+            } else {
+              setErrorMsg(error.message);
+              return;
+            }
           }
-        } catch (authEx) {
-          console.warn('[Onboarding] Cloud auth skipped/offline:', authEx);
+          if (data?.session) {
+            useAuthStore.setState({
+              session: data.session,
+              user: data.session.user,
+              isLoading: false,
+            });
+          }
+        } catch (authEx: any) {
+          console.warn('[Onboarding] Cloud auth error:', authEx);
         }
       }
       localStorage.setItem('raagax_onboarding_done', 'true');
@@ -285,7 +328,10 @@ export function OnboardingAuthModal() {
 
             {/* --- LOGIN & REGISTER CREDENTIALS --- */}
             {(mode === 'login' || mode === 'register-credentials') && (
-              <>
+              <form 
+                onSubmit={mode === 'login' ? handleLogin : handleRegisterCredentials}
+                className="space-y-4"
+              >
                 {mode === 'register-credentials' && (
                   <div className="space-y-1.5">
                     <label className="text-[14px] font-semibold text-[#9AA0AE] ml-1">Username</label>
@@ -367,17 +413,17 @@ export function OnboardingAuthModal() {
                 )}
 
                 <button
-                  onClick={mode === 'login' ? handleLogin : handleRegisterCredentials}
+                  type="submit"
                   disabled={isLoading}
                   className="w-full h-[56px] mt-4 rounded-[16px] bg-[#F51B3D] text-white font-bold text-[15px] hover:bg-gradient-to-r hover:from-[#F51B3D] hover:to-[#FF2347] hover:scale-[1.01] active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2 group"
                 >
                   {isLoading ? (
-                    <><Loader2 className="w-5 h-5 animate-spin" /> Signing in...</>
+                    <><Loader2 className="w-5 h-5 animate-spin" /> {mode === 'login' ? 'Signing in...' : 'Processing...'}</>
                   ) : (
                     <>{mode === 'login' ? 'Sign In' : 'Continue'} <ArrowRight className="w-5 h-5 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" /></>
                   )}
                 </button>
-              </>
+              </form>
             )}
 
             {/* --- REGISTER LANGUAGES (Multi-Select) --- */}

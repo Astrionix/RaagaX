@@ -31,7 +31,8 @@ export function DownloadStatusIndicator({
   const downloadedSongIds = usePlayerStore((s) => s.downloadedSongIds);
   const librarySongIds = usePlayerStore((s) => s.librarySongIds);
 
-  if (!song || !song.id) return null;
+  const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
+  if (!isNative || !song || !song.id) return null;
 
   const task = tasks[song.id];
   const isDownloaded = downloadedSongIds.includes(song.id) || !!nativeTracks[song.id];

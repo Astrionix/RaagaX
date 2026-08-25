@@ -1,6 +1,5 @@
 import React from 'react';
 import './globals.css';
-import { DeviceSyncProvider } from '@/components/providers/DeviceSyncProvider';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
 
 export const viewport = {
@@ -57,9 +56,7 @@ export default function RootLayout({
       </head>
       <body suppressHydrationWarning className="antialiased bg-[var(--bg-primary)] text-[var(--text-primary)] selection:bg-red-500 selection:text-white transition-colors duration-200">
         <ThemeProvider>
-          <DeviceSyncProvider>
-            {children}
-          </DeviceSyncProvider>
+          {children}
         </ThemeProvider>
       </body>
     </html>

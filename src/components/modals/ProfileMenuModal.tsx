@@ -30,17 +30,12 @@ export function ProfileMenuModal({ isOpen, onClose }: ProfileMenuModalProps) {
   const { user, signOut, setAuthModalOpen } = useAuthStore();
   const {
     setActiveTab,
-    toggleDeviceModal,
-    toggleEqualizer,
-    activeDeviceId,
-    deviceId,
-    remoteDeviceName,
+    toggleSettingsModal,
   } = usePlayerStore();
 
   if (!isOpen) return null;
 
   const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
-  const isConnectedRemote = Boolean(activeDeviceId && activeDeviceId !== deviceId);
   const displayName = user?.user_metadata?.full_name || (user?.email ? user.email.split('@')[0] : 'Guest Listener');
   const userEmail = user?.email || 'Sign in to sync across devices';
 
@@ -117,44 +112,12 @@ export function ProfileMenuModal({ isOpen, onClose }: ProfileMenuModalProps) {
               Audio & Devices
             </span>
 
-            {/* Connect Device */}
+            {/* Audio Settings */}
             <button
               onClick={() => {
                 haptics.lightImpact();
                 onClose();
-                toggleDeviceModal();
-              }}
-              className="w-full p-3 rounded-2xl bg-white/[0.03] hover:bg-white/10 border border-white/5 flex items-center justify-between text-left group transition-all cursor-pointer"
-            >
-              <div className="flex items-center gap-3">
-                <div className={`w-9 h-9 rounded-xl border flex items-center justify-center ${
-                  isConnectedRemote
-                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                    : 'bg-blue-500/15 border-blue-500/30 text-blue-400'
-                }`}>
-                  <MonitorSmartphone className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-white group-hover:text-blue-300 transition-colors flex items-center gap-1.5">
-                    Connect Device
-                    {isConnectedRemote && (
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    )}
-                  </h4>
-                  <p className="text-[11px] text-slate-400">
-                    {isConnectedRemote ? `Streaming to ${remoteDeviceName}` : 'Stream to Desktop, Phone, or Bluetooth'}
-                  </p>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
-            </button>
-
-            {/* Audio Settings & Equalizer */}
-            <button
-              onClick={() => {
-                haptics.lightImpact();
-                onClose();
-                toggleEqualizer(true);
+                toggleSettingsModal();
               }}
               className="w-full p-3 rounded-2xl bg-white/[0.03] hover:bg-white/10 border border-white/5 flex items-center justify-between text-left group transition-all cursor-pointer"
             >
@@ -164,9 +127,9 @@ export function ProfileMenuModal({ isOpen, onClose }: ProfileMenuModalProps) {
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-white group-hover:text-amber-300 transition-colors">
-                    Audio Quality & Equalizer
+                    Audio Quality & Streaming
                   </h4>
-                  <p className="text-[11px] text-slate-400">320kbps Lossless, EQ Presets, Spatial Master</p>
+                  <p className="text-[11px] text-slate-400">320kbps Lossless, Gapless Playback, Crossfade</p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />

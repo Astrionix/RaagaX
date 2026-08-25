@@ -31,7 +31,7 @@ export interface Song {
   language?: string;
   language_code?: string; // Verified language code: 'te', 'hi', 'ta', 'kn', 'ml', 'pa', 'bn', 'en', etc.
   languageCode?: string;
-  category: 'latest_telugu' | '90s_telugu' | 'love' | 'mass' | 'melody' | 'folk' | 'devotional' | 'global_trending' | 'radio';
+  category: 'latest_telugu' | '90s_telugu' | 'love' | 'mass' | 'melody' | 'folk' | 'devotional' | 'global_trending';
   releaseYear: number;
   releaseDate?: string;
   added_at?: string; // Immutable ISO timestamp when first discovered/added to RaagaX
@@ -138,9 +138,9 @@ export interface AIDJState {
   insightText: string;
 }
 
-export type PlaybackContext = { type: 'album' | 'playlist' | 'radio' | 'recommendation' | 'album_sequence' | 'artist' | 'genre' | 'made_for_you' | 'new_releases' | 'queue' | 'search' | string; id?: string; title?: string; name?: string; language?: string; mood?: string; genre?: string; seedSongId?: string; seedAlbumId?: string; seedPlaylistId?: string; collectionId?: string; contextType?: string; };
+export type PlaybackContext = { type: 'album' | 'playlist' | 'recommendation' | 'album_sequence' | 'artist' | 'genre' | 'made_for_you' | 'new_releases' | 'queue' | 'search' | string; id?: string; title?: string; name?: string; language?: string; mood?: string; genre?: string; seedSongId?: string; seedAlbumId?: string; seedPlaylistId?: string; collectionId?: string; contextType?: string; };
 
-export type ActiveTab = 'home' | 'new' | 'search' | 'library' | 'genres' | 'video' | 'radio' | 'ai-dj' | 'artist' | 'album' | 'playlist' | 'profile' | 'downloads' | 'favorites' | 'settings' | 'insights' | 'recaps' | 'history';
+export type ActiveTab = 'home' | 'new' | 'search' | 'library' | 'genres' | 'video' | 'ai-dj' | 'artist' | 'album' | 'playlist' | 'profile' | 'downloads' | 'favorites' | 'settings' | 'insights' | 'recaps' | 'history';
 
 export interface Device {
   id: string;
@@ -173,7 +173,7 @@ export type PlaybackStatus =
 
 export type LyricsMode = 'native' | 'english' | 'romanized' | 'dual' | 'auto';
 
-export type Renderer = 'audio' | 'video' | 'remote';
+export type Renderer = 'audio';
 
 export interface PlaybackSession {
   sessionId: string;

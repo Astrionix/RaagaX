@@ -390,21 +390,19 @@ export class AccountSyncEngine {
           console.warn('[AccountSyncEngine] Failed to reconcile playlists:', plErr);
         }
 
-        // 3. Reconcile User Favorites (Artists & Albums)
+        // 3. Reconcile User Favorite Artists & Saved Albums
         try {
-          const { data: favData, error: favError } = await supabase
-            .from('user_favorites')
-            .select('item_id, item_type')
-            .eq('user_id', userId);
+          const [artistsRes, albumsRes] = await Promise.all([
+            supabase.from('user_artists').select('artist_id').eq('user_id', userId),
+            supabase.from('saved_albums').select('album_id').eq('user_id', userId)
+          ]);
 
-          if (!favError && favData) {
-            const favArtists = favData.filter((f: any) => f.item_type === 'artist').map((f: any) => f.item_id);
-            const favAlbums = favData.filter((f: any) => f.item_type === 'album').map((f: any) => f.item_id);
-            usePlayerStore.setState({
-              favoriteArtistIds: favArtists,
-              favoriteAlbumIds: favAlbums
-            });
-          }
+          const favArtists = artistsRes.data ? artistsRes.data.map((f: any) => f.artist_id) : [];
+          const favAlbums = albumsRes.data ? albumsRes.data.map((f: any) => f.album_id) : [];
+          usePlayerStore.setState({
+            favoriteArtistIds: favArtists,
+            favoriteAlbumIds: favAlbums
+          });
         } catch (favErr) {
           console.warn('[AccountSyncEngine] Failed to reconcile favorites:', favErr);
         }
@@ -971,12 +969,17 @@ export class AccountSyncEngine {
       // 3. Merge Guest Favorites (Artists & Albums)
       const favArtists = usePlayerStore.getState().favoriteArtistIds || [];
       const favAlbums = usePlayerStore.getState().favoriteAlbumIds || [];
-      const favRows = [
-        ...favArtists.map((id) => ({ user_id: userId, item_id: id, item_type: 'artist' })),
-        ...favAlbums.map((id) => ({ user_id: userId, item_id: id, item_type: 'album' })),
-      ];
-      if (favRows.length > 0) {
-        await supabase.from('user_favorites').upsert(favRows, { onConflict: 'user_id,item_id,item_type', ignoreDuplicates: true });
+      if (favArtists.length > 0) {
+        await supabase.from('user_artists').upsert(
+          favArtists.map((id) => ({ user_id: userId, artist_id: id })),
+          { onConflict: 'user_id,artist_id', ignoreDuplicates: true }
+        );
+      }
+      if (favAlbums.length > 0) {
+        await supabase.from('saved_albums').upsert(
+          favAlbums.map((id) => ({ user_id: userId, album_id: id })),
+          { onConflict: 'user_id,album_id', ignoreDuplicates: true }
+        );
       }
 
       // 4. Merge Guest Listening History

@@ -197,7 +197,7 @@ export function LanguageOnboardingModal() {
                 What languages do you listen to?
               </h2>
               <p className="text-xs sm:text-sm text-slate-300">
-                Select one or more languages to tailor your discovery, albums, and radio.
+                Select one or more languages to tailor your discovery and albums.
               </p>
             </div>
 

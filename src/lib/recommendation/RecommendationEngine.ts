@@ -7,6 +7,7 @@ import { UserBehaviorTracker, UserEventType } from '@/lib/analytics/UserBehavior
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SongUniquenessEngine } from '@/lib/music/SongUniquenessEngine';
 import { NewReleasesEngine } from '@/lib/catalog/NewReleasesEngine';
+import { AppCacheDB } from '@/lib/cache/AppCacheDB';
 
 export interface PersonalizedHomeFeed {
   greeting: string;
@@ -98,7 +99,7 @@ export class RecommendationEngine {
     }
     if (typeof window !== 'undefined') {
       try {
-        const raw = localStorage.getItem(`raagax_feed_${key}`);
+        const raw = sessionStorage.getItem(`raagax_feed_${key}`);
         if (raw) {
           const parsed = JSON.parse(raw);
           this.feedCacheMap.set(key, parsed);
@@ -163,19 +164,14 @@ export class RecommendationEngine {
     if (!seedSong || !seedSong.id) return [];
     this.loadNotInterested();
 
-    const cacheKey = `raagax_context_recs_${userId}_${seedSong.id}`;
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const filtered = parsed.filter((s: Song) => s.id !== seedSong.id && !this.notInterestedSet.has(s.id));
-            if (filtered.length >= 4) return filtered.slice(0, limit);
-          }
-        }
-      } catch {}
-    }
+    const cacheKey = `recs_${userId}_${seedSong.id}`;
+    try {
+      const cached = await AppCacheDB.getInstance().getRecommendations<Song[]>(cacheKey);
+      if (Array.isArray(cached) && cached.length > 0) {
+        const filtered = cached.filter((s: Song) => s.id !== seedSong.id && !this.notInterestedSet.has(s.id));
+        if (filtered.length >= 4) return filtered.slice(0, limit);
+      }
+    } catch {}
 
     const musicEngine = RealMusicEngine.getInstance();
     const primaryArtist = seedSong.artist ? seedSong.artist.split(/[,&/]/)[0].trim() : '';
@@ -219,10 +215,8 @@ export class RecommendationEngine {
         if (ranked.length >= limit) break;
       }
 
-      if (ranked.length > 0 && typeof window !== 'undefined') {
-        try {
-          localStorage.setItem(cacheKey, JSON.stringify(ranked));
-        } catch {}
+      if (ranked.length > 0) {
+        AppCacheDB.getInstance().setRecommendations(cacheKey, ranked).catch(() => {});
       }
 
       return ranked;
@@ -398,7 +392,7 @@ export class RecommendationEngine {
     this.feedCacheMap.set(key, result);
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem(`raagax_feed_${key}`, JSON.stringify(result));
+        sessionStorage.setItem(`raagax_feed_${key}`, JSON.stringify(result));
       } catch {}
     }
 

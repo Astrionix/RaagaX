@@ -60,11 +60,11 @@ export class HandoffManager {
       this.transition('PREPARING');
       const targetElement = rendererManager.getRendererElement(targetRenderer);
       
-      if (!targetElement && targetRenderer !== 'remote') {
+      if (!targetElement) {
         throw new Error(`Target renderer ${targetRenderer} is not available.`);
       }
 
-      if (targetRenderer !== 'remote' && targetElement) {
+      if (targetElement) {
         this.transition('LOADING');
         // Preload/Buffer
         targetElement.load();
@@ -109,7 +109,7 @@ export class HandoffManager {
       // Acquire lease for the new target. This automatically pauses the old source.
       rendererManager.acquireLease(targetRenderer);
       
-      if (targetRenderer !== 'remote' && targetElement) {
+      if (targetElement) {
          engine.attachMediaElement(targetElement);
       } else {
          engine.detachMediaElement();

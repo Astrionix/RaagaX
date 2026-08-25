@@ -35,7 +35,6 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { OfflineCatalog } from '@/lib/offline/OfflineCatalog';
 import { DownloadStorage } from '@/lib/offline/DownloadStorage';
-import { DeviceRegistry } from '@/lib/connect/DeviceRegistry';
 import { OfflineTrack, StorageEstimateInfo } from '@/lib/offline/types';
 import { Song } from '@/types/music';
 
@@ -129,8 +128,8 @@ export function DownloadsView() {
   }, [Object.keys(tasks).length, downloadedSongIds.length]);
 
   const handleSaveDeviceName = async () => {
-    if (customDeviceInput.trim()) {
-      await DeviceRegistry.getInstance().setCustomDeviceName(customDeviceInput.trim());
+    if (customDeviceInput.trim() && typeof window !== 'undefined') {
+      localStorage.setItem('raagax_device_name', customDeviceInput.trim());
       await refreshCatalog();
     }
     setIsEditingDeviceName(false);
@@ -245,6 +244,35 @@ export function DownloadsView() {
     }
   };
 
+  const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
+
+  if (!isNative) {
+    return (
+      <div className="space-y-6 pb-12 text-white select-none max-w-xl mx-auto pt-12 text-center">
+        <div className="w-16 h-16 rounded-3xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto shadow-xl shadow-emerald-500/10">
+          <Smartphone className="w-8 h-8" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-black text-white">Mobile Exclusive Feature</h2>
+          <p className="text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
+            Offline MP3 downloads and device storage management are exclusive to the <strong className="text-white">RaagaX Mobile App</strong>.
+          </p>
+          <p className="text-xs text-slate-500">
+            On Desktop, enjoy high-fidelity real-time streaming with zero local disk footprint.
+          </p>
+        </div>
+        <div className="pt-4 flex items-center justify-center gap-3">
+          <button
+            onClick={() => usePlayerStore.getState().setActiveTab('home')}
+            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white font-bold text-xs shadow-lg shadow-red-500/25 hover:brightness-110 transition-all cursor-pointer"
+          >
+            Explore Music on Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 pb-12 text-white select-none">
       {/* Header */}
@@ -335,14 +363,6 @@ export function DownloadsView() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => usePlayerStore.getState().toggleDeviceModal()}
-              className="px-3 py-1 rounded-full bg-[#fa233b]/10 hover:bg-[#fa233b]/20 text-[#fa233b] border border-[#fa233b]/20 text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer hover:scale-105"
-              title="Connect to My Device (Cast & Sync)"
-            >
-              <MonitorSmartphone className="w-3.5 h-3.5" />
-              <span>Connect Device</span>
-            </button>
             <span className="text-[10px] font-semibold text-slate-400 px-2.5 py-1 rounded-full bg-white/5 border border-white/5">
               {storageInfo?.isNative ? '📱 Android Native Storage' : '💻 Browser / Desktop Storage Quota'}
             </span>

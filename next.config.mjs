@@ -2,6 +2,7 @@
 const isStaticExport = process.env.STATIC_EXPORT === 'true';
 
 const nextConfig = {
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   ...(isStaticExport ? { output: 'export', trailingSlash: true } : {}),
   reactStrictMode: true,
   eslint: {

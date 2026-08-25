@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Music, HardDrive, FileAudio, Disc, Clock, Calendar, CheckCircle2, Share2, Play } from 'lucide-react';
 import { Song } from '@/types/music';
 import { useDownloadStore } from '@/context/useDownloadStore';
@@ -11,10 +12,15 @@ interface SongDetailsModalProps {
 }
 
 export function SongDetailsModal({ isOpen, onClose, song }: SongDetailsModalProps) {
+  const [mounted, setMounted] = useState(false);
   const { nativeDownloadedTracks, shareSongFile } = useDownloadStore();
   const { playSong } = usePlayerStore();
 
-  if (!isOpen || !song) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!isOpen || !song || !mounted || typeof document === 'undefined') return null;
 
   const nativeTrack = nativeDownloadedTracks[song.id];
   const quality = nativeTrack?.quality || (song as any).quality || '320 kbps';
@@ -36,8 +42,8 @@ export function SongDetailsModal({ isOpen, onClose, song }: SongDetailsModalProp
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md select-none animate-in fade-in duration-150">
+  return createPortal(
+    <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md select-none animate-in fade-in duration-150" onClick={onClose}>
       <div 
         onClick={(e) => e.stopPropagation()}
         className="bg-[#14151a] border border-white/10 rounded-3xl w-full max-w-md overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-200"
@@ -159,6 +165,7 @@ export function SongDetailsModal({ isOpen, onClose, song }: SongDetailsModalProp
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

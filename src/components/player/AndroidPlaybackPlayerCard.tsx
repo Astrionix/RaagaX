@@ -41,16 +41,7 @@ export function AndroidPlaybackPlayerCard({
     togglePlayPause,
     playNext,
     playPrev,
-    activeDeviceId,
-    isActiveDevice,
   } = usePlaybackSession();
-
-  const {
-    onlineDevices,
-    deviceId,
-    remoteDeviceName,
-    toggleDeviceModal,
-  } = usePlayerStore();
 
   const [palette, setPalette] = useState<ChameleonPalette | null>(null);
 
@@ -58,11 +49,7 @@ export function AndroidPlaybackPlayerCard({
     ? currentSong.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500')
     : '/app-icon.png';
 
-  const activeDeviceObj = onlineDevices.find((d) => d.id === activeDeviceId);
-  const localDeviceObj = onlineDevices.find((d) => d.id === deviceId);
-  const currentOutputName = !isActiveDevice
-    ? (remoteDeviceName || activeDeviceObj?.name || 'Remote Device')
-    : (localDeviceObj?.name || 'This Phone');
+  const currentOutputName = 'This Phone';
 
   // Extract dynamic colors from artwork
   useEffect(() => {
@@ -131,19 +118,14 @@ export function AndroidPlaybackPlayerCard({
               </span>
             </div>
 
-            {/* Output Device Pill / Cast Indicator */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                haptics.selectionTick();
-                toggleDeviceModal();
-              }}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 hover:bg-white/20 text-[10px] font-bold text-slate-300 hover:text-white border border-white/10 transition-colors cursor-pointer"
+            {/* Output Device Pill */}
+            <div
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 text-[10px] font-bold text-slate-300 border border-white/10"
               title={`Output: ${currentOutputName}`}
             >
               <Headphones className="w-3 h-3 text-[#FA233B]" />
               <span className="truncate max-w-[85px]">{currentOutputName}</span>
-            </button>
+            </div>
           </div>
 
           <h3 className="text-sm sm:text-base font-black text-white truncate tracking-tight leading-snug">

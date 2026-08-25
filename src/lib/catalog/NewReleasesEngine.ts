@@ -1,5 +1,6 @@
 import { Song } from '@/types/music';
 import { RealMusicEngine } from '@/lib/realMusicEngine';
+import { SongFormatter } from '@/lib/music/SongFormatter';
 
 export interface CatalogSongRecord {
   id: string;
@@ -127,10 +128,10 @@ export class DefaultJioSaavnSourceAdapter implements MusicSourceAdapter {
         const json = await res.json();
         if (json.success && Array.isArray(json.data) && json.data.length > 0) {
           return json.data.map((item: any) => {
-            const rawTitle = item.title ? item.title.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#039;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>') : 'Untitled';
+            const rawTitle = item.title ? SongFormatter.decodeHtml(item.title) : 'Untitled';
             return {
               id: item.id,
-              title: rawTitle,
+              title: SongFormatter.cleanAlbumTitle(rawTitle) || rawTitle,
               coverUrl: item.image ? item.image.replace('150x150', '500x500') : '/app-icon.png',
               language: item.language,
               type: item.type || 'album',
@@ -534,10 +535,12 @@ export class NewReleasesEngine {
         const it = a.rawItem;
         const pa = it.more_info?.artistMap?.primary_artists || [];
         const artist = pa.length > 0
-          ? pa.map((art: any) => art.name).join(', ')
-          : (it.subtitle || it.more_info?.singers || 'Various Artists');
-        const title = it.title ? it.title.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#039;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>') : 'Untitled';
-        const album = it.more_info?.album ? it.more_info.album.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#039;/g, "'") : title;
+          ? pa.map((art: any) => SongFormatter.decodeHtml(art.name)).join(', ')
+          : SongFormatter.decodeHtml(it.subtitle || it.more_info?.singers || 'Various Artists');
+        const rawTitle = it.title ? SongFormatter.decodeHtml(it.title) : 'Untitled';
+        const rawAlbum = it.more_info?.album ? SongFormatter.decodeHtml(it.more_info.album) : rawTitle;
+        const title = SongFormatter.cleanSongTitle(rawTitle);
+        const album = SongFormatter.cleanAlbumTitle(rawAlbum, rawTitle) || title;
         const releaseDate = it.more_info?.release_date || a.releaseDate;
         const releaseYear = a.releaseYear || (releaseDate ? parseInt(releaseDate.slice(0, 4)) : 2026);
         const coverUrl = it.image ? it.image.replace('150x150', '500x500') : (a.coverUrl || '/app-icon.png');

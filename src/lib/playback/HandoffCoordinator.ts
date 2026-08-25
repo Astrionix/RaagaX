@@ -67,15 +67,6 @@ export class HandoffCoordinator {
       createdAt: Date.now(),
     };
 
-    usePlayerStore.setState({
-      handoffState: {
-        from: sourceRendererType,
-        to: targetRendererType,
-        phase: 'prepare',
-        positionMs: canonicalPositionMs,
-      },
-    });
-
     console.log(`[HandoffCoordinator] Initiating handoff generation #${currentGeneration}: ${sourceRendererType} -> ${targetRendererType} @ ${canonicalPositionMs}ms`);
 
     try {
@@ -118,7 +109,6 @@ export class HandoffCoordinator {
 
       usePlayerStore.setState({
         activeRenderer: targetRendererType,
-        handoffState: null,
       });
 
       this.currentHandoff = null;
@@ -130,8 +120,6 @@ export class HandoffCoordinator {
       // ROLLBACK: Source renderer continues unaffected
       this.updatePhase('rollback');
       targetRenderer.pause();
-
-      usePlayerStore.setState({ handoffState: null });
       this.currentHandoff = null;
       return false;
     }
@@ -140,9 +128,6 @@ export class HandoffCoordinator {
   private updatePhase(phase: HandoffPhase) {
     if (this.currentHandoff) {
       this.currentHandoff.phase = phase;
-      usePlayerStore.setState((state) => ({
-        handoffState: state.handoffState ? { ...state.handoffState, phase } : null,
-      }));
     }
   }
 }

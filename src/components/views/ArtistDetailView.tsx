@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react';
 import useSWR from 'swr';
 import {
   Play, Pause, Heart, Download, Music, ArrowLeft, Disc, Users,
-  ShieldCheck, Check, Shuffle, Sparkles, Tv, ListMusic, Info, Share2, Radio
+  ShieldCheck, Check, Shuffle, Sparkles, ListMusic, Info, Share2, Radio
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { getApiUrl } from '@/lib/config/apiConfig';
@@ -18,7 +18,7 @@ import { NavigationStack } from '@/lib/navigation/NavigationStack';
 
 const fetcher = (url: string) => fetch(getApiUrl(url)).then(res => res.json()).catch(() => null);
 
-type ArtistTab = 'popular' | 'songs' | 'albums' | 'videos' | 'playlists' | 'about';
+type ArtistTab = 'popular' | 'songs' | 'albums' | 'playlists' | 'about';
 
 export function ArtistDetailView() {
   const { 
@@ -301,23 +301,6 @@ export function ArtistDetailView() {
             <Shuffle className="w-4 h-4" /> Shuffle
           </button>
 
-          {/* Artist Radio Station */}
-          <button
-            onClick={() => {
-              import('@/lib/radio/RadioEngine').then(({ RadioEngine }) => {
-                RadioEngine.getInstance().startRadio({
-                  type: 'artist',
-                  seedId: artist?.id || selectedArtistId || '',
-                  seedTitle: artist?.name || 'Artist',
-                  seedCover: artist?.image?.find?.((i: any) => i.quality === '500x500')?.url || artist?.image?.[0]?.url,
-                  language: preferredLanguage,
-                });
-              });
-            }}
-            className="flex items-center gap-2 px-5 py-3.5 rounded-full bg-white/10 hover:bg-[#FA233B]/20 text-white hover:text-[#FA233B] font-bold text-sm border border-white/10 hover:border-[#FA233B]/40 active:scale-95 transition-all cursor-pointer"
-          >
-            <Radio className="w-4 h-4 text-[#FA233B]" /> Radio
-          </button>
 
           {/* ＋ Follow / ✓ Following subscription toggle */}
           <button
@@ -349,7 +332,6 @@ export function ArtistDetailView() {
             { id: 'popular', label: 'Popular', icon: Sparkles },
             { id: 'songs', label: 'Songs', icon: Music },
             { id: 'albums', label: 'Albums', icon: Disc },
-            { id: 'videos', label: 'Videos', icon: Tv, desktopOnly: true },
             { id: 'playlists', label: 'Playlists', icon: ListMusic },
             { id: 'about', label: 'About', icon: Info },
           ].map((tab) => {
@@ -359,7 +341,7 @@ export function ArtistDetailView() {
               <button
                 key={tab.id}
                 onClick={() => setActiveSubTab(tab.id as ArtistTab)}
-                className={`${tab.desktopOnly ? 'hidden md:flex' : 'flex'} items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
+                className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
                   isActive
                     ? 'bg-white/15 text-white border border-white/20 shadow-md'
                     : 'text-slate-400 hover:text-white hover:bg-white/5'
@@ -507,47 +489,7 @@ export function ArtistDetailView() {
         </div>
       )}
 
-      {/* ── TAB 4: VIDEOS ─────────────────────────────────────────────────── */}
-      {activeSubTab === 'videos' && (
-        <div className="max-w-6xl mx-auto px-4 sm:px-8 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {artistSongs.slice(0, 9).map((song: Song) => (
-              <div
-                key={song.id}
-                onClick={() => {
-                  playSong(song, artistSongs);
-                  usePlayerStore.getState().setRenderer('video');
-                }}
-                className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 transition-all space-y-3 cursor-pointer group hover:scale-[1.02]"
-              >
-                <div className="w-full aspect-video rounded-xl overflow-hidden shadow-lg relative bg-black border border-white/10 flex items-center justify-center">
-                  <img
-                    src={song.coverUrl}
-                    alt={song.title}
-                    className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500"
-                  />
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                    <div className="w-11 h-11 rounded-full bg-[#fa233b] text-white flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
-                      <Play className="w-5 h-5 fill-white ml-0.5" />
-                    </div>
-                  </div>
-                  <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/80 backdrop-blur-md text-[10px] font-mono font-bold text-white">
-                    HD Video
-                  </span>
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-white truncate group-hover:text-[#fa233b] transition-colors">
-                    {song.title}
-                  </h4>
-                  <p className="text-[10px] text-slate-400 mt-0.5">{artist.name} • Official Cinema</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── TAB 5: PLAYLISTS ─────────────────────────────────────────────── */}
+      {/* ── TAB 4: PLAYLISTS ─────────────────────────────────────────────── */}
       {activeSubTab === 'playlists' && (
         <div className="max-w-6xl mx-auto px-4 sm:px-8">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">

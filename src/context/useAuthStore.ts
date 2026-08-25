@@ -54,9 +54,6 @@ export const useAuthStore = create<AuthState>((set) => ({
           }
         } else if (event === 'SIGNED_OUT') {
           set({ session: null, user: null });
-          import('@/lib/connect/lan/RaagaXConnectV2').then(({ RaagaXConnectV2 }) => {
-            RaagaXConnectV2.getInstance().handleAccountLogout();
-          }).catch(() => {});
         }
       });
     } catch (e) {
@@ -81,11 +78,6 @@ export const useAuthStore = create<AuthState>((set) => ({
       await LocalDatabase.getInstance().clearPlaybackSession();
     } catch { }
 
-    try {
-      const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
-      RaagaXConnectV2.getInstance().handleAccountLogout();
-    } catch { }
-
     await supabase.auth.signOut().catch(() => { });
     set({ user: null, session: null });
     // Clear cross-device sync local storage fallbacks and queue caches on account switch
@@ -97,3 +89,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   }
 }));
+
+if (typeof window !== 'undefined') {
+  useAuthStore.getState().initializeAuth();
+}
+

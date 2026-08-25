@@ -8,6 +8,7 @@ import {
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { Song } from '@/types/music';
+import { SongFormatter } from '@/lib/music/SongFormatter';
 
 export function QueueModal() {
   const { 
@@ -222,7 +223,7 @@ export function QueueModal() {
               </span>
               {currentSong?.album && (
                 <span className="text-[10px] text-white/40 truncate max-w-[200px]">
-                  Playing from {currentSong.album}
+                  Playing from {SongFormatter.cleanAlbumTitle(currentSong.album)}
                 </span>
               )}
             </div>

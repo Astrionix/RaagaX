@@ -1,6 +1,56 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { Song, RepeatMode, AIDJState, ActiveTab, Renderer } from '@/types/music';
+
+const safeLocalStorage = createJSONStorage(() => ({
+  getItem: (name: string): string | null => {
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) return null;
+      return window.localStorage.getItem(name);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (name: string, value: string): void => {
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) return;
+      window.localStorage.setItem(name, value);
+    } catch (e) {
+      console.warn('[usePlayerStore] LocalStorage quota reached, pruning temporary cache keys...');
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          const keysToRemove: string[] = [];
+          for (let i = 0; i < window.localStorage.length; i++) {
+            const key = window.localStorage.key(i);
+            if (key && (
+              key.startsWith('cache_') ||
+              key.startsWith('cover_') ||
+              key.startsWith('search_') ||
+              key.startsWith('temp_') ||
+              key.startsWith('telemetry_') ||
+              key.startsWith('artist_') ||
+              key.startsWith('album_') ||
+              key === 'raagax_active_queue_snapshot'
+            )) {
+              keysToRemove.push(key);
+            }
+          }
+          keysToRemove.forEach((k) => window.localStorage.removeItem(k));
+          window.localStorage.setItem(name, value);
+        }
+      } catch {
+        // Fallback swallow to prevent QuotaExceededError crashes
+      }
+    }
+  },
+  removeItem: (name: string): void => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem(name);
+      }
+    } catch {}
+  },
+}));
 import { RecommendationEngine } from '@/lib/recommendationEngine';
 import { LocalDatabase } from '@/lib/localDatabase';
 import { QueueManager } from '@/lib/queue/QueueManager';
@@ -8,18 +58,15 @@ import { LanguageEligibilityEngine } from '@/lib/language/LanguageEligibilityEng
 import { InterruptionCoordinator } from '@/lib/playback/InterruptionCoordinator';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
 import { RaagaXNativePlayer } from '@/lib/playback/native/RaagaXNativePlayer';
-import { ConnectManager } from '@/lib/connect/ConnectManager';
-import { PlaybackWatchdog } from '@/lib/playback/PlaybackWatchdog';
-import { isKidsOrNurseryTrack } from '@/lib/jioSaavnProvider';
 import { SongCoverEngine } from '@/lib/playback/SongCoverEngine';
 import { SongUniquenessEngine } from '@/lib/music/SongUniquenessEngine';
-import { PlaybackStateSync } from '@/lib/connect/PlaybackStateSync';
-import { TransferManager } from '@/lib/connect/TransferManager';
+import { SongFormatter } from '@/lib/music/SongFormatter';
 import { MediaSessionManager } from '@/lib/playback/MediaSessionManager';
 
 import { AudioQuality, AudioQualityState } from '@/lib/playback/types';
 import { DownloadStorage } from '@/lib/offline/DownloadStorage';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
+import { isKidsOrNurseryTrack } from '@/lib/jioSaavnProvider';
 
 export function isOfflineMode(): boolean {
   try {
@@ -27,7 +74,7 @@ export function isOfflineMode(): boolean {
     if (store.networkMode === 'offline' || store.networkMode === 'offline_forced') {
       return true;
     }
-  } catch {}
+  } catch { }
   if (typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean' && navigator.onLine === false) {
     return true;
   }
@@ -41,6 +88,9 @@ interface PlayerState {
   duration: number;
   volume: number;
   isMuted: boolean;
+  lastTrackId: string | null;
+  lastPositionSec: number;
+  checkpointPlaybackPosition: (posSec: number) => void;
 
   playbackIntent: 'IDLE' | 'PLAYING' | 'PAUSED';
   trackSource: 'USER_SELECTED' | 'SESSION_RESTORE' | 'AUTO_NEXT' | 'RECENT_HISTORY' | null;
@@ -91,7 +141,6 @@ interface PlayerState {
   isSettingsModalOpen: boolean;
   isCastModalOpen: boolean;
   isSleepTimerModalOpen: boolean;
-  isDeviceModalOpen: boolean;
   isLockScreenOpen: boolean;
   toggleLockScreen: (open?: boolean) => void;
   isNotificationShadeOpen: boolean;
@@ -146,44 +195,16 @@ interface PlayerState {
   networkMode: 'online' | 'offline' | 'offline_forced';
   setNetworkMode: (mode: 'online' | 'offline' | 'offline_forced') => void;
 
-  // Cross-Device Sync State
+  // Standalone Playback State
   deviceId: string;
-  deviceInstanceId: string;
-  activeDeviceId: string | null;
-  connectedDeviceId: string | null;
-  deviceConnectionState: import('@/lib/connect/types').DeviceConnectionState;
-  availableDevicePlaybackStates: Record<string, { isPlaying: boolean; songTitle?: string; artist?: string }>;
-  localPlaybackRevision: number;
-  lastReceivedPlaybackRevision: number;
-  lastReceivedPlaybackSessionRevision: number;
   activeRenderer: Renderer;
   playbackStatus: 'playing' | 'paused' | 'buffering' | 'transitioning';
   isActiveDevice: boolean;
-  isTransferring: boolean;
-  transferringDeviceId: string | null;
-  remoteDeviceName: string | null;
-  remoteAnchorPositionMs: number;
-  remoteAnchorTimeMs: number;
-  lastSyncDbTime: string | null;
-  lastSyncPositionMs: number | null;
-  playbackSession: import('@/lib/playback/PlaybackSession').UnifiedPlaybackSession | null;
-  handoffState: {
-    from: Renderer;
-    to: Renderer;
-    phase: import('@/lib/playback/HandoffCoordinator').HandoffPhase;
-    positionMs: number;
-  } | null;
-  serverTimestamp: number | null; // Added for unified engine
-  onlineDevices: { id: string; name: string; platform?: string; isOnline?: boolean }[];
-  setOnlineDevices: (devices: { id: string; name: string; platform?: string; isOnline?: boolean }[]) => void;
   setRemoteState: (state: Partial<PlayerState>) => void;
   setRenderer: (renderer: Renderer) => void;
-  connectToDevice: (targetDeviceId: string) => Promise<boolean>;
-  disconnectDevice: () => void;
-  transferPlayback: (targetDeviceId: string) => void;
 
-  rightPanelMode: 'queue' | 'devices';
-  setRightPanelMode: (mode: 'queue' | 'devices') => void;
+  rightPanelMode: 'queue';
+  setRightPanelMode: (mode: 'queue') => void;
 
   // Autoplay and Context
   isAutoplayEnabled: boolean;
@@ -192,7 +213,6 @@ interface PlayerState {
   albumPlaybackQueue: string[];
   toggleAutoplay: () => void;
   setPlaybackContext: (context: import('@/types/music').PlaybackContext | null) => void;
-  getPlaybackSnapshot: () => import('@/lib/connect/types').PlaybackSnapshot;
   calculateLiveTime: () => number;
   restrictions: import('@/lib/playback/types').PlayerRestrictions;
   executePlayerCommand: (type: import('@/lib/playback/types').PlayerCommandType, payload?: any, origin?: any) => Promise<{ success: boolean; reason?: string }>;
@@ -263,7 +283,6 @@ interface PlayerState {
   toggleSettingsModal: () => void;
   toggleCastModal: () => void;
   toggleSleepTimerModal: () => void;
-  toggleDeviceModal: () => void;
   setCreatePlaylistModalOpen: (open: boolean) => void;
   openContextMenu: (song: Song) => void;
   closeContextMenu: () => void;
@@ -386,22 +405,22 @@ export const isTrackDownloaded = (trackId: string): boolean => {
   try {
     const pStore = usePlayerStore.getState();
     if (pStore?.downloadedSongIds?.includes(trackId)) return true;
-  } catch {}
+  } catch { }
   try {
     const { useDownloadStore } = require('@/context/useDownloadStore');
     const dStore = useDownloadStore?.getState?.();
     if (dStore?.nativeDownloadedTracks?.[trackId]) return true;
     if (dStore?.tasks?.[trackId]?.status === 'COMPLETED') return true;
-  } catch {}
+  } catch { }
   try {
     if (DownloadStorage.getInstance().isDownloadedSync(trackId)) return true;
-  } catch {}
+  } catch { }
   try {
     if (typeof localStorage !== 'undefined') {
       const raw = localStorage.getItem('download-storage');
       if (raw && raw.includes(`"${trackId}"`)) return true;
     }
-  } catch {}
+  } catch { }
   return false;
 };
 
@@ -472,6 +491,13 @@ export const usePlayerStore = create<PlayerState>()(
       duration: initialSession?.currentSong?.duration || 0,
       volume: 0.8,
       isMuted: false,
+      lastTrackId: initialSession?.currentSong?.id || null,
+      lastPositionSec: 0,
+      checkpointPlaybackPosition: (posSec: number) => {
+        if (typeof posSec === 'number' && Number.isFinite(posSec) && posSec >= 0) {
+          set({ lastPositionSec: Math.floor(posSec) });
+        }
+      },
 
       queue: (initialSession?.queue && initialSession.queue.length > 0) ? initialSession.queue : (initialSession?.currentSong ? [initialSession.currentSong] : []),
       queueIndex: Math.max(0, initialSession?.queueIndex || 0),
@@ -514,7 +540,6 @@ export const usePlayerStore = create<PlayerState>()(
       isSettingsModalOpen: false,
       isCastModalOpen: false,
       isSleepTimerModalOpen: false,
-      isDeviceModalOpen: false,
       isLockScreenOpen: false,
       toggleLockScreen: (open) => set((s) => ({ isLockScreenOpen: open !== undefined ? open : !s.isLockScreenOpen })),
       isNotificationShadeOpen: false,
@@ -681,154 +706,16 @@ export const usePlayerStore = create<PlayerState>()(
         set({ interestLanguages: current });
       },
 
-      deviceId: typeof window !== 'undefined' ? (require('@/lib/connect/DeviceRegistry').DeviceRegistry.getInstance().getOrCreateDeviceId()) : '',
-      deviceInstanceId: typeof window !== 'undefined' ? (require('@/lib/connect/DeviceRegistry').DeviceRegistry.getInstance().getOrCreateDeviceInstanceId()) : '',
-      activeDeviceId: null,
-      connectedDeviceId: null,
-      deviceConnectionState: 'AVAILABLE',
-      availableDevicePlaybackStates: {},
-      localPlaybackRevision: 0,
-      lastReceivedPlaybackRevision: 0,
-      lastReceivedPlaybackSessionRevision: 0,
+      deviceId: typeof window !== 'undefined' ? (localStorage.getItem('raagax_device_id') || 'local_device') : 'local_device',
       activeRenderer: 'audio',
       playbackStatus: 'paused',
-      isActiveDevice: true, // Default to true until sync starts
-      isTransferring: false,
-      transferringDeviceId: null,
-      remoteDeviceName: null,
-      remoteAnchorPositionMs: 0,
-      remoteAnchorTimeMs: 0,
-      lastSyncDbTime: null,
-      lastSyncPositionMs: null,
-      playbackSession: null,
-      handoffState: null,
-      serverTimestamp: null,
-      onlineDevices: [],
+      isActiveDevice: true,
       rightPanelMode: 'queue',
 
-      setOnlineDevices: (devices) => {
-        const current = get().onlineDevices || [];
-        if (
-          current.length === devices.length &&
-          current.every(
-            (d, i) =>
-              d.id === devices[i]?.id &&
-              Boolean(d.isOnline) === Boolean(devices[i]?.isOnline) &&
-              d.name === devices[i]?.name &&
-              (d as any).isPlaying === (devices[i] as any)?.isPlaying &&
-              (d as any).currentSongTitle === (devices[i] as any)?.currentSongTitle
-          )
-        ) {
-          return;
-        }
-        set({ onlineDevices: devices });
-      },
+      setRemoteState: (state) => set(state),
+      setRenderer: (renderer) => set({ activeRenderer: renderer }),
 
-      connectToDevice: async (targetDeviceId: string) => {
-        return ConnectManager.getInstance().connectToDevice(targetDeviceId);
-      },
-
-      disconnectDevice: () => {
-        set({
-          connectedDeviceId: null,
-          activeDeviceId: null,
-          remoteDeviceName: null,
-          isActiveDevice: true,
-          deviceConnectionState: 'AVAILABLE',
-        });
-        import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-          ConnectManager.getInstance().disconnectFromDevice();
-        }).catch(() => {});
-      },
-
-      transferPlayback: async (targetDeviceId: string) => {
-        const { currentSong, deviceId, isActiveDevice, connectedDeviceId } = get();
-
-        // 1. Target is THIS device and already active locally: skip redundant transfer
-        if (targetDeviceId === deviceId && isActiveDevice && !connectedDeviceId) {
-          console.log(`[TransferManager] TRANSFER_SKIPPED_CURRENT_DEVICE: targetDeviceId (${targetDeviceId}) is already active locally`);
-          return;
-        }
-
-        // 2. Target is THIS device and we are currently controlling a remote device:
-        // Transfer playback FROM remote device BACK TO THIS DEVICE!
-        if (targetDeviceId === deviceId && (!isActiveDevice || connectedDeviceId)) {
-          console.log(`[TransferManager] Transferring playback BACK to local device (${deviceId}) from remote (${connectedDeviceId})`);
-          const { ConnectManager } = await import('@/lib/connect/ConnectManager');
-          await ConnectManager.getInstance().disconnectFromDevice();
-
-          set({
-            isActiveDevice: true,
-            activeDeviceId: deviceId,
-            connectedDeviceId: null,
-            remoteDeviceName: null,
-            deviceConnectionState: 'AVAILABLE',
-          });
-
-          // Acquire local lease
-          try {
-            const { DeviceLeaseManager } = await import('@/lib/connect/DeviceLeaseManager');
-            await DeviceLeaseManager.getInstance().acquireLease(ConnectManager.getInstance().getSessionId() || 'local_session', true);
-          } catch {}
-
-          // Resume playback locally if there is an active song
-          const activeSong = get().currentSong;
-          if (activeSong) {
-            await get().switchTrack(activeSong, get().queueIndex, true);
-          }
-          return;
-        }
-
-        if (!currentSong) {
-          // If no song is playing locally, connect to the target device as a remote controller
-          return get().connectToDevice(targetDeviceId);
-        }
-
-        set({ isTransferring: true, transferringDeviceId: targetDeviceId });
-
-        try {
-          const { TransferManager } = await import('@/lib/connect/TransferManager');
-          await TransferManager.getInstance().initiateTransfer(targetDeviceId);
-        } catch (e) {
-          console.error('[ZUSTAND] Playback transfer failed:', e);
-          set({ isTransferring: false, transferringDeviceId: null });
-        }
-      },
-
-      getPlaybackSnapshot: () => {
-        const state = get();
-        const deviceName = typeof window !== 'undefined' ? (localStorage.getItem('raagax_device_name') || 'RaagaX Player') : 'RaagaX Player';
-        return {
-          sessionId: state.playbackSession?.sessionId || 'local_session',
-          deviceId: state.deviceId || 'local_device',
-          activeDeviceId: state.activeDeviceId || state.deviceId || 'local_device',
-          activeDeviceName: deviceName,
-          currentTrackId: state.currentSong?.id || null,
-          songId: state.currentSong?.id || null,
-          songData: state.currentSong ? { ...state.currentSong } : null,
-          positionMs: Math.round(state.currentTime * 1000),
-          timestampMs: state.serverTimestamp || Date.now(),
-          serverTimestamp: Date.now(),
-          isPlaying: state.isPlaying,
-          sequence: state.playbackSession?.revision || 1,
-          revision: state.localPlaybackRevision || 1,
-          context: state.playbackContext || undefined,
-          durationMs: Math.round(state.duration * 1000),
-          queue: state.queue || [],
-          queueIndex: state.queueIndex || 0,
-          shuffleMode: state.shuffleMode,
-          repeatMode: state.repeatMode,
-          volume: state.volume,
-          isMuted: state.isMuted,
-        };
-      },
-
-
-      calculateLiveTime: () => {
-        const { calculateLivePositionMs } = require('@/lib/connect/types');
-        const snapshot = get().getPlaybackSnapshot();
-        return calculateLivePositionMs(snapshot) / 1000;
-      },
+      calculateLiveTime: () => get().currentTime,
 
       restrictions: {
         disallowSkipNext: [],
@@ -859,7 +746,6 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       setRightPanelMode: (mode) => set({ rightPanelMode: mode }),
-      setRemoteState: (newState) => set((state) => ({ ...state, ...newState })),
 
       restoreLocalSession: async () => {
         // Prevent duplicate concurrent restorations
@@ -943,19 +829,21 @@ export const usePlayerStore = create<PlayerState>()(
 
             manager.replaceQueue(cleanQueue, safeIndex);
 
+            const savedPos = (session as any).position || (session as any).currentTime || 0;
+
             set({
               isPlaying: false, // Strict Rule: ALWAYS PAUSED ON COLD BOOT (Zero Autoplay)
               playbackIntent: 'PAUSED',
               trackSource: 'SESSION_RESTORE',
               currentSong: activeSong,
-              currentTime: 0, // Reset to 0:00 on fresh process launch
+              currentTime: savedPos, // Restore exact saved timestamp
               duration: totalDuration,
               queue: cleanQueue,
               queueIndex: safeIndex,
             });
 
-            await PlaybackService.getInstance().prepareTrack(activeSong, 0);
-            await PlaybackService.getInstance().loadQueueContext(cleanQueue, safeIndex, false, 0);
+            await PlaybackService.getInstance().prepareTrack(activeSong, savedPos);
+            await PlaybackService.getInstance().loadQueueContext(cleanQueue, safeIndex, false, savedPos * 1000);
           }
         } else {
           // Clear/Reset current store state if session is stale/invalid to prevent resurrected stale state
@@ -1041,7 +929,7 @@ export const usePlayerStore = create<PlayerState>()(
             isPlaying: true,
             playbackRequestId: requestId,
           });
-        }).catch(() => {});
+        }).catch(() => { });
         MediaSessionManager.getInstance().updateSongMetadata(formattedTrack);
         MediaSessionManager.getInstance().setPlaybackState('playing');
         persistSessionHelper(get());
@@ -1058,10 +946,10 @@ export const usePlayerStore = create<PlayerState>()(
         PlaybackService.getInstance().setPlaybackRequestId(requestId);
         PlaybackService.getInstance().stopAllAudio();
 
-        const formattedTrack: Song = {
+        const formattedTrack: Song = SongFormatter.formatSong({
           ...track,
           coverUrl: SongCoverEngine.getInstance().formatRawCoverUrl(track.coverUrl),
-        };
+        });
 
         console.log(`[PlaybackTransition] source="${formattedTrack.title}" oldTrackId="${oldSong?.id}" newTrackId="${formattedTrack.id}" oldQueueIndex=${oldIndex} newQueueIndex=${index} queueLength=${get().queue.length} transitionId=${requestId} playbackGeneration=${requestId}`);
 
@@ -1092,7 +980,7 @@ export const usePlayerStore = create<PlayerState>()(
             repeatMode: get().repeatMode,
             playbackRequestId: requestId,
           });
-        }).catch(() => {});
+        }).catch(() => { });
 
         // Sync QueueManager position
         QueueManager.getInstance().skipTo(index);
@@ -1112,33 +1000,6 @@ export const usePlayerStore = create<PlayerState>()(
           duration: formattedTrack.duration || 0,
           position: 0,
         });
-
-        // If remote device (Connect / Cast)
-        if (!get().isActiveDevice && get().connectedDeviceId) {
-          try {
-            const { TrackChangeLock } = await import('@/lib/playback/TrackChangeLock');
-            TrackChangeLock.lock(track.id);
-          } catch {}
-          try {
-            const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
-            RaagaXConnectV2.getInstance().sendCommand('CMD_LOAD_TRACK', {
-              song: track,
-              queue: get().queue,
-              queueIndex: index,
-              positionMs: 0,
-            });
-          } catch { }
-          try {
-            const { ConnectManager } = await import('@/lib/connect/ConnectManager');
-            ConnectManager.getInstance().dispatchPlaybackCommand('PLAY', {
-              song: track,
-              queue: get().queue,
-              queueIndex: index,
-              positionMs: 0,
-            });
-          } catch { }
-          return requestId === globalPlaybackRequestId;
-        }
 
         // 3. Load the NEW track's audio URL into audio engine
         const loaded = await PlaybackService.getInstance().loadAudioSource(track, requestId, autoPlay);
@@ -1167,7 +1028,7 @@ export const usePlayerStore = create<PlayerState>()(
               });
             }
           }
-        }).catch(() => {});
+        }).catch(() => { });
 
         // ── RULE 21: GLOBAL DEBUG ASSERTION ──────────────────────────────────────
         const currentStoreTrack = get().currentSong;
@@ -1183,17 +1044,10 @@ export const usePlayerStore = create<PlayerState>()(
           });
         }
 
-        // Broadcast to peers across all transport layers
-        try {
-          const { PlaybackOwnerEngine } = await import('@/lib/connect/lan/PlaybackOwnerEngine');
-          PlaybackOwnerEngine.getInstance().publishAuthoritativePlaybackState();
-        } catch {}
-        try {
-          PlaybackStateSync.getInstance().broadcastState(true);
-        } catch {}
+
 
         // Proactive queue refilling for Radio and continuous playback streams
-        get().autoRefillQueue().catch(() => {});
+        get().autoRefillQueue().catch(() => { });
 
         return true;
       },
@@ -1209,11 +1063,11 @@ export const usePlayerStore = create<PlayerState>()(
         lastPlayCallTimestamp = now;
         lastPlaySongId = song.id;
 
-        // Upgrade coverUrl immediately to 500x500 HD
-        const activePlaySong: Song = {
+        // Upgrade coverUrl immediately to 500x500 HD & clean display text
+        const activePlaySong: Song = SongFormatter.formatSong({
           ...song,
           coverUrl: SongCoverEngine.getInstance().formatRawCoverUrl(song.coverUrl),
-        };
+        });
 
         // NOTE: navigator.onLine is intentionally NOT used here.
         // On Android/Capacitor WebView it can return false even with a live network
@@ -1243,7 +1097,7 @@ export const usePlayerStore = create<PlayerState>()(
             filteredNewQueue = originalQueue.filter((s: Song) => {
               return s && (s.id === activePlaySong.id || downloadedSongIds.includes(s.id) || !!downloadStore?.nativeDownloadedTracks?.[s.id]);
             });
-          } catch {}
+          } catch { }
         }
 
         if (filteredNewQueue && filteredNewQueue.length > 0) {
@@ -1309,13 +1163,9 @@ export const usePlayerStore = create<PlayerState>()(
           playbackContextData: effectiveContext as any,
         });
 
-        if (!get().connectedDeviceId) {
-          set({ isActiveDevice: true, activeDeviceId: get().deviceId });
-        }
-
         await get().switchTrack(activePlaySong, targetIndex, true);
 
-        if (RaagaXNativePlayer.isNative() && syncedQueue && syncedQueue.length > 0 && get().isActiveDevice) {
+        if (RaagaXNativePlayer.isNative() && syncedQueue && syncedQueue.length > 0) {
           PlaybackService.getInstance().loadQueueContext(syncedQueue, targetIndex, true, 0, get().playbackRequestId);
         }
       },
@@ -1342,38 +1192,22 @@ export const usePlayerStore = create<PlayerState>()(
 
         await get().switchTrack(firstSong, 0, true);
 
-        if (RaagaXNativePlayer.isNative() && syncedQueue && syncedQueue.length > 0 && get().isActiveDevice) {
+        if (RaagaXNativePlayer.isNative() && syncedQueue && syncedQueue.length > 0) {
           PlaybackService.getInstance().loadQueueContext(syncedQueue, 0, true, 0, get().playbackRequestId);
         }
       },
 
       togglePlayPause: async () => {
-        if (get().isTransferring) {
-          const isNowPlaying = !get().isPlaying;
-          set({ isPlaying: isNowPlaying, playbackIntent: isNowPlaying ? 'PLAYING' : 'PAUSED' });
-          try {
-            TransferManager.getInstance().recordPendingIntent({
-              action: isNowPlaying ? 'PLAY' : 'PAUSE',
-              positionMs: get().currentTime * 1000,
-              timestamp: Date.now()
-            });
-          } catch { }
-          return;
-        }
 
         // Single Source of Truth: derive true playing state directly from the active engine
         let currentLivePlaying = get().isPlaying;
-        if (get().activeRenderer === 'audio' && get().isActiveDevice) {
-          if (RaagaXNativePlayer.isNative()) {
-            currentLivePlaying = get().isPlaying;
-          } else {
-            currentLivePlaying = PlaybackService.getInstance().getLivePlayingState();
-          }
+        if (RaagaXNativePlayer.isNative()) {
+          currentLivePlaying = get().isPlaying;
+        } else {
+          currentLivePlaying = PlaybackService.getInstance().getLivePlayingState();
         }
 
         const isNowPlaying = !currentLivePlaying;
-        const oldIsPlaying = get().isPlaying;
-        const oldPlaybackIntent = get().playbackIntent;
 
         if (!isNowPlaying) {
           InterruptionCoordinator.getInstance().reportUserPause();
@@ -1383,60 +1217,21 @@ export const usePlayerStore = create<PlayerState>()(
         set({ isPlaying: isNowPlaying, playbackIntent: isNowPlaying ? 'PLAYING' : 'PAUSED' });
         persistSessionHelper({ ...get() });
 
-        if (!get().connectedDeviceId && !get().isActiveDevice) {
-          set({ isActiveDevice: true, activeDeviceId: get().deviceId });
-        }
-
-        if (get().isActiveDevice) {
-          if (get().activeRenderer === 'video') {
-            PlaybackService.getInstance().pauseAudioElementOnly();
-          } else if (RaagaXNativePlayer.isNative()) {
-            if (!isNowPlaying) {
-              await RaagaXNativePlayer.pause();
-            } else {
-              await RaagaXNativePlayer.resume();
-            }
+        if (RaagaXNativePlayer.isNative()) {
+          if (!isNowPlaying) {
+            await RaagaXNativePlayer.pause();
           } else {
-            if (!isNowPlaying) {
-              PlaybackService.getInstance().pause();
-            } else {
-              PlaybackService.getInstance().play();
-            }
+            await RaagaXNativePlayer.resume();
           }
-          try {
-            PlaybackStateSync.getInstance().broadcastState(true);
-          } catch { }
-          return;
+        } else {
+          if (!isNowPlaying) {
+            PlaybackService.getInstance().pause();
+          } else {
+            PlaybackService.getInstance().play();
+          }
         }
-
-        try {
-          const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
-          RaagaXConnectV2.getInstance().sendCommand(isNowPlaying ? 'CMD_PLAY' : 'CMD_PAUSE', {
-            positionMs: get().currentTime * 1000,
-          });
-        } catch { }
-        try {
-          const { ConnectManager } = await import('@/lib/connect/ConnectManager');
-          ConnectManager.getInstance().dispatchPlaybackCommand(isNowPlaying ? 'PLAY' : 'PAUSE', {
-            positionMs: get().currentTime * 1000,
-          });
-        } catch { }
       },
       setIsPlaying: async (playing, fromRemote = false) => {
-        if (get().isTransferring && !fromRemote) {
-          set({ isPlaying: playing, playbackIntent: playing ? 'PLAYING' : 'PAUSED' });
-          try {
-            TransferManager.getInstance().recordPendingIntent({
-              action: playing ? 'PLAY' : 'PAUSE',
-              positionMs: get().currentTime * 1000,
-              timestamp: Date.now()
-            });
-          } catch { }
-          return;
-        }
-        const oldIsPlaying = get().isPlaying;
-        const oldPlaybackIntent = get().playbackIntent;
-
         if (!playing && !fromRemote) {
           InterruptionCoordinator.getInstance().reportUserPause();
         } else if (playing) {
@@ -1446,14 +1241,8 @@ export const usePlayerStore = create<PlayerState>()(
         persistSessionHelper({ ...get() });
         MediaSessionManager.getInstance().setPlaybackState(playing ? 'playing' : 'paused');
 
-        if (!get().connectedDeviceId && !get().isActiveDevice && !fromRemote) {
-          set({ isActiveDevice: true, activeDeviceId: get().deviceId });
-        }
-
-        if (get().isActiveDevice && !fromRemote) {
-          if (get().activeRenderer === 'video') {
-            PlaybackService.getInstance().pauseAudioElementOnly();
-          } else if (RaagaXNativePlayer.isNative()) {
+        if (!fromRemote) {
+          if (RaagaXNativePlayer.isNative()) {
             if (!playing) {
               await RaagaXNativePlayer.pause();
             } else {
@@ -1466,58 +1255,16 @@ export const usePlayerStore = create<PlayerState>()(
               PlaybackService.getInstance().play();
             }
           }
-          try {
-            PlaybackStateSync.getInstance().broadcastState(true);
-          } catch { }
-          return;
-        }
-
-        if (!fromRemote) {
-          try {
-            const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
-            RaagaXConnectV2.getInstance().sendCommand(playing ? 'CMD_PLAY' : 'CMD_PAUSE', {
-              positionMs: get().currentTime * 1000,
-            });
-          } catch { }
-          try {
-            const { ConnectManager } = await import('@/lib/connect/ConnectManager');
-            ConnectManager.getInstance().dispatchPlaybackCommand(playing ? 'PLAY' : 'PAUSE', {
-              positionMs: get().currentTime * 1000,
-            });
-          } catch { }
         }
       },
       setCurrentTime: (time, fromRemote = false) => {
         if (typeof time !== 'number' || !Number.isFinite(time) || isNaN(time) || time < 0) return;
 
-        // Optimistic UI: Always update local state immediately
         set({ currentTime: time });
 
-        if (get().isTransferring && !fromRemote) {
-          try {
-            TransferManager.getInstance().recordPendingIntent({
-              action: 'SEEK',
-              positionMs: time * 1000,
-              timestamp: Date.now()
-            });
-          } catch { }
-          return;
-        }
-
         const state = get();
-        if (state.isActiveDevice && state.currentSong) {
+        if (state.currentSong) {
           throttlePersistSession(state, fromRemote);
-        } else if (!fromRemote) {
-          try {
-            import('@/lib/connect/lan/RaagaXConnectV2').then(({ RaagaXConnectV2 }) => {
-              RaagaXConnectV2.getInstance().sendCommand('CMD_SEEK', { positionMs: time * 1000 });
-            });
-          } catch { }
-          try {
-            import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-              ConnectManager.getInstance().dispatchPlaybackCommand('SEEK', { positionMs: time * 1000 });
-            });
-          } catch { }
         }
       },
       setDuration: (dur) => {
@@ -1528,53 +1275,11 @@ export const usePlayerStore = create<PlayerState>()(
       setVolume: (vol) => {
         const safeVol = Math.max(0, Math.min(1, vol));
         set({ volume: safeVol });
-        if (get().isActiveDevice) {
-          try {
-            PlaybackStateSync.getInstance().broadcastState(true);
-          } catch { }
-        } else {
-          try {
-            import('@/lib/connect/lan/RaagaXConnectV2').then(({ RaagaXConnectV2 }) => {
-              RaagaXConnectV2.getInstance().sendCommand('CMD_VOLUME', { volume: safeVol });
-            });
-          } catch { }
-          try {
-            import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-              ConnectManager.getInstance().dispatchPlaybackCommand('SET_VOLUME', { volume: safeVol });
-            });
-          } catch { }
-        }
         persistSessionHelper(get());
       },
       toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 
       playNext: async () => {
-        if (!get().isActiveDevice) {
-          // Optimistic UI for Controller: immediately advance local track preview!
-          const { queue, queueIndex, repeatMode } = get();
-          if (queue && queue.length > 0) {
-            const nextIdx = getNextQueueIndex(queue, queueIndex, repeatMode);
-            if (nextIdx >= 0 && nextIdx < queue.length) {
-              set({
-                currentSong: queue[nextIdx],
-                queueIndex: nextIdx,
-                currentTime: 0,
-                isPlaying: true,
-                playbackIntent: 'PLAYING',
-              });
-            }
-          }
-          try {
-            const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
-            RaagaXConnectV2.getInstance().sendCommand('CMD_NEXT');
-          } catch { }
-          try {
-            const { ConnectManager } = await import('@/lib/connect/ConnectManager');
-            ConnectManager.getInstance().dispatchPlaybackCommand('NEXT');
-          } catch { }
-          return;
-        }
-
         const { duration, currentTime, isPlaying, playbackIntent } = get();
         const isComplete = duration > 0 && currentTime >= duration - 5;
         get().logCurrentTelemetry(isComplete ? 'complete' : 'skip');
@@ -1613,34 +1318,6 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       playPrev: async () => {
-        if (!get().isActiveDevice) {
-          // Optimistic UI for Controller: immediately advance local track preview!
-          const { queue, queueIndex, repeatMode, currentTime } = get();
-          if (currentTime > 3) {
-            set({ currentTime: 0 });
-          } else if (queue && queue.length > 0) {
-            const prevIdx = getPreviousQueueIndex(queue, queueIndex, repeatMode);
-            if (prevIdx >= 0 && prevIdx < queue.length) {
-              set({
-                currentSong: queue[prevIdx],
-                queueIndex: prevIdx,
-                currentTime: 0,
-                isPlaying: true,
-                playbackIntent: 'PLAYING',
-              });
-            }
-          }
-          try {
-            const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
-            RaagaXConnectV2.getInstance().sendCommand('CMD_PREV');
-          } catch { }
-          try {
-            const { ConnectManager } = await import('@/lib/connect/ConnectManager');
-            ConnectManager.getInstance().dispatchPlaybackCommand('PREV');
-          } catch { }
-          return;
-        }
-
         const { queue, queueIndex, currentTime, currentSong, repeatMode, isPlaying, playbackIntent } = get();
 
         // If track played more than 3 seconds, restart current track at 0:00 and keep current playing state
@@ -1694,21 +1371,7 @@ export const usePlayerStore = create<PlayerState>()(
         });
         persistSessionHelper(get());
 
-        if (get().isActiveDevice) {
-          PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
-          try {
-            PlaybackStateSync.getInstance().broadcastState(true);
-          } catch { }
-        } else {
-          try {
-            const { RaagaXConnectV2 } = await import('@/lib/connect/lan/RaagaXConnectV2');
-            RaagaXConnectV2.getInstance().sendCommand('CMD_SHUFFLE');
-          } catch { }
-          try {
-            const { ConnectManager } = await import('@/lib/connect/ConnectManager');
-            ConnectManager.getInstance().dispatchPlaybackCommand('SET_SHUFFLE');
-          } catch { }
-        }
+        PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
       },
       setRepeatMode: (mode) => {
         const raw = (mode || 'OFF').toUpperCase();
@@ -1722,22 +1385,6 @@ export const usePlayerStore = create<PlayerState>()(
           RaagaXNativePlayer.setRepeatMode(normalized);
         }
 
-        if (get().isActiveDevice) {
-          try {
-            PlaybackStateSync.getInstance().broadcastState(true);
-          } catch { }
-        } else {
-          try {
-            import('@/lib/connect/lan/RaagaXConnectV2').then(({ RaagaXConnectV2 }) => {
-              RaagaXConnectV2.getInstance().sendCommand('CMD_REPEAT');
-            });
-          } catch { }
-          try {
-            import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-              ConnectManager.getInstance().dispatchPlaybackCommand('SET_REPEAT');
-            });
-          } catch { }
-        }
       },
       cycleRepeatMode: () => {
         const modes: Array<'OFF' | 'ALL' | 'ONE'> = ['OFF', 'ALL', 'ONE'];
@@ -1748,69 +1395,27 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       addToQueue: (song) => {
-        const isRemote = !get().isActiveDevice && Boolean(get().connectedDeviceId);
-        if (isRemote) {
-          try {
-            import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-              ConnectManager.getInstance().dispatchPlaybackCommand('ADD_TO_QUEUE', { song, playNext: false });
-            }).catch(() => {});
-          } catch {}
-          return;
-        }
-
         const manager = QueueManager.getInstance();
         manager.addToQueue(song);
         const snapshot = manager.getSnapshot();
         const syncedQueue = snapshot.items.map((i: any) => i.song);
         const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
         set({ queue: syncedQueue, queueIndex: syncedIndex });
-
         PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
-        if (get().isActiveDevice) {
-          import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
-            PlaybackStateSync.getInstance().broadcastState(true);
-          }).catch(() => {});
-        }
       },
       playNextInQueue: (song) => {
-        const isRemote = !get().isActiveDevice && Boolean(get().connectedDeviceId);
-        if (isRemote) {
-          try {
-            import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-              ConnectManager.getInstance().dispatchPlaybackCommand('ADD_TO_QUEUE', { song, playNext: true });
-            }).catch(() => {});
-          } catch {}
-          return;
-        }
-
         const manager = QueueManager.getInstance();
         manager.playNext(song);
         const snapshot = manager.getSnapshot();
         const syncedQueue = snapshot.items.map((i: any) => i.song);
         const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
         set({ queue: syncedQueue, queueIndex: syncedIndex });
-
         PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
-        if (get().isActiveDevice) {
-          import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
-            PlaybackStateSync.getInstance().broadcastState(true);
-          }).catch(() => {});
-        }
       },
       playLastInQueue: (song) => {
         get().addToQueue(song);
       },
       removeFromQueue: (songId) => {
-        const isRemote = !get().isActiveDevice && Boolean(get().connectedDeviceId);
-        if (isRemote) {
-          try {
-            import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-              ConnectManager.getInstance().dispatchPlaybackCommand('REMOVE_FROM_QUEUE', { songId });
-            }).catch(() => {});
-          } catch {}
-          return;
-        }
-
         const manager = QueueManager.getInstance();
         const items = manager.getAllItems();
         const target = items.find((i: any) => i.trackId === songId);
@@ -1820,73 +1425,25 @@ export const usePlayerStore = create<PlayerState>()(
           const syncedQueue = snapshot.items.map((i: any) => i.song);
           const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
           set({ queue: syncedQueue, queueIndex: syncedIndex });
-
           PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
-          if (get().isActiveDevice) {
-            import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
-              PlaybackStateSync.getInstance().broadcastState(true);
-            }).catch(() => {});
-          }
         }
       },
       reorderQueue: (newQueue) => {
-        const isRemote = !get().isActiveDevice && Boolean(get().connectedDeviceId);
-        if (isRemote) {
-          try {
-            import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-              ConnectManager.getInstance().dispatchPlaybackCommand('QUEUE_SHUFFLE_COMMIT', { queue: newQueue });
-            }).catch(() => {});
-          } catch {}
-          return;
-        }
-
         const manager = QueueManager.getInstance();
         manager.replaceQueue(newQueue, get().queueIndex, 'USER');
         set({ queue: newQueue });
-
         PlaybackService.getInstance().loadQueueContext(newQueue, get().queueIndex);
-        if (get().isActiveDevice) {
-          import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
-            PlaybackStateSync.getInstance().broadcastState(true);
-          }).catch(() => {});
-        }
       },
       clearQueue: () => {
-        const isRemote = !get().isActiveDevice && Boolean(get().connectedDeviceId);
-        if (isRemote) {
-          try {
-            import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-              ConnectManager.getInstance().dispatchPlaybackCommand('CLEAR_QUEUE');
-            }).catch(() => {});
-          } catch {}
-          return;
-        }
-
         const { queue, queueIndex } = get();
         // Keep active song and past history, remove only upcoming tracks
         const remainingQueue = queue.slice(0, queueIndex + 1);
         const manager = QueueManager.getInstance();
         manager.replaceQueue(remainingQueue, queueIndex, 'USER');
         set({ queue: remainingQueue });
-
         PlaybackService.getInstance().loadQueueContext(remainingQueue, queueIndex);
-        if (get().isActiveDevice) {
-          import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
-            PlaybackStateSync.getInstance().broadcastState(true);
-          }).catch(() => {});
-        }
       },
       moveQueueItem: (fromUpNextIndex: number, toUpNextIndex: number) => {
-        const isRemote = !get().isActiveDevice && Boolean(get().connectedDeviceId);
-        if (isRemote) {
-          try {
-            import('@/lib/connect/ConnectManager').then(({ ConnectManager }) => {
-              ConnectManager.getInstance().dispatchPlaybackCommand('MOVE_QUEUE_ITEM', { fromUpNextIndex, toUpNextIndex });
-            }).catch(() => {});
-          } catch {}
-          return;
-        }
-
         const { queue, queueIndex } = get();
         const pastAndCurrent = queue.slice(0, queueIndex + 1);
         const upNext = [...queue.slice(queueIndex + 1)];
@@ -1904,13 +1461,7 @@ export const usePlayerStore = create<PlayerState>()(
         const manager = QueueManager.getInstance();
         manager.replaceQueue(newQueue, queueIndex, 'USER');
         set({ queue: newQueue });
-
         PlaybackService.getInstance().loadQueueContext(newQueue, queueIndex);
-        if (get().isActiveDevice) {
-          import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
-            PlaybackStateSync.getInstance().broadcastState(true);
-          }).catch(() => {});
-        }
       },
 
       playNextSequence: (songs: Song[]) => {
@@ -1923,13 +1474,7 @@ export const usePlayerStore = create<PlayerState>()(
         const manager = QueueManager.getInstance();
         manager.replaceQueue(newQueue, queueIndex, 'USER');
         set({ queue: newQueue });
-
         PlaybackService.getInstance().loadQueueContext(newQueue, queueIndex);
-        if (get().isActiveDevice) {
-          import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
-            PlaybackStateSync.getInstance().broadcastState(true);
-          }).catch(() => {});
-        }
       },
 
       deduplicateQueue: () => {
@@ -1977,18 +1522,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       autoRefillQueue: async () => {
-        try {
-          const state = get();
-          const remaining = state.queue.length - 1 - state.queueIndex;
-          if (remaining <= 4) {
-            const { RadioEngine } = await import('@/lib/radio/RadioEngine');
-            if (state.playbackContext?.type === 'radio' || RadioEngine.getInstance().isRadioActive()) {
-              await RadioEngine.getInstance().extendQueueIfNeeded(remaining);
-            }
-          }
-        } catch (e) {
-          console.warn('[usePlayerStore] autoRefillQueue error:', e);
-        }
+        // Autoplay refill handled in AudioPlayerController / recommendation engine
       },
 
       syncCloudLibrary: async () => {
@@ -2002,29 +1536,21 @@ export const usePlayerStore = create<PlayerState>()(
           const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
           await AccountSyncEngine.getInstance().reconcile(userId);
 
-          // 1. Fetch User Favorites (Artists/Albums)
-          const { data: favData } = await supabase
-            .from('user_favorites')
-            .select('item_id, item_type')
-            .eq('user_id', userId);
+          // 1. Fetch User Favorite Artists & Saved Albums directly
+          const [artistsRes, albumsRes, historyRes] = await Promise.all([
+            supabase.from('user_artists').select('artist_id').eq('user_id', userId),
+            supabase.from('saved_albums').select('album_id').eq('user_id', userId),
+            supabase.from('recently_played').select('song_id').eq('user_id', userId).order('played_at', { ascending: false }).limit(30)
+          ]);
 
-          const favoriteArtistIds = favData ? favData.filter(d => d.item_type === 'artist').map(d => d.item_id) : [];
-          const favoriteAlbumIds = favData ? favData.filter(d => d.item_type === 'album').map(d => d.item_id) : [];
-
-          // 2. Fetch Playback History (Recently Played)
-          const { data: historyData } = await supabase
-            .from('listening_events')
-            .select('song_id')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(100);
-
-          const historySongIds = historyData ? Array.from(new Set(historyData.map(d => d.song_id))) : [];
+          const favoriteArtistIds = artistsRes.data ? artistsRes.data.map(d => d.artist_id) : [];
+          const favoriteAlbumIds = albumsRes.data ? albumsRes.data.map(d => d.album_id) : [];
+          const historySongIds = historyRes.data ? Array.from(new Set(historyRes.data.map(d => d.song_id))) : [];
 
           set({
             favoriteArtistIds,
             favoriteAlbumIds,
-            historySongIds: Array.from(new Set([...historySongIds, ...get().historySongIds])).slice(0, 100)
+            historySongIds: Array.from(new Set([...historySongIds, ...get().historySongIds])).slice(0, 30)
           });
         } catch (e) {
           console.error("Failed to sync cloud library:", e);
@@ -2212,16 +1738,14 @@ export const usePlayerStore = create<PlayerState>()(
           const { data: session } = await supabase.auth.getSession();
           if (session?.session?.user) {
             if (isFav) {
-              await supabase.from('user_favorites').delete()
+              await supabase.from('user_artists').delete()
                 .eq('user_id', session.session.user.id)
-                .eq('item_id', artistId)
-                .eq('item_type', 'artist');
+                .eq('artist_id', artistId);
             } else {
-              await supabase.from('user_favorites').upsert({
+              await supabase.from('user_artists').upsert({
                 user_id: session.session.user.id,
-                item_id: artistId,
-                item_type: 'artist'
-              }, { onConflict: 'user_id,item_id,item_type' });
+                artist_id: artistId,
+              }, { onConflict: 'user_id,artist_id' });
             }
           }
         } catch (e) {
@@ -2244,16 +1768,14 @@ export const usePlayerStore = create<PlayerState>()(
           const { data: session } = await supabase.auth.getSession();
           if (session?.session?.user) {
             if (isFav) {
-              await supabase.from('user_favorites').delete()
+              await supabase.from('saved_albums').delete()
                 .eq('user_id', session.session.user.id)
-                .eq('item_id', albumId)
-                .eq('item_type', 'album');
+                .eq('album_id', albumId);
             } else {
-              await supabase.from('user_favorites').upsert({
+              await supabase.from('saved_albums').upsert({
                 user_id: session.session.user.id,
-                item_id: albumId,
-                item_type: 'album'
-              }, { onConflict: 'user_id,item_id,item_type' });
+                album_id: albumId,
+              }, { onConflict: 'user_id,album_id' });
             }
           }
         } catch (e) {
@@ -2338,7 +1860,6 @@ export const usePlayerStore = create<PlayerState>()(
           isPlayerExpanded: next,
         });
       },
-      setRenderer: (renderer) => set({ activeRenderer: renderer }),
       toggleLyrics: () => set((state) => ({ isLyricsOpen: !state.isLyricsOpen })),
       toggleQueue: () => set((state) => ({ isQueueOpen: !state.isQueueOpen })),
       toggleMiniPlayerFloating: () =>
@@ -2350,7 +1871,6 @@ export const usePlayerStore = create<PlayerState>()(
       toggleSettingsModal: () => set((state) => ({ isSettingsModalOpen: !state.isSettingsModalOpen })),
       toggleCastModal: () => set((state) => ({ isCastModalOpen: !state.isCastModalOpen })),
       toggleSleepTimerModal: () => set((state) => ({ isSleepTimerModalOpen: !state.isSleepTimerModalOpen })),
-      toggleDeviceModal: () => set((state) => ({ isDeviceModalOpen: !state.isDeviceModalOpen })),
       setCreatePlaylistModalOpen: (open) => set({ createPlaylistModalOpen: open }),
 
       openContextMenu: (song) => set({ contextMenuSong: song }),
@@ -2433,10 +1953,10 @@ export const usePlayerStore = create<PlayerState>()(
     }),
     {
       name: 'raagax_player_prefs',
+      storage: safeLocalStorage,
       version: 2,
       migrate: (persistedState: any, version: number) => {
         if (version === 0 || version === 1) {
-          // Migration from legacy schema: ensure arrays and required defaults exist
           return {
             ...persistedState,
             likedSongIds: Array.isArray(persistedState.likedSongIds) ? persistedState.likedSongIds : [],
@@ -2452,17 +1972,28 @@ export const usePlayerStore = create<PlayerState>()(
         return persistedState;
       },
       partialize: (state) => ({
-        downloadedSongIds: state.downloadedSongIds,
-        librarySongIds: state.librarySongIds,
-        historySongIds: state.historySongIds,
-        favoriteArtistIds: state.favoriteArtistIds,
-        favoriteAlbumIds: state.favoriteAlbumIds,
+        volume: state.volume,
+        isMuted: state.isMuted,
+        shuffleMode: state.shuffleMode,
+        repeatMode: state.repeatMode,
         preferredLanguage: state.preferredLanguage,
         crossfadeSec: state.crossfadeSec,
         streamingQuality: state.streamingQuality,
         downloadQuality: state.downloadQuality,
         isAutoplayEnabled: state.isAutoplayEnabled,
+        lastTrackId: state.currentSong?.id || null,
+        lastPositionSec: state.lastPositionSec || 0,
+        // Tiny bounded sets for offline resilience
+        likedSongIds: (state.likedSongIds || []).slice(-50),
+        librarySongIds: (state.librarySongIds || []).slice(-50),
+        downloadedSongIds: (state.downloadedSongIds || []).slice(-50),
+        favoriteArtistIds: (state.favoriteArtistIds || []).slice(-30),
+        favoriteAlbumIds: (state.favoriteAlbumIds || []).slice(-30),
       }),
     }
   )
 );
+
+if (typeof window !== 'undefined') {
+  (window as any).__usePlayerStore = usePlayerStore;
+}

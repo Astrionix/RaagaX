@@ -14,9 +14,7 @@ export interface RendererState {
 export class RendererManager {
   private static instance: RendererManager;
   private renderers: Map<Renderer, RendererState> = new Map([
-    ['audio', { isActive: false, element: null }],
-    ['video', { isActive: false, element: null }],
-    ['remote', { isActive: false, element: null }]
+    ['audio', { isActive: true, element: null }]
   ]);
   
   private currentLease: RendererLease | null = null;

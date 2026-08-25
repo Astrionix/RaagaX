@@ -14,6 +14,7 @@ import { Song } from '@/types/music';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { getApiBaseUrl } from '@/lib/config/apiConfig';
+import { SongFormatter } from '@/lib/music/SongFormatter';
 
 export interface UnifiedArtistResult {
   id: string;
@@ -477,17 +478,20 @@ export class UnifiedSearchEngine {
   }
 
   private mapSong(item: any): Song {
-    const rawTitle = decodeHtml(item.name || item.title || 'Unknown Song');
-    const rawArtist = decodeHtml(
+    const rawTitle = item.name || item.title || 'Unknown Song';
+    const rawArtist =
       item.primaryArtists ||
       item.singers ||
       (Array.isArray(item.artists?.primary) ? item.artists.primary.map((a: any) => a.name).join(', ') : '') ||
       item.artist ||
-      'Unknown Artist'
-    );
-    const rawAlbum = decodeHtml(item.album?.name || item.album || item.albumName || 'Single');
+      'Unknown Artist';
+    const rawAlbum = item.album?.name || item.album || item.albumName || '';
     const songId = item.id || `song-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
     const duration = parseInt(item.duration) || 210;
+
+    const title = SongFormatter.cleanSongTitle(rawTitle);
+    const album = SongFormatter.cleanAlbumTitle(rawAlbum, rawTitle) || title;
+    const artist = SongFormatter.decodeHtml(rawArtist);
 
     let audioUrl = '';
     if (Array.isArray(item.downloadUrl)) {
@@ -499,10 +503,10 @@ export class UnifiedSearchEngine {
 
     return {
       id: songId,
-      title: rawTitle,
-      artist: rawArtist,
+      title,
+      artist,
       artistId: item.primaryArtistsId || item.artistId || `art-${songId}`,
-      album: rawAlbum,
+      album,
       albumId: item.album?.id || item.albumId || `alb-${songId}`,
       coverUrl: extractCoverUrl(item.image || item.coverUrl),
       duration,

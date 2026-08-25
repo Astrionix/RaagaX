@@ -34,13 +34,7 @@ export class InterruptionManager {
     const store = usePlayerStore.getState();
     const engine = PlaybackEngine.getInstance();
 
-    // CONNECT FOCUS ISOLATION INVARIANT:
-    // If this device is purely a Controller and another device is the Active Renderer,
-    // local focus interruptions (e.g. Phone call on phone) DO NOT pause the remote playback session.
-    if (!store.isActiveDevice) {
-      console.log(`[InterruptionManager] Local event ${event.type} ignored — device is Controller, remote device is Renderer.`);
-      return;
-    }
+
 
     const category = InterruptionClassifier.classify(event);
     console.log(`[InterruptionManager] Classifying event ${event.type} (reason: ${event.reason || 'none'}) -> ${category}`);
@@ -97,7 +91,7 @@ export class InterruptionManager {
       wasPlaying: isPlaying,
       positionMs: engine.getCanonicalPositionMs(),
       trackId: store.currentSong?.id || 'unknown',
-      sessionId: store.playbackSession?.sessionId || 'global-session',
+      sessionId: 'global-session',
       rendererDeviceId: store.deviceId,
       timestamp: Date.now(),
     };
@@ -135,7 +129,7 @@ export class InterruptionManager {
       wasPlaying: engine.isPlayingLocally() || store.isPlaying,
       positionMs: engine.getCanonicalPositionMs(),
       trackId: store.currentSong?.id || 'unknown',
-      sessionId: store.playbackSession?.sessionId || 'global-session',
+      sessionId: 'global-session',
       rendererDeviceId: store.deviceId,
       timestamp: Date.now(),
     };
@@ -164,11 +158,9 @@ export class InterruptionManager {
     if (this.currentResumePolicy && this.currentResumePolicy.eligible) {
       const store = usePlayerStore.getState();
 
-      const sameDevice = store.deviceId === this.currentResumePolicy.rendererDeviceId;
       const sameTrack = store.currentSong?.id === this.currentResumePolicy.trackId;
-      const stillActiveRenderer = store.isActiveDevice;
 
-      if (sameDevice && sameTrack && stillActiveRenderer) {
+      if (sameTrack) {
         console.log(`[InterruptionManager] Resuming playback after transient interruption (${this.currentResumePolicy.reason})`);
         engine.seekCanonical(this.currentResumePolicy.positionMs);
         await engine.play();
@@ -192,7 +184,7 @@ export class InterruptionManager {
       wasPlaying: false,
       positionMs: engine.getCanonicalPositionMs(),
       trackId: store.currentSong?.id || 'unknown',
-      sessionId: store.playbackSession?.sessionId || 'global-session',
+      sessionId: 'global-session',
       rendererDeviceId: store.deviceId,
       timestamp: Date.now(),
     };

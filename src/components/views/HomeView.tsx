@@ -309,7 +309,6 @@ export function HomeView() {
     setSelectedArtistId,
     setSelectedPlaylistId,
     playSong,
-    remoteDeviceName,
   } = usePlayerStore();
 
   const { user } = useAuthStore();
@@ -410,7 +409,7 @@ export function HomeView() {
 
   if (isActuallyOffline) {
     return (
-      <div className="space-y-5 sm:space-y-6 pb-4 md:pb-6 select-none relative">
+      <div className="space-y-5 sm:space-y-6 pb-4 md:pb-6 select-none relative animate-in fade-in duration-300">
         <OfflineHomeView
           downloadedSongs={downloadedSongs}
           likedSongs={likedSongs as Song[]}
@@ -419,8 +418,50 @@ export function HomeView() {
     );
   }
 
+  // Coordinated single-pass loading screen (prevents "part by part" flashing)
+  const isInitialLoading = !payload && isLoading && !feed;
+  if (isInitialLoading) {
+    return (
+      <div className="space-y-6 pb-8 select-none animate-in fade-in duration-300 max-w-7xl mx-auto">
+        {/* Header Skeleton */}
+        <div className="space-y-2 pt-1">
+          <div className="h-9 sm:h-11 bg-white/[0.06] rounded-xl w-36 sm:w-44 animate-pulse" />
+          <div className="h-3.5 bg-white/[0.04] rounded-lg w-48 sm:w-56 animate-pulse" />
+        </div>
+
+        {/* 4 Made For You Mix Cards Skeleton */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="rounded-3xl p-5 bg-white/[0.03] border border-white/5 h-[165px] animate-pulse flex flex-col justify-between"
+            >
+              <div className="h-6 w-20 bg-white/[0.06] rounded-full" />
+              <div className="space-y-2">
+                <div className="h-4 w-3/4 bg-white/[0.08] rounded-lg" />
+                <div className="h-3 w-1/2 bg-white/[0.04] rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Shelves Skeletons */}
+        <div className="space-y-8 pt-2">
+          <div className="space-y-3">
+            <div className="h-4 bg-white/10 rounded w-44 animate-pulse" />
+            <SkeletonGrid count={6} />
+          </div>
+          <div className="space-y-3">
+            <div className="h-4 bg-white/10 rounded w-40 animate-pulse" />
+            <SkeletonGrid count={6} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-5 sm:space-y-6 pb-4 md:pb-6 select-none relative">
+    <div className="space-y-5 sm:space-y-6 pb-4 md:pb-6 select-none relative animate-in fade-in duration-300">
 
       {/* ── Subtle Artwork Atmospheric Glow ── */}
       {isMounted && currentSong && (
@@ -452,11 +493,6 @@ export function HomeView() {
             <span className="text-[11px] font-bold text-white truncate max-w-[220px] sm:max-w-[340px]">
               {isPlaying ? `▶ ${currentSong.title} · ${currentSong.artist}` : `Ⅱ ${currentSong.title} · Paused`}
             </span>
-            {remoteDeviceName && (
-              <span className="text-[9px] font-mono font-extrabold text-[#FA233B] uppercase pl-1.5 border-l border-white/20 flex items-center gap-1">
-                <Headphones className="w-3 h-3" /> {remoteDeviceName}
-              </span>
-            )}
           </div>
         )}
 

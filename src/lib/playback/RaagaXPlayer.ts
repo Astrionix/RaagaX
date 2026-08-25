@@ -17,7 +17,6 @@ import { QueueManager } from '../queue/QueueManager';
 import { PlaybackService } from './PlaybackService';
 import { RaagaXNativePlayer } from './native/RaagaXNativePlayer';
 import { PlayerCommandType, PlayerRestrictions, PlayerQueueWindow, AdvanceReason } from './types';
-import { PlaybackSnapshot, calculateLivePositionMs } from '../connect/types';
 
 export interface RaagaXPlayerState {
   sessionId: string;

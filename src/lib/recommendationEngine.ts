@@ -118,25 +118,10 @@ export class RecommendationEngine {
       await LanguageEligibilityEngine.getInstance().recordLanguageInterest(userId, songLang, delta);
     } catch {}
 
-    // Log to Supabase High-Res Telemetry
+    // Log to Supabase High-Res Telemetry directly
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        // Upsert song to canonical_songs to satisfy foreign key constraints
-        const { error: upsertError } = await supabase.from('canonical_songs').upsert({
-          id: song.id,
-          title: song.title,
-          artist: artist,
-          album: song.album,
-          duration: Number(song.duration) || 0,
-          cover_url: song.coverUrl || null
-        }, { onConflict: 'id' });
-
-        if (upsertError) {
-          // RLS policy blocks anon/unverified clients from upserting canonical_songs — skip telemetry silently
-          return;
-        }
-
         const validEventTypes = ['play', 'pause', 'complete', 'skip', 'like', 'unlike', 'replay', 'search', 'add_to_queue'];
         const resolvedEventType = validEventTypes.includes(action) ? action : (action === 'complete' ? 'complete' : 'play');
 

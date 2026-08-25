@@ -33,6 +33,7 @@ export function ContextMenuModal() {
   const [mounted, setMounted] = useState(false);
   const [currentView, setCurrentView] = useState<'main' | 'playlist' | 'more'>('main');
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
 
   React.useEffect(() => {
     setMounted(true);
@@ -145,27 +146,6 @@ export function ContextMenuModal() {
                 <span className="font-semibold text-slate-200 group-hover:text-white flex-1 ml-3 text-xs">Play Next</span>
               </button>
 
-              {/* 3. Start Song Radio */}
-              <button
-                onClick={() => handleAction(() => {
-                  import('@/lib/radio/RadioEngine').then(({ RadioEngine }) => {
-                    RadioEngine.getInstance().startRadio({
-                      type: 'song',
-                      seedId: contextMenuSong.id,
-                      seedTitle: contextMenuSong.title,
-                      seedCover: contextMenuSong.coverUrl,
-                      initialSong: contextMenuSong,
-                      language: contextMenuSong.language,
-                    });
-                  });
-                })}
-                className="w-full py-2.5 px-3 rounded-xl hover:bg-white/10 flex items-center transition-colors group cursor-pointer"
-              >
-                <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-[#FA233B] group-hover:bg-[#FA233B] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
-                  <Radio className="w-4 h-4" />
-                </div>
-                <span className="font-semibold text-slate-200 group-hover:text-white flex-1 ml-3 text-xs">Start Song Radio</span>
-              </button>
 
               {/* 4. Add to Queue */}
               <button
@@ -357,65 +337,67 @@ export function ContextMenuModal() {
               </button>
 
               {/* Download / Remove Download (Mobile only) */}
-              <div className="md:hidden">
-                {isDownloaded ? (
-                  <button
-                    onClick={() => handleAction(async () => {
-                      await removeDownload(contextMenuSong.id);
-                      setToastMessage(`Removed "${contextMenuSong.title}" from local storage`);
-                    })}
-                    className="w-full text-left px-2.5 py-2.5 hover:bg-red-500/10 text-slate-400 hover:text-red-400 rounded-xl flex items-center transition-all group cursor-pointer"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 group-hover:border-red-500/30 group-hover:bg-red-500/20 group-hover:text-red-400 flex items-center justify-center flex-shrink-0 transition-colors">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </div>
-                    <div className="flex-1 min-w-0 ml-3">
-                      <span className="font-semibold block text-xs">Remove Download</span>
-                      <span className="text-[10px] text-slate-500 block">Deletes local MP3</span>
-                    </div>
-                  </button>
-                ) : isDownloading ? (
-                  <div className="flex items-center w-full gap-1 p-1">
-                    <button 
-                      onClick={() => handleAction(() => pauseDownload(contextMenuSong.id))}
-                      className="flex-1 text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center group cursor-pointer"
+              {isNative && (
+                <div>
+                  {isDownloaded ? (
+                    <button
+                      onClick={() => handleAction(async () => {
+                        await removeDownload(contextMenuSong.id);
+                        setToastMessage(`Removed "${contextMenuSong.title}" from local storage`);
+                      })}
+                      className="w-full text-left px-2.5 py-2.5 hover:bg-red-500/10 text-slate-400 hover:text-red-400 rounded-xl flex items-center transition-all group cursor-pointer"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center flex-shrink-0">
-                        <Download className="w-4 h-4" />
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 group-hover:border-red-500/30 group-hover:bg-red-500/20 group-hover:text-red-400 flex items-center justify-center flex-shrink-0 transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
                       </div>
                       <div className="flex-1 min-w-0 ml-3">
-                        <span className="font-bold text-amber-400 block text-xs">
-                          Pause ({task?.progress || 0}%)
-                        </span>
-                        <span className="text-[10px] text-slate-400 block">Downloading...</span>
+                        <span className="font-semibold block text-xs">Remove Download</span>
+                        <span className="text-[10px] text-slate-500 block">Deletes local MP3</span>
                       </div>
                     </button>
+                  ) : isDownloading ? (
+                    <div className="flex items-center w-full gap-1 p-1">
+                      <button 
+                        onClick={() => handleAction(() => pauseDownload(contextMenuSong.id))}
+                        className="flex-1 text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center group cursor-pointer"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center flex-shrink-0">
+                          <Download className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0 ml-3">
+                          <span className="font-bold text-amber-400 block text-xs">
+                            Pause ({task?.progress || 0}%)
+                          </span>
+                          <span className="text-[10px] text-slate-400 block">Downloading...</span>
+                        </div>
+                      </button>
+                      <button 
+                        onClick={() => handleAction(() => cancelDownload(contextMenuSong.id))}
+                        className="p-2 text-red-400 hover:bg-white/10 rounded-xl cursor-pointer"
+                        title="Cancel"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
                     <button 
-                      onClick={() => handleAction(() => cancelDownload(contextMenuSong.id))}
-                      className="p-2 text-red-400 hover:bg-white/10 rounded-xl cursor-pointer"
-                      title="Cancel"
+                      onClick={() => handleAction(async () => {
+                        await saveForOffline(contextMenuSong);
+                        setToastMessage(`Downloading "${contextMenuSong.title}"...`);
+                      })}
+                      className="w-full text-left px-2.5 py-2.5 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
                     >
-                      <X className="w-4 h-4" />
+                      <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-emerald-400 group-hover:bg-emerald-500/20 flex items-center justify-center flex-shrink-0 transition-colors">
+                        <Download className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex-1 min-w-0 ml-3">
+                        <span className="font-semibold text-slate-200 group-hover:text-white block text-xs">Download</span>
+                        <span className="text-[10px] text-slate-400 block font-mono">Offline 320kbps</span>
+                      </div>
                     </button>
-                  </div>
-                ) : (
-                  <button 
-                    onClick={() => handleAction(async () => {
-                      await saveForOffline(contextMenuSong);
-                      setToastMessage(`Downloading "${contextMenuSong.title}"...`);
-                    })}
-                    className="w-full text-left px-2.5 py-2.5 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-emerald-400 group-hover:bg-emerald-500/20 flex items-center justify-center flex-shrink-0 transition-colors">
-                      <Download className="w-3.5 h-3.5" />
-                    </div>
-                    <div className="flex-1 min-w-0 ml-3">
-                      <span className="font-semibold text-slate-200 group-hover:text-white block text-xs">Download</span>
-                      <span className="text-[10px] text-slate-400 block font-mono">Offline 320kbps</span>
-                    </div>
-                  </button>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
 
               {/* Not Interested */}
               <button 

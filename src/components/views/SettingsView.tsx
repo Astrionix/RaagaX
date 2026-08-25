@@ -103,6 +103,7 @@ export function SettingsView() {
   const [activeSection, setActiveSection] = useState<SettingsSectionId>('account');
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
 
   // Store bindings
   const {
@@ -131,9 +132,7 @@ export function SettingsView() {
       showPlaylists: true,
     },
     setHomeFeedControl,
-    onlineDevices,
     deviceId,
-    isActiveDevice,
     exportBackupJson
   } = usePlayerStore();
 
@@ -757,18 +756,6 @@ export function SettingsView() {
                 }
               />
               <SettingRow
-                title="Pro Audio Equalizer & Spatial Audio"
-                description="Tune 10 frequency bands, enhance sub-bass, and activate 3D headphone virtualizer."
-                control={
-                  <button
-                    onClick={() => usePlayerStore.getState().toggleEqualizer(true)}
-                    className="px-3.5 py-1.5 rounded-xl bg-[#FA233B] hover:bg-[#d91e32] text-white text-xs font-bold transition-all shadow-md cursor-pointer"
-                  >
-                    Open Equalizer
-                  </button>
-                }
-              />
-              <SettingRow
                 title="Gapless playback"
                 description="Eliminate silence between songs for continuous listening on albums and live sets."
                 control={
@@ -1142,42 +1129,9 @@ export function SettingsView() {
           {/* 5. DEVICES */}
           {activeSection === 'devices' && (
             <div className="space-y-6">
-              {/* Connect to My Device Banner */}
-              <div className="p-5 rounded-2xl bg-gradient-to-r from-red-600/20 via-purple-600/20 to-slate-900 border border-red-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-[#FA233B] flex items-center justify-center text-white shadow-lg flex-shrink-0">
-                    <Laptop className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-white">RaagaX Connect</h4>
-                    <p className="text-xs text-slate-300 mt-0.5">Discover and stream to your Desktop, phone, or Wi-Fi audio devices</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => usePlayerStore.getState().toggleDeviceModal()}
-                  className="px-4 py-2 rounded-xl bg-[#FA233B] hover:bg-[#d91e32] text-white text-xs font-bold shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer flex-shrink-0"
-                >
-                  <span>Connect to My Device</span>
-                </button>
-              </div>
-
-              <SettingRow
-                title="Cross-device sync"
-                description="Broadcast playback position and accept remote commands from other devices."
-                control={
-                  <ToggleSwitch
-                    checked={crossDeviceSync}
-                    onChange={() => {
-                      setCrossDeviceSync(!crossDeviceSync);
-                      showToast('Cross-device sync updated');
-                    }}
-                  />
-                }
-              />
-
               <div className="space-y-3">
                 <h4 className="text-xs font-semibold uppercase tracking-wider text-[#8E92A4]">
-                  Active Devices on Your Account
+                  Device Information
                 </h4>
 
                 {/* This Device */}
@@ -1188,43 +1142,17 @@ export function SettingsView() {
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-white">This Device</span>
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#F51B3D]/20 text-[#F51B3D] font-bold">
-                          {isActiveDevice ? 'CURRENT RENDERER' : 'CONTROLLER'}
+                          LOCAL AUDIO ENGINE
                         </span>
                       </div>
-                      <p className="text-xs text-[#8E92A4] mt-0.5">ID: {deviceId || 'local_session'}</p>
+                      <p className="text-xs text-[#8E92A4] mt-0.5">ID: {deviceId || 'local_device'}</p>
                     </div>
                   </div>
                   <span className="text-xs text-emerald-400 font-medium flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    Online
+                    Active
                   </span>
                 </div>
-
-                {/* Remote Devices */}
-                {onlineDevices.filter(d => d.id !== deviceId).map((d) => (
-                  <div key={d.id} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Smartphone className="w-5 h-5 text-slate-400" />
-                      <div>
-                        <span className="text-sm font-semibold text-white">{d.name}</span>
-                        <p className="text-xs text-[#8E92A4]">Available for Playback Handoff</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        usePlayerStore.getState().transferPlayback(d.id);
-                        showToast(`Initiating transfer to ${d.name}...`);
-                      }}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-colors"
-                    >
-                      Play Here
-                    </button>
-                  </div>
-                ))}
-
-                <p className="text-[11px] text-[#8E92A4] italic">
-                  Note: Opening RaagaX on another device restores position in paused state and will never autoplay audio.
-                </p>
               </div>
             </div>
           )}
@@ -1253,11 +1181,13 @@ export function SettingsView() {
                   description="Songs saved to your personal library."
                   control={<StatusBadge status="ACTIVE" label={`${likedSongIds.length} tracks synced`} />}
                 />
-                <SettingRow
-                  title="Offline Downloads"
-                  description="Audio files cached in browser IndexedDB."
-                  control={<StatusBadge status="ACTIVE" label={`${downloadedSongIds.length} offline tracks`} />}
-                />
+                {isNative && (
+                  <SettingRow
+                    title="Offline Downloads"
+                    description="Audio files cached on mobile device storage."
+                    control={<StatusBadge status="ACTIVE" label={`${downloadedSongIds.length} offline tracks`} />}
+                  />
+                )}
                 <SettingRow
                   title="Listening History"
                   description="Recent songs recorded for taste modeling."
@@ -1471,7 +1401,7 @@ export function SettingsView() {
               />
               <SettingRow
                 title="Show remixes"
-                description="Include remix and electronic variations in search and radio."
+                description="Include remix and electronic variations in search and recommendations."
                 control={<ToggleSwitch checked={contentRemixes} onChange={() => setContentRemixes(!contentRemixes)} />}
               />
               <SettingRow
@@ -1687,7 +1617,7 @@ export function SettingsView() {
                 <DiagnosticCard label="Sync Engine" value="Supabase Realtime PostgreSQL Channel" />
                 <DiagnosticCard label="Catalog Cache" value="30-Day TTL (71 Verified Rows)" />
                 <DiagnosticCard label="Local Database" value="IndexedDB v8 (Operational)" />
-                <DiagnosticCard label="Active Renderer" value={isActiveDevice ? 'Local Audio Element' : 'Remote Target'} />
+                <DiagnosticCard label="Active Renderer" value="Local Audio Element" />
                 <DiagnosticCard label="Language Alignment" value="Multi-Language Neutral (6 Active)" />
               </div>
             </div>

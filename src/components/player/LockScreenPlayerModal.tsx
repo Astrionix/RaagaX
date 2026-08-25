@@ -39,12 +39,6 @@ export function LockScreenPlayerModal({ isOpen, onClose }: LockScreenPlayerModal
     likedSongIds,
     downloadedSongIds,
     toggleLikeSong,
-    activeDeviceId,
-    onlineDevices,
-    deviceId,
-    remoteDeviceName,
-    isActiveDevice,
-    toggleDeviceModal,
   } = usePlayerStore();
 
   const { tasks } = useDownloadStore();
@@ -78,11 +72,7 @@ export function LockScreenPlayerModal({ isOpen, onClose }: LockScreenPlayerModal
     ? currentSong.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500')
     : '/app-icon.png';
 
-  const activeDeviceObj = onlineDevices.find((d) => d.id === activeDeviceId);
-  const localDeviceObj = onlineDevices.find((d) => d.id === deviceId);
-  const currentOutputName = !isActiveDevice
-    ? (remoteDeviceName || activeDeviceObj?.name || 'Remote Device')
-    : (localDeviceObj?.name || 'This Phone');
+  const currentOutputName = 'This Phone';
 
   const formatTime = (seconds: number): string => {
     if (!Number.isFinite(seconds) || seconds < 0) return '--:--';

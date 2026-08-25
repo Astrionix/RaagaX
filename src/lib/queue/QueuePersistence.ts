@@ -39,10 +39,10 @@ export class QueuePersistence {
   public async saveSnapshot(snapshot: QueueSnapshot) {
     if (this.saveTimeout) clearTimeout(this.saveTimeout);
 
-    // Fast synchronous cache for instant restoration
+    // Remove legacy large queue snapshot from localStorage to prevent QuotaExceededError
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('raagax_active_queue_snapshot', JSON.stringify(snapshot));
+        localStorage.removeItem('raagax_active_queue_snapshot');
       } catch {}
     }
     
@@ -59,14 +59,14 @@ export class QueuePersistence {
           await db.put('queue_state', { ...snapshot, queueId: 'default' });
         }
       } catch (e) {
-        console.warn('[QueuePersistence] Failed to save snapshot', e);
+        console.warn('[QueuePersistence] Failed to save snapshot to IDB', e);
       }
     }, 250);
   }
 
   public async loadSnapshot(queueId: string = 'active_session'): Promise<QueueSnapshot | null> {
     try {
-      if (typeof window !== 'undefined' && 'indexedDB' in window) {
+      if (typeof window !== 'undefined') {
         const db = await this.getDB();
         let snapshot = await db.get('queue_state', queueId);
         if (!snapshot && queueId !== 'active_session') {
@@ -81,16 +81,6 @@ export class QueuePersistence {
       }
     } catch (e) {
       console.warn('[QueuePersistence] Failed to load snapshot from IDB:', e);
-    }
-
-    // Fast tier fallback
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem('raagax_active_queue_snapshot');
-        if (raw) {
-          return JSON.parse(raw);
-        }
-      } catch {}
     }
 
     return null;

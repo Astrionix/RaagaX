@@ -19,9 +19,12 @@ interface SongActionMenuProps {
   playlistId?: string;
   onRemoveFromPlaylist?: () => void;
   onNotInterested?: () => void;
+  triggerClassName?: string;
+  iconClassName?: string;
+  horizontal?: boolean;
 }
 
-export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotInterested }: SongActionMenuProps) {
+export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotInterested, triggerClassName, iconClassName, horizontal }: SongActionMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [currentView, setCurrentView] = useState<'main' | 'playlist' | 'more'>('main');
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -60,17 +63,6 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
   const isInLibrary = song ? librarySongIds.includes(song.id) : false;
   const isDownloading = task && (task.status === 'DOWNLOADING' || task.status === 'QUEUED' || task.status === 'VERIFYING');
   const isInPlaylistContext = Boolean(playlistId || onRemoveFromPlaylist);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-        setCurrentView('main');
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   if (!song) return null;
 
@@ -130,10 +122,15 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
             setIsOpen(!isOpen);
             setCurrentView('main');
           }}
-          className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white rounded-full hover:bg-white/10 active:scale-90 transition-all cursor-pointer flex-shrink-0"
+          className={triggerClassName || "w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white rounded-full hover:bg-white/10 active:scale-90 transition-all cursor-pointer flex-shrink-0"}
           aria-label="Track actions"
+          title="More options"
         >
-          <MoreVertical className="w-4 h-4" />
+          {horizontal ? (
+            <MoreHorizontal className={iconClassName || "w-4 h-4"} />
+          ) : (
+            <MoreVertical className={iconClassName || "w-4 h-4"} />
+          )}
         </button>
 
         {isOpen && mounted && typeof document !== 'undefined' && createPortal(
@@ -195,7 +192,10 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
 
                 {/* 2. Play Next */}
                 <button 
-                  onClick={() => handleAction(() => playNextInQueue(song))}
+                  onClick={() => handleAction(() => {
+                    playNextInQueue(song);
+                    setToastMessage(`Will play next: ${song.title}`);
+                  })}
                   className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
                 >
                   <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-slate-300 group-hover:bg-[#EF233C] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
@@ -206,7 +206,10 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
 
                 {/* 3. Add to Queue */}
                 <button 
-                  onClick={() => handleAction(() => addToQueue(song))}
+                  onClick={() => handleAction(() => {
+                    addToQueue(song);
+                    setToastMessage(`Added "${song.title}" to queue`);
+                  })}
                   className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
                 >
                   <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-slate-300 group-hover:bg-[#EF233C] group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
@@ -327,8 +330,10 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
                 {(song.artistId || song.artist) && (
                   <button 
                     onClick={() => handleAction(() => {
-                      setSelectedArtistId(song.artistId || song.artist);
-                      setActiveTab('artist');
+                      const target = song.artistId || song.artist;
+                      if (target) {
+                        usePlayerStore.getState().navigateFromPlayer({ tab: 'artist', artistId: target });
+                      }
                     })}
                     className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
                   >
@@ -343,8 +348,10 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
                 {(song.albumId || song.album) && (
                   <button 
                     onClick={() => handleAction(() => {
-                      setSelectedAlbumId(song.albumId || song.album);
-                      setActiveTab('album');
+                      const target = song.albumId || song.album;
+                      if (target) {
+                        usePlayerStore.getState().navigateFromPlayer({ tab: 'album', albumId: target });
+                      }
                     })}
                     className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
                   >
@@ -378,20 +385,6 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
                     {copied ? 'Copied Link!' : isDownloaded ? 'Share MP3 File' : 'Share'}
                   </span>
                 </button>
-
-                {/* 10. More */}
-                <button 
-                  onClick={() => setCurrentView('more')}
-                  className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center justify-between transition-all group cursor-pointer"
-                >
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
-                      <MoreHorizontal className="w-3.5 h-3.5" />
-                    </div>
-                    <span className="font-medium text-slate-300 group-hover:text-white ml-3 text-xs">More</span>
-                  </div>
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
-                </button>
               </div>
             )}
 
@@ -424,6 +417,7 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
                       disabled={isAlreadyIn}
                       onClick={() => handleAction(() => {
                         addSongToPlaylist(pl.id, song);
+                        setToastMessage(`Added "${song.title}" to ${pl.title}`);
                       })}
                       className={`w-full text-left px-3 py-2.5 rounded-xl truncate font-medium transition-colors flex items-center justify-between text-xs cursor-pointer ${
                         isAlreadyIn

@@ -22,7 +22,10 @@ export function SeekBar({
   accentGlow?: string;
   trackColor?: string;
 }) {
-  const { currentTime, duration, currentSong, setCurrentTime, setSeekTarget } = usePlayerStore();
+  const duration = usePlayerStore((s) => s.duration);
+  const currentSongDuration = usePlayerStore((s) => s.currentSong?.duration);
+  const setCurrentTime = usePlayerStore((s) => s.setCurrentTime);
+  const setSeekTarget = usePlayerStore((s) => s.setSeekTarget);
   const trackRef = useRef<HTMLDivElement>(null);
   
   const [isSeeking, setIsSeeking] = useState(false);
@@ -32,7 +35,7 @@ export function SeekBar({
 
   const effectiveDuration = Number.isFinite(duration) && duration > 0 
     ? duration 
-    : (currentSong && Number.isFinite(currentSong.duration) && (currentSong.duration || 0) > 0 ? (currentSong.duration || 0) : 0);
+    : (Number.isFinite(currentSongDuration) && (currentSongDuration || 0) > 0 ? (currentSongDuration || 0) : 0);
 
   const prevProgressRef = useRef(0);
 
@@ -43,21 +46,9 @@ export function SeekBar({
     const tick = () => {
       if (!isSeeking && !isSeekSettling && effectiveDuration > 0) {
         const store = usePlayerStore.getState();
-        let validSec = 0;
-
-        if (store.isActiveDevice) {
-          const engine = PlaybackEngine.getInstance();
-          const liveSec = engine.isPlayingLocally() ? engine.getCanonicalPositionMs() / 1000 : store.currentTime;
-          validSec = Number.isFinite(liveSec) && !isNaN(liveSec) && liveSec >= 0 ? liveSec : 0;
-        } else {
-          // Remote follower: interpolate smoothly from remote anchor timestamp
-          let liveSec = store.currentTime;
-          if (store.isPlaying && store.remoteAnchorTimeMs > 0) {
-            const elapsed = (Date.now() - store.remoteAnchorTimeMs) / 1000;
-            liveSec = Math.min(effectiveDuration, (store.remoteAnchorPositionMs / 1000) + elapsed);
-          }
-          validSec = Number.isFinite(liveSec) && !isNaN(liveSec) && liveSec >= 0 ? liveSec : 0;
-        }
+        const engine = PlaybackEngine.getInstance();
+        const liveSec = engine.isPlayingLocally() ? engine.getCanonicalPositionMs() / 1000 : store.currentTime;
+        const validSec = Number.isFinite(liveSec) && !isNaN(liveSec) && liveSec >= 0 ? liveSec : 0;
 
         const newProgress = Math.min(1, Math.max(0, validSec / effectiveDuration));
         if (Math.abs(newProgress - prevProgressRef.current) >= 0.0005) {
@@ -150,13 +141,6 @@ export function SeekBar({
       setCurrentTime(newTime);
       setSeekTarget(newTime);
 
-      // Cross-device: broadcast SEEK so the remote device (Laptop/Phone) also seeks
-      if (!usePlayerStore.getState().isActiveDevice) {
-        import('@/lib/connect/lan/RaagaXConnectV2').then(({ RaagaXConnectV2 }) => {
-          RaagaXConnectV2.getInstance().sendCommand('CMD_SEEK', { positionMs: Math.round(newTime * 1000) });
-        }).catch(() => {});
-      }
-
       setTimeout(() => {
         setIsSeekSettling(false);
       }, 800);
@@ -171,8 +155,8 @@ export function SeekBar({
     }
     SeekLock.endSeeking(0); // cancel drag — no settle window needed
     setIsSeeking(false);
-    setIsSeekSettling(false);
-    setLocalProgress(effectiveDuration > 0 ? Math.min(1, Math.max(0, currentTime / effectiveDuration)) : 0);
+    const currentSec = usePlayerStore.getState().currentTime;
+    setLocalProgress(effectiveDuration > 0 ? Math.min(1, Math.max(0, currentSec / effectiveDuration)) : 0);
   };
 
   const handlePointerLeave = (e: React.PointerEvent) => {

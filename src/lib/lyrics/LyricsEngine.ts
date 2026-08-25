@@ -47,27 +47,18 @@ export class LyricsEngine {
     const store = usePlayerStore.getState();
 
     // Tier 1: Web audio element direct time from PlaybackService / PlaybackEngine
-    if (store.isActiveDevice) {
-      try {
-        const active = PlaybackService.getInstance().getActiveAudio();
-        if (active && !isNaN(active.currentTime) && active.currentTime > 0) {
-          return active.currentTime * 1000;
-        }
-      } catch {}
-
-      try {
-        const engine = PlaybackEngine.getInstance();
-        const mediaMs = engine.getMediaPositionMs();
-        if (mediaMs > 0) return mediaMs;
-      } catch {}
-    } else {
-      // Tier 2: Remote Connect Controller — Interpolate from remote anchor timestamp
-      if (store.remoteAnchorPositionMs !== undefined && store.remoteAnchorTimeMs) {
-        const elapsed = Date.now() - store.remoteAnchorTimeMs;
-        const liveRemoteMs = store.remoteAnchorPositionMs + (store.isPlaying ? elapsed : 0);
-        if (liveRemoteMs >= 0) return liveRemoteMs;
+    try {
+      const active = PlaybackService.getInstance().getActiveAudio();
+      if (active && !isNaN(active.currentTime) && active.currentTime > 0) {
+        return active.currentTime * 1000;
       }
-    }
+    } catch {}
+
+    try {
+      const engine = PlaybackEngine.getInstance();
+      const mediaMs = engine.getMediaPositionMs();
+      if (mediaMs > 0) return mediaMs;
+    } catch {}
 
     // Tier 3: Universal centralized usePlayerStore
     try {

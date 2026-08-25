@@ -14,6 +14,7 @@ import {
   TrendingUp,
   User,
   ChevronRight,
+  RefreshCw,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
@@ -191,6 +192,7 @@ export function NewView() {
 
   const [fallbackSongs, setFallbackSongs] = useState<Song[]>([]);
   const [isFallbackLoading, setIsFallbackLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const THREE_HOURS_MS = 3 * 60 * 60 * 1000; // 10,800,000 ms
 
@@ -206,6 +208,25 @@ export function NewView() {
       refreshInterval: THREE_HOURS_MS 
     }
   );
+
+  const handleRefresh = async () => {
+    haptics.mediumImpact();
+    setIsRefreshing(true);
+    try {
+      await Promise.allSettled([
+        revalidateNewReleases(),
+        (async () => {
+          const engine = NewReleasesEngine.getInstance();
+          const results = await engine.getNewReleasesForLanguage(lang, 50);
+          if (results && results.length > 0) {
+            setFallbackSongs(results);
+          }
+        })(),
+      ]);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
 
   // ── Fallback fetch for native Android / offline environments (refreshes every 3 hours)
   useEffect(() => {
@@ -296,17 +317,30 @@ export function NewView() {
   );
 
   return (
-    <div className="space-y-4 pb-8 text-white select-none animate-in fade-in duration-200 max-w-5xl mx-auto">
+    <div className={`space-y-4 pb-8 text-white select-none transition-opacity duration-300 ${isRefreshing ? 'opacity-70 pointer-events-none' : 'opacity-100'} animate-in fade-in duration-200 max-w-5xl mx-auto`}>
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 1. HEADER + LANGUAGE FILTER                                            */}
+      {/* 1. HEADER + LANGUAGE FILTER + REFRESH                                  */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       <div className="flex flex-col gap-2 pt-1">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">New</h1>
-          <p className="text-xs text-slate-400 font-medium mt-0.5">
-            What's actually been released — strictly <span className="text-white font-bold">{lang}</span>
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">New</h1>
+            <p className="text-xs text-slate-400 font-medium mt-0.5">
+              What's actually been released — strictly <span className="text-white font-bold">{lang}</span>
+            </p>
+          </div>
+
+          {/* Smooth Refresh Button */}
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/80 hover:text-white text-xs font-semibold transition-all cursor-pointer hover:scale-105 active:scale-95 disabled:opacity-50"
+            title="Refresh New Releases"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#FA233B]' : ''}`} />
+            <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+          </button>
         </div>
 
         {/* Strict Language Filter Pills */}

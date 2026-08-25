@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 // This API endpoint serves as the central source of truth for your APK versioning.
 // When you release a new APK, update the 'latestVersion' string here.
 export async function GET() {

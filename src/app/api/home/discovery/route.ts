@@ -1,18 +1,9 @@
 import { NextResponse } from 'next/server';
 import { apiFetch } from '#common/helpers';
 import { createSongPayload } from '#modules/songs/helpers';
+import { SongFormatter } from '@/lib/music/SongFormatter';
 
 export const dynamic = 'force-dynamic';
-
-function cleanHtml(str?: string): string {
-  if (!str) return '';
-  return str
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, '&')
-    .replace(/&#039;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>');
-}
 
 function extractCover(img: any): string {
   if (!img) return '/app-icon.png';
@@ -31,15 +22,17 @@ function toFrontendSong(s: any): any {
   const dlLinks = encUrl ? createDownloadLinks(encUrl) : [];
   const audio320 = dlLinks.find((l: any) => l.quality === '320kbps')?.url || dlLinks[dlLinks.length - 1]?.url || '';
 
-  const title = cleanHtml(s.title || s.name || 'Unknown Track');
-  const artist = cleanHtml(
+  const rawTitle = s.title || s.name || 'Unknown Track';
+  const rawAlbum = s.more_info?.album || s.album || '';
+  const title = SongFormatter.cleanSongTitle(rawTitle);
+  const album = SongFormatter.cleanAlbumTitle(rawAlbum, rawTitle) || title;
+  const artist = SongFormatter.decodeHtml(
     s.more_info?.artistMap?.primary_artists?.map((a: any) => a.name).join(', ') ||
     s.more_info?.music ||
     s.more_info?.singers ||
     s.subtitle ||
     'Various Artists'
   );
-  const album = cleanHtml(s.more_info?.album || s.album || title);
   const coverUrl = extractCover(s.image);
   const duration = parseInt(s.more_info?.duration || s.duration || '210', 10);
   const releaseYear = parseInt(s.year || s.more_info?.year || '2026', 10);
@@ -144,14 +137,14 @@ export async function GET(request: Request) {
       const result = {
         primaryChart: {
           id: primaryChart.id || primaryChart.listid,
-          title: cleanHtml(primaryChart.title || primaryChart.listname || `${lang} Superhits Top 50`),
+          title: SongFormatter.decodeHtml(primaryChart.title || primaryChart.listname || `${lang} Superhits Top 50`),
           coverUrl: extractCover(primaryChart.image),
           songCount: rankedSongs.length,
         },
         rankedSongs,
         allCharts: rawCharts.map((c: any) => ({
           id: c.id || c.listid,
-          title: cleanHtml(c.title || c.listname),
+          title: SongFormatter.decodeHtml(c.title || c.listname),
           subtitle: `${c.count || c.list_count || '50'} Songs`,
           coverUrl: extractCover(c.image),
         })),
@@ -213,14 +206,14 @@ export async function GET(request: Request) {
     const currentYear = now.getFullYear();
 
     for (const item of items) {
-      const rawTitle = cleanHtml(item.title || item.name);
+      const rawTitle = SongFormatter.cleanAlbumTitle(item.title || item.name) || SongFormatter.decodeHtml(item.title || item.name);
       const songCount = parseInt(item.more_info?.song_count || item.song_count || '1');
       const releaseDate = item.more_info?.release_date || (item.year ? `${item.year}-01-01` : '2026-01-01');
 
       const mapped = {
         id: item.id,
         title: rawTitle,
-        artist: cleanHtml(item.subtitle || item.more_info?.music || item.more_info?.singers || 'Various Artists'),
+        artist: SongFormatter.decodeHtml(item.subtitle || item.more_info?.music || item.more_info?.singers || 'Various Artists'),
         coverUrl: extractCover(item.image),
         releaseDate,
         releaseYear: parseInt(releaseDate.slice(0, 4)) || currentYear,
@@ -240,8 +233,8 @@ export async function GET(request: Request) {
     const result = {
       releasedToday: items.slice(0, 6).map((item: any) => ({
         id: item.id,
-        title: cleanHtml(item.title || item.name),
-        artist: cleanHtml(item.subtitle || item.more_info?.music || 'Various Artists'),
+        title: SongFormatter.cleanAlbumTitle(item.title || item.name) || SongFormatter.decodeHtml(item.title || item.name),
+        artist: SongFormatter.decodeHtml(item.subtitle || item.more_info?.music || 'Various Artists'),
         coverUrl: extractCover(item.image),
         releaseDate: '2026-08-20',
         badge: '🔥 RELEASED TODAY',

@@ -35,6 +35,11 @@ import {
   GripVertical,
   Maximize2,
   Minimize2,
+  Music,
+  Clock,
+  Calendar,
+  Disc3,
+  Plus,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
@@ -43,9 +48,9 @@ import { useLyricsStore } from '@/context/useLyricsStore';
 import { SeekBar } from './SeekBar';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { haptics } from '@/lib/haptics/HapticEngine';
+import { SongFormatter } from '@/lib/music/SongFormatter';
 import { ArtworkColorExtractor, ChameleonPalette } from '@/lib/theme/ArtworkColorExtractor';
 import { LiquidGlass } from '@/components/common/LiquidGlass';
-import { RadioEngine } from '@/lib/radio/RadioEngine';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 import { AlbumCatalogEngine } from '@/lib/albumCatalog';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
@@ -56,6 +61,8 @@ export function ExpandedPlayerModal() {
   const [palette, setPalette] = useState<ChameleonPalette | null>(null);
   const [showPlaylists, setShowPlaylists] = useState(false);
   const [viewMode, setViewMode] = useState<'art' | 'lyrics'>('art');
+  const [desktopView, setDesktopView] = useState<'info' | 'lyrics' | 'upnext'>('info');
+  const [desktopTab, setDesktopTab] = useState<'lyrics' | 'upnext' | 'related'>('lyrics');
   const [isDesktopQueueOpen, setIsDesktopQueueOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [songTransitionKey, setSongTransitionKey] = useState<string>('');
@@ -106,12 +113,6 @@ export function ExpandedPlayerModal() {
     setSelectedArtistId,
     setSelectedAlbumId,
     setSelectedPlaylistId,
-    navigateFromPlayer,
-    toggleDeviceModal,
-    activeDeviceId,
-    isActiveDevice,
-    remoteDeviceName,
-    onlineDevices,
     toggleQueue,
     toggleSleepTimerModal,
     sleepTimerEndsAt,
@@ -141,6 +142,14 @@ export function ExpandedPlayerModal() {
     }
     setTouchOffset(0);
     touchStartY.current = null;
+  };
+
+  const navigateFromPlayer = (nav: { tab: any; artistId?: string; albumId?: string; playlistId?: string }) => {
+    togglePlayerExpanded(false);
+    if (nav.artistId) setSelectedArtistId(nav.artistId);
+    if (nav.albumId) setSelectedAlbumId(nav.albumId);
+    if (nav.playlistId) setSelectedPlaylistId(nav.playlistId);
+    setActiveTab(nav.tab);
   };
 
   // Close when clicking outside more menu
@@ -240,6 +249,11 @@ export function ExpandedPlayerModal() {
   }, [repeatMode, setRepeatMode]);
 
   const normRepeat = String(repeatMode).toUpperCase();
+
+  const composer = currentSong?.credits?.composer || currentSong?.artist || 'Various Artists';
+  const lyricist = currentSong?.credits?.lyricist || currentSong?.artist || 'RaagaX Catalog';
+  const label = currentSong?.credits?.label || 'Sony / Aditya Music';
+  const releaseYear = currentSong?.releaseYear || (currentSong?.releaseDate ? parseInt(currentSong.releaseDate.slice(0, 4)) : 2026);
 
   // Desktop Keyboard Shortcuts
   useEffect(() => {
@@ -428,69 +442,823 @@ export function ExpandedPlayerModal() {
         {/* Center: Context Info (Playing from Playlist / Album) */}
         <div className="flex flex-col items-center justify-center text-center px-2 min-w-0">
           <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-white/50 font-sans">
-            {playbackContext?.type === 'radio' ? 'Radio Stream' : 'Playing From'}
+            Playing From
           </span>
           <span className="text-xs sm:text-sm font-semibold text-white/90 truncate max-w-[200px] sm:max-w-[340px]">
-            {playbackContext?.title || currentSong.album || 'Library'}
+            {SongFormatter.cleanAlbumTitle(playbackContext?.title || currentSong.album || '') || 'Library'}
           </span>
         </div>
 
-        {/* Right: Sleep Timer & Quick Close on Desktop */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              haptics.lightImpact();
-              toggleSleepTimerModal();
-            }}
-            className={`w-9 h-9 sm:w-10 sm:h-10 text-white/70 hover:text-white rounded-full bg-white/[0.06] hover:bg-white/[0.12] border transition-all active:scale-95 cursor-pointer flex items-center justify-center ${
-              sleepTimerEndsAt || sleepTimerMode
-                ? 'bg-purple-500/20 text-purple-300 border-purple-500/40 shadow-sm shadow-purple-500/20'
-                : 'border-white/10'
-            }`}
-            aria-label="Sleep Timer"
-            title={sleepTimerEndsAt ? 'Sleep Timer Active' : 'Sleep Timer'}
-          >
-            <Moon className={`w-4 h-4 sm:w-4.5 sm:h-4.5 ${sleepTimerEndsAt || sleepTimerMode ? 'text-purple-400 fill-purple-400/30' : ''}`} />
-          </button>
-
-          <button
-            onClick={() => {
-              haptics.lightImpact();
-              togglePlayerExpanded();
-            }}
-            className="w-9 h-9 sm:w-10 sm:h-10 -mr-1 text-white/70 hover:text-white rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 transition-all active:scale-95 cursor-pointer hidden md:flex items-center justify-center"
-            aria-label="Close"
-            title="Close Player (Esc)"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        {/* Right placeholder to balance header symmetry */}
+        <div className="w-9 h-9 sm:w-10 sm:h-10 pointer-events-none" />
       </div>
 
       {/* ── 3. MAIN WORKSPACE (CENTRAL UNBOXED STAGE + OPTIONAL DESKTOP QUEUE) ─ */}
       <div className="relative z-20 flex-1 flex items-center justify-center w-full max-w-7xl mx-auto px-5 sm:px-10 py-1 min-h-0 overflow-hidden">
         
-        {/* Central Stage (Fluid, Unboxed Apple-Music Hierarchy) */}
-        <div className={`flex-1 flex flex-col justify-between items-center h-full w-full transition-all duration-300 min-h-0 py-2 sm:py-3 gap-3 sm:gap-4 ${
-          isDesktopQueueOpen ? 'max-w-[420px] lg:max-w-[460px]' : 'max-w-[390px] sm:max-w-[420px] lg:max-w-[450px]'
-        }`}>
-          
-          {/* A. HERO ARTWORK / SYNCHRONIZED LYRICS */}
-          {viewMode === 'art' ? (
-            /* Large Unboxed Hero Artwork with Deep Cinematic Shadow */
-            <div className="w-full flex-1 flex items-center justify-center py-1 min-h-0 overflow-hidden">
+        {/* ── DESKTOP STAGE (MD+) ───────────────────────────────────────── */}
+        {desktopView === 'info' ? (
+          /* ── 1. DEFAULT DESKTOP VIEW (EXACT SIDE-BY-SIDE METADATA & FULL CONTROLS) ── */
+          <div className="hidden md:flex flex-1 flex-col justify-between items-center h-full w-full max-w-5xl mx-auto transition-all duration-300 min-h-0 py-2 sm:py-3 gap-3">
+            {/* Top 2-Column Row (Artwork + Actions on Left, Song Info & Metadata on Right) */}
+            <div className="flex-1 flex flex-row items-center justify-center gap-10 lg:gap-16 w-full my-auto min-h-0">
+              
+              {/* Left: Album Artwork + Action Pills */}
+              <div className="flex flex-col items-center gap-4 flex-shrink-0">
+                <div
+                  key={`desk-info-${songTransitionKey}`}
+                  className="relative w-[300px] lg:w-[360px] aspect-square rounded-[12px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85),0_10px_24px_rgba(0,0,0,0.55)] transition-transform duration-500 hover:scale-[1.02] flex-shrink-0"
+                >
+                  <OptimizedImage
+                    src={coverUrl}
+                    alt={currentSong.title}
+                    size="full"
+                    imageFit="contain"
+                    className="w-full h-full select-none"
+                  />
+                  <div className="absolute inset-0 rounded-[12px] ring-1 ring-inset ring-white/15 pointer-events-none" />
+                </div>
+
+                {/* Actions: Add to Queue, Like, More Options */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      addToQueue(currentSong);
+                      setToastMessage(`Added "${currentSong.title}" to queue`);
+                    }}
+                    className="px-4 py-2 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 text-white font-medium text-xs flex items-center gap-2 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add to Queue</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      haptics.lightImpact();
+                      toggleLikeSong(currentSong.id);
+                      setToastMessage(isLiked ? 'Removed from Liked Songs' : 'Saved to Liked Songs');
+                    }}
+                    className="px-4 py-2 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 text-white font-medium text-xs flex items-center gap-2 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                  >
+                    <Heart className={`w-4 h-4 ${isLiked ? 'fill-[#F0444F] text-[#F0444F]' : 'text-white/80'}`} />
+                    <span>{isLiked ? 'Liked' : 'Like'}</span>
+                  </button>
+
+                  <SongActionMenu
+                    song={currentSong}
+                    triggerClassName="w-9 h-9 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 flex items-center justify-center transition-all text-white/70 hover:text-white hover:scale-105 active:scale-95 cursor-pointer"
+                    iconClassName="w-4 h-4"
+                    horizontal
+                  />
+                </div>
+              </div>
+
+              {/* Right: Info & Metadata Table */}
+              <div className="flex-1 flex flex-col justify-center min-w-0 max-w-[460px] lg:max-w-[500px]">
+                {/* Song Title */}
+                <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tight leading-tight line-clamp-2" title={currentSong.title}>
+                  {currentSong.title}
+                </h1>
+
+                {/* Artist */}
+                <p
+                  onClick={() => {
+                    if (exactArtistId) {
+                      navigateFromPlayer({ tab: 'artist', artistId: exactArtistId });
+                    }
+                  }}
+                  className={`text-base lg:text-lg font-medium text-white/70 hover:text-white transition-colors truncate mt-1 ${
+                    exactArtistId ? 'cursor-pointer' : ''
+                  }`}
+                  title={currentSong.artist}
+                >
+                  {currentSong.artist}
+                </p>
+
+                {/* Metadata Details Table */}
+                <div className="mt-6 space-y-3 text-xs lg:text-sm">
+                  <div className="flex items-center">
+                    <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
+                      <Disc className="w-4 h-4 text-white/40" />
+                      <span>Album</span>
+                    </div>
+                    <span className="text-white/90 font-medium truncate">{currentSong.album || 'Single'}</span>
+                  </div>
+
+                  <div className="flex items-center">
+                    <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
+                      <User className="w-4 h-4 text-white/40" />
+                      <span>Artist</span>
+                    </div>
+                    <span className="text-white/90 font-medium truncate">{currentSong.artist}</span>
+                  </div>
+
+                  <div className="flex items-center">
+                    <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
+                      <Music className="w-4 h-4 text-white/40" />
+                      <span>Composer</span>
+                    </div>
+                    <span className="text-white/90 font-medium truncate">{composer}</span>
+                  </div>
+
+                  <div className="flex items-center">
+                    <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
+                      <Mic2 className="w-4 h-4 text-white/40" />
+                      <span>Lyrics</span>
+                    </div>
+                    <span className="text-white/90 font-medium truncate">{lyricist}</span>
+                  </div>
+
+                  <div className="flex items-center">
+                    <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
+                      <Clock className="w-4 h-4 text-white/40" />
+                      <span>Duration</span>
+                    </div>
+                    <span className="text-white/90 font-medium">{formatTime(songDuration)}</span>
+                  </div>
+
+                  <div className="flex items-center">
+                    <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
+                      <Calendar className="w-4 h-4 text-white/40" />
+                      <span>Release Year</span>
+                    </div>
+                    <span className="text-white/90 font-medium">{releaseYear}</span>
+                  </div>
+
+                  <div className="flex items-center">
+                    <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
+                      <Disc3 className="w-4 h-4 text-white/40" />
+                      <span>Label</span>
+                    </div>
+                    <span className="text-white/90 font-medium truncate">{label}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Controls Area */}
+            <div className="w-full max-w-3xl flex flex-col items-center gap-3">
+              {/* Seekbar */}
+              <div className="w-full space-y-1.5">
+                <SeekBar
+                  height="h-1"
+                  thumbSize="w-3.5 h-3.5"
+                  accentGradient={palette ? `linear-gradient(90deg, ${palette.highlight} 0%, ${palette.accent} 100%)` : 'linear-gradient(90deg, #F0444F 0%, #FA233B 100%)'}
+                  accentGlow={palette ? `0 0 8px ${palette.glow}` : undefined}
+                />
+                <div className="flex items-center justify-between text-xs font-mono text-white/50 font-medium px-0.5">
+                  <span>{formatTime(currentTime)}</span>
+                  <span>{songDuration > 0 ? `-${formatTime(remainingTime)}` : '--:--'}</span>
+                </div>
+              </div>
+
+              {/* Playback Controls */}
+              <div className="w-full flex items-center justify-center gap-6 sm:gap-8">
+                <button
+                  onClick={toggleShuffle}
+                  className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${
+                    shuffleMode !== 'OFF' ? 'text-[#F0444F]' : 'text-white/40 hover:text-white'
+                  }`}
+                  title={`Shuffle: ${shuffleMode} (S)`}
+                >
+                  <Shuffle className="w-5 h-5" />
+                </button>
+
+                <button
+                  onClick={() => { haptics.lightImpact(); playPrev(); }}
+                  className="w-12 h-12 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-md"
+                  title="Previous Track (←)"
+                >
+                  <SkipBack className="w-5 h-5 fill-white text-white" />
+                </button>
+
+                <button
+                  onClick={() => { haptics.mediumImpact(); togglePlayPause(); }}
+                  className="relative w-16 h-16 rounded-full cursor-pointer flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center bg-white text-black shadow-[0_12px_36px_rgba(0,0,0,0.6),0_0_24px_rgba(255,255,255,0.25)] border-2 border-white/90 group"
+                  title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+                >
+                  {isPlaying ? (
+                    <Pause className="w-7 h-7 fill-black text-black" strokeWidth={0} />
+                  ) : (
+                    <Play className="w-7 h-7 fill-black text-black ml-1" strokeWidth={0} />
+                  )}
+                </button>
+
+                <button
+                  onClick={() => { haptics.lightImpact(); playNext(); }}
+                  className="w-12 h-12 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-md"
+                  title="Next Track (→)"
+                >
+                  <SkipForward className="w-5 h-5 fill-white text-white" />
+                </button>
+
+                <button
+                  onClick={cycleRepeatMode}
+                  className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${
+                    normRepeat !== 'OFF' ? 'text-[#F0444F]' : 'text-white/40 hover:text-white'
+                  }`}
+                  title={`Repeat: ${normRepeat} (R)`}
+                >
+                  {normRepeat === 'ONE' ? (
+                    <Repeat1 className="w-5 h-5 text-[#F0444F]" />
+                  ) : (
+                    <Repeat className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
+
+              {/* Volume Slider */}
+              <div className="w-full max-w-md flex items-center gap-3 px-3">
+                <button
+                  onClick={toggleMute}
+                  className="flex-shrink-0 text-white/40 hover:text-white transition-colors cursor-pointer"
+                  title="Mute / Unmute (M)"
+                >
+                  {isMuted || volume === 0 ? (
+                    <VolumeX className="w-4 h-4 text-[#F0444F]" />
+                  ) : (
+                    <Volume2 className="w-4 h-4 text-white/50" />
+                  )}
+                </button>
+                <div className="relative flex-1 h-4 flex items-center group cursor-pointer">
+                  <div className="absolute left-0 right-0 h-1 rounded-full bg-white/15 group-hover:h-1.5 transition-all" />
+                  <div
+                    className="absolute left-0 h-1 group-hover:h-1.5 rounded-full pointer-events-none transition-all"
+                    style={{
+                      width: `${(isMuted ? 0 : volume) * 100}%`,
+                      background: palette ? `linear-gradient(90deg, ${palette.highlight} 0%, ${palette.accent} 100%)` : '#FA233B',
+                    }}
+                  />
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={isMuted ? 0 : volume}
+                    onChange={(e) => setVolume(parseFloat(e.target.value))}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    title={`Volume: ${Math.round((isMuted ? 0 : volume) * 100)}%`}
+                  />
+                </div>
+                <Volume2 className="w-4 h-4 text-white/50 flex-shrink-0" />
+              </div>
+
+              {/* Bottom Utilities Pills */}
+              <div className="flex items-center justify-center gap-3 pt-1">
+                <button
+                  onClick={() => {
+                    haptics.lightImpact();
+                    setDesktopView('lyrics');
+                    setDesktopTab('lyrics');
+                  }}
+                  className="px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10"
+                >
+                  <Mic2 className="w-3.5 h-3.5" />
+                  <span>Lyrics</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    haptics.lightImpact();
+                    setDesktopView('upnext');
+                    setDesktopTab('upnext');
+                  }}
+                  className="px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10"
+                >
+                  <ListMusic className="w-3.5 h-3.5" />
+                  <span>Queue</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    haptics.lightImpact();
+                    toggleSleepTimerModal();
+                  }}
+                  className={`px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    sleepTimerEndsAt || sleepTimerMode
+                      ? 'bg-purple-500/20 text-purple-300 border-purple-500/40 shadow-sm shadow-purple-500/20'
+                      : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
+                  }`}
+                >
+                  <Moon className={`w-3.5 h-3.5 ${sleepTimerEndsAt || sleepTimerMode ? 'text-purple-400 fill-purple-400/30' : ''}`} />
+                  <span>{sleepTimerEndsAt ? 'Timer On' : 'Timer'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* ── 2. TOGGLED LYRICS / QUEUE DESKTOP VIEW (LEFT PLAYER + RIGHT TABS) ── */
+          <div className="hidden md:flex flex-1 flex-row items-center justify-center gap-10 lg:gap-16 w-full max-w-6xl mx-auto h-full min-h-0 py-2 animate-in fade-in duration-200">
+            {/* Left: Player with Artwork, Seekbar & Controls */}
+            <div className="w-[340px] lg:w-[400px] flex flex-col justify-between items-center h-full max-h-[82vh] py-1 flex-shrink-0 gap-3">
+              {/* Artwork */}
               <div
-                key={songTransitionKey}
-                className="relative w-full max-w-[min(340px,78vw)] max-h-[min(340px,40vh)] aspect-square rounded-[24px] sm:rounded-[28px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85),0_10px_24px_rgba(0,0,0,0.55)] transition-transform duration-500 hover:scale-[1.02] animate-in zoom-in-95 fade-in duration-300 flex-shrink-0"
+                key={`desk-lyr-${songTransitionKey}`}
+                className="relative w-full max-w-[320px] lg:max-w-[360px] aspect-square rounded-[12px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85),0_10px_24px_rgba(0,0,0,0.55)] transition-transform duration-500 hover:scale-[1.02] flex-shrink-0"
               >
                 <OptimizedImage
                   src={coverUrl}
                   alt={currentSong.title}
                   size="full"
-                  className="w-full h-full object-cover select-none"
+                  imageFit="contain"
+                  className="w-full h-full select-none"
+                />
+                <div className="absolute inset-0 rounded-[12px] ring-1 ring-inset ring-white/15 pointer-events-none" />
+              </div>
+
+              {/* Title & Artist Row */}
+              <div className="w-full flex items-center justify-between gap-3 px-1 flex-shrink-0">
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-xl lg:text-2xl font-black text-white tracking-tight leading-tight truncate" title={currentSong.title}>
+                    {currentSong.title}
+                  </h1>
+                  <p
+                    onClick={() => exactArtistId && navigateFromPlayer({ tab: 'artist', artistId: exactArtistId })}
+                    className={`text-sm lg:text-base font-medium text-white/70 hover:text-white transition-colors truncate mt-0.5 ${
+                      exactArtistId ? 'cursor-pointer' : ''
+                    }`}
+                    title={currentSong.artist}
+                  >
+                    {currentSong.artist}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-shrink-0 relative">
+                  <button
+                    onClick={() => {
+                      haptics.lightImpact();
+                      toggleLikeSong(currentSong.id);
+                      setToastMessage(isLiked ? 'Removed from Liked Songs' : 'Saved to Liked Songs');
+                    }}
+                    className="w-10 h-10 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                    title={isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+                  >
+                    <Heart
+                      className={`w-5 h-5 transition-colors ${
+                        isLiked ? 'fill-[#F0444F] text-[#F0444F]' : 'text-white/70 hover:text-white'
+                      }`}
+                      strokeWidth={2}
+                    />
+                  </button>
+
+                  <SongActionMenu
+                    song={currentSong}
+                    triggerClassName="w-10 h-10 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 flex items-center justify-center transition-all text-white/70 hover:text-white hover:scale-105 active:scale-95 cursor-pointer"
+                    iconClassName="w-5 h-5"
+                    horizontal
+                  />
+                </div>
+              </div>
+
+              {/* Seekbar */}
+              <div className="w-full space-y-1 px-1 flex-shrink-0">
+                <SeekBar
+                  height="h-1"
+                  thumbSize="w-3.5 h-3.5"
+                  accentGradient={palette ? `linear-gradient(90deg, ${palette.highlight} 0%, ${palette.accent} 100%)` : 'linear-gradient(90deg, #F0444F 0%, #FA233B 100%)'}
+                  accentGlow={palette ? `0 0 8px ${palette.glow}` : undefined}
+                />
+                <div className="flex items-center justify-between text-xs font-mono text-white/50 font-medium px-0.5">
+                  <span>{formatTime(currentTime)}</span>
+                  <span>{songDuration > 0 ? `-${formatTime(remainingTime)}` : '--:--'}</span>
+                </div>
+              </div>
+
+              {/* Controls */}
+              <div className="w-full flex items-center justify-between px-2 flex-shrink-0">
+                <button
+                  onClick={toggleShuffle}
+                  className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${
+                    shuffleMode !== 'OFF' ? 'text-[#F0444F]' : 'text-white/40 hover:text-white'
+                  }`}
+                  title={`Shuffle: ${shuffleMode} (S)`}
+                >
+                  <Shuffle className="w-5 h-5" />
+                </button>
+
+                <button
+                  onClick={() => { haptics.lightImpact(); playPrev(); }}
+                  className="w-12 h-12 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-md"
+                  title="Previous Track (←)"
+                >
+                  <SkipBack className="w-5 h-5 fill-white text-white" />
+                </button>
+
+                <button
+                  onClick={() => { haptics.mediumImpact(); togglePlayPause(); }}
+                  className="relative w-16 h-16 rounded-full cursor-pointer flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center bg-white text-black shadow-[0_12px_36px_rgba(0,0,0,0.6),0_0_24px_rgba(255,255,255,0.25)] border-2 border-white/90 group"
+                  title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+                >
+                  {isPlaying ? (
+                    <Pause className="w-7 h-7 fill-black text-black" strokeWidth={0} />
+                  ) : (
+                    <Play className="w-7 h-7 fill-black text-black ml-1" strokeWidth={0} />
+                  )}
+                </button>
+
+                <button
+                  onClick={() => { haptics.lightImpact(); playNext(); }}
+                  className="w-12 h-12 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-md"
+                  title="Next Track (→)"
+                >
+                  <SkipForward className="w-5 h-5 fill-white text-white" />
+                </button>
+
+                <button
+                  onClick={cycleRepeatMode}
+                  className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${
+                    normRepeat !== 'OFF' ? 'text-[#F0444F]' : 'text-white/40 hover:text-white'
+                  }`}
+                  title={`Repeat: ${normRepeat} (R)`}
+                >
+                  {normRepeat === 'ONE' ? (
+                    <Repeat1 className="w-5 h-5 text-[#F0444F]" />
+                  ) : (
+                    <Repeat className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
+
+              {/* Volume */}
+              <div className="w-full flex items-center gap-3 px-2 flex-shrink-0">
+                <button
+                  onClick={toggleMute}
+                  className="flex-shrink-0 text-white/40 hover:text-white transition-colors cursor-pointer"
+                  title="Mute / Unmute (M)"
+                >
+                  {isMuted || volume === 0 ? (
+                    <VolumeX className="w-4 h-4 text-[#F0444F]" />
+                  ) : (
+                    <Volume2 className="w-4 h-4 text-white/50" />
+                  )}
+                </button>
+                <div className="relative flex-1 h-4 flex items-center group cursor-pointer">
+                  <div className="absolute left-0 right-0 h-1 rounded-full bg-white/15 group-hover:h-1.5 transition-all" />
+                  <div
+                    className="absolute left-0 h-1 group-hover:h-1.5 rounded-full pointer-events-none transition-all"
+                    style={{
+                      width: `${(isMuted ? 0 : volume) * 100}%`,
+                      background: palette ? `linear-gradient(90deg, ${palette.highlight} 0%, ${palette.accent} 100%)` : '#FA233B',
+                    }}
+                  />
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={isMuted ? 0 : volume}
+                    onChange={(e) => setVolume(parseFloat(e.target.value))}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    title={`Volume: ${Math.round((isMuted ? 0 : volume) * 100)}%`}
+                  />
+                </div>
+                <Volume2 className="w-4 h-4 text-white/50 flex-shrink-0" />
+              </div>
+
+              {/* Mode Pills */}
+              <div className="flex items-center justify-center gap-3 pt-1 flex-shrink-0">
+                <button
+                  onClick={() => {
+                    haptics.lightImpact();
+                    if (desktopTab === 'lyrics') {
+                      setDesktopView('info');
+                    } else {
+                      setDesktopTab('lyrics');
+                    }
+                  }}
+                  className={`px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    desktopTab === 'lyrics'
+                      ? 'bg-[#F0444F]/20 text-[#F0444F] border-[#F0444F]/40 shadow-sm'
+                      : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
+                  }`}
+                  title="Lyrics (L)"
+                >
+                  <Mic2 className="w-3.5 h-3.5" />
+                  <span>Lyrics</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    haptics.lightImpact();
+                    if (desktopTab === 'upnext') {
+                      setDesktopView('info');
+                    } else {
+                      setDesktopTab('upnext');
+                    }
+                  }}
+                  className={`px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    desktopTab === 'upnext'
+                      ? 'bg-white/20 text-white border-white/30 shadow-sm'
+                      : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
+                  }`}
+                  title="Queue (Q)"
+                >
+                  <ListMusic className="w-3.5 h-3.5" />
+                  <span>Queue</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    haptics.lightImpact();
+                    toggleSleepTimerModal();
+                  }}
+                  className={`px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    sleepTimerEndsAt || sleepTimerMode
+                      ? 'bg-purple-500/20 text-purple-300 border-purple-500/40 shadow-sm shadow-purple-500/20'
+                      : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
+                  }`}
+                >
+                  <Moon className={`w-3.5 h-3.5 ${sleepTimerEndsAt || sleepTimerMode ? 'text-purple-400 fill-purple-400/30' : ''}`} />
+                  <span>{sleepTimerEndsAt ? 'Timer On' : 'Timer'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Right: Tabs Pane (UP NEXT | LYRICS | RELATED) */}
+            <div className="flex-1 flex flex-col h-full max-h-[82vh] min-w-0 max-w-[540px] pl-4">
+              {/* Header */}
+              <div className="flex items-center gap-8 border-b border-white/10 pb-3 flex-shrink-0">
+                <button
+                  onClick={() => { haptics.lightImpact(); setDesktopTab('upnext'); }}
+                  className={`text-xs font-bold uppercase tracking-wider relative pb-1 transition-all cursor-pointer ${
+                    desktopTab === 'upnext' ? 'text-white' : 'text-white/40 hover:text-white/80'
+                  }`}
+                >
+                  UP NEXT
+                  {desktopTab === 'upnext' && (
+                    <span className="absolute left-0 right-0 -bottom-[13px] h-[2px] bg-[#F0444F] rounded-full" />
+                  )}
+                </button>
+
+                <button
+                  onClick={() => { haptics.lightImpact(); setDesktopTab('lyrics'); }}
+                  className={`text-xs font-bold uppercase tracking-wider relative pb-1 transition-all cursor-pointer ${
+                    desktopTab === 'lyrics' ? 'text-white' : 'text-white/40 hover:text-white/80'
+                  }`}
+                >
+                  LYRICS
+                  {desktopTab === 'lyrics' && (
+                    <span className="absolute left-0 right-0 -bottom-[13px] h-[2px] bg-[#F0444F] rounded-full" />
+                  )}
+                </button>
+
+                <button
+                  onClick={() => { haptics.lightImpact(); setDesktopTab('related'); }}
+                  className={`text-xs font-bold uppercase tracking-wider relative pb-1 transition-all cursor-pointer ${
+                    desktopTab === 'related' ? 'text-white' : 'text-white/40 hover:text-white/80'
+                  }`}
+                >
+                  RELATED
+                  {desktopTab === 'related' && (
+                    <span className="absolute left-0 right-0 -bottom-[13px] h-[2px] bg-[#F0444F] rounded-full" />
+                  )}
+                </button>
+
+                {desktopTab === 'lyrics' && hasTransliteration && (
+                  <button
+                    onClick={() => {
+                      haptics.lightImpact();
+                      setScriptMode(scriptMode === 'transliteration' ? 'native' : 'transliteration');
+                    }}
+                    className="ml-auto text-[10px] font-bold px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 text-white/80 transition-colors cursor-pointer"
+                  >
+                    {scriptMode === 'transliteration' ? 'Original Script' : 'English Transliteration'}
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setDesktopView('info')}
+                  className={`p-1 text-white/40 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer ${
+                    desktopTab !== 'lyrics' || !hasTransliteration ? 'ml-auto' : 'ml-2'
+                  }`}
+                  title="Close and return to song info"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Tab Content */}
+              <div className="flex-1 overflow-y-auto no-scrollbar py-6 min-h-0">
+                {/* 1. Lyrics */}
+                {desktopTab === 'lyrics' && (
+                  <div ref={modalLyricsScrollRef} className="space-y-4 pr-4">
+                    <div className="text-3xl font-serif text-[#F0444F] font-bold select-none mb-2">
+                      “
+                    </div>
+
+                    {lyricsStatus === 'loading' && (
+                      <div className="py-16 flex flex-col items-center justify-center text-white/50 gap-3">
+                        <Loader2 className="w-6 h-6 text-[#F0444F] animate-spin" />
+                        <p className="text-xs font-medium">Syncing lyrics...</p>
+                      </div>
+                    )}
+
+                    {lyricsStatus === 'unavailable' || lyricsLines.length === 0 ? (
+                      <div className="py-16 text-center text-white/50 space-y-2">
+                        <p className="text-base font-bold text-white">Lyrics unavailable</p>
+                        <p className="text-xs text-white/40">No synchronized lyrics found for this track.</p>
+                      </div>
+                    ) : (
+                      lyricsLines.map((line, idx) => {
+                        const isActive = idx === lyricsIndex;
+                        const isPassed = idx < lyricsIndex;
+                        const mainContent = (scriptMode === 'transliteration' && line.romanizedText)
+                          ? line.romanizedText
+                          : (line.nativeText || line.text);
+
+                        return (
+                          <div
+                            key={line.id}
+                            id={`modal-lyric-line-${idx}`}
+                            onClick={() => {
+                              if (line.startMs !== undefined && line.startMs >= 0) {
+                                usePlayerStore.getState().setCurrentTime(line.startMs / 1000, true);
+                              }
+                            }}
+                            className={`cursor-pointer transition-all duration-300 transform origin-left leading-relaxed ${
+                              isActive
+                                ? 'text-xl lg:text-2xl font-black text-white scale-[1.02]'
+                                : isPassed
+                                ? 'text-sm lg:text-base font-medium text-white/30 hover:text-white/60'
+                                : 'text-sm lg:text-base font-medium text-white/50 hover:text-white'
+                            }`}
+                          >
+                            {mainContent}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+
+                {/* 2. Up Next Queue */}
+                {desktopTab === 'upnext' && (
+                  <div className="space-y-3 pr-2">
+                    <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                      <span className="text-xs font-bold text-white/60">{upNextTracks.length} tracks in queue</span>
+                      {upNextTracks.length > 0 && (
+                        <button
+                          onClick={() => {
+                            clearQueue();
+                            setToastMessage('Queue cleared');
+                          }}
+                          className="text-xs text-red-400 hover:underline cursor-pointer"
+                        >
+                          Clear All
+                        </button>
+                      )}
+                    </div>
+
+                    {upNextTracks.length === 0 ? (
+                      <div className="py-16 text-center text-white/40 text-xs">
+                        Queue is empty. Search and add songs to up next.
+                      </div>
+                    ) : (
+                      upNextTracks.map((song, index) => (
+                        <div
+                          key={`${song.id}-${index}`}
+                          onClick={() => playSong(song)}
+                          className="group flex items-center justify-between p-2 rounded-xl hover:bg-white/[0.08] transition-colors cursor-pointer"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="w-5 text-xs font-mono text-white/30 text-center">{index + 1}</span>
+                            <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0">
+                              <OptimizedImage
+                                src={song.coverUrl}
+                                alt={song.title}
+                                size="thumb"
+                                className="w-full h-full"
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-white truncate group-hover:text-[#F0444F] transition-colors">
+                                {song.title}
+                              </p>
+                              <p className="text-xs text-white/50 truncate">{song.artist}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono text-white/40">{formatTime(song.duration)}</span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeFromQueue(song.id);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-1 text-white/40 hover:text-red-400 transition-all cursor-pointer"
+                              title="Remove from queue"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                {/* 3. Related */}
+                {desktopTab === 'related' && (
+                  <div className="space-y-4 pr-2">
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider">Song Information</h3>
+                    
+                    <div className="space-y-3 text-xs lg:text-sm">
+                      <div className="flex items-center">
+                        <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
+                          <Disc className="w-4 h-4 text-white/40" />
+                          <span>Album</span>
+                        </div>
+                        <span className="text-white/90 font-medium truncate">{currentSong.album || 'Single'}</span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
+                          <User className="w-4 h-4 text-white/40" />
+                          <span>Artist</span>
+                        </div>
+                        <span className="text-white/90 font-medium truncate">{currentSong.artist}</span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
+                          <Music className="w-4 h-4 text-white/40" />
+                          <span>Composer</span>
+                        </div>
+                        <span className="text-white/90 font-medium truncate">{composer}</span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
+                          <Mic2 className="w-4 h-4 text-white/40" />
+                          <span>Lyrics</span>
+                        </div>
+                        <span className="text-white/90 font-medium truncate">{lyricist}</span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
+                          <Clock className="w-4 h-4 text-white/40" />
+                          <span>Duration</span>
+                        </div>
+                        <span className="text-white/90 font-medium">{formatTime(songDuration)}</span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
+                          <Calendar className="w-4 h-4 text-white/40" />
+                          <span>Release Year</span>
+                        </div>
+                        <span className="text-white/90 font-medium">{releaseYear}</span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
+                          <Disc3 className="w-4 h-4 text-white/40" />
+                          <span>Label</span>
+                        </div>
+                        <span className="text-white/90 font-medium truncate">{label}</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-4">
+                      <button
+                        onClick={() => {
+                          addToQueue(currentSong);
+                          setToastMessage(`Added "${currentSong.title}" to queue`);
+                        }}
+                        className="px-4 py-2 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 text-white font-medium text-xs flex items-center gap-2 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Add to Queue</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── MOBILE STAGE (VERTICAL UNBOXED VIEW ON MOBILE < MD) ─────────── */}
+        <div className={`flex md:hidden flex-1 flex-col justify-between items-center h-full w-full transition-all duration-300 min-h-0 py-1 sm:py-2 gap-2 sm:gap-4 max-w-[390px] sm:max-w-[440px]`}>
+          
+          {/* A. HERO ARTWORK / SYNCHRONIZED LYRICS */}
+          {viewMode === 'art' ? (
+            /* Large Unboxed Hero Artwork with Deep Cinematic Shadow */
+            <div className="w-full flex-1 flex items-center justify-center py-0.5 sm:py-1 min-h-0 overflow-hidden">
+              <div
+                key={`mob-${songTransitionKey}`}
+                className="relative w-full max-w-[min(360px,80vw)] max-h-[min(360px,46vh)] aspect-square rounded-[8px] sm:rounded-[12px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85),0_10px_24px_rgba(0,0,0,0.55)] transition-transform duration-500 hover:scale-[1.02] animate-in zoom-in-95 fade-in duration-300 flex-shrink-0"
+              >
+                <OptimizedImage
+                  src={coverUrl}
+                  alt={currentSong.title}
+                  size="full"
+                  imageFit="contain"
+                  className="w-full h-full select-none"
                 />
                 {/* 1px Inner Specular Rim Highlight */}
-                <div className="absolute inset-0 rounded-[24px] sm:rounded-[28px] ring-1 ring-inset ring-white/20 pointer-events-none" />
+                <div className="absolute inset-0 rounded-[8px] sm:rounded-[12px] ring-1 ring-inset ring-white/15 pointer-events-none" />
               </div>
             </div>
           ) : (
@@ -600,121 +1368,12 @@ export function ExpandedPlayerModal() {
                   />
                 </button>
 
-                <button
-                  onClick={() => {
-                    haptics.lightImpact();
-                    setIsMenuOpen(!isMenuOpen);
-                  }}
-                  className="w-10 h-10 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 flex items-center justify-center transition-all text-white/70 hover:text-white hover:scale-105 active:scale-95 cursor-pointer"
-                  title="More Options"
-                >
-                  <MoreHorizontal className="w-5 h-5" />
-                </button>
-
-                {/* More Options Popover */}
-                {isMenuOpen && (
-                  <div
-                    className="absolute right-0 bottom-full mb-2 w-56 bg-[#12141C]/95 backdrop-blur-xl border border-white/15 rounded-2xl p-1.5 shadow-2xl z-50 text-xs text-white divide-y divide-white/5 animate-in fade-in zoom-in-95 duration-150"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="space-y-0.5 pb-1">
-                      <button
-                        onClick={() => {
-                          haptics.mediumImpact();
-                          RadioEngine.getInstance().startRadio({
-                            type: 'song',
-                            seedId: currentSong.id,
-                            seedTitle: currentSong.title,
-                            seedCover: currentSong.coverUrl,
-                            initialSong: currentSong,
-                          });
-                          setToastMessage(`Started "${currentSong.title}" Radio`);
-                          setIsMenuOpen(false);
-                        }}
-                        className="w-full p-2.5 rounded-xl flex items-center gap-2.5 hover:bg-[#F0444F]/20 text-white font-bold transition-colors text-left cursor-pointer"
-                      >
-                        <Radio className="w-4 h-4 text-[#F0444F]" />
-                        <span>Start Song Radio</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          addToQueue(currentSong);
-                          setToastMessage(`Added "${currentSong.title}" to queue`);
-                          setIsMenuOpen(false);
-                        }}
-                        className="w-full p-2.5 rounded-xl flex items-center gap-2.5 hover:bg-white/10 transition-colors text-left cursor-pointer"
-                      >
-                        <ListPlus className="w-4 h-4 text-slate-400" />
-                        <span>Add to Queue</span>
-                      </button>
-
-                      {isNative && (
-                        <button
-                          onClick={() => {
-                            saveForOffline(currentSong);
-                            setToastMessage(`Downloading "${currentSong.title}"`);
-                            setIsMenuOpen(false);
-                          }}
-                          className="w-full p-2.5 rounded-xl flex items-center gap-2.5 hover:bg-white/10 transition-colors text-left cursor-pointer"
-                        >
-                          <Download className="w-4 h-4 text-slate-400" />
-                          <span>Download Song</span>
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => {
-                          haptics.lightImpact();
-                          toggleSleepTimerModal();
-                          setIsMenuOpen(false);
-                        }}
-                        className="w-full p-2.5 rounded-xl flex items-center gap-2.5 hover:bg-purple-500/20 text-white transition-colors text-left cursor-pointer"
-                      >
-                        <Moon className="w-4 h-4 text-purple-400" />
-                        <span>Sleep Timer {sleepTimerEndsAt ? '(Active)' : ''}</span>
-                      </button>
-                    </div>
-
-                    <div className="space-y-0.5 pt-1">
-                      <button
-                        onClick={() => {
-                          if (exactArtistId) {
-                            navigateFromPlayer({ tab: 'artist', artistId: exactArtistId });
-                            setIsMenuOpen(false);
-                          }
-                        }}
-                        disabled={!exactArtistId}
-                        className={`w-full p-2.5 rounded-xl flex items-center gap-2.5 transition-colors text-left ${
-                          exactArtistId
-                            ? 'hover:bg-white/10 text-white cursor-pointer'
-                            : 'opacity-40 text-slate-500 cursor-not-allowed'
-                        }`}
-                      >
-                        <User className="w-4 h-4 text-slate-400" />
-                        <span>Go to Artist</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          if (exactAlbumId) {
-                            navigateFromPlayer({ tab: 'album', albumId: exactAlbumId });
-                            setIsMenuOpen(false);
-                          }
-                        }}
-                        disabled={!exactAlbumId}
-                        className={`w-full p-2.5 rounded-xl flex items-center gap-2.5 transition-colors text-left ${
-                          exactAlbumId
-                            ? 'hover:bg-white/10 text-white cursor-pointer'
-                            : 'opacity-40 text-slate-500 cursor-not-allowed'
-                        }`}
-                      >
-                        <Disc className="w-4 h-4 text-slate-400" />
-                        <span>Go to Album</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <SongActionMenu
+                  song={currentSong}
+                  triggerClassName="w-10 h-10 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 flex items-center justify-center transition-all text-white/70 hover:text-white active:scale-95 cursor-pointer"
+                  iconClassName="w-5 h-5"
+                  horizontal
+                />
               </div>
             </div>
           </div>
@@ -852,34 +1511,13 @@ export function ExpandedPlayerModal() {
               <span>Lyrics</span>
             </button>
 
-            {/* Device Button */}
-            <button
-              onClick={() => {
-                haptics.lightImpact();
-                toggleDeviceModal();
-              }}
-              className="px-3.5 sm:px-4 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/70 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
-              title="Connect Device"
-            >
-              <Cast className="w-3.5 h-3.5" />
-              <span className="truncate max-w-[70px] sm:max-w-[90px]">{activeDeviceId && activeDeviceId !== deviceId ? (remoteDeviceName || 'Remote') : 'Device'}</span>
-            </button>
-
             {/* Queue Button */}
             <button
               onClick={() => {
                 haptics.lightImpact();
-                if (typeof window !== 'undefined' && window.innerWidth >= 768) {
-                  setIsDesktopQueueOpen(!isDesktopQueueOpen);
-                } else {
-                  toggleQueue();
-                }
+                toggleQueue();
               }}
-              className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                isDesktopQueueOpen
-                  ? 'bg-white/20 text-white border-white/30 shadow-sm'
-                  : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
-              }`}
+              className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10`}
               title="Playback Queue (Q)"
             >
               <ListMusic className="w-3.5 h-3.5" />

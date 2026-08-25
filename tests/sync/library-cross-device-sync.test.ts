@@ -4,6 +4,8 @@ const mockDbState = {
   liked_songs: [] as { user_id: string; song_id: string }[],
   playlists: [] as any[],
   playlist_songs: [] as any[],
+  user_artists: [] as any[],
+  saved_albums: [] as any[],
   user_favorites: [] as any[],
   user_downloads: [] as any[],
   user_library_state: [] as any[],
@@ -439,7 +441,7 @@ describe('RaagaX Cross-Device Library Synchronization Architecture Tests', () =>
     const syncEngine = AccountSyncEngine.getInstance();
 
     mockDbState.liked_songs = [{ user_id: testUserId, song_id: mockSongB.id }];
-    mockDbState.user_favorites = [{ user_id: testUserId, item_id: 'artist_thaman', item_type: 'artist' }];
+    mockDbState.user_artists = [{ user_id: testUserId, artist_id: 'artist_thaman' }];
     mockDbState.playlists = [{
       id: 'pl_sync_99',
       name: 'Consistent Playlist',

@@ -8,6 +8,7 @@ export interface OptimizedImageProps extends Omit<React.ImgHTMLAttributes<HTMLIm
   size?: 'thumb' | 'card' | 'full';
   className?: string;
   fallbackSrc?: string;
+  imageFit?: 'cover' | 'contain' | 'fill';
 }
 
 // In-memory cache set for already loaded image URLs across the user session
@@ -27,6 +28,7 @@ export function OptimizedImage({
   size = 'card',
   className = '',
   fallbackSrc = '/app-icon.png',
+  imageFit = 'cover',
   style,
   ...props
 }: OptimizedImageProps) {
@@ -100,7 +102,7 @@ export function OptimizedImage({
             setIsLoaded(true);
           }
         }}
-        className="w-full h-full object-cover transition-transform duration-300"
+        className={`w-full h-full ${imageFit === 'contain' ? 'object-contain' : imageFit === 'fill' ? 'object-fill' : 'object-cover'} transition-transform duration-300`}
         style={style}
         {...props}
       />

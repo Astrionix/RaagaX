@@ -40,7 +40,8 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "tests/**/*.ts",
-    ".next/types/**/*.ts"
+    ".next/types/**/*.ts",
+    ".next3003/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

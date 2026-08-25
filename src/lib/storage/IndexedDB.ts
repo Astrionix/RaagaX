@@ -1,5 +1,5 @@
 const DB_NAME = 'raagaX';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export const STORES = {
   LIKED_SONGS: 'liked_songs',
@@ -12,6 +12,8 @@ export const STORES = {
   BROWSE_CACHE: 'browse_cache',
   RECOMMENDATIONS_SNAPSHOT: 'recommendations_snapshot',
   PENDING_MUTATIONS: 'pending_mutations',
+  ARTWORK: 'artwork_cache',
+  SONGS_METADATA: 'songs_metadata',
 } as const;
 
 export class RaagaDB {
@@ -76,6 +78,12 @@ export class RaagaDB {
         if (!db.objectStoreNames.contains(STORES.PENDING_MUTATIONS)) {
           const store = db.createObjectStore(STORES.PENDING_MUTATIONS, { keyPath: 'id' });
           store.createIndex('createdAt', 'createdAt', { unique: false });
+        }
+        if (!db.objectStoreNames.contains(STORES.ARTWORK)) {
+          db.createObjectStore(STORES.ARTWORK, { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains(STORES.SONGS_METADATA)) {
+          db.createObjectStore(STORES.SONGS_METADATA, { keyPath: 'id' });
         }
       };
     });

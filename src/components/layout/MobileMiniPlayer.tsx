@@ -63,8 +63,6 @@ export function MobileMiniPlayer() {
     togglePlayerExpanded,
     likedSongIds,
     toggleLikeSong,
-    isActiveDevice,
-    remoteDeviceName,
   } = usePlayerStore();
 
   if (!mounted || !currentSong) return null;
@@ -210,20 +208,13 @@ export function MobileMiniPlayer() {
               </h4>
               {!isScrolled && (
                 <p className="text-[11px] text-[var(--text-secondary)] truncate leading-tight flex items-center gap-1 mt-0.5 animate-in fade-in duration-200">
-                  {!isActiveDevice ? (
-                    <span className="text-[#E50914] font-medium flex items-center gap-1">
-                      <Disc3 className="w-3 h-3 animate-spin" />
-                      {remoteDeviceName || 'Remote Device'}
-                    </span>
-                  ) : (
-                    <span>{currentSong.artist}</span>
-                  )}
+                  <span>{currentSong.artist}</span>
                 </p>
               )}
             </div>
           </div>
 
-          {/* Right: Controls (Like, Device Cast, 44dp Play/Pause, Next) */}
+          {/* Right: Controls (Like, Play/Pause, Next) */}
           <div className="flex items-center gap-1 flex-shrink-0">
             {/* Favorite button (visible in Normal state) */}
             {!isScrolled && (
@@ -241,26 +232,6 @@ export function MobileMiniPlayer() {
                   }`}
                   strokeWidth={2.2}
                 />
-              </button>
-            )}
-
-            {/* Audio Output Device Sheet Trigger (visible in Normal state) */}
-            {!isScrolled && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  usePlayerStore.getState().toggleDeviceModal();
-                }}
-                aria-label="Connect to My Device"
-                className={`w-11 h-11 rounded-full transition-all active:scale-90 flex items-center justify-center relative cursor-pointer ${
-                  !isActiveDevice ? 'text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 shadow-sm' : 'text-[#94A3B8] hover:text-white'
-                }`}
-                title={remoteDeviceName ? `Connected: ${remoteDeviceName}` : 'Connect to My Device'}
-              >
-                <MonitorSmartphone className="w-4 h-4" />
-                {!isActiveDevice && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 absolute top-2 right-2 animate-ping" />
-                )}
               </button>
             )}
 

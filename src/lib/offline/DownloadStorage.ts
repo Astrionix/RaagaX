@@ -138,20 +138,24 @@ export class DownloadStorage {
     const available = Math.max(0, quota - usage);
     const percentUsed = quota > 0 ? (usage / quota) * 100 : 0;
 
-    let deviceName = 'Android Device';
+    let deviceName = typeof window !== 'undefined' ? (localStorage.getItem('raagax_device_name') || 'This Device') : 'This Device';
     let deviceType: 'desktop' | 'mobile' | 'tablet' | 'tv' = 'mobile';
-    let platform = 'Android';
+    let platform = 'Web';
 
-    try {
-      const { DeviceRegistry } = await import('@/lib/connect/DeviceRegistry');
-      const friendly = DeviceRegistry.getInstance().getFriendlyDeviceName();
-      deviceName = friendly.name;
-      deviceType = friendly.type;
-      platform = friendly.platform;
-    } catch {
-      if (typeof window !== 'undefined') {
-        const custom = localStorage.getItem('raagax_custom_device_name') || localStorage.getItem('raagax_device_name');
-        if (custom) deviceName = custom;
+    if (typeof window !== 'undefined') {
+      const ua = navigator.userAgent;
+      if (/android/i.test(ua)) {
+        platform = 'Android';
+        deviceType = 'mobile';
+      } else if (/ipad|tablet/i.test(ua)) {
+        platform = 'Tablet';
+        deviceType = 'tablet';
+      } else if (/iphone|ipod/i.test(ua)) {
+        platform = 'iOS';
+        deviceType = 'mobile';
+      } else {
+        platform = 'Desktop';
+        deviceType = 'desktop';
       }
     }
 

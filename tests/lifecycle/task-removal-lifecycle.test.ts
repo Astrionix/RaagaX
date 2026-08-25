@@ -135,8 +135,8 @@ describe('Android APK Lifecycle: onTaskRemoved, Swipe Dismiss & Anti-Autoplay Te
 
     const restoredState = usePlayerStore.getState();
     expect(restoredState.currentSong?.id).toBe('song_tabahi_99');
-    expect(restoredState.currentTime).toBe(0); // STRICT RULE: Position resets to 0:00 on fresh launch
-    expect(restoredState.isPlaying).toBe(false); // MUST BE PAUSED
+    expect(restoredState.currentTime).toBe(65); // Restores exact timestamp from session
+    expect(restoredState.isPlaying).toBe(false); // STRICT RULE: MUST BE PAUSED ON LAUNCH
     expect(restoredState.playbackIntent).toBe('PAUSED');
     expect(restoredState.trackSource).toBe('SESSION_RESTORE');
   });

@@ -22,9 +22,8 @@ import { PlaybackService } from '@/lib/playback/PlaybackService';
 import { AdaptiveQueueController } from '@/lib/queue/AdaptiveQueueController';
 import { PlaybackSourceResolver } from '@/lib/playbackSourceResolver';
 import { PreloadManager } from '@/lib/playback/PreloadManager';
-import { ArtworkColorExtractor } from '@/lib/theme/ArtworkColorExtractor';
 import { getApiUrl } from '@/lib/config/apiConfig';
-import { RadioEngine } from '@/lib/radio/RadioEngine';
+import { ArtworkColorExtractor } from '@/lib/theme/ArtworkColorExtractor';
 
 export function AudioPlayerController() {
   const audioRefA = useRef<HTMLAudioElement | null>(null);
@@ -57,7 +56,6 @@ export function AudioPlayerController() {
     sleepTimerEndsAt,
     setSleepTimer,
     restoreLocalSession,
-    isActiveDevice,
     isAutoplayEnabled,
   } = usePlayerStore();
 
@@ -148,9 +146,7 @@ export function AudioPlayerController() {
         return;
       }
       console.log('[AudioPlayerController] Native track ended — advancing to next track via playNext()');
-      if (store.isActiveDevice) {
-        store.playNext();
-      }
+      store.playNext();
     });
 
     const unsubChanged = RaagaXNativePlayer.addTrackChangedListener((data) => {
@@ -237,16 +233,6 @@ export function AudioPlayerController() {
             isPlaying: true,
           });
         }).catch(() => {});
-
-        // Broadcast to follower devices in Spotify Connect session
-        if (store.isActiveDevice) {
-          import('@/lib/connect/lan/PlaybackOwnerEngine').then(({ PlaybackOwnerEngine }) => {
-            PlaybackOwnerEngine.getInstance().publishAuthoritativePlaybackState();
-          }).catch(() => {});
-          import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
-            PlaybackStateSync.getInstance().broadcastState(true);
-          }).catch(() => {});
-        }
       }
 
       // Proactively poll duration if duration was 0
@@ -277,15 +263,6 @@ export function AudioPlayerController() {
       import('@/lib/lyrics/LyricsEngine').then(({ LyricsEngine }) => {
         LyricsEngine.getInstance().seek(data.positionMs);
       });
-      // Immediately broadcast authoritative state to followers
-      if (usePlayerStore.getState().isActiveDevice) {
-        import('@/lib/connect/lan/PlaybackOwnerEngine').then(({ PlaybackOwnerEngine }) => {
-          PlaybackOwnerEngine.getInstance().publishAuthoritativePlaybackState();
-        }).catch(() => {});
-        import('@/lib/connect/PlaybackStateSync').then(({ PlaybackStateSync }) => {
-          PlaybackStateSync.getInstance().broadcastState(true);
-        }).catch(() => {});
-      }
     });
 
     const unsubActionNext = RaagaXNativePlayer.addActionNextListener(() => {
@@ -418,21 +395,20 @@ export function AudioPlayerController() {
     }
   }, [seekTarget]);
 
-  // Auto-refill queue (Continuous Radio Mode)
+  // Auto-refill queue (Continuous Autoplay Mode)
   useEffect(() => {
     const remaining = queue.length - (queueIndex + 1);
     if (remaining > QUEUE_REFILL_THRESHOLD || isRefilling.current || !currentSong) return;
 
-    // Check if RadioEngine is active
-    const radio = RadioEngine.getInstance();
-    if (radio.isRadioActive()) {
-      radio.extendQueueIfNeeded(remaining);
-      return;
-    }
-
     if (!isAutoplayEnabled) return;
 
     isRefilling.current = true;
+
+    const existingIds = queue.map(s => s.id);
+    const genre = currentSong.genre || 'TELUGU HITS';
+    const language = genre.split(' ')[0] || 'Telugu';
+    const validLangs = ['Telugu', 'Kannada', 'Tamil', 'Hindi', 'Malayalam', 'English'];
+    const lang = validLangs.find(l => l.toUpperCase() === language.toUpperCase()) || 'Telugu';
 
     // On native mobile app or offline mode, generate recommendations client-side to avoid localhost CORS
     if (typeof window !== 'undefined' && ((window as any).Capacitor?.isNativePlatform?.() || !navigator.onLine)) {
@@ -449,12 +425,6 @@ export function AudioPlayerController() {
       });
       return;
     }
-
-    const existingIds = queue.map(s => s.id);
-    const genre = currentSong.genre || 'TELUGU HITS';
-    const language = genre.split(' ')[0] || 'Telugu';
-    const validLangs = ['Telugu', 'Kannada', 'Tamil', 'Hindi', 'Malayalam', 'English'];
-    const lang = validLangs.find(l => l.toUpperCase() === language.toUpperCase()) || 'Telugu';
 
     const lastArtists = queue
       .slice(Math.max(0, queueIndex - 5), queueIndex)
@@ -488,38 +458,23 @@ export function AudioPlayerController() {
 
   // Handle Play/Pause State Synchronization with Lyrics & Native bridges
   useEffect(() => {
-    const shouldRenderAudio = activeRenderer === 'audio' && isActiveDevice;
-    const canPlay = isPlaying && shouldRenderAudio;
-
     if (RaagaXNativePlayer.isNative()) {
-      if (!shouldRenderAudio) {
-        const store = usePlayerStore.getState();
-        if (store.playbackIntent === 'PAUSED' || (!store.isActiveDevice && store.connectedDeviceId)) {
-          RaagaXNativePlayer.pause().catch(() => {});
-        }
-        LyricsEngine.getInstance().setPlaying(false);
+      if (isPlaying) {
+        RaagaXNativePlayer.resume().catch(() => {});
+        LyricsEngine.getInstance().setPlaying(true);
       } else {
-        if (canPlay) {
-          RaagaXNativePlayer.resume().catch(() => {});
-          LyricsEngine.getInstance().setPlaying(true);
-        } else {
-          // Strict Guard: Only pause native player if playbackIntent is explicitly PAUSED
-          // A transient isPlaying=false during buffering or track transition MUST NOT issue pause()
-          const intent = usePlayerStore.getState().playbackIntent;
-          if (intent === 'PAUSED') {
-            RaagaXNativePlayer.pause().catch(() => {});
-            LyricsEngine.getInstance().setPlaying(false);
-          }
+        const intent = usePlayerStore.getState().playbackIntent;
+        if (intent === 'PAUSED') {
+          RaagaXNativePlayer.pause().catch(() => {});
+          LyricsEngine.getInstance().setPlaying(false);
         }
       }
       return;
     }
 
-
     // Web path: PlaybackService is the single authority over the HTMLAudioElement.
-    // React controller strictly syncs non-audio side-effects (e.g. LyricsEngine).
-    LyricsEngine.getInstance().setPlaying(canPlay);
-  }, [isPlaying, isActiveDevice, activeRenderer]);
+    LyricsEngine.getInstance().setPlaying(isPlaying);
+  }, [isPlaying]);
 
   const songStartTimeRef = useRef<number>(Date.now());
 
@@ -571,11 +526,10 @@ export function AudioPlayerController() {
     const effectiveDuration = duration > 0 ? duration : (currentSong?.duration || 0);
     if (!isPlaying || !currentSong) return;
 
-    // Start preloading only after current track is stable (after 3s or 10% progress)
-    const progress = effectiveDuration > 0 ? currentTime / effectiveDuration : 0;
+    // Start preloading only when nearing track transition (<= 20s remaining, with minimum 5s elapsed)
+    const remainingSec = Math.max(0, effectiveDuration - currentTime);
+    const isEligible = effectiveDuration > 0 && remainingSec <= 20 && currentTime >= 5;
     const nextIndex = queueIndex + 1;
-
-    const isEligible = currentTime >= 3 && (progress >= 0.10 || currentTime >= 5);
 
     if (isEligible && nextIndex < queue.length && prebufferedIndexRef.current !== nextIndex) {
       prebufferedIndexRef.current = nextIndex;
@@ -626,25 +580,6 @@ export function AudioPlayerController() {
     }, 1000);
     return () => clearInterval(interval);
   }, []);
-
-  // Remote Device Clock Interpolation (Follower)
-  useEffect(() => {
-    if (isActiveDevice || !isPlaying) return;
-    
-    const interval = setInterval(() => {
-       const store = usePlayerStore.getState();
-       if (!store.isPlaying || !store.remoteAnchorTimeMs) return;
-
-       const elapsedMs = Date.now() - store.remoteAnchorTimeMs;
-       const liveSeconds = (store.remoteAnchorPositionMs + elapsedMs) / 1000;
-       
-       if (liveSeconds <= (store.duration || Infinity)) {
-         usePlayerStore.setState({ currentTime: liveSeconds });
-       }
-    }, 250);
-
-    return () => clearInterval(interval);
-  }, [isActiveDevice, isPlaying]);
 
   const handleLoadedMetadata = (e: React.SyntheticEvent<HTMLAudioElement>) => {
     const audio = e.currentTarget;

@@ -22,8 +22,6 @@ export function usePlaybackSession() {
   const queueIndex = usePlayerStore((s) => s.queueIndex);
   const shuffleMode = usePlayerStore((s) => s.shuffleMode);
   const repeatMode = usePlayerStore((s) => s.repeatMode);
-  const activeDeviceId = usePlayerStore((s) => s.activeDeviceId);
-  const isActiveDevice = usePlayerStore((s) => s.isActiveDevice);
   const playbackStatus = usePlayerStore((s) => s.playbackStatus);
 
   // Authoritative Playback Controller Actions
@@ -57,11 +55,9 @@ export function usePlaybackSession() {
     currentQueueIndex: queueIndex,
     queueIndex,
 
-    // Modes & Devices
+    // Modes
     shuffleMode,
     repeatMode,
-    activeDeviceId,
-    isActiveDevice,
 
     // Authoritative Playback Controller Commands
     play: (track?: Song, queueContext?: Song[], contextInfo?: any) => {

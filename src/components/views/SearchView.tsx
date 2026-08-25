@@ -12,7 +12,6 @@ import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { Song } from '@/types/music';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
-import { CATEGORY_SPOTIFY_SOURCES } from '@/lib/spotifySources';
 import { 
   UnifiedSearchEngine, 
   UnifiedSearchResults, 

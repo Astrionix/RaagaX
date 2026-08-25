@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Home, Flame, Radio, Library, User } from 'lucide-react';
+import { Home, Flame, Search, Library, User } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { ActiveTab } from '@/types/music';
 
@@ -11,7 +11,7 @@ export function MobileNav() {
   const navItems = [
     { id: 'home' as const, label: 'Home', icon: Home },
     { id: 'new' as const, label: 'New', icon: Flame },
-    { id: 'radio' as const, label: 'Radio', icon: Radio },
+    { id: 'search' as const, label: 'Search', icon: Search },
     { id: 'library' as const, label: 'Library', icon: Library },
     { id: 'profile' as const, label: 'You', icon: User },
   ];
@@ -19,7 +19,7 @@ export function MobileNav() {
   const isItemActive = (id: string) => {
     if (id === 'home') return activeTab === 'home';
     if (id === 'new') return activeTab === 'new';
-    if (id === 'radio') return activeTab === 'radio';
+    if (id === 'search') return activeTab === 'search';
     if (id === 'library') return ['library', 'downloads', 'favorites', 'history', 'insights', 'recaps', 'album', 'artist', 'playlist'].includes(activeTab);
     if (id === 'profile') return ['profile', 'settings'].includes(activeTab);
     return activeTab === id;

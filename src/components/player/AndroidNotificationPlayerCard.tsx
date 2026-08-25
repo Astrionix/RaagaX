@@ -41,16 +41,7 @@ export function AndroidNotificationPlayerCard({
     togglePlayPause,
     playNext,
     playPrev,
-    activeDeviceId,
-    isActiveDevice,
   } = usePlaybackSession();
-
-  const {
-    onlineDevices,
-    deviceId,
-    remoteDeviceName,
-    toggleDeviceModal,
-  } = usePlayerStore();
 
   const [palette, setPalette] = useState<ChameleonPalette | null>(null);
 
@@ -58,11 +49,7 @@ export function AndroidNotificationPlayerCard({
     ? currentSong.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500')
     : '/app-icon.png';
 
-  const activeDeviceObj = onlineDevices.find((d) => d.id === activeDeviceId);
-  const localDeviceObj = onlineDevices.find((d) => d.id === deviceId);
-  const currentOutputName = !isActiveDevice
-    ? (remoteDeviceName || activeDeviceObj?.name || 'Remote Device')
-    : (localDeviceObj?.name || 'This Phone');
+  const currentOutputName = 'This Phone';
 
   // Extract subtle colors from artwork
   useEffect(() => {
@@ -119,18 +106,12 @@ export function AndroidNotificationPlayerCard({
           <span className="text-[10px] text-slate-500 font-medium">• now</span>
         </div>
 
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            haptics.selectionTick();
-            toggleDeviceModal();
-          }}
-          className="p-1 -mr-1 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-          title={`Output Options (${currentOutputName})`}
-          aria-label="Output Options"
+        <div
+          className="p-1 -mr-1 rounded-full text-slate-400"
+          title={`Output: ${currentOutputName}`}
         >
           <MoreVertical className="w-4 h-4" />
-        </button>
+        </div>
       </div>
 
       {/* ── 3. TRACK INFO: Artwork + Title + Artist ── */}

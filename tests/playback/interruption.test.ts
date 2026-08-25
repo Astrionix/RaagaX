@@ -118,20 +118,19 @@ describe('Playback Interruption Orchestrator & Audio Focus Tests', () => {
     expect(mockAudioElement.play).not.toHaveBeenCalled();
   });
 
-  it('Test 6 (Connect Focus Isolation): Phone (Controller) call does NOT pause Desktop (Renderer) session', async () => {
+  it('Test 6 (Transient Focus Loss - Phone Call): Pauses playback on call arrival and creates resume policy', async () => {
     const manager = InterruptionManager.getInstance();
 
-    // Phone is pure Controller (isActiveDevice = false)
     usePlayerStore.setState({
-      deviceId: 'phone_controller',
-      isActiveDevice: false,
+      isPlaying: true,
+      currentSong: { id: 'track_call_test', title: 'Test', artist: 'Artist' } as any,
     });
 
-    // Phone gets call
+    // Phone receives incoming call
     await manager.handlePlatformEvent({ type: 'LOSS_TRANSIENT', reason: 'CALL' });
 
-    // Desktop playback engine was NOT paused
-    expect(mockAudioElement.pause).not.toHaveBeenCalled();
+    // Local audio is paused immediately
+    expect(mockAudioElement.pause).toHaveBeenCalled();
   });
 
   it('Test 7 (Headphone / Bluetooth Disconnect): Pauses playback, preserves exact position (45s, NOT 0s) and queue', async () => {

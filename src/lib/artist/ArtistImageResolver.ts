@@ -83,9 +83,12 @@ export class ArtistImageResolver {
     if (typeof window === 'undefined') return;
     try {
       const obj: Record<string, CachedArtistImage> = {};
-      this.memoryCache.forEach((val, key) => {
-        obj[key] = val;
-      });
+      const entries = Array.from(this.memoryCache.entries())
+        .filter(([, v]) => v && v.expiresAt > Date.now())
+        .slice(-100); // Keep only top 100 recent artists in storage
+      for (const [k, v] of entries) {
+        obj[k] = v;
+      }
       localStorage.setItem(CACHE_KEY, JSON.stringify(obj));
     } catch {}
   }

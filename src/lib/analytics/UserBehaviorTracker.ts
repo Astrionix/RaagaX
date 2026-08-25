@@ -21,10 +21,13 @@ export interface UserEvent {
   song_id?: string;
   album_id?: string;
   artist_id?: string;
+  artist_name?: string;
   playlist_id?: string;
   language?: string;
   genre?: string;
   query?: string;
+  position_ms?: number;
+  duration_ms?: number;
   metadata?: any;
 }
 
@@ -46,8 +49,13 @@ const EVENT_WEIGHTS: Record<UserEventType, number> = {
 
 export class UserBehaviorTracker {
   private static instance: UserBehaviorTracker;
+  private pendingQueue: Array<UserEvent & { userId: string; timestamp: number }> = [];
+  private flushTimer: any = null;
+  private isFlushing = false;
 
-  private constructor() {}
+  private constructor() {
+    this.setupFlushLifecycle();
+  }
 
   public static getInstance(): UserBehaviorTracker {
     if (!UserBehaviorTracker.instance) {
@@ -58,6 +66,25 @@ export class UserBehaviorTracker {
 
   private isUUID(str: string): boolean {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+  }
+
+  private setupFlushLifecycle() {
+    if (typeof window === 'undefined') return;
+
+    // Periodic flush every 30s
+    this.flushTimer = setInterval(() => {
+      this.flushBatch();
+    }, 30000);
+
+    // Flush on page unload / background
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        this.flushBatch();
+      }
+    });
+    window.addEventListener('beforeunload', () => {
+      this.flushBatch();
+    });
   }
 
   public async trackEvent(userId: string, event: UserEvent): Promise<void> {
@@ -83,53 +110,60 @@ export class UserBehaviorTracker {
       await localDb.setUserStore(userId, 'genre_affinity', current);
     }
 
-    // 2. Persist event log & update language score in Supabase if authenticated
-    if (userId && this.isUUID(userId) && navigator.onLine) {
-      try {
-        const { error: eventError } = await supabase.from('user_events').insert({
-          id: crypto.randomUUID(),
-          user_id: userId,
-          event_type: event.event_type,
-          song_id: event.song_id,
-          album_id: event.album_id,
-          artist_id: event.artist_id,
-          playlist_id: event.playlist_id,
-          query: event.query,
-          metadata: event.metadata,
-        });
-        // 409/23505 = duplicate, 23503 = FK violation (user row missing)
-        if (eventError && eventError.code !== '23505' && eventError.code !== '23503' && (eventError as any).status !== 409) {
-          console.warn('[UserBehaviorTracker] user_events insert error:', eventError.message);
-        }
+    // 2. Queue event for batched sync
+    if (userId && this.isUUID(userId)) {
+      this.pendingQueue.push({
+        ...event,
+        userId,
+        timestamp: Date.now(),
+      });
 
-        // Upsert artist affinity if present
-        if (event.artist_id) {
-          try {
-            await supabase.from('user_artist_affinity').upsert({
-              user_id: userId,
-              artist_id: event.artist_id,
-              score: Math.round(weight),
-              like_count: event.event_type === 'LIKE' ? 1 : 0,
-              play_count: event.event_type === 'PLAY' || event.event_type === 'COMPLETE' ? 1 : 0,
-              updated_at: new Date().toISOString()
-            }, { onConflict: 'user_id,artist_id', ignoreDuplicates: false });
-          } catch (err) {}
-        }
-
-        // Update language affinity via RPC if available
-        if (event.language) {
-          try {
-            await supabase.rpc('update_user_language_score', {
-              p_user_id: userId,
-              p_language: event.language,
-              p_weight: weight,
-              p_action: event.event_type,
-            });
-          } catch (err) {}
-        }
-      } catch (e) {
-        // Analytics failure is non-fatal and must never disrupt UI
+      // Flush if queue exceeds batch threshold
+      if (this.pendingQueue.length >= 5) {
+        this.flushBatch();
       }
+    }
+  }
+
+  public async flushBatch(): Promise<void> {
+    if (this.isFlushing || this.pendingQueue.length === 0) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+
+    this.isFlushing = true;
+    const batch = [...this.pendingQueue];
+    this.pendingQueue = [];
+
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+
+      const payload = batch.map((item) => ({
+        trackId: item.song_id || item.query || 'unknown',
+        eventType: item.event_type,
+        positionMs: item.position_ms || 0,
+        durationMs: item.duration_ms || 0,
+        artistId: item.artist_id,
+        artistName: item.artist_name,
+        language: item.language,
+        genre: item.genre,
+        timestamp: item.timestamp,
+      }));
+
+      await fetch('/api/preferences/events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ events: payload }),
+      }).catch(() => {});
+    } catch {
+      // Re-queue on failure if within reasonable size limit
+      if (this.pendingQueue.length < 50) {
+        this.pendingQueue.unshift(...batch);
+      }
+    } finally {
+      this.isFlushing = false;
     }
   }
 }

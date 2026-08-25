@@ -78,10 +78,6 @@ export class PlaybackService {
     if (RaagaXNativePlayer.isNative()) {
       return usePlayerStore.getState().isPlaying;
     }
-    const store = usePlayerStore.getState();
-    if (store.activeRenderer === 'video') {
-      return store.isPlaying;
-    }
     const active = this.getActiveAudio();
     if (!active) return false;
     return !active.paused && !active.ended;
@@ -92,13 +88,10 @@ export class PlaybackService {
       return usePlayerStore.getState().isPlaying;
     }
     const store = usePlayerStore.getState();
-    if (store.activeRenderer === 'video') {
-      return store.isPlaying;
-    }
     const active = this.getActiveAudio();
     if (!active) return false;
     const isActuallyPlaying = !active.paused && !active.ended;
-    if (store.isActiveDevice && store.isPlaying !== isActuallyPlaying) {
+    if (store.isPlaying !== isActuallyPlaying) {
       store.setIsPlaying(isActuallyPlaying, true);
     }
     return isActuallyPlaying;
@@ -113,11 +106,7 @@ export class PlaybackService {
       if (!active) return;
       const store = usePlayerStore.getState();
 
-      // INVARIANT: When video is the active renderer, audio is intentionally paused.
-      // The watchdog must not try to recover audio in this state.
-      if (store.activeRenderer === 'video') return;
-
-      if (store.isActiveDevice && store.isPlaying && store.playbackIntent === 'PLAYING' && active.paused && !active.ended && !this.isTransitioning) {
+      if (store.isPlaying && store.playbackIntent === 'PLAYING' && active.paused && !active.ended && !this.isTransitioning) {
         if (active.readyState >= 2) {
           console.warn('[PlaybackService Watchdog] Active audio paused unexpectedly while isPlaying=true. Recovering play()...');
           active.play().catch((err) => {
@@ -129,15 +118,8 @@ export class PlaybackService {
   }
 
   public primeAudioElements() {
-    this.isInitializing = true;
-    [this.audioA, this.audioB].forEach((audio) => {
-      if (!audio) return;
-      if (!audio.src) {
-        audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
-        audio.play().then(() => audio.pause()).catch(() => {});
-      }
-    });
-    setTimeout(() => { this.isInitializing = false; }, 500);
+    // Zero automatic play calls on initialization to prevent unwanted autoplay
+    this.isInitializing = false;
   }
 
   public getActiveAudio(): HTMLAudioElement | null {
@@ -253,10 +235,6 @@ export class PlaybackService {
     if (requestId !== undefined && requestId !== this.playbackRequestId) return;
 
     const store = usePlayerStore.getState();
-    if (!store.isActiveDevice && store.connectedDeviceId) {
-      console.log('[PlaybackService] Skipping local loadQueueContext — device is acting as a remote controller');
-      return;
-    }
 
     const isActuallyOffline =
       store.networkMode === 'offline' ||
@@ -351,6 +329,7 @@ export class PlaybackService {
 
       const activeAudio = this.getActiveAudio();
       if (activeAudio) {
+        activeAudio.pause();
         if (activeAudio.src !== finalSrc) {
           activeAudio.src = finalSrc;
         }
@@ -403,13 +382,7 @@ export class PlaybackService {
     if (!song) return false;
     if (requestId !== this.playbackRequestId) return false;
 
-    // INVARIANT: Audio must not execute while video renderer is active.
     const store = usePlayerStore.getState();
-    if (store.activeRenderer === 'video') {
-      console.warn(`[PlaybackService] loadAudioSource() blocked for "${song.title}" — video renderer is active`);
-      return false;
-    }
-
     this.isTransitioning = true;
     const playRequestedAt = performance.now();
     let resolvedSourceType: PlaybackSourceType = 'NETWORK_STREAM';
@@ -700,6 +673,10 @@ export class PlaybackService {
 
   public async playNextTrack(isNaturalEnd: boolean = false): Promise<boolean> {
     try {
+      const store = usePlayerStore.getState();
+      if (isNaturalEnd || store.isPlaying || store.playbackIntent === 'PLAYING') {
+        usePlayerStore.setState({ isPlaying: true, playbackIntent: 'PLAYING' });
+      }
       await usePlayerStore.getState().playNext();
       return true;
     } catch {
@@ -779,11 +756,8 @@ export class PlaybackService {
     this.pauseAudioElementOnly();
 
     const store = usePlayerStore.getState();
-    // Only update store isPlaying if audio is the active renderer
-    if (store.activeRenderer !== 'video') {
-      store.setIsPlaying(false, true);
-      MediaSessionManager.getInstance().setPlaybackState('paused');
-    }
+    store.setIsPlaying(false, true);
+    MediaSessionManager.getInstance().setPlaybackState('paused');
     AudioFocusManager.getInstance().releaseFocus();
   }
 
@@ -795,12 +769,7 @@ export class PlaybackService {
       return true;
     }
 
-    // INVARIANT: Audio must never resume while video is the active renderer
     const store = usePlayerStore.getState();
-    if (store.activeRenderer === 'video') {
-      console.warn('[PlaybackService] resume() blocked — video renderer is active');
-      return false;
-    }
 
     const active = this.getActiveAudio() || PlaybackEngine.getInstance().getActiveMediaElement();
     if (active && active.src) {
@@ -871,10 +840,6 @@ export class PlaybackService {
     if (tag !== this.activeTag) return;
 
     const store = usePlayerStore.getState();
-    // CRITICAL: If video is the active renderer, the HTML5 audio element's pause event must NOT overwrite store isPlaying!
-    if (store.activeRenderer === 'video') {
-      return;
-    }
 
     // Ignore synthetic silence priming pauses
     if (this.isInitializing) {
@@ -888,16 +853,14 @@ export class PlaybackService {
       console.log(`[PLAYBACK_STARTED] trackId=${active.dataset.trackId} position=${active.currentTime || 0}`);
     }
 
-    if (store.isActiveDevice) {
-      // Guard: Ignore browser pause events during active track transitions/loading to prevent fake pause broadcasts
-      if (this.isTransitioning && !livePlaying) {
-        console.log(`[PlaybackService] Guarded handleNativePlayState pause event during active track transition for tag ${tag}`);
-        return;
-      }
+    // Guard: Ignore browser pause events during active track transitions/loading
+    if (this.isTransitioning && !livePlaying) {
+      console.log(`[PlaybackService] Guarded handleNativePlayState pause event during active track transition for tag ${tag}`);
+      return;
+    }
 
-      if (store.isPlaying !== livePlaying) {
-        store.setIsPlaying(livePlaying, true);
-      }
+    if (store.isPlaying !== livePlaying) {
+      store.setIsPlaying(livePlaying, true);
     }
 
   }
@@ -948,7 +911,6 @@ export class PlaybackService {
     if (!active || !standby) return;
 
     const store = usePlayerStore.getState();
-    if (!store.isActiveDevice) return;
 
     // Anchor PlaybackEngine clock for smooth 60fps rAF predictions
     PlaybackEngine.getInstance().anchor();

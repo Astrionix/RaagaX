@@ -47,12 +47,7 @@ export function LibraryView() {
     favoriteArtistIds,
     favoriteAlbumIds,
     playSong,
-    // Cross-device sync state
-    isActiveDevice,
     currentSong,
-    remoteDeviceName,
-    deviceId,
-    transferPlayback,
     preferredLanguage,
     selectedLanguages = [],
     setSelectedLanguages,

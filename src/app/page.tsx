@@ -5,7 +5,6 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { PlayerBar } from '@/components/layout/Navbar';
 import { RightQueuePanel } from '@/components/layout/RightQueuePanel';
-import { RightDeviceConnectPanel } from '@/components/layout/RightDeviceConnectPanel';
 import { MobileBottomController } from '@/components/layout/MobileBottomController';
 import { AudioPlayerController } from '@/components/player/AudioPlayerController';
 import { LyricsPanel } from '@/components/lyrics/LyricsPanel';
@@ -22,7 +21,6 @@ import { SettingsModal } from '@/components/modals/SettingsModal';
 import { ContextMenuModal } from '@/components/modals/ContextMenuModal';
 import { OnboardingAuthModal } from '@/components/modals/OnboardingAuthModal';
 import { KeyboardShortcutsModal } from '@/components/modals/KeyboardShortcutsModal';
-import { MobileDeviceConnectModal } from '@/components/modals/MobileDeviceConnectModal';
 import { OfflineStorageSetupModal } from '@/components/modals/OfflineStorageSetupModal';
 import { PermissionOnboardingModal } from '@/components/onboarding/PermissionOnboardingModal';
 import { LanguageOnboardingModal } from '@/components/onboarding/LanguageOnboardingModal';
@@ -30,9 +28,7 @@ import { LanguageOnboardingModal } from '@/components/onboarding/LanguageOnboard
 import { CreatePlaylistModal } from '@/components/modals/CreatePlaylistModal';
 import { NotificationCenterModal } from '@/components/modals/NotificationCenterModal';
 import { WrappedModal } from '@/components/modals/WrappedModal';
-import { EqualizerModal } from '@/components/modals/EqualizerModal';
 import { CarModeModal } from '@/components/modals/CarModeModal';
-import { ConnectPairingRequestModal } from '@/components/modals/ConnectPairingRequestModal';
 
 import { Toast } from '@/components/ui/Toast';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
@@ -45,8 +41,6 @@ import { GenresView } from '@/components/views/GenresView';
 import { PlaylistDetailView } from '@/components/views/PlaylistDetailView';
 import { AlbumDetailView } from '@/components/views/AlbumDetailView';
 import { AlbumsView } from '@/components/views/AlbumsView';
-import { VideoView } from '@/components/views/VideoView';
-import { RadioView } from '@/components/views/RadioView';
 import { ArtistDetailView } from '@/components/views/ArtistDetailView';
 import { ArtistsView } from '@/components/views/ArtistsView';
 import { ProfileView } from '@/components/views/ProfileView';
@@ -61,6 +55,7 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useAuthStore } from '@/context/useAuthStore';
 
 export default function Page() {
   const {
@@ -83,6 +78,10 @@ export default function Page() {
   } = usePlayerStore();
   const { isSetupModalOpen, setSetupModalOpen } = useDownloadStore();
 
+  React.useEffect(() => {
+    useAuthStore.getState().initializeAuth();
+  }, []);
+
   // Android Predictive Back Gesture & Navigation Hierarchy
   React.useEffect(() => {
     let appBackButtonListener: any = null;
@@ -93,12 +92,6 @@ export default function Page() {
       // 1. If Settings modal is open, close it
       if (store.isSettingsModalOpen) {
         store.toggleSettingsModal();
-        return true;
-      }
-
-      // 2. If Device Connect modal is open, close it
-      if (store.isDeviceModalOpen) {
-        store.toggleDeviceModal();
         return true;
       }
 
@@ -201,12 +194,6 @@ export default function Page() {
         year={2026}
       />
 
-      {/* Pro Audio Equalizer & Spatial Audio */}
-      <EqualizerModal
-        isOpen={isEqualizerOpen}
-        onClose={() => toggleEqualizer(false)}
-      />
-
       {/* Car / Driving Mode */}
       <CarModeModal
         isOpen={isCarModeOpen}
@@ -229,10 +216,8 @@ export default function Page() {
             {activeTab === 'home' && <HomeView />}
             {activeTab === 'new' && <NewView />}
             {activeTab === 'search' && <SearchView />}
-            {activeTab === 'video' && <VideoView />}
             {activeTab === 'library' && <LibraryView />}
             {activeTab === 'genres' && <GenresView />}
-            {activeTab === 'radio' && <RadioView />}
             {activeTab === 'artist' && (selectedArtistId ? <ArtistDetailView /> : <ArtistsView />)}
             {activeTab === 'album' && (selectedAlbumId ? <AlbumDetailView /> : <AlbumsView />)}
             {activeTab === 'playlist' && <PlaylistDetailView />}
@@ -251,7 +236,7 @@ export default function Page() {
 
         {/* Right Queue Column */}
         <div className="queue-panel hidden xl:block w-[360px] min-w-[360px] h-full pt-6 pb-8 overflow-y-auto overflow-x-hidden border-l border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-          {rightPanelMode === 'devices' ? <RightDeviceConnectPanel /> : <RightQueuePanel />}
+          <RightQueuePanel />
         </div>
       </div>
 
@@ -292,9 +277,6 @@ export default function Page() {
       <ErrorBoundary name="KeyboardShortcutsModal">
         <KeyboardShortcutsModal />
       </ErrorBoundary>
-      <ErrorBoundary name="MobileDeviceConnectModal">
-        <MobileDeviceConnectModal />
-      </ErrorBoundary>
       <ErrorBoundary name="CreatePlaylistModal">
         <CreatePlaylistModal />
       </ErrorBoundary>
@@ -306,9 +288,6 @@ export default function Page() {
       </ErrorBoundary>
       <ErrorBoundary name="NotificationCenterModal">
         <NotificationCenterModal />
-      </ErrorBoundary>
-      <ErrorBoundary name="ConnectPairingRequestModal">
-        <ConnectPairingRequestModal />
       </ErrorBoundary>
 
       {/* ── Native Android Connected Surfaces ── */}

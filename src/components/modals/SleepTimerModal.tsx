@@ -18,8 +18,6 @@ export function SleepTimerModal() {
     extendSleepTimer, 
     cancelSleepTimer,
     setToastMessage,
-    isActiveDevice,
-    remoteDeviceName
   } = usePlayerStore();
 
   const [isCustomMode, setIsCustomMode] = useState(false);
@@ -110,8 +108,6 @@ export function SleepTimerModal() {
     extendSleepTimer(15);
     setToastMessage('Added 15 minutes to Sleep Timer');
   };
-
-  const deviceTargetName = !isActiveDevice ? (remoteDeviceName || 'Remote Device') : 'this device';
 
   return (
     <div className="fixed inset-0 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
@@ -215,12 +211,6 @@ export function SleepTimerModal() {
                   <p className="text-sm font-bold text-white/90">
                     Playback will stop at <span className="text-[#fa233b]">{getTargetEndTimeString()}</span>
                   </p>
-                )}
-                {!isActiveDevice && (
-                  <div className="flex items-center justify-center gap-1.5 text-xs text-indigo-300 font-semibold">
-                    <Tv className="w-3.5 h-3.5" />
-                    <span>Stopping playback on {deviceTargetName}</span>
-                  </div>
                 )}
               </div>
 

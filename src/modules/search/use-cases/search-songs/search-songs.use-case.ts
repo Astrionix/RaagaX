@@ -36,24 +36,26 @@ export class SearchSongsUseCase implements IUseCase<SearchSongsArgs, z.infer<typ
     this.lastSource = 'direct'
 
     // Strategy 1: Direct JioSaavn exact search
-    const { data } = await apiFetch<z.infer<typeof SearchSongAPIResponseModel>>({
-      endpoint: Endpoints.search.songs,
-      params: {
-        q: query,
-        p: page,
-        n: limit
-      }
-    })
+    try {
+      const { data } = await apiFetch<z.infer<typeof SearchSongAPIResponseModel>>({
+        endpoint: Endpoints.search.songs,
+        params: {
+          q: query,
+          p: page,
+          n: limit
+        }
+      })
 
-    if (data && data.results && data.results.length > 0) {
-      const resultPayload = {
-        total: data.total || 0,
-        start: data.start || 0,
-        results: data.results.map(createSongPayload).slice(0, limit)
+      if (data && data.results && data.results.length > 0) {
+        const resultPayload = {
+          total: data.total || 0,
+          start: data.start || 0,
+          results: data.results.map(createSongPayload).slice(0, limit)
+        }
+        searchCache.set(cacheKey, { data: resultPayload, expiresAt: Date.now() + CACHE_TTL_MS })
+        return resultPayload
       }
-      searchCache.set(cacheKey, { data: resultPayload, expiresAt: Date.now() + CACHE_TTL_MS })
-      return resultPayload
-    }
+    } catch {}
 
     // Strategy 2: Phonetic normalization (collapse repeated vowels like 'aa' -> 'a', 'ee' -> 'e', 'oo' -> 'o')
     const normalized = query

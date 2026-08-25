@@ -119,7 +119,9 @@ export class SongCoverEngine {
       }
     }
 
-    // 3. Official Album Search Fallback
+    const sanitize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    // 3. Official Album Search Fallback (Exact / Substring Match Only)
     if (song.album && song.album !== 'Unknown Album') {
       try {
         const albumQuery = encodeURIComponent(song.album);
@@ -128,8 +130,13 @@ export class SongCoverEngine {
         if (res.ok) {
           const data = await res.json();
           const albums = data?.albums?.data || [];
-          if (albums.length > 0 && albums[0]?.image) {
-            const formatted = this.formatRawCoverUrl(albums[0].image);
+          const matchedAlbum = albums.find((a: any) => {
+            const cleanA = sanitize(a.title || a.name || '');
+            const cleanTarget = sanitize(song.album || '');
+            return cleanA && cleanTarget && (cleanA === cleanTarget || cleanA.includes(cleanTarget) || cleanTarget.includes(cleanA));
+          });
+          if (matchedAlbum?.image) {
+            const formatted = this.formatRawCoverUrl(matchedAlbum.image);
             this.memoryCoverCache.set(cacheKey, formatted);
             return formatted;
           }
@@ -139,7 +146,7 @@ export class SongCoverEngine {
       }
     }
 
-    // 4. Exact Title + Artist Autocomplete Fallback
+    // 4. Exact Title + Artist Autocomplete Fallback (Strict Match Only)
     if (song.title) {
       try {
         const query = `${song.title} ${song.artist || ''}`.trim();
@@ -148,8 +155,13 @@ export class SongCoverEngine {
         if (res.ok) {
           const data = await res.json();
           const songResults = data?.songs?.data || [];
-          if (songResults.length > 0 && songResults[0]?.image) {
-            const formatted = this.formatRawCoverUrl(songResults[0].image);
+          const matchedSong = songResults.find((s: any) => {
+            const cleanS = sanitize(s.title || s.name || '');
+            const cleanTarget = sanitize(song.title || '');
+            return cleanS && cleanTarget && (cleanS === cleanTarget || cleanS.includes(cleanTarget) || cleanTarget.includes(cleanS));
+          });
+          if (matchedSong?.image) {
+            const formatted = this.formatRawCoverUrl(matchedSong.image);
             this.memoryCoverCache.set(cacheKey, formatted);
             return formatted;
           }

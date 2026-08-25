@@ -1532,4 +1532,17 @@ public class RaagaXPlaybackService extends Service {
         NotificationManager nm = getSystemService(NotificationManager.class);
         if (nm != null) nm.notify(NOTIF_ID, buildNotification());
     }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        super.onTaskRemoved(rootIntent);
+        Log.d(TAG, "onTaskRemoved called");
+        if (player == null || (!player.isPlaying() && !player.getPlayWhenReady())) {
+            Log.d(TAG, "Player is paused/stopped on task removal — stopping foreground service cleanly");
+            stopForeground(true);
+            stopSelf();
+        } else {
+            Log.d(TAG, "Player is actively playing on task removal — continuing foreground playback");
+        }
+    }
 }

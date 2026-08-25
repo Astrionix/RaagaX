@@ -9,6 +9,7 @@ import { Song } from '@/types/music';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { getApiBaseUrl } from '@/lib/config/apiConfig';
 import { SongUniquenessEngine } from '@/lib/music/SongUniquenessEngine';
+import { SongFormatter } from '@/lib/music/SongFormatter';
 
 const getLocalApiBase = () => {
   return `${getApiBaseUrl().replace(/\/+$/, '')}/api`;
@@ -317,12 +318,15 @@ export class RealMusicEngine {
         audioUrl = track.media_preview_url.replace('http://', 'https://').replace('_preview.mp3', '_320.mp4');
       }
 
-      const albumName = decode(track.album?.name || 'JioSaavn Single');
+      const rawTitle = track.name || track.title || 'Untitled Track';
+      const rawAlbum = track.album?.name || track.album || track.more_info?.album || '';
+
+      const title = SongFormatter.cleanSongTitle(rawTitle);
+      const albumName = SongFormatter.cleanAlbumTitle(rawAlbum, rawTitle) || title;
       const playCount =
         typeof track.playCount === 'number' ? track.playCount : parseInt(track.playCount) || 125000;
       const duration =
         typeof track.duration === 'number' ? track.duration : parseInt(track.duration) || 210;
-      const title = decode(track.name || track.title || 'Untitled Track');
 
       return {
         id: track.id || `saavn-${idx}`,

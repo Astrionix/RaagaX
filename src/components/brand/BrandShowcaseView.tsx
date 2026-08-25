@@ -4,9 +4,8 @@ import React, { useState } from 'react';
 import { RaagaXLogo, LogoVariant } from './RaagaXLogo';
 import { RaagaXWordmark } from './RaagaXWordmark';
 import { RaagaXWaveform, WaveformState } from './RaagaXWaveform';
-import { CrossDeviceTransferFlow, DeviceStateName } from './CrossDeviceTransferFlow';
 import { useThemeStore } from '@/context/useThemeStore';
-import { Moon, Sun, Monitor, Play, Pause, AlertTriangle, Wifi, Smartphone, Laptop, Check } from 'lucide-react';
+import { Moon, Sun, Monitor } from 'lucide-react';
 
 export function BrandShowcaseView() {
   const { theme, resolvedTheme, setTheme } = useThemeStore();
@@ -30,12 +29,6 @@ export function BrandShowcaseView() {
     { id: 'idle', label: 'Idle' },
     { id: 'error', label: 'Error' },
     { id: 'offline', label: 'Offline' },
-  ];
-
-  const sampleDevices = [
-    { id: 'dev_phone_1', name: 'Galaxy S24 Ultra', type: 'phone' as const, state: 'PLAYING' as DeviceStateName, transport: 'LOCAL_DIRECT' as const },
-    { id: 'dev_laptop_1', name: 'MacBook Pro 16"', type: 'laptop' as const, state: 'READY' as DeviceStateName, transport: 'LOCAL_DIRECT' as const },
-    { id: 'dev_tv_1', name: 'Living Room TV', type: 'tv' as const, state: 'PAUSED' as DeviceStateName, transport: 'CLOUD_RELAY' as const },
   ];
 
   return (
@@ -176,37 +169,6 @@ export function BrandShowcaseView() {
             </span>
           </div>
         </div>
-      </div>
-
-      {/* Section 4: Cross-Device Handoff Flow */}
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-black text-[var(--text-primary)] tracking-tight">4. Cross-Device Transfer Motion</h2>
-            <p className="text-xs text-slate-400 mt-1">Continuous audio session handoff across phone, laptop, TV, and tablet</p>
-          </div>
-          <button
-            onClick={() => {
-              setIsTransferring(true);
-              setTimeout(() => setIsTransferring(false), 2000);
-            }}
-            className="px-4 py-2 rounded-xl text-xs font-bold bg-[#F20D18] hover:bg-[#d90b15] text-white shadow-md transition-all active:scale-95 flex items-center gap-1.5"
-          >
-            <Play className="w-3.5 h-3.5 fill-white" />
-            Simulate 300-800ms Transfer
-          </button>
-        </div>
-
-        <CrossDeviceTransferFlow
-          sourceDevice={sampleDevices[0]}
-          targetDevice={sampleDevices[1]}
-          isTransferring={isTransferring}
-          availableDevices={sampleDevices}
-          onSelectTarget={(dev) => {
-            setIsTransferring(true);
-            setTimeout(() => setIsTransferring(false), 1500);
-          }}
-        />
       </div>
     </div>
   );

@@ -42,6 +42,54 @@ function createStubClient(): SupabaseClient {
   });
 }
 
+const safeStorage = {
+  getItem: (key: string): string | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+      return window.localStorage.getItem(key) ?? window.sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (key: string, value: string): void => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {
+      // Quota exceeded: Evict non-essential volatile RaagaX caches to free up localStorage
+      try {
+        const transientPrefixes = [
+          'raagax_feed_',
+          'raagax_artist_image_cache',
+          'raagax_active_queue_snapshot',
+          'raagax_taste_',
+          'raagax_search_history',
+          'recap_snapshot_',
+        ];
+        for (let i = window.localStorage.length - 1; i >= 0; i--) {
+          const k = window.localStorage.key(i);
+          if (k && transientPrefixes.some((p) => k.startsWith(p))) {
+            window.localStorage.removeItem(k);
+          }
+        }
+        window.localStorage.setItem(key, value);
+      } catch {
+        // Fallback to sessionStorage if localStorage remains full
+        try {
+          window.sessionStorage.setItem(key, value);
+        } catch {}
+      }
+    }
+  },
+  removeItem: (key: string): void => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.removeItem(key);
+      window.sessionStorage.removeItem(key);
+    } catch {}
+  },
+};
+
 export function getSupabase(): SupabaseClient {
   if (_client) return _client;
 
@@ -56,6 +104,12 @@ export function getSupabase(): SupabaseClient {
   }
 
   _client = createClient(url, key, {
+    auth: {
+      storage: safeStorage,
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
     global: {
       // Bypasses Next.js patched fetch caching on server-side environments
       fetch: (url, options) => fetch(url, { ...options, cache: 'no-store' }),

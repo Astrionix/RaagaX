@@ -41,12 +41,7 @@ export function Header() {
     searchQuery,
     setSearchQuery,
     toggleSettingsModal,
-    toggleDeviceModal,
-    activeDeviceId,
-    deviceId,
   } = usePlayerStore();
-
-  const isConnectedRemote = Boolean(activeDeviceId && activeDeviceId !== deviceId);
 
   const { user, setAuthModalOpen } = useAuthStore();
   const { resolvedTheme } = useThemeStore();

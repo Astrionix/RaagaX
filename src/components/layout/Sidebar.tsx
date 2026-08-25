@@ -20,7 +20,6 @@ import {
   Bell,
   BarChart3,
   Clock,
-  MonitorSmartphone,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
@@ -46,14 +45,8 @@ export function Sidebar() {
     setSelectedPlaylistId,
     selectedPlaylistId,
     setCreatePlaylistModalOpen,
-    toggleSettingsModal,
-    toggleDeviceModal,
-    activeDeviceId,
-    deviceId,
     downloadedSongIds = [],
   } = usePlayerStore();
-
-  const isConnectedRemote = Boolean(activeDeviceId && activeDeviceId !== deviceId);
 
   const { user, signOut, setAuthModalOpen } = useAuthStore();
   const { playlists: userPlaylists, fetchPlaylists } = usePlaylistStore();
@@ -126,14 +119,6 @@ export function Sidebar() {
             <span>New</span>
           </button>
 
-          <button
-            onClick={() => setActiveTab('radio')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold transition-all ${activeTab === 'radio' ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30' : 'text-slate-400 hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)]'
-              }`}
-          >
-            <Radio className="w-4 h-4" />
-            <span>Radio</span>
-          </button>
 
           <button
             onClick={() => setActiveTab('search')}
@@ -248,27 +233,8 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Bottom Pins: Connect Device, Settings & Profile */}
+      {/* Bottom Pins: Settings & Profile */}
       <div className="pt-3 border-t border-white/5 space-y-2">
-        {/* Connect to My Device Button */}
-        <button
-          onClick={toggleDeviceModal}
-          className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold transition-all text-xs cursor-pointer ${isConnectedRemote
-              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-md shadow-emerald-500/10'
-              : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/5'
-            }`}
-          title="Connect to My Device (Cast & Sync)"
-        >
-          <div className="flex items-center gap-2.5">
-            <MonitorSmartphone className={`w-4 h-4 ${isConnectedRemote ? 'text-emerald-400 animate-pulse' : 'text-[#fa233b]'}`} />
-            <span>Connect Device</span>
-          </div>
-          {isConnectedRemote ? (
-            <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/20 px-1.5 py-0.5 rounded">Active</span>
-          ) : (
-            <span className="text-[10px] font-bold text-slate-400 bg-white/5 px-1.5 py-0.5 rounded">Cast</span>
-          )}
-        </button>
 
         <button
           onClick={() => setActiveTab('settings')}

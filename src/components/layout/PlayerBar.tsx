@@ -18,15 +18,11 @@ import {
   Moon,
   Heart,
   Maximize2,
-  Tv,
-  Music,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
-import { DeviceSelector } from '@/components/providers/DeviceSyncProvider';
+import { useAuthStore } from '@/context/useAuthStore';
 import { SeekBar } from '@/components/player/SeekBar';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
-import { VideoResolver } from '@/lib/video/VideoResolver';
-import { MediaHandoffManager } from '@/lib/playback/MediaHandoffManager';
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) {
@@ -85,14 +81,7 @@ export function PlayerBar() {
     toggleSleepTimerModal,
     sleepTimerEndsAt,
     sleepTimerMode,
-    activeRenderer,
   } = usePlayerStore();
-
-  // Synchronous: derived immediately from song.matchedVideo or song.sources.youtube.videoId — no async API call
-  const hasVideo = React.useMemo(() => {
-    if (!currentSong) return false;
-    return VideoResolver.getInstance().resolveSync(currentSong).available;
-  }, [currentSong?.id, currentSong?.matchedVideo, currentSong?.sources?.youtube?.videoId]);
 
   const isLiked = mounted && currentSong ? likedSongIds.includes(currentSong.id) : false;
   const isDownloaded = mounted && currentSong ? downloadedSongIds.includes(currentSong.id) : false;
@@ -163,32 +152,6 @@ export function PlayerBar() {
                 <span className="text-[8px] font-mono bg-[#fa233b]/20 text-[#fa233b] px-1.5 py-0.5 rounded-full font-bold border border-[#fa233b]/30">
                   {currentSong.audioQuality || '320kbps MP3'}
                 </span>
-                {hasVideo && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      MediaHandoffManager.getInstance().toggleMediaMode(undefined, currentSong?.duration);
-                    }}
-                    className={`px-2 py-0.5 rounded-full text-[9px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-sm ${
-                      activeRenderer === 'video'
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                        : 'bg-white/10 hover:bg-white/20 text-white border border-white/10'
-                    }`}
-                    title={activeRenderer === 'video' ? '🎬 Video Playing — Click to Switch to Audio (V)' : '🎬 Video Available — Click to Switch to Video (V)'}
-                  >
-                    {activeRenderer === 'video' ? (
-                      <>
-                        <Music className="w-2.5 h-2.5 text-emerald-400" />
-                        <span>To Audio</span>
-                      </>
-                    ) : (
-                      <>
-                        <Tv className="w-2.5 h-2.5 text-red-400" />
-                        <span>Switch to Video</span>
-                      </>
-                    )}
-                  </button>
-                )}
                 <button onClick={() => toggleLikeSong(currentSong.id)} title="Like Song" className="p-0.5 text-slate-400 hover:text-[#fa233b] transition-transform hover:scale-110 cursor-pointer">
                   <Heart className={`w-3.5 h-3.5 ${isLiked ? 'text-[#fa233b] fill-[#fa233b]' : ''}`} />
                 </button>
@@ -261,8 +224,6 @@ export function PlayerBar() {
 
       {/* Right Tools Bar */}
       <div className="flex items-center gap-2 w-72 justify-end">
-        <DeviceSelector variant="icon" align="right" />
-
         <div className="flex items-center gap-2">
           <button onClick={toggleMute} className="p-1.5 text-slate-400 hover:text-white">
             {isMuted || volume === 0 ? <VolumeX className="w-4 h-4 text-[#fa233b]" /> : <Volume2 className="w-4 h-4" />}
