@@ -226,41 +226,36 @@ export function Sidebar() {
       {/* Bottom Pin: Account & Settings */}
       <div className="pt-3 border-t border-white/5">
         {mounted && user ? (
-          <div className="flex items-center justify-between p-2 rounded-2xl bg-white/5 border border-white/5 hover:border-white/10 transition-all">
-            <div
-              onClick={() => setActiveTab('profile')}
-              className="flex items-center gap-2.5 min-w-0 cursor-pointer flex-1 group"
-              title="View Profile"
-            >
+          <div
+            onClick={() => setActiveTab('settings')}
+            className={`flex items-center justify-between p-2 rounded-2xl border transition-all cursor-pointer group ${
+              activeTab === 'settings'
+                ? 'bg-gradient-to-r from-[#fa233b]/20 to-white/5 border-[#fa233b]/40 text-white shadow-lg'
+                : 'bg-white/5 border-white/5 hover:border-white/15 hover:bg-white/10'
+            }`}
+            title="Account & Settings"
+          >
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#fa233b] to-[#ff4757] text-white font-black text-xs flex items-center justify-center shadow-md flex-shrink-0">
                 {user.email ? user.email.charAt(0).toUpperCase() : 'U'}
               </div>
               <div className="min-w-0 flex-1 pr-1">
-                <h4 className={`text-xs font-bold truncate leading-tight transition-colors ${activeTab === 'profile' ? 'text-[#fa233b]' : 'text-white group-hover:text-[#fa233b]'}`}>
-                  {user.user_metadata?.name || user.email?.split('@')[0] || 'RaagaX User'}
+                <h4 className="text-xs font-bold text-white truncate leading-tight group-hover:text-[#fa233b] transition-colors">
+                  {user.user_metadata?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'RaagaX User'}
                 </h4>
+                <p className="text-[10px] text-slate-400 truncate mt-0.5">Account & Settings</p>
               </div>
             </div>
-            <div className="flex items-center gap-0.5 flex-shrink-0">
-              <button
-                onClick={() => setActiveTab('settings')}
-                className={`p-1.5 rounded-lg transition-all ${
-                  activeTab === 'settings'
-                    ? 'text-white bg-[#fa233b] shadow-sm'
-                    : 'text-slate-400 hover:text-white hover:bg-white/10'
-                }`}
-                title="Settings"
-              >
-                <Settings className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => signOut()}
-                className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-white/10 transition-colors"
-                title="Sign Out"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                signOut();
+              }}
+              className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-white/10 transition-colors"
+              title="Sign Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         ) : (
           <div className="flex items-center gap-2">
@@ -278,7 +273,7 @@ export function Sidebar() {
                   ? 'text-white bg-[#fa233b]'
                   : 'text-slate-400 hover:text-white bg-white/5 hover:bg-white/10'
               }`}
-              title="Settings"
+              title="Account & Settings"
             >
               <Settings className="w-4 h-4" />
             </button>

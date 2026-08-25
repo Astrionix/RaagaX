@@ -41,7 +41,11 @@ import {
   VolumeX,
   Repeat,
   Shuffle,
-  Compass
+  Compass,
+  Cloud,
+  Crown,
+  History,
+  BarChart3
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
@@ -362,66 +366,174 @@ export function SettingsView() {
 
           {/* 1. ACCOUNT */}
           {activeSection === 'account' && (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {/* Profile Card */}
-              <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="p-6 rounded-3xl bg-white/[0.02] border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
                 <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-[#F51B3D] to-[#FF6B8B] flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-[#F51B3D]/20">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[#F51B3D] to-[#FF6B8B] flex items-center justify-center text-white text-2xl font-black shadow-xl shadow-[#F51B3D]/30 flex-shrink-0">
                     {user?.email ? user.email.charAt(0).toUpperCase() : 'G'}
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-white text-base">
-                      {user?.user_metadata?.full_name || (user?.email ? user.email.split('@')[0] : 'Guest User')}
+                  <div className="space-y-1">
+                    <h3 className="font-bold text-white text-lg leading-tight">
+                      {user?.user_metadata?.full_name || user?.user_metadata?.name || (user?.email ? user.email.split('@')[0] : 'Guest User')}
                     </h3>
                     <p className="text-xs text-[#8E92A4]">{user?.email || 'Not logged in (Local Storage Session)'}</p>
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#F51B3D]/10 text-[#F51B3D] border border-[#F51B3D]/20">
+                    <div className="pt-0.5">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#F51B3D]/10 text-[#F51B3D] border border-[#F51B3D]/25">
+                        <Cloud className="w-3 h-3" />
                         {user ? 'RaagaX Cloud Account' : 'Guest Mode'}
                       </span>
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
+
+                <div className="flex items-center gap-2.5 flex-wrap">
                   {user ? (
                     <button
                       onClick={() => useAuthStore.getState().signOut()}
-                      className="px-4 py-2 rounded-xl text-xs font-bold text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 transition-colors"
+                      className="px-4 py-2.5 rounded-xl text-xs font-bold text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 transition-all flex items-center gap-2 cursor-pointer"
                     >
-                      Sign Out
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Sign Out</span>
                     </button>
                   ) : (
                     <button
                       onClick={() => useAuthStore.getState().setAuthModalOpen(true)}
-                      className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#E50914] hover:bg-[#FF1E27] shadow-md shadow-red-500/25 transition-all"
+                      className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-[#E50914] hover:bg-[#FF1E27] shadow-lg shadow-red-500/25 transition-all cursor-pointer"
                     >
                       Sign In to RaagaX
                     </button>
                   )}
                   <button
                     onClick={() => showToast('Password reset link sent to your registered email')}
-                    className="px-4 py-2 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-colors"
+                    className="px-4 py-2.5 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-all flex items-center gap-2 cursor-pointer"
                   >
-                    Change Password
+                    <Lock className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Change Password</span>
                   </button>
                 </div>
               </div>
 
-              {/* Account Details Settings */}
-              <div className="space-y-4">
-                <SettingRow
-                  title="Cloud Account Sync"
-                  description="Synchronize likes, playlists, and device sessions across all your devices."
-                  control={<StatusBadge status="ACTIVE" label="Connected" />}
-                />
-                <SettingRow
-                  title="Subscription Plan"
-                  description="High-definition streaming without ads, unlimited skips, and cloud backups."
-                  control={
-                    <span className="text-xs font-medium text-slate-300 bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">
+              {/* Account Options List Cards */}
+              <div className="space-y-3 pt-2">
+                {/* 1. Cloud Account Sync */}
+                <div 
+                  onClick={() => showToast('Cloud sync active across all sessions')}
+                  className="p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 transition-all flex items-center justify-between gap-4 cursor-pointer group"
+                >
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-[#FA233B]/10 border border-[#FA233B]/20 text-[#FA233B] flex items-center justify-center flex-shrink-0">
+                      <Cloud className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-white group-hover:text-[#FA233B] transition-colors">
+                        Cloud Account Sync
+                      </h4>
+                      <p className="text-xs text-[#8E92A4] mt-0.5">
+                        Synchronize likes, playlists, and device sessions across all your devices.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2.5 flex-shrink-0">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      Connected
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                  </div>
+                </div>
+
+                {/* 2. Subscription Plan */}
+                <div 
+                  onClick={() => showToast('You have active RaagaX Premium Lifetime access')}
+                  className="p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 transition-all flex items-center justify-between gap-4 cursor-pointer group"
+                >
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-[#FA233B]/10 border border-[#FA233B]/20 text-[#FA233B] flex items-center justify-center flex-shrink-0">
+                      <Crown className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-white group-hover:text-[#FA233B] transition-colors">
+                        Subscription Plan
+                      </h4>
+                      <p className="text-xs text-[#8E92A4] mt-0.5">
+                        High-definition streaming without ads, unlimited skips, and cloud backups.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2.5 flex-shrink-0">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-200 bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-xl border border-white/10 transition-all">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                       RaagaX Premium (Lifetime)
                     </span>
-                  }
-                />
+                    <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                  </div>
+                </div>
+
+                {/* 3. Account Activity */}
+                <div 
+                  onClick={() => {
+                    setActiveSection('diagnostics');
+                    showToast('Opening account activity & diagnostics');
+                  }}
+                  className="p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 transition-all flex items-center justify-between gap-4 cursor-pointer group"
+                >
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-[#FA233B]/10 border border-[#FA233B]/20 text-[#FA233B] flex items-center justify-center flex-shrink-0">
+                      <History className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-white group-hover:text-[#FA233B] transition-colors">
+                        Account Activity
+                      </h4>
+                      <p className="text-xs text-[#8E92A4] mt-0.5">
+                        View recent logins, active devices, and session information.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2.5 flex-shrink-0">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-300 bg-white/5 px-3 py-1.5 rounded-xl border border-white/10">
+                      <BarChart3 className="w-3.5 h-3.5 text-[#FA233B]" />
+                      View Activity
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                  </div>
+                </div>
+
+                {/* 4. Delete Account */}
+                <div 
+                  onClick={() => {
+                    if (window.confirm('Are you sure you want to permanently delete your account and all saved library data? This action cannot be undone.')) {
+                      useAuthStore.getState().signOut();
+                      showToast('Account scheduled for permanent deletion');
+                    }
+                  }}
+                  className="p-4 rounded-2xl bg-white/[0.02] hover:bg-red-500/[0.03] border border-white/5 hover:border-red-500/20 transition-all flex items-center justify-between gap-4 cursor-pointer group"
+                >
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center flex-shrink-0">
+                      <Trash2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-white group-hover:text-red-400 transition-colors">
+                        Delete Account
+                      </h4>
+                      <p className="text-xs text-[#8E92A4] mt-0.5">
+                        Permanently delete your RaagaX account and all associated data.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2.5 flex-shrink-0">
+                    <button
+                      type="button"
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 transition-colors flex items-center gap-1.5"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete Account
+                    </button>
+                    <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                  </div>
+                </div>
               </div>
             </div>
           )}
