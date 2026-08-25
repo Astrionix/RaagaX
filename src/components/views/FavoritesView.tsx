@@ -312,7 +312,7 @@ export function FavoritesView() {
           {/* Left: Sort Selector & Desktop Quick Pills */}
           <div className="flex items-center gap-2 flex-wrap">
             {/* Native / Mobile-Friendly Styled Dropdown */}
-            <div className="flex items-center gap-2 bg-[var(--bg-surface)] border border-[var(--border-subtle)] px-3 py-1.5 rounded-full text-xs shadow-sm flex-shrink-0">
+            <div className="hidden sm:flex items-center gap-2 bg-[var(--bg-surface)] border border-[var(--border-subtle)] px-3 py-1.5 rounded-full text-xs shadow-sm flex-shrink-0">
               <ArrowUpDown className="w-3.5 h-3.5 text-[#FA233B]" />
               <span className="text-slate-400 font-semibold hidden sm:inline">Sort:</span>
               <select
