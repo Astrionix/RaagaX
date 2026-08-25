@@ -73,24 +73,40 @@ export class AlbumCatalogEngine {
   }
 
   /**
-   * Synchronously returns cached albums or seed albums (deduplicated, no singles).
+   * Synchronously returns cached albums from L1 memory or L2 localStorage, or seed albums (deduplicated).
    */
   public static getAlbumsForLanguage(lang: string): AlbumItem[] {
     const language = lang || 'Telugu';
     if (this.cache[language] && this.cache[language].length > 0) {
-      // Background preload in browser memory
       imagePreloader.preloadBatch(this.cache[language].map(a => a.coverUrl));
       return this.cache[language];
     }
 
+    // Try L2 localStorage cache
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(`raagax_album_catalog_v2_${language}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            this.cache[language] = parsed;
+            imagePreloader.preloadBatch(parsed.map((a: any) => a.coverUrl));
+            return parsed;
+          }
+        }
+      } catch {}
+    }
+
     const seeds = REAL_SEED_ALBUMS[language] || REAL_SEED_ALBUMS['Telugu'];
     const seenTitles = new Set<string>();
+    const seenIds = new Set<string>();
     const albums: AlbumItem[] = [];
 
     seeds.forEach((seed, i) => {
       const cleanTitle = seed.title.trim();
-      if (seenTitles.has(cleanTitle.toLowerCase())) return;
+      if (seenTitles.has(cleanTitle.toLowerCase()) || seenIds.has(seed.id)) return;
       seenTitles.add(cleanTitle.toLowerCase());
+      seenIds.add(seed.id);
 
       albums.push({
         id: seed.id,
@@ -100,7 +116,7 @@ export class AlbumCatalogEngine {
         coverUrl: seed.coverUrl,
         releaseDate: `${seed.year}-01-01`,
         releaseYear: seed.year,
-        trackCount: 6, // strictly >= 2
+        trackCount: 6,
         durationSec: 1350,
         language,
         albumType: 'soundtrack',
@@ -112,23 +128,21 @@ export class AlbumCatalogEngine {
     });
 
     this.cache[language] = albums;
-    // Instant preloading of artwork
     imagePreloader.preloadBatch(albums.map(a => a.coverUrl));
     return albums;
   }
 
   /**
    * Asynchronously fetches real, deduplicated albums from the backend search proxy.
-   * Strictly filters out singles (track_count >= 2).
+   * Strictly filters out singles (track_count >= 2) and persists to L2 cache.
    */
-  public static async fetchRealAlbumsForLanguage(lang: string): Promise<AlbumItem[]> {
+  public static async fetchRealAlbumsForLanguage(lang: string, forceRefresh = false): Promise<AlbumItem[]> {
     const language = lang || 'Telugu';
-    if (this.cache[language] && this.cache[language].length >= 30) {
+    if (!forceRefresh && this.cache[language] && this.cache[language].length >= 30) {
       return this.cache[language];
     }
 
     try {
-      // Fetch regional album search results from JioSaavn
       const realResults = await RealMusicEngine.getInstance().searchRealAlbums(`${language}`, 50);
       
       const seenTitles = new Set<string>();
@@ -170,7 +184,11 @@ export class AlbumCatalogEngine {
 
       if (albums.length > 0) {
         this.cache[language] = albums;
-        // Instant background preload for all 50 covers into browser memory cache
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(`raagax_album_catalog_v2_${language}`, JSON.stringify(albums));
+          } catch {}
+        }
         imagePreloader.preloadBatch(albums.map(a => a.coverUrl));
         return albums;
       }
