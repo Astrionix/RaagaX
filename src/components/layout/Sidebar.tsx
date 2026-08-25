@@ -223,54 +223,67 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Bottom Pins: Settings & Profile */}
-      <div className="pt-3 border-t border-white/5 space-y-2">
-
-        <button
-          onClick={() => setActiveTab('settings')}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition-all text-xs ${activeTab === 'settings'
-              ? 'bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white shadow-lg shadow-red-500/25 border border-red-500/30'
-              : 'text-slate-400 hover:bg-white/5 hover:text-white'
-            }`}
-        >
-          <Settings className={`w-4 h-4 ${activeTab === 'settings' ? 'text-white' : 'text-slate-400'}`} />
-          <span>Settings</span>
-        </button>
-
-        <div className="pt-1">
-          {mounted && user ? (
-            <div className="flex items-center justify-between p-2 rounded-2xl bg-white/5 border border-white/5">
-              <div
-                onClick={() => setActiveTab('profile')}
-                className="flex items-center gap-2.5 min-w-0 cursor-pointer"
-              >
-                <div className="w-7 h-7 rounded-xl bg-[#fa233b] text-white font-black text-xs flex items-center justify-center shadow-md flex-shrink-0">
-                  {user.email ? user.email.charAt(0).toUpperCase() : 'U'}
-                </div>
-                <div className="min-w-0">
-                  <h4 className="text-xs font-bold text-white truncate leading-tight">
-                    {user.user_metadata?.name || user.email?.split('@')[0] || 'RaagaX User'}
-                  </h4>
-                </div>
+      {/* Bottom Pin: Account & Settings */}
+      <div className="pt-3 border-t border-white/5">
+        {mounted && user ? (
+          <div className="flex items-center justify-between p-2 rounded-2xl bg-white/5 border border-white/5 hover:border-white/10 transition-all">
+            <div
+              onClick={() => setActiveTab('profile')}
+              className="flex items-center gap-2.5 min-w-0 cursor-pointer flex-1 group"
+              title="View Profile"
+            >
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#fa233b] to-[#ff4757] text-white font-black text-xs flex items-center justify-center shadow-md flex-shrink-0">
+                {user.email ? user.email.charAt(0).toUpperCase() : 'U'}
               </div>
+              <div className="min-w-0 flex-1 pr-1">
+                <h4 className={`text-xs font-bold truncate leading-tight transition-colors ${activeTab === 'profile' ? 'text-[#fa233b]' : 'text-white group-hover:text-[#fa233b]'}`}>
+                  {user.user_metadata?.name || user.email?.split('@')[0] || 'RaagaX User'}
+                </h4>
+              </div>
+            </div>
+            <div className="flex items-center gap-0.5 flex-shrink-0">
+              <button
+                onClick={() => setActiveTab('settings')}
+                className={`p-1.5 rounded-lg transition-all ${
+                  activeTab === 'settings'
+                    ? 'text-white bg-[#fa233b] shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-white/10'
+                }`}
+                title="Settings"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
               <button
                 onClick={() => signOut()}
-                className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-white/5 transition-colors"
+                className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-white/10 transition-colors"
                 title="Sign Out"
               >
-                <LogOut className="w-3.5 h-3.5" />
+                <LogOut className="w-4 h-4" />
               </button>
             </div>
-          ) : (
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setAuthModalOpen(true)}
-              className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-[#fa233b]/10 hover:bg-[#fa233b]/20 text-[#fa233b] font-bold text-xs transition-colors border border-[#fa233b]/20"
+              className="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[#fa233b]/10 hover:bg-[#fa233b]/20 text-[#fa233b] font-bold text-xs transition-colors border border-[#fa233b]/20"
             >
               <LogIn className="w-4 h-4" />
               Sign In
             </button>
-          )}
-        </div>
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`p-2 rounded-xl border border-white/5 transition-all ${
+                activeTab === 'settings'
+                  ? 'text-white bg-[#fa233b]'
+                  : 'text-slate-400 hover:text-white bg-white/5 hover:bg-white/10'
+              }`}
+              title="Settings"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );
