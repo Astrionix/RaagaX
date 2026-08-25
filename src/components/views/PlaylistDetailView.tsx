@@ -17,6 +17,7 @@ import { useDownloadStore } from '@/context/useDownloadStore';
 import { useAuthStore } from '@/context/useAuthStore';
 import { AddSongsModal } from '@/components/modals/AddSongsModal';
 import { DynamicArtworkAtmosphere } from '@/components/common/DynamicArtworkAtmosphere';
+import { ArtworkColorExtractor, ChameleonPalette } from '@/lib/theme/ArtworkColorExtractor';
 import { SwipeableSongRow } from '@/components/common/SwipeableSongRow';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
 import { PlaylistDetailResolver } from '@/lib/playlist/PlaylistDetailResolver';
@@ -87,6 +88,31 @@ export function PlaylistDetailView() {
   const [editCoverUrl, setEditCoverUrl] = useState('');
   const [editVisibility, setEditVisibility] = useState<'public' | 'private'>('private');
   const [isSavingMetadata, setIsSavingMetadata] = useState(false);
+
+  const [palette, setPalette] = useState<ChameleonPalette | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (playlist?.coverUrl && playlist.coverUrl !== '/app-icon.png') {
+      ArtworkColorExtractor.getInstance()
+        .extractPalette(playlist.coverUrl)
+        .then((p) => {
+          if (isMounted) setPalette(p);
+        });
+    } else {
+      setPalette(null);
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [playlist?.coverUrl]);
+
+  const themeColor = palette?.highlight || palette?.accent || palette?.primary || '#FA233B';
+  const glowColor = palette?.glow || 'rgba(250, 35, 59, 0.35)';
+  const bgTint = palette?.refractionRgba || 'rgba(250, 35, 59, 0.12)';
+  const borderTint = palette?.primary
+    ? palette.primary.replace('rgb', 'rgba').replace(')', ', 0.35)')
+    : 'rgba(255,255,255,0.15)';
 
   // Fetch / Sync playlist from store OR resolve curated / editorial playlist
   useEffect(() => {
@@ -364,9 +390,9 @@ export function PlaylistDetailView() {
 
   return (
     <DynamicArtworkAtmosphere artworkUrl={playlist.coverUrl} isPlaying={isPlaying}>
-      <div className="space-y-6 pb-12 text-white select-none animate-in fade-in duration-200">
-        {/* Top Back Navigation Bar */}
-        <div className="flex items-center justify-between pt-1">
+      <div className="relative min-h-screen text-white select-none animate-in fade-in duration-200 pb-28">
+        {/* Top Sticky Navigation Bar */}
+        <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-3.5 backdrop-blur-xl bg-[#08090d]/80 border-b border-white/5">
           <button
             onClick={() => {
               haptics.lightImpact();
@@ -384,18 +410,22 @@ export function PlaylistDetailView() {
                 setActiveTab('library');
               }
             }}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all text-xs font-bold cursor-pointer"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all text-xs font-bold cursor-pointer"
             title="Back"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
           </button>
 
+          <h2 className="text-sm font-bold text-white/90 truncate max-w-[240px] sm:max-w-[400px]">
+            {playlist.title}
+          </h2>
+
           {/* 3-Dot Playlist Action Menu */}
           <div className="relative">
             <button
               onClick={() => setShowPlaylistMenu(!showPlaylistMenu)}
-              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer"
+              className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer"
               title="Playlist Actions"
             >
               <MoreVertical className="w-4 h-4" />
@@ -410,7 +440,7 @@ export function PlaylistDetailView() {
                   onClick={() => { setShowPlaylistMenu(false); handlePlay(false); }}
                   className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-xl flex items-center gap-2.5 text-slate-200 hover:text-white transition-colors"
                 >
-                  <Play className="w-3.5 h-3.5 fill-current text-[#fa233b]" /> Play
+                  <Play className="w-3.5 h-3.5 fill-current" style={{ color: themeColor }} /> Play
                 </button>
 
                 <button
@@ -517,92 +547,105 @@ export function PlaylistDetailView() {
           </div>
         </div>
 
-        {/* Cinematic Hero Header */}
-        <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6 p-5 sm:p-6 rounded-3xl bg-white/[0.03] border border-white/10 relative overflow-hidden shadow-2xl backdrop-blur-xl">
-          {/* Large Sharp Cover Art (220-260dp on mobile) */}
-          <div className="relative w-48 h-48 sm:w-56 sm:h-56 md:w-60 md:h-60 rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.85)] bg-slate-900 border border-white/15 flex-shrink-0 group">
-            {playlist.coverUrl ? (
-              <img 
-                src={playlist.coverUrl} 
-                alt={playlist.title}
-                onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-purple-900/40 to-slate-900 text-purple-400">
-                <Music className="w-12 h-12 mb-1 opacity-60" />
-                <span className="text-[10px] font-mono text-purple-300">RaagaX Playlist</span>
-              </div>
-            )}
+        {/* Main Content Container (Full Width Edge-to-Edge) */}
+        <div className="w-full px-4 sm:px-8 space-y-6 pt-4">
+          {/* Cinematic Hero Header */}
+          <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6 p-5 sm:p-7 rounded-3xl bg-white/[0.03] border border-white/10 relative overflow-hidden shadow-2xl backdrop-blur-xl">
+            {/* Large Sharp Cover Art */}
+            <div className="relative w-48 h-48 sm:w-56 sm:h-56 md:w-60 md:h-60 rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.85)] bg-slate-900 border border-white/15 flex-shrink-0 group">
+              {playlist.coverUrl ? (
+                <img 
+                  src={playlist.coverUrl} 
+                  alt={playlist.title}
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-purple-900/40 to-slate-900 text-purple-400">
+                  <Music className="w-12 h-12 mb-1 opacity-60" />
+                  <span className="text-[10px] font-mono text-purple-300">RaagaX Playlist</span>
+                </div>
+              )}
 
-            <button
-              onClick={() => setShowEditMetadataModal(true)}
-              className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/60 hover:bg-black/80 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-              title="Change Artwork"
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-            </button>
-          </div>
+              <button
+                onClick={() => setShowEditMetadataModal(true)}
+                className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/60 hover:bg-black/80 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Change Artwork"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+              </button>
+            </div>
 
-          {/* Playlist Info & Metadata */}
-          <div className="min-w-0 flex-1 text-center sm:text-left space-y-2 relative z-10">
-            <div className="flex items-center justify-center sm:justify-start gap-2">
-              <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/10 text-slate-300 border border-white/10">
-                {playlist.visibility === 'public' ? 'Public Playlist' : 'Private Playlist'}
-              </span>
-              {isNative && downloadedSongsInPlaylist.length === playlist.songs.length && playlist.songs.length > 0 && (
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                  <Check className="w-3 h-3 stroke-[3]" /> Downloaded
+            {/* Playlist Info & Metadata */}
+            <div className="min-w-0 flex-1 text-center sm:text-left space-y-2 relative z-10">
+              <div className="flex items-center justify-center sm:justify-start gap-2">
+                <span
+                  className="text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border"
+                  style={{
+                    backgroundColor: bgTint,
+                    borderColor: borderTint,
+                    color: themeColor,
+                  }}
+                >
+                  {playlist.visibility === 'public' ? 'Public Playlist' : 'Private Playlist'}
                 </span>
-              )}
-            </div>
-
-            <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight break-words">
-              {playlist.title}
-            </h1>
-
-            {playlist.description && (
-              <p className="text-xs sm:text-sm text-[var(--text-secondary)] line-clamp-2 max-w-xl">
-                {playlist.description}
-              </p>
-            )}
-
-            {/* Useful Metadata Summary */}
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-xs text-[var(--text-secondary)] font-medium pt-1">
-              <span>{playlist.songs?.length || 0} {playlist.songs?.length === 1 ? 'song' : 'songs'}</span>
-              <span>•</span>
-              <span>{formattedDuration}</span>
-              {isNative && downloadedSongsInPlaylist.length > 0 && (
-                <>
-                  <span>•</span>
-                  <span className="text-emerald-400 font-mono">
-                    {downloadedSongsInPlaylist.length} downloaded
+                {isNative && downloadedSongsInPlaylist.length === playlist.songs.length && playlist.songs.length > 0 && (
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                    <Check className="w-3 h-3 stroke-[3]" /> Downloaded
                   </span>
-                </>
+                )}
+              </div>
+
+              <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight break-words">
+                {playlist.title}
+              </h1>
+
+              {playlist.description && (
+                <p className="text-xs sm:text-sm text-[var(--text-secondary)] line-clamp-2 max-w-xl">
+                  {playlist.description}
+                </p>
               )}
+
+              {/* Useful Metadata Summary */}
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-xs text-[var(--text-secondary)] font-medium pt-1">
+                <span>{playlist.songs?.length || 0} {playlist.songs?.length === 1 ? 'song' : 'songs'}</span>
+                <span>•</span>
+                <span>{formattedDuration}</span>
+                {isNative && downloadedSongsInPlaylist.length > 0 && (
+                  <>
+                    <span>•</span>
+                    <span className="text-emerald-400 font-mono">
+                      {downloadedSongsInPlaylist.length} downloaded
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        </div>
 
-      {/* Action Toolbar */}
-      <div className="space-y-4 pt-1">
-        {/* Main Action Buttons Row: Play, Shuffle, Save to Library (Always Side-by-Side) */}
-        <div className="flex items-center gap-2 sm:gap-3 flex-nowrap overflow-x-auto no-scrollbar pb-1">
-          <button
-            onClick={() => handlePlay(false)}
-            className="h-10 sm:h-11 px-4 sm:px-6 rounded-full bg-[#fa233b] hover:bg-[#d91e32] active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg shadow-red-500/25 transition-all cursor-pointer shrink-0 whitespace-nowrap"
-          >
-            <Play className="w-4 h-4 fill-white" />
-            <span>Play</span>
-          </button>
+          {/* Action Toolbar */}
+          <div className="space-y-4 pt-1">
+            {/* Main Action Buttons Row: Play, Shuffle, Save to Library (Always Side-by-Side) */}
+            <div className="flex items-center gap-2 sm:gap-3 flex-nowrap overflow-x-auto no-scrollbar pb-1">
+              <button
+                onClick={() => handlePlay(false)}
+                className="h-10 sm:h-11 px-5 sm:px-7 rounded-full active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer shrink-0 whitespace-nowrap"
+                style={{
+                  backgroundColor: themeColor,
+                  boxShadow: `0 8px 25px ${glowColor}`,
+                }}
+              >
+                <Play className="w-4 h-4 fill-white" />
+                <span>Play</span>
+              </button>
 
-          <button
-            onClick={() => handlePlay(true)}
-            className="h-10 sm:h-11 px-3.5 sm:px-5 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2 border border-white/10 shadow-md transition-all cursor-pointer shrink-0 whitespace-nowrap"
-          >
-            <Shuffle className="w-4 h-4 text-slate-300" />
-            <span>Shuffle</span>
-          </button>
+              <button
+                onClick={() => handlePlay(true)}
+                className="h-10 sm:h-11 px-3.5 sm:px-5 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2 border border-white/10 shadow-md transition-all cursor-pointer shrink-0 whitespace-nowrap"
+              >
+                <Shuffle className="w-4 h-4 text-slate-300" />
+                <span>Shuffle</span>
+              </button>
 
           {isUserOwned ? (
             <button
@@ -822,6 +865,7 @@ export function PlaylistDetailView() {
           </button>
         </div>
       )}
+        </div>
 
       {/* Add Songs Searchable Modal */}
       {showAddSongsModal && (

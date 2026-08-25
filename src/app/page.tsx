@@ -212,7 +212,11 @@ export default function Page() {
             <Header />
 
             {/* View Switcher Container */}
-            <main className="flex-1 pt-14 md:pt-4 pb-[calc(8.5rem+env(safe-area-inset-bottom,0px))] md:pb-8 px-3.5 sm:px-8">
+            <main className={`flex-1 pb-[calc(8.5rem+env(safe-area-inset-bottom,0px))] md:pb-8 ${
+              activeTab === 'album' || activeTab === 'playlist' || (activeTab === 'artist' && selectedArtistId)
+                ? 'pt-0 px-0'
+                : 'pt-14 md:pt-4 px-3.5 sm:px-8'
+            }`}>
               {activeTab === 'home' && <HomeView />}
               {activeTab === 'new' && <NewView />}
               {activeTab === 'search' && <SearchView />}

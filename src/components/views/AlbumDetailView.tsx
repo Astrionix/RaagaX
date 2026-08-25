@@ -65,6 +65,36 @@ export function AlbumDetailView() {
   const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
   const isLikedAlbum = selectedAlbumId ? favoriteAlbumIds.includes(selectedAlbumId) : false;
 
+  const [palette, setPalette] = useState<ChameleonPalette | null>(null);
+
+  const coverUrl = album?.coverUrl && !album.coverUrl.includes('/null/')
+    ? album.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500')
+    : '/app-icon.png';
+
+  useEffect(() => {
+    let isMounted = true;
+    if (coverUrl && coverUrl !== '/app-icon.png') {
+      ArtworkColorExtractor.getInstance()
+        .extractPalette(coverUrl)
+        .then((p) => {
+          if (isMounted) setPalette(p);
+        });
+    } else {
+      setPalette(null);
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [coverUrl]);
+
+  // Derive a single unified monochromatic shade for all album UI elements
+  const themeColor = palette?.highlight || palette?.accent || palette?.primary || '#FA233B';
+  const glowColor = palette?.glow || 'rgba(250, 35, 59, 0.35)';
+  const bgTint = palette?.refractionRgba || 'rgba(250, 35, 59, 0.12)';
+  const borderTint = palette?.primary
+    ? palette.primary.replace('rgb', 'rgba').replace(')', ', 0.35)')
+    : 'rgba(255,255,255,0.15)';
+
   useEffect(() => {
     if (!selectedAlbumId || selectedAlbumId === 'offline') {
       setIsLoadingTracks(false);
@@ -416,36 +446,6 @@ export function AlbumDetailView() {
   };
 
   const totalMin = Math.round((album.durationSec || 0) / 60);
-
-  const [palette, setPalette] = useState<ChameleonPalette | null>(null);
-
-  const coverUrl = album?.coverUrl && !album.coverUrl.includes('/null/')
-    ? album.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500')
-    : '/app-icon.png';
-
-  useEffect(() => {
-    let isMounted = true;
-    if (coverUrl && coverUrl !== '/app-icon.png') {
-      ArtworkColorExtractor.getInstance()
-        .extractPalette(coverUrl)
-        .then((p) => {
-          if (isMounted) setPalette(p);
-        });
-    } else {
-      setPalette(null);
-    }
-    return () => {
-      isMounted = false;
-    };
-  }, [coverUrl]);
-
-  // Derive a single unified monochromatic shade for all album UI elements
-  const themeColor = palette?.highlight || palette?.accent || palette?.primary || '#FA233B';
-  const glowColor = palette?.glow || 'rgba(250, 35, 59, 0.35)';
-  const bgTint = palette?.refractionRgba || 'rgba(250, 35, 59, 0.12)';
-  const borderTint = palette?.primary
-    ? palette.primary.replace('rgb', 'rgba').replace(')', ', 0.35)')
-    : 'rgba(255,255,255,0.15)';
 
   return (
     <DynamicArtworkAtmosphere artworkUrl={coverUrl} isPlaying={isPlaying}>
