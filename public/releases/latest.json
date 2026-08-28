@@ -2,15 +2,17 @@
   "versionCode": 2,
   "versionName": "1.1.0",
   "apkUrl": "/api/app/download",
-  "sha256": "8472115779bfcc8d54f799be02c6859f716707edb8a668433a5b06b9d440ef76",
-  "fileSize": 76,
-  "releaseDate": "2026-08-26",
+  "sha256": "80b07843d60eb800b3db92593511d8314874c7d888d779f7bb9b9b0425c6ca48",
+  "fileSize": 13247156,
+  "releaseDate": "2026-08-28",
   "mandatory": false,
   "minimumSupportedVersion": 1,
   "releaseChannel": "stable",
   "releaseNotes": [
-    "Introducing self-update support for non-Play Store distribution!",
-    "Strict Supabase egress minimization caching.",
-    "UI improvements and player crash fixes."
+    "Added real-time Search & Sort in Liked Songs, History, and Downloaded Music.",
+    "Added direct Download button beside Shuffle in Liked Songs for mobile.",
+    "Accurate lyricist & songwriter credits across all playback views.",
+    "Reliable spacebar Play/Pause keyboard shortcut engine.",
+    "High-fidelity lossless audio playback and memory optimizations."
   ]
 }

@@ -17,18 +17,21 @@ export async function GET() {
 
   // Fallback to static default manifest if file is not found (e.g. dev server startup)
   return NextResponse.json({
-    versionCode: 1,
-    versionName: "1.0.0",
-    apkUrl: "https://raagax-releases.s3.amazonaws.com/apks/RaagaX-1.0.0.apk",
-    sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    fileSize: 13228251,
-    releaseDate: "2026-08-26",
+    versionCode: 2,
+    versionName: "1.1.0",
+    apkUrl: "/api/app/download",
+    sha256: "80b07843d60eb800b3db92593511d8314874c7d888d779f7bb9b9b0425c6ca48",
+    fileSize: 13247156,
+    releaseDate: "2026-08-28",
     mandatory: false,
     minimumSupportedVersion: 1,
     releaseChannel: "stable",
     releaseNotes: [
-      "Initial production release.",
-      "Lossless music streaming engine."
+      "Added real-time Search & Sort in Liked Songs, History, and Downloaded Music.",
+      "Added direct Download button beside Shuffle in Liked Songs for mobile.",
+      "Accurate lyricist & songwriter credits across all playback views.",
+      "Reliable spacebar Play/Pause keyboard shortcut engine.",
+      "High-fidelity lossless audio playback and memory optimizations."
     ]
   });
 }
