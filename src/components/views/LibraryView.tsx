@@ -6,7 +6,7 @@ import {
   User, Disc, Sparkles, Laptop, ChevronLeft, Music, Library, Shuffle,
   HardDrive, Trash2, CheckCircle2, Layers, WifiOff, RefreshCw, ShieldCheck,
   Globe, ArrowUpDown, BarChart3, Wifi, CloudDownload, Heart as HeartFill,
-  Check, Loader2
+  Check, Loader2, Search, X
 } from 'lucide-react';
 import { InsightsView } from '@/components/views/InsightsView';
 import { ArtistsView } from '@/components/views/ArtistsView';
@@ -40,6 +40,11 @@ export function LibraryView() {
   // Sort state for Listening History sub-view (mobile)
   const [historySortBy, setHistorySortBy] = useState<'recently_played' | 'az' | 'artist'>('recently_played');
   const [showHistorySortMenu, setShowHistorySortMenu] = useState(false);
+  // Sort state for Downloaded Songs sub-view (mobile)
+  const [downloadedSortBy, setDownloadedSortBy] = useState<'recently_downloaded' | 'az' | 'artist' | 'album'>('recently_downloaded');
+  const [showDownloadedSortMenu, setShowDownloadedSortMenu] = useState(false);
+  // Search query state for song list sub-views
+  const [librarySongSearch, setLibrarySongSearch] = useState('');
   const attemptedMissingIdsRef = useRef<Set<string>>(new Set());
   const { user } = useAuthStore();
 
@@ -87,6 +92,13 @@ export function LibraryView() {
   useEffect(() => {
     fetchStorageInfo();
   }, [downloadedSongIds.length, fetchStorageInfo]);
+
+  useEffect(() => {
+    setLibrarySongSearch('');
+    setShowLikedSortMenu(false);
+    setShowHistorySortMenu(false);
+    setShowDownloadedSortMenu(false);
+  }, [tab, downloadSubTab]);
 
   useEffect(() => {
     // Load verified offline tracks from native Android or web catalog
@@ -433,7 +445,8 @@ export function LibraryView() {
     // ── Determine which sort controls to show and which state to use ──────────
     const isLikedTab = tab === 'liked';
     const isHistoryTab = tab === 'history';
-    const showSortControls = isLikedTab || isHistoryTab;
+    const isDownloadedTab = tab === 'songs' || (tab === 'downloads' && downloadSubTab === 'songs');
+    const showSortControls = isLikedTab || isHistoryTab || isDownloadedTab;
 
     // Sort options per tab
     const likedSortOptions = [
@@ -448,10 +461,17 @@ export function LibraryView() {
       { value: 'az', label: 'Title — A–Z' },
       { value: 'artist', label: 'Artist — A–Z' },
     ] as const;
+    const downloadedSortOptions = [
+      { value: 'recently_downloaded', label: 'Recently Downloaded' },
+      { value: 'az', label: 'Title — A–Z' },
+      { value: 'artist', label: 'Artist — A–Z' },
+      { value: 'album', label: 'Album — A–Z' },
+    ] as const;
 
     // Current sort option label
     const currentLikedLabel = likedSortOptions.find((o) => o.value === likedSortBy)?.label ?? 'Recently Liked';
     const currentHistoryLabel = historySortOptions.find((o) => o.value === historySortBy)?.label ?? 'Recently Played';
+    const currentDownloadedLabel = downloadedSortOptions.find((o) => o.value === downloadedSortBy)?.label ?? 'Recently Downloaded';
 
     // ── Apply sort to the songs list ──────────────────────────────────────────
     let sortedSongs = [...songs];
@@ -485,99 +505,193 @@ export function LibraryView() {
           sortedSongs.sort((a, b) => (a.artist || '').localeCompare(b.artist || ''));
           break;
       }
+    } else if (isDownloadedTab) {
+      switch (downloadedSortBy) {
+        case 'recently_downloaded':
+          // Preserves recent download order
+          break;
+        case 'az':
+          sortedSongs.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+          break;
+        case 'artist':
+          sortedSongs.sort((a, b) => (a.artist || '').localeCompare(b.artist || ''));
+          break;
+        case 'album':
+          sortedSongs.sort((a, b) => (a.album || '').localeCompare(b.album || ''));
+          break;
+      }
     }
+
+    // ── Apply search filter if query exists ──────────────────────────────────
+    const searchFilter = librarySongSearch.trim().toLowerCase();
+    const displaySongs = searchFilter
+      ? sortedSongs.filter(
+          (s) =>
+            (s.title && s.title.toLowerCase().includes(searchFilter)) ||
+            (s.artist && s.artist.toLowerCase().includes(searchFilter)) ||
+            (s.album && s.album.toLowerCase().includes(searchFilter))
+        )
+      : sortedSongs;
 
     return (
       <div className="space-y-4">
-        {/* ── SORT CONTROLS (Liked Songs & History only) ─────────────────── */}
+        {/* ── SORT & SEARCH TOOLBAR (Side-by-Side) ───────────────────────── */}
         {showSortControls && (
-          <div className="relative z-20">
-            {isLikedTab && (
-              <>
-                {showLikedSortMenu && (
-                  <div className="fixed inset-0 z-20" onClick={() => setShowLikedSortMenu(false)} />
-                )}
+          <div className="flex items-center justify-between gap-2.5 pb-1">
+            {/* Left: Sort Selector Dropdown */}
+            <div className="relative z-20 flex-shrink-0">
+              {isLikedTab && (
+                <>
+                  {showLikedSortMenu && (
+                    <div className="fixed inset-0 z-20" onClick={() => setShowLikedSortMenu(false)} />
+                  )}
+                  <button
+                    onClick={() => setShowLikedSortMenu((v) => !v)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer"
+                  >
+                    <ArrowUpDown className="w-3.5 h-3.5 text-[#FA233B]" />
+                    <span>Sort: {currentLikedLabel} ▾</span>
+                  </button>
+                  {showLikedSortMenu && (
+                    <div className="absolute left-0 top-full mt-1.5 w-52 bg-[#141520] border border-white/15 rounded-xl p-1.5 shadow-2xl z-30 text-xs animate-in zoom-in-95 duration-100">
+                      {likedSortOptions.map((opt) => (
+                        <button
+                          key={opt.value}
+                          onClick={() => {
+                            haptics.lightImpact();
+                            setLikedSortBy(opt.value);
+                            setShowLikedSortMenu(false);
+                          }}
+                          className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors flex items-center justify-between cursor-pointer ${
+                            likedSortBy === opt.value
+                              ? 'bg-[#FA233B]/20 text-red-400 font-bold'
+                              : 'hover:bg-white/10 text-slate-300 hover:text-white'
+                          }`}
+                        >
+                          <span>{opt.label}</span>
+                          {likedSortBy === opt.value && <Check className="w-3.5 h-3.5 text-[#FA233B] stroke-[3]" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {isHistoryTab && (
+                <>
+                  {showHistorySortMenu && (
+                    <div className="fixed inset-0 z-20" onClick={() => setShowHistorySortMenu(false)} />
+                  )}
+                  <button
+                    onClick={() => setShowHistorySortMenu((v) => !v)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer"
+                  >
+                    <ArrowUpDown className="w-3.5 h-3.5 text-[#FA233B]" />
+                    <span>Sort: {currentHistoryLabel} ▾</span>
+                  </button>
+                  {showHistorySortMenu && (
+                    <div className="absolute left-0 top-full mt-1.5 w-52 bg-[#141520] border border-white/15 rounded-xl p-1.5 shadow-2xl z-30 text-xs animate-in zoom-in-95 duration-100">
+                      {historySortOptions.map((opt) => (
+                        <button
+                          key={opt.value}
+                          onClick={() => {
+                            haptics.lightImpact();
+                            setHistorySortBy(opt.value);
+                            setShowHistorySortMenu(false);
+                          }}
+                          className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors flex items-center justify-between cursor-pointer ${
+                            historySortBy === opt.value
+                              ? 'bg-[#FA233B]/20 text-red-400 font-bold'
+                              : 'hover:bg-white/10 text-slate-300 hover:text-white'
+                          }`}
+                        >
+                          <span>{opt.label}</span>
+                          {historySortBy === opt.value && <Check className="w-3.5 h-3.5 text-[#FA233B] stroke-[3]" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {isDownloadedTab && (
+                <>
+                  {showDownloadedSortMenu && (
+                    <div className="fixed inset-0 z-20" onClick={() => setShowDownloadedSortMenu(false)} />
+                  )}
+                  <button
+                    onClick={() => setShowDownloadedSortMenu((v) => !v)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer"
+                  >
+                    <ArrowUpDown className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Sort: {currentDownloadedLabel} ▾</span>
+                  </button>
+                  {showDownloadedSortMenu && (
+                    <div className="absolute left-0 top-full mt-1.5 w-56 bg-[#141520] border border-white/15 rounded-xl p-1.5 shadow-2xl z-30 text-xs animate-in zoom-in-95 duration-100">
+                      {downloadedSortOptions.map((opt) => (
+                        <button
+                          key={opt.value}
+                          onClick={() => {
+                            haptics.lightImpact();
+                            setDownloadedSortBy(opt.value);
+                            setShowDownloadedSortMenu(false);
+                          }}
+                          className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors flex items-center justify-between cursor-pointer ${
+                            downloadedSortBy === opt.value
+                              ? 'bg-emerald-500/20 text-emerald-400 font-bold'
+                              : 'hover:bg-white/10 text-slate-300 hover:text-white'
+                          }`}
+                        >
+                          <span>{opt.label}</span>
+                          {downloadedSortBy === opt.value && <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Right: Quick Search in current collection */}
+            <div className="relative flex-1 min-w-[130px] max-w-xs sm:max-w-sm">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={librarySongSearch}
+                onChange={(e) => setLibrarySongSearch(e.target.value)}
+                placeholder={
+                  isLikedTab
+                    ? 'Search liked songs...'
+                    : isDownloadedTab
+                    ? 'Search downloaded songs...'
+                    : 'Search listening history...'
+                }
+                className="w-full bg-white/5 hover:bg-white/10 focus:bg-white/10 border border-white/10 text-xs text-white placeholder-slate-500 rounded-full pl-8 pr-7 py-1.5 outline-none focus:border-white/25 transition-colors"
+              />
+              {librarySongSearch && (
                 <button
-                  onClick={() => setShowLikedSortMenu((v) => !v)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer"
+                  onClick={() => setLibrarySongSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-white cursor-pointer"
+                  title="Clear search"
                 >
-                  <ArrowUpDown className="w-3.5 h-3.5 text-[#FA233B]" />
-                  <span>Sort: {currentLikedLabel} ▾</span>
+                  <X className="w-3 h-3" />
                 </button>
-                {showLikedSortMenu && (
-                  <div className="absolute left-0 top-full mt-1.5 w-52 bg-[#141520] border border-white/15 rounded-xl p-1.5 shadow-2xl z-30 text-xs animate-in zoom-in-95 duration-100">
-                    {likedSortOptions.map((opt) => (
-                      <button
-                        key={opt.value}
-                        onClick={() => {
-                          haptics.lightImpact();
-                          setLikedSortBy(opt.value);
-                          setShowLikedSortMenu(false);
-                        }}
-                        className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors flex items-center justify-between cursor-pointer ${
-                          likedSortBy === opt.value
-                            ? 'bg-[#FA233B]/20 text-red-400 font-bold'
-                            : 'hover:bg-white/10 text-slate-300 hover:text-white'
-                        }`}
-                      >
-                        <span>{opt.label}</span>
-                        {likedSortBy === opt.value && <Check className="w-3.5 h-3.5 text-[#FA233B] stroke-[3]" />}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-            {isHistoryTab && (
-              <>
-                {showHistorySortMenu && (
-                  <div className="fixed inset-0 z-20" onClick={() => setShowHistorySortMenu(false)} />
-                )}
-                <button
-                  onClick={() => setShowHistorySortMenu((v) => !v)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer"
-                >
-                  <ArrowUpDown className="w-3.5 h-3.5 text-[#FA233B]" />
-                  <span>Sort: {currentHistoryLabel} ▾</span>
-                </button>
-                {showHistorySortMenu && (
-                  <div className="absolute left-0 top-full mt-1.5 w-52 bg-[#141520] border border-white/15 rounded-xl p-1.5 shadow-2xl z-30 text-xs animate-in zoom-in-95 duration-100">
-                    {historySortOptions.map((opt) => (
-                      <button
-                        key={opt.value}
-                        onClick={() => {
-                          haptics.lightImpact();
-                          setHistorySortBy(opt.value);
-                          setShowHistorySortMenu(false);
-                        }}
-                        className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors flex items-center justify-between cursor-pointer ${
-                          historySortBy === opt.value
-                            ? 'bg-[#FA233B]/20 text-red-400 font-bold'
-                            : 'hover:bg-white/10 text-slate-300 hover:text-white'
-                        }`}
-                      >
-                        <span>{opt.label}</span>
-                        {historySortBy === opt.value && <Check className="w-3.5 h-3.5 text-[#FA233B] stroke-[3]" />}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
+              )}
+            </div>
           </div>
         )}
 
         {/* Play, Shuffle & Download All Header Actions (3 Side-by-Side) */}
         <div className={`grid gap-2 w-full pt-2 pb-1 ${tab === 'liked' ? 'grid-cols-3' : 'grid-cols-2 max-w-xs'}`}>
           <button
-            onClick={() => handlePlayAll(sortedSongs, false)}
+            onClick={() => handlePlayAll(displaySongs, false)}
             className="h-10 px-2 sm:px-4 rounded-full bg-[#FA233B] hover:bg-[#D90429] active:scale-95 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-[#FA233B]/25 transition-all cursor-pointer min-w-0"
           >
             <Play className="w-3.5 h-3.5 fill-white flex-shrink-0" />
             <span className="truncate">Play All</span>
           </button>
           <button
-            onClick={() => handlePlayAll(sortedSongs, true)}
+            onClick={() => handlePlayAll(displaySongs, true)}
             className="h-10 px-2 sm:px-4 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 border border-white/15 shadow-md transition-all cursor-pointer min-w-0"
           >
             <Shuffle className="w-3.5 h-3.5 text-slate-200 flex-shrink-0" />
@@ -617,64 +731,78 @@ export function LibraryView() {
           )}
         </div>
 
-        <div className="space-y-2">
-          {sortedSongs.map((song, index) => {
-            const isSongDownloaded = downloadedSongIds.includes(song.id);
-            const isBrowserOffline = typeof navigator !== 'undefined' && !navigator.onLine;
-            const isAppOffline = isOfflineMode || isBrowserOffline;
-            const isSongOfflineUnavailable = isAppOffline && !isSongDownloaded;
+        {/* Filter Empty State or Songs List */}
+        {displaySongs.length === 0 && searchFilter ? (
+          <div className="py-12 text-center space-y-2.5 bg-white/[0.02] rounded-2xl border border-white/5 flex flex-col items-center justify-center">
+            <Search className="w-6 h-6 text-slate-500 mb-1" />
+            <p className="text-xs font-semibold text-slate-300">No songs match "{librarySongSearch}"</p>
+            <button
+              onClick={() => setLibrarySongSearch('')}
+              className="px-3 py-1 rounded-full bg-white/10 hover:bg-white/15 text-[11px] font-bold text-slate-300 hover:text-white transition-all cursor-pointer"
+            >
+              Clear search
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {displaySongs.map((song, index) => {
+              const isSongDownloaded = downloadedSongIds.includes(song.id);
+              const isBrowserOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+              const isAppOffline = isOfflineMode || isBrowserOffline;
+              const isSongOfflineUnavailable = isAppOffline && !isSongDownloaded;
 
-            return (
-              <SwipeableSongRow
-                key={`${song.id}-${index}`}
-                song={song}
-                actionType={tab === 'liked' ? 'unlike' : (tab === 'songs' ? 'remove_download' : 'remove')}
-                actionLabel={tab === 'liked' ? 'Remove' : (tab === 'songs' ? 'Remove Download' : 'Remove')}
-                onSwipeAction={() => {
-                  if (tab === 'liked') {
-                    toggleLikeSong(song.id);
-                  } else if (tab === 'songs') {
-                    removeDownload(song.id);
-                  }
-                }}
-              >
-                <div
-                  className={`py-2.5 px-3 sm:px-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-white/10 hover:bg-white/[0.06] transition-all flex items-center justify-between group min-h-[64px] sm:min-h-[68px] ${
-                    isSongOfflineUnavailable ? 'opacity-40 pointer-events-none select-none' : ''
-                  }`}
+              return (
+                <SwipeableSongRow
+                  key={`${song.id}-${index}`}
+                  song={song}
+                  actionType={tab === 'liked' ? 'unlike' : (tab === 'songs' || downloadSubTab === 'songs' ? 'remove_download' : 'remove')}
+                  actionLabel={tab === 'liked' ? 'Remove' : (tab === 'songs' || downloadSubTab === 'songs' ? 'Remove Download' : 'Remove')}
+                  onSwipeAction={() => {
+                    if (tab === 'liked') {
+                      toggleLikeSong(song.id);
+                    } else if (tab === 'songs' || downloadSubTab === 'songs') {
+                      removeDownload(song.id);
+                    }
+                  }}
                 >
                   <div
-                    className="flex items-center gap-3.5 cursor-pointer flex-1 min-w-0 pr-3"
-                    onClick={() => { if (!isSongOfflineUnavailable) playSong(song, sortedSongs); }}
+                    className={`py-2.5 px-3 sm:px-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-white/10 hover:bg-white/[0.06] transition-all flex items-center justify-between group min-h-[64px] sm:min-h-[68px] ${
+                      isSongOfflineUnavailable ? 'opacity-40 pointer-events-none select-none' : ''
+                    }`}
                   >
-                    <img
-                      src={song.coverUrl || '/app-icon.png'}
-                      alt={song.title}
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = '/app-icon.png';
-                      }}
-                      className="w-12 h-12 rounded-xl object-cover shadow-sm flex-shrink-0 bg-slate-800"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-[#F51B3D] transition-colors truncate">
-                        {song.title}
-                      </h4>
-                      <p className="text-[11px] text-[#8E92A4] truncate mt-0.5">{song.artist}</p>
+                    <div
+                      className="flex items-center gap-3.5 cursor-pointer flex-1 min-w-0 pr-3"
+                      onClick={() => { if (!isSongOfflineUnavailable) playSong(song, displaySongs); }}
+                    >
+                      <img
+                        src={song.coverUrl || '/app-icon.png'}
+                        alt={song.title}
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = '/app-icon.png';
+                        }}
+                        className="w-12 h-12 rounded-xl object-cover shadow-sm flex-shrink-0 bg-slate-800"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-[#F51B3D] transition-colors truncate">
+                          {song.title}
+                        </h4>
+                        <p className="text-[11px] text-[#8E92A4] truncate mt-0.5">{song.artist}</p>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Fixed Right-Side Action Column */}
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
-                      <DownloadStatusIndicator song={song} size="sm" />
+                    {/* Fixed Right-Side Action Column */}
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                        <DownloadStatusIndicator song={song} size="sm" />
+                      </div>
+                      <SongActionMenu song={song} />
                     </div>
-                    <SongActionMenu song={song} />
                   </div>
-                </div>
-              </SwipeableSongRow>
-            );
-          })}
-        </div>
+                </SwipeableSongRow>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   };
@@ -748,69 +876,7 @@ export function LibraryView() {
       <div className="space-y-6">
 
         {/* 1. Downloaded Songs Tab */}
-        {downloadSubTab === 'songs' && (
-          <div className="space-y-4">
-            {downloadedSongs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-[#8E92A4] bg-white/[0.01] border border-dashed border-white/10 rounded-2xl">
-                <Download className="w-12 h-12 mb-3 opacity-40 text-emerald-400" />
-                <h3 className="text-sm font-bold text-white">No Downloaded Music Yet</h3>
-                <p className="text-xs text-[#8E92A4] mt-1 max-w-sm text-center">
-                  Tap the three dots on any song, album, or playlist and choose "Download" to listen completely offline without internet.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                {downloadedSongs.map((song, idx) => (
-                  <SwipeableSongRow
-                    key={`${song.id}-${idx}`}
-                    song={song}
-                    actionType="remove_download"
-                    actionLabel="Remove Download"
-                    onSwipeAction={() => removeDownload(song.id)}
-                  >
-                    <div
-                      className="py-2.5 px-3 sm:px-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-emerald-500/30 hover:bg-white/[0.06] transition-all flex items-center justify-between group min-h-[64px] sm:min-h-[68px]"
-                    >
-                      <div
-                        className="flex items-center gap-3.5 cursor-pointer flex-1 min-w-0 pr-3"
-                        onClick={() => playSong(song, downloadedSongs)}
-                      >
-                        <div className="relative w-12 h-12 rounded-xl overflow-hidden shadow-sm flex-shrink-0 bg-slate-800">
-                          <img
-                            src={song.coverUrl || '/app-icon.png'}
-                            alt={song.title}
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).src = '/app-icon.png';
-                            }}
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute bottom-0.5 right-0.5 bg-emerald-500 text-slate-950 rounded-full p-0.5">
-                            <CheckCircle2 className="w-2.5 h-2.5 fill-current" />
-                          </div>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-emerald-400 transition-colors truncate">
-                            {song.title}
-                          </h4>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[10px] font-medium text-emerald-400/80 bg-emerald-500/10 px-1.5 py-0.2 rounded font-mono">
-                              Offline FLAC
-                            </span>
-                            <span className="text-[11px] text-[#8E92A4] truncate">{song.artist}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <DownloadStatusIndicator song={song} size="sm" showPercentage />
-                        <SongActionMenu song={song} />
-                      </div>
-                    </div>
-                  </SwipeableSongRow>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        {downloadSubTab === 'songs' && renderSongList(downloadedSongs, 'Downloaded Songs')}
 
         {/* 2. Downloaded Albums Tab */}
         {downloadSubTab === 'albums' && (
