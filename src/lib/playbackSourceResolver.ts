@@ -214,7 +214,14 @@ export class PlaybackSourceResolver {
 
     if (validAudioUrl && !validAudioUrl.includes('pixabay.com')) {
       const candidates = this.buildBitrateCandidates(validAudioUrl);
-      const selectedUrl = candidates[0] || validAudioUrl;
+      
+      let maxBitrate = 320;
+      const targetQual = usePlayerStore.getState().deliveredQuality || 'AUTO';
+      if (targetQual === 'LOW') maxBitrate = 96;
+      else if (targetQual === 'NORMAL') maxBitrate = 160;
+      else if (targetQual === 'HIGH') maxBitrate = 256;
+      
+      const selectedUrl = QualityManager.selectHighestQuality(candidates, maxBitrate) || validAudioUrl;
 
       // Cache resolved stream URL for instantaneous sub-millisecond future hits
       PlayableUrlCache.getInstance().set(song.id, selectedUrl, candidates, 'remote');

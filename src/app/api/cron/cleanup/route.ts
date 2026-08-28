@@ -9,59 +9,90 @@ export async function GET(request: Request) {
     return new Response('Unauthorized', { status: 401 });
   }
 
+  console.log('[CleanupCron] Database cleanup process started...');
   try {
     const now = Date.now();
-    const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+    const cleaned = {
+      expiredSnapshotsPruned: 0,
+      expiredAiRecsPruned: 0,
+      listeningEventsPruned: 0,
+      userEventsPruned: 0,
+    };
+    const errors: Record<string, string> = {};
 
     // 1. Prune expired recommendation snapshots (where expires_at < now)
-    const { data: prunedSnapshots } = await supabaseAdmin
-      .from('recommendation_snapshots')
-      .delete()
-      .lt('expires_at', new Date(now).toISOString())
-      .select();
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('recommendation_snapshots')
+        .delete()
+        .lt('expires_at', new Date(now).toISOString())
+        .select();
+      if (error) throw error;
+      cleaned.expiredSnapshotsPruned = data?.length || 0;
+      console.log(`[CleanupCron] Pruned ${cleaned.expiredSnapshotsPruned} recommendation snapshots`);
+    } catch (err: any) {
+      console.error('[CleanupCron] Failed to prune recommendation snapshots:', err);
+      errors.recommendationSnapshots = err.message || 'Failed';
+    }
 
     // 2. Prune expired AI recommendations
-    const { data: prunedAiRecs } = await supabaseAdmin
-      .from('ai_recommendations')
-      .delete()
-      .lt('expires_at', new Date(now).toISOString())
-      .select();
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('ai_recommendations')
+        .delete()
+        .lt('expires_at', new Date(now).toISOString())
+        .select();
+      if (error) throw error;
+      cleaned.expiredAiRecsPruned = data?.length || 0;
+      console.log(`[CleanupCron] Pruned ${cleaned.expiredAiRecsPruned} AI recommendations`);
+    } catch (err: any) {
+      console.error('[CleanupCron] Failed to prune AI recommendations:', err);
+      errors.aiRecommendations = err.message || 'Failed';
+    }
 
-    // 3. Prune old processed command idempotency records older than 1 day
-    const { data: prunedCommands } = await supabaseAdmin
-      .from('processed_commands')
-      .delete()
-      .lt('processed_at', oneDayAgo)
-      .select();
+    // 3. Prune raw listening_events older than 14 days to prevent table bloat
+    try {
+      const fourteenDaysAgo = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await supabaseAdmin
+        .from('listening_events')
+        .delete()
+        .lt('created_at', fourteenDaysAgo)
+        .select();
+      if (error) throw error;
+      cleaned.listeningEventsPruned = data?.length || 0;
+      console.log(`[CleanupCron] Pruned ${cleaned.listeningEventsPruned} listening events`);
+    } catch (err: any) {
+      console.error('[CleanupCron] Failed to prune listening events:', err);
+      errors.listeningEvents = err.message || 'Failed';
+    }
 
-    // 4. Prune raw listening_events older than 14 days to prevent table bloat
-    const fourteenDaysAgo = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: prunedListeningEvents } = await supabaseAdmin
-      .from('listening_events')
-      .delete()
-      .lt('created_at', fourteenDaysAgo)
-      .select();
+    // 4. Prune raw user_events older than 14 days
+    try {
+      const fourteenDaysAgo = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await supabaseAdmin
+        .from('user_events')
+        .delete()
+        .lt('created_at', fourteenDaysAgo)
+        .select();
+      if (error) throw error;
+      cleaned.userEventsPruned = data?.length || 0;
+      console.log(`[CleanupCron] Pruned ${cleaned.userEventsPruned} user events`);
+    } catch (err: any) {
+      console.error('[CleanupCron] Failed to prune user events:', err);
+      errors.userEvents = err.message || 'Failed';
+    }
 
-    // 5. Prune raw user_events older than 14 days
-    const { data: prunedUserEvents } = await supabaseAdmin
-      .from('user_events')
-      .delete()
-      .lt('created_at', fourteenDaysAgo)
-      .select();
+    const hasErrors = Object.keys(errors).length > 0;
+    console.log(`[CleanupCron] Database cleanup process completed ${hasErrors ? 'with some failures' : 'successfully'}`);
 
     return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
-      cleaned: {
-        expiredSnapshotsPruned: prunedSnapshots?.length || 0,
-        expiredAiRecsPruned: prunedAiRecs?.length || 0,
-        processedCommandsPruned: prunedCommands?.length || 0,
-        listeningEventsPruned: prunedListeningEvents?.length || 0,
-        userEventsPruned: prunedUserEvents?.length || 0
-      }
+      cleaned,
+      errors: hasErrors ? errors : undefined
     });
   } catch (err: any) {
-    console.error('[CleanupCron] Fatal error:', err);
+    console.error('[CleanupCron] Fatal error in main cleanup routine:', err);
     return NextResponse.json({ success: false, error: err.message || 'Cleanup failed' }, { status: 500 });
   }
 }

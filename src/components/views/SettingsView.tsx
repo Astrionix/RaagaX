@@ -56,6 +56,7 @@ import { AccountSyncEngine } from '@/lib/sync/AccountSyncEngine';
 import { AudioQuality } from '@/lib/playback/types';
 import { BrandShowcaseView } from '@/components/brand/BrandShowcaseView';
 import { useDynamicIslandCapabilityStore } from '@/context/useDynamicIslandCapabilityStore';
+import { useUpdateStore } from '@/context/useUpdateStore';
 
 export type SettingsSectionId =
   | 'account'
@@ -104,6 +105,14 @@ const SECTIONS: SectionDef[] = [
 ];
 
 export function SettingsView() {
+  const {
+    state: updateState,
+    manifest: updateManifest,
+    installedVersion,
+    checkForUpdates,
+    openModal
+  } = useUpdateStore();
+
   const [activeSection, setActiveSection] = useState<SettingsSectionId>('account');
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -1750,8 +1759,59 @@ export function SettingsView() {
                 </div>
                 <div>
                   <h3 className="text-xl font-extrabold text-white tracking-tight">RaagaX Music</h3>
-                  <p className="text-xs text-[#8E92A4]">Version 2.4.0 (Build 20260814.1)</p>
+                  <p className="text-xs text-[#8E92A4]">
+                    Version {installedVersion?.versionName || '2.4.0'} 
+                    {installedVersion ? ` (Build ${installedVersion.versionCode})` : ' (Build 20260814.1)'}
+                  </p>
                   <p className="text-xs text-slate-400 mt-1">Futuristic high-performance music streaming engine</p>
+                </div>
+              </div>
+
+              {/* Software Update Card */}
+              <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h4 className="text-sm font-bold text-white">App Updates</h4>
+                    <p className="text-xs text-[#8E92A4] mt-1 leading-relaxed">
+                      {updateState === 'CHECKING' && 'Checking server for a newer version...'}
+                      {updateState === 'UP_TO_DATE' && "You're up to date with the latest features."}
+                      {updateState === 'UPDATE_AVAILABLE' && `A newer version ${updateManifest?.versionName} is available!`}
+                      {updateState === 'IDLE' && 'Verify if a newer APK update is available.'}
+                      {updateState === 'DOWNLOADING' && `Downloading update...`}
+                      {updateState === 'VERIFYING' && 'Verifying checksum hashes...'}
+                      {updateState === 'VERIFIED' && 'Update verified and ready to install.'}
+                      {updateState === 'INSTALLING' && 'Launching Android package installer...'}
+                      {updateState === 'DOWNLOAD_FAILED' && 'Download failed. Connection error.'}
+                      {updateState === 'INSTALL_FAILED' && 'Installer failed. Package signature mismatch or permission denied.'}
+                    </p>
+                  </div>
+                  <div className="flex-shrink-0">
+                    {updateState === 'CHECKING' || updateState === 'DOWNLOADING' || updateState === 'VERIFYING' || updateState === 'INSTALLING' ? (
+                      <div className="flex items-center gap-1.5 text-xs text-slate-400 font-bold bg-white/5 px-3 py-2 rounded-xl border border-white/5">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#F51B3D]" />
+                        <span>Working...</span>
+                      </div>
+                    ) : updateState === 'UPDATE_AVAILABLE' || updateState === 'VERIFIED' ? (
+                      <button
+                        onClick={openModal}
+                        className="px-4 py-2 rounded-xl text-xs font-extrabold bg-[#F51B3D] hover:bg-[#D90429] text-white transition-all shadow-lg shadow-[#F51B3D]/10"
+                      >
+                        View Update
+                      </button>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          const hasUpdate = await checkForUpdates(true);
+                          if (!hasUpdate && useUpdateStore.getState().state === 'UP_TO_DATE') {
+                            showToast("You're already using the latest version!");
+                          }
+                        }}
+                        className="px-4 py-2 rounded-xl text-xs font-bold bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-colors"
+                      >
+                        Check Now
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 

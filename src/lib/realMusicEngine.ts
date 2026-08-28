@@ -10,6 +10,7 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { getApiBaseUrl } from '@/lib/config/apiConfig';
 import { SongUniquenessEngine } from '@/lib/music/SongUniquenessEngine';
 import { SongFormatter } from '@/lib/music/SongFormatter';
+import { QualityManager } from '@/lib/playback/QualityManager';
 
 const getLocalApiBase = () => {
   return `${getApiBaseUrl().replace(/\/+$/, '')}/api`;
@@ -298,20 +299,13 @@ export class RealMusicEngine {
       let audioUrl = '';
       if (Array.isArray(track.downloadUrl) && track.downloadUrl.length > 0) {
         const qualityPreset = usePlayerStore.getState().streamingQuality;
-        const wantsDataSaver = (qualityPreset as string) === '320kbps MP3' || qualityPreset === 'LOW';
-
-        const preferredQuality = wantsDataSaver ? '160kbps' : '320kbps';
-        const fallbackQuality = wantsDataSaver ? '96kbps' : '160kbps';
-
-        const best =
-          track.downloadUrl.find((a: any) => a?.quality === preferredQuality) ||
-          track.downloadUrl.find((a: any) => a?.quality === fallbackQuality) ||
-          track.downloadUrl.find((a: any) => a?.quality === '320kbps') ||
-          track.downloadUrl.find((a: any) => a?.quality === '160kbps') ||
-          track.downloadUrl[track.downloadUrl.length - 1];
-
-        const rawAudio = best?.url || best?.link || (typeof best === 'string' ? best : '');
-        if (rawAudio) audioUrl = rawAudio.replace('http://', 'https://');
+        const wantsDataSaver = (qualityPreset as string) === '320kbps MP3' || qualityPreset === 'LOW' || usePlayerStore.getState().isDataSaverEnabled;
+        const maxBitrate = wantsDataSaver ? 160 : 320;
+        
+        const selected = QualityManager.selectHighestQuality(track.downloadUrl, maxBitrate);
+        if (selected) {
+          audioUrl = selected;
+        }
       } else if (typeof track.downloadUrl === 'string' && track.downloadUrl) {
         audioUrl = track.downloadUrl.replace('http://', 'https://');
       } else if (track.media_preview_url) {

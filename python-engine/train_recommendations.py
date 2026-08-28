@@ -40,6 +40,8 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 ACTION_WEIGHTS = {
     'like': 20,
     'play': 10,
+    'complete': 15,
+    'replay': 12,
     'skip': -5
 }
 
@@ -49,8 +51,8 @@ def fetch_data():
     
     # Filter to recent 90 days of history and paginate/limit safely
     history_res = (
-        supabase.table('playback_history')
-        .select('user_id, song_id, action, created_at')
+        supabase.table('listening_events')
+        .select('user_id, song_id, event_type, created_at')
         .order('created_at', desc=True)
         .limit(10000)
         .execute()
@@ -120,7 +122,7 @@ def train_and_recommend():
         return
         
     # Map actions to weights
-    history_df['weight'] = history_df['action'].map(ACTION_WEIGHTS).fillna(0)
+    history_df['weight'] = history_df['event_type'].map(ACTION_WEIGHTS).fillna(0)
     
     # Aggregate weights (sum weights for the same user-song pair)
     grouped = history_df.groupby(['user_id', 'song_id'])['weight'].sum().reset_index()

@@ -19,9 +19,10 @@ export interface UserPlaylist extends Playlist {
 interface PlaylistStore {
   playlists: UserPlaylist[];
   isLoading: boolean;
+  lastFetchedTime?: number;
 
   // Actions
-  fetchPlaylists: () => Promise<void>;
+  fetchPlaylists: (forceRefresh?: boolean) => Promise<void>;
   createPlaylist: (
     title: string,
     description?: string,
@@ -50,8 +51,12 @@ export const usePlaylistStore = create<PlaylistStore>()(
     (set, get) => ({
       playlists: [],
       isLoading: false,
+      lastFetchedTime: undefined,
 
-      fetchPlaylists: async () => {
+      fetchPlaylists: async (forceRefresh = false) => {
+        if (!forceRefresh && get().playlists.length > 0 && get().lastFetchedTime && (Date.now() - get().lastFetchedTime! < 60000)) {
+          return;
+        }
         set({ isLoading: true });
         try {
           const { data: { session } } = await supabase.auth.getSession();
@@ -132,7 +137,11 @@ export const usePlaylistStore = create<PlaylistStore>()(
             }
           }
 
-          set({ playlists: parsedPlaylists });
+          set({
+            playlists: parsedPlaylists,
+            lastFetchedTime: Date.now(),
+            isLoading: false,
+          });
         } catch (e) {
           console.error('[usePlaylistStore] Failed to fetch playlists:', e);
         } finally {
@@ -167,7 +176,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
         };
 
         // 1. Optimistic UI update immediately
-        set((state) => ({ playlists: [newPl, ...state.playlists] }));
+        set((state) => ({ playlists: [newPl, ...state.playlists], lastFetchedTime: undefined }));
 
         try {
           const { data: { session } } = await supabase.auth.getSession();
@@ -213,7 +222,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
           return true;
         } catch (e) {
           console.error('[usePlaylistStore] Failed to delete playlist from cloud, rolling back:', e);
-          set({ playlists: previousPlaylists });
+          set({ playlists: previousPlaylists, lastFetchedTime: undefined });
           return false;
         }
       },
@@ -235,7 +244,6 @@ export const usePlaylistStore = create<PlaylistStore>()(
         const newCoverUrl = targetPl.coverUrl || song.coverUrl || '';
         const previousPlaylists = get().playlists;
 
-        // 1. Optimistic UI update
         set((state) => ({
           playlists: state.playlists.map((pl) => {
             if (pl.id === playlistId) {
@@ -249,6 +257,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
             }
             return pl;
           }),
+          lastFetchedTime: undefined
         }));
 
         try {
@@ -266,6 +275,12 @@ export const usePlaylistStore = create<PlaylistStore>()(
             if (error.code !== '23505') {
               console.error('[usePlaylistStore] Failed to insert song relationship in cloud:', error);
             }
+          } else {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user?.id) {
+              const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
+              await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.user.id).catch(() => {});
+            }
           }
 
           // If playlist had no cover art, update cover_url in Supabase
@@ -282,7 +297,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
           return true;
         } catch (e) {
           console.error('[usePlaylistStore] Failed to add song to playlist in cloud, rolling back:', e);
-          set({ playlists: previousPlaylists });
+          set({ playlists: previousPlaylists, lastFetchedTime: undefined });
           return false;
         }
       },
@@ -301,6 +316,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
             }
             return pl;
           }),
+          lastFetchedTime: undefined
         }));
 
         try {
@@ -312,11 +328,17 @@ export const usePlaylistStore = create<PlaylistStore>()(
 
           if (error) {
             console.warn('[usePlaylistStore] Remove song error:', error.message);
+          } else {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user?.id) {
+              const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
+              await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.user.id).catch(() => {});
+            }
           }
           return true;
         } catch (e) {
           console.error('[usePlaylistStore] Failed to remove song from playlist in cloud, rolling back:', e);
-          set({ playlists: previousPlaylists });
+          set({ playlists: previousPlaylists, lastFetchedTime: undefined });
           return false;
         }
       },
@@ -338,6 +360,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
             }
             return p;
           }),
+          lastFetchedTime: undefined
         }));
 
         // Persist new order to Supabase
@@ -357,6 +380,11 @@ export const usePlaylistStore = create<PlaylistStore>()(
           );
 
           await Promise.allSettled(updates);
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user?.id) {
+            const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
+            await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.user.id).catch(() => {});
+          }
           return true;
         } catch (e) {
           console.warn('[usePlaylistStore] Error persisting playlist order:', e);
@@ -379,6 +407,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
             }
             return p;
           }),
+          lastFetchedTime: undefined
         }));
 
         try {
@@ -391,6 +420,12 @@ export const usePlaylistStore = create<PlaylistStore>()(
           const { error } = await supabase.from('playlists').update(payload).eq('id', playlistId);
           if (error) {
             console.warn('[usePlaylistStore] Supabase update playlist error:', error.message);
+          } else {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user?.id) {
+              const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
+              await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.user.id).catch(() => {});
+            }
           }
           return true;
         } catch (e) {
@@ -407,10 +442,16 @@ export const usePlaylistStore = create<PlaylistStore>()(
             }
             return p;
           }),
+          lastFetchedTime: undefined
         }));
 
         try {
           await supabase.from('playlist_songs').delete().eq('playlist_id', playlistId);
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user?.id) {
+            const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
+            await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.user.id).catch(() => {});
+          }
           return true;
         } catch (e) {
           console.warn('[usePlaylistStore] Clear playlist error:', e);
@@ -457,7 +498,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
         };
 
         // 1. Atomic UI update: insert playlist with all songs already populated
-        set((state) => ({ playlists: [newPl, ...state.playlists] }));
+        set((state) => ({ playlists: [newPl, ...state.playlists], lastFetchedTime: undefined }));
 
         // 2. Batch persist to Supabase if user is logged in
         try {
@@ -501,6 +542,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
             }
             return pl;
           }),
+          lastFetchedTime: undefined
         }));
         return true;
       },

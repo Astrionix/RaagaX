@@ -7,6 +7,8 @@
 import { Song } from '@/types/music';
 import { SongUniquenessEngine } from '@/lib/music/SongUniquenessEngine';
 import { SongFormatter } from '@/lib/music/SongFormatter';
+import { RequestDeduplicator } from '@/lib/network/RequestDeduplicator';
+import { QualityManager } from '@/lib/playback/QualityManager';
 
 // Language code mapping used for filtering
 export const LANGUAGE_CODES: Record<string, string> = {
@@ -44,12 +46,10 @@ export function mapTrackToSong(track: any, idx: number = 0): Song {
 
   let audioUrl = '';
   if (Array.isArray(track.downloadUrl) && track.downloadUrl.length > 0) {
-    const best =
-      track.downloadUrl.find((a: any) => a?.quality === '320kbps') ||
-      track.downloadUrl.find((a: any) => a?.quality === '160kbps') ||
-      track.downloadUrl[track.downloadUrl.length - 1];
-    const rawAudio = best?.url || best?.link || (typeof best === 'string' ? best : '');
-    if (rawAudio) audioUrl = rawAudio.replace('http://', 'https://');
+    const selected = QualityManager.selectHighestQuality(track.downloadUrl);
+    if (selected) {
+      audioUrl = selected;
+    }
   } else if (typeof track.downloadUrl === 'string' && track.downloadUrl) {
     audioUrl = track.downloadUrl.replace('http://', 'https://');
   } else if (track.media_preview_url) {
@@ -127,19 +127,21 @@ function deduplicateSongs(songs: Song[]): Song[] {
  * Returns null on any failure — never throws.
  */
 async function safeFetch(url: string, timeoutMs = 5000): Promise<any[] | null> {
-  const ctrl = new AbortController();
-  const tid = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { signal: ctrl.signal });
-    clearTimeout(tid);
-    if (!res.ok) return null;
-    const data = await res.json();
-    const results = data.data?.results || data.results || [];
-    return results.length > 0 ? results : null;
-  } catch {
-    clearTimeout(tid);
-    return null;
-  }
+  return RequestDeduplicator.getInstance().dedupe(url, async () => {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(tid);
+      if (!res.ok) return null;
+      const data = await res.json();
+      const results = data.data?.results || data.results || [];
+      return results.length > 0 ? results : null;
+    } catch {
+      clearTimeout(tid);
+      return null;
+    }
+  });
 }
 
 export class JioSaavnProvider {

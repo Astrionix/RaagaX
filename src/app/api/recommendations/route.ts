@@ -26,77 +26,100 @@ export async function GET(req: NextRequest) {
     const cacheKey = `rec_${userId || 'guest'}_${lang.toLowerCase()}_${limit}`;
     const cached = recCache.get(cacheKey);
 
-    // Return cache immediately if within TTL
-    if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
-      return NextResponse.json({
-        success: true,
-        data: cached.data,
-        source: 'CACHE_HIT',
+    const revalidate = async () => {
+      const candidates = await CandidateGenerator.generateCandidates(null, [], lang, limit * 2, userId);
+
+      // Deterministic Server-side Ranking & Deduplication
+      const seen = new Set<string>();
+      const unique = candidates.filter(s => {
+        if (!s || !s.id) return false;
+        if (seen.has(s.id)) return false;
+        seen.add(s.id);
+        return true;
       });
+
+      // Score based on source priority and popularity
+      const scored = unique.map(song => {
+        let score = 0;
+        switch (song.candidateSource) {
+          case 'personalized':
+            score += 25;
+            break;
+          case 'similar':
+            score += 20;
+            break;
+          case 'trending':
+            score += 15;
+            break;
+          case 'context':
+            score += 10;
+            break;
+          case 'popular':
+            score += 5;
+            break;
+        }
+        if (song.popularity) score += (song.popularity / 10);
+        return { song, score };
+      });
+
+      // Stable sort
+      scored.sort((a, b) => {
+        if (Math.abs(b.score - a.score) > 0.01) {
+          return b.score - a.score;
+        }
+        return a.song.id.localeCompare(b.song.id);
+      });
+
+      const rankedSongs = scored.map(item => item.song).slice(0, limit);
+
+      // Update in-memory cache
+      recCache.set(cacheKey, {
+        data: rankedSongs,
+        cachedAt: Date.now(),
+      });
+
+      return rankedSongs;
+    };
+
+    if (cached) {
+      const isFresh = Date.now() - cached.cachedAt < CACHE_TTL_MS;
+      if (isFresh) {
+        const response = NextResponse.json({
+          success: true,
+          data: cached.data,
+          source: 'CACHE_HIT',
+        });
+        response.headers.set('Cache-Control', 'private, max-age=30');
+        return response;
+      } else {
+        // Return stale and revalidate in background
+        revalidate().catch((err) => console.error('[RecommendationsAPI] Background SWR failed:', err));
+        const response = NextResponse.json({
+          success: true,
+          data: cached.data,
+          source: 'CACHE_HIT_STALE',
+        });
+        response.headers.set('Cache-Control', 'private, max-age=30');
+        return response;
+      }
     }
 
-    // Generate candidates
-    const candidates = await CandidateGenerator.generateCandidates(null, [], lang, limit * 2, userId);
-
-    // Deterministic Server-side Ranking & Deduplication
-    const seen = new Set<string>();
-    const unique = candidates.filter(s => {
-      if (!s || !s.id) return false;
-      if (seen.has(s.id)) return false;
-      seen.add(s.id);
-      return true;
-    });
-
-    // Score based on source priority and popularity
-    const scored = unique.map(song => {
-      let score = 0;
-      switch (song.candidateSource) {
-        case 'personalized':
-          score += 25;
-          break;
-        case 'similar':
-          score += 20;
-          break;
-        case 'trending':
-          score += 15;
-          break;
-        case 'context':
-          score += 10;
-          break;
-        case 'popular':
-          score += 5;
-          break;
-      }
-      if (song.popularity) score += (song.popularity / 10);
-      return { song, score };
-    });
-
-    // Stable sort
-    scored.sort((a, b) => {
-      if (Math.abs(b.score - a.score) > 0.01) {
-        return b.score - a.score;
-      }
-      return a.song.id.localeCompare(b.song.id);
-    });
-
-    const rankedSongs = scored.map(item => item.song).slice(0, limit);
-
-    // Update in-memory cache
-    recCache.set(cacheKey, {
-      data: rankedSongs,
-      cachedAt: Date.now(),
-    });
-
-    return NextResponse.json({
+    // Cache miss
+    const rankedSongs = await revalidate();
+    const response = NextResponse.json({
       success: true,
       data: rankedSongs,
       source: 'RESOLVED',
     });
+    response.headers.set('Cache-Control', 'private, max-age=30');
+    return response;
   } catch (err) {
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       data: [],
       error: 'Recommendations unavailable',
     });
+    response.headers.set('Cache-Control', 'private, max-age=30');
+    return response;
   }
 }

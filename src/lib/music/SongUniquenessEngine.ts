@@ -112,29 +112,27 @@ export class SongUniquenessEngine {
     if (!songs || songs.length === 0) return [];
 
     const excludedIds = new Set<string>();
-    const excludedTitles = new Set<string>();
+    const excludedFingerprints = new Set<string>();
 
     for (const ex of existingQueueOrExcluded) {
       if (ex.id) excludedIds.add(ex.id);
-      const t = this.normalizeTitle(ex.title);
-      if (t.length >= 3) excludedTitles.add(t);
+      const fp = this.getSemanticFingerprint(ex);
+      if (fp) excludedFingerprints.add(fp);
     }
 
     const seenIds = new Set<string>(excludedIds);
-    const seenTitles = new Set<string>(excludedTitles);
+    const seenFingerprints = new Set<string>(excludedFingerprints);
     const result: Song[] = [];
 
     for (const song of songs) {
       if (!song || !song.id) continue;
       if (seenIds.has(song.id)) continue;
 
-      const normTitle = this.normalizeTitle(song.title);
-      const titleKey = normTitle.length >= 3 ? normTitle : song.title.toLowerCase().trim();
-
-      if (seenTitles.has(titleKey)) continue;
+      const fp = this.getSemanticFingerprint(song);
+      if (seenFingerprints.has(fp)) continue;
 
       seenIds.add(song.id);
-      seenTitles.add(titleKey);
+      seenFingerprints.add(fp);
       result.push(song);
     }
 

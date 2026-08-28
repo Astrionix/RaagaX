@@ -131,6 +131,7 @@ interface PlayerState {
   downloadQuality: AudioQuality;
   isDataSaverEnabled: boolean;
   deliveredQuality: AudioQuality;
+  loudnessNormalizationEnabled: boolean;
 
   isPlayerExpanded: boolean;
   isLyricsOpen: boolean;
@@ -273,6 +274,7 @@ interface PlayerState {
   setDownloadQuality: (quality: AudioQuality) => void;
   setDataSaverEnabled: (enabled: boolean) => void;
   setDeliveredQuality: (quality: AudioQuality) => void;
+  setLoudnessNormalizationEnabled: (enabled: boolean) => void;
 
   togglePlayerExpanded: (open?: boolean | any) => void;
   toggleLyrics: () => void;
@@ -533,6 +535,7 @@ export const usePlayerStore = create<PlayerState>()(
       downloadQuality: 'HIGH',
       isDataSaverEnabled: false,
       deliveredQuality: 'AUTO',
+      loudnessNormalizationEnabled: false,
       isPlayerExpanded: false,
       isLyricsOpen: false,
       isQueueOpen: false,
@@ -1744,14 +1747,22 @@ export const usePlayerStore = create<PlayerState>()(
           const { data: session } = await supabase.auth.getSession();
           if (session?.session?.user) {
             if (isFav) {
-              await supabase.from('user_artists').delete()
+              const { error } = await supabase.from('user_artists').delete()
                 .eq('user_id', session.session.user.id)
                 .eq('artist_id', artistId);
+              if (!error) {
+                const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
+                await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.session.user.id).catch(() => {});
+              }
             } else {
-              await supabase.from('user_artists').upsert({
+              const { error } = await supabase.from('user_artists').upsert({
                 user_id: session.session.user.id,
                 artist_id: artistId,
               }, { onConflict: 'user_id,artist_id' });
+              if (!error) {
+                const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
+                await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.session.user.id).catch(() => {});
+              }
             }
           }
         } catch (e) {
@@ -1774,14 +1785,22 @@ export const usePlayerStore = create<PlayerState>()(
           const { data: session } = await supabase.auth.getSession();
           if (session?.session?.user) {
             if (isFav) {
-              await supabase.from('saved_albums').delete()
+              const { error } = await supabase.from('saved_albums').delete()
                 .eq('user_id', session.session.user.id)
                 .eq('album_id', albumId);
+              if (!error) {
+                const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
+                await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.session.user.id).catch(() => {});
+              }
             } else {
-              await supabase.from('saved_albums').upsert({
+              const { error } = await supabase.from('saved_albums').upsert({
                 user_id: session.session.user.id,
                 album_id: albumId,
               }, { onConflict: 'user_id,album_id' });
+              if (!error) {
+                const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
+                await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.session.user.id).catch(() => {});
+              }
             }
           }
         } catch (e) {
@@ -1875,6 +1894,14 @@ export const usePlayerStore = create<PlayerState>()(
       setDownloadQuality: (quality) => set({ downloadQuality: quality }),
       setDataSaverEnabled: (enabled) => set({ isDataSaverEnabled: enabled }),
       setDeliveredQuality: (quality) => set({ deliveredQuality: quality }),
+      setLoudnessNormalizationEnabled: (enabled) => {
+        set({ loudnessNormalizationEnabled: enabled });
+        import('@/lib/playback/native/RaagaXNativePlayer').then(({ RaagaXNativePlayer }) => {
+          if (RaagaXNativePlayer.isNative()) {
+            RaagaXNativePlayer.setLoudnessNormalizationEnabled(enabled).catch(() => {});
+          }
+        });
+      },
 
       togglePlayerExpanded: (open) => {
         const next = typeof open === 'boolean' ? open : !get().isPlayerExpanded;
@@ -1997,6 +2024,7 @@ export const usePlayerStore = create<PlayerState>()(
             favoriteAlbumIds: Array.isArray(persistedState.favoriteAlbumIds) ? persistedState.favoriteAlbumIds : [],
             streamingQuality: persistedState.streamingQuality || 'AUTO',
             downloadQuality: persistedState.downloadQuality || 'HIGH',
+            loudnessNormalizationEnabled: persistedState.loudnessNormalizationEnabled ?? false,
           };
         }
         return persistedState;
@@ -2011,6 +2039,7 @@ export const usePlayerStore = create<PlayerState>()(
         streamingQuality: state.streamingQuality,
         downloadQuality: state.downloadQuality,
         isAutoplayEnabled: state.isAutoplayEnabled,
+        loudnessNormalizationEnabled: state.loudnessNormalizationEnabled,
         lastTrackId: state.currentSong?.id || null,
         lastPositionSec: state.lastPositionSec || 0,
         // Tiny bounded sets for offline resilience

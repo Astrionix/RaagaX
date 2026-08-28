@@ -132,4 +132,66 @@ export class QualityManager {
       // Neutral zone, do nothing
     }
   };
+
+  public static selectHighestQuality(availableStreams: (any | string)[], maxBitrate = 320): string | null {
+    if (!availableStreams || availableStreams.length === 0) return null;
+
+    const qualityMap: Record<string, number> = {
+      '320kbps': 320,
+      '320': 320,
+      '256kbps': 256,
+      '256': 256,
+      '192kbps': 192,
+      '192': 192,
+      '160kbps': 160,
+      '160': 160,
+      '128kbps': 128,
+      '128': 128,
+      '96kbps': 96,
+      '96': 96,
+      '48kbps': 48,
+      '48': 48,
+      '12kbps': 12,
+      '12': 12,
+    };
+
+    const parsedStreams = availableStreams.map(stream => {
+      let url = '';
+      let qualityStr = '';
+
+      if (typeof stream === 'string') {
+        url = stream;
+        const match = stream.match(/_(320|256|192|160|128|96|48|12)(?:\.[a-z0-9]+)?$/i);
+        if (match) {
+          qualityStr = match[1];
+        }
+      } else if (stream && typeof stream === 'object') {
+        url = stream.url || stream.link || '';
+        qualityStr = stream.quality || '';
+      }
+
+      const cleanQuality = qualityStr.toLowerCase().trim();
+      const bitrate = qualityMap[cleanQuality] || 0;
+
+      return { url, cleanQuality, bitrate };
+    });
+
+    // Filter valid URLs and respect maximum bitrate cap
+    const validStreams = parsedStreams.filter(s => {
+      const isHttp = s.url && (s.url.startsWith('http://') || s.url.startsWith('https://'));
+      return isHttp && s.bitrate <= maxBitrate;
+    });
+
+    if (validStreams.length === 0) {
+      // Fallback: if all streams exceed maxBitrate, return the absolute lowest one to prevent playing nothing
+      const httpStreams = parsedStreams.filter(s => s.url && (s.url.startsWith('http://') || s.url.startsWith('https://')));
+      if (httpStreams.length === 0) return null;
+      httpStreams.sort((a, b) => a.bitrate - b.bitrate);
+      return httpStreams[0].url.replace('http://', 'https://');
+    }
+
+    // Sort by bitrate descending
+    validStreams.sort((a, b) => b.bitrate - a.bitrate);
+    return validStreams[0].url.replace('http://', 'https://');
+  }
 }

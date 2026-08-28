@@ -76,31 +76,8 @@ export class AccountSyncManager {
           });
         }
 
-        // 2. Fetch Remote Playback Checkpoint (Last Played Song & Position)
-        try {
-          const { data: checkpoint, error: cpError } = await supabase
-            .from('playback_sessions')
-            .select('*')
-            .eq('user_id', userId)
-            .order('updated_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+        // Playback checkpoint sync is disabled as playback_sessions was dropped from Supabase
 
-          if (!cpError && checkpoint) {
-            const updatedAtMs = new Date(checkpoint.updated_at || checkpoint.server_timestamp || 0).getTime();
-            const ageMs = Date.now() - updatedAtMs;
-            const isStale = ageMs > 4 * 60 * 60 * 1000; // Stale if older than 4 hours
-
-            if (!isStale) {
-              const store = usePlayerStore.getState();
-              // Restore position in strictly PAUSED state
-              if (checkpoint.canonical_position_ms) {
-                store.setCurrentTime(checkpoint.canonical_position_ms / 1000, true);
-                store.setIsPlaying(false, true);
-              }
-            }
-          }
-        } catch {}
       } else {
         // Offline Fallback: Load from IndexedDB
         const cachedLikes = await db.get<any>(STORES.LIKED_SONGS, `user:${userId}:likes`);
@@ -165,15 +142,6 @@ export class AccountSyncManager {
               .delete()
               .eq('user_id', userId)
               .eq('song_id', item.payload.songId);
-          } else if (item.type === 'PLAYBACK_CHECKPOINT' && userId) {
-            await supabase.from('playback_sessions').upsert({
-              session_id: `user_sess_${userId}`,
-              user_id: userId,
-              song_id: item.payload.songId,
-              canonical_position_ms: Math.floor(item.payload.currentTime * 1000),
-              is_playing: false, // Never force autoplay on checkpoint sync
-              updated_at: new Date().toISOString(),
-            }, { onConflict: 'session_id' });
           }
 
           // Remove flushed mutation
@@ -191,10 +159,6 @@ export class AccountSyncManager {
    * Save Playback Checkpoint (Debounced every 10-15s or on pause/seek).
    */
   public savePlaybackCheckpoint(song: Song | null, currentTime: number): void {
-    if (!song) return;
-    this.queueMutation('PLAYBACK_CHECKPOINT', {
-      songId: song.id,
-      currentTime,
-    });
+    // Playback session sync is disabled as playback_sessions was dropped from Supabase
   }
 }

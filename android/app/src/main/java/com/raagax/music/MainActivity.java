@@ -27,6 +27,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(RaagaXCapacitorPlugin.class);
         registerPlugin(RaagaXPermissionsPlugin.class);
         registerPlugin(RaagaXDownloadPlugin.class);
+        registerPlugin(RaagaXUpdaterPlugin.class);
         super.onCreate(savedInstanceState);
     }
 

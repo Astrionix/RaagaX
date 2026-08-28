@@ -32,6 +32,7 @@ export interface NativeTrackItem {
   title: string;
   artist: string;
   artworkUrl?: string;
+  loudness?: number | null;
 }
 
 export interface NativePlaybackState {
@@ -126,6 +127,18 @@ export const RaagaXNativePlayer = {
     const plugin = getPlugin();
     if (!plugin) return;
     await plugin.setVolume({ volume });
+  },
+
+  async updateQueueUrl(trackId: string, url: string): Promise<void> {
+    const plugin = getPlugin();
+    if (!plugin) return;
+    await plugin.updateQueueUrl({ trackId, url });
+  },
+
+  async setLoudnessNormalizationEnabled(enabled: boolean): Promise<void> {
+    const plugin = getPlugin();
+    if (!plugin) return;
+    await plugin.setLoudnessNormalizationEnabled({ enabled });
   },
 
   async setRepeatMode(repeatMode: string): Promise<void> {

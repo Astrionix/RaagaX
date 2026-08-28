@@ -74,6 +74,8 @@ public class RaagaXPlaybackService extends Service {
     private boolean   isCurrentLocalPlayback = false;
     private long      lastReportedDurationMs = 0L;
     private volatile boolean isPreparingNewTrack = false;
+    private boolean loudnessNormalizationEnabled = false;
+    private final java.util.concurrent.ConcurrentHashMap<String, Double> trackLoudnessMap = new java.util.concurrent.ConcurrentHashMap<>();
     private final Runnable progressTicker = new Runnable() {
         @Override
         public void run() {
@@ -100,6 +102,7 @@ public class RaagaXPlaybackService extends Service {
                 i.putExtra("durationMs", dur);
                 i.putExtra("timestamp", System.currentTimeMillis());
                 sendBroadcast(i);
+                savePlaybackStateCheckpointThrottled();
 
                 mainHandler.postDelayed(this, 500);
             }
@@ -176,6 +179,9 @@ public class RaagaXPlaybackService extends Service {
             Log.e(TAG, "Failed to create MediaSession: " + e.getMessage());
         }
 
+        // Restore previous session from SharedPreferences passively
+        restorePlaybackSessionFromPrefs();
+
         player.addListener(new Player.Listener() {
 
             // ── Track changed (auto-advance or manual next/prev) ──────────────
@@ -199,6 +205,7 @@ public class RaagaXPlaybackService extends Service {
                 currentArtist     = newArtist;
                 currentArtworkUrl = newArt;
                 loadArtworkAsync(newArt, newTrackId);
+                applyNormalizedVolume();
 
                 // Proactively prefetch artwork of the next track in queue
                 if (player != null && player.hasNextMediaItem()) {
@@ -280,7 +287,7 @@ public class RaagaXPlaybackService extends Service {
                 syncIntent.putExtra("reason",      reason);
                 syncIntent.putExtra("timestamp",   now);
                 sendBroadcast(syncIntent);
-
+                savePlaybackStateCheckpoint(false);
                 updateNotification();
             }
 
@@ -370,8 +377,8 @@ public class RaagaXPlaybackService extends Service {
                 android.net.NetworkInfo activeNetwork = cm != null ? cm.getActiveNetworkInfo() : null;
                 boolean isOnline = activeNetwork != null && activeNetwork.isConnectedOrConnecting();
 
-                if (isCurrentLocalPlayback && currentTrackId != null && !currentTrackId.isEmpty() && isOnline) {
-                    Log.w(TAG, "[RAAGAX_LOCAL_PLAYBACK_ERROR] Local playback failed for songId=" + currentTrackId + " -> Automatic online fallback stream initiating...");
+                if (currentTrackId != null && !currentTrackId.isEmpty() && isOnline) {
+                    Log.w(TAG, "[RAAGAX_PLAYBACK_ERROR] Playback failed for songId=" + currentTrackId + " -> Automatic online fallback stream initiating...");
                     isCurrentLocalPlayback = false;
                     final String fallbackTrackId = currentTrackId;
                     final String fallbackTitle = currentTitle;
@@ -382,14 +389,14 @@ public class RaagaXPlaybackService extends Service {
                             com.raagax.music.data.provider.SaavnMusicProvider provider = com.raagax.music.data.provider.SaavnMusicProvider.getInstance();
                             com.raagax.music.data.model.MusicTrack track = provider.getTrackDetails(fallbackTrackId);
                             if (track != null && track.streamUrl != null && !track.streamUrl.isEmpty()) {
-                                Log.d(TAG, "[RAAGAX_LOCAL_FALLBACK] Resolved online stream for fallback: " + track.streamUrl);
+                                Log.d(TAG, "[RAAGAX_FALLBACK] Resolved online stream for fallback: " + track.streamUrl);
                                 runOnMainThread(() -> {
                                     playUrl(fallbackTrackId, track.streamUrl, fallbackTitle, fallbackArtist, fallbackArt);
                                 });
                                 return;
                             }
                         } catch (Exception ex) {
-                            Log.e(TAG, "[RAAGAX_LOCAL_FALLBACK] Online fallback resolution failed: " + ex.getMessage());
+                            Log.e(TAG, "[RAAGAX_FALLBACK] Online fallback resolution failed: " + ex.getMessage());
                         }
 
                         // If online fallback resolution failed, safely attempt the next playable queue item
@@ -445,6 +452,7 @@ public class RaagaXPlaybackService extends Service {
                     startProgressTicker();
                 } else {
                     stopProgressTicker();
+                    savePlaybackStateCheckpoint(false);
                 }
 
                 Intent i = new Intent("com.raagax.music.PLAYBACK_STATE");
@@ -570,12 +578,13 @@ public class RaagaXPlaybackService extends Service {
             String[] titles      = intent.getStringArrayExtra("titles");
             String[] artists     = intent.getStringArrayExtra("artists");
             String[] artworks    = intent.getStringArrayExtra("artworks");
+            double[] loudnesses  = intent.getDoubleArrayExtra("loudnesses");
             int startIndex       = intent.getIntExtra("startIndex", 0);
             long startPositionMs = intent.getLongExtra("startPositionMs", 0L);
             boolean autoPlay     = intent.getBooleanExtra("autoPlay", true);
             Log.d(TAG, "[SET_QUEUE_INTENT] tracks=" + (urls != null ? urls.length : 0) + " | startIndex=" + startIndex + " | startPos=" + startPositionMs + "ms | autoPlay=" + autoPlay + " | reqId=" + reqId);
             if (urls != null && urls.length > 0) {
-                setQueue(urls, trackIds, titles, artists, artworks, startIndex, startPositionMs, autoPlay);
+                setQueue(urls, trackIds, titles, artists, artworks, loudnesses, startIndex, startPositionMs, autoPlay);
             }
 
         } else if ("SET_OFFLINE_QUEUE".equals(action)) {
@@ -595,8 +604,9 @@ public class RaagaXPlaybackService extends Service {
             String title      = intent.getStringExtra("title");
             String artist     = intent.getStringExtra("artist");
             String artworkUrl = intent.getStringExtra("artworkUrl");
+            double loudness   = intent.getDoubleExtra("loudness", Double.NaN);
             Log.d(TAG, "[PLAY_INTENT] trackId=" + trackId + " | url=" + url + " | title=" + title + " | artist=" + artist + " | art=" + artworkUrl + " | reqId=" + reqId);
-            if (url != null) playUrl(trackId != null ? trackId : "", url, title, artist, artworkUrl);
+            if (url != null) playUrl(trackId != null ? trackId : "", url, title, artist, artworkUrl, loudness);
 
         } else if ("SET_NEXT".equals(action)) {
             String url    = intent.getStringExtra("url");
@@ -682,6 +692,17 @@ public class RaagaXPlaybackService extends Service {
         else if ("SEEK".equals(action))      { seekTo(intent.getLongExtra("positionMs", 0)); }
         else if ("SET_VOLUME".equals(action)){ setVolume(intent.getFloatExtra("volume", 1.0f)); }
         else if ("SET_REPEAT".equals(action)){ setRepeatMode(intent.getStringExtra("repeatMode")); }
+        else if ("UPDATE_QUEUE_URL".equals(action)) {
+            String trackId = intent.getStringExtra("trackId");
+            String url = intent.getStringExtra("url");
+            if (trackId != null && url != null) {
+                updateQueueUrl(trackId, url);
+            }
+        }
+        else if ("SET_LOUDNESS_NORMALIZATION".equals(action)) {
+            boolean enabled = intent.getBooleanExtra("enabled", false);
+            setLoudnessNormalizationEnabled(enabled);
+        }
         else if ("STOP".equals(action)) {
             runOnMainThread(() -> {
                 if (player != null) {
@@ -807,9 +828,17 @@ public class RaagaXPlaybackService extends Service {
      * correctly identify which track ExoPlayer is actually playing.
      */
     public void setQueue(String[] urls, String[] trackIds, String[] titles, String[] artists,
-                         String[] artworks, int startIndex, long startPositionMs, boolean autoPlay) {
+                         String[] artworks, double[] loudnesses, int startIndex, long startPositionMs, boolean autoPlay) {
         runOnMainThread(() -> {
             if (player == null || urls == null || urls.length == 0) return;
+
+            if (trackIds != null && loudnesses != null) {
+                for (int i = 0; i < Math.min(trackIds.length, loudnesses.length); i++) {
+                    if (trackIds[i] != null && !trackIds[i].isEmpty()) {
+                        trackLoudnessMap.put(trackIds[i], loudnesses[i]);
+                    }
+                }
+            }
 
             isPreparingNewTrack = true;
             List<androidx.media3.exoplayer.source.MediaSource> sources = new ArrayList<>();
@@ -924,7 +953,7 @@ public class RaagaXPlaybackService extends Service {
                     prefetchArtwork(artworks[nextI]);
                 }
             }
-            saveNativeQueueToPrefs(urls, titles, artists, safeIndex);
+            saveNativeQueueToPrefs(urls, trackIds, titles, artists, artworks, safeIndex);
             updateNotification();
             Log.d(TAG, "setQueue: " + sources.size() + " items, startIndex=" + safeIndex
                     + ", startPos=" + safePositionMs + "ms, autoPlay=" + autoPlay);
@@ -936,20 +965,20 @@ public class RaagaXPlaybackService extends Service {
     /** Legacy overload without trackIds — mediaId will be empty on each MediaItem. */
     public void setQueue(String[] urls, String[] titles, String[] artists, String[] artworks,
                          int startIndex, long startPositionMs, boolean autoPlay) {
-        setQueue(urls, /*trackIds=*/null, titles, artists, artworks, startIndex, startPositionMs, autoPlay);
+        setQueue(urls, /*trackIds=*/null, titles, artists, artworks, /*loudnesses=*/null, startIndex, startPositionMs, autoPlay);
     }
 
     public void setQueue(String[] urls, String[] titles, String[] artists,
                          int startIndex, long startPositionMs, boolean autoPlay) {
-        setQueue(urls, null, titles, artists, null, startIndex, startPositionMs, autoPlay);
+        setQueue(urls, null, titles, artists, null, null, startIndex, startPositionMs, autoPlay);
     }
 
     public void setQueue(String[] urls, String[] titles, String[] artists, int startIndex, boolean autoPlay) {
-        setQueue(urls, null, titles, artists, null, startIndex, 0L, autoPlay);
+        setQueue(urls, null, titles, artists, null, null, startIndex, 0L, autoPlay);
     }
 
     public void setQueue(String[] urls, String[] titles, String[] artists, int startIndex) {
-        setQueue(urls, null, titles, artists, null, startIndex, 0L, true);
+        setQueue(urls, null, titles, artists, null, null, startIndex, 0L, true);
     }
 
     // ── Offline queue: songIds → Room → local file URIs → ExoPlayer ──────────
@@ -1054,6 +1083,21 @@ public class RaagaXPlaybackService extends Service {
                     player.setPlayWhenReady(false);
                     player.pause();
                 }
+                // Serialize queue details to SharedPreferences for persistence
+                String[] resolvedUrls = new String[resolved.size()];
+                String[] resolvedTrackIds = new String[resolved.size()];
+                String[] resolvedTitles = new String[resolved.size()];
+                String[] resolvedArtists = new String[resolved.size()];
+                String[] resolvedArtworks = new String[resolved.size()];
+                for (int i = 0; i < resolved.size(); i++) {
+                    OfflineQueueResolver.ResolvedTrack t = resolved.get(i);
+                    resolvedUrls[i] = t.streamUri.toString();
+                    resolvedTrackIds[i] = t.songId;
+                    resolvedTitles[i] = t.title;
+                    resolvedArtists[i] = t.artist;
+                    resolvedArtworks[i] = t.artworkUrl;
+                }
+                saveNativeQueueToPrefs(resolvedUrls, resolvedTrackIds, resolvedTitles, resolvedArtists, resolvedArtworks, safeIndex);
                 updateNotification();
 
                 Log.d(TAG, "[SET_OFFLINE_QUEUE] ExoPlayer loaded: "
@@ -1071,7 +1115,7 @@ public class RaagaXPlaybackService extends Service {
         }, "OfflineQueueResolver-Thread").start();
     }
 
-    private void saveNativeQueueToPrefs(String[] urls, String[] titles, String[] artists, int startIndex) {
+    private void saveNativeQueueToPrefs(String[] urls, String[] trackIds, String[] titles, String[] artists, String[] artworks, int startIndex) {
         try {
             android.content.SharedPreferences prefs = getSharedPreferences("raagax_native_playback", android.content.Context.MODE_PRIVATE);
             android.content.SharedPreferences.Editor editor = prefs.edit();
@@ -1079,8 +1123,10 @@ public class RaagaXPlaybackService extends Service {
             for (int i = 0; i < urls.length; i++) {
                 org.json.JSONObject obj = new org.json.JSONObject();
                 obj.put("url", urls[i]);
+                obj.put("trackId", trackIds != null && i < trackIds.length ? trackIds[i] : "");
                 obj.put("title", titles != null && i < titles.length ? titles[i] : "RaagaX");
                 obj.put("artist", artists != null && i < artists.length ? artists[i] : "");
+                obj.put("artworkUrl", artworks != null && i < artworks.length ? artworks[i] : "");
                 array.put(obj);
             }
             editor.putString("queue_json", array.toString());
@@ -1098,25 +1144,7 @@ public class RaagaXPlaybackService extends Service {
 
         // 1. Save current playback snapshot to SharedPreferences before shutdown
         if (player != null) {
-            try {
-                long currentPos = Math.max(0L, player.getCurrentPosition());
-                android.content.SharedPreferences prefs = getSharedPreferences("raagax_native_playback", android.content.Context.MODE_PRIVATE);
-                android.content.SharedPreferences.Editor editor = prefs.edit();
-                editor.putLong("last_position_ms", currentPos); // Restore exact seek position on next cold launch
-                editor.putInt("last_index", player.getCurrentMediaItemIndex());
-                editor.putString("last_track_id", currentTrackId);
-                editor.putString("last_title", currentTitle);
-                editor.putString("last_artist", currentArtist);
-                editor.putString("last_artwork", currentArtworkUrl);
-                editor.putBoolean("was_playing_when_killed", false); // HARD RULE: Never auto-play on next app launch
-                editor.putBoolean("was_task_removed", true);
-                editor.putString("playback_state", "PAUSED");
-                editor.putString("device_state", "TASK_REMOVED");
-                editor.putLong("saved_timestamp", System.currentTimeMillis());
-                editor.apply();
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to save state onTaskRemoved: " + e.getMessage());
-            }
+            savePlaybackStateCheckpoint(true);
 
             try {
                 player.setPlayWhenReady(false);
@@ -1170,12 +1198,16 @@ public class RaagaXPlaybackService extends Service {
     }
 
     public void playUrl(String url, String title, String artist, String artworkUrl) {
-        playUrl("", url, title, artist, artworkUrl);
+        playUrl("", url, title, artist, artworkUrl, Double.NaN);
     }
 
-    public void playUrl(String trackId, String url, String title, String artist, String artworkUrl) {
+    public void playUrl(String trackId, String url, String title, String artist, String artworkUrl, double loudness) {
         runOnMainThread(() -> {
             if (player == null) return;
+
+            if (trackId != null && !Double.isNaN(loudness)) {
+                trackLoudnessMap.put(trackId, loudness);
+            }
 
             isPreparingNewTrack = true;
             String cleanTrackId = trackId != null ? trackId.trim() : "";
@@ -1429,7 +1461,67 @@ public class RaagaXPlaybackService extends Service {
             Log.d(TAG, "[SEEK] Requested seekTo " + targetPos + "ms dispatch to ExoPlayer read-head.");
         });
     }
-    public void setVolume(float v) { runOnMainThread(() -> { if (player != null) player.setVolume(v); }); }
+    private float baselineVolume = 1.0f;
+
+    public void setVolume(float v) {
+        runOnMainThread(() -> {
+            baselineVolume = v;
+            applyNormalizedVolume();
+        });
+    }
+
+    public void setLoudnessNormalizationEnabled(boolean enabled) {
+        runOnMainThread(() -> {
+            this.loudnessNormalizationEnabled = enabled;
+            applyNormalizedVolume();
+        });
+    }
+
+    private void applyNormalizedVolume() {
+        if (player == null) return;
+        
+        float targetVolume = baselineVolume;
+        
+        if (loudnessNormalizationEnabled && currentTrackId != null && !currentTrackId.isEmpty()) {
+            Double loudnessObj = trackLoudnessMap.get(currentTrackId);
+            if (loudnessObj != null && !Double.isNaN(loudnessObj)) {
+                double loudness = loudnessObj;
+                double targetLoudness = -14.0;
+                double dbGain = targetLoudness - loudness;
+                double clampedDbGain = Math.min(6.0, dbGain); // Limit boost to +6dB
+                double volumeMultiplier = Math.pow(10, clampedDbGain / 20);
+                targetVolume = (float) Math.max(0.0, Math.min(1.0, baselineVolume * volumeMultiplier));
+                Log.d(TAG, "[LOUDNESS_NORMALIZATION] Applying gain: " + dbGain + "dB | multiplier: " + volumeMultiplier + " | finalVolume: " + targetVolume);
+            }
+        }
+        
+        player.setVolume(targetVolume);
+    }
+
+    public void updateQueueUrl(String trackId, String url) {
+        runOnMainThread(() -> {
+            if (player == null || trackId == null || url == null || url.isEmpty()) return;
+            
+            int count = player.getMediaItemCount();
+            for (int i = 0; i < count; i++) {
+                androidx.media3.common.MediaItem item = player.getMediaItemAt(i);
+                if (trackId.equals(item.mediaId)) {
+                    String currentUri = item.localConfiguration != null ? item.localConfiguration.uri.toString() : "";
+                    if (currentUri.startsWith("lazy://") || !url.equals(currentUri)) {
+                        Log.d(TAG, "[QUEUE_UPDATE_URL] Replacing URI for item index " + i + " (" + trackId + ") to " + url);
+                        
+                        androidx.media3.common.MediaItem newItem = item.buildUpon()
+                                .setUri(Uri.parse(url))
+                                .setMimeType(Media3DownloadHelper.detectMimeType(Uri.parse(url)))
+                                .build();
+                        
+                        player.replaceMediaItem(i, newItem);
+                    }
+                    break;
+                }
+            }
+        });
+    }
 
     public long getCurrentPosition() {
         if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper())
@@ -1447,6 +1539,146 @@ public class RaagaXPlaybackService extends Service {
         if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper())
             return player != null && player.isPlaying();
         return false;
+    }
+
+    private final Handler saveStateThrottler = new Handler(Looper.getMainLooper());
+    private long lastSaveTimeMs = 0L;
+    private final Runnable saveStateRunnable = () -> savePlaybackStateCheckpoint(false);
+
+    private synchronized void savePlaybackStateCheckpointThrottled() {
+        long now = System.currentTimeMillis();
+        if (now - lastSaveTimeMs >= 5000L) {
+            saveStateThrottler.removeCallbacks(saveStateRunnable);
+            savePlaybackStateCheckpoint(false);
+        } else {
+            saveStateThrottler.removeCallbacks(saveStateRunnable);
+            saveStateThrottler.postDelayed(saveStateRunnable, 5000L - (now - lastSaveTimeMs));
+        }
+    }
+
+    private synchronized void savePlaybackStateCheckpoint(boolean wasTaskRemoved) {
+        if (player == null) return;
+        lastSaveTimeMs = System.currentTimeMillis();
+        try {
+            long currentPos = Math.max(0L, player.getCurrentPosition());
+            long duration = player.getDuration();
+            if (duration == C.TIME_UNSET || duration < 0) {
+                duration = lastReportedDurationMs;
+            }
+
+            if (duration > 0 && currentPos >= (duration - 3000)) {
+                return;
+            }
+
+            android.content.SharedPreferences prefs = getSharedPreferences("raagax_native_playback", android.content.Context.MODE_PRIVATE);
+            android.content.SharedPreferences.Editor editor = prefs.edit();
+            editor.putLong("last_position_ms", currentPos);
+            editor.putInt("last_index", player.getCurrentMediaItemIndex());
+            editor.putString("last_track_id", currentTrackId);
+            editor.putString("last_title", currentTitle);
+            editor.putString("last_artist", currentArtist);
+            editor.putString("last_artwork", currentArtworkUrl);
+            editor.putBoolean("was_playing_when_killed", false);
+            editor.putBoolean("was_task_removed", wasTaskRemoved);
+            editor.putString("playback_state", player.isPlaying() ? "PLAYING" : "PAUSED");
+            editor.putBoolean("shuffle_mode", player.getShuffleModeEnabled());
+            editor.putInt("repeat_mode", player.getRepeatMode());
+            editor.putLong("saved_timestamp", System.currentTimeMillis());
+            editor.apply();
+            Log.d(TAG, "[CHECKPOINT_SAVED] trackId=" + currentTrackId + " | pos=" + currentPos + "ms | isPlaying=" + player.isPlaying());
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to save playback state checkpoint: " + e.getMessage());
+        }
+    }
+
+    private void restorePlaybackSessionFromPrefs() {
+        try {
+            android.content.SharedPreferences prefs = getSharedPreferences("raagax_native_playback", android.content.Context.MODE_PRIVATE);
+            if (!prefs.contains("last_track_id")) return;
+
+            String trackId = prefs.getString("last_track_id", "");
+            String title = prefs.getString("last_title", "RaagaX");
+            String artist = prefs.getString("last_artist", "");
+            String artwork = prefs.getString("last_artwork", "");
+            long positionMs = prefs.getString("playback_state", "PAUSED").equals("STOPPED") ? 0L : prefs.getLong("last_position_ms", 0L);
+            int index = prefs.getInt("last_index", 0);
+            boolean shuffle = prefs.getBoolean("shuffle_mode", false);
+            int repeat = prefs.getInt("repeat_mode", Player.REPEAT_MODE_OFF);
+            String queueJson = prefs.getString("queue_json", "");
+
+            if (trackId.isEmpty()) return;
+
+            currentTrackId = trackId;
+            currentTitle = title;
+            currentArtist = artist;
+            currentArtworkUrl = artwork;
+            loadArtworkAsync(artwork, trackId);
+
+            if (queueJson != null && !queueJson.isEmpty()) {
+                org.json.JSONArray array = new org.json.JSONArray(queueJson);
+                List<androidx.media3.exoplayer.source.MediaSource> sources = new ArrayList<>();
+                androidx.media3.exoplayer.source.MediaSource.Factory mediaSourceFactory =
+                        Media3DownloadHelper.createPlaybackMediaSourceFactory(this);
+
+                for (int i = 0; i < array.length(); i++) {
+                    org.json.JSONObject obj = array.getJSONObject(i);
+                    String url = obj.getString("url");
+                    String tId = obj.optString("trackId", "");
+                    String t = obj.optString("title", "RaagaX");
+                    String art = obj.optString("artworkUrl", "");
+                    String a = obj.optString("artist", "");
+
+                    MediaMetadata.Builder metaBuilder = new MediaMetadata.Builder()
+                            .setTitle(t)
+                            .setArtist(a);
+
+                    if (art != null && !art.isEmpty()) {
+                        metaBuilder.setArtworkUri(parsePlayableUri(art));
+                    }
+
+                    Uri itemUri = null;
+                    if (tId != null && !tId.isEmpty()) {
+                        try {
+                            com.raagax.music.data.db.RaagaXDatabase db = com.raagax.music.data.db.RaagaXDatabase.getInstance(this);
+                            com.raagax.music.data.db.entity.DownloadEntity entity = db.downloadDao().getDownloadByTrackId(tId);
+                            if (entity != null && "COMPLETED".equalsIgnoreCase(entity.downloadState)) {
+                                if (entity.localPath != null && !entity.localPath.isEmpty()) {
+                                    java.io.File f = new java.io.File(entity.localPath);
+                                    if (f.exists() && f.length() > 0) {
+                                        itemUri = Uri.fromFile(f);
+                                    }
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                    }
+
+                    if (itemUri == null) {
+                        itemUri = parsePlayableUri(url);
+                    }
+
+                    MediaItem mi = new MediaItem.Builder()
+                            .setMediaId(tId)
+                            .setUri(itemUri)
+                            .setMediaMetadata(metaBuilder.build())
+                            .build();
+
+                    sources.add(mediaSourceFactory.createMediaSource(mi));
+                }
+
+                if (!sources.isEmpty()) {
+                    int safeIndex = Math.max(0, Math.min(index, sources.size() - 1));
+                    player.setMediaSources(sources, safeIndex, positionMs);
+                    player.setShuffleModeEnabled(shuffle);
+                    player.setRepeatMode(repeat);
+                    player.prepare();
+                    player.setPlayWhenReady(false);
+                    player.pause();
+                    Log.d(TAG, "[SESSION_RESTORED_NATIVELY] Loaded " + sources.size() + " items from SharedPreferences. Paused at " + positionMs + "ms");
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to restore native session from SharedPreferences: " + e.getMessage());
+        }
     }
 
     // ── Notification ──────────────────────────────────────────────────────────

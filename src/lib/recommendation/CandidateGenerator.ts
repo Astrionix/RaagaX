@@ -56,7 +56,9 @@ export class CandidateGenerator {
              album: song.album || '',
              albumId: (song as any).album_id || song.albumId || '',
              coverUrl: (song as any).cover_url || song.coverUrl || '/app-icon.png',
-             audioUrl: (song as any).playable_url || song.audioUrl || '',
+             audioUrl: ((song as any).playable_url_expires_at && new Date((song as any).playable_url_expires_at).getTime() < Date.now()) 
+               ? '' 
+               : ((song as any).playable_url || song.audioUrl || ''),
              duration: song.duration ? parseInt(String(song.duration), 10) : 0,
              genre: (song as any).language ? `${String((song as any).language).toUpperCase()} HITS` : 'HITS',
              category: 'global_trending',
@@ -90,7 +92,7 @@ export class CandidateGenerator {
           if (topArtists.length > 0) {
             const { data: affinitySongs, error: affinityError } = await supabase
               .from('canonical_songs')
-              .select('*')
+              .select('id, title, artist, album, language, cover_url, duration, playable_url, playable_url_expires_at, popularity_score, release_date')
               .in('artist', topArtists)
               .limit(limit * 2);
               
@@ -101,23 +103,22 @@ export class CandidateGenerator {
         }
       }
 
-      // 2. Similar real songs (Vector Match - only for valid UUIDs)
-      const isUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-      if (currentSong && isUUID(String(currentSong.id)) && !CandidateGenerator.unavailable.has('match_similar_songs')) {
+      // 2. Similar songs (Metadata-based fallback since vector embedding is dropped)
+      if (currentSong) {
         try {
-          const { data: vectorMatches, error: vectorError } = await supabase.rpc('match_similar_songs', {
-            target_song_id: String(currentSong.id),
-            match_count: Math.round(limit * 2),
-            match_threshold: 0.5
-          });
-          
-          if (vectorError) {
-            CandidateGenerator.markUnavailable('match_similar_songs');
-          } else if (vectorMatches && vectorMatches.length > 0) {
-            if (await addCandidates(vectorMatches, 'similar')) return Array.from(candidates.values());
+          const { data: similarMatches, error: similarError } = await supabase
+            .from('canonical_songs')
+            .select('id, title, artist, album, language, cover_url, duration, playable_url, playable_url_expires_at, popularity_score, release_date')
+            .eq('language', currentSong.language)
+            .neq('id', currentSong.id)
+            .order('popularity_score', { ascending: false, nullsFirst: false })
+            .limit(limit * 2);
+
+          if (!similarError && similarMatches && similarMatches.length > 0) {
+            if (await addCandidates(similarMatches, 'similar')) return Array.from(candidates.values());
           }
-        } catch {
-          CandidateGenerator.markUnavailable('match_similar_songs');
+        } catch (simErr) {
+          console.warn('[CandidateGenerator] Similar songs fallback error:', simErr);
         }
       }
 
@@ -125,7 +126,7 @@ export class CandidateGenerator {
       if (currentSong) {
         const { data: artistMatches, error: artistError } = await supabase
           .from('canonical_songs')
-          .select('*')
+          .select('id, title, artist, album, language, cover_url, duration, playable_url, playable_url_expires_at, popularity_score, release_date')
           .eq('artist', currentSong.artist)
           .limit(limit * 2);
           
@@ -137,7 +138,7 @@ export class CandidateGenerator {
       // 4. Cached trending in selected user languages
       const { data: trending, error: trendingError } = await supabase
         .from('canonical_songs')
-        .select('*')
+        .select('id, title, artist, album, language, cover_url, duration, playable_url, playable_url_expires_at, popularity_score, release_date')
         .in('language', langs)
         .order('trend_score', { ascending: false, nullsFirst: false })
         .limit(limit * 2);

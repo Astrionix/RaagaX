@@ -66,18 +66,38 @@ function getLanguageContent(lang: string): Record<string, ShelfItem[]> {
   return fallback;
 }
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const userId = searchParams.get('userId');
-  const rawLang = searchParams.get('lang') || searchParams.get('preferredLanguage') || searchParams.get('language') || 'Telugu';
-  const lang = normalizeLanguage(rawLang);
-  const phase = searchParams.get('phase') || 'BOOTSTRAP';
+interface HomeCacheEntry {
+  data: any;
+  cachedAt: number;
+}
 
+const homeCache = new Map<string, HomeCacheEntry>();
+const HOME_CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes freshness TTL
+
+function setHeaders(response: NextResponse, userId: string | null) {
+  if (!userId) {
+    // Guest: Cache on Edge CDN for 3 hours, browser cache for 1 hour
+    response.headers.set('Cache-Control', 'public, max-age=3600, s-maxage=10800, stale-while-revalidate=600');
+  } else {
+    // Authenticated: Browser-only private cache to prevent double-fetches
+    response.headers.set('Cache-Control', 'private, max-age=30');
+  }
+}
+
+async function fetchAndCacheHomeData(cacheKey: string, userId: string | null, lang: string, phase: string, name: string) {
+  try {
+    const data = await buildHomeData(userId, lang, phase, name);
+    homeCache.set(cacheKey, { data, cachedAt: Date.now() });
+  } catch (err) {
+    console.error(`[HomeAPI] Background revalidation failed for ${cacheKey}:`, err);
+  }
+}
+
+async function buildHomeData(userId: string | null, lang: string, phase: string, name: string) {
   let releaseRadar: ShelfItem[] = [];
   let daylist: any = null;
   let newMovieSongs: ShelfItem[] = [];
   let artistRadars: any[] = [];
-  let name = '';
 
   if (userId) {
     const { data: aiData, error } = await supabase
@@ -101,8 +121,6 @@ export async function GET(request: Request) {
         });
       }
     }
-
-    name = searchParams.get('name') || '';
   }
 
   if (releaseRadar.length > 0) {
@@ -117,18 +135,18 @@ export async function GET(request: Request) {
   const content = getLanguageContent(lang);
   const sections: HomeSection[] = [];
 
-function dedupeItems(items: ShelfItem[]): ShelfItem[] {
-  if (!items || items.length === 0) return [];
-  const seen = new Set<string>();
-  const result: ShelfItem[] = [];
-  for (const it of items) {
-    if (it && it.id && !seen.has(it.id)) {
-      seen.add(it.id);
-      result.push(it);
+  function dedupeItems(items: ShelfItem[]): ShelfItem[] {
+    if (!items || items.length === 0) return [];
+    const seen = new Set<string>();
+    const result: ShelfItem[] = [];
+    for (const it of items) {
+      if (it && it.id && !seen.has(it.id)) {
+        seen.add(it.id);
+        result.push(it);
+      }
     }
+    return result;
   }
-  return result;
-}
 
   // 1. Discover Your Sound (Quick Access)
   if (phase === 'BOOTSTRAP') {
@@ -234,10 +252,44 @@ function dedupeItems(items: ShelfItem[]): ShelfItem[] {
     });
   }
 
-  const payload: HomePayload = {
+  return {
     greeting: greetingStr,
     sections
   };
+}
 
-  return NextResponse.json(payload);
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const userId = searchParams.get('userId');
+  const rawLang = searchParams.get('lang') || searchParams.get('preferredLanguage') || searchParams.get('language') || 'Telugu';
+  const lang = normalizeLanguage(rawLang);
+  const phase = searchParams.get('phase') || 'BOOTSTRAP';
+  const name = searchParams.get('name') || '';
+  const force = searchParams.get('force') === 'true';
+
+  const cacheKey = `home_${userId || 'guest'}_${lang}_${phase}`;
+  const cached = homeCache.get(cacheKey);
+
+  if (!force && cached) {
+    const isFresh = Date.now() - cached.cachedAt < HOME_CACHE_TTL_MS;
+    if (isFresh) {
+      const response = NextResponse.json(cached.data);
+      setHeaders(response, userId);
+      return response;
+    } else {
+      // Stale cache hit: return cached result immediately and refresh in background
+      fetchAndCacheHomeData(cacheKey, userId, lang, phase, name).catch(() => {});
+      const response = NextResponse.json(cached.data);
+      setHeaders(response, userId);
+      return response;
+    }
+  }
+
+  // Cache miss
+  const data = await buildHomeData(userId, lang, phase, name);
+  homeCache.set(cacheKey, { data, cachedAt: Date.now() });
+
+  const response = NextResponse.json(data);
+  setHeaders(response, userId);
+  return response;
 }

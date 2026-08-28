@@ -468,19 +468,7 @@ public class SaavnMusicProvider implements MusicProvider {
 
         // 2. download_url array (newer API format)
         if (obj.has("download_url") && obj.get("download_url").isJsonArray()) {
-            JsonArray dlArr = obj.getAsJsonArray("download_url");
-            String best320 = null, best160 = null, bestAny = null;
-            for (JsonElement el : dlArr) {
-                if (!el.isJsonObject()) continue;
-                JsonObject dlObj = el.getAsJsonObject();
-                String q = getSafeString(dlObj, "quality");
-                String u = getSafeString(dlObj, "url", "link");
-                if (u == null || u.isEmpty()) continue;
-                if ("320kbps".equals(q) || "320 kbps".equals(q)) best320 = u;
-                else if ("160kbps".equals(q) || "160 kbps".equals(q)) best160 = u;
-                else bestAny = u;
-            }
-            String chosen = best320 != null ? best320 : (best160 != null ? best160 : bestAny);
+            String chosen = selectHighestQualityJava(obj.getAsJsonArray("download_url"));
             if (chosen != null) return chosen.replace("http://", "https://");
         }
 
@@ -488,15 +476,8 @@ public class SaavnMusicProvider implements MusicProvider {
         if (obj.has("more_info") && obj.getAsJsonObject("more_info").has("download_url")) {
             JsonElement dlEl = obj.getAsJsonObject("more_info").get("download_url");
             if (dlEl.isJsonArray()) {
-                JsonArray dlArr = dlEl.getAsJsonArray();
-                String best = null;
-                for (JsonElement el : dlArr) {
-                    if (!el.isJsonObject()) continue;
-                    JsonObject dlObj = el.getAsJsonObject();
-                    String u = getSafeString(dlObj, "url", "link");
-                    if (u != null && !u.isEmpty()) { best = u; break; }
-                }
-                if (best != null) return best.replace("http://", "https://");
+                String chosen = selectHighestQualityJava(dlEl.getAsJsonArray());
+                if (chosen != null) return chosen.replace("http://", "https://");
             }
         }
 
@@ -532,6 +513,35 @@ public class SaavnMusicProvider implements MusicProvider {
                    .replace("&amp;", "&")
                    .replace("&#039;", "'")
                    .trim();
+    }
+
+    private String selectHighestQualityJava(com.google.gson.JsonArray dlArr) {
+        if (dlArr == null || dlArr.size() == 0) return null;
+        
+        String bestUrl = null;
+        int maxBitrate = -1;
+        
+        for (com.google.gson.JsonElement el : dlArr) {
+            if (!el.isJsonObject()) continue;
+            com.google.gson.JsonObject dlObj = el.getAsJsonObject();
+            String q = getSafeString(dlObj, "quality");
+            String u = getSafeString(dlObj, "url", "link");
+            if (u == null || u.isEmpty()) continue;
+            
+            int bitrate = 0;
+            if (q != null) {
+                String clean = q.toLowerCase().replace("kbps", "").replace(" ", "").trim();
+                try {
+                    bitrate = Integer.parseInt(clean);
+                } catch (NumberFormatException ignored) {}
+            }
+            
+            if (bitrate > maxBitrate) {
+                maxBitrate = bitrate;
+                bestUrl = u;
+            }
+        }
+        return bestUrl;
     }
 
     private String getSafeString(JsonObject obj, String... keys) {

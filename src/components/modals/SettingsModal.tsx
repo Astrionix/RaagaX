@@ -17,6 +17,8 @@ export function SettingsModal() {
     exportBackupJson,
     preferredLanguage,
     setPreferredLanguage,
+    loudnessNormalizationEnabled,
+    setLoudnessNormalizationEnabled,
   } = usePlayerStore();
 
   const { offlineSettings, setOfflineSettings } = useDownloadStore();
@@ -184,6 +186,33 @@ export function SettingsModal() {
             <div className="flex justify-between text-[10px] text-slate-500 font-mono">
               <span>0s (Off)</span><span>6s</span><span>12s (Smooth)</span>
             </div>
+          </div>
+
+          {/* Loudness Normalization */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                <Sliders className="w-3.5 h-3.5 text-[#EF233C]" /> Loudness Normalization
+              </label>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={loudnessNormalizationEnabled}
+                onClick={() => setLoudnessNormalizationEnabled(!loudnessNormalizationEnabled)}
+                className={`w-10 h-6 rounded-full transition-colors relative flex items-center p-0.5 cursor-pointer flex-shrink-0 ${
+                  loudnessNormalizationEnabled ? 'bg-emerald-500' : 'bg-white/20'
+                }`}
+              >
+                <div
+                  className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${
+                    loudnessNormalizationEnabled ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              Adjusts playback gain to keep volume consistent across tracks. Preserves dynamic range.
+            </p>
           </div>
 
           {/* Automatic Downloads (Mobile Only) */}

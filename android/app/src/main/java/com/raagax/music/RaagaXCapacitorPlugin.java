@@ -159,6 +159,7 @@ public class RaagaXCapacitorPlugin extends Plugin {
             String[] titles   = new String[len];
             String[] artists  = new String[len];
             String[] artworks = new String[len];
+            double[] loudnesses = new double[len];
 
             for (int i = 0; i < len; i++) {
                 org.json.JSONObject obj = tracks.getJSONObject(i);
@@ -167,6 +168,7 @@ public class RaagaXCapacitorPlugin extends Plugin {
                 titles[i]    = obj.optString("title", "RaagaX");
                 artists[i]   = obj.optString("artist", "");
                 artworks[i]  = obj.optString("artworkUrl", obj.optString("coverUrl", ""));
+                loudnesses[i] = obj.optDouble("loudness", Double.NaN);
             }
 
             boolean autoPlay = call.getBoolean("autoPlay", true);
@@ -182,6 +184,7 @@ public class RaagaXCapacitorPlugin extends Plugin {
             intent.putExtra("titles",           titles);
             intent.putExtra("artists",          artists);
             intent.putExtra("artworks",         artworks);
+            intent.putExtra("loudnesses",       loudnesses);
             intent.putExtra("startIndex",       startIndex);
             intent.putExtra("startPositionMs",  startPositionMs);
             intent.putExtra("autoPlay",         autoPlay);
@@ -202,6 +205,7 @@ public class RaagaXCapacitorPlugin extends Plugin {
         String title     = call.getString("title", "RaagaX");
         String artist    = call.getString("artist", "");
         String artworkUrl = call.getString("artworkUrl", "");
+        double loudness  = call.getDouble("loudness", Double.NaN);
         long requestId = 0L;
         if (call.getData() != null && call.getData().has("requestId")) {
             requestId = call.getData().optLong("requestId", 0L);
@@ -218,6 +222,7 @@ public class RaagaXCapacitorPlugin extends Plugin {
         intent.putExtra("title",      title);
         intent.putExtra("artist",     artist);
         intent.putExtra("artworkUrl", artworkUrl);
+        intent.putExtra("loudness",   loudness);
         intent.putExtra("requestId",  requestId);
         sendCommandToService(intent);
         call.resolve(new JSObject().put("success", true));
@@ -536,5 +541,29 @@ public class RaagaXCapacitorPlugin extends Plugin {
     public void getNetworkState(PluginCall call) {
         boolean isOnline = NetworkStateMonitor.getInstance(getContext()).isOnline();
         call.resolve(new JSObject().put("isOnline", isOnline));
+    }
+
+    @PluginMethod
+    public void updateQueueUrl(PluginCall call) {
+        String trackId = call.getString("trackId");
+        String url = call.getString("url");
+        if (trackId == null || url == null) {
+            call.reject("trackId and url are required");
+            return;
+        }
+        Intent intent = new Intent("UPDATE_QUEUE_URL");
+        intent.putExtra("trackId", trackId);
+        intent.putExtra("url", url);
+        sendCommandToService(intent);
+        call.resolve(new JSObject().put("success", true));
+    }
+
+    @PluginMethod
+    public void setLoudnessNormalizationEnabled(PluginCall call) {
+        Boolean enabled = call.getBoolean("enabled", false);
+        Intent intent = new Intent("SET_LOUDNESS_NORMALIZATION");
+        intent.putExtra("enabled", enabled);
+        sendCommandToService(intent);
+        call.resolve(new JSObject().put("success", true));
     }
 }

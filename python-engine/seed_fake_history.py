@@ -44,33 +44,27 @@ def seed_data():
         # Pick 15 random songs
         selected_songs = random.sample(songs, min(15, len(songs)))
         
-        fake_history = []
+        fake_events = []
         for song in selected_songs:
-            # 80% chance to 'play', 20% to 'like'
-            action = 'like' if random.random() > 0.8 else 'play'
-            fake_history.append({
+            r = random.random()
+            if r > 0.9:
+                event_type = 'like'
+            elif r > 0.8:
+                event_type = 'complete'
+            elif r > 0.7:
+                event_type = 'skip'
+            else:
+                event_type = 'play'
+            fake_events.append({
                 'user_id': target_user,
                 'song_id': song['id'],
-                'artist': 'Unknown',
-                'genre': 'Telugu',
-                'action': action
-            })
-            
-        # Insert fake history
-        res = supabase.table('playback_history').insert(fake_history).execute()
-        
-        fake_events = []
-        for h in fake_history:
-            fake_events.append({
-                'user_id': h['user_id'],
-                'song_id': h['song_id'],
-                'event_type': 'play' if h['action'] == 'play' else 'like',
+                'event_type': event_type,
                 'position_ms': random.randint(10000, 200000)
             })
             
         supabase.table('listening_events').insert(fake_events).execute()
         
-    print("Successfully injected fake playback history for all users!")
+    print("Successfully injected fake listening events for all users!")
     print("You can now run train_recommendations.py to generate the AI DJ row!")
 
 if __name__ == "__main__":

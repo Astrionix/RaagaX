@@ -90,6 +90,15 @@ export class PreloadManager {
         song.audioUrl = finalSrc;
       }
 
+      // Update native player queue URL just-in-time
+      if (finalSrc) {
+        import('@/lib/playback/native/RaagaXNativePlayer').then(({ RaagaXNativePlayer }) => {
+          if (RaagaXNativePlayer.isNative()) {
+            RaagaXNativePlayer.updateQueueUrl(song.id, finalSrc).catch(() => {});
+          }
+        });
+      }
+
       if (!finalSrc) {
         this.status = 'FAILED';
         return false;

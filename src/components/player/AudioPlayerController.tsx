@@ -57,6 +57,7 @@ export function AudioPlayerController() {
     setSleepTimer,
     restoreLocalSession,
     isAutoplayEnabled,
+    loudnessNormalizationEnabled,
   } = usePlayerStore();
 
   // Register Audio Elements with PlaybackService (web only)
@@ -566,9 +567,18 @@ export function AudioPlayerController() {
       const tm = TransitionManager.getInstance();
       if (tm.getState() === 'CROSSFADING') return;
       const activeAudio = PlaybackService.getInstance().getActiveAudio();
-      if (activeAudio) activeAudio.volume = effectiveVolume;
+      if (activeAudio) {
+        let volumeMultiplier = 1.0;
+        if (loudnessNormalizationEnabled && currentSong && (currentSong as any).loudness !== undefined && (currentSong as any).loudness !== null) {
+          const targetLoudness = -14.0;
+          const dbGain = targetLoudness - (currentSong as any).loudness;
+          const clampedDbGain = Math.min(6.0, dbGain); // Limit boost to +6dB
+          volumeMultiplier = Math.pow(10, clampedDbGain / 20);
+        }
+        activeAudio.volume = Math.max(0, Math.min(1, effectiveVolume * volumeMultiplier));
+      }
     }
-  }, [volume, isMuted]);
+  }, [volume, isMuted, currentSong?.id, loudnessNormalizationEnabled]);
 
   // ── Ultra-Fast Playback Engine: Proactive Background Pre-Caching Next Track ──────────────
   const prebufferedIndexRef = useRef<number>(-1);

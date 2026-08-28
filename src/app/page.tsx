@@ -24,6 +24,7 @@ import { KeyboardShortcutsModal } from '@/components/modals/KeyboardShortcutsMod
 import { OfflineStorageSetupModal } from '@/components/modals/OfflineStorageSetupModal';
 import { PermissionOnboardingModal } from '@/components/onboarding/PermissionOnboardingModal';
 import { LanguageOnboardingModal } from '@/components/onboarding/LanguageOnboardingModal';
+import { UpdateModal } from '@/components/modals/UpdateModal';
 
 import { CreatePlaylistModal } from '@/components/modals/CreatePlaylistModal';
 import { NotificationCenterModal } from '@/components/modals/NotificationCenterModal';
@@ -299,6 +300,9 @@ export default function Page() {
       </ErrorBoundary>
       <ErrorBoundary name="NotificationCenterModal">
         <NotificationCenterModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="UpdateModal">
+        <UpdateModal />
       </ErrorBoundary>
 
       {/* ── Native Android Connected Surfaces ── */}

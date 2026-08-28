@@ -378,45 +378,7 @@ describe('RaagaX Cross-Device Library Synchronization Architecture Tests', () =>
     expect(matches).toHaveLength(1);
   });
 
-  // ── SCENARIO 14 & 15: Realtime User Favorites (Artist & Album) ─────────────
-  it('Scenario 14 & 15: Realtime user_favorites INSERT separates artist and album favorites', async () => {
-    const syncEngine = AccountSyncEngine.getInstance();
 
-    await syncEngine.handleRealtimeUserFavorites(testUserId, {
-      eventType: 'INSERT',
-      new: { user_id: testUserId, item_id: 'artist_dsp', item_type: 'artist' },
-    });
-
-    await syncEngine.handleRealtimeUserFavorites(testUserId, {
-      eventType: 'INSERT',
-      new: { user_id: testUserId, item_id: 'album_pushpa_2', item_type: 'album' },
-    });
-
-    const store = usePlayerStore.getState();
-    expect(store.favoriteArtistIds).toContain('artist_dsp');
-    expect(store.favoriteAlbumIds).toContain('album_pushpa_2');
-    expect(store.favoriteArtistIds).not.toContain('album_pushpa_2');
-  });
-
-  // ── SCENARIO 16: Realtime Remove Favorite ──────────────────────────────────
-  it('Scenario 16: Realtime user_favorites DELETE removes favorite without affecting others', async () => {
-    usePlayerStore.setState({
-      favoriteArtistIds: ['artist_dsp', 'artist_thaman'],
-      favoriteAlbumIds: ['album_pushpa_2'],
-    });
-
-    const syncEngine = AccountSyncEngine.getInstance();
-
-    await syncEngine.handleRealtimeUserFavorites(testUserId, {
-      eventType: 'DELETE',
-      old: { item_id: 'artist_dsp', item_type: 'artist' },
-    });
-
-    const store = usePlayerStore.getState();
-    expect(store.favoriteArtistIds).not.toContain('artist_dsp');
-    expect(store.favoriteArtistIds).toContain('artist_thaman');
-    expect(store.favoriteAlbumIds).toContain('album_pushpa_2');
-  });
 
   // ── SCENARIO 17 & 18: Simultaneous Likes & Unlike Race ─────────────────────
   it('Scenario 17 & 18: Simultaneous likes and unlike race resolve cleanly', async () => {

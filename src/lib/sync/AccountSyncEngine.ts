@@ -32,7 +32,7 @@ export class AccountSyncEngine {
 
   private channel: any = null;
   private subscribedUserId: string | null = null;
-  private hasUserDownloadsTable: boolean = true;
+  private hasUserDownloadsTable: boolean = false;
   private inFlightReconcile: Promise<string[]> | null = null;
   private lastReconcileTime = 0;
   private lastReconciledUser: string | null = null;
@@ -125,39 +125,15 @@ export class AccountSyncEngine {
         .channel(channelName)
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'liked_songs', filter: `user_id=eq.${userId}` },
+          { event: '*', schema: 'public', table: 'user_library_state', filter: `user_id=eq.${userId}` },
           (payload: any) => {
-            this.handleRealtimeLikedSongs(userId, payload);
-            triggerReconcile();
-          }
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'playlists', filter: `owner_id=eq.${userId}` },
-          (payload: any) => {
-            this.handleRealtimePlaylists(userId, payload);
-            triggerReconcile();
-          }
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'playlist_songs' },
-          (payload: any) => {
-            this.handleRealtimePlaylistSongs(payload);
-            triggerReconcile();
-          }
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'user_favorites', filter: `user_id=eq.${userId}` },
-          (payload: any) => {
-            this.handleRealtimeUserFavorites(userId, payload);
+            console.log('[AccountSyncEngine] Realtime user_library_state revision changed:', payload.new?.revision);
             triggerReconcile();
           }
         )
         .subscribe((status, err) => {
           if (status === 'SUBSCRIBED') {
-            console.log('[AccountSyncEngine] Subscribed to account realtime changes');
+            console.log('[AccountSyncEngine] Subscribed to user_library_state realtime changes');
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
             console.warn(`[AccountSyncEngine] Realtime channel status: ${status}`, err);
           }
@@ -295,39 +271,7 @@ export class AccountSyncEngine {
     }
   }
 
-  public async handleRealtimeUserFavorites(userId: string, payload: any): Promise<void> {
-    try {
-      const { usePlayerStore } = await import('@/context/usePlayerStore');
-      const eventType = payload.eventType;
 
-      if (eventType === 'INSERT' && payload.new) {
-        const { item_id, item_type } = payload.new;
-        if (item_type === 'artist') {
-          const current = usePlayerStore.getState().favoriteArtistIds;
-          if (!current.includes(item_id)) {
-            usePlayerStore.setState({ favoriteArtistIds: [...current, item_id] });
-          }
-        } else if (item_type === 'album') {
-          const current = usePlayerStore.getState().favoriteAlbumIds;
-          if (!current.includes(item_id)) {
-            usePlayerStore.setState({ favoriteAlbumIds: [...current, item_id] });
-          }
-        }
-      } else if (eventType === 'DELETE' && (payload.old || payload.new)) {
-        const record = payload.old || payload.new;
-        const { item_id, item_type } = record;
-        if (item_type === 'artist') {
-          const current = usePlayerStore.getState().favoriteArtistIds;
-          usePlayerStore.setState({ favoriteArtistIds: current.filter((id) => id !== item_id) });
-        } else if (item_type === 'album') {
-          const current = usePlayerStore.getState().favoriteAlbumIds;
-          usePlayerStore.setState({ favoriteAlbumIds: current.filter((id) => id !== item_id) });
-        }
-      }
-    } catch (err) {
-      console.warn('[AccountSyncEngine] handleRealtimeUserFavorites error:', err);
-    }
-  }
 
   public unsubscribe() {
     this.subscribedUserId = null;
@@ -362,6 +306,39 @@ export class AccountSyncEngine {
         const { usePlaylistStore } = await import('@/context/usePlaylistStore');
         const { OfflineCatalog } = await import('@/lib/offline/OfflineCatalog');
 
+        // 0. Revision Check Framework
+        let revData: any = null;
+        let revError: any = null;
+        try {
+          const { data, error } = await supabase
+            .from('user_library_state')
+            .select('revision')
+            .eq('user_id', userId)
+            .maybeSingle();
+          revData = data;
+          revError = error;
+        } catch (e) {
+          console.debug('[AccountSyncEngine] user_library_state query bypassed (mock/compatibility):', e);
+        }
+
+        const remoteRevision = revData ? Number(revData.revision) : 0;
+        const localRevision = await localDb.getUserStore<number>(userId, 'library_revision') || 0;
+        const currentLikedSongIds = usePlayerStore.getState().likedSongIds || [];
+
+        // If revisions match and we already have cached liked songs, skip pulling
+        if (!revError && revData && remoteRevision === localRevision && currentLikedSongIds.length > 0) {
+          console.log(`[AccountSyncEngine] Local revision (${localRevision}) matches remote revision (${remoteRevision}). Skipping DB queries.`);
+          
+          // Verify local download files count as requested
+          const catalog = OfflineCatalog.getInstance();
+          const allLocalTracks = await catalog.getAllTracks();
+          const localIds = allLocalTracks.map((t) => t.trackId);
+          usePlayerStore.setState({ downloadedSongIds: localIds });
+          return currentLikedSongIds;
+        }
+
+        console.log(`[AccountSyncEngine] Reconciling library. Local revision: ${localRevision}, Remote revision: ${remoteRevision}`);
+
         // 1. Reconcile Liked Songs
         const { data: likedData, error: likedError } = await supabase
           .from('liked_songs')
@@ -385,7 +362,7 @@ export class AccountSyncEngine {
 
         // 2. Reconcile Playlists
         try {
-          await usePlaylistStore.getState().fetchPlaylists();
+          await usePlaylistStore.getState().fetchPlaylists(true);
         } catch (plErr) {
           console.warn('[AccountSyncEngine] Failed to reconcile playlists:', plErr);
         }
@@ -463,11 +440,16 @@ export class AccountSyncEngine {
         }
 
         // 5. Authoritative Local Device Storage Check
-        // IMPORTANT RULE: Only mark as locally downloaded if the actual audio file is present in IndexedDB on THIS device!
         const catalog = OfflineCatalog.getInstance();
         const allLocalTracks = await catalog.getAllTracks();
         const localIds = allLocalTracks.map((t) => t.trackId);
         usePlayerStore.setState({ downloadedSongIds: localIds });
+
+        // Update local revision in IndexedDB
+        if (!revError && revData) {
+          await localDb.setUserStore(userId, 'library_revision', remoteRevision);
+          console.log(`[AccountSyncEngine] Local revision updated to remote revision: ${remoteRevision}`);
+        }
 
         return localIds;
       } catch (e) {
@@ -479,6 +461,18 @@ export class AccountSyncEngine {
     })();
 
     return this.inFlightReconcile;
+  }
+
+  public async optimisticRevisionIncrement(userId: string): Promise<void> {
+    if (!this.isUUID(userId)) return;
+    try {
+      const localDb = LocalDatabase.getInstance();
+      const current = await localDb.getUserStore<number>(userId, 'library_revision') || 0;
+      await localDb.setUserStore(userId, 'library_revision', current + 1);
+      console.log(`[AccountSyncEngine] Optimistically bumped local revision for ${userId} to ${current + 1}`);
+    } catch (e) {
+      console.warn('[AccountSyncEngine] Failed to optimistic bump revision:', e);
+    }
   }
 
   // --- LIKES ---
@@ -545,6 +539,7 @@ export class AccountSyncEngine {
           }
           console.warn('[AccountSyncEngine] Remote like failed:', error.message);
         } else {
+          await this.optimisticRevisionIncrement(effectiveUserId);
           return;
         }
       } catch (e) {
@@ -587,7 +582,10 @@ export class AccountSyncEngine {
           .eq('user_id', effectiveUserId)
           .eq('song_id', songId);
 
-        if (!error) return;
+        if (!error) {
+          await this.optimisticRevisionIncrement(effectiveUserId);
+          return;
+        }
       } catch (e) {
         console.warn('[AccountSyncEngine] Remote unlike failed, queueing offline mutation:', e);
       }
@@ -614,7 +612,7 @@ export class AccountSyncEngine {
       try {
         const { data, error } = await supabase
           .from('playlists')
-          .select('*')
+          .select('id, owner_id, name, description, created_at, updated_at')
           .or(`owner_id.eq.${userId},user_id.eq.${userId}`)
           .order('created_at', { ascending: false });
 
@@ -669,15 +667,18 @@ export class AccountSyncEngine {
           .select()
           .single();
 
-        if (!error && data) return {
-          id: data.id,
-          user_id: data.owner_id || userId,
-          name: data.name || name,
-          description: data.description || '',
-          created_at: data.created_at,
-          updated_at: data.updated_at,
-          songs: [],
-        } as UserPlaylist;
+        if (!error && data) {
+          await this.optimisticRevisionIncrement(userId);
+          return {
+            id: data.id,
+            user_id: data.owner_id || userId,
+            name: data.name || name,
+            description: data.description || '',
+            created_at: data.created_at,
+            updated_at: data.updated_at,
+            songs: [],
+          } as UserPlaylist;
+        }
       } catch (e) {
         console.warn('[AccountSyncEngine] Create remote playlist failed, queueing offline mutation:', e);
       }
@@ -708,6 +709,7 @@ export class AccountSyncEngine {
           .from('playlists')
           .delete()
           .eq('id', playlistId);
+        await this.optimisticRevisionIncrement(userId);
         return;
       } catch (e) {
         console.warn('[AccountSyncEngine] Remote delete playlist failed, queueing offline mutation:', e);

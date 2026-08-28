@@ -258,16 +258,27 @@ export class PlaybackService {
       }
 
       // ── ONLINE PATH: resolve network URLs and call setQueue ─────────────────
-      // Resolve ALL songs in parallel (including the starting song)
+      // Lazy resolution: only resolve starting track, use placeholders for the rest
       const resolvedTracks = await Promise.all(
-        songs.map(async (song) => {
+        songs.map(async (song, index) => {
           let finalSrc = '';
-          try {
-            const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
-            if (source?.url) finalSrc = source.url;
-          } catch {}
-          if (!finalSrc && song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
-            finalSrc = song.audioUrl;
+          if (index === startIndex) {
+            try {
+              const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+              if (source?.url) finalSrc = source.url;
+            } catch {}
+            if (!finalSrc && song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
+              finalSrc = song.audioUrl;
+            }
+          } else {
+            // Check cache first to avoid network requests
+            const cached = PlayableUrlCache.getInstance().get(song.id);
+            if (cached && cached.url) {
+              finalSrc = cached.url;
+            } else {
+              // Lazy placeholder URL
+              finalSrc = `lazy://${song.id}`;
+            }
           }
           return {
             trackId:    song.id,
@@ -275,6 +286,7 @@ export class PlaybackService {
             title:      song.title ?? 'Unknown Title',
             artist:     song.artist ?? 'Unknown Artist',
             artworkUrl: song.coverUrl ?? '',
+            loudness:   (song as any).loudness ?? null,
           };
         })
       );
@@ -435,6 +447,8 @@ export class PlaybackService {
           if (source?.url) {
             finalSrc = source.url;
             resolvedSourceType = source.type === 'offline' ? 'LOCAL_DOWNLOAD' : 'NETWORK_STREAM';
+            // Update native player queue URL just-in-time
+            await RaagaXNativePlayer.updateQueueUrl(song.id, finalSrc);
           }
         } catch (e) {
           console.warn('[PlaybackService] Native source resolution failed:', e);
@@ -454,6 +468,7 @@ export class PlaybackService {
           title: song.title ?? 'Unknown Title',
           artist: song.artist ?? 'Unknown Artist',
           artworkUrl: song.coverUrl ?? '',
+          loudness: (song as any).loudness ?? null,
         }, requestId);
 
         if (requestId !== this.playbackRequestId) return false;
@@ -550,7 +565,14 @@ export class PlaybackService {
       PlaybackEngine.getInstance().attachMediaElement(activeAudio);
       RendererManager.getInstance().registerRenderer('audio', activeAudio);
 
-      activeAudio.volume = store.isMuted ? 0 : store.volume;
+      let volumeMultiplier = 1.0;
+      if (store.loudnessNormalizationEnabled && song && (song as any).loudness !== undefined && (song as any).loudness !== null) {
+        const targetLoudness = -14.0;
+        const dbGain = targetLoudness - (song as any).loudness;
+        const clampedDbGain = Math.min(6.0, dbGain); // Limit boost to +6dB
+        volumeMultiplier = Math.pow(10, clampedDbGain / 20);
+      }
+      activeAudio.volume = Math.max(0, Math.min(1, (store.isMuted ? 0 : store.volume) * volumeMultiplier));
 
       if (requestId !== this.playbackRequestId) {
         console.log(`[PlaybackService] Discarding stale loaded state for req #${requestId} (current #${this.playbackRequestId})`);

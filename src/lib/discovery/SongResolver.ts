@@ -5,6 +5,7 @@ import { InternetDateScraper } from './InternetDateScraper';
 import { getApiUrl } from '@/lib/config/apiConfig';
 import { isOfflineMode } from '@/context/usePlayerStore';
 import { RaagaDB, STORES } from '@/lib/storage/IndexedDB';
+import { RequestDeduplicator } from '@/lib/network/RequestDeduplicator';
 
 export class SongResolver {
   /**
@@ -143,16 +144,24 @@ export class SongResolver {
         const { error: songError } = await supabase
           .from('canonical_songs')
           .upsert(
-            resolved.map((s: any) => ({
-              id: s.id,
-              title: s.title,
-              artist: s.artist,
-              album: s.album,
-              language: s.language,
-              cover_url: s.coverUrl,
-              duration: s.duration,
-              raw_data: s.downloadUrl // Storing download URLs as JSONB
-            })),
+            resolved.map((s: any) => {
+              let audioUrl = '';
+              if (s.downloadUrl && Array.isArray(s.downloadUrl)) {
+                const highest = s.downloadUrl.find((d: any) => d.quality === '320kbps') || s.downloadUrl[s.downloadUrl.length - 1];
+                audioUrl = highest?.url || '';
+              }
+              return {
+                id: s.id,
+                title: s.title,
+                artist: s.artist,
+                album: s.album,
+                language: s.language,
+                cover_url: s.coverUrl,
+                duration: s.duration,
+                playable_url: audioUrl,
+                playable_url_expires_at: audioUrl ? new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString() : null
+              };
+            }),
             { onConflict: 'id' }
           );
 
@@ -263,15 +272,23 @@ export class SongResolver {
       } catch {}
     } else {
       try {
-        const { data, error } = await supabase
-          .from('canonical_songs')
-          .select('*')
-          .in('id', missingIds);
+        const dedupeKey = `resolve_db_${[...missingIds].sort().join(',')}`;
+        const data = await RequestDeduplicator.getInstance().dedupe(dedupeKey, async () => {
+          const { data: resData, error: resError } = await supabase
+            .from('canonical_songs')
+            .select('id, title, artist, album, language, cover_url, duration, playable_url, playable_url_expires_at, release_date')
+            .in('id', missingIds);
+          if (resError) throw resError;
+          return resData;
+        });
           
-        if (!error && data) {
+        if (data) {
           data.forEach((s: any) => {
             let audioUrl = '';
-            if (s.raw_data && Array.isArray(s.raw_data)) {
+            const isUrlExpired = s.playable_url_expires_at && new Date(s.playable_url_expires_at).getTime() < Date.now();
+            if (s.playable_url && !isUrlExpired) {
+              audioUrl = s.playable_url;
+            } else if (s.raw_data && Array.isArray(s.raw_data)) {
               const highest = s.raw_data.find((d: any) => d.quality === '320kbps') || s.raw_data[s.raw_data.length - 1];
               audioUrl = highest?.url || '';
             }
@@ -315,7 +332,7 @@ export class SongResolver {
           const fetchPromises = batches.map(async (batch) => {
             try {
               const url = getApiUrl(`/api/songs?ids=${encodeURIComponent(batch.join(','))}`);
-              const res = await fetch(url);
+              const res = await RequestDeduplicator.getInstance().dedupe(url, () => fetch(url));
               if (res.ok) {
                 const json = await res.json();
                 return json.data || [];

@@ -79,6 +79,10 @@ const NOT_INTERESTED_KEY = 'raagax_not_interested_songs_v1';
 export class PersonalizationEngine {
   private static instance: PersonalizationEngine;
 
+  public static configureWeights(customWeights: Partial<typeof RANKING_WEIGHTS>) {
+    Object.assign(RANKING_WEIGHTS, customWeights);
+  }
+
   private tasteProfile: UserTasteProfile = {
     artistScores: {},
     genreScores: {},
