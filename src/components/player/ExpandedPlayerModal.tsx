@@ -276,11 +276,10 @@ export function ExpandedPlayerModal() {
       }
 
       switch (e.code) {
-        case 'Space':
-          e.preventDefault();
-          haptics.mediumImpact();
-          togglePlayPause();
-          break;
+        // NOTE: Space (play/pause) is intentionally NOT handled here.
+        // It is handled globally by useGlobalKeyboardShortcuts (registered once
+        // at the app root in page.tsx). Handling it here too caused a
+        // double-toggle: pause → immediately resume from one physical key press.
         case 'ArrowLeft':
           e.preventDefault();
           haptics.lightImpact();
@@ -342,7 +341,6 @@ export function ExpandedPlayerModal() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     isPlayerExpanded,
-    togglePlayPause,
     playPrev,
     playNext,
     currentTime,

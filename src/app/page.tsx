@@ -58,6 +58,8 @@ import { useDownloadStore } from '@/context/useDownloadStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
 
+import { useGlobalKeyboardShortcuts } from '@/hooks/useGlobalKeyboardShortcuts';
+
 export default function Page() {
   const {
     activeTab,
@@ -82,6 +84,10 @@ export default function Page() {
   React.useEffect(() => {
     useAuthStore.getState().initializeAuth();
   }, []);
+
+  // ── Global keyboard shortcuts (Space = play/pause, arrows = seek/volume, etc.)
+  // Registered exactly once at the app root via AbortController — never duplicated.
+  useGlobalKeyboardShortcuts();
 
   // Android Predictive Back Gesture & Navigation Hierarchy
   React.useEffect(() => {

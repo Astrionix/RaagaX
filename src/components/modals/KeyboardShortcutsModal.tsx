@@ -2,85 +2,24 @@
 
 import React, { useState, useEffect } from 'react';
 import { Keyboard, X } from 'lucide-react';
-import { usePlayerStore } from '@/context/usePlayerStore';
 
 export function KeyboardShortcutsModal() {
   const [isOpen, setIsOpen] = useState(false);
-  const { 
-    togglePlayPause, 
-    playNext, 
-    playPrev, 
-    toggleMute, 
-    toggleLyrics, 
-    toggleQueue,
-    toggleShuffle,
-    cycleRepeatMode,
-    volume,
-    setVolume,
-    currentTime,
-    duration,
-    setCurrentTime,
-  } = usePlayerStore();
+  // Only ? shortcut lives here — all media shortcuts (Space, arrows, etc.) are
+  // handled centrally in useGlobalKeyboardShortcuts, mounted in page.tsx.
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore keybindings inside input fields or editable content
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement).tagName) || (e.target as HTMLElement).isContentEditable) return;
-
       if (e.key === '?') {
         setIsOpen((prev) => !prev);
-      } else if (e.key === ' ' || e.code === 'Space') {
-        e.preventDefault();
-        togglePlayPause();
-      } else if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        const cur = usePlayerStore.getState().currentTime;
-        const newTime = Math.max(0, cur - 5);
-        setCurrentTime(newTime, true);
-        usePlayerStore.setState({ seekTarget: newTime });
-      } else if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        const cur = usePlayerStore.getState().currentTime;
-        const dur = usePlayerStore.getState().duration || 100;
-        const newTime = Math.min(dur, cur + 5);
-        setCurrentTime(newTime, true);
-        usePlayerStore.setState({ seekTarget: newTime });
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        const curVol = usePlayerStore.getState().volume;
-        setVolume(Math.min(1, parseFloat((curVol + 0.05).toFixed(2))));
-      } else if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        const curVol = usePlayerStore.getState().volume;
-        setVolume(Math.max(0, parseFloat((curVol - 0.05).toFixed(2))));
-      } else if (e.key === 'N' || e.key === 'n') {
-        playNext();
-      } else if (e.key === 'P' || e.key === 'p') {
-        playPrev();
-      } else if (e.key === 'M' || e.key === 'm') {
-        toggleMute();
-      } else if (e.key === 'S' || e.key === 's') {
-        toggleShuffle();
-      } else if (e.key === 'R' || e.key === 'r') {
-        cycleRepeatMode();
-      } else if (e.key === 'L' || e.key === 'l') {
-        toggleLyrics();
-      } else if (e.key === 'Q' || e.key === 'q') {
-        toggleQueue();
-      } else if (e.key === '/') {
-        e.preventDefault();
-        const searchInput = document.getElementById('sidebar-search-input') as HTMLInputElement | null;
-        if (searchInput) {
-          usePlayerStore.getState().setActiveTab('search');
-          searchInput.focus();
-          searchInput.select();
-        }
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlayPause, playNext, playPrev, toggleMute, toggleShuffle, cycleRepeatMode, toggleLyrics, toggleQueue, setVolume, setCurrentTime]);
+    // Intentionally empty deps: handler references only stable setState.
+  }, []);
 
   const [mounted, setMounted] = useState(false);
 
