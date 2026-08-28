@@ -1201,6 +1201,10 @@ public class RaagaXPlaybackService extends Service {
         playUrl("", url, title, artist, artworkUrl, Double.NaN);
     }
 
+    public void playUrl(String trackId, String url, String title, String artist, String artworkUrl) {
+        playUrl(trackId, url, title, artist, artworkUrl, Double.NaN);
+    }
+
     public void playUrl(String trackId, String url, String title, String artist, String artworkUrl, double loudness) {
         runOnMainThread(() -> {
             if (player == null) return;
