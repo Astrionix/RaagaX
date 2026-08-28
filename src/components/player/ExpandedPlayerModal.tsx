@@ -253,8 +253,13 @@ export function ExpandedPlayerModal() {
 
   const normRepeat = String(repeatMode).toUpperCase();
 
-  const composer = currentSong?.credits?.composer || currentSong?.artist || 'Various Artists';
-  const lyricist = currentSong?.credits?.lyricist || currentSong?.artist || 'RaagaX Catalog';
+  const composer = (currentSong?.credits?.composer && currentSong.credits.composer !== 'Various Artists')
+    ? currentSong.credits.composer
+    : (currentSong?.artist || 'Various Artists');
+  const rawLyricist = currentSong?.credits?.lyricist;
+  const lyricist = (rawLyricist && rawLyricist !== 'RaagaX Catalog')
+    ? rawLyricist
+    : (currentSong?.artist || 'Various Artists');
   const label = currentSong?.credits?.label || 'Sony / Aditya Music';
   const releaseYear = currentSong?.releaseYear || (currentSong?.releaseDate ? parseInt(currentSong.releaseDate.slice(0, 4)) : 2026);
 
@@ -565,7 +570,7 @@ export function ExpandedPlayerModal() {
                   <div className="flex items-center">
                     <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
                       <Mic2 className="w-4 h-4 text-white/40" />
-                      <span>Lyrics</span>
+                      <span>Lyricist</span>
                     </div>
                     <span className="text-white/90 font-medium truncate">{lyricist}</span>
                   </div>
@@ -1217,7 +1222,7 @@ export function ExpandedPlayerModal() {
                       <div className="flex items-center">
                         <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
                           <Mic2 className="w-4 h-4 text-white/40" />
-                          <span>Lyrics</span>
+                          <span>Lyricist</span>
                         </div>
                         <span className="text-white/90 font-medium truncate">{lyricist}</span>
                       </div>

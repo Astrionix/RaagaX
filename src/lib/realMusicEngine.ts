@@ -351,10 +351,16 @@ export class RealMusicEngine {
           { time: 25, text: `Album: ${albumName}` },
         ],
         credits: {
-          composer: artist,
-          lyricist: 'RaagaX Catalog',
+          composer: (() => {
+            const raw = track.composer || track.more_info?.music || track.more_info?.composer || track.artists?.all?.find((a: any) => a.role?.toLowerCase?.().includes('music') || a.role?.toLowerCase?.().includes('composer'))?.name;
+            return raw ? decode(raw) : artist;
+          })(),
+          lyricist: (() => {
+            const raw = track.lyricist || track.lyrics_by || track.more_info?.lyricist || track.more_info?.lyrics_by || track.artists?.all?.find((a: any) => a.role?.toLowerCase?.().includes('lyric') || a.role?.toLowerCase?.().includes('writer'))?.name;
+            return raw ? decode(raw) : artist;
+          })(),
           singers: pa.map((a: any) => decode(a.name)),
-          label: track.label || 'Sony / Aditya Music',
+          label: track.label || track.more_info?.label || 'Sony / Aditya Music',
         },
       };
     }).filter((song: Song) => {

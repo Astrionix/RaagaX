@@ -93,10 +93,16 @@ export function mapTrackToSong(track: any, idx: number = 0): Song {
       { time: 0, text: `${cleanTitle} — Audio Stream` },
     ],
     credits: {
-      composer: artist,
-      lyricist: 'RaagaX Catalog',
+      composer: (() => {
+        const raw = track.more_info?.music || track.more_info?.composer || track.composer || track.more_info?.artistMap?.artists?.find((a: any) => a.role?.toLowerCase?.().includes('music') || a.role?.toLowerCase?.().includes('composer'))?.name;
+        return raw ? SongFormatter.decodeHtml(raw) : artist;
+      })(),
+      lyricist: (() => {
+        const raw = track.more_info?.lyricist || track.more_info?.lyrics_by || track.lyricist || track.lyrics_by || track.more_info?.artistMap?.artists?.find((a: any) => a.role?.toLowerCase?.().includes('lyric') || a.role?.toLowerCase?.().includes('writer'))?.name;
+        return raw ? SongFormatter.decodeHtml(raw) : artist;
+      })(),
       singers: pa.map((a: any) => SongFormatter.decodeHtml(a.name)),
-      label: track.label || 'Sony / Aditya Music',
+      label: track.more_info?.label || track.label || 'Sony / Aditya Music',
     },
   };
 }

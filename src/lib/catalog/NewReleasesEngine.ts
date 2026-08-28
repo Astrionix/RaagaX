@@ -724,7 +724,12 @@ export class NewReleasesEngine {
           sampleRate: '48 kHz',
           codec: 'AAC HQ Stream',
           lyrics: [],
-          credits: { composer: artist, lyricist: 'RaagaX Catalog', singers: [artist], label: it.more_info?.label || 'Aditya Music / Sony' }
+          credits: {
+            composer: it.more_info?.music || it.more_info?.composer || it.composer || artist,
+            lyricist: it.more_info?.lyricist || it.more_info?.lyrics_by || it.lyricist || artist,
+            singers: [artist],
+            label: it.more_info?.label || 'Aditya Music / Sony'
+          }
         } as Song;
       });
 
