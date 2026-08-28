@@ -305,19 +305,31 @@ export class SongResolver {
               duration: Number(s.duration) || 0,
               genre: 'Telugu',
               category: 'latest_telugu',
-              releaseYear: 2024,
+              releaseYear: s.release_date ? new Date(s.release_date).getFullYear() : 2024,
+              releaseDate: s.release_date || null,
               plays: 1000,
               likes: 100,
             });
           });
         }
 
-        // Check which IDs still need full metadata
+        // Check which IDs still need full metadata OR have missing artwork
         const foundSet = new Set(newlyResolved.map(s => s.id));
         const apiMissingIds: string[] = [];
         missingIds.forEach(id => {
-          if (!foundSet.has(id) && !resolved.some(s => s.id === id)) {
+          const resolvedLocally = resolved.find(s => s.id === id);
+          const resolvedNew = newlyResolved.find(s => s.id === id);
+          const song = resolvedLocally || resolvedNew;
+          
+          const hasInvalidCover = !song || !song.coverUrl || song.coverUrl.includes('/null/') || song.coverUrl === '/app-icon.png';
+          if (hasInvalidCover) {
             apiMissingIds.push(id);
+            // If it was already in newlyResolved, remove it so we overwrite it with full provider metadata
+            if (resolvedNew) {
+              const idx = newlyResolved.findIndex(s => s.id === id);
+              if (idx !== -1) newlyResolved.splice(idx, 1);
+              foundSet.delete(id);
+            }
           }
         });
 
@@ -379,10 +391,27 @@ export class SongResolver {
 
     resolved.push(...newlyResolved);
 
-    // Re-order resolved array to match the input songIds sequence
+    // Re-order resolved array to match the input songIds sequence, providing fallbacks for unresolved songs
     const resolvedMap = new Map(resolved.map(s => [s.id, s]));
-    return songIds
-      .map(id => resolvedMap.get(id))
-      .filter((s): s is Song => Boolean(s));
+    return songIds.map(id => {
+      const found = resolvedMap.get(id);
+      if (found) return found;
+      return {
+        id,
+        title: 'Unknown Track',
+        artist: 'Unknown Artist',
+        artistId: '',
+        album: 'Unknown Album',
+        albumId: '',
+        coverUrl: '/app-icon.png',
+        audioUrl: '',
+        duration: 180,
+        genre: 'Unknown',
+        category: 'global_trending',
+        releaseYear: new Date().getFullYear(),
+        plays: 0,
+        likes: 1
+      } as Song;
+    });
   }
 }

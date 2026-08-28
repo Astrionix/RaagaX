@@ -154,7 +154,7 @@ export class LibrarySyncManager {
       try {
         // Fetch both the liked songs and the user's library revision
         const [songsResult, stateResult] = await Promise.all([
-          supabase.from('liked_songs').select('song_id').eq('user_id', this.userId),
+          supabase.from('liked_songs').select('song_id').eq('user_id', this.userId).order('created_at', { ascending: false }),
           supabase.from('user_library_state').select('revision').eq('user_id', this.userId).maybeSingle()
         ]);
 

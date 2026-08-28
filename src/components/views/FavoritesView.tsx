@@ -35,7 +35,7 @@ export function FavoritesView() {
   const [offlineTracks, setOfflineTracks] = useState<Song[]>([]);
   const [resolvedSongsMap, setResolvedSongsMap] = useState<Record<string, Song>>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const resolvingRef = useRef<boolean>(false);
+  const attemptedRef = useRef<Set<string>>(new Set());
 
   // Sorting & Filtering state
   const [sortBy, setSortBy] = useState<LikedSongSortOption>(() => {
@@ -152,10 +152,13 @@ export function FavoritesView() {
   // Automatically fetch metadata for any liked song IDs not yet in memory
   useEffect(() => {
     if (likedSongIds.length === 0) return;
-    const missingIds = likedSongIds.filter((id) => !knownMap.has(id));
-    if (missingIds.length === 0 || resolvingRef.current) return;
+    const missingIds = likedSongIds.filter((id) => !knownMap.has(id) && !attemptedRef.current.has(id));
+    if (missingIds.length === 0) return;
 
-    resolvingRef.current = true;
+    // Mark missing IDs as attempted immediately to prevent duplicate runs
+    missingIds.forEach((id) => attemptedRef.current.add(id));
+
+    setIsLoading(true);
     SongResolver.resolveSongs(missingIds)
       .then((songs) => {
         if (songs && songs.length > 0) {
@@ -168,18 +171,37 @@ export function FavoritesView() {
           setResolvedSongsMap((prev) => ({ ...prev, ...newEntries }));
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.error('[FavoritesView] Error resolving songs:', err);
+      })
       .finally(() => {
         setIsLoading(false);
-        resolvingRef.current = false;
       });
-  }, [likedSongIds]);
+  }, [likedSongIds, resolvedSongsMap, likedSongs, offlineTracks]);
 
   // Construct resolved liked songs list in exact reverse chronological order
   const resolvedLikedSongs: Song[] = useMemo(() => {
     return likedSongIds
-      .map((id) => knownMap.get(id))
-      .filter((s): s is Song => Boolean(s))
+      .map((id) => {
+        const song = knownMap.get(id);
+        if (song) return song;
+        return {
+          id,
+          title: 'Unknown Track',
+          artist: 'Unknown Artist',
+          artistId: '',
+          album: 'Unknown Album',
+          albumId: '',
+          coverUrl: '/app-icon.png',
+          audioUrl: '',
+          duration: 180,
+          genre: 'Unknown',
+          category: 'global_trending',
+          releaseYear: new Date().getFullYear(),
+          plays: 0,
+          likes: 1
+        } as Song;
+      })
       .map((song) => {
         const cover = song.coverUrl && !song.coverUrl.includes('/null/') ? song.coverUrl : '/app-icon.png';
         return {

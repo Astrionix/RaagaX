@@ -1570,11 +1570,11 @@ export const usePlayerStore = create<PlayerState>()(
         const isLiked = get().likedSongIds.includes(songId);
         const targetSong = get().currentSong?.id === songId ? get().currentSong : get().queue.find((s) => s?.id === songId);
 
-        // Optimistic UI update for both IDs and full song objects
+        // Optimistic UI update for both IDs and full song objects (prepend to keep newest first)
         set((state) => {
           const newLikedIds = isLiked
             ? state.likedSongIds.filter((id) => id !== songId)
-            : [...state.likedSongIds, songId];
+            : [songId, ...state.likedSongIds];
 
           const newLikedSongs = isLiked
             ? state.likedSongs.filter((s) => s.id !== songId)
@@ -1587,6 +1587,25 @@ export const usePlayerStore = create<PlayerState>()(
 
           return { likedSongIds: newLikedIds, likedSongs: newLikedSongs, librarySongIds: newLibraryIds };
         });
+
+        // Background metadata resolution for newly liked songs
+        if (!isLiked) {
+          import('@/lib/discovery/SongResolver').then(async ({ SongResolver }) => {
+            try {
+              const resolved = await SongResolver.resolveSongs([songId]);
+              if (resolved.length > 0) {
+                set((state) => {
+                  if (state.likedSongIds.includes(songId) && !state.likedSongs.some(s => s.id === songId)) {
+                    return { likedSongs: [resolved[0], ...state.likedSongs] };
+                  }
+                  return {};
+                });
+              }
+            } catch (err) {
+              console.warn('[usePlayerStore] Background like resolution failed:', err);
+            }
+          }).catch(() => {});
+        }
 
         if (!isLiked && targetSong) {
           const songLang = LanguageEligibilityEngine.getInstance().detectSongLanguage(targetSong);

@@ -325,16 +325,24 @@ export class AccountSyncEngine {
         const localRevision = await localDb.getUserStore<number>(userId, 'library_revision') || 0;
         const currentLikedSongIds = usePlayerStore.getState().likedSongIds || [];
 
-        // If revisions match and we already have cached liked songs, skip pulling
-        if (!revError && revData && remoteRevision === localRevision && currentLikedSongIds.length > 0) {
-          console.log(`[AccountSyncEngine] Local revision (${localRevision}) matches remote revision (${remoteRevision}). Skipping DB queries.`);
+        // If revisions match, restore cached liked songs list and metadata from IndexedDB to skip DB queries
+        if (!revError && revData && remoteRevision === localRevision) {
+          const cachedIds = await localDb.getUserStore<string[]>(userId, 'liked_songs') || [];
+          console.log(`[AccountSyncEngine] Local revision (${localRevision}) matches remote revision (${remoteRevision}). Restoring ${cachedIds.length} cached liked songs.`);
           
+          usePlayerStore.setState({ likedSongIds: cachedIds });
+          
+          // Load metadata from IndexedDB cache
+          const { SongResolver } = await import('@/lib/discovery/SongResolver');
+          const resolved = await SongResolver.resolveSongs(cachedIds);
+          usePlayerStore.setState({ likedSongs: resolved });
+
           // Verify local download files count as requested
           const catalog = OfflineCatalog.getInstance();
           const allLocalTracks = await catalog.getAllTracks();
           const localIds = allLocalTracks.map((t) => t.trackId);
           usePlayerStore.setState({ downloadedSongIds: localIds });
-          return currentLikedSongIds;
+          return cachedIds;
         }
 
         console.log(`[AccountSyncEngine] Reconciling library. Local revision: ${localRevision}, Remote revision: ${remoteRevision}`);
@@ -343,7 +351,8 @@ export class AccountSyncEngine {
         const { data: likedData, error: likedError } = await supabase
           .from('liked_songs')
           .select('song_id')
-          .eq('user_id', userId);
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
 
         if (!likedError && likedData) {
           const songIds = likedData.map((row: any) => row.song_id);
@@ -486,7 +495,8 @@ export class AccountSyncEngine {
         const { data, error } = await supabase
           .from('liked_songs')
           .select('song_id')
-          .eq('user_id', userId);
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
 
         if (!error && data) {
           const songIds = data.map((row: any) => row.song_id);
