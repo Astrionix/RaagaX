@@ -681,8 +681,8 @@ export function LibraryView() {
           </div>
         )}
 
-        {/* Play, Shuffle & Download All Header Actions (3 Side-by-Side) */}
-        <div className={`grid gap-2 w-full pt-2 pb-1 ${tab === 'liked' ? 'grid-cols-3' : 'grid-cols-2 max-w-xs'}`}>
+        {/* Play, Shuffle & Download All Header Actions (3 Side-by-Side on Mobile) */}
+        <div className={`grid gap-2 w-full pt-2 pb-1 ${tab === 'liked' ? 'grid-cols-3 md:grid-cols-2 md:max-w-xs' : 'grid-cols-2 max-w-xs'}`}>
           <button
             onClick={() => handlePlayAll(displaySongs, false)}
             className="h-10 px-2 sm:px-4 rounded-full bg-[#FA233B] hover:bg-[#D90429] active:scale-95 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-[#FA233B]/25 transition-all cursor-pointer min-w-0"
@@ -698,11 +698,11 @@ export function LibraryView() {
             <span className="truncate">Shuffle</span>
           </button>
 
-          {isNative && tab === 'liked' && (
+          {tab === 'liked' && (
             <button
               onClick={handleDownloadAll}
               disabled={isAllDownloaded || isDownloading}
-              className={`h-10 px-1.5 sm:px-3 rounded-full font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 border transition-all cursor-pointer min-w-0 ${
+              className={`md:hidden h-10 px-1.5 sm:px-3 rounded-full font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 border transition-all cursor-pointer min-w-0 ${
                 isAllDownloaded
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 opacity-90 cursor-default'
                   : isDownloading
@@ -724,7 +724,7 @@ export function LibraryView() {
               ) : (
                 <>
                   <Download className="w-3.5 h-3.5 text-slate-950 stroke-[2.5] flex-shrink-0" />
-                  <span className="truncate">Download ({pendingDownloads.length})</span>
+                  <span className="truncate">Download{pendingDownloads.length > 0 ? ` (${pendingDownloads.length})` : ''}</span>
                 </>
               )}
             </button>

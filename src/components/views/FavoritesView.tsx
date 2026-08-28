@@ -347,7 +347,7 @@ export function FavoritesView() {
 
         {/* Play All, Shuffle & Download All Buttons */}
         {displaySongs.length > 0 && (
-          <div className="grid grid-cols-3 gap-2 w-full max-w-md">
+          <div className="grid grid-cols-3 sm:grid-cols-2 md:grid-cols-2 gap-2 w-full max-w-md sm:max-w-xs">
             <button
               onClick={() => handlePlayAll(false)}
               className="h-10 px-2 sm:px-4 rounded-full bg-[#FA233B] hover:bg-[#D90429] active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-[#FA233B]/25 transition-all cursor-pointer min-w-0"
@@ -365,18 +365,18 @@ export function FavoritesView() {
               <Shuffle className="w-3.5 h-3.5 text-slate-200 flex-shrink-0" />
               <span className="truncate">Shuffle</span>
             </button>
-            {isNative && pendingDownloadsCount > 0 && (
+            {pendingDownloadsCount > 0 && (
               <button
                 onClick={handleDownloadAll}
-                className="h-10 px-1.5 sm:px-3 rounded-full bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-slate-950 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/25 transition-all cursor-pointer min-w-0"
+                className="md:hidden h-10 px-1.5 sm:px-3 rounded-full bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-slate-950 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/25 transition-all cursor-pointer min-w-0"
                 title="Download all liked songs for offline listening"
               >
                 <Download className="w-3.5 h-3.5 stroke-[2.5] flex-shrink-0" />
                 <span className="truncate">Download ({pendingDownloadsCount})</span>
               </button>
             )}
-            {isNative && pendingDownloadsCount === 0 && (
-              <div className="h-10 px-1.5 sm:px-3 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 min-w-0">
+            {pendingDownloadsCount === 0 && (
+              <div className="md:hidden h-10 px-1.5 sm:px-3 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 min-w-0">
                 <Check className="w-3.5 h-3.5 stroke-[2.5] flex-shrink-0" />
                 <span className="truncate">Downloaded</span>
               </div>
