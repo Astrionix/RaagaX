@@ -34,6 +34,12 @@ export function LibraryView() {
   const [resolvedSongsMap, setResolvedSongsMap] = useState<Record<string, Song>>({});
   const [playlistSortBy, setPlaylistSortBy] = useState<'updated' | 'name' | 'count'>('updated');
   const [activeFilterChip, setActiveFilterChip] = useState<string>('all');
+  // Sort state for Liked Songs sub-view (mobile)
+  const [likedSortBy, setLikedSortBy] = useState<'recently_liked' | 'az' | 'artist' | 'release_newest' | 'release_oldest'>('recently_liked');
+  const [showLikedSortMenu, setShowLikedSortMenu] = useState(false);
+  // Sort state for Listening History sub-view (mobile)
+  const [historySortBy, setHistorySortBy] = useState<'recently_played' | 'az' | 'artist'>('recently_played');
+  const [showHistorySortMenu, setShowHistorySortMenu] = useState(false);
   const attemptedMissingIdsRef = useRef<Set<string>>(new Set());
   const { user } = useAuthStore();
 
@@ -424,19 +430,154 @@ export function LibraryView() {
       }
     };
 
+    // ── Determine which sort controls to show and which state to use ──────────
+    const isLikedTab = tab === 'liked';
+    const isHistoryTab = tab === 'history';
+    const showSortControls = isLikedTab || isHistoryTab;
+
+    // Sort options per tab
+    const likedSortOptions = [
+      { value: 'recently_liked', label: 'Recently Liked' },
+      { value: 'az', label: 'Title — A–Z' },
+      { value: 'artist', label: 'Artist — A–Z' },
+      { value: 'release_newest', label: 'Release — Newest' },
+      { value: 'release_oldest', label: 'Release — Oldest' },
+    ] as const;
+    const historySortOptions = [
+      { value: 'recently_played', label: 'Recently Played' },
+      { value: 'az', label: 'Title — A–Z' },
+      { value: 'artist', label: 'Artist — A–Z' },
+    ] as const;
+
+    // Current sort option label
+    const currentLikedLabel = likedSortOptions.find((o) => o.value === likedSortBy)?.label ?? 'Recently Liked';
+    const currentHistoryLabel = historySortOptions.find((o) => o.value === historySortBy)?.label ?? 'Recently Played';
+
+    // ── Apply sort to the songs list ──────────────────────────────────────────
+    let sortedSongs = [...songs];
+    if (isLikedTab) {
+      switch (likedSortBy) {
+        case 'recently_liked':
+          // likedSongs preserves likedSongIds order (newest first from store)
+          break;
+        case 'az':
+          sortedSongs.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+          break;
+        case 'artist':
+          sortedSongs.sort((a, b) => (a.artist || '').localeCompare(b.artist || ''));
+          break;
+        case 'release_newest':
+          sortedSongs.sort((a, b) => (b.releaseYear || 0) - (a.releaseYear || 0));
+          break;
+        case 'release_oldest':
+          sortedSongs.sort((a, b) => (a.releaseYear || 0) - (b.releaseYear || 0));
+          break;
+      }
+    } else if (isHistoryTab) {
+      switch (historySortBy) {
+        case 'recently_played':
+          // historySongs preserves historySongIds order (newest first)
+          break;
+        case 'az':
+          sortedSongs.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+          break;
+        case 'artist':
+          sortedSongs.sort((a, b) => (a.artist || '').localeCompare(b.artist || ''));
+          break;
+      }
+    }
+
     return (
       <div className="space-y-4">
+        {/* ── SORT CONTROLS (Liked Songs & History only) ─────────────────── */}
+        {showSortControls && (
+          <div className="relative z-20">
+            {isLikedTab && (
+              <>
+                {showLikedSortMenu && (
+                  <div className="fixed inset-0 z-20" onClick={() => setShowLikedSortMenu(false)} />
+                )}
+                <button
+                  onClick={() => setShowLikedSortMenu((v) => !v)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer"
+                >
+                  <ArrowUpDown className="w-3.5 h-3.5 text-[#FA233B]" />
+                  <span>Sort: {currentLikedLabel} ▾</span>
+                </button>
+                {showLikedSortMenu && (
+                  <div className="absolute left-0 top-full mt-1.5 w-52 bg-[#141520] border border-white/15 rounded-xl p-1.5 shadow-2xl z-30 text-xs animate-in zoom-in-95 duration-100">
+                    {likedSortOptions.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => {
+                          haptics.lightImpact();
+                          setLikedSortBy(opt.value);
+                          setShowLikedSortMenu(false);
+                        }}
+                        className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors flex items-center justify-between cursor-pointer ${
+                          likedSortBy === opt.value
+                            ? 'bg-[#FA233B]/20 text-red-400 font-bold'
+                            : 'hover:bg-white/10 text-slate-300 hover:text-white'
+                        }`}
+                      >
+                        <span>{opt.label}</span>
+                        {likedSortBy === opt.value && <Check className="w-3.5 h-3.5 text-[#FA233B] stroke-[3]" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+            {isHistoryTab && (
+              <>
+                {showHistorySortMenu && (
+                  <div className="fixed inset-0 z-20" onClick={() => setShowHistorySortMenu(false)} />
+                )}
+                <button
+                  onClick={() => setShowHistorySortMenu((v) => !v)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer"
+                >
+                  <ArrowUpDown className="w-3.5 h-3.5 text-[#FA233B]" />
+                  <span>Sort: {currentHistoryLabel} ▾</span>
+                </button>
+                {showHistorySortMenu && (
+                  <div className="absolute left-0 top-full mt-1.5 w-52 bg-[#141520] border border-white/15 rounded-xl p-1.5 shadow-2xl z-30 text-xs animate-in zoom-in-95 duration-100">
+                    {historySortOptions.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => {
+                          haptics.lightImpact();
+                          setHistorySortBy(opt.value);
+                          setShowHistorySortMenu(false);
+                        }}
+                        className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors flex items-center justify-between cursor-pointer ${
+                          historySortBy === opt.value
+                            ? 'bg-[#FA233B]/20 text-red-400 font-bold'
+                            : 'hover:bg-white/10 text-slate-300 hover:text-white'
+                        }`}
+                      >
+                        <span>{opt.label}</span>
+                        {historySortBy === opt.value && <Check className="w-3.5 h-3.5 text-[#FA233B] stroke-[3]" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
         {/* Play, Shuffle & Download All Header Actions (3 Side-by-Side) */}
         <div className={`grid gap-2 w-full pt-2 pb-1 ${tab === 'liked' ? 'grid-cols-3' : 'grid-cols-2 max-w-xs'}`}>
           <button
-            onClick={() => handlePlayAll(songs, false)}
+            onClick={() => handlePlayAll(sortedSongs, false)}
             className="h-10 px-2 sm:px-4 rounded-full bg-[#FA233B] hover:bg-[#D90429] active:scale-95 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-[#FA233B]/25 transition-all cursor-pointer min-w-0"
           >
             <Play className="w-3.5 h-3.5 fill-white flex-shrink-0" />
             <span className="truncate">Play All</span>
           </button>
           <button
-            onClick={() => handlePlayAll(songs, true)}
+            onClick={() => handlePlayAll(sortedSongs, true)}
             className="h-10 px-2 sm:px-4 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 border border-white/15 shadow-md transition-all cursor-pointer min-w-0"
           >
             <Shuffle className="w-3.5 h-3.5 text-slate-200 flex-shrink-0" />
@@ -477,7 +618,7 @@ export function LibraryView() {
         </div>
 
         <div className="space-y-2">
-          {songs.map((song, index) => {
+          {sortedSongs.map((song, index) => {
             const isSongDownloaded = downloadedSongIds.includes(song.id);
             const isBrowserOffline = typeof navigator !== 'undefined' && !navigator.onLine;
             const isAppOffline = isOfflineMode || isBrowserOffline;
@@ -504,7 +645,7 @@ export function LibraryView() {
                 >
                   <div
                     className="flex items-center gap-3.5 cursor-pointer flex-1 min-w-0 pr-3"
-                    onClick={() => { if (!isSongOfflineUnavailable) playSong(song, songs); }}
+                    onClick={() => { if (!isSongOfflineUnavailable) playSong(song, sortedSongs); }}
                   >
                     <img
                       src={song.coverUrl || '/app-icon.png'}
