@@ -561,7 +561,7 @@ export function HomeView() {
             {
               id: 'favorites-mix',
               label: 'Favorites Mix',
-              badge: `${likedSongs.length} LIKED`,
+              badge: 'LIKED',
               desc: 'Hearted songs on endless shuffle',
               gradient: 'from-pink-600/30 via-rose-950/20 to-black/60',
               accentColor: 'text-pink-400',
