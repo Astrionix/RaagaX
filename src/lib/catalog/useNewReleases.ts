@@ -79,7 +79,6 @@ export function useNewReleases(language: string = 'Telugu', limit = 50): UseNewR
   }, [engine, limit]);
 
   useEffect(() => {
-    // When language changes: check cache immediately
     const langCache = engine.getCachedSongs(normalizedLang);
     if (langCache && langCache.length > 0) {
       setSongs(langCache);
@@ -89,7 +88,15 @@ export function useNewReleases(language: string = 'Telugu', limit = 50): UseNewR
       setIsLoading(true);
     }
 
-    loadData(false);
+    // Check if the cached data is stale (> 30 min) to decide revalidation mode.
+    // If fresh: skip network fetch entirely. If stale or absent: revalidate in background.
+    const mem = (engine as any).constructor.languageCache?.get(normalizedLang);
+    const CLIENT_TTL = 30 * 60 * 1000;
+    const isFresh = mem && typeof mem.fetchedAt === 'number' && Date.now() - mem.fetchedAt < CLIENT_TTL;
+
+    if (!isFresh) {
+      loadData(false);
+    }
   }, [normalizedLang, loadData, engine]);
 
   const refresh = useCallback(async () => {

@@ -118,13 +118,17 @@ apiApp.get('/browse/new-releases', async (c) => {
     });
 
     const albumList = data?.data || [];
-    return c.json({
-      success: ok,
-      language,
-      page,
-      count: albumList.length,
-      data: albumList,
-    });
+    return c.json(
+      {
+        success: ok,
+        language,
+        page,
+        count: albumList.length,
+        data: albumList,
+      },
+      200,
+      { 'Cache-Control': 'public, s-maxage=1800, stale-while-revalidate=300' }
+    );
   } catch (err: any) {
     return c.json({ success: false, error: err?.message || 'Failed to fetch new releases', data: [] }, 500);
   }

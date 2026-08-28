@@ -100,6 +100,10 @@ export const SUPPORTED_LANGUAGES_LIST = [
 ];
 
 const STORAGE_KEY = 'raagax_advanced_catalog_v5';
+// Client-side persistent new-releases cache key (v3 adds fetchedAt TTL).
+// Intentionally bumped from v2 so stale entries without fetchedAt are ignored.
+const NEW_RELEASES_CACHE_VERSION = 'v3';
+const CLIENT_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes — matches server ISR TTL
 const TARGET_MINIMUM_SONGS = 50;
 const CURRENT_SYSTEM_YEAR = 2026;
 const NEW_RELEASE_LOOKBACK_DAYS = 90; // Freshness window: up to 90 days lookback
@@ -181,21 +185,28 @@ export class NewReleasesEngine {
   public getCachedSongs(language: string = 'Telugu'): Song[] | null {
     const cleanLang = (language || 'Telugu').trim().toLowerCase();
 
-    // 1. Check in-memory cache
+    // 1. Check in-memory cache (30-min TTL)
     const mem = NewReleasesEngine.languageCache.get(cleanLang);
     if (mem && Array.isArray(mem.songs) && mem.songs.length > 0) {
+      // Even if stale, return existing songs so UI renders immediately;
+      // fetchNewReleases() will revalidate in the background.
       return mem.songs;
     }
 
-    // 2. Check persistent localStorage cache
+    // 2. Check persistent localStorage cache (v3 format with fetchedAt)
     if (typeof window !== 'undefined') {
       try {
-        const raw = localStorage.getItem(`raagax_new_releases_v2_${cleanLang}`);
+        const raw = localStorage.getItem(`raagax_new_releases_${NEW_RELEASES_CACHE_VERSION}_${cleanLang}`);
         if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            NewReleasesEngine.languageCache.set(cleanLang, { songs: parsed, fetchedAt: Date.now() });
-            return parsed;
+          const parsed = JSON.parse(raw) as { songs: Song[]; fetchedAt: number };
+          if (parsed && Array.isArray(parsed.songs) && parsed.songs.length > 0) {
+            // Populate memory cache with persisted data regardless of age
+            // (age determines whether background revalidation fires, not whether we show data)
+            NewReleasesEngine.languageCache.set(cleanLang, {
+              songs: parsed.songs,
+              fetchedAt: parsed.fetchedAt ?? 0,
+            });
+            return parsed.songs;
           }
         }
       } catch {}
@@ -213,10 +224,10 @@ export class NewReleasesEngine {
   public async fetchNewReleases(language: string = 'Telugu', limit = 50, forceRefresh = false): Promise<Song[]> {
     const cleanLang = (language || 'Telugu').trim().toLowerCase();
 
-    // If cache is fresh (< 15 mins) and not forceRefresh, return immediately
+    // If cache is fresh (< 30 mins) and not forceRefresh, return immediately
     if (!forceRefresh) {
       const mem = NewReleasesEngine.languageCache.get(cleanLang);
-      if (mem && Date.now() - mem.fetchedAt < 900000 && mem.songs.length > 0) {
+      if (mem && Date.now() - mem.fetchedAt < CLIENT_CACHE_TTL_MS && mem.songs.length > 0) {
         return mem.songs;
       }
     }
@@ -290,10 +301,14 @@ export class NewReleasesEngine {
             fetchedAt: Date.now(),
           });
 
-          // Update persistent cache
+          // Update persistent cache (v3 format: { songs, fetchedAt })
           if (typeof window !== 'undefined') {
             try {
-              localStorage.setItem(`raagax_new_releases_v2_${cleanLang}`, JSON.stringify(finalResult));
+              const payload = { songs: finalResult, fetchedAt: Date.now() };
+              localStorage.setItem(
+                `raagax_new_releases_${NEW_RELEASES_CACHE_VERSION}_${cleanLang}`,
+                JSON.stringify(payload)
+              );
             } catch {}
           }
 
