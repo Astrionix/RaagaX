@@ -7,6 +7,10 @@ export interface Song {
   albumId: string;
   duration: number; // in seconds
   coverUrl: string;
+  albumCoverUrl?: string;
+  songCoverUrl?: string;
+  sourcePlaylistTitle?: string;
+  sourceContext?: string;
   audioUrl: string | null;
   playable?: boolean;
   sources?: {

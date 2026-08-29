@@ -59,6 +59,7 @@ import { InterruptionCoordinator } from '@/lib/playback/InterruptionCoordinator'
 import { PlaybackService } from '@/lib/playback/PlaybackService';
 import { RaagaXNativePlayer } from '@/lib/playback/native/RaagaXNativePlayer';
 import { SongCoverEngine } from '@/lib/playback/SongCoverEngine';
+import { JioSaavnMediaPipeline } from '@/lib/media/JioSaavnMediaPipeline';
 import { SongUniquenessEngine } from '@/lib/music/SongUniquenessEngine';
 import { SongFormatter } from '@/lib/music/SongFormatter';
 import { MediaSessionManager } from '@/lib/playback/MediaSessionManager';
@@ -913,9 +914,15 @@ export const usePlayerStore = create<PlayerState>()(
         if (!song) return;
         const currentQ = updatedQueue || get().queue;
         const finalIndex = queueIndex !== undefined ? queueIndex : get().queueIndex;
+        const resolvedCover = JioSaavnMediaPipeline.getInstance().resolveSongArtwork({
+          songCoverUrl: song.songCoverUrl,
+          albumCoverUrl: song.albumCoverUrl,
+          coverUrl: song.coverUrl,
+        }) || (JioSaavnMediaPipeline.getInstance().isDirectSongOrAlbumArtwork(song.coverUrl) ? SongCoverEngine.getInstance().formatRawCoverUrl(song.coverUrl) : '/app-icon.png');
+
         const formattedTrack: Song = {
           ...song,
-          coverUrl: SongCoverEngine.getInstance().formatRawCoverUrl(song.coverUrl),
+          coverUrl: resolvedCover,
         };
         const requestId = ++globalPlaybackRequestId;
         set({
@@ -955,9 +962,15 @@ export const usePlayerStore = create<PlayerState>()(
         PlaybackService.getInstance().setPlaybackRequestId(requestId);
         PlaybackService.getInstance().stopAllAudio();
 
+        const resolvedCover = JioSaavnMediaPipeline.getInstance().resolveSongArtwork({
+          songCoverUrl: track.songCoverUrl,
+          albumCoverUrl: track.albumCoverUrl,
+          coverUrl: track.coverUrl,
+        }) || (JioSaavnMediaPipeline.getInstance().isDirectSongOrAlbumArtwork(track.coverUrl) ? SongCoverEngine.getInstance().formatRawCoverUrl(track.coverUrl) : '/app-icon.png');
+
         const formattedTrack: Song = SongFormatter.formatSong({
           ...track,
-          coverUrl: SongCoverEngine.getInstance().formatRawCoverUrl(track.coverUrl),
+          coverUrl: resolvedCover,
         });
 
         console.log(`[PlaybackTransition] source="${formattedTrack.title}" oldTrackId="${oldSong?.id}" newTrackId="${formattedTrack.id}" oldQueueIndex=${oldIndex} newQueueIndex=${index} queueLength=${get().queue.length} transitionId=${requestId} playbackGeneration=${requestId}`);
@@ -1072,10 +1085,21 @@ export const usePlayerStore = create<PlayerState>()(
         lastPlayCallTimestamp = now;
         lastPlaySongId = song.id;
 
+        // Separate Source Playlist / Discovery Context from Song Identity
+        const sourcePlaylistName = context?.name || context?.title || (context?.type === 'PLAYLIST' ? context?.id : undefined);
+
+        const resolvedCover = JioSaavnMediaPipeline.getInstance().resolveSongArtwork({
+          songCoverUrl: song.songCoverUrl,
+          albumCoverUrl: song.albumCoverUrl,
+          coverUrl: song.coverUrl,
+        }) || (JioSaavnMediaPipeline.getInstance().isDirectSongOrAlbumArtwork(song.coverUrl) ? SongCoverEngine.getInstance().formatRawCoverUrl(song.coverUrl) : '/app-icon.png');
+
         // Upgrade coverUrl immediately to 500x500 HD & clean display text
         const activePlaySong: Song = SongFormatter.formatSong({
           ...song,
-          coverUrl: SongCoverEngine.getInstance().formatRawCoverUrl(song.coverUrl),
+          sourcePlaylistTitle: sourcePlaylistName,
+          sourceContext: context?.type || 'USER_CLICK',
+          coverUrl: resolvedCover,
         });
 
         // NOTE: navigator.onLine is intentionally NOT used here.
@@ -1084,7 +1108,7 @@ export const usePlayerStore = create<PlayerState>()(
         // Offline enforcement is handled downstream by PlaybackService + PlaybackSourceResolver
         // which use the explicit store.networkMode ('offline' | 'offline_forced') instead.
 
-        console.log(`[PLAY CALLED] songId=${activePlaySong.id} title="${activePlaySong.title}" artist="${activePlaySong.artist}" cover="${activePlaySong.coverUrl}" source=${context?.type || 'USER_CLICK'}`);
+        JioSaavnMediaPipeline.getInstance().inspectPipeline(activePlaySong, context);
         get().logCurrentTelemetry('skip');
 
         // 3-Tier Language System: Session Language Resolution
@@ -1844,7 +1868,7 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
       setSelectedArtistId: (id) => {
-        const safeId = id && id !== 'offline' ? id : null;
+        const safeId = id && id !== 'offline' && id !== 'unknown' ? id : null;
         set({ selectedArtistId: safeId, activeTab: 'artist' });
         NavigationStack.getInstance().push({
           activeTab: 'artist',
@@ -1853,12 +1877,12 @@ export const usePlayerStore = create<PlayerState>()(
           selectedPlaylistId: null,
           isPlayerExpanded: get().isPlayerExpanded,
         });
-        if (typeof window !== 'undefined') {
+        if (typeof window !== 'undefined' && safeId) {
           ScrollManager.getInstance().navigateTo(`artist:${safeId}`);
         }
       },
       setSelectedAlbumId: (id) => {
-        const safeId = id && id !== 'offline' ? id : null;
+        const safeId = id && id !== 'offline' && id !== 'unknown' ? id : null;
         set({ selectedAlbumId: safeId, activeTab: 'album' });
         NavigationStack.getInstance().push({
           activeTab: 'album',
@@ -1867,7 +1891,7 @@ export const usePlayerStore = create<PlayerState>()(
           selectedPlaylistId: null,
           isPlayerExpanded: get().isPlayerExpanded,
         });
-        if (typeof window !== 'undefined') {
+        if (typeof window !== 'undefined' && safeId) {
           ScrollManager.getInstance().navigateTo(`album:${safeId}`);
         }
       },
@@ -1880,13 +1904,13 @@ export const usePlayerStore = create<PlayerState>()(
           selectedPlaylistId: id,
           isPlayerExpanded: get().isPlayerExpanded,
         });
-        if (typeof window !== 'undefined') {
+        if (typeof window !== 'undefined' && id) {
           ScrollManager.getInstance().navigateTo(`playlist:${id}`);
         }
       },
       navigateFromPlayer: (destination) => {
-        const safeAlbumId = destination.albumId && destination.albumId !== 'offline' ? destination.albumId : null;
-        const safeArtistId = destination.artistId && destination.artistId !== 'offline' ? destination.artistId : null;
+        const safeAlbumId = destination.albumId && destination.albumId !== 'offline' && destination.albumId !== 'unknown' ? destination.albumId : null;
+        const safeArtistId = destination.artistId && destination.artistId !== 'offline' && destination.artistId !== 'unknown' ? destination.artistId : null;
         NavigationStack.getInstance().navigateFromPlayer({
           ...destination,
           albumId: safeAlbumId,

@@ -248,7 +248,7 @@ export function DownloadsView() {
 
   if (!isNative) {
     return (
-      <div className="space-y-6 pb-12 text-white select-none max-w-xl mx-auto pt-12 text-center">
+      <div className="space-y-6 pb-2 text-white select-none max-w-xl mx-auto pt-12 text-center">
         <div className="w-16 h-16 rounded-3xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto shadow-xl shadow-emerald-500/10">
           <Smartphone className="w-8 h-8" />
         </div>
@@ -274,7 +274,7 @@ export function DownloadsView() {
   }
 
   return (
-    <div className="space-y-6 pb-12 text-white select-none">
+    <div className="space-y-6 pb-2 text-white select-none">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
         <div>

@@ -52,9 +52,21 @@ export function ArtistsView() {
   const allSeedArtistsMap = useMemo(() => {
     const map = new Map<string, { id: string; name: string; imageUrl: string; monthlyListeners: number; genres: string[]; isVerified: boolean }>();
     
+    const registerArtist = (a: { id: string; name: string; imageUrl: string; monthlyListeners: number; genres: string[]; isVerified: boolean }) => {
+      if (!a || !a.name) return;
+      if (a.id) map.set(a.id.toLowerCase(), a);
+      map.set(a.name.toLowerCase(), a);
+      const cleanName = a.name.toLowerCase().replace(/[^\w]/g, '');
+      if (cleanName) map.set(cleanName, a);
+      if (a.id) {
+        const cleanId = a.id.toLowerCase().replace(/[^\w]/g, '');
+        if (cleanId) map.set(cleanId, a);
+      }
+    };
+
     // 1. POPULAR_ARTISTS
     POPULAR_ARTISTS.forEach((a) => {
-      map.set(a.id, {
+      registerArtist({
         id: a.id,
         name: a.name,
         imageUrl: a.image,
@@ -69,9 +81,9 @@ export function ArtistsView() {
     for (const [lang, list] of Object.entries(rawData)) {
       if (Array.isArray(list)) {
         list.forEach((a) => {
-          if (a && a.id && !map.has(a.id)) {
-            map.set(a.id, {
-              id: a.id,
+          if (a && (a.id || a.name)) {
+            registerArtist({
+              id: a.id || a.name,
               name: a.name || a.id,
               imageUrl: a.imageUrl || a.image || '/app-icon.png',
               monthlyListeners: a.followerCount || 10000000,
@@ -86,12 +98,13 @@ export function ArtistsView() {
     return map;
   }, []);
 
-  // Background fetch unresolved artist IDs from /api/artists/:id
+  // Background fetch unresolved artist IDs from /api/artists/:id or search
   useEffect(() => {
     const unresolvedIds = favoriteArtistIds.filter((id) => {
-      if (allSeedArtistsMap.has(id)) return false;
+      const cleanId = id.toLowerCase().replace(/[^\w]/g, '');
+      if (allSeedArtistsMap.has(id.toLowerCase()) || (cleanId && allSeedArtistsMap.has(cleanId))) return false;
       const cached = dynamicArtistMetadata[id];
-      return !cached || !cached.name || /^\d+$/.test(cached.name);
+      return !cached || !cached.name || /^\d+$/.test(cached.name) || cached.name.startsWith('art_');
     });
 
     if (unresolvedIds.length === 0) return;
@@ -99,23 +112,59 @@ export function ArtistsView() {
     let isMounted = true;
     unresolvedIds.forEach(async (id) => {
       try {
-        const res = await fetch(getApiUrl(`/api/artists/${encodeURIComponent(id)}?songCount=1&albumCount=1`));
-        if (!res.ok) return;
-        const json = await res.json();
-        const artistObj = json?.data;
-        if (artistObj && artistObj.name && isMounted) {
-          const imgUrl = artistObj.image?.find?.((i: any) => i.quality === '500x500')?.url ||
-                         artistObj.image?.[artistObj.image?.length - 1]?.url ||
-                         artistObj.imageUrl ||
-                         '/app-icon.png';
+        let artistName: string | null = null;
+        let imgUrl: string | null = null;
 
+        // 1. Try direct ID endpoint
+        const res = await fetch(getApiUrl(`/api/artists/${encodeURIComponent(id)}?songCount=1&albumCount=1`)).catch(() => null);
+        if (res && res.ok) {
+          const json = await res.json().catch(() => null);
+          const artistObj = json?.data;
+          if (artistObj && artistObj.name) {
+            artistName = artistObj.name;
+            imgUrl = artistObj.image?.find?.((i: any) => i.quality === '500x500')?.url ||
+                     artistObj.image?.[artistObj.image?.length - 1]?.url ||
+                     artistObj.imageUrl || null;
+          }
+        }
+
+        // 2. If tokenized or missing, query search API
+        if (!artistName) {
+          const cleanQuery = id.replace(/^art[-_]/i, '').replace(/[-_]/g, ' ').trim();
+          if (cleanQuery) {
+            const sRes = await fetch(getApiUrl(`/api/search/artists?query=${encodeURIComponent(cleanQuery)}&limit=3`)).catch(() => null);
+            if (sRes && sRes.ok) {
+              const sJson = await sRes.json().catch(() => null);
+              const results = sJson?.data?.results || sJson?.results || [];
+              if (Array.isArray(results) && results.length > 0) {
+                artistName = results[0].name || results[0].title;
+                imgUrl = results[0].image?.find?.((i: any) => i.quality === '500x500')?.url ||
+                         results[0].image?.[results[0].image?.length - 1]?.url ||
+                         results[0].imageUrl || null;
+              }
+            }
+          }
+        }
+
+        // 3. Query image-search endpoint if image is still missing
+        if (!imgUrl && artistName) {
+          const imgRes = await fetch(getApiUrl(`/api/artist/image-search?name=${encodeURIComponent(artistName)}&id=${encodeURIComponent(id)}`)).catch(() => null);
+          if (imgRes && imgRes.ok) {
+            const imgJson = await imgRes.json().catch(() => null);
+            if (imgJson?.success && imgJson?.imageUrl) {
+              imgUrl = imgJson.imageUrl;
+            }
+          }
+        }
+
+        if ((artistName || imgUrl) && isMounted) {
           setDynamicArtistMetadata((prev) => {
             const updated = {
               ...prev,
               [id]: {
-                name: artistObj.name,
-                imageUrl: imgUrl,
-                isVerified: Boolean(artistObj.isVerified ?? true),
+                name: artistName || prev[id]?.name || id.replace(/[-_]/g, ' '),
+                imageUrl: imgUrl || prev[id]?.imageUrl || '/app-icon.png',
+                isVerified: true,
               },
             };
             try {
@@ -137,8 +186,10 @@ export function ArtistsView() {
     const map = new Map<string, any>();
     
     favoriteArtistIds.forEach((id) => {
+      const cleanLookup = id.toLowerCase().replace(/[^\w]/g, '');
+
       // 1. Check allSeedArtistsMap
-      const seed = allSeedArtistsMap.get(id);
+      const seed = allSeedArtistsMap.get(id.toLowerCase()) || (cleanLookup ? allSeedArtistsMap.get(cleanLookup) : undefined);
       if (seed) {
         map.set(id, {
           id: seed.id,
@@ -154,7 +205,7 @@ export function ArtistsView() {
 
       // 2. Check dynamicArtistMetadata
       const dynamicMeta = dynamicArtistMetadata[id];
-      if (dynamicMeta && dynamicMeta.name && !/^\d+$/.test(dynamicMeta.name)) {
+      if (dynamicMeta && dynamicMeta.name && !/^\d+$/.test(dynamicMeta.name) && !dynamicMeta.name.startsWith('art_')) {
         map.set(id, {
           id,
           name: dynamicMeta.name,
@@ -168,7 +219,7 @@ export function ArtistsView() {
       }
 
       // 3. Check in discover artists
-      const discoverMatch = allDiscoverArtists.find((a: any) => a.id === id);
+      const discoverMatch = allDiscoverArtists.find((a: any) => a.id === id || a.name?.toLowerCase() === id.toLowerCase());
       if (discoverMatch) {
         map.set(id, {
           id,
@@ -184,10 +235,11 @@ export function ArtistsView() {
 
       // 4. Clean fallback while loading
       const isNumericId = /^\d+$/.test(id);
+      const cleanName = isNumericId ? 'Artist' : id.replace(/^art[-_]/i, '').replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
       map.set(id, {
         id,
-        name: isNumericId ? 'Artist' : id.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-        imageUrl: '/app-icon.png',
+        name: cleanName,
+        imageUrl: dynamicMeta?.imageUrl || '/app-icon.png',
         monthlyListeners: 10000000,
         genres: [currentLang],
         isVerified: true,
@@ -212,20 +264,10 @@ export function ArtistsView() {
   }, [favoriteArtistIds, allSeedArtistsMap, dynamicArtistMetadata, allDiscoverArtists, searchFilter, sortBy, currentLang]);
 
   return (
-    <div className="space-y-6 pb-12 select-none pt-2 text-white animate-in fade-in duration-200">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-[#fa233b]/20 border border-[#fa233b]/30 rounded-2xl text-[#fa233b] shadow-lg shadow-red-500/15">
-            <Users className="w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Artists & Subscriptions</h1>
-            <p className="text-xs text-slate-400">Stay updated whenever your favorite artists drop new tracks</p>
-          </div>
-        </div>
-
-        {/* Sub-Tabs */}
+    <div className="space-y-6 pb-2 select-none pt-2 text-white animate-in fade-in duration-200 max-w-7xl mx-auto px-4 sm:px-8 md:px-10 lg:px-12">
+      {/* ── TOP CONTROLS TOOLBAR: Subtabs, Search & Sort ──────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 pt-1">
+        {/* Sub-Tabs: Following / Discover */}
         <div className="flex items-center gap-2 bg-white/5 p-1 rounded-2xl border border-white/10 w-fit">
           <button
             onClick={() => setActiveSubTab('following')}
@@ -254,6 +296,36 @@ export function ArtistsView() {
             <span>Discover Artists</span>
           </button>
         </div>
+
+        {/* Search & Sort for Following */}
+        {activeSubTab === 'following' && favoriteArtistIds.length > 0 && (
+          <div className="flex items-center gap-2.5 flex-1 sm:justify-end">
+            <div className="relative flex-1 sm:w-52 md:w-60">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="search"
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                placeholder="Search followed artists..."
+                className="w-full bg-white/[0.05] border border-white/10 text-xs text-white placeholder-slate-500 rounded-full pl-9 pr-4 py-2 outline-none focus:border-[#FA233B]/60 focus:bg-black/40 transition-all font-medium"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5 bg-white/[0.05] border border-white/10 px-3 py-2 rounded-full text-xs shadow-sm flex-shrink-0">
+              <span className="text-slate-400 text-xs font-medium hidden md:inline">Sort:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="bg-transparent text-white text-xs font-bold outline-none cursor-pointer pr-1"
+                aria-label="Sort followed artists"
+              >
+                <option value="recent" className="bg-[#1c1c1e] text-white">Recently Followed</option>
+                <option value="alphabetical" className="bg-[#1c1c1e] text-white">A → Z</option>
+                <option value="listeners" className="bg-[#1c1c1e] text-white">Most Popular</option>
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── FOLLOWING SUB-TAB ────────────────────────────────────────────────── */}
@@ -261,35 +333,8 @@ export function ArtistsView() {
         <div className="space-y-6">
           {favoriteArtistIds.length > 0 ? (
             <>
-              {/* Search & Sort Bar */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="relative w-full sm:w-72">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={searchFilter}
-                    onChange={(e) => setSearchFilter(e.target.value)}
-                    placeholder="Search followed artists..."
-                    className="w-full pl-9 pr-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#fa233b] font-medium"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2 self-end sm:self-auto">
-                  <span className="text-xs font-bold text-slate-400">Sort:</span>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as any)}
-                    className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-white font-bold focus:outline-none focus:border-[#fa233b] cursor-pointer"
-                  >
-                    <option value="recent" className="bg-slate-900">Recently Followed</option>
-                    <option value="alphabetical" className="bg-slate-900">A → Z</option>
-                    <option value="listeners" className="bg-slate-900">Most Listened</option>
-                  </select>
-                </div>
-              </div>
-
               {/* Followed Artists Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-5">
                 {followedArtists.map((artist) => (
                   <div
                     key={artist.id}

@@ -424,9 +424,8 @@ export function HomeView() {
     return (
       <div className="space-y-6 pb-8 select-none animate-in fade-in duration-300 max-w-7xl mx-auto">
         {/* Header Skeleton */}
-        <div className="space-y-2 pt-1">
-          <div className="h-9 sm:h-11 bg-white/[0.06] rounded-xl w-36 sm:w-44 animate-pulse" />
-          <div className="h-3.5 bg-white/[0.04] rounded-lg w-48 sm:w-56 animate-pulse" />
+        <div className="pt-1">
+          <div className="h-8 sm:h-9 bg-white/[0.06] rounded-xl w-52 sm:w-64 animate-pulse" />
         </div>
 
         {/* 4 Made For You Mix Cards Skeleton */}
@@ -461,7 +460,7 @@ export function HomeView() {
   }
 
   return (
-    <div className="space-y-5 sm:space-y-6 pb-4 md:pb-6 select-none relative animate-in fade-in duration-300">
+    <div className="space-y-5 sm:space-y-6 pb-2 select-none relative animate-in fade-in duration-300">
 
       {/* ── Subtle Artwork Atmospheric Glow ── */}
       {isMounted && currentSong && (
@@ -477,15 +476,13 @@ export function HomeView() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 1. HEADER — "Home" + greeting + profile avatar                        */}
+      {/* 1. HEADER — Greeting                                                  */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       <section className="pt-0 flex flex-col gap-2">
-        {/* Page title + greeting */}
         <div className="pt-1">
-          <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">Home</h1>
-          <p suppressHydrationWarning className="text-xs text-slate-400 font-medium mt-0.5">
+          <h1 suppressHydrationWarning className="text-2xl sm:text-3xl font-black text-white tracking-tight">
             {feed?.greeting || greeting}, {displayName}
-          </p>
+          </h1>
         </div>
       </section>
 

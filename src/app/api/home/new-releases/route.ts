@@ -100,6 +100,7 @@ export async function GET(request: Request) {
               title: rawTitle,
               artist,
               album: rawTitle,
+              albumId: item.more_info?.album_id || item.id,
               coverUrl: item.image ? item.image.replace('150x150', '500x500') : '/app-icon.png',
               language: lang,
               releaseDate,
@@ -144,6 +145,7 @@ export async function GET(request: Request) {
                 title: sTitle,
                 artist,
                 album: rawTitle,
+                albumId: details?.id || item.id,
                 coverUrl:
                   (s.image || details?.image || item.image)?.replace('150x150', '500x500') ||
                   '/app-icon.png',

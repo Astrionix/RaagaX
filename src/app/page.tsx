@@ -66,6 +66,7 @@ export default function Page() {
     selectedArtistId,
     selectedAlbumId,
     rightPanelMode,
+    isQueueOpen,
     isWrappedModalOpen,
     toggleWrappedModal,
     isEqualizerOpen,
@@ -211,11 +212,11 @@ export default function Page() {
       <Sidebar />
 
       {/* App Layout (Grid after Sidebar) */}
-      <div className="flex-1 ml-0 md:ml-64 flex flex-col min-w-0 md:h-[calc(100vh-5rem)] md:overflow-hidden">
-        <div className={`grid flex-1 min-h-0 md:h-full ${
-          activeTab === 'album' || activeTab === 'playlist' || (activeTab === 'artist' && selectedArtistId)
-            ? 'grid-cols-1'
-            : 'grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px]'
+      <div className="flex-1 ml-0 md:ml-64 flex flex-col min-w-0 md:h-screen md:overflow-hidden">
+        <div className={`grid flex-1 min-h-0 md:h-full transition-all duration-300 ${
+          isQueueOpen && !(activeTab === 'album' || activeTab === 'playlist' || (activeTab === 'artist' && selectedArtistId))
+            ? 'grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px]'
+            : 'grid-cols-1'
         }`}>
           {/* Main Content Column */}
           <div className="main-content min-w-0 flex-1 flex flex-col md:h-full md:overflow-y-auto md:overflow-x-hidden relative">
@@ -223,7 +224,7 @@ export default function Page() {
             <Header />
 
             {/* View Switcher Container */}
-            <main className={`flex-1 pb-[calc(8.5rem+env(safe-area-inset-bottom,0px))] md:pb-8 ${
+            <main className={`flex-1 pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] md:pb-[5.5rem] ${
               activeTab === 'album' || activeTab === 'playlist' || (activeTab === 'artist' && selectedArtistId)
                 ? 'pt-0 px-0'
                 : 'pt-14 md:pt-4 px-3.5 sm:px-8'
@@ -249,9 +250,9 @@ export default function Page() {
             <MobileBottomController />
           </div>
 
-          {/* Right Queue Column (Hidden on detail views for seamless full-width continuous background) */}
-          {!(activeTab === 'album' || activeTab === 'playlist' || (activeTab === 'artist' && selectedArtistId)) && (
-            <div className="queue-panel hidden xl:block w-[360px] min-w-[360px] h-full pt-6 pb-8 overflow-y-auto overflow-x-hidden border-l border-white/[0.04] bg-[var(--bg-secondary)]">
+          {/* Right Queue Column (Toggled on desktop when isQueueOpen is true) */}
+          {isQueueOpen && (
+            <div className="queue-panel hidden xl:block w-[360px] min-w-[360px] h-full pt-6 pb-8 overflow-y-auto overflow-x-hidden border-l border-white/[0.04] bg-[var(--bg-secondary)] animate-in slide-in-from-right-4 duration-200">
               <RightQueuePanel />
             </div>
           )}

@@ -1284,7 +1284,7 @@ export function LibraryView() {
         break;
       case 'genres':
         return (
-          <div className="space-y-4 pb-6 text-white select-none animate-in fade-in duration-200">
+          <div className="space-y-4 pb-2 text-white select-none animate-in fade-in duration-200">
             <button
               onClick={() => setTab('menu')}
               className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all text-xs font-bold cursor-pointer"
@@ -1433,7 +1433,7 @@ export function LibraryView() {
     }
 
     return (
-      <div className="space-y-6 pb-6 text-white select-none animate-in fade-in duration-200">
+      <div className="space-y-6 pb-2 text-white select-none animate-in fade-in duration-200">
         <div className="flex items-center gap-3 pt-1">
           <button
             onClick={() => {
@@ -1458,7 +1458,7 @@ export function LibraryView() {
   }
 
   return (
-    <div className="space-y-3.5 pb-2 text-white select-none animate-in fade-in duration-200 max-w-5xl mx-auto">
+    <div className="w-full space-y-3.5 pb-2 text-white select-none animate-in fade-in duration-200">
       {/* Library Header */}
       <div className="pt-0.5 pb-0.5">
         <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">Library</h1>

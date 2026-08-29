@@ -466,64 +466,36 @@ export function ExpandedPlayerModal() {
         {desktopView === 'info' ? (
           /* ── 1. DEFAULT DESKTOP VIEW (EXACT SIDE-BY-SIDE METADATA & FULL CONTROLS) ── */
           <div className="hidden md:flex flex-1 flex-col justify-between items-center h-full w-full max-w-5xl mx-auto transition-all duration-300 min-h-0 py-2 sm:py-3 gap-3">
-            {/* Top 2-Column Row (Artwork + Actions on Left, Song Info & Metadata on Right) */}
+            {/* Top 2-Column Row (Artwork on Left, Song Info & Structured Metadata & Actions on Right) */}
             <div className="flex-1 flex flex-row items-center justify-center gap-10 lg:gap-16 w-full my-auto min-h-0">
               
-              {/* Left: Album Artwork + Action Pills */}
-              <div className="flex flex-col items-center gap-4 flex-shrink-0">
+              {/* Left: Album Artwork (Pure raw cover, no surrounding dark frame or letterbox) */}
+              <div className="flex flex-col items-center flex-shrink-0">
                 <div
                   key={`desk-info-${songTransitionKey}`}
-                  className="relative w-[300px] lg:w-[360px] aspect-square rounded-[12px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85),0_10px_24px_rgba(0,0,0,0.55)] transition-transform duration-500 hover:scale-[1.02] flex-shrink-0"
+                  className="relative w-[340px] md:w-[380px] lg:w-[420px] xl:w-[450px] max-w-full max-h-[48vh] aspect-square rounded-[14px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85)] flex-shrink-0 transition-transform duration-300 hover:scale-[1.01]"
                 >
-                  <OptimizedImage
-                    src={coverUrl}
-                    alt={currentSong.title}
-                    size="full"
-                    imageFit="contain"
-                    className="w-full h-full select-none"
-                  />
-                  <div className="absolute inset-0 rounded-[12px] ring-1 ring-inset ring-white/15 pointer-events-none" />
-                </div>
-
-                {/* Actions: Add to Queue, Like, More Options */}
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => {
-                      addToQueue(currentSong);
-                      setToastMessage(`Added "${currentSong.title}" to queue`);
-                    }}
-                    className="px-4 py-2 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 text-white font-medium text-xs flex items-center gap-2 transition-all hover:scale-105 active:scale-95 cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Add to Queue</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      haptics.lightImpact();
-                      toggleLikeSong(currentSong.id);
-                      setToastMessage(isLiked ? 'Removed from Liked Songs' : 'Saved to Liked Songs');
-                    }}
-                    className="px-4 py-2 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 text-white font-medium text-xs flex items-center gap-2 transition-all hover:scale-105 active:scale-95 cursor-pointer"
-                  >
-                    <Heart className={`w-4 h-4 ${isLiked ? 'fill-[#F0444F] text-[#F0444F]' : 'text-white/80'}`} />
-                    <span>{isLiked ? 'Liked' : 'Like'}</span>
-                  </button>
-
-                  <SongActionMenu
-                    song={currentSong}
-                    triggerClassName="w-9 h-9 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 flex items-center justify-center transition-all text-white/70 hover:text-white hover:scale-105 active:scale-95 cursor-pointer"
-                    iconClassName="w-4 h-4"
-                    horizontal
-                  />
+                  {coverUrl && coverUrl !== '/app-icon.png' ? (
+                    <img
+                      src={coverUrl}
+                      alt={currentSong.title}
+                      className="w-full h-full object-cover select-none rounded-[14px]"
+                      loading="eager"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-white/30 gap-2 bg-white/[0.04] rounded-[14px]">
+                      <Disc className="w-12 h-12 stroke-[1.2]" />
+                      <span className="text-[11px] font-medium tracking-wide uppercase font-mono">Artwork Unavailable</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Right: Info & Metadata Table */}
+              {/* Right: Info, Structured Metadata Table & Actions */}
               <div className="flex-1 flex flex-col justify-center min-w-0 max-w-[460px] lg:max-w-[500px]">
-                {/* Song Title */}
-                <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tight leading-tight line-clamp-2" title={currentSong.title}>
-                  {currentSong.title}
+                {/* Song Title (Raw title only without category/search context) */}
+                <h1 className="text-2xl lg:text-3xl xl:text-4xl font-black text-white tracking-tight leading-tight line-clamp-2" title={currentSong.title}>
+                  {SongFormatter.cleanSongTitle(currentSong.title)}
                 </h1>
 
                 {/* Artist */}
@@ -538,66 +510,120 @@ export function ExpandedPlayerModal() {
                   }`}
                   title={currentSong.artist}
                 >
-                  {currentSong.artist}
+                  {SongFormatter.decodeHtml(currentSong.artist) || currentSong.artist}
                 </p>
 
-                {/* Metadata Details Table */}
-                <div className="mt-6 space-y-3 text-xs lg:text-sm">
+                {/* Metadata Details Table (Muted labels on left, bright values on right) */}
+                <div className="mt-5 space-y-2.5 text-xs lg:text-sm">
+                  {/* Album */}
                   <div className="flex items-center">
-                    <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
-                      <Disc className="w-4 h-4 text-white/40" />
+                    <div className="flex items-center gap-2.5 w-28 lg:w-32 text-white/45 flex-shrink-0">
+                      <Disc className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-white/40" />
                       <span>Album</span>
                     </div>
-                    <span className="text-white/90 font-medium truncate">{currentSong.album || 'Single'}</span>
+                    <span className="text-white/90 font-medium truncate">
+                      {SongFormatter.cleanAlbumTitle(currentSong.album, currentSong.title) || 'Single'}
+                    </span>
                   </div>
 
+                  {/* Artist */}
                   <div className="flex items-center">
-                    <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
-                      <User className="w-4 h-4 text-white/40" />
+                    <div className="flex items-center gap-2.5 w-28 lg:w-32 text-white/45 flex-shrink-0">
+                      <User className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-white/40" />
                       <span>Artist</span>
                     </div>
-                    <span className="text-white/90 font-medium truncate">{currentSong.artist}</span>
+                    <span className="text-white/90 font-medium truncate">
+                      {SongFormatter.decodeHtml(currentSong.artist) || currentSong.artist}
+                    </span>
                   </div>
 
-                  <div className="flex items-center">
-                    <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
-                      <Music className="w-4 h-4 text-white/40" />
-                      <span>Composer</span>
+                  {/* Composer */}
+                  {composer && composer !== 'Various Artists' && (
+                    <div className="flex items-center">
+                      <div className="flex items-center gap-2.5 w-28 lg:w-32 text-white/45 flex-shrink-0">
+                        <Music className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-white/40" />
+                        <span>Composer</span>
+                      </div>
+                      <span className="text-white/90 font-medium truncate">{SongFormatter.decodeHtml(composer)}</span>
                     </div>
-                    <span className="text-white/90 font-medium truncate">{composer}</span>
-                  </div>
+                  )}
 
-                  <div className="flex items-center">
-                    <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
-                      <Mic2 className="w-4 h-4 text-white/40" />
-                      <span>Lyricist</span>
+                  {/* Lyricist */}
+                  {lyricist && lyricist !== 'RaagaX Catalog' && (
+                    <div className="flex items-center">
+                      <div className="flex items-center gap-2.5 w-28 lg:w-32 text-white/45 flex-shrink-0">
+                        <Mic2 className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-white/40" />
+                        <span>Lyricist</span>
+                      </div>
+                      <span className="text-white/90 font-medium truncate">{SongFormatter.decodeHtml(lyricist)}</span>
                     </div>
-                    <span className="text-white/90 font-medium truncate">{lyricist}</span>
-                  </div>
+                  )}
 
-                  <div className="flex items-center">
-                    <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
-                      <Clock className="w-4 h-4 text-white/40" />
-                      <span>Duration</span>
+                  {/* Duration */}
+                  {songDuration > 0 && (
+                    <div className="flex items-center">
+                      <div className="flex items-center gap-2.5 w-28 lg:w-32 text-white/45 flex-shrink-0">
+                        <Clock className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-white/40" />
+                        <span>Duration</span>
+                      </div>
+                      <span className="text-white/90 font-medium">{formatTime(songDuration)}</span>
                     </div>
-                    <span className="text-white/90 font-medium">{formatTime(songDuration)}</span>
-                  </div>
+                  )}
 
-                  <div className="flex items-center">
-                    <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
-                      <Calendar className="w-4 h-4 text-white/40" />
-                      <span>Release Year</span>
+                  {/* Release Year */}
+                  {releaseYear && releaseYear > 1950 && (
+                    <div className="flex items-center">
+                      <div className="flex items-center gap-2.5 w-28 lg:w-32 text-white/45 flex-shrink-0">
+                        <Calendar className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-white/40" />
+                        <span>Release Year</span>
+                      </div>
+                      <span className="text-white/90 font-medium">{releaseYear}</span>
                     </div>
-                    <span className="text-white/90 font-medium">{releaseYear}</span>
-                  </div>
+                  )}
 
-                  <div className="flex items-center">
-                    <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
-                      <Disc3 className="w-4 h-4 text-white/40" />
-                      <span>Label</span>
+                  {/* Label */}
+                  {label && label !== 'Unknown' && (
+                    <div className="flex items-center">
+                      <div className="flex items-center gap-2.5 w-28 lg:w-32 text-white/45 flex-shrink-0">
+                        <Disc3 className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-white/40" />
+                        <span>Label</span>
+                      </div>
+                      <span className="text-white/90 font-medium truncate">{label}</span>
                     </div>
-                    <span className="text-white/90 font-medium truncate">{label}</span>
-                  </div>
+                  )}
+                </div>
+
+                {/* Actions: Add to Queue, Like, More Options */}
+                <div className="flex items-center gap-2.5 mt-5">
+                  <button
+                    onClick={() => {
+                      addToQueue(currentSong);
+                      setToastMessage(`Added "${currentSong.title}" to queue`);
+                    }}
+                    className="px-3.5 py-1.5 rounded-full bg-white/[0.07] hover:bg-white/[0.14] border border-white/10 text-white font-semibold text-xs flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-sm"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add to Queue</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      haptics.lightImpact();
+                      toggleLikeSong(currentSong.id);
+                      setToastMessage(isLiked ? 'Removed from Liked Songs' : 'Saved to Liked Songs');
+                    }}
+                    className="px-3.5 py-1.5 rounded-full bg-white/[0.07] hover:bg-white/[0.14] border border-white/10 text-white font-semibold text-xs flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-sm"
+                  >
+                    <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-[#FA233B] text-[#FA233B]' : 'text-white/70'}`} />
+                    <span>{isLiked ? 'Liked' : 'Like'}</span>
+                  </button>
+
+                  <SongActionMenu
+                    song={currentSong}
+                    triggerClassName="w-8 h-8 rounded-full bg-white/[0.07] hover:bg-white/[0.14] border border-white/10 flex items-center justify-center transition-all text-white/70 hover:text-white hover:scale-105 active:scale-95 cursor-pointer"
+                    iconClassName="w-3.5 h-3.5"
+                    horizontal
+                  />
                 </div>
               </div>
             </div>
@@ -774,16 +800,21 @@ export function ExpandedPlayerModal() {
               {/* Artwork */}
               <div
                 key={`desk-lyr-${songTransitionKey}`}
-                className="relative w-full max-w-[320px] lg:max-w-[360px] aspect-square rounded-[12px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85),0_10px_24px_rgba(0,0,0,0.55)] transition-transform duration-500 hover:scale-[1.02] flex-shrink-0"
+                className="relative w-full max-w-[320px] lg:max-w-[360px] aspect-square rounded-[14px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85)] flex-shrink-0 transition-transform duration-300 hover:scale-[1.01]"
               >
-                <OptimizedImage
-                  src={coverUrl}
-                  alt={currentSong.title}
-                  size="full"
-                  imageFit="contain"
-                  className="w-full h-full select-none"
-                />
-                <div className="absolute inset-0 rounded-[12px] ring-1 ring-inset ring-white/15 pointer-events-none" />
+                {coverUrl && coverUrl !== '/app-icon.png' ? (
+                  <img
+                    src={coverUrl}
+                    alt={currentSong.title}
+                    className="w-full h-full object-cover select-none rounded-[14px]"
+                    loading="eager"
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-white/30 gap-2 bg-white/[0.04] rounded-[14px]">
+                    <Disc className="w-10 h-10 stroke-[1.2]" />
+                    <span className="text-[10px] font-medium tracking-wide uppercase font-mono">Artwork Unavailable</span>
+                  </div>
+                )}
               </div>
 
               {/* Title & Artist Row */}
@@ -1280,17 +1311,21 @@ export function ExpandedPlayerModal() {
             <div className="w-full flex-1 flex items-center justify-center py-0.5 sm:py-1 min-h-0 overflow-hidden">
               <div
                 key={`mob-${songTransitionKey}`}
-                className="relative w-full max-w-[min(360px,80vw)] max-h-[min(360px,46vh)] aspect-square rounded-[8px] sm:rounded-[12px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85),0_10px_24px_rgba(0,0,0,0.55)] transition-transform duration-500 hover:scale-[1.02] animate-in zoom-in-95 fade-in duration-300 flex-shrink-0"
+                className="relative w-full max-w-[min(340px,78vw)] max-h-[min(340px,44vh)] aspect-square rounded-[14px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85)] flex-shrink-0 transition-transform duration-300 hover:scale-[1.01]"
               >
-                <OptimizedImage
-                  src={coverUrl}
-                  alt={currentSong.title}
-                  size="full"
-                  imageFit="contain"
-                  className="w-full h-full select-none"
-                />
-                {/* 1px Inner Specular Rim Highlight */}
-                <div className="absolute inset-0 rounded-[8px] sm:rounded-[12px] ring-1 ring-inset ring-white/15 pointer-events-none" />
+                {coverUrl && coverUrl !== '/app-icon.png' ? (
+                  <img
+                    src={coverUrl}
+                    alt={currentSong.title}
+                    className="w-full h-full object-cover select-none rounded-[14px]"
+                    loading="eager"
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-white/30 gap-2 bg-white/[0.04] rounded-[14px]">
+                    <Disc className="w-10 h-10 stroke-[1.2]" />
+                    <span className="text-[10px] font-medium tracking-wide uppercase font-mono">Artwork Unavailable</span>
+                  </div>
+                )}
               </div>
             </div>
           ) : viewMode === 'lyrics' ? (

@@ -94,4 +94,34 @@ describe('Liked Songs System Tests', () => {
       expect(sorted[2].id).toBe('1'); // 2001
     });
   });
+
+  describe('Duration Formatting (Hours & Minutes)', () => {
+    function formatTotalDuration(songs: { duration?: number }[]): string {
+      const totalDurationSec = songs.reduce((acc, s) => acc + (s.duration || 180), 0);
+      const totalMins = Math.round(totalDurationSec / 60);
+      if (totalMins <= 0) return '';
+      const hours = Math.floor(totalMins / 60);
+      const minutes = totalMins % 60;
+      if (hours > 0) {
+        return minutes > 0 ? `${hours} hr ${minutes} min` : `${hours} hr`;
+      }
+      return `${minutes} min`;
+    }
+
+    it('should format duration in hours and minutes when >= 60 minutes', () => {
+      // 83 tracks with total ~350 minutes = 5 hours 50 minutes
+      const songs = Array.from({ length: 83 }, () => ({ duration: Math.round(350 * 60 / 83) }));
+      expect(formatTotalDuration(songs)).toBe('5 hr 50 min');
+    });
+
+    it('should format exact hours without 0 min', () => {
+      const songs = [{ duration: 7200 }]; // 2 hours exact
+      expect(formatTotalDuration(songs)).toBe('2 hr');
+    });
+
+    it('should format minutes only when < 60 minutes', () => {
+      const songs = [{ duration: 180 }, { duration: 240 }]; // 7 minutes
+      expect(formatTotalDuration(songs)).toBe('7 min');
+    });
+  });
 });

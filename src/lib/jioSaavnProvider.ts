@@ -10,6 +10,8 @@ import { SongFormatter } from '@/lib/music/SongFormatter';
 import { RequestDeduplicator } from '@/lib/network/RequestDeduplicator';
 import { QualityManager } from '@/lib/playback/QualityManager';
 
+import { JioSaavnMediaPipeline } from '@/lib/media/JioSaavnMediaPipeline';
+
 // Language code mapping used for filtering
 export const LANGUAGE_CODES: Record<string, string> = {
   Telugu: 'telugu',
@@ -30,31 +32,28 @@ export function mapTrackToSong(track: any, idx: number = 0): Song {
       ? pa.map((a: any) => SongFormatter.decodeHtml(a.name)).join(', ')
       : SongFormatter.decodeHtml(track.artist || track.subtitle || 'Unknown Artist');
 
-  let coverUrl = '/app-icon.png';
-  const rawImage = track.image || track.images || track.artwork || track.cover || track.album?.image || track.album?.images;
-  if (Array.isArray(rawImage) && rawImage.length > 0) {
-    const hi =
-      rawImage.find((i: any) => i?.quality === '500x500' || i?.quality === '500X500') ||
-      rawImage[rawImage.length - 1] ||
-      rawImage[0];
-    const rawUrl = hi?.url || hi?.link || (typeof hi === 'string' ? hi : '');
-    if (rawUrl) coverUrl = rawUrl.replace('http://', 'https://').replace(/150x150|50x50|300x300/g, '500x500');
-  } else if (typeof rawImage === 'string' && rawImage) {
-    coverUrl = rawImage.replace('http://', 'https://').replace(/150x150|50x50|300x300/g, '500x500');
-  }
-  if (!coverUrl || coverUrl.includes('/null/') || coverUrl.endsWith('/null')) coverUrl = '/app-icon.png';
+  // Authoritative separation of Song Artwork vs. Album Artwork vs. Playlist Artwork
+  const songImg = track.image || track.images || track.artwork || track.cover;
+  const albumImg = track.album?.image || track.album?.images || track.album?.coverUrl || track.more_info?.album_url;
 
-  let audioUrl = '';
-  if (Array.isArray(track.downloadUrl) && track.downloadUrl.length > 0) {
-    const selected = QualityManager.selectHighestQuality(track.downloadUrl);
-    if (selected) {
-      audioUrl = selected;
-    }
-  } else if (typeof track.downloadUrl === 'string' && track.downloadUrl) {
-    audioUrl = track.downloadUrl.replace('http://', 'https://');
-  } else if (track.media_preview_url) {
-    audioUrl = track.media_preview_url.replace('http://', 'https://').replace('_preview.mp3', '_320.mp4');
+  const rawSongCover = JioSaavnMediaPipeline.getInstance().getRawJioSaavnCoverUrl(songImg);
+  const rawAlbumCover = JioSaavnMediaPipeline.getInstance().getRawJioSaavnCoverUrl(albumImg);
+
+  const resolvedCover = JioSaavnMediaPipeline.getInstance().resolveSongArtwork({
+    songCoverUrl: rawSongCover,
+    albumCoverUrl: rawAlbumCover,
+    coverUrl: rawSongCover || rawAlbumCover,
+  });
+
+  const coverUrl = resolvedCover || '/app-icon.png';
+
+  let rawDownloadSource = track.downloadUrl;
+  if (!rawDownloadSource && track.media_preview_url) {
+    rawDownloadSource = track.media_preview_url.replace('http://', 'https://').replace('_preview.mp3', '_320.mp4');
   }
+
+  const { streamUrl, bitrate } = JioSaavnMediaPipeline.getInstance().selectHighestRawStream(rawDownloadSource);
+  const audioUrl = streamUrl || '';
 
   const duration =
     typeof track.duration === 'number' ? track.duration : parseInt(track.duration) || 210;
@@ -78,6 +77,8 @@ export function mapTrackToSong(track: any, idx: number = 0): Song {
     albumId: track.album?.id || `alb-${idx}`,
     duration,
     coverUrl,
+    albumCoverUrl: rawAlbumCover || undefined,
+    songCoverUrl: rawSongCover || undefined,
     audioUrl,
     genre,
     category: 'latest_telugu' as const,

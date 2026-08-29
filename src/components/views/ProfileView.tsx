@@ -78,7 +78,7 @@ export function ProfileView() {
   const selectedLangData = analytics?.languages.find(l => l.name === selectedLangName) || analytics?.languages[0];
 
   return (
-    <div className="space-y-7 pb-28 text-white select-none max-w-5xl mx-auto px-1 sm:px-4">
+    <div className="space-y-7 pb-2 text-white select-none max-w-5xl mx-auto px-1 sm:px-4">
       
       {/* ======================================================== */}
       {/* 1. REFINED PROFILE HEADER (Rhythm Glass Surface)         */}

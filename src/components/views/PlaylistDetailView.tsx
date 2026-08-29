@@ -390,7 +390,7 @@ export function PlaylistDetailView() {
 
   return (
     <DynamicArtworkAtmosphere artworkUrl={playlist.coverUrl} isPlaying={isPlaying}>
-      <div className="relative min-h-screen text-white select-none animate-in fade-in duration-200 pb-28">
+      <div className="relative text-white select-none animate-in fade-in duration-200 pb-2">
         {/* Top Sticky Navigation Bar */}
         <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-3.5 backdrop-blur-md bg-black/20 border-b border-white/[0.04]">
           <button
@@ -551,14 +551,14 @@ export function PlaylistDetailView() {
         <div className="w-full px-4 sm:px-8 space-y-6 pt-4">
           {/* Cinematic Hero Header */}
           <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6 p-5 sm:p-7 rounded-3xl bg-white/[0.03] border border-white/10 relative overflow-hidden shadow-2xl backdrop-blur-xl">
-            {/* Large Sharp Cover Art */}
-            <div className="relative w-48 h-48 sm:w-56 sm:h-56 md:w-60 md:h-60 rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.85)] bg-slate-900 border border-white/15 flex-shrink-0 group">
+            {/* Large Sharp Cover Art (Full Aspect Ratio Preserved Without Cropping) */}
+            <div className="relative w-48 h-48 sm:w-56 sm:h-56 md:w-60 md:h-60 aspect-square rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.85)] bg-black/50 border border-white/15 flex-shrink-0 flex items-center justify-center group">
               {playlist.coverUrl ? (
                 <img 
                   src={playlist.coverUrl} 
                   alt={playlist.title}
                   onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  className="w-full h-full object-contain transition-transform duration-300"
                 />
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-purple-900/40 to-slate-900 text-purple-400">

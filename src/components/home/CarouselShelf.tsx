@@ -513,14 +513,10 @@ export function CarouselShelf({ title, subtitle, items, icon, showPlayAll, pagin
               })}
               
               {/* Bottom Infinite Scroll Sentinel & Loading Indicator */}
-              {hasMore ? (
-                <div ref={sentinelRef} className="py-8 flex flex-col items-center justify-center gap-2">
+              {hasMore && (
+                <div ref={sentinelRef} className="py-4 flex flex-col items-center justify-center gap-2">
                   <div className="w-6 h-6 rounded-full border-2 border-[#fa233b] border-t-transparent animate-spin"></div>
                   <span className="text-[11px] text-slate-400">Loading more tracks...</span>
-                </div>
-              ) : (
-                <div className="py-8 text-center text-xs text-slate-500 font-medium">
-                  All {shelfItems.length} songs loaded
                 </div>
               )}
             </div>

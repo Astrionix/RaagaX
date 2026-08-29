@@ -161,7 +161,7 @@ export function GenresView() {
 
     return (
       <DynamicArtworkAtmosphere artworkUrl={firstSongCover} isPlaying={isPlaying}>
-        <div className="space-y-6 pb-20 text-white select-none animate-in fade-in duration-200">
+        <div className="space-y-6 pb-2 text-white select-none animate-in fade-in duration-200">
           {/* Back Navigation Bar */}
           <div className="flex items-center justify-between pt-1">
             <button
@@ -342,7 +342,7 @@ export function GenresView() {
 
   // ── MAIN GENRES INDEX VIEW ────────────────────────────────────────────────
   return (
-    <div className="space-y-6 pb-20 text-white select-none animate-in fade-in duration-200 max-w-5xl mx-auto">
+    <div className="space-y-6 pb-2 text-white select-none animate-in fade-in duration-200 max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
         <div>

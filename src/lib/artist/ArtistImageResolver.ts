@@ -34,15 +34,19 @@ const DEFAULT_PLACEHOLDER = '/app-icon.png';
 
 // Normalize artist name for exact, case-insensitive key lookup
 export function normalizeArtistKey(name: string, id?: string): string {
-  if (id && id.trim() && id !== 'unknown' && id !== 'artist') {
-    return `id:${id.trim().toLowerCase()}`;
-  }
-  const clean = name
+  const cleanName = (name || '')
     .toLowerCase()
     .replace(/[^\w\s]/g, '')
     .trim()
     .replace(/\s+/g, '_');
-  return `name:${clean}`;
+  if (cleanName && cleanName !== 'artist' && cleanName !== 'unknown') {
+    return `name:${cleanName}`;
+  }
+  if (id && id.trim() && id !== 'unknown' && id !== 'artist') {
+    const cleanId = id.toLowerCase().replace(/[^\w\s]/g, '').trim().replace(/\s+/g, '_');
+    return `id:${cleanId}`;
+  }
+  return `name:${cleanName || 'unknown'}`;
 }
 
 export class ArtistImageResolver {
@@ -103,6 +107,17 @@ export class ArtistImageResolver {
     if (cached && cached.expiresAt > Date.now()) {
       return cached.imageUrl;
     }
+
+    // Fuzzy check popular artists synchronously
+    const cleanQuery = (name || id || '').toLowerCase().replace(/[^\w\s]/g, '').trim();
+    if (cleanQuery) {
+      const popular = POPULAR_ARTISTS.find((a) => {
+        const cleanA = a.name.toLowerCase().replace(/[^\w\s]/g, '').trim();
+        return cleanA === cleanQuery || (id && (a.id === id || cleanA === id.toLowerCase().replace(/[^\w\s]/g, '').trim()));
+      });
+      if (popular && popular.image) return popular.image;
+    }
+
     return null;
   }
 
@@ -135,10 +150,12 @@ export class ArtistImageResolver {
         return cleanUrl;
       }
 
-      // ── Tier 3: Curated & Known Popular Artists Catalog ─────────────────────
-      const knownArtist = POPULAR_ARTISTS.find(
-        (a) => a.name.toLowerCase() === artistName.toLowerCase() || (id && a.id === id)
-      );
+      // ── Tier 3: Curated & Known Popular Artists Catalog (Fuzzy Matched) ───────
+      const cleanQuery = (artistName || id || '').toLowerCase().replace(/[^\w\s]/g, '').trim();
+      const knownArtist = POPULAR_ARTISTS.find((a) => {
+        const cleanKnown = a.name.toLowerCase().replace(/[^\w\s]/g, '').trim();
+        return cleanKnown === cleanQuery || (id && (a.id === id || cleanKnown === id.toLowerCase().replace(/[^\w\s]/g, '').trim()));
+      });
       if (knownArtist && knownArtist.image) {
         this.cacheResult(key, id || knownArtist.id, artistName, knownArtist.image, 'trusted_metadata');
         return knownArtist.image;

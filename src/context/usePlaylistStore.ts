@@ -68,17 +68,26 @@ export const usePlaylistStore = create<PlaylistStore>()(
           // Fetch playlists owned by authenticated user
           const { data: playlistsData, error } = await supabase
             .from('playlists')
-            .select('id, owner_id, name, description, cover_url, visibility, created_at, updated_at')
+            .select('*')
             .eq('owner_id', session.user.id)
             .order('created_at', { ascending: false });
 
           if (error) {
-            console.warn('[usePlaylistStore] Fetch playlists error:', error.message);
+            console.warn('[usePlaylistStore] Fetch playlists notice:', error.message);
             set({ isLoading: false });
             return;
           }
 
-          const playlistList = playlistsData || [];
+          const playlistList = (playlistsData || []).map((p: any) => ({
+            id: p.id,
+            name: p.name || p.title || 'Untitled Playlist',
+            description: p.description || '',
+            cover_url: p.cover_url || p.coverUrl || '',
+            owner_id: p.owner_id || p.user_id || session.user.id,
+            visibility: p.visibility || 'public',
+            created_at: p.created_at || new Date().toISOString(),
+            updated_at: p.updated_at || new Date().toISOString(),
+          }));
           const playlistIds = playlistList.map((p) => p.id);
 
           // Fetch all song mappings for these playlists ordered by position

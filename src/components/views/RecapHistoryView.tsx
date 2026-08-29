@@ -26,7 +26,7 @@ export function RecapHistoryView() {
   }, [user?.id]);
 
   return (
-    <div className="space-y-6 pb-12 select-none pt-4 max-w-4xl mx-auto">
+    <div className="space-y-6 pb-2 select-none pt-4 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-4">
         <button

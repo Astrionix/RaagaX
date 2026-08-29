@@ -341,35 +341,9 @@ export class UnifiedSearchEngine {
           songs = results.map((item: any) => this.mapSong(item));
         }
       }
-
-      // ── Direct Provider Fallback: If primary backend returned 0 songs or failed, query direct public endpoint ──
-      if (songs.length === 0) {
-        try {
-          const directFallbackUrl = `https://saavn.dev/api/search/songs?query=${encodeURIComponent(q)}&limit=20`;
-          const fallbackRes = await fetch(directFallbackUrl, { signal });
-          if (fallbackRes.ok) {
-            const fallbackJson = await fallbackRes.json();
-            const fallbackResults = fallbackJson.data?.results || fallbackJson.results || [];
-            if (Array.isArray(fallbackResults) && fallbackResults.length > 0) {
-              songs = fallbackResults.map((item: any) => this.mapSong(item));
-            }
-          }
-        } catch {}
-      }
     } catch (err: any) {
       if (err?.name !== 'AbortError') {
-        console.warn('[UnifiedSearchEngine] Search execution error, attempting direct fallback:', err?.message);
-        try {
-          const directFallbackUrl = `https://saavn.dev/api/search/songs?query=${encodeURIComponent(q)}&limit=20`;
-          const fallbackRes = await fetch(directFallbackUrl, { signal });
-          if (fallbackRes.ok) {
-            const fallbackJson = await fallbackRes.json();
-            const fallbackResults = fallbackJson.data?.results || fallbackJson.results || [];
-            if (Array.isArray(fallbackResults) && fallbackResults.length > 0) {
-              songs = fallbackResults.map((item: any) => this.mapSong(item));
-            }
-          }
-        } catch {}
+        console.warn('[UnifiedSearchEngine] Search execution error:', err?.message);
       }
     }
 

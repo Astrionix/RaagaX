@@ -68,7 +68,7 @@ export function QueueModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-end md:items-center justify-end md:p-6 select-none animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[120] xl:hidden flex items-end md:items-center justify-end md:p-6 select-none animate-in fade-in duration-200">
       {/* Backdrop */}
       <div 
         onClick={toggleQueue} 

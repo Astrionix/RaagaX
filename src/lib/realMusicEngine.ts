@@ -11,6 +11,7 @@ import { getApiBaseUrl } from '@/lib/config/apiConfig';
 import { SongUniquenessEngine } from '@/lib/music/SongUniquenessEngine';
 import { SongFormatter } from '@/lib/music/SongFormatter';
 import { QualityManager } from '@/lib/playback/QualityManager';
+import { JioSaavnMediaPipeline } from '@/lib/media/JioSaavnMediaPipeline';
 
 const getLocalApiBase = () => {
   return `${getApiBaseUrl().replace(/\/+$/, '')}/api`;
@@ -121,15 +122,6 @@ export class RealMusicEngine {
         if (res.ok) data = await res.json();
       } catch {}
 
-      // Direct fallback if proxy is cold or unreachable
-      if (!data || (!data.data?.results && !data.results)) {
-        try {
-          const directUrl = `https://saavn.dev/api/search/albums?query=${encodeURIComponent(q)}&limit=${limit}`;
-          const dRes = await fetch(directUrl, { signal: AbortSignal.timeout(6000) });
-          if (dRes.ok) data = await dRes.json();
-        } catch {}
-      }
-
       const results = data?.data?.results || data?.results || [];
       return results.map((album: any) => {
         const coverUrl = this.extractCoverUrl(album.image || album.coverUrl) || '/app-icon.png';
@@ -157,9 +149,7 @@ export class RealMusicEngine {
 
     const tryEndpoints = [
       isAlbum ? `${getLocalApiBase()}/albums?id=${fetchId}` : `${getLocalApiBase()}/playlists?id=${fetchId}`,
-      isAlbum ? `https://saavn.dev/api/albums?id=${fetchId}` : `https://saavn.dev/api/playlists?id=${fetchId}`,
       `${getLocalApiBase()}/albums?id=${fetchId}`,
-      `https://saavn.dev/api/albums?id=${fetchId}`,
     ];
 
     try {
@@ -278,23 +268,19 @@ export class RealMusicEngine {
           ? pa.map((a: any) => decode(a.name)).join(', ')
           : decode(track.artist || track.subtitle || 'Unknown Artist');
 
-      const rawImages = track.image || track.images || [];
-      let coverUrl = '/app-icon.png';
+      const songImg = track.image || track.images || track.artwork || track.cover;
+      const albumImg = track.album?.image || track.album?.images || track.album?.coverUrl || track.more_info?.album_url;
 
-      if (typeof rawImages === 'string') {
-        coverUrl = rawImages.replace('http://', 'https://').replace(/150x150|50x50|300x300/g, '500x500');
-      } else if (Array.isArray(rawImages) && rawImages.length > 0) {
-        const hi = rawImages.find((i: any) => i?.quality === '500x500' || i?.quality === '500X500') || rawImages[rawImages.length - 1];
-        const rawUrl = hi?.url || hi?.link || (typeof hi === 'string' ? hi : '');
-        if (rawUrl) {
-          coverUrl = rawUrl.replace('http://', 'https://').replace(/150x150|50x50|300x300/g, '500x500');
-        } else if (typeof rawImages[0] === 'string') {
-          coverUrl = rawImages[rawImages.length - 1].replace('http://', 'https://').replace(/150x150|50x50|300x300/g, '500x500');
-        }
-      }
-      if (!coverUrl || coverUrl.includes('/null/') || coverUrl.endsWith('/null')) {
-        coverUrl = '/app-icon.png';
-      }
+      const rawSongCover = JioSaavnMediaPipeline.getInstance().getRawJioSaavnCoverUrl(songImg);
+      const rawAlbumCover = JioSaavnMediaPipeline.getInstance().getRawJioSaavnCoverUrl(albumImg);
+
+      const resolvedCover = JioSaavnMediaPipeline.getInstance().resolveSongArtwork({
+        songCoverUrl: rawSongCover,
+        albumCoverUrl: rawAlbumCover,
+        coverUrl: rawSongCover || rawAlbumCover,
+      });
+
+      const coverUrl = resolvedCover || '/app-icon.png';
 
       let audioUrl = '';
       if (Array.isArray(track.downloadUrl) && track.downloadUrl.length > 0) {
@@ -331,6 +317,8 @@ export class RealMusicEngine {
         albumId: track.album?.id || `alb-${idx}`,
         duration,
         coverUrl,
+        albumCoverUrl: rawAlbumCover || undefined,
+        songCoverUrl: rawSongCover || undefined,
         audioUrl,
         genre: track.language ? `${track.language.toUpperCase()} HITS` : 'MELODY HITS',
         language: track.language ? track.language.charAt(0).toUpperCase() + track.language.slice(1) : 'Telugu',

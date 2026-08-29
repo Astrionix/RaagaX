@@ -22,6 +22,7 @@ import { Song } from '@/types/music';
 import { haptics } from '@/lib/haptics/HapticEngine';
 import { useNewReleases } from '@/lib/catalog/useNewReleases';
 import { PersonalizationEngine } from '@/lib/recommendation/PersonalizationEngine';
+import { NavigationStack } from '@/lib/navigation/NavigationStack';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Language list
@@ -216,34 +217,14 @@ export function NewView() {
   );
 
   return (
-    <div className={`space-y-4 pb-8 text-white select-none transition-opacity duration-300 ${isManualRefreshing ? 'opacity-70 pointer-events-none' : 'opacity-100'} animate-in fade-in duration-200 max-w-5xl mx-auto`}>
+    <div className={`w-full space-y-6 pb-2 text-white select-none transition-opacity duration-300 ${isManualRefreshing ? 'opacity-70 pointer-events-none' : 'opacity-100'} animate-in fade-in duration-200`}>
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 1. HEADER + LANGUAGE FILTER + REFRESH                                  */}
+      {/* 1. LANGUAGE FILTER + REFRESH TOOLBAR                                   */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <div className="flex flex-col gap-2 pt-1">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">New</h1>
-            <p className="text-xs text-slate-400 font-medium mt-0.5">
-              What's actually been released — strictly <span className="text-white font-bold">{lang}</span>
-            </p>
-          </div>
-
-          {/* Smooth Refresh Button */}
-          <button
-            onClick={handleRefresh}
-            disabled={isManualRefreshing}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/80 hover:text-white text-xs font-semibold transition-all cursor-pointer hover:scale-105 active:scale-95 disabled:opacity-50"
-            title="Refresh New Releases"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isManualRefreshing ? 'animate-spin text-[#FA233B]' : ''}`} />
-            <span>{isManualRefreshing ? 'Refreshing...' : 'Refresh'}</span>
-          </button>
-        </div>
-
+      <div className="flex items-center justify-between gap-3 pt-1">
         {/* Strict Language Filter Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-1">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
           {ALL_LANGUAGES.map((l) => {
             const isSelected = lang.toLowerCase() === l.toLowerCase();
             return (
@@ -261,14 +242,25 @@ export function NewView() {
             );
           })}
         </div>
+
+        {/* Smooth Refresh Button */}
+        <button
+          onClick={handleRefresh}
+          disabled={isManualRefreshing}
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/80 hover:text-white text-xs font-semibold transition-all cursor-pointer hover:scale-105 active:scale-95 disabled:opacity-50 flex-shrink-0"
+          title="Refresh New Releases"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isManualRefreshing ? 'animate-spin text-[#FA233B]' : ''}`} />
+          <span className="hidden sm:inline">{isManualRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+        </button>
       </div>
 
       {/* Loading Skeleton State */}
       {allSongs.length === 0 && (
         <div className="space-y-6 pt-2 animate-in fade-in duration-200">
           <div className="flex gap-4 overflow-hidden pb-2">
-            <div className="w-[280px] sm:w-[320px] h-52 rounded-3xl bg-white/[0.04] border border-white/5 animate-pulse flex-shrink-0" />
-            <div className="w-[280px] sm:w-[320px] h-52 rounded-3xl bg-white/[0.04] border border-white/5 animate-pulse flex-shrink-0" />
+            <div className="w-[280px] sm:w-[320px] h-80 rounded-3xl bg-white/[0.04] border border-white/5 animate-pulse flex-shrink-0" />
+            <div className="w-[280px] sm:w-[320px] h-80 rounded-3xl bg-white/[0.04] border border-white/5 animate-pulse flex-shrink-0" />
           </div>
 
           <div className="space-y-3">
@@ -311,7 +303,7 @@ export function NewView() {
                   <p className="text-xs text-slate-400 truncate">{item.artist}</p>
                 </div>
 
-                <div className="relative aspect-video rounded-2xl overflow-hidden bg-slate-900 shadow-md">
+                <div className="relative aspect-square rounded-2xl overflow-hidden bg-slate-900 shadow-md">
                   <OptimizedImage src={item.coverUrl} alt={item.title} size="card" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end justify-between p-3">
                     <span className="text-[10px] font-bold text-white/80 uppercase font-mono">{lang}</span>
@@ -377,22 +369,34 @@ export function NewView() {
             title="New Albums"
           />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {newAlbums.map((album, idx) => (
-              <div
-                key={`album-${album.albumId || album.id || 'album'}-${idx}`}
-                onClick={() => {
-                  haptics.lightImpact();
-                  setSelectedAlbumId(album.albumId || album.id || album.album);
-                }}
-                className="p-3 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-white/15 hover:bg-white/[0.06] transition-all cursor-pointer group"
-              >
-                <div className="relative aspect-square rounded-xl overflow-hidden mb-2.5 bg-slate-800 shadow-md">
-                  <OptimizedImage src={album.coverUrl} alt={album.album || ''} size="card" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+            {newAlbums.map((album, idx) => {
+              const targetAlbumTitle = album.album || album.title;
+              const targetAlbumId = album.albumId || targetAlbumTitle;
+              return (
+                <div
+                  key={`album-${targetAlbumId}-${idx}`}
+                  onClick={() => {
+                    haptics.lightImpact();
+                    NavigationStack.getInstance().push({
+                      activeTab: 'album',
+                      selectedAlbumId: targetAlbumId,
+                      selectedArtistId: null,
+                      selectedPlaylistId: null,
+                      isPlayerExpanded: false,
+                    });
+                    setSelectedAlbumId(targetAlbumId);
+                    setActiveTab('album');
+                  }}
+                  className="p-3 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-white/15 hover:bg-white/[0.06] transition-all cursor-pointer group"
+                >
+                  <div className="relative aspect-square rounded-xl overflow-hidden mb-2.5 bg-slate-800 shadow-md">
+                    <OptimizedImage src={album.coverUrl} alt={targetAlbumTitle || ''} size="card" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  </div>
+                  <h4 className="text-xs font-bold text-white truncate group-hover:text-[#FA233B] transition-colors">{targetAlbumTitle}</h4>
+                  <p className="text-[10px] text-slate-400 truncate mt-0.5">{album.artist}</p>
                 </div>
-                <h4 className="text-xs font-bold text-white truncate group-hover:text-[#FA233B] transition-colors">{album.album}</h4>
-                <p className="text-[10px] text-slate-400 truncate mt-0.5">{album.artist}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}
