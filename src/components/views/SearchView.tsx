@@ -128,7 +128,6 @@ export function SearchView() {
         const results = await UnifiedSearchEngine.getInstance().search(trimmedQuery, preferredLanguage);
         if (!isCancelled) {
           setSearchResults(results);
-          setRecentSearches(UnifiedSearchEngine.getInstance().getRecentSearches());
 
           // Record language interest
           const { LanguageEligibilityEngine } = await import('@/lib/language/LanguageEligibilityEngine');
@@ -185,6 +184,13 @@ export function SearchView() {
       isOffline: false,
       timestamp: Date.now(),
     });
+  };
+
+  const handleCommitSearch = (queryToCommit?: string) => {
+    const q = (queryToCommit ?? searchQuery).trim();
+    if (!q) return;
+    UnifiedSearchEngine.getInstance().addRecentSearch(q);
+    setRecentSearches(UnifiedSearchEngine.getInstance().getRecentSearches());
   };
 
   const handleClearRecent = () => {
@@ -266,7 +272,13 @@ export function SearchView() {
     <div className="w-full space-y-6 pb-2 text-white select-none animate-in fade-in duration-200">
       {/* ── 1. CENTERED PROMINENT PILL SEARCH BAR ─────────────────────────── */}
       <div className="pt-2 pb-1 flex justify-center w-full">
-        <div className="relative w-full max-w-2xl">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleCommitSearch();
+          }}
+          className="relative w-full max-w-2xl"
+        >
           <div className="relative flex items-center rounded-2xl bg-white/[0.06] hover:bg-white/[0.09] backdrop-blur-xl border border-white/10 focus-within:border-[#FA233B]/60 focus-within:bg-black/50 transition-all shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
             <Search className="w-4 h-4 text-[#FA233B] ml-4 flex-shrink-0" />
             <input
@@ -278,12 +290,19 @@ export function SearchView() {
               name="raagax-main-search-query"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleCommitSearch();
+                }
+              }}
               placeholder="Artists, Songs, Albums, Lyrics and More"
               className="w-full bg-transparent px-3.5 py-3 text-sm text-white placeholder-zinc-400 font-medium focus:outline-none"
               autoFocus={false}
             />
             {searchQuery ? (
               <button
+                type="button"
                 onClick={() => {
                   haptics.lightImpact();
                   setSearchQuery('');
@@ -301,7 +320,7 @@ export function SearchView() {
               </div>
             )}
           </div>
-        </div>
+        </form>
       </div>
 
       {/* ── 2. ACTIVE CATEGORY HEADER BANNER (When Category is clicked) ────── */}
@@ -341,7 +360,7 @@ export function SearchView() {
           {recentSearches.length > 0 && (
             <section className="space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
                   <Clock className="w-3.5 h-3.5 text-zinc-400" />
                   Recently Searched
                 </h2>
@@ -360,10 +379,11 @@ export function SearchView() {
                     onClick={() => {
                       haptics.lightImpact();
                       setSearchQuery(term);
+                      handleCommitSearch(term);
                     }}
-                    className="group px-3.5 py-1.5 rounded-full bg-white/[0.05] hover:bg-white/[0.12] border border-white/10 text-xs font-semibold text-zinc-200 hover:text-white flex items-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95"
+                    className="group px-3.5 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs font-semibold text-zinc-200 hover:text-white flex items-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95"
                   >
-                    <span>{term}</span>
+                    <span className="max-w-[180px] sm:max-w-[240px] truncate" title={term}>{term}</span>
                     <button
                       onClick={(e) => handleRemoveRecentItem(term, e)}
                       className="text-zinc-500 hover:text-[#FA233B] transition-colors p-0.5"
@@ -480,6 +500,7 @@ export function SearchView() {
                   onClick={() => {
                     haptics.lightImpact();
                     setSearchQuery(item.term);
+                    handleCommitSearch(item.term);
                   }}
                   className="py-2.5 px-3.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.06] hover:border-white/15 flex items-center gap-3 transition-colors text-left cursor-pointer group"
                 >
@@ -595,7 +616,10 @@ export function SearchView() {
                   <div className="mt-2.5 flex items-center gap-2">
                     {searchResults.topResult.type === 'song' ? (
                       <button
-                        onClick={() => playSong(searchResults.topResult!.item, searchResults.songs)}
+                        onClick={() => {
+                          handleCommitSearch();
+                          playSong(searchResults.topResult!.item, searchResults.songs);
+                        }}
                         className="px-3.5 py-1.5 rounded-full bg-[#FA233B] text-white font-bold text-xs flex items-center gap-1.5 shadow-md hover:scale-105 transition-all cursor-pointer"
                       >
                         <Play className="w-3.5 h-3.5 fill-white" /> Play
@@ -603,6 +627,7 @@ export function SearchView() {
                     ) : searchResults.topResult.type === 'artist' ? (
                       <button
                         onClick={() => {
+                          handleCommitSearch();
                           setSelectedArtistId(searchResults.topResult!.item.id);
                           setActiveTab('artist');
                         }}
@@ -613,6 +638,7 @@ export function SearchView() {
                     ) : (
                       <button
                         onClick={() => {
+                          handleCommitSearch();
                           setSelectedAlbumId(searchResults.topResult!.item.id);
                           setActiveTab('album');
                         }}
@@ -639,6 +665,7 @@ export function SearchView() {
                     <div
                       key={artist.id}
                       onClick={() => {
+                        handleCommitSearch();
                         setSelectedArtistId(artist.id);
                         setActiveTab('artist');
                       }}
@@ -663,6 +690,7 @@ export function SearchView() {
                     <div
                       key={artist.id}
                       onClick={() => {
+                        handleCommitSearch();
                         setSelectedArtistId(artist.id);
                         setActiveTab('artist');
                       }}
@@ -697,6 +725,7 @@ export function SearchView() {
                     <div
                       key={album.id}
                       onClick={() => {
+                        handleCommitSearch();
                         setSelectedAlbumId(album.id);
                         setActiveTab('album');
                       }}
@@ -734,6 +763,7 @@ export function SearchView() {
                     <div
                       key={album.id}
                       onClick={() => {
+                        handleCommitSearch();
                         setSelectedAlbumId(album.id);
                         setActiveTab('album');
                       }}
@@ -774,6 +804,7 @@ export function SearchView() {
                     <div
                       key={playlist.id}
                       onClick={() => {
+                        handleCommitSearch();
                         setSelectedPlaylistId(playlist.id);
                         setActiveTab('playlist');
                       }}
@@ -810,6 +841,7 @@ export function SearchView() {
                     <div
                       key={playlist.id}
                       onClick={() => {
+                        handleCommitSearch();
                         setSelectedPlaylistId(playlist.id);
                         setActiveTab('playlist');
                       }}
@@ -863,7 +895,10 @@ export function SearchView() {
                     >
                       {/* Cover Art with Play overlay */}
                       <div
-                        onClick={() => playSong(song, searchResults.songs)}
+                        onClick={() => {
+                          handleCommitSearch();
+                          playSong(song, searchResults.songs);
+                        }}
                         className="relative w-11 h-11 rounded-lg overflow-hidden shadow-sm flex-shrink-0 cursor-pointer border border-white/10"
                       >
                         <OptimizedImage
@@ -881,7 +916,10 @@ export function SearchView() {
                       {/* Song Details */}
                       <div
                         className="flex-1 min-w-0 cursor-pointer"
-                        onClick={() => playSong(song, searchResults.songs)}
+                        onClick={() => {
+                          handleCommitSearch();
+                          playSong(song, searchResults.songs);
+                        }}
                       >
                         <h4
                           className={`text-xs font-bold truncate ${

@@ -62,8 +62,14 @@ export interface UnifiedSearchResults {
   timestamp: number;
 }
 
-const RECENT_SEARCHES_STORAGE_KEY = 'raagax_recent_searches';
-const MAX_RECENT_SEARCHES = 15;
+export interface RecentSearchEntry {
+  query: string;
+  normalizedQuery: string;
+  searchedAt: number;
+}
+
+const RECENT_SEARCHES_STORAGE_KEY = 'raagax_recent_searches_v2';
+const MAX_RECENT_SEARCHES = 20;
 
 function decodeHtml(s: string): string {
   return (s || '')
@@ -111,46 +117,98 @@ export class UnifiedSearchEngine {
     return UnifiedSearchEngine.instance;
   }
 
-  /**
-   * Search Recent History Management
-   */
-  public getRecentSearches(): string[] {
+  private getStorage(): Storage | null {
     try {
-      if (typeof window === 'undefined') return [];
-      const raw = localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY);
+      if (typeof window !== 'undefined' && window.localStorage) return window.localStorage;
+      if (typeof localStorage !== 'undefined') return localStorage;
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Search Recent History Management (Completed searches only, normalized & deduplicated)
+   */
+  public getRecentSearchEntries(): RecentSearchEntry[] {
+    try {
+      const storage = this.getStorage();
+      if (!storage) return [];
+      const raw = storage.getItem(RECENT_SEARCHES_STORAGE_KEY);
       if (!raw) return [];
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
+      if (!Array.isArray(parsed)) return [];
+
+      return parsed
+        .map((item: any) => {
+          if (typeof item === 'string') {
+            const trimmed = item.trim();
+            if (!trimmed) return null;
+            return {
+              query: trimmed,
+              normalizedQuery: trimmed.toLowerCase(),
+              searchedAt: Date.now(),
+            };
+          }
+          if (item && typeof item.query === 'string') {
+            const trimmed = item.query.trim();
+            if (!trimmed) return null;
+            return {
+              query: trimmed,
+              normalizedQuery: item.normalizedQuery || trimmed.toLowerCase(),
+              searchedAt: item.searchedAt || Date.now(),
+            };
+          }
+          return null;
+        })
+        .filter((e): e is RecentSearchEntry => Boolean(e && e.query));
     } catch {
       return [];
     }
   }
 
+  public getRecentSearches(): string[] {
+    return this.getRecentSearchEntries().map((e) => e.query);
+  }
+
   public addRecentSearch(query: string): void {
     const trimmed = query.trim();
-    if (!trimmed || typeof window === 'undefined') return;
+    if (!trimmed) return;
+    const storage = this.getStorage();
+    if (!storage) return;
+    const normalized = trimmed.toLowerCase();
 
     try {
-      const current = this.getRecentSearches();
-      const filtered = current.filter((q) => q.toLowerCase() !== trimmed.toLowerCase());
-      const updated = [trimmed, ...filtered].slice(0, MAX_RECENT_SEARCHES);
-      localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(updated));
+      const current = this.getRecentSearchEntries();
+      // Case-insensitive, whitespace-normalized deduplication
+      const filtered = current.filter((e) => e.normalizedQuery !== normalized);
+      // Prepend newest completed search to the TOP of the array
+      const newEntry: RecentSearchEntry = {
+        query: trimmed,
+        normalizedQuery: normalized,
+        searchedAt: Date.now(),
+      };
+      const updated = [newEntry, ...filtered].slice(0, MAX_RECENT_SEARCHES);
+      storage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(updated));
     } catch {}
   }
 
   public removeRecentSearch(query: string): void {
-    if (typeof window === 'undefined') return;
+    const storage = this.getStorage();
+    if (!storage) return;
+    const normalized = query.trim().toLowerCase();
     try {
-      const current = this.getRecentSearches();
-      const updated = current.filter((q) => q.toLowerCase() !== query.trim().toLowerCase());
-      localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(updated));
+      const current = this.getRecentSearchEntries();
+      const updated = current.filter((e) => e.normalizedQuery !== normalized);
+      storage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(updated));
     } catch {}
   }
 
   public clearRecentSearches(): void {
-    if (typeof window === 'undefined') return;
+    const storage = this.getStorage();
+    if (!storage) return;
     try {
-      localStorage.removeItem(RECENT_SEARCHES_STORAGE_KEY);
+      storage.removeItem(RECENT_SEARCHES_STORAGE_KEY);
     } catch {}
   }
 
@@ -434,9 +492,6 @@ export class UnifiedSearchEngine {
         };
       }
     }
-
-    // Record search in history
-    this.addRecentSearch(q);
 
     return {
       query: q,
