@@ -358,9 +358,9 @@ export function FavoritesView() {
   }, [displaySongs]);
 
   return (
-    <div className="space-y-4 pb-2 text-white select-none animate-in fade-in duration-200 max-w-7xl mx-auto px-4 sm:px-8 md:px-10 lg:px-12">
+    <div className="space-y-4 pb-4 text-white select-none animate-in fade-in duration-200 max-w-7xl mx-auto px-4 sm:px-8 md:px-10 lg:px-12 pt-5 sm:pt-7">
       {/* ── HEADER AREA (Apple Music Style Density) ─────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pt-1 border-b border-white/[0.06] pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-white/[0.06] pb-4">
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight">
             Liked Songs

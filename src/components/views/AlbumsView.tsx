@@ -253,9 +253,9 @@ export function AlbumsView() {
   };
 
   return (
-    <div className="space-y-4 pb-2 text-white select-none animate-in fade-in duration-200 max-w-7xl mx-auto px-4 sm:px-8 md:px-10 lg:px-12">
+    <div className="space-y-6 pb-4 text-white select-none animate-in fade-in duration-200 max-w-7xl mx-auto px-4 sm:px-8 md:px-10 lg:px-12 pt-5 sm:pt-7">
       {/* ── CONTROLS TOOLBAR: Filter Tabs, Language, Search & Sort ─────────────── */}
-      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 pt-1">
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3.5">
         {/* Filter Categories */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
           <button

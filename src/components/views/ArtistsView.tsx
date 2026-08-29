@@ -264,9 +264,9 @@ export function ArtistsView() {
   }, [favoriteArtistIds, allSeedArtistsMap, dynamicArtistMetadata, allDiscoverArtists, searchFilter, sortBy, currentLang]);
 
   return (
-    <div className="space-y-6 pb-2 select-none pt-2 text-white animate-in fade-in duration-200 max-w-7xl mx-auto px-4 sm:px-8 md:px-10 lg:px-12">
+    <div className="space-y-6 pb-4 select-none text-white animate-in fade-in duration-200 max-w-7xl mx-auto px-4 sm:px-8 md:px-10 lg:px-12 pt-5 sm:pt-7">
       {/* ── TOP CONTROLS TOOLBAR: Subtabs, Search & Sort ──────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 pt-1">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
         {/* Sub-Tabs: Following / Discover */}
         <div className="flex items-center gap-2 bg-white/5 p-1 rounded-2xl border border-white/10 w-fit">
           <button

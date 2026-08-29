@@ -217,12 +217,12 @@ export function NewView() {
   );
 
   return (
-    <div className={`w-full space-y-6 pb-2 text-white select-none transition-opacity duration-300 ${isManualRefreshing ? 'opacity-70 pointer-events-none' : 'opacity-100'} animate-in fade-in duration-200`}>
+    <div className={`w-full space-y-6 pb-4 text-white select-none transition-opacity duration-300 ${isManualRefreshing ? 'opacity-70 pointer-events-none' : 'opacity-100'} animate-in fade-in duration-200 pt-5 sm:pt-7`}>
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* 1. LANGUAGE FILTER + REFRESH TOOLBAR                                   */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <div className="flex items-center justify-between gap-3 pt-1">
+      <div className="flex items-center justify-between gap-3">
         {/* Strict Language Filter Pills */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
           {ALL_LANGUAGES.map((l) => {
