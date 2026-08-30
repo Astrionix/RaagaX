@@ -25,10 +25,10 @@ import {
   QrCode,
   Smartphone,
   Monitor,
-  Globe,
   Copy,
   Bluetooth,
   Wifi,
+  Camera,
 } from 'lucide-react';
 import { useJamStore } from '@/context/useJamStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
@@ -36,6 +36,7 @@ import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { SongFormatter } from '@/lib/music/SongFormatter';
 import { JamSyncBadge } from './JamSyncBadge';
 import { SeekBar } from '@/components/player/SeekBar';
+import { JamCameraScanner } from './JamCameraScanner';
 
 export function JamModal() {
   const {
@@ -67,6 +68,7 @@ export function JamModal() {
   const [activeTab, setActiveTab] = useState<'now_playing' | 'queue' | 'participants'>('now_playing');
   const [joinCodeInput, setJoinCodeInput] = useState('');
   const [jamNameInput, setJamNameInput] = useState('');
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   if (!isJamModalOpen) return null;
 
@@ -81,6 +83,17 @@ export function JamModal() {
     e.preventDefault();
     if (!joinCodeInput.trim()) return;
     await joinJam(joinCodeInput);
+  };
+
+  const handleScanSuccess = async (scannedValue: string) => {
+    setIsScannerOpen(false);
+    if (!scannedValue) return;
+
+    if (scannedValue.length <= 6 && !scannedValue.startsWith('JAM_')) {
+      await useJamStore.getState().joinByCode(scannedValue.toUpperCase());
+    } else {
+      await joinJam(scannedValue);
+    }
   };
 
   const handleMoveQueueItem = async (index: number, direction: 'up' | 'down') => {
@@ -178,7 +191,7 @@ export function JamModal() {
               Start a Jam party to share playback, metadata, and queue controls with friends anywhere in the world with millisecond synchronization.
             </p>
 
-            <div className="w-full max-w-xs mt-6 space-y-3">
+            <div className="w-full max-w-xs mt-6 space-y-2.5">
               <button
                 onClick={handleCreateJam}
                 disabled={isLoading}
@@ -188,18 +201,27 @@ export function JamModal() {
                 <span>{isLoading ? 'Creating Jam...' : 'Start a Jam Party'}</span>
               </button>
 
-              <div className="flex items-center gap-3 py-1">
+              <div className="flex items-center gap-3 py-0.5">
                 <div className="flex-1 h-[1px] bg-white/10" />
                 <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">or join existing</span>
                 <div className="flex-1 h-[1px] bg-white/10" />
               </div>
+
+              {/* Camera Scanner Quick Trigger */}
+              <button
+                onClick={() => setIsScannerOpen(true)}
+                className="w-full py-2.5 px-4 rounded-2xl bg-gradient-to-r from-[#FA233B]/20 via-[#FA233B]/10 to-white/[0.02] border border-[#FA233B]/40 hover:border-[#FA233B] text-xs font-bold text-white transition-all cursor-pointer flex items-center justify-center gap-2 shadow-md active:scale-98"
+              >
+                <Camera className="w-4 h-4 text-[#FA233B]" />
+                <span>Scan Host QR Code (Camera)</span>
+              </button>
 
               <button
                 onClick={() => {
                   toggleJamModal(false);
                   useJamStore.getState().toggleJoinModal(true);
                 }}
-                className="w-full py-3 px-4 rounded-2xl bg-white/10 hover:bg-white/15 text-xs font-bold text-white transition-all cursor-pointer flex items-center justify-center gap-2 border border-white/10"
+                className="w-full py-2.5 px-4 rounded-2xl bg-white/10 hover:bg-white/15 text-xs font-bold text-white transition-all cursor-pointer flex items-center justify-center gap-2 border border-white/10"
               >
                 <div className="flex items-center gap-1 text-[#FA233B]">
                   <Bluetooth className="w-3.5 h-3.5" />
@@ -604,6 +626,13 @@ export function JamModal() {
           </div>
         )}
       </div>
+
+      {/* Camera QR Scanner Overlay */}
+      <JamCameraScanner
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScanSuccess={handleScanSuccess}
+      />
     </div>
   );
 }
