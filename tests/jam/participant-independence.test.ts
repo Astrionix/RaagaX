@@ -13,7 +13,7 @@ const mockSongA: Song = {
   coverUrl: 'https://cdn.test/chaleya.jpg',
   audioUrl: 'https://cdn.test/chaleya.mp3',
   genre: 'Bollywood',
-  category: 'latest_hindi',
+  category: 'love',
   releaseYear: 2023,
   plays: 900000,
   likes: 45000,
@@ -30,7 +30,7 @@ const mockSongB: Song = {
   coverUrl: 'https://cdn.test/naaready.jpg',
   audioUrl: 'https://cdn.test/naaready.mp3',
   genre: 'Kollywood',
-  category: 'latest_tamil',
+  category: 'mass',
   releaseYear: 2023,
   plays: 850000,
   likes: 40000,
@@ -130,7 +130,7 @@ describe('Participant Independence & Playback Continuity Suite', () => {
     // Ravi reconnects -> updates to READY / PLAYING
     engine.updateParticipantState(session.jamId, 'user_b', {
       status: 'PLAYING',
-      driftMs: 8,
+      playbackDriftMs: 8,
     });
 
     const recoveredSession = engine.getSession(session.jamId)!;

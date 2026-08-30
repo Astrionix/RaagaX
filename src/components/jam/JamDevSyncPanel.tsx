@@ -17,7 +17,7 @@ export function JamDevSyncPanel() {
   const [showPanel, setShowPanel] = useState(false);
   const [minimized, setMinimized] = useState(false);
 
-  const { session, isInJam, participantState } = useJamStore();
+  const { session, isInJam, participantState, diagnostics } = useJamStore();
   const [driftStatus, setDriftStatus] = useState<DriftStatus | null>(null);
   const [clockState, setClockState] = useState(ClockSyncEngine.getInstance().getState());
   const [netMetrics, setNetMetrics] = useState(NetworkQualityEngine.getInstance().getMetrics());
@@ -84,6 +84,14 @@ export function JamDevSyncPanel() {
     }
   }
 
+  const currentTrackId = session.trackId || session.currentSong?.id || 'N/A';
+  const currentQueueId = session.currentQueueItemId || 'N/A';
+  const deviceName = diagnostics.deviceName || 'Web Client';
+  const deviceId = diagnostics.deviceId || 'DEV_LOCAL';
+  const deviceType = diagnostics.deviceType || 'desktop';
+  const platform = diagnostics.platform ? diagnostics.platform.toUpperCase() : 'WEB';
+  const transport = diagnostics.transportLabel || (netMetrics.transport === 'LAN' ? 'LOCAL LAN' : 'LOCAL LAN / CLOUD RELAY');
+
   if (minimized) {
     return (
       <button
@@ -97,12 +105,12 @@ export function JamDevSyncPanel() {
   }
 
   return (
-    <div className="fixed bottom-20 left-4 z-50 w-80 rounded-2xl bg-[#0B0F19]/95 backdrop-blur-xl border border-cyan-500/30 text-white shadow-2xl p-3.5 text-xs font-mono select-none animate-in fade-in zoom-in-95 duration-200 max-h-[85vh] overflow-y-auto">
+    <div className="fixed bottom-20 left-4 z-50 w-84 rounded-2xl bg-[#0B0F19]/95 backdrop-blur-xl border border-cyan-500/30 text-white shadow-2xl p-3.5 text-xs font-mono select-none animate-in fade-in zoom-in-95 duration-200 max-h-[85vh] overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2">
         <div className="flex items-center gap-1.5 text-cyan-400 font-bold tracking-wider text-[11px]">
           <Activity className="w-3.5 h-3.5 animate-pulse" />
-          <span>JAM SYNC DEBUG</span>
+          <span>JAM SYNC & PLAYBACK DEBUG</span>
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -122,25 +130,17 @@ export function JamDevSyncPanel() {
 
       {/* Grid Data */}
       <div className="space-y-1 text-[11px]">
-        <div className="flex justify-between">
-          <span className="text-white/40">Jam ID:</span>
-          <span className="font-bold text-white/90">{session.jamId}</span>
+        {/* 1. PLAYBACK DIAGNOSTICS */}
+        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider my-1">
+          PLAYBACK
         </div>
         <div className="flex justify-between">
-          <span className="text-white/40">Join Code:</span>
-          <span className="font-bold text-[#FA233B]">{session.joinCode}</span>
+          <span className="text-white/40">Track:</span>
+          <span className="text-white/90 font-bold truncate max-w-[150px]" title={currentTrackId}>{currentTrackId}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-white/40">Revision:</span>
-          <span className="text-purple-300 font-bold">{session.revision}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-white/40">Timeline ID:</span>
-          <span className="text-cyan-400 text-[10px]">{session.timelineId || 'TL_1'}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-white/40">Generation:</span>
-          <span className="text-pink-400 font-bold">{session.generation ?? 1}</span>
+          <span className="text-white/40">Queue Item:</span>
+          <span className="text-white/80 truncate max-w-[150px]" title={currentQueueId}>{currentQueueId}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-white/40">State:</span>
@@ -152,13 +152,55 @@ export function JamDevSyncPanel() {
             {session.state} ({participantState})
           </span>
         </div>
+        <div className="flex justify-between">
+          <span className="text-white/40">Generation:</span>
+          <span className="text-pink-400 font-bold">#{session.generation ?? 1}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/40">Timeline:</span>
+          <span className="text-cyan-400 text-[10px] truncate max-w-[150px]" title={session.timelineId}>{session.timelineId || 'TL_1'}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/40">Transition:</span>
+          <span className="text-purple-300 truncate max-w-[150px]" title={session.transitionId}>{session.transitionId || 'TR_1'}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/40">Revision:</span>
+          <span className="text-[#FA233B] font-bold">#{session.revision}</span>
+        </div>
 
         <div className="h-px bg-white/10 my-1.5" />
 
-        {/* Network & Latency Metrics */}
+        {/* 2. DEVICE INFORMATION */}
+        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider my-1">
+          DEVICE
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/40">Device:</span>
+          <span className="text-slate-200 font-bold">{deviceName}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/40">Device ID:</span>
+          <span className="text-slate-300 font-mono text-[10px]">{deviceId}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/40">Device Type:</span>
+          <span className="text-slate-300 capitalize">{deviceType}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/40">Platform:</span>
+          <span className="text-cyan-300">{platform}</span>
+        </div>
         <div className="flex justify-between">
           <span className="text-white/40">Transport:</span>
-          <span className="text-indigo-300 font-bold">{netMetrics.transport}</span>
+          <span className="text-indigo-300 font-bold">{transport}</span>
+        </div>
+
+        <div className="h-px bg-white/10 my-1.5" />
+
+        {/* 3. NETWORK & TIMELINE METRICS */}
+        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider my-1">
+          NETWORK & SYNC
         </div>
         <div className="flex justify-between">
           <span className="text-white/40">Quality:</span>
@@ -170,7 +212,7 @@ export function JamDevSyncPanel() {
         </div>
         <div className="flex justify-between">
           <span className="text-white/40">Jitter:</span>
-          <span className="text-cyan-300">{netMetrics.jitter} ms</span>
+          <span className="text-cyan-300">±{netMetrics.jitter} ms</span>
         </div>
         <div className="flex justify-between">
           <span className="text-white/40">Packet Loss:</span>
@@ -185,7 +227,7 @@ export function JamDevSyncPanel() {
 
         <div className="h-px bg-white/10 my-1.5" />
 
-        {/* Playback & Drift Synchronization */}
+        {/* 4. DRIFT & AUDIO TIMELINE */}
         <div className="flex justify-between">
           <span className="text-white/40">Expected Pos:</span>
           <span className="text-white/90">{expectedSec.toFixed(3)}s</span>

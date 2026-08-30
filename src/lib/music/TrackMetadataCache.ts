@@ -64,7 +64,7 @@ export class TrackMetadataCache {
       sourceUrl: (item as any).audioUrl || (item as any).sourceUrl || existing?.sourceUrl,
       language: (item as any).language || existing?.language,
       genre: (item as any).genre || existing?.genre,
-      generation: item.generation || existing?.generation,
+      generation: (item as any).generation || existing?.generation,
     };
 
     // Evict oldest if full
@@ -110,7 +110,7 @@ export class TrackMetadataCache {
       album: song.album,
       artwork: song.coverUrl,
       durationMs: (song.duration || 0) * 1000,
-      sourceUrl: song.audioUrl,
+      sourceUrl: song.audioUrl || undefined,
       language: song.language,
       genre: song.genre,
       generation,

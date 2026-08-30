@@ -11,6 +11,9 @@ import {
   JamRole,
   JamPresetName,
   JAM_PERMISSION_PRESETS,
+  PlaybackHistoryEntry,
+  PlaybackHistoryReason,
+  JamHandoffState,
 } from '@/types/jam';
 import { Song } from '@/types/music';
 
@@ -182,6 +185,8 @@ export class JamServerEngine {
           participants: data.participants || {},
           queue: data.queue || [],
           history: data.history || [],
+          playbackHistory: data.playback_history || [],
+          activeHandoff: data.active_handoff || null,
           isNearbyDiscoverable: data.is_nearby_discoverable !== false,
           createdAt: Number(data.created_at || Date.now()),
           updatedAt: Number(data.updated_at || Date.now()),
@@ -198,6 +203,41 @@ export class JamServerEngine {
     } catch {}
 
     return null;
+  }
+
+  /**
+   * Authoritative helper to record an entry in the Playback History model
+   */
+  private recordPlaybackHistory(
+    session: JamSession,
+    reason: PlaybackHistoryReason,
+    now: number,
+    song?: Song | null,
+    queueItemId?: string | null
+  ) {
+    if (!session.playbackHistory) {
+      session.playbackHistory = [];
+    }
+    const songToRecord = song ?? session.currentSong;
+    const trackId = songToRecord?.id ?? session.trackId;
+    if (!trackId) return;
+
+    const entry: PlaybackHistoryEntry = {
+      historyId: `HIST_${crypto.randomUUID()}`,
+      queueItemId: queueItemId ?? session.currentQueueItemId ?? null,
+      trackId,
+      transitionId: session.transitionId || `TR_${session.generation || 1}`,
+      startedAt: now,
+      endedAt: now,
+      reason,
+      generation: session.generation || 1,
+      song: songToRecord,
+    };
+
+    session.playbackHistory.unshift(entry);
+    if (session.playbackHistory.length > 100) {
+      session.playbackHistory.pop();
+    }
   }
 
   /**
@@ -385,7 +425,13 @@ export class JamServerEngine {
       },
       queue: initialQueueItems,
       history: [],
+      playbackHistory: [],
+      activeHandoff: null,
     };
+
+    if (params.initialSong) {
+      this.recordPlaybackHistory(session, 'MANUAL_NEXT', now, params.initialSong, session.currentQueueItemId);
+    }
 
     this.sessions.set(jamId, session);
     this.joinCodes.set(joinCode, jamId);
@@ -744,6 +790,24 @@ export class JamServerEngine {
           generation: session.generation,
         };
 
+        if (session.currentSong) {
+          this.recordPlaybackHistory(session, 'MANUAL_NEXT', now, session.currentSong, session.currentQueueItemId);
+        }
+
+        console.log('[PLAYBACK_STARTED]', {
+          jamId: session.jamId,
+          requestId: command.requestId || 'NONE',
+          revision: session.revision,
+          trackId: session.trackId,
+          queueItemId: session.currentQueueItemId,
+          transitionId,
+          timelineId,
+          generation: session.generation,
+          deviceId: command.deviceId || command.userId,
+          state: session.state,
+          position: session.positionMs,
+        });
+
         console.log('[PLAYBACK]', {
           trackId: session.trackId,
           timelineId,
@@ -807,6 +871,8 @@ export class JamServerEngine {
         session.timelineStartServerMs = now;
         session.timelineId = timelineId;
         session.transitionId = transitionId;
+
+        this.recordPlaybackHistory(session, 'STOP', now);
 
         eventType = 'STOP';
         payload = {
@@ -949,6 +1015,8 @@ export class JamServerEngine {
         }
         session.timelineStartServerMs = session.startAtServerTime;
 
+        this.recordPlaybackHistory(session, 'MANUAL_NEXT', now, session.currentSong, session.currentQueueItemId);
+
         eventType = 'TRACK_CHANGED';
         payload = {
           currentSong: session.currentSong,
@@ -961,10 +1029,19 @@ export class JamServerEngine {
           state: session.state,
           queue: session.queue,
           history: session.history,
+          playbackHistory: session.playbackHistory,
           timelineId,
           transitionId,
           generation: session.generation,
         };
+
+        console.log('[TRANSITION]', {
+          requestId: command.requestId || 'NONE',
+          transitionId,
+          fromTrackId: session.history[0]?.trackId,
+          toTrackId: session.trackId,
+          queueItemId: session.currentQueueItemId,
+        });
 
         console.log('[PLAYBACK]', {
           trackId: session.trackId,
@@ -984,8 +1061,10 @@ export class JamServerEngine {
         const timelineId = `TL_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
         const transitionId = `TR_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
 
+        const hasHistory = (session.playbackHistory && session.playbackHistory.length > 1) || session.history.length > 0;
+
         // If played > 3s or no history, restart current song at 0:00
-        if (currentPos > 3000 || session.history.length === 0) {
+        if (currentPos > 3000 || !hasHistory) {
           session.positionMs = 0;
           session.basePositionMs = 0;
           session.serverTimestamp = now;
@@ -1016,7 +1095,28 @@ export class JamServerEngine {
           break;
         }
 
-        const prevItem = session.history.shift()!;
+        // Use PlaybackHistory model if available for true non-linear history step-back
+        let prevSong: Song | null = null;
+        let prevQueueItemId: string | null = null;
+
+        if (session.playbackHistory && session.playbackHistory.length > 1) {
+          session.playbackHistory.shift(); // Remove current
+          const prevEntry = session.playbackHistory[0];
+          prevSong = prevEntry.song || null;
+          prevQueueItemId = prevEntry.queueItemId;
+        } else if (session.history.length > 0) {
+          const prevItem = session.history.shift()!;
+          prevSong = prevItem.song;
+          prevQueueItemId = prevItem.queueItemId;
+        }
+
+        if (!prevSong) {
+          session.positionMs = 0;
+          eventType = 'SEEK';
+          payload = { positionMs: 0, state: session.state };
+          break;
+        }
+
         if (session.currentSong) {
           session.queue.unshift({
             queueItemId: session.currentQueueItemId || `QI_${crypto.randomUUID()}`,
@@ -1029,9 +1129,9 @@ export class JamServerEngine {
           });
         }
 
-        session.currentSong = prevItem.song;
-        session.trackId = prevItem.song.id;
-        session.currentQueueItemId = prevItem.queueItemId;
+        session.currentSong = prevSong;
+        session.trackId = prevSong.id;
+        session.currentQueueItemId = prevQueueItemId;
         session.positionMs = 0;
         session.basePositionMs = 0;
         session.serverTimestamp = now;
@@ -1058,10 +1158,19 @@ export class JamServerEngine {
           state: session.state,
           queue: session.queue,
           history: session.history,
+          playbackHistory: session.playbackHistory,
           timelineId,
           transitionId,
           generation: session.generation,
         };
+
+        console.log('[TRANSITION]', {
+          requestId: command.requestId || 'NONE',
+          transitionId,
+          reason: 'MANUAL_PREVIOUS',
+          toTrackId: session.trackId,
+          queueItemId: session.currentQueueItemId,
+        });
 
         console.log('[PLAYBACK]', {
           trackId: session.trackId,
@@ -1071,6 +1180,122 @@ export class JamServerEngine {
           generation: session.generation,
           state: session.state,
         });
+        break;
+      }
+
+      case 'REQUEST_HANDOFF': {
+        const targetUserId = command.payload?.targetUserId;
+        const targetParticipant = targetUserId ? session.participants[targetUserId] : null;
+        if (!targetParticipant) {
+          return { success: false, error: 'Target participant not found in this Jam' };
+        }
+
+        const currentPos = this.calculateCurrentAuthoritativePosition(session, now);
+        const handoffId = `HO_${crypto.randomUUID()}`;
+        const handoffState: JamHandoffState = {
+          handoffId,
+          sourceDeviceId: command.deviceId || command.userId,
+          sourceUserId: command.userId,
+          targetDeviceId: command.payload?.targetDeviceId || targetUserId,
+          targetUserId,
+          trackId: session.trackId || '',
+          queueItemId: session.currentQueueItemId || null,
+          transitionId: session.transitionId || `TR_${session.generation || 1}`,
+          timelineId: session.timelineId || `TL_${session.generation || 1}`,
+          generation: session.generation || 1,
+          revision: session.revision,
+          status: 'HANDOFF_REQUESTED',
+          positionMs: currentPos,
+          requestedAt: now,
+        };
+
+        session.activeHandoff = handoffState;
+        eventType = 'HANDOFF_REQUESTED';
+        payload = { handoff: handoffState };
+
+        console.log('[HANDOFF]', {
+          jamId: session.jamId,
+          requestId: command.requestId || 'NONE',
+          handoffId,
+          sourceUserId: command.userId,
+          targetUserId,
+          status: 'HANDOFF_REQUESTED',
+          positionMs: currentPos,
+        });
+        break;
+      }
+
+      case 'CONFIRM_HANDOFF_READY': {
+        if (!session.activeHandoff || session.activeHandoff.handoffId !== command.payload?.handoffId) {
+          return { success: false, error: 'No matching active handoff request' };
+        }
+
+        const leadTime = this.computeAdaptiveLeadTime(session);
+        session.generation = (session.generation ?? 0) + 1;
+        const timelineId = `TL_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
+        const transitionId = `TR_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
+
+        const targetPosMs = session.activeHandoff.positionMs || 0;
+        session.positionMs = targetPosMs;
+        session.basePositionMs = targetPosMs;
+        session.serverTimestamp = now;
+        session.startAtServerTime = now + leadTime;
+        session.timelineStartServerMs = session.startAtServerTime;
+        session.leadTimeMs = leadTime;
+        session.timelineId = timelineId;
+        session.transitionId = transitionId;
+        session.state = 'PLAYING';
+
+        session.activeHandoff.status = 'HANDOFF_COMMITTED';
+        session.activeHandoff.committedAt = now;
+        session.activeHandoff.timelineId = timelineId;
+        session.activeHandoff.transitionId = transitionId;
+        session.activeHandoff.generation = session.generation;
+
+        this.recordPlaybackHistory(session, 'HANDOFF', now);
+
+        eventType = 'HANDOFF_COMMITTED';
+        payload = {
+          handoff: session.activeHandoff,
+          positionMs: session.positionMs,
+          basePositionMs: session.basePositionMs,
+          startAtServerTime: session.startAtServerTime,
+          timelineStartServerMs: session.timelineStartServerMs,
+          timelineId,
+          transitionId,
+          generation: session.generation,
+          state: 'PLAYING',
+        };
+
+        console.log('[HANDOFF]', {
+          jamId: session.jamId,
+          requestId: command.requestId || 'NONE',
+          handoffId: session.activeHandoff.handoffId,
+          status: 'HANDOFF_COMMITTED',
+          positionMs: session.positionMs,
+          timelineId,
+          transitionId,
+        });
+        break;
+      }
+
+      case 'CONFIRM_TARGET_PLAYING': {
+        if (session.activeHandoff) {
+          session.activeHandoff.status = 'TARGET_PLAYING';
+          eventType = 'HANDOFF_COMPLETED';
+          payload = { handoff: session.activeHandoff };
+        }
+        break;
+      }
+
+      case 'FAIL_HANDOFF': {
+        if (session.activeHandoff) {
+          session.activeHandoff.status = 'HANDOFF_FAILED';
+          session.activeHandoff.errorMessage = command.payload?.errorMessage || 'Handoff failed on target device';
+          eventType = 'HANDOFF_FAILED';
+          payload = { handoff: session.activeHandoff, reason: session.activeHandoff.errorMessage };
+          session.activeHandoff = null;
+        }
         break;
       }
 
@@ -1497,6 +1722,10 @@ export class JamServerEngine {
       case 'UPDATE_PARTICIPANT_STATUS':
       case 'HEARTBEAT':
       case 'REPORT_METRICS':
+      case 'REQUEST_HANDOFF':
+      case 'CONFIRM_HANDOFF_READY':
+      case 'CONFIRM_TARGET_PLAYING':
+      case 'FAIL_HANDOFF':
         return { allowed: true };
       default:
         return { allowed: false, reason: 'Unauthorized command' };

@@ -4,26 +4,41 @@ import { ClockSyncEngine, ClockSample } from '@/lib/jam/client/ClockSyncEngine';
 import { DriftCorrectionEngine } from '@/lib/jam/client/DriftCorrectionEngine';
 import { JamServerEngine } from '@/lib/jam/server/JamServerEngine';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
-import { JamSession, Song } from '@/types/jam';
+import { JamSession } from '@/types/jam';
+import { Song } from '@/types/music';
 
 const sampleSong1: Song = {
   id: 'song-net-1',
   title: 'Network Sync Groove',
   artist: 'RaagaX Ensemble',
+  artistId: 'art_net_1',
   album: 'Latency Horizons',
+  albumId: 'alb_net_1',
   duration: 240,
-  url: 'https://cdn.example.com/audio/song1.mp3',
-  cover: 'https://cdn.example.com/covers/song1.jpg',
+  audioUrl: 'https://cdn.example.com/audio/song1.mp3',
+  coverUrl: 'https://cdn.example.com/covers/song1.jpg',
+  genre: 'Pop',
+  category: 'melody',
+  releaseYear: 2024,
+  plays: 0,
+  likes: 0,
 };
 
 const sampleSong2: Song = {
   id: 'song-net-2',
   title: 'Jitter Resilient Melody',
   artist: 'Drift Masters',
+  artistId: 'art_net_2',
   album: 'Clock Alignment',
+  albumId: 'alb_net_2',
   duration: 180,
-  url: 'https://cdn.example.com/audio/song2.mp3',
-  cover: 'https://cdn.example.com/covers/song2.jpg',
+  audioUrl: 'https://cdn.example.com/audio/song2.mp3',
+  coverUrl: 'https://cdn.example.com/covers/song2.jpg',
+  genre: 'Pop',
+  category: 'melody',
+  releaseYear: 2024,
+  plays: 0,
+  likes: 0,
 };
 
 describe('RaagaX Jam — Network Quality & Latency Synchronization Suite', () => {
@@ -264,7 +279,7 @@ describe('RaagaX Jam — Network Quality & Latency Synchronization Suite', () =>
         timelineId: 'TL_2',
         createdAt: 1000,
         updatedAt: 1000,
-        permissions: { allowGuestAddQueue: true, allowGuestControlPlayback: true, allowGuestReorderQueue: true, requireModeratorApproval: false },
+        permissions: { canAddSongs: true, canRemoveSongs: true, canReorderQueue: true, canControlPlayback: true, canSkip: true, canInvite: true, canRemoveParticipants: true },
         participants: {},
         queue: [],
         history: [],
@@ -307,7 +322,7 @@ describe('RaagaX Jam — Network Quality & Latency Synchronization Suite', () =>
         generation: 2,
         createdAt: 1000,
         updatedAt: 1000,
-        permissions: { allowGuestAddQueue: true, allowGuestControlPlayback: true, allowGuestReorderQueue: true, requireModeratorApproval: false },
+        permissions: { canAddSongs: true, canRemoveSongs: true, canReorderQueue: true, canControlPlayback: true, canSkip: true, canInvite: true, canRemoveParticipants: true },
         participants: {},
         queue: [],
         history: [],
@@ -350,7 +365,7 @@ describe('RaagaX Jam — Network Quality & Latency Synchronization Suite', () =>
         generation: 2,
         createdAt: 1000,
         updatedAt: 1000,
-        permissions: { allowGuestAddQueue: true, allowGuestControlPlayback: true, allowGuestReorderQueue: true, requireModeratorApproval: false },
+        permissions: { canAddSongs: true, canRemoveSongs: true, canReorderQueue: true, canControlPlayback: true, canSkip: true, canInvite: true, canRemoveParticipants: true },
         participants: {},
         queue: [],
         history: [],
@@ -397,7 +412,7 @@ describe('RaagaX Jam — Network Quality & Latency Synchronization Suite', () =>
         transitionId: 'TR_2',
         createdAt: 1000,
         updatedAt: 1000,
-        permissions: { allowGuestAddQueue: true, allowGuestControlPlayback: true, allowGuestReorderQueue: true, requireModeratorApproval: false },
+        permissions: { canAddSongs: true, canRemoveSongs: true, canReorderQueue: true, canControlPlayback: true, canSkip: true, canInvite: true, canRemoveParticipants: true },
         participants: {},
         queue: [],
         history: [],
@@ -445,7 +460,7 @@ describe('RaagaX Jam — Network Quality & Latency Synchronization Suite', () =>
         timelineId: 'TL_1',
         createdAt: 1000,
         updatedAt: 1000,
-        permissions: { allowGuestAddQueue: true, allowGuestControlPlayback: true, allowGuestReorderQueue: true, requireModeratorApproval: false },
+        permissions: { canAddSongs: true, canRemoveSongs: true, canReorderQueue: true, canControlPlayback: true, canSkip: true, canInvite: true, canRemoveParticipants: true },
         participants: {},
         queue: [],
         history: [],

@@ -60,6 +60,7 @@ export function JamModal() {
     sendUpdatePermissions,
     sendTransferHost,
     sendKickParticipant,
+    sendRequestHandoff,
     sendEndSession,
     isLoading,
   } = useJamStore();
@@ -526,25 +527,36 @@ export function JamModal() {
                           </div>
                         </div>
 
-                        {/* Host action controls */}
-                        {isHost && !p.isHost && (
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => sendTransferHost(p.userId)}
-                              className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[10px] font-bold text-slate-300 transition-colors"
-                              title="Make Host"
-                            >
-                              Make Host
-                            </button>
-                            <button
-                              onClick={() => sendKickParticipant(p.userId)}
-                              className="p-1 text-slate-500 hover:text-rose-400 transition-colors"
-                              title="Remove participant"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
+                        {/* Action controls */}
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => sendRequestHandoff(p.userId)}
+                            className="px-2 py-1 rounded-lg bg-[#FA233B]/15 hover:bg-[#FA233B]/25 text-[10px] font-bold text-[#FA233B] border border-[#FA233B]/30 transition-colors flex items-center gap-1 cursor-pointer active:scale-95"
+                            title="Handoff Playback to this Device"
+                          >
+                            <Radio className="w-2.5 h-2.5" />
+                            <span>Handoff</span>
+                          </button>
+
+                          {isHost && !p.isHost && (
+                            <>
+                              <button
+                                onClick={() => sendTransferHost(p.userId)}
+                                className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[10px] font-bold text-slate-300 transition-colors cursor-pointer"
+                                title="Make Host"
+                              >
+                                Make Host
+                              </button>
+                              <button
+                                onClick={() => sendKickParticipant(p.userId)}
+                                className="p-1 text-slate-500 hover:text-rose-400 transition-colors cursor-pointer"
+                                title="Remove participant"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>

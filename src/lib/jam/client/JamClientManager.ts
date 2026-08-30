@@ -5,6 +5,8 @@ import {
   JamParticipantState,
   JamPermissions,
   JamQueueItem,
+  DeviceCapabilities,
+  JamHandoffState,
 } from '@/types/jam';
 import { Song } from '@/types/music';
 import { ClockSyncEngine } from './ClockSyncEngine';
@@ -13,6 +15,7 @@ import { NetworkQualityEngine } from './NetworkQualityEngine';
 import { JamDiscoveryEngine } from './JamDiscoveryEngine';
 import { JamPlaybackStateMachine } from './JamPlaybackStateMachine';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
+import { PreloadManager } from '@/lib/playback/PreloadManager';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { supabase } from '@/lib/supabase';
 import { getApiUrl } from '@/lib/config/apiConfig';
@@ -28,6 +31,7 @@ export class JamClientManager {
   private currentUserName: string = 'User';
   private currentUserAvatar?: string;
   private localRevision: number = 0;
+  private processedEventIds: Set<string> = new Set();
 
   /**
    * Tracks the active transitionId so that async audio loads can detect when
@@ -388,6 +392,17 @@ export class JamClientManager {
    * Handles incoming JamEvent with revision check & gap detection
    */
   public handleIncomingEvent(event: JamEvent) {
+    if (event.eventId) {
+      if (this.processedEventIds.has(event.eventId)) {
+        return;
+      }
+      this.processedEventIds.add(event.eventId);
+      if (this.processedEventIds.size > 500) {
+        const oldest = this.processedEventIds.values().next().value;
+        if (oldest) this.processedEventIds.delete(oldest);
+      }
+    }
+
     if (!this.activeSession || event.jamId !== this.activeSession.jamId) {
       if (event.type === 'SYNC' && event.payload?.session) {
         this.applySessionSnapshot(event.payload.session);
@@ -619,6 +634,69 @@ export class JamClientManager {
       case 'PARTICIPANT_STATE_CHANGED': {
         if (event.payload.participant) {
           s.participants[event.payload.participant.userId] = event.payload.participant;
+        }
+        break;
+      }
+
+      case 'HANDOFF_REQUESTED': {
+        if (event.payload.handoff) {
+          s.activeHandoff = event.payload.handoff;
+          const isTarget = event.payload.handoff.targetUserId === this.currentUserId;
+          if (isTarget && s.currentSong) {
+            console.log(`[HANDOFF] Target received handoff request ${event.payload.handoff.handoffId}. Preparing audio...`);
+            const standby = PlaybackService.getInstance().getStandbyAudio();
+            PreloadManager.getInstance()
+              .prepareNextTrack(s.currentSong, standby, true)
+              .then((ready) => {
+                if (ready) {
+                  this.sendCommand('CONFIRM_HANDOFF_READY', { handoffId: event.payload.handoff.handoffId });
+                } else {
+                  this.sendCommand('FAIL_HANDOFF', { handoffId: event.payload.handoff.handoffId, errorMessage: 'Audio preload failed' });
+                }
+              })
+              .catch((err) => {
+                this.sendCommand('FAIL_HANDOFF', { handoffId: event.payload.handoff.handoffId, errorMessage: err?.message || 'Error' });
+              });
+          }
+        }
+        break;
+      }
+
+      case 'HANDOFF_COMMITTED': {
+        if (event.payload.handoff) {
+          s.activeHandoff = event.payload.handoff;
+          const isSource = event.payload.handoff.sourceUserId === this.currentUserId;
+          const isTarget = event.payload.handoff.targetUserId === this.currentUserId;
+
+          if (isSource) {
+            console.log('[HANDOFF] Source handoff committed. Stopping local audio to prevent double playback.');
+            PlaybackService.getInstance().pause();
+            usePlayerStore.setState({ isPlaying: false });
+            this.sendCommand('CONFIRM_TARGET_PLAYING', { handoffId: event.payload.handoff.handoffId });
+          } else if (isTarget) {
+            console.log(`[HANDOFF] Target handoff committed. Resuming playback from authoritative position ${event.payload.positionMs}ms.`);
+            s.state = 'PLAYING';
+            s.positionMs = event.payload.positionMs;
+            s.startAtServerTime = event.payload.startAtServerTime;
+            this.driftEngine.setSession(s);
+            usePlayerStore.setState({ isPlaying: true });
+            this.driftEngine.evaluateScheduledStart(s);
+          }
+        }
+        break;
+      }
+
+      case 'HANDOFF_FAILED': {
+        if (s.activeHandoff) {
+          console.log('[HANDOFF] Handoff failed on target. Source continuing playback.');
+          s.activeHandoff = null;
+        }
+        break;
+      }
+
+      case 'HANDOFF_COMPLETED': {
+        if (event.payload.handoff) {
+          s.activeHandoff = event.payload.handoff;
         }
         break;
       }
@@ -896,6 +974,45 @@ export class JamClientManager {
 
   public async sendEndSession() {
     return this.sendCommand('END_SESSION');
+  }
+
+  public async sendRequestHandoff(targetUserId: string, targetDeviceId?: string) {
+    return this.sendCommand('REQUEST_HANDOFF', { targetUserId, targetDeviceId });
+  }
+
+  public getLocalDeviceCapabilities(): DeviceCapabilities {
+    let platform: DeviceCapabilities['platform'] = 'web';
+    if (typeof window !== 'undefined') {
+      const ua = navigator.userAgent.toLowerCase();
+      if (/android/i.test(ua)) platform = 'android';
+      else if (/iphone|ipad|ipod/i.test(ua)) platform = 'ios';
+      else if (/windows/i.test(ua)) platform = 'windows';
+      else if (/macintosh|mac os x/i.test(ua)) platform = 'macos';
+      else if (/linux/i.test(ua)) platform = 'linux';
+    }
+
+    const supportedCodecs: string[] = ['mp3', 'aac'];
+    if (typeof MediaSource !== 'undefined') {
+      if (MediaSource.isTypeSupported('audio/mp4; codecs="mp4a.40.2"')) supportedCodecs.push('m4a');
+      if (MediaSource.isTypeSupported('audio/ogg; codecs="opus"')) supportedCodecs.push('opus');
+      if (MediaSource.isTypeSupported('audio/flac')) supportedCodecs.push('flac');
+    }
+
+    return {
+      deviceId: this.currentUserId || `dev_${Date.now().toString(36)}`,
+      platform,
+      supportedCodecs,
+      audioCapabilities: {
+        sampleRates: [44100, 48000],
+        channelCount: 2,
+        maxBitrate: 320,
+      },
+      backgroundPlayback: platform === 'android' || platform === 'ios',
+      outputCapabilities: {
+        speaker: true,
+        bluetooth: true,
+      },
+    };
   }
 
   // --- Network Resilience & Metrics ---

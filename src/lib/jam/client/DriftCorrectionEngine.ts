@@ -213,6 +213,8 @@ export class DriftCorrectionEngine {
       connectionState: netMetrics.quality,
       transport: netMetrics.transport,
     });
+
+    console.log(`\n[DRIFT]\njamId=${session.jamId}\ntimelineId=${session.timelineId || 'N/A'}\ngeneration=${session.generation || 1}\ndeviceId=LOCAL\nexpected=${expectedPosMs}\nactual=${actualLocalMs}\ndrift=${driftMs}ms\nrtt=${netMetrics?.rtt || 0}ms\njitter=${netMetrics?.jitter || 0}ms\nclockOffset=${clockState.offsetMs}ms\n`);
   }
 
   /**

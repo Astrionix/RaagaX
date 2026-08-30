@@ -1,7 +1,22 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Radio, Activity, Clock, Zap, Gauge, X, Info, Wifi, WifiOff } from 'lucide-react';
+import {
+  Activity,
+  Clock,
+  Zap,
+  Gauge,
+  X,
+  Info,
+  Wifi,
+  Monitor,
+  Smartphone,
+  Tablet,
+  Music,
+  Layers,
+  Radio,
+  Cpu,
+} from 'lucide-react';
 import { useJamStore } from '@/context/useJamStore';
 
 interface JamSyncBadgeProps {
@@ -41,6 +56,20 @@ export function JamSyncBadge({ showLabel = true, className = '', size = 'md' }: 
     ? 'Reconnecting'
     : 'Connection issue';
 
+  const currentTrackId = session.trackId || session.currentSong?.id || diagnostics.trackId || 'N/A';
+  const currentQueueId = session.currentQueueItemId || diagnostics.currentQueueItemId || 'N/A';
+  const playbackState = session.state || diagnostics.playbackState || 'PAUSED';
+  const generation = session.generation ?? diagnostics.generation ?? 1;
+  const timelineId = session.timelineId || diagnostics.timelineId || 'TL_1';
+  const transitionId = session.transitionId || diagnostics.transitionId || 'TR_1';
+  const revision = session.revision ?? diagnostics.revision ?? 1;
+
+  const deviceName = diagnostics.deviceName || 'Web Client';
+  const deviceId = diagnostics.deviceId || 'DEV_LOCAL';
+  const deviceType = diagnostics.deviceType || 'desktop';
+  const platform = diagnostics.platform ? diagnostics.platform.toUpperCase() : 'WEB';
+  const transport = diagnostics.transportLabel || (diagnostics.transport === 'LAN' ? 'LOCAL LAN' : 'LOCAL LAN / CLOUD RELAY');
+
   return (
     <div className="relative inline-flex items-center">
       <button
@@ -59,12 +88,13 @@ export function JamSyncBadge({ showLabel = true, className = '', size = 'md' }: 
       {showDiagnostics && (
         <div
           onClick={(e) => e.stopPropagation()}
-          className="fixed md:absolute bottom-16 md:bottom-full mb-2 left-1/2 -translate-x-1/2 z-[150] w-76 p-3.5 bg-[#12131a]/95 backdrop-blur-2xl border border-white/15 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.8)] text-white text-xs select-none animate-in fade-in zoom-in-95 duration-150"
+          className="fixed md:absolute bottom-16 md:bottom-full mb-2 left-1/2 -translate-x-1/2 z-[150] w-84 max-w-[94vw] p-3.5 bg-[#0e1017]/95 backdrop-blur-2xl border border-white/15 rounded-2xl shadow-[0_16px_50px_rgba(0,0,0,0.85)] text-white text-xs select-none animate-in fade-in zoom-in-95 duration-150 max-h-[82vh] overflow-y-auto"
         >
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-white/10">
             <div className="flex items-center gap-1.5 text-xs font-bold text-white">
               <Activity className="w-3.5 h-3.5 text-[#FA233B]" />
-              <span>Jam Network & Sync</span>
+              <span>Jam Network & Playback Sync</span>
             </div>
             <button
               onClick={() => setShowDiagnostics(false)}
@@ -74,69 +104,162 @@ export function JamSyncBadge({ showLabel = true, className = '', size = 'md' }: 
             </button>
           </div>
 
-          <div className="space-y-1.5 font-mono text-[11px]">
-            <div className="flex items-center justify-between py-0.5">
-              <span className="text-slate-400 flex items-center gap-1">
-                <Wifi className="w-3 h-3 text-cyan-400" /> Connection Quality
-              </span>
-              <span className={`font-bold ${isSynced ? 'text-emerald-400' : isFairOrSyncing ? 'text-amber-400' : 'text-rose-400'}`}>
-                {diagnostics.connectionQuality || 'GOOD'}
-              </span>
+          <div className="space-y-3 font-mono text-[11px]">
+            {/* 1. NETWORK & TIMELINE METRICS */}
+            <div>
+              <div className="text-[10px] font-sans font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                <Wifi className="w-3 h-3 text-cyan-400" />
+                <span>Network & Clock Sync</span>
+              </div>
+              <div className="space-y-1 bg-white/[0.03] p-2 rounded-xl border border-white/5">
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400">Connection Quality</span>
+                  <span className={`font-bold ${isSynced ? 'text-emerald-400' : isFairOrSyncing ? 'text-amber-400' : 'text-rose-400'}`}>
+                    {diagnostics.connectionQuality || 'GOOD'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400 flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-emerald-400" /> Clock Offset
+                  </span>
+                  <span className="font-bold text-emerald-400">
+                    {diagnostics.clockOffsetMs > 0 ? `+${diagnostics.clockOffsetMs}` : diagnostics.clockOffsetMs} ms
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400 flex items-center gap-1">
+                    <Gauge className="w-3 h-3 text-cyan-400" /> Playback Drift
+                  </span>
+                  <span className={`font-bold ${Math.abs(diagnostics.playbackDriftMs) <= 35 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {diagnostics.playbackDriftMs > 0 ? `+${diagnostics.playbackDriftMs}` : diagnostics.playbackDriftMs} ms
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400 flex items-center gap-1">
+                    <Zap className="w-3 h-3 text-amber-400" /> Latency / Median RTT
+                  </span>
+                  <span className="font-bold text-slate-200">
+                    {diagnostics.rttMedianMs || diagnostics.rttMs} ms
+                    {diagnostics.rttMs ? <span className="text-[9px] text-slate-500 font-normal ml-1">({diagnostics.rttMs}ms)</span> : null}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400 flex items-center gap-1">
+                    <Activity className="w-3 h-3 text-purple-400" /> Jitter
+                  </span>
+                  <span className="font-bold text-slate-200">±{diagnostics.jitterMs} ms</span>
+                </div>
+
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400">Packet Loss</span>
+                  <span className={`font-bold ${diagnostics.packetLossPercent > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                    {diagnostics.packetLossPercent || 0}%
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400">Schedule Lead / Buffer</span>
+                  <span className="font-bold text-slate-200">{diagnostics.estimatedLeadTimeMs} ms</span>
+                </div>
+              </div>
             </div>
 
-            <div className="flex items-center justify-between py-0.5">
-              <span className="text-slate-400 flex items-center gap-1">
-                <Clock className="w-3 h-3 text-emerald-400" /> Clock Offset
-              </span>
-              <span className="font-bold text-emerald-400">
-                {diagnostics.clockOffsetMs > 0 ? `+${diagnostics.clockOffsetMs}` : diagnostics.clockOffsetMs} ms
-              </span>
+            {/* 2. DEVICE INFORMATION */}
+            <div>
+              <div className="text-[10px] font-sans font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                {deviceType === 'mobile' ? (
+                  <Smartphone className="w-3 h-3 text-pink-400" />
+                ) : deviceType === 'tablet' ? (
+                  <Tablet className="w-3 h-3 text-pink-400" />
+                ) : (
+                  <Monitor className="w-3 h-3 text-pink-400" />
+                )}
+                <span>Device Information</span>
+              </div>
+              <div className="space-y-1 bg-white/[0.03] p-2 rounded-xl border border-white/5">
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400">Device</span>
+                  <span className="font-bold text-slate-200">{deviceName}</span>
+                </div>
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400">Device ID</span>
+                  <span className="font-bold text-slate-300 font-mono text-[10px]">{deviceId}</span>
+                </div>
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400">Device Type</span>
+                  <span className="font-bold text-slate-300 capitalize">{deviceType}</span>
+                </div>
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400">Platform</span>
+                  <span className="font-bold text-cyan-300">{platform}</span>
+                </div>
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400">Transport</span>
+                  <span className="font-bold text-indigo-300">{transport}</span>
+                </div>
+              </div>
             </div>
 
-            <div className="flex items-center justify-between py-0.5">
-              <span className="text-slate-400 flex items-center gap-1">
-                <Gauge className="w-3 h-3 text-cyan-400" /> Playback Drift
-              </span>
-              <span className={`font-bold ${Math.abs(diagnostics.playbackDriftMs) <= 35 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                {diagnostics.playbackDriftMs > 0 ? `+${diagnostics.playbackDriftMs}` : diagnostics.playbackDriftMs} ms
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between py-0.5">
-              <span className="text-slate-400 flex items-center gap-1">
-                <Zap className="w-3 h-3 text-amber-400" /> Latency (Median RTT)
-              </span>
-              <span className="font-bold text-slate-200">{diagnostics.rttMedianMs || diagnostics.rttMs} ms</span>
-            </div>
-
-            <div className="flex items-center justify-between py-0.5">
-              <span className="text-slate-400 flex items-center gap-1">
-                <Activity className="w-3 h-3 text-purple-400" /> Jitter
-              </span>
-              <span className="font-bold text-slate-200">±{diagnostics.jitterMs} ms</span>
-            </div>
-
-            <div className="flex items-center justify-between py-0.5">
-              <span className="text-slate-400">Packet Loss</span>
-              <span className={`font-bold ${diagnostics.packetLossPercent > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                {diagnostics.packetLossPercent || 0}%
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between py-0.5">
-              <span className="text-slate-400">Schedule Lead Buffer</span>
-              <span className="font-bold text-slate-200">{diagnostics.estimatedLeadTimeMs} ms</span>
-            </div>
-
-            <div className="flex items-center justify-between py-0.5">
-              <span className="text-slate-400">Timeline / Revision</span>
-              <span className="font-bold text-[#FA233B]">{diagnostics.timelineId || 'TL_1'} / #{diagnostics.revision}</span>
+            {/* 3. PLAYBACK DIAGNOSTICS */}
+            <div>
+              <div className="text-[10px] font-sans font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                <Music className="w-3 h-3 text-[#FA233B]" />
+                <span>Playback Diagnostics</span>
+              </div>
+              <div className="space-y-1 bg-white/[0.03] p-2 rounded-xl border border-white/5">
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400">Track</span>
+                  <span className="font-bold text-slate-200 truncate max-w-[140px]" title={currentTrackId}>
+                    {currentTrackId}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400">Queue Item</span>
+                  <span className="font-bold text-slate-300 truncate max-w-[140px]" title={currentQueueId}>
+                    {currentQueueId}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400">State</span>
+                  <span
+                    className={`font-bold ${
+                      playbackState === 'PLAYING' ? 'text-emerald-400' : 'text-amber-400'
+                    }`}
+                  >
+                    {playbackState}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400">Generation</span>
+                  <span className="font-bold text-pink-400">#{generation}</span>
+                </div>
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400">Timeline</span>
+                  <span className="font-bold text-cyan-300 truncate max-w-[140px]" title={timelineId}>
+                    {timelineId}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400">Transition</span>
+                  <span className="font-bold text-purple-300 truncate max-w-[140px]" title={transitionId}>
+                    {transitionId}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400">Revision</span>
+                  <span className="font-bold text-[#FA233B]">#{revision}</span>
+                </div>
+              </div>
             </div>
           </div>
 
           <div className="mt-3 pt-2 border-t border-white/10 text-[9px] text-slate-400 font-sans flex items-center gap-1">
             <Info className="w-3 h-3 text-slate-500 flex-shrink-0" />
-            <span>NTP server-clock synchronization with adaptive scheduling and progressive drift correction.</span>
+            <span>NTP clock synchronization, adaptive lead time, and multi-device telemetry.</span>
           </div>
         </div>
       )}

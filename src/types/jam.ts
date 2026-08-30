@@ -101,6 +101,30 @@ export const JAM_PERMISSION_PRESETS: Record<JamPresetName, JamPermissions> = {
   },
 };
 
+export interface DeviceCapabilities {
+  deviceId: string;
+  platform: 'android' | 'ios' | 'windows' | 'macos' | 'linux' | 'web';
+  supportedCodecs: string[];
+  audioCapabilities?: {
+    sampleRates?: number[];
+    channelCount?: number;
+    spatialAudio?: boolean;
+    maxBitrate?: number;
+  };
+  backgroundPlayback: boolean;
+  outputCapabilities?: {
+    bluetooth?: boolean;
+    airplay?: boolean;
+    usb?: boolean;
+    speaker?: boolean;
+  };
+  networkCapabilities?: {
+    downlinkMbps?: number;
+    effectiveType?: string;
+    saveData?: boolean;
+  };
+}
+
 export interface JamParticipant {
   participantId: string;
   userId: string;
@@ -115,6 +139,8 @@ export interface JamParticipant {
   rttMs: number;
   playbackDriftMs: number;
   deviceType: 'mobile' | 'desktop' | 'web';
+  deviceId?: string;
+  capabilities?: DeviceCapabilities;
   isReadyForPlayback?: boolean;
   customPermissions?: Partial<JamPermissions>;
   temporaryPermissionsUntil?: number;
@@ -129,6 +155,55 @@ export interface JamQueueItem {
   addedByAvatar?: string;
   addedAt: number;
   orderKey: string; // Lexicographic / fractional index key for deterministic reordering
+}
+
+export type PlaybackHistoryReason =
+  | 'MANUAL_NEXT'
+  | 'MANUAL_PREVIOUS'
+  | 'AUTO_NEXT'
+  | 'REPEAT_ONE'
+  | 'REPEAT_ALL'
+  | 'HANDOFF'
+  | 'STOP';
+
+export interface PlaybackHistoryEntry {
+  historyId: string;
+  queueItemId: string | null;
+  trackId: string;
+  transitionId: string;
+  startedAt: number;
+  endedAt?: number;
+  reason: PlaybackHistoryReason;
+  generation: number;
+  song?: Song | null;
+}
+
+export type JamHandoffStatus =
+  | 'HANDOFF_REQUESTED'
+  | 'HANDOFF_PREPARING'
+  | 'HANDOFF_READY'
+  | 'HANDOFF_COMMITTED'
+  | 'TARGET_PLAYING'
+  | 'SOURCE_STOPPED'
+  | 'HANDOFF_FAILED';
+
+export interface JamHandoffState {
+  handoffId: string;
+  sourceDeviceId: string;
+  sourceUserId: string;
+  targetDeviceId: string;
+  targetUserId: string;
+  trackId: string;
+  queueItemId: string | null;
+  transitionId: string;
+  timelineId: string;
+  generation: number;
+  revision: number;
+  status: JamHandoffStatus;
+  positionMs: number;
+  requestedAt: number;
+  committedAt?: number;
+  errorMessage?: string;
 }
 
 export type ConnectionQuality = 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR' | 'OFFLINE';
@@ -176,6 +251,8 @@ export interface JamSession {
   participants: Record<string, JamParticipant>;
   queue: JamQueueItem[];
   history: JamQueueItem[];
+  playbackHistory?: PlaybackHistoryEntry[];
+  activeHandoff?: JamHandoffState | null;
 }
 
 export interface TrackMetadata {
@@ -224,6 +301,12 @@ export type JamEventType =
   | 'STOP'
   | 'SEEK'
   | 'TRACK_CHANGED'
+  | 'HANDOFF_REQUESTED'
+  | 'HANDOFF_PREPARING'
+  | 'HANDOFF_READY'
+  | 'HANDOFF_COMMITTED'
+  | 'HANDOFF_FAILED'
+  | 'HANDOFF_COMPLETED'
   | 'SYNC'
   | 'RESYNC_REQUIRED'
   | 'HEARTBEAT'
@@ -241,6 +324,7 @@ export interface JamEvent {
   timelineId?: string;
   transitionId?: string;
   generation?: number;
+  deviceId?: string;
 }
 
 export type JamCommandAction =
@@ -253,6 +337,11 @@ export type JamCommandAction =
   | 'ADD_TRACK'
   | 'REMOVE_TRACK'
   | 'REORDER_QUEUE'
+  | 'REQUEST_HANDOFF'
+  | 'CONFIRM_HANDOFF_READY'
+  | 'COMMIT_HANDOFF'
+  | 'CONFIRM_TARGET_PLAYING'
+  | 'FAIL_HANDOFF'
   | 'UPDATE_PERMISSIONS'
   | 'TRANSFER_HOST'
   | 'KICK_PARTICIPANT'
@@ -273,6 +362,7 @@ export interface JamCommand {
   expectedRevision?: number;
   timelineId?: string;
   generation?: number;
+  deviceId?: string;
 }
 
 export interface JamSyncDiagnostics {
@@ -293,10 +383,17 @@ export interface JamSyncDiagnostics {
   timelineId?: string;
   transitionId?: string;
   generation?: number;
+  trackId?: string | null;
   currentQueueItemId?: string | null;
+  playbackState?: JamPlaybackState;
   expectedPositionSec?: number;
   actualPositionSec?: number;
   transport?: 'CLOUD' | 'LAN' | 'PEER';
+  transportLabel?: string;
+  deviceId?: string;
+  deviceName?: string;
+  deviceType?: 'desktop' | 'mobile' | 'tablet';
+  platform?: string;
 }
 
 export interface TimeSyncPing {

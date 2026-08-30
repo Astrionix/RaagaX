@@ -57,6 +57,7 @@ interface JamState {
   sendUpdatePermissions: (permissions: Partial<JamPermissions>) => Promise<boolean>;
   sendTransferHost: (newHostId: string) => Promise<boolean>;
   sendKickParticipant: (targetUserId: string) => Promise<boolean>;
+  sendRequestHandoff: (targetUserId: string, targetDeviceId?: string) => Promise<boolean>;
   sendEndSession: () => Promise<boolean>;
 
   updateDiagnostics: () => void;
@@ -296,6 +297,10 @@ export const useJamStore = create<JamState>((set, get) => {
       return JamClientManager.getInstance().sendKickParticipant(targetUserId);
     },
 
+    sendRequestHandoff: async (targetUserId, targetDeviceId) => {
+      return JamClientManager.getInstance().sendRequestHandoff(targetUserId, targetDeviceId);
+    },
+
     sendEndSession: async () => {
       const ok = await JamClientManager.getInstance().sendEndSession();
       if (ok) {
@@ -315,6 +320,8 @@ export const useJamStore = create<JamState>((set, get) => {
       const drift = DriftCorrectionEngine.getInstance().getPlaybackDriftMs();
       const session = get().session;
       const participantState = get().participantState;
+      const clientManager = JamClientManager.getInstance();
+      const caps = clientManager.getLocalDeviceCapabilities();
 
       let syncState: JamSyncDiagnostics['syncState'] = 'DISCONNECTED';
       if (!session) {
@@ -326,6 +333,25 @@ export const useJamStore = create<JamState>((set, get) => {
       } else {
         syncState = 'SYNCHRONIZED';
       }
+
+      let deviceType: 'desktop' | 'mobile' | 'tablet' = 'desktop';
+      let browserName = 'Browser';
+      if (typeof window !== 'undefined') {
+        const ua = navigator.userAgent;
+        if (/tablet|ipad/i.test(ua)) deviceType = 'tablet';
+        else if (/mobile|iphone|android/i.test(ua)) deviceType = 'mobile';
+        else deviceType = 'desktop';
+
+        if (/chrome|crios/i.test(ua) && !/edge|edg/i.test(ua) && !/opr\//i.test(ua)) browserName = 'Chrome';
+        else if (/safari/i.test(ua) && !/chrome/i.test(ua)) browserName = 'Safari';
+        else if (/firefox|fxios/i.test(ua)) browserName = 'Firefox';
+        else if (/edg/i.test(ua)) browserName = 'Edge';
+        else if (/opr\//i.test(ua)) browserName = 'Opera';
+      }
+
+      const platformTitle = caps.platform ? caps.platform.charAt(0).toUpperCase() + caps.platform.slice(1) : 'Web';
+      const deviceName = `${platformTitle} — ${browserName}`;
+      const transportLabel = netMetrics.transport === 'LAN' ? 'LOCAL LAN' : netMetrics.transport === 'PEER' ? 'DIRECT PEER' : 'CLOUD RELAY';
 
       set({
         diagnostics: {
@@ -343,10 +369,18 @@ export const useJamStore = create<JamState>((set, get) => {
           syncState,
           estimatedLeadTimeMs: session?.leadTimeMs || 400,
           bufferSec: 3.5,
-          timelineId: session?.timelineId,
-          transitionId: session?.transitionId,
-          generation: session?.generation,
+          timelineId: session?.timelineId || 'TL_1',
+          transitionId: session?.transitionId || 'TR_1',
+          generation: session?.generation ?? 1,
+          trackId: session?.trackId || session?.currentSong?.id || null,
+          currentQueueItemId: session?.currentQueueItemId || null,
+          playbackState: session?.state || 'PAUSED',
           transport: netMetrics.transport,
+          transportLabel,
+          deviceId: caps.deviceId,
+          deviceName,
+          deviceType,
+          platform: caps.platform,
         },
       });
     },

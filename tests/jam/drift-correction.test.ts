@@ -34,6 +34,7 @@ describe('Continuous Playback Drift Correction Engine', () => {
   it('1. Computes expected position from authoritative timeline and future start time', () => {
     const session: JamSession = {
       jamId: 'JAM_TEST',
+      joinCode: 'TEST1',
       name: 'Test Jam',
       hostId: 'user_1',
       hostName: 'User',
@@ -69,6 +70,7 @@ describe('Continuous Playback Drift Correction Engine', () => {
   it('2. Evaluates drift zones: micro-drift rate modulation vs hard seek', () => {
     const session: JamSession = {
       jamId: 'JAM_TEST',
+      joinCode: 'TEST1',
       name: 'Test Jam',
       hostId: 'user_1',
       hostName: 'User',
