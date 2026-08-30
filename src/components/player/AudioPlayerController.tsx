@@ -24,6 +24,8 @@ import { PlaybackSourceResolver } from '@/lib/playbackSourceResolver';
 import { PreloadManager } from '@/lib/playback/PreloadManager';
 import { getApiUrl } from '@/lib/config/apiConfig';
 import { ArtworkColorExtractor } from '@/lib/theme/ArtworkColorExtractor';
+import { useJamStore } from '@/context/useJamStore';
+import { JamClientManager } from '@/lib/jam/client/JamClientManager';
 
 export function AudioPlayerController() {
   const audioRefA = useRef<HTMLAudioElement | null>(null);
@@ -434,14 +436,21 @@ export function AudioPlayerController() {
     };
   }, []);
 
-  // Watch for explicit seek targets from UI
+  // Watch for explicit seek targets from UI (Seek bar release, keyboard shortcuts, lyrics tap)
   useEffect(() => {
     if (seekTarget !== null) {
-      console.log('[SEEK] Store target:', seekTarget, 'ms:', seekTarget * 1000);
+      const targetSec = seekTarget;
+      console.log('[SEEK] Store target:', targetSec, 'seconds (', Math.round(targetSec * 1000), 'ms)');
       lastSeekTimeRef.current = Date.now();
       
-      PlaybackService.getInstance().seek(seekTarget);
-      LyricsEngine.getInstance().seek(seekTarget * 1000);
+      const jamState = useJamStore.getState();
+      if (jamState.isInJam && jamState.session) {
+        JamClientManager.getInstance().sendSeek(Math.round(targetSec * 1000));
+      } else {
+        PlaybackService.getInstance().seek(targetSec);
+      }
+
+      LyricsEngine.getInstance().seek(targetSec * 1000);
       usePlayerStore.setState({ seekTarget: null });
     }
   }, [seekTarget]);

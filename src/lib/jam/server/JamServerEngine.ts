@@ -510,8 +510,12 @@ export class JamServerEngine {
       }
 
       case 'SEEK': {
-        const targetMs = Math.max(0, command.payload?.positionMs ?? 0);
+        const rawTargetMs = command.payload?.positionMs ?? 0;
+        const songDurationMs = session.currentSong?.duration ? session.currentSong.duration * 1000 : Infinity;
+        const targetMs = Math.max(0, Math.min(songDurationMs, rawTargetMs));
         const leadTime = this.computeAdaptiveLeadTime(session);
+        const timelineId = `TL_${crypto.randomUUID()}`;
+
         session.positionMs = targetMs;
         session.serverTimestamp = now;
         session.leadTimeMs = leadTime;
@@ -528,6 +532,7 @@ export class JamServerEngine {
           startAtServerTime: session.startAtServerTime,
           state: session.state,
           trackId: session.trackId,
+          timelineId,
         };
         break;
       }
@@ -917,10 +922,15 @@ export class JamServerEngine {
     switch (command.action) {
       case 'PLAY':
       case 'PAUSE':
-      case 'SEEK':
         return p.canControlPlayback
           ? { allowed: true }
           : { allowed: false, reason: 'Playback controls are disabled for participants' };
+      case 'SEEK': {
+        const canSeek = typeof p.canSeek === 'boolean' ? p.canSeek : p.canControlPlayback;
+        return canSeek
+          ? { allowed: true }
+          : { allowed: false, reason: 'Seeking is disabled for participants' };
+      }
       case 'SKIP_NEXT':
       case 'SKIP_PREV':
         return p.canSkip

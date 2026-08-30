@@ -410,11 +410,20 @@ export class JamClientManager {
         s.state = event.payload.state || s.state;
 
         this.driftEngine.setSession(s);
-        const activeAudio = PlaybackService.getInstance().getActiveAudio();
+        const pb = PlaybackService.getInstance();
+        const activeAudio = pb.getActiveAudio();
+        const targetSec = s.positionMs / 1000;
+
         if (activeAudio) {
-          activeAudio.currentTime = s.positionMs / 1000;
+          activeAudio.currentTime = targetSec;
         }
-        usePlayerStore.getState().setCurrentTime(s.positionMs / 1000, true);
+        usePlayerStore.getState().setCurrentTime(targetSec, true);
+
+        if (s.state === 'PLAYING') {
+          this.driftEngine.evaluateScheduledStart(s);
+        } else {
+          pb.pause();
+        }
         break;
       }
 

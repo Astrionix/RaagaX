@@ -292,6 +292,7 @@ export function ExpandedPlayerModal() {
           if (e.shiftKey) {
             const newTime = Math.max(0, currentTime - 5);
             usePlayerStore.getState().setCurrentTime(newTime, true);
+            usePlayerStore.getState().setSeekTarget(newTime);
           } else {
             playPrev();
           }
@@ -302,6 +303,7 @@ export function ExpandedPlayerModal() {
           if (e.shiftKey) {
             const newTime = Math.min(songDuration, currentTime + 5);
             usePlayerStore.getState().setCurrentTime(newTime, true);
+            usePlayerStore.getState().setSeekTarget(newTime);
           } else {
             playNext();
           }
@@ -1136,7 +1138,9 @@ export function ExpandedPlayerModal() {
                             id={`modal-lyric-line-${idx}`}
                             onClick={() => {
                               if (line.startMs !== undefined && line.startMs >= 0) {
-                                usePlayerStore.getState().setCurrentTime(line.startMs / 1000, true);
+                                const sec = line.startMs / 1000;
+                                usePlayerStore.getState().setCurrentTime(sec, true);
+                                usePlayerStore.getState().setSeekTarget(sec);
                               }
                             }}
                             className={`cursor-pointer transition-all duration-300 transform origin-left leading-relaxed ${
@@ -1375,6 +1379,7 @@ export function ExpandedPlayerModal() {
                           if (line.startMs !== undefined && line.startMs >= 0) {
                             const sec = line.startMs / 1000;
                             usePlayerStore.getState().setCurrentTime(sec, true);
+                            usePlayerStore.getState().setSeekTarget(sec);
                           }
                         }}
                         className={`w-full text-left transition-all duration-300 transform origin-left cursor-pointer py-1.5 ${
