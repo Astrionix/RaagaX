@@ -758,6 +758,17 @@ export class JamServerEngine {
 
     switch (command.action) {
       case 'PLAY': {
+        // Idempotency check: if already playing and position is unchanged, return without creating duplicate timeline
+        if (session.state === 'PLAYING') {
+          const isPositionUnspecifiedOrSame =
+            typeof command.payload?.positionMs !== 'number' ||
+            Math.abs(command.payload.positionMs - session.positionMs) < 100;
+          if (isPositionUnspecifiedOrSame) {
+            console.log(`[PLAYBACK_EFFECT] action=NO_OP reason=IDEMPOTENT_PLAY timelineId=${session.timelineId} generation=${session.generation}`);
+            return { success: true, session: this.cloneSession(session), isIdempotentReplay: true };
+          }
+        }
+
         const leadTime = this.computeAdaptiveLeadTime(session);
         const scheduledStart = now + leadTime;
         session.generation = (session.generation ?? 0) + 1;
@@ -785,14 +796,11 @@ export class JamServerEngine {
           startAtServerTime: session.startAtServerTime,
           timelineStartServerMs: session.timelineStartServerMs,
           trackId: session.trackId,
+          currentQueueItemId: session.currentQueueItemId,
           timelineId,
           transitionId,
           generation: session.generation,
         };
-
-        if (session.currentSong) {
-          this.recordPlaybackHistory(session, 'MANUAL_NEXT', now, session.currentSong, session.currentQueueItemId);
-        }
 
         console.log('[PLAYBACK_STARTED]', {
           jamId: session.jamId,
@@ -819,6 +827,12 @@ export class JamServerEngine {
       }
 
       case 'PAUSE': {
+        // Idempotency check: if already paused, return without creating duplicate timeline
+        if (session.state === 'PAUSED') {
+          console.log(`[PLAYBACK_EFFECT] action=NO_OP reason=IDEMPOTENT_PAUSE timelineId=${session.timelineId} generation=${session.generation}`);
+          return { success: true, session: this.cloneSession(session), isIdempotentReplay: true };
+        }
+
         // Calculate exact authoritative position at pause time
         const currentPos = this.calculateCurrentAuthoritativePosition(session, now);
         session.generation = (session.generation ?? 0) + 1;
@@ -859,6 +873,12 @@ export class JamServerEngine {
       }
 
       case 'STOP': {
+        // Idempotency check: if already paused at 0:00, return without duplicate
+        if (session.state === 'PAUSED' && session.positionMs === 0) {
+          console.log(`[PLAYBACK_EFFECT] action=NO_OP reason=IDEMPOTENT_STOP timelineId=${session.timelineId} generation=${session.generation}`);
+          return { success: true, session: this.cloneSession(session), isIdempotentReplay: true };
+        }
+
         session.generation = (session.generation ?? 0) + 1;
         const timelineId = `TL_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
         const transitionId = `TR_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;

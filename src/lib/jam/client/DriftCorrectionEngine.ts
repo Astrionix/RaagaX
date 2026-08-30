@@ -93,6 +93,13 @@ export class DriftCorrectionEngine {
 
     const currentGen = session.generation ?? session.revision;
     const currentTL = session.timelineId ?? `TL_${session.revision}`;
+
+    // If audio is ALREADY playing this running timeline smoothly, do not restart or seek
+    if (activeAudio && !activeAudio.paused && this.scheduledGeneration === currentGen && this.scheduledTimelineId === currentTL) {
+      console.log(`[PLAYBACK_EFFECT] action=NO_OP reason=ALREADY_PLAYING_TIMELINE timelineId=${currentTL} generation=${currentGen}`);
+      return;
+    }
+
     this.scheduledGeneration = currentGen;
     this.scheduledTimelineId = currentTL;
 
@@ -129,6 +136,7 @@ export class DriftCorrectionEngine {
             liveAudio.currentTime = expectedPosSec;
           }
           usePlayerStore.getState().setCurrentTime(expectedPosSec, true);
+          console.log(`[PLAYBACK_EFFECT] action=PLAY reason=SCHEDULED_START timelineId=${liveTL} generation=${liveGen}`);
           PlaybackService.getInstance().play();
         } catch {}
       }, delayMs);
@@ -143,6 +151,7 @@ export class DriftCorrectionEngine {
 
       try {
         usePlayerStore.getState().setCurrentTime(expectedPosSec, true);
+        console.log(`[PLAYBACK_EFFECT] action=PLAY reason=IMMEDIATE_START timelineId=${currentTL} generation=${currentGen}`);
         pb.play();
       } catch {}
     }
@@ -306,6 +315,7 @@ export class DriftCorrectionEngine {
       action = 'HARD_SEEK';
       targetRate = 1.0;
       activeAudio.currentTime = Math.max(0, expectedPositionMs / 1000);
+      console.log(`[PLAYBACK_EFFECT] action=SEEK reason=DRIFT_CORRECTION timelineId=${session.timelineId || 'TL_1'} driftMs=${driftMs}`);
       this.consecutiveLargeDriftCount = 0;
     }
 

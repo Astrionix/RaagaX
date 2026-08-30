@@ -18,6 +18,14 @@ export interface JamPlaybackCoordinatorState {
   isPreloadingNext: boolean;
 }
 
+export interface PlaybackIdentity {
+  generation: number;
+  timelineId: string | null;
+  transitionId: string | null;
+  trackId: string | null;
+  queueItemId: string | null;
+}
+
 /**
  * JamPlaybackStateMachine
  * 
@@ -29,11 +37,11 @@ export interface JamPlaybackCoordinatorState {
  * - Local UI Store (usePlayerStore)
  * 
  * Guarantees:
- * 1. Audio, metadata, artwork, and queue identity never mismatch.
- * 2. Artwork/metadata resolution runs in parallel and never stalls audio playback.
- * 3. Generation guards discard stale async callbacks from prior track transitions.
- * 4. Preloading next track (P1 standby) never falsely advances Jam state.
- * 5. Smooth 60fps local timeline progress without spamming 16ms server updates.
+ * 1. Playback Identity checks prevent duplicate transitions & seek-bar jumping.
+ * 2. Snapshot reconciliation is atomic and never restarts running audio.
+ * 3. Stale transitions produce zero playback effects.
+ * 4. Preloading next track (P1 standby) never interferes with current playback.
+ * 5. Structured telemetry logs [PLAYBACK_EFFECT] for complete observability.
  */
 export class JamPlaybackStateMachine {
   private static instance: JamPlaybackStateMachine;
@@ -72,24 +80,76 @@ export class JamPlaybackStateMachine {
     return { ...this.state };
   }
 
+  public getPlaybackIdentity(): PlaybackIdentity {
+    return {
+      generation: this.state.activeGeneration,
+      timelineId: this.state.activeTimelineId,
+      transitionId: this.state.activeTransitionId,
+      trackId: this.state.activeTrackId,
+      queueItemId: this.state.activeQueueItemId,
+    };
+  }
+
   /**
-   * Authoritative entrypoint: processes a JamEvent or fresh JamSession snapshot
+   * Authoritative entrypoint: processes a JamEvent or fresh JamSession snapshot.
+   * Separates NEW PLAYBACK TRANSITIONS from STATE RECONCILIATION and DRIFT CORRECTION.
    */
-  public async handleTransition(session: JamSession, triggerEvent?: JamEvent): Promise<void> {
+  public async handleTransition(
+    session: JamSession,
+    triggerEvent?: JamEvent,
+    sourceReason: 'NEW_TRANSITION' | 'RECONCILIATION' | 'EVENT' = 'EVENT'
+  ): Promise<void> {
     const eventGeneration = triggerEvent?.generation ?? session.generation ?? 0;
     const timelineId = triggerEvent?.timelineId ?? session.timelineId ?? `TL_${eventGeneration}`;
     const transitionId = triggerEvent?.transitionId ?? session.transitionId ?? `TR_${eventGeneration}`;
-    const trackId = session.trackId;
+    const trackId = session.trackId || session.currentSong?.id || null;
     const currentSong = session.currentSong;
     const queueItemId = session.currentQueueItemId || (session.queue[0]?.queueItemId ?? null);
 
-    // Stale generation check
+    // 1. Stale generation check: reject before any side effects
     if (eventGeneration < this.state.activeGeneration) {
       console.warn(`[JamPlaybackStateMachine] Discarding stale transition (Gen ${eventGeneration} < Active ${this.state.activeGeneration})`);
+      console.log(`[PLAYBACK_EFFECT] action=NO_OP reason=STALE_TRANSITION_DISCARDED transitionId=${transitionId} timelineId=${timelineId} generation=${eventGeneration} activeGen=${this.state.activeGeneration}`);
       return;
     }
 
-    // Advance active coordinator state
+    // 2. Playback Identity Matching: check if incoming state represents the exact same active transition
+    const isSameIdentity =
+      this.state.activeGeneration === eventGeneration &&
+      this.state.activeTimelineId === timelineId &&
+      this.state.activeTransitionId === transitionId &&
+      this.state.activeTrackId === trackId;
+
+    if (isSameIdentity) {
+      // Reconcile state changes without restarting playback or reloading audio
+      const targetState = session.state === 'PLAYING' ? 'PLAYING' : 'PAUSED';
+      if (this.state.playbackState !== targetState) {
+        this.state.playbackState = targetState;
+        if (targetState === 'PAUSED') {
+          PlaybackService.getInstance().pause();
+          usePlayerStore.setState({ isPlaying: false, playbackIntent: 'PAUSED' });
+          console.log(`[PLAYBACK_EFFECT] action=PAUSE reason=STATE_RECONCILED transitionId=${transitionId} timelineId=${timelineId} generation=${eventGeneration}`);
+        } else {
+          this.driftEngine.evaluateScheduledStart(session);
+          usePlayerStore.setState({ isPlaying: true, playbackIntent: 'PLAYING' });
+          console.log(`[PLAYBACK_EFFECT] action=PLAY reason=STATE_RECONCILED transitionId=${transitionId} timelineId=${timelineId} generation=${eventGeneration}`);
+        }
+      } else {
+        console.log(`[PLAYBACK_EFFECT] action=NO_OP reason=DUPLICATE_TRANSITION transitionId=${transitionId} timelineId=${timelineId} generation=${eventGeneration}`);
+      }
+
+      // Reconcile queue & metadata in player store cleanly without touching playback position
+      if (session.queue) {
+        const store = usePlayerStore.getState();
+        if (store.currentSong) {
+          const clientQueue: Song[] = [store.currentSong, ...session.queue.map((item) => item.song)];
+          usePlayerStore.setState({ queue: clientQueue });
+        }
+      }
+      return;
+    }
+
+    // 3. Authoritative New Transition Commit
     this.state.activeGeneration = eventGeneration;
     this.state.activeTimelineId = timelineId;
     this.state.activeTransitionId = transitionId;
@@ -104,7 +164,10 @@ export class JamPlaybackStateMachine {
       trackId,
       queueItemId,
       state: session.state,
+      reason: sourceReason,
     });
+
+    console.log(`[PLAYBACK_EFFECT] action=NEW_TRANSITION reason=${sourceReason} transitionId=${transitionId} timelineId=${timelineId} generation=${eventGeneration} trackId=${trackId}`);
 
     if (!currentSong || !trackId) {
       const pb = PlaybackService.getInstance();
@@ -120,8 +183,8 @@ export class JamPlaybackStateMachine {
     // Step 1: Parallel Metadata & Artwork Resolution (Non-Blocking)
     this.resolveMetadataInParallel(trackId, eventGeneration, currentSong);
 
-    // Step 2: Physical Audio Preparation
-    await this.prepareAudioPlayback(session, currentSong, eventGeneration, transitionId);
+    // Step 2: Physical Audio Preparation (Protected against stale loads & duplicate resets)
+    await this.prepareAudioPlayback(session, currentSong, eventGeneration, transitionId, triggerEvent);
 
     // Step 3: Trigger Background Preload for the Next Track (P1 Standby)
     this.triggerNextTrackPreload(session, eventGeneration);
@@ -155,13 +218,21 @@ export class JamPlaybackStateMachine {
     session: JamSession,
     song: Song,
     generation: number,
-    transitionId: string
+    transitionId: string,
+    triggerEvent?: JamEvent
   ) {
     const store = usePlayerStore.getState();
-    const isAlreadyLoaded = store.currentSong?.id === song.id;
+    const pb = PlaybackService.getInstance();
+    const activeAudio = pb.getActiveAudio();
+
+    const isAudioReadyForTrack = activeAudio && activeAudio.dataset?.trackId === song.id;
+    const isAlreadyLoaded = store.currentSong?.id === song.id && isAudioReadyForTrack;
     const clientQueue: Song[] = [song, ...session.queue.map((item) => item.song)];
 
     const initialSec = (session.positionMs || 0) / 1000;
+    const isExplicitSeek = triggerEvent?.type === 'SEEK';
+
+    // Update player store representation
     usePlayerStore.setState({
       currentSong: song,
       queue: clientQueue,
@@ -169,13 +240,13 @@ export class JamPlaybackStateMachine {
       duration: song.duration || 0,
       isPlaying: session.state === 'PLAYING',
       playbackIntent: session.state === 'PLAYING' ? 'PLAYING' : 'PAUSED',
-      currentTime: initialSec,
     });
-    store.setCurrentTime(initialSec, true);
-
-    const pb = PlaybackService.getInstance();
 
     if (!isAlreadyLoaded) {
+      // New track: load audio source
+      usePlayerStore.setState({ currentTime: initialSec });
+      store.setCurrentTime(initialSec, true);
+
       const reqId = Date.now();
       pb.setPlaybackRequestId(reqId);
       await pb.loadAudioSource(song, reqId, false);
@@ -185,17 +256,30 @@ export class JamPlaybackStateMachine {
         console.log(`[JamPlaybackStateMachine] Discarding loaded audio for stale generation ${generation} (Active is ${this.state.activeGeneration})`);
         return;
       }
+
+      if (activeAudio) {
+        if (!activeAudio.dataset) {
+          (activeAudio as any).dataset = {};
+        }
+        activeAudio.dataset.trackId = song.id;
+      }
+    } else if (isExplicitSeek) {
+      // Same track with explicit SEEK: set currentTime to seek target
+      if (activeAudio) {
+        activeAudio.currentTime = initialSec;
+      }
+      usePlayerStore.setState({ currentTime: initialSec });
+      store.setCurrentTime(initialSec, true);
     }
 
     if (session.state === 'PLAYING') {
       this.driftEngine.evaluateScheduledStart(session);
     } else {
       pb.pause();
-      const activeAudio = pb.getActiveAudio();
-      if (activeAudio) {
-        activeAudio.currentTime = session.positionMs / 1000;
+      if (activeAudio && isExplicitSeek) {
+        activeAudio.currentTime = initialSec;
       }
-      store.setCurrentTime(session.positionMs / 1000, true);
+      store.setCurrentTime(initialSec, true);
     }
   }
 
