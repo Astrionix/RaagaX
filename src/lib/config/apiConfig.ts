@@ -15,6 +15,11 @@ export function getApiBaseUrl(): string {
       return origin;
     }
 
+    try {
+      const custom = localStorage.getItem('raagax_api_base_url');
+      if (custom) return custom;
+    } catch {}
+
     const isCapacitor = Boolean(
       (window as any).Capacitor ||
       (window as any).androidBridge ||
@@ -27,7 +32,7 @@ export function getApiBaseUrl(): string {
 
     // In Capacitor Android/iOS WebView where origin is https://localhost
     if (isCapacitor) {
-      return process.env.NEXT_PUBLIC_API_BASE_URL || 'https://raaga-x-chi.vercel.app';
+      return process.env.NEXT_PUBLIC_API_BASE_URL || 'http://192.168.29.99:3000';
     }
 
     // In standard browser deployment (e.g. https://raaga-x-chi.vercel.app)
@@ -36,7 +41,7 @@ export function getApiBaseUrl(): string {
     }
   }
 
-  return process.env.NEXT_PUBLIC_API_BASE_URL || 'https://raaga-x-chi.vercel.app';
+  return process.env.NEXT_PUBLIC_API_BASE_URL || 'http://192.168.29.99:3000';
 }
 
 export function getApiUrl(path: string): string {

@@ -13,6 +13,7 @@ import { JamDiscoveryEngine } from './JamDiscoveryEngine';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { supabase } from '@/lib/supabase';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 export type JamStateListener = (session: JamSession | null, state: JamParticipantState) => void;
 
@@ -110,7 +111,7 @@ export class JamClientManager {
     const currentSong = params?.initialSong ?? store.currentSong;
     const initialQueue = params?.initialQueue ?? store.queue;
 
-    const res = await fetch('/api/jam', {
+    const res = await fetch(getApiUrl('/api/jam'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -124,12 +125,18 @@ export class JamClientManager {
       }),
     });
 
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to create Jam session');
+    const text = await res.text();
+    let data: any = {};
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error('Failed to communicate with Jam server');
     }
 
-    const data = await res.json();
+    if (!res.ok || !data.session) {
+      throw new Error(data.error || 'Failed to create Jam session');
+    }
+
     const session: JamSession = data.session;
 
     this.activeSession = session;
@@ -158,15 +165,17 @@ export class JamClientManager {
     const cleanCode = (code || '').trim().toUpperCase();
     if (!cleanCode) throw new Error('Please enter a valid Join Code');
 
-    const res = await fetch(`/api/jam/code/${cleanCode}`);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Invalid or expired Join Code');
+    const res = await fetch(getApiUrl(`/api/jam/code/${cleanCode}`));
+    const text = await res.text();
+    let data: any = {};
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error('Could not reach Jam server. Please check your network connection.');
     }
 
-    const data = await res.json();
-    if (!data.success || !data.jamId) {
-      throw new Error(data.error || 'Could not find Jam with this code');
+    if (!res.ok || !data.success || !data.jamId) {
+      throw new Error(data.error || 'Invalid or expired Join Code');
     }
 
     return this.joinJam(data.jamId);
@@ -181,7 +190,7 @@ export class JamClientManager {
     // Step 1: Authenticate / identify
     this.setParticipantState('AUTHENTICATING');
 
-    const res = await fetch(`/api/jam/${jamId}/join`, {
+    const res = await fetch(getApiUrl(`/api/jam/${jamId}/join`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -192,13 +201,20 @@ export class JamClientManager {
       }),
     });
 
-    if (!res.ok) {
-      const err = await res.json();
+    const text = await res.text();
+    let data: any = {};
+    try {
+      data = JSON.parse(text);
+    } catch {
       this.setParticipantState('READY');
-      throw new Error(err.error || 'Failed to join Jam');
+      throw new Error('Could not parse server response');
     }
 
-    const data = await res.json();
+    if (!res.ok || !data.session) {
+      this.setParticipantState('READY');
+      throw new Error(data.error || 'Failed to join Jam');
+    }
+
     const session: JamSession = data.session;
 
     this.activeSession = session;
@@ -234,7 +250,7 @@ export class JamClientManager {
     const jamId = this.activeSession.jamId;
 
     try {
-      await fetch(`/api/jam/${jamId}/leave`, {
+      await fetch(getApiUrl(`/api/jam/${jamId}/leave`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: this.currentUserId }),
@@ -287,7 +303,7 @@ export class JamClientManager {
 
     // 1. Primary: Server-Sent Events (SSE) Stream
     try {
-      const es = new EventSource(`/api/jam/${jamId}/events`);
+      const es = new EventSource(getApiUrl(`/api/jam/${jamId}/events`));
       this.eventSource = es;
 
       es.onmessage = (e) => {
@@ -517,7 +533,7 @@ export class JamClientManager {
    */
   public async resyncSnapshot(jamId: string): Promise<boolean> {
     try {
-      const res = await fetch(`/api/jam/${jamId}`, { cache: 'no-store' });
+      const res = await fetch(getApiUrl(`/api/jam/${jamId}`), { cache: 'no-store' });
       if (res.status === 404) {
         console.warn(`[JamClientManager] Session ${jamId} not found on server (404). Session has ended or was destroyed.`);
         this.cleanupSession();
@@ -589,7 +605,7 @@ export class JamClientManager {
     const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
     try {
-      const res = await fetch(`/api/jam/${jamId}/command`, {
+      const res = await fetch(getApiUrl(`/api/jam/${jamId}/command`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1804,7 +1804,7 @@ export function ExpandedPlayerModal() {
                 haptics.lightImpact();
                 useJamStore.getState().toggleJamModal(true);
               }}
-              className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3 sm:px-3.5 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                 useJamStore.getState().isInJam
                   ? 'bg-[#FA233B]/25 text-[#FA233B] border-[#FA233B]/40 shadow-sm'
                   : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
@@ -1815,6 +1815,26 @@ export function ExpandedPlayerModal() {
               <span>Jam</span>
               {useJamStore.getState().isInJam && (
                 <span className="w-1.5 h-1.5 rounded-full bg-[#FA233B] animate-ping" />
+              )}
+            </button>
+
+            {/* Sleep Timer Button (Mobile) */}
+            <button
+              onClick={() => {
+                haptics.lightImpact();
+                toggleSleepTimerModal(true);
+              }}
+              className={`px-3 sm:px-3.5 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                sleepTimerEndsAt || sleepTimerMode
+                  ? 'bg-purple-500/25 text-purple-300 border-purple-400/40 shadow-sm'
+                  : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
+              }`}
+              title="Sleep Timer"
+            >
+              <Moon className="w-3.5 h-3.5" />
+              <span>Timer</span>
+              {(sleepTimerEndsAt || sleepTimerMode) && (
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping" />
               )}
             </button>
           </div>

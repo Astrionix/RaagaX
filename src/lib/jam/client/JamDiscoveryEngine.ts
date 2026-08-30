@@ -1,4 +1,5 @@
 import { DiscoveredJam, JamSession } from '@/types/jam';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 type DiscoveryListener = (jams: DiscoveredJam[]) => void;
 
@@ -194,7 +195,7 @@ export class JamDiscoveryEngine {
    */
   public async queryNetworkDiscoveredJams(): Promise<void> {
     try {
-      const res = await fetch('/api/jam/discover', {
+      const res = await fetch(getApiUrl('/api/jam/discover'), {
         method: 'GET',
         headers: { 'Cache-Control': 'no-cache' },
       });

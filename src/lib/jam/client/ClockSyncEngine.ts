@@ -1,4 +1,5 @@
 import { TimeSyncPing, TimeSyncResponse } from '@/types/jam';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 export interface ClockSample {
   rtt: number;
@@ -100,7 +101,7 @@ export class ClockSyncEngine {
     const payload: TimeSyncPing = { clientSendTime: t1 };
 
     try {
-      const res = await fetch('/api/jam/time-sync', {
+      const res = await fetch(getApiUrl('/api/jam/time-sync'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
