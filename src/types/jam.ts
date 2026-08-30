@@ -1,10 +1,29 @@
 import { Song } from './music';
 
+export type JamDeviceJoinState =
+  | 'JOIN_REQUESTED'
+  | 'AUTHORIZED'
+  | 'SNAPSHOT_RECEIVED'
+  | 'CLOCK_SYNCING'
+  | 'PREPARING'
+  | 'SCHEDULED'
+  | 'SYNCING'
+  | 'SYNCED'
+  | 'FAILED';
+
 export type JamParticipantState =
   | 'INVITED'
+  | 'JOIN_REQUESTED'
+  | 'AUTHORIZED'
+  | 'SNAPSHOT_RECEIVED'
+  | 'CLOCK_SYNCING'
+  | 'PREPARING'
+  | 'SCHEDULED'
+  | 'SYNCING'
+  | 'SYNCED'
+  | 'FAILED'
   | 'JOINING'
   | 'AUTHENTICATING'
-  | 'SYNCING'
   | 'BUFFERING'
   | 'READY'
   | 'PLAYING'

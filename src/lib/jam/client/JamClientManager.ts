@@ -220,63 +220,78 @@ export class JamClientManager {
 
   /**
    * Joins an existing Jam session with full synchronization flow
+   * Follows explicit lifecycle: JOIN_REQUESTED -> AUTHORIZED -> SNAPSHOT_RECEIVED -> CLOCK_SYNCING -> PREPARING -> SCHEDULED -> SYNCING -> SYNCED
    */
   public async joinJam(jamId: string): Promise<JamSession> {
-    this.setParticipantState('JOINING');
+    this.setParticipantState('JOIN_REQUESTED');
 
-    // Step 1: Authenticate / identify
-    this.setParticipantState('AUTHENTICATING');
-
-    const res = await fetch(getApiUrl(`/api/jam/${jamId}/join`), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: this.currentUserId || `user_${Date.now().toString(36)}`,
-        displayName: this.currentUserName || 'RaagaX Listener',
-        avatarUrl: this.currentUserAvatar,
-        deviceType: this.detectDeviceType(),
-      }),
-    });
-
-    const text = await res.text();
-    let data: any = {};
     try {
-      data = JSON.parse(text);
-    } catch {
-      this.setParticipantState('READY');
-      throw new Error('Could not parse server response');
+      this.setParticipantState('AUTHORIZED');
+
+      const res = await fetch(getApiUrl(`/api/jam/${jamId}/join`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: this.currentUserId || `user_${Date.now().toString(36)}`,
+          displayName: this.currentUserName || 'RaagaX Listener',
+          avatarUrl: this.currentUserAvatar,
+          deviceType: this.detectDeviceType(),
+        }),
+      });
+
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        this.setParticipantState('FAILED');
+        throw new Error('Could not parse server response');
+      }
+
+      if (!res.ok || !data.session) {
+        this.setParticipantState('FAILED');
+        throw new Error(data.error || 'Failed to join Jam');
+      }
+
+      const session: JamSession = data.session;
+      this.setParticipantState('SNAPSHOT_RECEIVED');
+
+      this.activeSession = session;
+      this.localRevision = session.revision;
+
+      // Step 1: Synchronize clock (NTP burst)
+      this.setParticipantState('CLOCK_SYNCING');
+      await this.clockSync.synchronize(6);
+      this.clockSync.startPeriodicSync(15000);
+
+      // Step 2: Prepare current track on the existing timeline
+      this.setParticipantState('PREPARING');
+      await this.stateMachine.handleTransition(session, undefined, 'NEW_TRANSITION');
+
+      // Step 3: Drift correction & synchronization
+      this.driftEngine.setSession(session);
+      this.driftEngine.start();
+
+      if (session.state === 'PLAYING') {
+        const estServerNow = this.clockSync.estimatedServerNow();
+        if (estServerNow < session.startAtServerTime) {
+          this.setParticipantState('SCHEDULED');
+        } else {
+          this.setParticipantState('SYNCED');
+        }
+      } else {
+        this.setParticipantState('SYNCED');
+      }
+
+      // Connect real-time channels
+      this.connectRealtimeTransport(jamId);
+      this.startMetricsReporting(jamId);
+
+      return session;
+    } catch (err) {
+      this.setParticipantState('FAILED');
+      throw err;
     }
-
-    if (!res.ok || !data.session) {
-      this.setParticipantState('READY');
-      throw new Error(data.error || 'Failed to join Jam');
-    }
-
-    const session: JamSession = data.session;
-
-    this.activeSession = session;
-    this.localRevision = session.revision;
-
-    // Step 2: Synchronize clock
-    this.setParticipantState('SYNCING');
-    await this.clockSync.synchronize(6);
-    this.clockSync.startPeriodicSync(15000);
-
-    // Step 3: Buffer audio & synchronize playback
-    this.setParticipantState('BUFFERING');
-    await this.stateMachine.handleTransition(session, undefined, 'NEW_TRANSITION');
-
-    this.driftEngine.setSession(session);
-    this.driftEngine.start();
-
-    // Step 4: Ready
-    this.setParticipantState(session.state === 'PLAYING' ? 'PLAYING' : 'READY');
-
-    // Connect real-time channels
-    this.connectRealtimeTransport(jamId);
-    this.startMetricsReporting(jamId);
-
-    return session;
   }
 
   /**

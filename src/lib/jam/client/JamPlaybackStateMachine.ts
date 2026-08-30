@@ -229,7 +229,8 @@ export class JamPlaybackStateMachine {
     const isAlreadyLoaded = store.currentSong?.id === song.id && isAudioReadyForTrack;
     const clientQueue: Song[] = [song, ...session.queue.map((item) => item.song)];
 
-    const initialSec = (session.positionMs || 0) / 1000;
+    const inFlightMs = this.driftEngine.calculateExpectedPositionMs(session);
+    const inFlightSec = inFlightMs / 1000;
     const isExplicitSeek = triggerEvent?.type === 'SEEK';
 
     // Update player store representation
@@ -240,20 +241,30 @@ export class JamPlaybackStateMachine {
       duration: song.duration || 0,
       isPlaying: session.state === 'PLAYING',
       playbackIntent: session.state === 'PLAYING' ? 'PLAYING' : 'PAUSED',
+      currentTime: inFlightSec,
     });
+    store.setCurrentTime(inFlightSec, true);
 
     if (!isAlreadyLoaded) {
       // New track: load audio source
-      usePlayerStore.setState({ currentTime: initialSec });
-      store.setCurrentTime(initialSec, true);
-
       const reqId = Date.now();
       pb.setPlaybackRequestId(reqId);
-      await pb.loadAudioSource(song, reqId, false);
+      let loadSuccess = false;
+      try {
+        loadSuccess = await pb.loadAudioSource(song, reqId, false);
+      } catch (err) {
+        console.warn(`[JamPlaybackStateMachine] Audio loading error on joining device for track ${song.id}:`, err);
+        loadSuccess = false;
+      }
 
       // Generation Guard: verify active generation and transitionId after async load
       if (this.state.activeGeneration > generation || this.state.activeTransitionId !== transitionId) {
         console.log(`[JamPlaybackStateMachine] Discarding loaded audio for stale generation ${generation} (Active is ${this.state.activeGeneration})`);
+        return;
+      }
+
+      if (!loadSuccess) {
+        console.warn(`[JamPlaybackStateMachine] Audio source unavailable for track ${song.id} on joining device`);
         return;
       }
 
@@ -266,10 +277,10 @@ export class JamPlaybackStateMachine {
     } else if (isExplicitSeek) {
       // Same track with explicit SEEK: set currentTime to seek target
       if (activeAudio) {
-        activeAudio.currentTime = initialSec;
+        activeAudio.currentTime = inFlightSec;
       }
-      usePlayerStore.setState({ currentTime: initialSec });
-      store.setCurrentTime(initialSec, true);
+      usePlayerStore.setState({ currentTime: inFlightSec });
+      store.setCurrentTime(inFlightSec, true);
     }
 
     if (session.state === 'PLAYING') {
@@ -277,9 +288,9 @@ export class JamPlaybackStateMachine {
     } else {
       pb.pause();
       if (activeAudio && isExplicitSeek) {
-        activeAudio.currentTime = initialSec;
+        activeAudio.currentTime = inFlightSec;
       }
-      store.setCurrentTime(initialSec, true);
+      store.setCurrentTime(inFlightSec, true);
     }
   }
 
