@@ -34,6 +34,7 @@ import { JamModal } from '@/components/jam/JamModal';
 import { JamShareModal } from '@/components/jam/JamShareModal';
 import { AddToJamModal } from '@/components/jam/AddToJamModal';
 import { JoinJamModal } from '@/components/jam/JoinJamModal';
+import { JamDevSyncPanel } from '@/components/jam/JamDevSyncPanel';
 
 import { Toast } from '@/components/ui/Toast';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
@@ -344,6 +345,7 @@ export default function Page() {
       <ErrorBoundary name="JoinJamModal">
         <JoinJamModal />
       </ErrorBoundary>
+      <JamDevSyncPanel />
 
       {/* ── Native Android Connected Surfaces ── */}
       <LockScreenPlayerModal

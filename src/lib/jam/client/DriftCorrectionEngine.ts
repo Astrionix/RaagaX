@@ -59,6 +59,8 @@ export class DriftCorrectionEngine {
     }
   }
 
+  private consecutiveLargeDriftCount = 0;
+
   /**
    * Evaluates if we need to schedule a future start trigger
    */
@@ -72,12 +74,11 @@ export class DriftCorrectionEngine {
 
     const estimatedServerTime = this.clockSync.getEstimatedServerTime();
     const delayMs = session.startAtServerTime - estimatedServerTime;
+    const pb = PlaybackService.getInstance();
+    const activeAudio = pb.getActiveAudio();
 
     if (delayMs > 10) {
       // Schedule local play execution at exact future server timestamp
-      const pb = PlaybackService.getInstance();
-      const activeAudio = pb.getActiveAudio();
-
       if (activeAudio) {
         // Pre-seek to authoritative starting position in preparation
         const targetSec = session.positionMs / 1000;
@@ -95,9 +96,17 @@ export class DriftCorrectionEngine {
         }
       }, delayMs);
     } else {
-      // Already past schedule time: trigger play immediately
+      // Already past schedule time: compute exact in-flight timeline position and seek before playing
+      const expectedPosMs = this.calculateExpectedPositionMs(session, estimatedServerTime);
+      const expectedPosSec = expectedPosMs / 1000;
+
+      if (activeAudio && Math.abs(activeAudio.currentTime - expectedPosSec) > 0.05) {
+        activeAudio.currentTime = expectedPosSec;
+      }
+
       try {
-        PlaybackService.getInstance().play();
+        usePlayerStore.getState().setCurrentTime(expectedPosSec, true);
+        pb.play();
       } catch {}
     }
   }
@@ -154,6 +163,7 @@ export class DriftCorrectionEngine {
         activeAudio.playbackRate = 1.0;
         this.currentRate = 1.0;
       }
+      this.consecutiveLargeDriftCount = 0;
 
       const status: DriftStatus = {
         expectedPositionMs,
@@ -181,30 +191,38 @@ export class DriftCorrectionEngine {
       // Zone 1: Perfectly synchronized (within 30ms) -> Normal 1.0x
       targetRate = 1.0;
       action = 'NONE';
+      this.consecutiveLargeDriftCount = 0;
     } else if (absDrift <= 120) {
-      // Zone 2: Micro Drift (30ms - 120ms) -> Imperceptible smooth rate nudge (0.985x - 1.015x)
+      // Zone 2: Micro Drift (30ms - 120ms) -> Imperceptible smooth rate nudge (0.982x - 1.018x)
       action = 'MODULATE_RATE';
-      if (driftMs < 0) {
-        // Behind authoritative timeline -> slightly speed up
-        targetRate = 1.018;
-      } else {
-        // Ahead of authoritative timeline -> slightly slow down
-        targetRate = 0.982;
-      }
+      targetRate = driftMs < 0 ? 1.018 : 0.982;
+      this.consecutiveLargeDriftCount = 0;
     } else if (absDrift <= 350) {
-      // Zone 3: Moderate Drift (120ms - 350ms) -> Slightly firmer rate nudge (0.95x - 1.05x)
+      // Zone 3: Moderate Drift (120ms - 350ms) -> Slightly firmer rate nudge (0.955x - 1.045x)
       action = 'MODULATE_RATE';
-      if (driftMs < 0) {
-        targetRate = 1.045;
-      } else {
-        targetRate = 0.955;
-      }
-    } else {
-      // Zone 4: Large Drift (> 350ms or after tab wake) -> Controlled seamless seek
+      targetRate = driftMs < 0 ? 1.045 : 0.955;
+      this.consecutiveLargeDriftCount = 0;
+    } else if (absDrift > 2000) {
+      // Massive gap (e.g. tab wakeup or seek) -> immediate controlled seek
       action = 'HARD_SEEK';
       targetRate = 1.0;
       activeAudio.currentTime = Math.max(0, expectedPositionMs / 1000);
-      console.log(`[DriftCorrectionEngine] Large drift (${driftMs}ms). Performed controlled seek to ${(expectedPositionMs / 1000).toFixed(2)}s`);
+      this.consecutiveLargeDriftCount = 0;
+      console.log(`[DriftCorrectionEngine] Immediate seek due to large drift (${driftMs}ms) to ${(expectedPositionMs / 1000).toFixed(2)}s`);
+    } else {
+      // Zone 4: Persistent moderate-to-large drift (350ms - 2000ms)
+      this.consecutiveLargeDriftCount++;
+      if (this.consecutiveLargeDriftCount >= 2) {
+        action = 'HARD_SEEK';
+        targetRate = 1.0;
+        activeAudio.currentTime = Math.max(0, expectedPositionMs / 1000);
+        this.consecutiveLargeDriftCount = 0;
+        console.log(`[DriftCorrectionEngine] Persistent drift (${driftMs}ms across 2 cycles). Performed controlled seek to ${(expectedPositionMs / 1000).toFixed(2)}s`);
+      } else {
+        // First cycle: apply firm rate modulation (1.05x / 0.95x) to check if transient
+        action = 'MODULATE_RATE';
+        targetRate = driftMs < 0 ? 1.05 : 0.95;
+      }
     }
 
     // Apply playback rate smoothly
