@@ -13,8 +13,14 @@ export async function GET(
     const session = engine.getSession(jamId);
 
     if (!session) {
+      if (engine.isSessionEnded(jamId)) {
+        return NextResponse.json(
+          { success: false, code: 'JAM_ENDED', error: 'Jam session has ended' },
+          { status: 410 }
+        );
+      }
       return NextResponse.json(
-        { success: false, error: 'Jam session not found or has ended' },
+        { success: false, code: 'JAM_NOT_FOUND', error: 'Jam session not found' },
         { status: 404 }
       );
     }
@@ -26,7 +32,7 @@ export async function GET(
     });
   } catch (err: any) {
     return NextResponse.json(
-      { success: false, error: err?.message || 'Failed to fetch Jam session' },
+      { success: false, code: 'INTERNAL_ERROR', error: err?.message || 'Failed to fetch Jam session' },
       { status: 500 }
     );
   }

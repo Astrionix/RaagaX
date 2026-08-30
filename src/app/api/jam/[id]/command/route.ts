@@ -40,7 +40,20 @@ export async function POST(
     const result = engine.executeCommand(command);
 
     if (!result.success) {
-      return NextResponse.json({ success: false, error: result.error }, { status: 400 });
+      let status = 400;
+      if (result.code === 'JAM_NOT_FOUND') status = 404;
+      else if (result.code === 'JAM_ENDED') status = 410;
+      else if (result.code === 'UNAUTHORIZED') status = 403;
+      else if (result.code === 'INTERNAL_ERROR') status = 500;
+
+      return NextResponse.json(
+        {
+          success: false,
+          code: result.code || 'INVALID_COMMAND',
+          error: result.error,
+        },
+        { status }
+      );
     }
 
     return NextResponse.json({
@@ -52,7 +65,7 @@ export async function POST(
     });
   } catch (err: any) {
     return NextResponse.json(
-      { success: false, error: err?.message || 'Failed to process Jam command' },
+      { success: false, code: 'INTERNAL_ERROR', error: err?.message || 'Failed to process Jam command' },
       { status: 500 }
     );
   }

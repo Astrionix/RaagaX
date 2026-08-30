@@ -26,7 +26,16 @@ export async function POST(
     });
 
     if (!result.success) {
-      return NextResponse.json({ success: false, error: result.error }, { status: 404 });
+      if (engine.isSessionEnded(jamId)) {
+        return NextResponse.json(
+          { success: false, code: 'JAM_ENDED', error: 'Jam session has ended' },
+          { status: 410 }
+        );
+      }
+      return NextResponse.json(
+        { success: false, code: 'JAM_NOT_FOUND', error: result.error || 'Jam session not found' },
+        { status: 404 }
+      );
     }
 
     return NextResponse.json({
@@ -36,7 +45,7 @@ export async function POST(
     });
   } catch (err: any) {
     return NextResponse.json(
-      { success: false, error: err?.message || 'Failed to join Jam' },
+      { success: false, code: 'INTERNAL_ERROR', error: err?.message || 'Failed to join Jam' },
       { status: 500 }
     );
   }

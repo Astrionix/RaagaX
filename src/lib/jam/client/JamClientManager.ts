@@ -581,11 +581,20 @@ export class JamClientManager {
   public async resyncSnapshot(jamId: string): Promise<boolean> {
     try {
       const res = await fetch(getApiUrl(`/api/jam/${jamId}`), { cache: 'no-store' });
-      if (res.status === 404) {
-        console.warn(`[JamClientManager] Session ${jamId} not found on server (404). Session has ended or was destroyed.`);
+      if (res.status === 410) {
+        console.warn(`[JamClientManager] Session ${jamId} has ended (410).`);
         this.cleanupSession();
         if (typeof window !== 'undefined') {
           usePlayerStore.getState().setToastMessage('Jam party has ended');
+        }
+        return false;
+      }
+
+      if (res.status === 404) {
+        console.warn(`[JamClientManager] Session ${jamId} not found on server (404).`);
+        this.cleanupSession();
+        if (typeof window !== 'undefined') {
+          usePlayerStore.getState().setToastMessage('Jam party not found');
         }
         return false;
       }
@@ -645,7 +654,7 @@ export class JamClientManager {
   }
 
   /**
-   * Sends an authoritative command to the Jam server
+   * Sends an authoritative command to the Jam server with precise error handling
    */
   public async sendCommand(action: JamCommandAction, payload?: any): Promise<boolean> {
     if (!this.activeSession) return false;
@@ -676,8 +685,8 @@ export class JamClientManager {
         return false;
       }
 
-      if (res.status === 400 && data.error === 'Jam session not found') {
-        console.warn(`[JamClientManager] Session ${jamId} is invalid or ended. Cleaning up.`);
+      if (res.status === 410 || data.code === 'JAM_ENDED') {
+        console.warn(`[JamClientManager] Session ${jamId} has ended. Cleaning up.`);
         this.cleanupSession();
         if (typeof window !== 'undefined') {
           usePlayerStore.getState().setToastMessage('Jam session ended');
@@ -685,8 +694,39 @@ export class JamClientManager {
         return false;
       }
 
-      if (!res.ok) {
+      if (res.status === 404 || data.code === 'JAM_NOT_FOUND') {
+        // If session was not found during a background status update, do NOT destroy local Jam!
+        if (action === 'UPDATE_PARTICIPANT_STATUS') {
+          console.warn(`[JamClientManager] Participant status update failed: Jam not found. Triggering background snapshot verification...`);
+          this.resyncSnapshot(jamId);
+          return false;
+        }
+
+        console.warn(`[JamClientManager] Session ${jamId} not found on server. Cleaning up.`);
+        this.cleanupSession();
+        if (typeof window !== 'undefined') {
+          usePlayerStore.getState().setToastMessage('Jam session not found');
+        }
+        return false;
+      }
+
+      if (res.status === 403 || data.code === 'UNAUTHORIZED') {
+        // If participant was cleared on server (e.g. server restart in dev), auto re-join silently
+        if (action === 'UPDATE_PARTICIPANT_STATUS') {
+          console.warn(`[JamClientManager] Participant unauthorized during status update. Auto re-joining Jam ${jamId}...`);
+          this.joinJam(jamId).catch(() => {});
+          return false;
+        }
         if (typeof window !== 'undefined' && data.error) {
+          usePlayerStore.getState().setToastMessage(data.error);
+        }
+        return false;
+      }
+
+      if (!res.ok) {
+        // 400 INVALID_COMMAND or 5xx: Reconcile state, do NOT delete local session
+        console.warn(`[JamClientManager] Command ${action} rejected (${res.status}): ${data.error || 'Unknown error'}`);
+        if (typeof window !== 'undefined' && data.error && action !== 'UPDATE_PARTICIPANT_STATUS') {
           usePlayerStore.getState().setToastMessage(data.error);
         }
         return false;

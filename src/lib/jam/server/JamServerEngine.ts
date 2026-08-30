@@ -14,11 +14,19 @@ import {
 } from '@/types/jam';
 import { Song } from '@/types/music';
 
+export type JamErrorCode =
+  | 'JAM_NOT_FOUND'
+  | 'JAM_ENDED'
+  | 'UNAUTHORIZED'
+  | 'INVALID_COMMAND'
+  | 'INTERNAL_ERROR';
+
 export interface CommandResult {
   success: boolean;
   session?: JamSession;
   event?: JamEvent;
   error?: string;
+  code?: JamErrorCode;
   isIdempotentReplay?: boolean;
 }
 
@@ -27,6 +35,7 @@ type EventListener = (event: JamEvent) => void;
 interface GlobalJamState {
   __raaga_jam_server_engine__?: JamServerEngine;
   __raaga_jam_sessions__?: Map<string, JamSession>;
+  __raaga_jam_ended_sessions__?: Map<string, number>;
   __raaga_jam_codes__?: Map<string, string>;
   __raaga_jam_listeners__?: Map<string, Set<EventListener>>;
   __raaga_jam_idempotency__?: Map<string, { result: CommandResult; timestamp: number }>;
@@ -36,6 +45,7 @@ const globalForJam = globalThis as unknown as GlobalJamState;
 
 export class JamServerEngine {
   private sessions: Map<string, JamSession>;
+  private endedSessions: Map<string, number>; // jamId -> endedTimestamp
   private joinCodes: Map<string, string>; // UPPERCASE joinCode -> jamId
   private eventListeners: Map<string, Set<EventListener>>;
   private idempotencyCache: Map<string, { result: CommandResult; timestamp: number }>;
@@ -46,6 +56,9 @@ export class JamServerEngine {
   private constructor() {
     if (!globalForJam.__raaga_jam_sessions__) {
       globalForJam.__raaga_jam_sessions__ = new Map();
+    }
+    if (!globalForJam.__raaga_jam_ended_sessions__) {
+      globalForJam.__raaga_jam_ended_sessions__ = new Map();
     }
     if (!globalForJam.__raaga_jam_codes__) {
       globalForJam.__raaga_jam_codes__ = new Map();
@@ -58,6 +71,7 @@ export class JamServerEngine {
     }
 
     this.sessions = globalForJam.__raaga_jam_sessions__;
+    this.endedSessions = globalForJam.__raaga_jam_ended_sessions__;
     this.joinCodes = globalForJam.__raaga_jam_codes__;
     this.eventListeners = globalForJam.__raaga_jam_listeners__;
     this.idempotencyCache = globalForJam.__raaga_jam_idempotency__;
@@ -457,19 +471,22 @@ export class JamServerEngine {
 
     const session = this.sessions.get(command.jamId);
     if (!session) {
-      return { success: false, error: 'Jam session not found' };
+      if (this.endedSessions.has(command.jamId)) {
+        return { success: false, code: 'JAM_ENDED', error: 'Jam session has ended' };
+      }
+      return { success: false, code: 'JAM_NOT_FOUND', error: 'Jam session not found' };
     }
 
     // 2. Validate participant membership
     const participant = session.participants[command.userId];
     if (!participant && command.action !== 'END_SESSION') {
-      return { success: false, error: 'User is not a member of this Jam session' };
+      return { success: false, code: 'UNAUTHORIZED', error: 'User is not a member of this Jam session' };
     }
 
     // 3. Validate permissions
     const permCheck = this.validatePermission(session, command);
     if (!permCheck.allowed) {
-      return { success: false, error: permCheck.reason };
+      return { success: false, code: 'INVALID_COMMAND', error: permCheck.reason };
     }
 
     const now = Date.now();
@@ -1003,9 +1020,11 @@ export class JamServerEngine {
 
       case 'END_SESSION': {
         if (session.hostId !== command.userId) {
-          return { success: false, error: 'Only the host can end the Jam' };
+          return { success: false, code: 'INVALID_COMMAND', error: 'Only the host can end the Jam' };
         }
         this.sessions.delete(session.jamId);
+        this.endedSessions.set(session.jamId, now);
+        this.joinCodes.delete(session.joinCode);
         eventType = 'SESSION_ENDED';
         payload = { reason: 'Ended by host' };
         break;
@@ -1249,11 +1268,16 @@ export class JamServerEngine {
     }
   }
 
+  public isSessionEnded(jamId: string): boolean {
+    return this.endedSessions.has(jamId);
+  }
+
   /**
    * For testing: clear all state
    */
   public resetForTesting() {
     this.sessions.clear();
+    this.endedSessions.clear();
     this.joinCodes.clear();
     this.eventListeners.clear();
     this.idempotencyCache.clear();

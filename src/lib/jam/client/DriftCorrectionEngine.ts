@@ -190,13 +190,15 @@ export class DriftCorrectionEngine {
       timelineId: session.timelineId || `TL_${session.revision}`,
       transitionId: session.transitionId || 'N/A',
       generation: session.generation ?? session.revision,
-      expectedPosition: `${(expectedPosMs / 1000).toFixed(3)}s`,
-      actualPosition: `${(actualLocalMs / 1000).toFixed(3)}s`,
-      drift: `${driftMs >= 0 ? `+${driftMs}` : driftMs}ms`,
+      timelineStartServerMs: session.timelineStartServerMs || session.startAtServerTime,
+      scheduledStartAt: session.startAtServerTime,
+      clockOffset: `${clockState.offsetMs >= 0 ? `+${clockState.offsetMs}` : clockState.offsetMs}ms`,
       RTT: `${netMetrics.rttMedian}ms (raw ${netMetrics.rtt}ms)`,
       jitter: `${netMetrics.jitter}ms`,
       packetLoss: `${netMetrics.packetLoss}%`,
-      clockOffset: `${clockState.offsetMs >= 0 ? `+${clockState.offsetMs}` : clockState.offsetMs}ms`,
+      expectedPosition: `${(expectedPosMs / 1000).toFixed(3)}s`,
+      actualPosition: `${(actualLocalMs / 1000).toFixed(3)}s`,
+      drift: `${driftMs >= 0 ? `+${driftMs}` : driftMs}ms`,
       bufferState,
       connectionState: netMetrics.quality,
       transport: netMetrics.transport,
@@ -230,7 +232,12 @@ export class DriftCorrectionEngine {
     const activeAudio = PlaybackService.getInstance().getActiveAudio();
     const actualLocalMs = activeAudio ? activeAudio.currentTime * 1000 : 0;
 
-    if (!activeAudio || session.state === 'PAUSED' || isWaitingForStart) {
+    // Priority 17: During loading, buffering, seeking, or transitions, drift engine must not fight playback
+    const isAudioBufferingOrSyncing = activeAudio
+      ? activeAudio.paused || activeAudio.seeking || (typeof activeAudio.readyState === 'number' && activeAudio.readyState < 2)
+      : true;
+
+    if (!activeAudio || session.state === 'PAUSED' || isWaitingForStart || isAudioBufferingOrSyncing) {
       if (activeAudio && activeAudio.playbackRate !== 1.0) {
         activeAudio.playbackRate = 1.0;
         this.currentRate = 1.0;
