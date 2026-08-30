@@ -722,8 +722,16 @@ export class JamClientManager {
    * Full snapshot restoration
    */
   public applySessionSnapshot(session: JamSession) {
+    if (!session) return;
+
+    // Ignore stale out-of-order snapshots (e.g. from delayed background HTTP requests or stale sync)
+    if (this.activeSession && typeof session.revision === 'number' && session.revision < this.localRevision) {
+      console.log(`[JamClientManager] Ignoring stale snapshot revision ${session.revision} (current localRevision is ${this.localRevision})`);
+      return;
+    }
+
     this.activeSession = session;
-    this.localRevision = session.revision;
+    this.localRevision = Math.max(this.localRevision, session.revision);
 
     this.driftEngine.setSession(session);
     this.stateMachine.handleTransition(session);

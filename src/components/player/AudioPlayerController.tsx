@@ -77,7 +77,7 @@ export function AudioPlayerController() {
   useEffect(() => {
     try {
       const snapshot = PlaybackRecoveryEngine.getInstance().restoreSnapshot();
-      if (snapshot && !usePlayerStore.getState().currentSong) {
+      if (snapshot && !usePlayerStore.getState().currentSong && !useJamStore.getState().isInJam) {
         usePlayerStore.setState({
           currentSong: snapshot.song,
           currentTime: snapshot.positionMs / 1000,
