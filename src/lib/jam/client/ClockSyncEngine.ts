@@ -1,5 +1,6 @@
 import { TimeSyncPing, TimeSyncResponse } from '@/types/jam';
 import { getApiUrl } from '@/lib/config/apiConfig';
+import { NetworkQualityEngine } from './NetworkQualityEngine';
 
 export interface ClockSample {
   rtt: number;
@@ -39,10 +40,18 @@ export class ClockSyncEngine {
   }
 
   /**
-   * Returns current estimated server time in milliseconds
+   * Primary authoritative server timestamp estimator.
+   * NEVER USE local Date.now() directly for Jam playback timelines!
+   */
+  public estimatedServerNow(): number {
+    return Date.now() + this.offsetMs;
+  }
+
+  /**
+   * Alias for estimatedServerNow
    */
   public getEstimatedServerTime(): number {
-    return Date.now() + this.offsetMs;
+    return this.estimatedServerNow();
   }
 
   /**
@@ -97,8 +106,8 @@ export class ClockSyncEngine {
    * Single NTP ping/pong to server
    */
   public async pingServer(): Promise<ClockSample | null> {
-    const t1 = Date.now();
-    const payload: TimeSyncPing = { clientSendTime: t1 };
+    const t0 = Date.now();
+    const payload: TimeSyncPing = { clientSendTime: t0 };
 
     try {
       const res = await fetch(getApiUrl('/api/jam/time-sync'), {
@@ -108,21 +117,29 @@ export class ClockSyncEngine {
         cache: 'no-store',
       });
 
-      if (!res.ok) return null;
+      if (!res.ok) {
+        NetworkQualityEngine.getInstance().recordLoss();
+        return null;
+      }
+
       const data: TimeSyncResponse = await res.json();
-      const t4 = Date.now();
+      const t3 = Date.now();
 
-      const t2 = data.serverReceiveTime;
-      const t3 = data.serverSendTime;
+      const t1 = data.serverReceiveTime;
+      const t2 = data.serverSendTime;
 
-      // NTP standard calculations:
-      // RTT = (t4 - t1) - (t3 - t2)
-      const rtt = Math.max(1, (t4 - t1) - (t3 - t2));
-      // Offset = ((t2 - t1) + (t3 - t4)) / 2
-      const offset = ((t2 - t1) + (t3 - t4)) / 2;
+      // NTP standard 4-timestamp calculations:
+      // RTT = (t3 - t0) - (t2 - t1)
+      const rtt = Math.max(1, (t3 - t0) - (t2 - t1));
+      // Offset = ((t1 - t0) + (t2 - t3)) / 2
+      const offset = ((t1 - t0) + (t2 - t3)) / 2;
 
-      return { rtt, offset, timestamp: t4 };
+      // Record successful measurement in NetworkQualityEngine
+      NetworkQualityEngine.getInstance().recordPing(rtt, true);
+
+      return { rtt, offset, timestamp: t3 };
     } catch {
+      NetworkQualityEngine.getInstance().recordLoss();
       return null;
     }
   }
@@ -171,12 +188,14 @@ export class ClockSyncEngine {
 
     this.sampleCount += effectiveSamples.length;
     this.samples = [...this.samples, ...effectiveSamples].slice(-30);
+
+    console.log(`[SYNC] ClockOffset=${Math.round(this.offsetMs)}ms RTT=${Math.round(this.rttMs)}ms Jitter=${Math.round(this.jitterMs)}ms Samples=${this.sampleCount}`);
   }
 
   /**
-   * Starts background periodic synchronization (every 20s)
+   * Starts background periodic synchronization (every 15s)
    */
-  public startPeriodicSync(intervalMs = 20000) {
+  public startPeriodicSync(intervalMs = 15000) {
     this.stopPeriodicSync();
     this.synchronize(6);
     this.syncTimer = setInterval(() => {

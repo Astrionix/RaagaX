@@ -211,10 +211,15 @@ export class JamServerEngine {
       trackId: params.initialSong?.id || null,
       currentSong: params.initialSong || null,
       positionMs: 0,
+      basePositionMs: 0,
       serverTimestamp: now,
       startAtServerTime: now,
+      timelineStartServerMs: now,
       leadTimeMs: 400,
       revision: 1,
+      generation: 1,
+      timelineId: 'TL_1',
+      transitionId: 'TR_1',
       createdAt: now,
       updatedAt: now,
       permissions: defaultPermissions,
@@ -233,6 +238,9 @@ export class JamServerEngine {
       jamId,
       type: 'SESSION_CREATED',
       revision: 1,
+      generation: 1,
+      timelineId: 'TL_1',
+      transitionId: 'TR_1',
       serverTimestamp: now,
       senderId: params.hostId,
       payload: { session },
@@ -468,44 +476,92 @@ export class JamServerEngine {
     let eventType: JamEvent['type'] = 'SESSION_UPDATED';
     let payload: any = {};
 
+    console.log('[COMMAND]', {
+      requestId: command.requestId || 'NONE',
+      revision: session.revision,
+      actorId: command.userId,
+      commandType: command.action,
+    });
+
     switch (command.action) {
       case 'PLAY': {
         const leadTime = this.computeAdaptiveLeadTime(session);
         const scheduledStart = now + leadTime;
+        session.generation = (session.generation ?? 0) + 1;
+        const timelineId = `TL_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
+        const transitionId = `TR_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
+
         session.state = 'PLAYING';
         session.startAtServerTime = scheduledStart;
+        session.timelineStartServerMs = scheduledStart;
         session.serverTimestamp = now;
         session.leadTimeMs = leadTime;
+        session.timelineId = timelineId;
+        session.transitionId = transitionId;
 
         if (typeof command.payload?.positionMs === 'number') {
           session.positionMs = Math.max(0, command.payload.positionMs);
         }
+        session.basePositionMs = session.positionMs;
 
         eventType = 'PLAY';
         payload = {
           state: 'PLAYING',
           positionMs: session.positionMs,
+          basePositionMs: session.basePositionMs,
           startAtServerTime: session.startAtServerTime,
+          timelineStartServerMs: session.timelineStartServerMs,
           trackId: session.trackId,
+          timelineId,
+          transitionId,
+          generation: session.generation,
         };
+
+        console.log('[PLAYBACK]', {
+          trackId: session.trackId,
+          timelineId,
+          transitionId,
+          generation: session.generation,
+          state: session.state,
+        });
         break;
       }
 
       case 'PAUSE': {
         // Calculate exact authoritative position at pause time
         const currentPos = this.calculateCurrentAuthoritativePosition(session, now);
+        session.generation = (session.generation ?? 0) + 1;
+        const timelineId = `TL_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
+        const transitionId = `TR_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
+
         session.state = 'PAUSED';
         session.positionMs = currentPos;
+        session.basePositionMs = currentPos;
         session.serverTimestamp = now;
         session.startAtServerTime = now;
+        session.timelineStartServerMs = now;
+        session.timelineId = timelineId;
+        session.transitionId = transitionId;
 
         eventType = 'PAUSE';
         payload = {
           state: 'PAUSED',
           positionMs: session.positionMs,
+          basePositionMs: session.basePositionMs,
           serverTimestamp: now,
           trackId: session.trackId,
+          timelineId,
+          transitionId,
+          generation: session.generation,
         };
+
+        console.log('[PLAYBACK]', {
+          trackId: session.trackId,
+          timelineId,
+          transitionId,
+          generation: session.generation,
+          state: session.state,
+        });
         break;
       }
 
@@ -514,50 +570,80 @@ export class JamServerEngine {
         const songDurationMs = session.currentSong?.duration ? session.currentSong.duration * 1000 : Infinity;
         const targetMs = Math.max(0, Math.min(songDurationMs, rawTargetMs));
         const leadTime = this.computeAdaptiveLeadTime(session);
-        const timelineId = `TL_${crypto.randomUUID()}`;
+        session.generation = (session.generation ?? 0) + 1;
+        const timelineId = `TL_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
+        const transitionId = `TR_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
 
         session.positionMs = targetMs;
+        session.basePositionMs = targetMs;
         session.serverTimestamp = now;
         session.leadTimeMs = leadTime;
+        session.timelineId = timelineId;
+        session.transitionId = transitionId;
 
         if (session.state === 'PLAYING') {
           session.startAtServerTime = now + leadTime;
         } else {
           session.startAtServerTime = now;
         }
+        session.timelineStartServerMs = session.startAtServerTime;
 
         eventType = 'SEEK';
         payload = {
           positionMs: session.positionMs,
+          basePositionMs: session.basePositionMs,
           startAtServerTime: session.startAtServerTime,
+          timelineStartServerMs: session.timelineStartServerMs,
           state: session.state,
           trackId: session.trackId,
           timelineId,
+          transitionId,
+          generation: session.generation,
         };
+
+        console.log('[PLAYBACK]', {
+          trackId: session.trackId,
+          timelineId,
+          transitionId,
+          generation: session.generation,
+          state: session.state,
+        });
         break;
       }
 
       case 'SKIP_NEXT': {
         const leadTime = this.computeAdaptiveLeadTime(session);
-        const timelineId = `TL_${crypto.randomUUID()}`;
+        session.generation = (session.generation ?? 0) + 1;
+        const timelineId = `TL_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
+        const transitionId = `TR_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
 
         if (session.queue.length === 0) {
           // If queue is empty, restart current track from 0:00
           session.positionMs = 0;
+          session.basePositionMs = 0;
           session.serverTimestamp = now;
           session.leadTimeMs = leadTime;
+          session.timelineId = timelineId;
+          session.transitionId = transitionId;
+
           if (session.state === 'PLAYING') {
             session.startAtServerTime = now + leadTime;
           } else {
             session.startAtServerTime = now;
           }
+          session.timelineStartServerMs = session.startAtServerTime;
+
           eventType = 'SEEK';
           payload = {
             positionMs: 0,
+            basePositionMs: 0,
             startAtServerTime: session.startAtServerTime,
+            timelineStartServerMs: session.timelineStartServerMs,
             state: session.state,
             trackId: session.trackId,
             timelineId,
+            transitionId,
+            generation: session.generation,
           };
           break;
         }
@@ -579,49 +665,77 @@ export class JamServerEngine {
         session.currentSong = nextItem.song;
         session.trackId = nextItem.song.id;
         session.positionMs = 0;
+        session.basePositionMs = 0;
         session.serverTimestamp = now;
         session.leadTimeMs = leadTime;
+        session.timelineId = timelineId;
+        session.transitionId = transitionId;
 
         if (session.state === 'PLAYING') {
           session.startAtServerTime = now + leadTime;
         } else {
           session.startAtServerTime = now;
         }
+        session.timelineStartServerMs = session.startAtServerTime;
 
         eventType = 'TRACK_CHANGED';
         payload = {
           currentSong: session.currentSong,
           trackId: session.trackId,
           positionMs: 0,
+          basePositionMs: 0,
           startAtServerTime: session.startAtServerTime,
+          timelineStartServerMs: session.timelineStartServerMs,
           state: session.state,
           queue: session.queue,
           timelineId,
+          transitionId,
+          generation: session.generation,
         };
+
+        console.log('[PLAYBACK]', {
+          trackId: session.trackId,
+          timelineId,
+          transitionId,
+          generation: session.generation,
+          state: session.state,
+        });
         break;
       }
 
       case 'SKIP_PREV': {
         const leadTime = this.computeAdaptiveLeadTime(session);
-        const timelineId = `TL_${crypto.randomUUID()}`;
+        session.generation = (session.generation ?? 0) + 1;
+        const timelineId = `TL_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
+        const transitionId = `TR_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
 
         if (session.history.length === 0) {
           // Restart current track at 0
           session.positionMs = 0;
+          session.basePositionMs = 0;
           session.serverTimestamp = now;
           session.leadTimeMs = leadTime;
+          session.timelineId = timelineId;
+          session.transitionId = transitionId;
+
           if (session.state === 'PLAYING') {
             session.startAtServerTime = now + leadTime;
           } else {
             session.startAtServerTime = now;
           }
+          session.timelineStartServerMs = session.startAtServerTime;
+
           eventType = 'SEEK';
           payload = {
             positionMs: 0,
+            basePositionMs: 0,
             startAtServerTime: session.startAtServerTime,
+            timelineStartServerMs: session.timelineStartServerMs,
             state: session.state,
             trackId: session.trackId,
             timelineId,
+            transitionId,
+            generation: session.generation,
           };
           break;
         }
@@ -642,25 +756,41 @@ export class JamServerEngine {
         session.currentSong = prevItem.song;
         session.trackId = prevItem.song.id;
         session.positionMs = 0;
+        session.basePositionMs = 0;
         session.serverTimestamp = now;
         session.leadTimeMs = leadTime;
+        session.timelineId = timelineId;
+        session.transitionId = transitionId;
 
         if (session.state === 'PLAYING') {
           session.startAtServerTime = now + leadTime;
         } else {
           session.startAtServerTime = now;
         }
+        session.timelineStartServerMs = session.startAtServerTime;
 
         eventType = 'TRACK_CHANGED';
         payload = {
           currentSong: session.currentSong,
           trackId: session.trackId,
           positionMs: 0,
+          basePositionMs: 0,
           startAtServerTime: session.startAtServerTime,
+          timelineStartServerMs: session.timelineStartServerMs,
           state: session.state,
           queue: session.queue,
           timelineId,
+          transitionId,
+          generation: session.generation,
         };
+
+        console.log('[PLAYBACK]', {
+          trackId: session.trackId,
+          timelineId,
+          transitionId,
+          generation: session.generation,
+          state: session.state,
+        });
         break;
       }
 
@@ -698,25 +828,44 @@ export class JamServerEngine {
           }
 
           const leadTime = this.computeAdaptiveLeadTime(session);
-          const timelineId = `TL_${crypto.randomUUID()}`;
+          session.generation = (session.generation ?? 0) + 1;
+          const timelineId = `TL_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
+          const transitionId = `TR_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
+
           session.currentSong = song;
           session.trackId = song.id;
           session.positionMs = 0;
+          session.basePositionMs = 0;
           session.serverTimestamp = now;
           session.leadTimeMs = leadTime;
           session.state = 'PLAYING';
           session.startAtServerTime = now + leadTime;
+          session.timelineStartServerMs = session.startAtServerTime;
+          session.timelineId = timelineId;
+          session.transitionId = transitionId;
 
           eventType = 'TRACK_CHANGED';
           payload = {
             currentSong: session.currentSong,
             trackId: session.trackId,
             positionMs: 0,
+            basePositionMs: 0,
             startAtServerTime: session.startAtServerTime,
+            timelineStartServerMs: session.timelineStartServerMs,
             state: session.state,
             queue: session.queue,
             timelineId,
+            transitionId,
+            generation: session.generation,
           };
+
+          console.log('[PLAYBACK]', {
+            trackId: session.trackId,
+            timelineId,
+            transitionId,
+            generation: session.generation,
+            state: session.state,
+          });
         } else {
           session.queue.push(queueItem);
           eventType = 'QUEUE_ITEM_ADDED';
@@ -802,8 +951,10 @@ export class JamServerEngine {
 
       case 'UPDATE_PARTICIPANT_STATUS': {
         const status: JamParticipantState = command.payload?.status;
-        if (participant && status) {
-          participant.status = status;
+        if (participant) {
+          if (status) {
+            participant.status = status;
+          }
           participant.lastSeenAt = now;
           if (typeof command.payload?.clockOffsetMs === 'number') {
             participant.clockOffsetMs = command.payload.clockOffsetMs;

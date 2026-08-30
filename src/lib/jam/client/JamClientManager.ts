@@ -9,6 +9,7 @@ import {
 import { Song } from '@/types/music';
 import { ClockSyncEngine } from './ClockSyncEngine';
 import { DriftCorrectionEngine } from './DriftCorrectionEngine';
+import { NetworkQualityEngine } from './NetworkQualityEngine';
 import { JamDiscoveryEngine } from './JamDiscoveryEngine';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
 import { usePlayerStore } from '@/context/usePlayerStore';
@@ -35,19 +36,31 @@ export class JamClientManager {
 
   private clockSync: ClockSyncEngine;
   private driftEngine: DriftCorrectionEngine;
+  private networkEngine: NetworkQualityEngine;
   private stateListeners: Set<JamStateListener> = new Set();
 
   private constructor() {
     this.clockSync = ClockSyncEngine.getInstance();
     this.driftEngine = DriftCorrectionEngine.getInstance();
+    this.networkEngine = NetworkQualityEngine.getInstance();
 
-    // Listen to network online / offline events
+    // Listen to network online / offline and interface change events
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => this.handleNetworkRestore());
       window.addEventListener('offline', () => this.handleNetworkLoss());
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && this.activeSession) {
           this.handleForegroundWake();
+        }
+      });
+
+      this.networkEngine.onNetworkChange(async (changeType) => {
+        console.log(`[JamClientManager] Network change detected (${changeType}). Triggering seamless clock re-sync & snapshot verification...`);
+        if (this.activeSession) {
+          try {
+            await this.clockSync.synchronize(4);
+            await this.resyncSnapshot(this.activeSession.jamId);
+          } catch {}
         }
       });
     }
@@ -388,6 +401,22 @@ export class JamClientManager {
     const s = this.activeSession;
     s.revision = event.revision;
     s.updatedAt = event.serverTimestamp;
+
+    if (event.timelineId || event.payload?.timelineId) {
+      s.timelineId = event.timelineId || event.payload?.timelineId;
+    }
+    if (event.transitionId || event.payload?.transitionId) {
+      s.transitionId = event.transitionId || event.payload?.transitionId;
+    }
+    if (typeof (event.generation ?? event.payload?.generation) === 'number') {
+      s.generation = event.generation ?? event.payload?.generation;
+    }
+    if (typeof event.payload?.timelineStartServerMs === 'number') {
+      s.timelineStartServerMs = event.payload.timelineStartServerMs;
+    }
+    if (typeof event.payload?.basePositionMs === 'number') {
+      s.basePositionMs = event.payload.basePositionMs;
+    }
 
     switch (event.type) {
       case 'PLAY': {
@@ -788,12 +817,13 @@ export class JamClientManager {
     this.metricsReportTimer = setInterval(() => {
       if (!this.activeSession) return;
       const clockState = this.clockSync.getState();
+      const netMetrics = this.networkEngine.getMetrics();
       const drift = this.driftEngine.getPlaybackDriftMs();
 
       this.sendCommand('UPDATE_PARTICIPANT_STATUS', {
         status: this.participantState,
         clockOffsetMs: clockState.offsetMs,
-        rttMs: clockState.rttMs,
+        rttMs: netMetrics.rttMedian,
         playbackDriftMs: drift,
         isReadyForPlayback: true,
       }).catch(() => {});

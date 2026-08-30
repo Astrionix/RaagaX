@@ -4,12 +4,13 @@ import React, { useEffect, useState } from 'react';
 import { useJamStore } from '@/context/useJamStore';
 import { ClockSyncEngine } from '@/lib/jam/client/ClockSyncEngine';
 import { DriftCorrectionEngine, DriftStatus } from '@/lib/jam/client/DriftCorrectionEngine';
+import { NetworkQualityEngine } from '@/lib/jam/client/NetworkQualityEngine';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
-import { Activity, Radio, Cpu, RefreshCw, X } from 'lucide-react';
+import { Activity, Radio, Cpu, RefreshCw, X, Wifi, Zap } from 'lucide-react';
 
 /**
- * RaagaX Jam Development Synchronization & Diagnostics Panel (Section 42)
- * Visible only in development mode or when query parameter ?jam_debug=1 is present.
+ * RaagaX Jam Development Synchronization & Diagnostics Panel (Section 26 & 42)
+ * Visible in development mode or when query parameter ?jam_debug=1 is present.
  */
 export function JamDevSyncPanel() {
   const isDev = process.env.NODE_ENV === 'development';
@@ -19,6 +20,7 @@ export function JamDevSyncPanel() {
   const { session, isInJam, participantState } = useJamStore();
   const [driftStatus, setDriftStatus] = useState<DriftStatus | null>(null);
   const [clockState, setClockState] = useState(ClockSyncEngine.getInstance().getState());
+  const [netMetrics, setNetMetrics] = useState(NetworkQualityEngine.getInstance().getMetrics());
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -35,12 +37,17 @@ export function JamDevSyncPanel() {
       setDriftStatus(status);
     });
 
+    const unsubNet = NetworkQualityEngine.getInstance().subscribe((metrics) => {
+      setNetMetrics(metrics);
+    });
+
     const clockInterval = setInterval(() => {
       setClockState(ClockSyncEngine.getInstance().getState());
     }, 500);
 
     return () => {
       unsubDrift();
+      unsubNet();
       clearInterval(clockInterval);
     };
   }, [isInJam]);
@@ -55,7 +62,27 @@ export function JamDevSyncPanel() {
   const absDrift = Math.abs(driftMs);
 
   const driftColor =
-    absDrift <= 30 ? 'text-emerald-400' : absDrift <= 120 ? 'text-yellow-400' : 'text-rose-400';
+    absDrift <= 35 ? 'text-emerald-400' : absDrift <= 120 ? 'text-yellow-400' : 'text-rose-400';
+
+  const qualityColor =
+    netMetrics.quality === 'EXCELLENT'
+      ? 'text-emerald-400'
+      : netMetrics.quality === 'GOOD'
+      ? 'text-cyan-400'
+      : netMetrics.quality === 'FAIR'
+      ? 'text-yellow-400'
+      : 'text-rose-400';
+
+  let bufferSec = 0;
+  if (activeAudio && activeAudio.buffered.length > 0) {
+    const curTime = activeAudio.currentTime;
+    for (let i = 0; i < activeAudio.buffered.length; i++) {
+      if (activeAudio.buffered.start(i) <= curTime && curTime <= activeAudio.buffered.end(i)) {
+        bufferSec = Math.max(0, activeAudio.buffered.end(i) - curTime);
+        break;
+      }
+    }
+  }
 
   if (minimized) {
     return (
@@ -70,12 +97,12 @@ export function JamDevSyncPanel() {
   }
 
   return (
-    <div className="fixed bottom-20 left-4 z-50 w-72 rounded-2xl bg-[#0B0F19]/95 backdrop-blur-xl border border-cyan-500/30 text-white shadow-2xl p-3.5 text-xs font-mono select-none animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed bottom-20 left-4 z-50 w-80 rounded-2xl bg-[#0B0F19]/95 backdrop-blur-xl border border-cyan-500/30 text-white shadow-2xl p-3.5 text-xs font-mono select-none animate-in fade-in zoom-in-95 duration-200 max-h-[85vh] overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2">
         <div className="flex items-center gap-1.5 text-cyan-400 font-bold tracking-wider text-[11px]">
           <Activity className="w-3.5 h-3.5 animate-pulse" />
-          <span>SYNC DEBUG PANEL</span>
+          <span>JAM SYNC DEBUG</span>
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -94,7 +121,7 @@ export function JamDevSyncPanel() {
       </div>
 
       {/* Grid Data */}
-      <div className="space-y-1.5 text-[11px]">
+      <div className="space-y-1 text-[11px]">
         <div className="flex justify-between">
           <span className="text-white/40">Jam ID:</span>
           <span className="font-bold text-white/90">{session.jamId}</span>
@@ -108,6 +135,14 @@ export function JamDevSyncPanel() {
           <span className="text-purple-300 font-bold">{session.revision}</span>
         </div>
         <div className="flex justify-between">
+          <span className="text-white/40">Timeline ID:</span>
+          <span className="text-cyan-400 text-[10px]">{session.timelineId || 'TL_1'}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/40">Generation:</span>
+          <span className="text-pink-400 font-bold">{session.generation ?? 1}</span>
+        </div>
+        <div className="flex justify-between">
           <span className="text-white/40">State:</span>
           <span
             className={`font-bold ${
@@ -118,11 +153,28 @@ export function JamDevSyncPanel() {
           </span>
         </div>
 
-        <div className="h-px bg-white/10 my-1" />
+        <div className="h-px bg-white/10 my-1.5" />
 
+        {/* Network & Latency Metrics */}
         <div className="flex justify-between">
-          <span className="text-white/40">RTT:</span>
-          <span className="text-cyan-300">{Math.round(clockState.rttMs)} ms</span>
+          <span className="text-white/40">Transport:</span>
+          <span className="text-indigo-300 font-bold">{netMetrics.transport}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/40">Quality:</span>
+          <span className={`font-bold ${qualityColor}`}>{netMetrics.quality}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/40">RTT (Median):</span>
+          <span className="text-cyan-300 font-bold">{netMetrics.rttMedian} ms <span className="text-[9px] text-white/40">({netMetrics.rtt}ms raw)</span></span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/40">Jitter:</span>
+          <span className="text-cyan-300">{netMetrics.jitter} ms</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/40">Packet Loss:</span>
+          <span className={netMetrics.packetLoss > 0 ? 'text-rose-400' : 'text-emerald-400'}>{netMetrics.packetLoss}%</span>
         </div>
         <div className="flex justify-between">
           <span className="text-white/40">Clock Offset:</span>
@@ -130,13 +182,10 @@ export function JamDevSyncPanel() {
             {clockState.offsetMs >= 0 ? `+${Math.round(clockState.offsetMs)}` : Math.round(clockState.offsetMs)} ms
           </span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-white/40">Jitter:</span>
-          <span className="text-cyan-300">{Math.round(clockState.jitterMs)} ms</span>
-        </div>
 
-        <div className="h-px bg-white/10 my-1" />
+        <div className="h-px bg-white/10 my-1.5" />
 
+        {/* Playback & Drift Synchronization */}
         <div className="flex justify-between">
           <span className="text-white/40">Expected Pos:</span>
           <span className="text-white/90">{expectedSec.toFixed(3)}s</span>
@@ -158,7 +207,11 @@ export function JamDevSyncPanel() {
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-white/40">Correction:</span>
+          <span className="text-white/40">Buffer Ahead:</span>
+          <span className="text-emerald-300">{bufferSec.toFixed(1)}s</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/40">Correction Action:</span>
           <span className="text-white/70 text-[10px]">
             {driftStatus?.correctionAction ?? 'NONE'}
           </span>
@@ -167,3 +220,4 @@ export function JamDevSyncPanel() {
     </div>
   );
 }
+

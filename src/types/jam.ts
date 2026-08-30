@@ -131,6 +131,19 @@ export interface JamQueueItem {
   orderKey: string; // Lexicographic / fractional index key for deterministic reordering
 }
 
+export type ConnectionQuality = 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR' | 'OFFLINE';
+
+export interface NetworkMetrics {
+  rtt: number;
+  rttMedian: number;
+  rttAverage: number;
+  jitter: number;
+  packetLoss: number;
+  quality: ConnectionQuality;
+  transport: 'CLOUD' | 'LAN' | 'PEER';
+  lastCheckedAt: number;
+}
+
 export interface JamSession {
   jamId: string;
   joinCode: string; // 5-character restricted-alphabet human code (e.g. 7K29P)
@@ -142,10 +155,15 @@ export interface JamSession {
   trackId: string | null;
   currentSong: Song | null;
   positionMs: number; // Playback position at serverTimestamp / startAtServerTime
+  basePositionMs?: number;
   serverTimestamp: number; // Server clock time when state was last updated
   startAtServerTime: number; // Authoritative future timestamp when playback should begin
+  timelineStartServerMs?: number;
   leadTimeMs: number; // Dynamic schedule buffer for latency adaptation
   revision: number; // Monotonically increasing revision number
+  timelineId?: string; // Authoritative timeline unique ID (e.g. TL_55)
+  transitionId?: string; // Unique transition generation ID (e.g. TR_...)
+  generation?: number; // Monotonically increasing playback generation counter
   createdAt: number;
   updatedAt: number;
   permissions: JamPermissions;
@@ -198,6 +216,9 @@ export interface JamEvent {
   senderId: string;
   payload: any;
   requestId?: string;
+  timelineId?: string;
+  transitionId?: string;
+  generation?: number;
 }
 
 export type JamCommandAction =
@@ -226,12 +247,18 @@ export interface JamCommand {
   payload?: any;
   requestId?: string;
   expectedRevision?: number;
+  timelineId?: string;
+  generation?: number;
 }
 
 export interface JamSyncDiagnostics {
   clockOffsetMs: number;
   rttMs: number;
+  rttMedianMs: number;
+  rttAverageMs: number;
   jitterMs: number;
+  packetLossPercent: number;
+  connectionQuality: ConnectionQuality;
   playbackDriftMs: number;
   serverTime: number;
   localTime: number;
@@ -239,6 +266,12 @@ export interface JamSyncDiagnostics {
   syncState: 'SYNCHRONIZED' | 'SYNCHRONIZING' | 'RECONNECTING' | 'DISCONNECTED';
   estimatedLeadTimeMs: number;
   bufferSec: number;
+  timelineId?: string;
+  transitionId?: string;
+  generation?: number;
+  expectedPositionSec?: number;
+  actualPositionSec?: number;
+  transport?: 'CLOUD' | 'LAN' | 'PEER';
 }
 
 export interface TimeSyncPing {

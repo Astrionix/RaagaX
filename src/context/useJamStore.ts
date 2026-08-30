@@ -12,6 +12,7 @@ import { JamClientManager } from '@/lib/jam/client/JamClientManager';
 import { JamDiscoveryEngine } from '@/lib/jam/client/JamDiscoveryEngine';
 import { ClockSyncEngine } from '@/lib/jam/client/ClockSyncEngine';
 import { DriftCorrectionEngine } from '@/lib/jam/client/DriftCorrectionEngine';
+import { NetworkQualityEngine } from '@/lib/jam/client/NetworkQualityEngine';
 import { useAuthStore } from './useAuthStore';
 
 interface JamState {
@@ -109,7 +110,11 @@ export const useJamStore = create<JamState>((set, get) => {
     diagnostics: {
       clockOffsetMs: 0,
       rttMs: 0,
+      rttMedianMs: 0,
+      rttAverageMs: 0,
       jitterMs: 0,
+      packetLossPercent: 0,
+      connectionQuality: 'EXCELLENT',
       playbackDriftMs: 0,
       serverTime: 0,
       localTime: 0,
@@ -117,6 +122,7 @@ export const useJamStore = create<JamState>((set, get) => {
       syncState: 'DISCONNECTED',
       estimatedLeadTimeMs: 400,
       bufferSec: 0,
+      transport: 'CLOUD',
     },
 
     toggleJamModal: (open) => set((s) => ({ isJamModalOpen: open !== undefined ? open : !s.isJamModalOpen })),
@@ -305,6 +311,7 @@ export const useJamStore = create<JamState>((set, get) => {
 
     updateDiagnostics: () => {
       const clock = ClockSyncEngine.getInstance().getState();
+      const netMetrics = NetworkQualityEngine.getInstance().getMetrics();
       const drift = DriftCorrectionEngine.getInstance().getPlaybackDriftMs();
       const session = get().session;
       const participantState = get().participantState;
@@ -323,8 +330,12 @@ export const useJamStore = create<JamState>((set, get) => {
       set({
         diagnostics: {
           clockOffsetMs: clock.offsetMs,
-          rttMs: clock.rttMs,
-          jitterMs: clock.jitterMs,
+          rttMs: netMetrics.rtt,
+          rttMedianMs: netMetrics.rttMedian,
+          rttAverageMs: netMetrics.rttAverage,
+          jitterMs: netMetrics.jitter,
+          packetLossPercent: netMetrics.packetLoss,
+          connectionQuality: netMetrics.quality,
           playbackDriftMs: drift,
           serverTime: Date.now() + clock.offsetMs,
           localTime: Date.now(),
@@ -332,6 +343,10 @@ export const useJamStore = create<JamState>((set, get) => {
           syncState,
           estimatedLeadTimeMs: session?.leadTimeMs || 400,
           bufferSec: 3.5,
+          timelineId: session?.timelineId,
+          transitionId: session?.transitionId,
+          generation: session?.generation,
+          transport: netMetrics.transport,
         },
       });
     },
