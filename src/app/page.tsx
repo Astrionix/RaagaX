@@ -30,6 +30,10 @@ import { CreatePlaylistModal } from '@/components/modals/CreatePlaylistModal';
 import { NotificationCenterModal } from '@/components/modals/NotificationCenterModal';
 import { WrappedModal } from '@/components/modals/WrappedModal';
 import { CarModeModal } from '@/components/modals/CarModeModal';
+import { JamModal } from '@/components/jam/JamModal';
+import { JamShareModal } from '@/components/jam/JamShareModal';
+import { AddToJamModal } from '@/components/jam/AddToJamModal';
+import { JoinJamModal } from '@/components/jam/JoinJamModal';
 
 import { Toast } from '@/components/ui/Toast';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
@@ -84,6 +88,21 @@ export default function Page() {
 
   React.useEffect(() => {
     useAuthStore.getState().initializeAuth();
+
+    // Check for Jam join URL parameter (?jam=JAM_123456)
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const jamParam = urlParams.get('jam');
+      if (jamParam) {
+        // Clean URL so refresh doesn't replay expired invite
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+
+        import('@/context/useJamStore').then(({ useJamStore }) => {
+          useJamStore.getState().joinJam(jamParam).catch(() => {});
+        });
+      }
+    }
   }, []);
 
   // ── Global keyboard shortcuts (Space = play/pause, arrows = seek/volume, etc.)
@@ -310,6 +329,20 @@ export default function Page() {
       </ErrorBoundary>
       <ErrorBoundary name="UpdateModal">
         <UpdateModal />
+      </ErrorBoundary>
+
+      {/* ── Remote Jam Party Modals ── */}
+      <ErrorBoundary name="JamModal">
+        <JamModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="JamShareModal">
+        <JamShareModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="AddToJamModal">
+        <AddToJamModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="JoinJamModal">
+        <JoinJamModal />
       </ErrorBoundary>
 
       {/* ── Native Android Connected Surfaces ── */}

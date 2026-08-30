@@ -16,9 +16,12 @@ import {
   ListMusic,
   Disc3,
   Maximize2,
+  Radio,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useJamStore } from '@/context/useJamStore';
 import { SeekBar } from '@/components/player/SeekBar';
+import { JamSyncBadge } from '@/components/jam/JamSyncBadge';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { SongFormatter } from '@/lib/music/SongFormatter';
@@ -246,8 +249,23 @@ export function PlayerBar() {
           )}
         </div>
 
-        {/* ── 3. RIGHT CONTROLS: Lyrics, Queue, Volume ── */}
+        {/* ── 3. RIGHT CONTROLS: Jam, Lyrics, Queue, Volume ── */}
         <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+          <JamSyncBadge showLabel={false} />
+
+          <button
+            onClick={() => useJamStore.getState().toggleJamModal(true)}
+            aria-label="Remote Jam Party"
+            title="Remote Jam Party"
+            className={`p-1.5 rounded-full transition-colors cursor-pointer ${
+              useJamStore.getState().isInJam
+                ? 'text-[#FA233B] bg-[#FA233B]/15'
+                : 'text-zinc-400 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Radio className={`w-3.5 h-3.5 ${useJamStore.getState().isInJam ? 'animate-pulse' : ''}`} />
+          </button>
+
           <button
             onClick={toggleLyrics}
             aria-label="Open lyrics"

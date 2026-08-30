@@ -15,6 +15,7 @@ import {
   Disc3,
   BarChart3,
   Clock,
+  Radio,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
@@ -136,6 +137,21 @@ export function Sidebar() {
           >
             <Flame className={`w-4 h-4 flex-shrink-0 ${activeTab === 'new' ? 'text-[#FA233B]' : 'text-zinc-400'}`} />
             <span>New</span>
+          </button>
+
+          <button
+            onClick={() => {
+              import('@/context/useJamStore').then((m) => m.useJamStore.getState().toggleJamModal(true));
+            }}
+            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:bg-[#FA233B]/10 hover:text-[#FA233B] transition-colors cursor-pointer group"
+          >
+            <div className="flex items-center gap-2.5">
+              <Radio className="w-4 h-4 flex-shrink-0 text-zinc-400 group-hover:text-[#FA233B] group-hover:animate-pulse" />
+              <span>Jam Party</span>
+            </div>
+            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-[#FA233B]/15 text-[#FA233B] border border-[#FA233B]/30">
+              Live
+            </span>
           </button>
         </div>
 

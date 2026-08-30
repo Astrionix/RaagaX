@@ -1,0 +1,207 @@
+import { TimeSyncPing, TimeSyncResponse } from '@/types/jam';
+
+export interface ClockSample {
+  rtt: number;
+  offset: number;
+  timestamp: number;
+}
+
+export interface ClockSyncState {
+  offsetMs: number;
+  rttMs: number;
+  jitterMs: number;
+  confidence: number; // 0 to 1
+  lastSyncedAt: number;
+  sampleCount: number;
+}
+
+export class ClockSyncEngine {
+  private static instance: ClockSyncEngine;
+
+  private offsetMs = 0;
+  private rttMs = 30;
+  private jitterMs = 5;
+  private lastSyncedAt = 0;
+  private sampleCount = 0;
+  private samples: ClockSample[] = [];
+
+  private isSyncing = false;
+  private syncTimer: any = null;
+
+  private constructor() {}
+
+  public static getInstance(): ClockSyncEngine {
+    if (!ClockSyncEngine.instance) {
+      ClockSyncEngine.instance = new ClockSyncEngine();
+    }
+    return ClockSyncEngine.instance;
+  }
+
+  /**
+   * Returns current estimated server time in milliseconds
+   */
+  public getEstimatedServerTime(): number {
+    return Date.now() + this.offsetMs;
+  }
+
+  /**
+   * Returns current clock sync metrics
+   */
+  public getState(): ClockSyncState {
+    const confidence = this.sampleCount >= 5 ? 0.95 : this.sampleCount > 0 ? 0.7 : 0.2;
+    return {
+      offsetMs: Math.round(this.offsetMs),
+      rttMs: Math.round(this.rttMs),
+      jitterMs: Math.round(this.jitterMs),
+      confidence,
+      lastSyncedAt: this.lastSyncedAt,
+      sampleCount: this.sampleCount,
+    };
+  }
+
+  /**
+   * Performs an NTP exchange burst and recalculates clock offset
+   */
+  public async synchronize(burstCount = 6): Promise<ClockSyncState> {
+    if (this.isSyncing) return this.getState();
+    this.isSyncing = true;
+
+    const burstSamples: ClockSample[] = [];
+
+    for (let i = 0; i < burstCount; i++) {
+      try {
+        const sample = await this.pingServer();
+        if (sample) {
+          burstSamples.push(sample);
+        }
+      } catch {
+        // Continue burst
+      }
+      // Small pause between burst pings
+      if (i < burstCount - 1) {
+        await new Promise((r) => setTimeout(r, 60));
+      }
+    }
+
+    if (burstSamples.length > 0) {
+      this.processSamples(burstSamples);
+    }
+
+    this.isSyncing = false;
+    this.lastSyncedAt = Date.now();
+    return this.getState();
+  }
+
+  /**
+   * Single NTP ping/pong to server
+   */
+  public async pingServer(): Promise<ClockSample | null> {
+    const t1 = Date.now();
+    const payload: TimeSyncPing = { clientSendTime: t1 };
+
+    try {
+      const res = await fetch('/api/jam/time-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        cache: 'no-store',
+      });
+
+      if (!res.ok) return null;
+      const data: TimeSyncResponse = await res.json();
+      const t4 = Date.now();
+
+      const t2 = data.serverReceiveTime;
+      const t3 = data.serverSendTime;
+
+      // NTP standard calculations:
+      // RTT = (t4 - t1) - (t3 - t2)
+      const rtt = Math.max(1, (t4 - t1) - (t3 - t2));
+      // Offset = ((t2 - t1) + (t3 - t4)) / 2
+      const offset = ((t2 - t1) + (t3 - t4)) / 2;
+
+      return { rtt, offset, timestamp: t4 };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Filters outliers and computes weighted average offset & jitter
+   */
+  public processSamples(newSamples: ClockSample[]) {
+    if (newSamples.length === 0) return;
+
+    // 1. Sort by RTT to find median
+    const sorted = [...newSamples].sort((a, b) => a.rtt - b.rtt);
+    const medianRtt = sorted[Math.floor(sorted.length / 2)].rtt;
+
+    // 2. Filter out noisy outliers with RTT > 1.8x median (or min 250ms threshold)
+    const validSamples = sorted.filter((s) => s.rtt <= Math.max(250, medianRtt * 1.8));
+    const effectiveSamples = validSamples.length > 0 ? validSamples : sorted.slice(0, 2);
+
+    // 3. Compute weighted offset: samples with lower RTT get exponentially higher weight
+    let totalWeight = 0;
+    let weightedOffsetSum = 0;
+    let weightedRttSum = 0;
+
+    for (const s of effectiveSamples) {
+      const weight = 1 / Math.max(1, s.rtt);
+      totalWeight += weight;
+      weightedOffsetSum += s.offset * weight;
+      weightedRttSum += s.rtt * weight;
+    }
+
+    const calculatedOffset = weightedOffsetSum / totalWeight;
+    const calculatedRtt = weightedRttSum / totalWeight;
+
+    // 4. Update state with Exponential Moving Average (EMA)
+    if (this.sampleCount === 0) {
+      this.offsetMs = calculatedOffset;
+      this.rttMs = calculatedRtt;
+      this.jitterMs = 2;
+    } else {
+      const alpha = 0.35; // Smoothing factor
+      const oldRtt = this.rttMs;
+      this.offsetMs = (alpha * calculatedOffset) + ((1 - alpha) * this.offsetMs);
+      this.rttMs = (alpha * calculatedRtt) + ((1 - alpha) * this.rttMs);
+      this.jitterMs = (alpha * Math.abs(calculatedRtt - oldRtt)) + ((1 - alpha) * this.jitterMs);
+    }
+
+    this.sampleCount += effectiveSamples.length;
+    this.samples = [...this.samples, ...effectiveSamples].slice(-30);
+  }
+
+  /**
+   * Starts background periodic synchronization (every 20s)
+   */
+  public startPeriodicSync(intervalMs = 20000) {
+    this.stopPeriodicSync();
+    this.synchronize(6);
+    this.syncTimer = setInterval(() => {
+      this.synchronize(3);
+    }, intervalMs);
+  }
+
+  /**
+   * Stops background periodic synchronization
+   */
+  public stopPeriodicSync() {
+    if (this.syncTimer) {
+      clearInterval(this.syncTimer);
+      this.syncTimer = null;
+    }
+  }
+
+  /**
+   * Reset for testing
+   */
+  public resetForTesting(initialOffset = 0) {
+    this.offsetMs = initialOffset;
+    this.rttMs = 20;
+    this.jitterMs = 2;
+    this.sampleCount = 0;
+    this.samples = [];
+    this.stopPeriodicSync();
+  }
+}

@@ -42,6 +42,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useJamStore } from '@/context/useJamStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { useLyricsStore } from '@/context/useLyricsStore';
@@ -1797,23 +1798,23 @@ export function ExpandedPlayerModal() {
               )}
             </button>
 
-            {/* Sleep Timer Button */}
+            {/* Jam Party Button */}
             <button
               onClick={() => {
                 haptics.lightImpact();
-                setViewMode(viewMode === 'timer' ? 'art' : 'timer');
+                useJamStore.getState().toggleJamModal(true);
               }}
               className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                viewMode === 'timer' || sleepTimerEndsAt || sleepTimerMode
-                  ? 'bg-purple-500/25 text-purple-300 border-purple-400/40 shadow-sm'
+                useJamStore.getState().isInJam
+                  ? 'bg-[#FA233B]/25 text-[#FA233B] border-[#FA233B]/40 shadow-sm'
                   : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
               }`}
-              title="Sleep Timer"
+              title="Remote Jam Party"
             >
-              <Moon className="w-3.5 h-3.5" />
-              <span>Timer</span>
-              {(sleepTimerEndsAt || sleepTimerMode) && (
-                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping" />
+              <Radio className={`w-3.5 h-3.5 ${useJamStore.getState().isInJam ? 'animate-pulse' : ''}`} />
+              <span>Jam</span>
+              {useJamStore.getState().isInJam && (
+                <span className="w-1.5 h-1.5 rounded-full bg-[#FA233B] animate-ping" />
               )}
             </button>
           </div>

@@ -31,6 +31,20 @@ export class PlaybackService {
   private playbackGeneration = 0;
   private playbackRequestId = 0;
   private lastEndedGeneration = -1;
+  private lastReportedReadyGen = -1;
+  private lastReportedStartedGen = -1;
+
+  private emitPlaybackReady(trackId: string, duration: number, generation: number) {
+    if (this.lastReportedReadyGen === generation && generation > 0) return;
+    this.lastReportedReadyGen = generation;
+    console.log(`[PLAYBACK_READY] trackId=${trackId} duration=${duration}`);
+  }
+
+  private emitPlaybackStarted(trackId: string, position: number, generation: number) {
+    if (this.lastReportedStartedGen === generation && generation > 0) return;
+    this.lastReportedStartedGen = generation;
+    console.log(`[PLAYBACK_STARTED] trackId=${trackId} position=${position}`);
+  }
 
   private constructor() {}
 
@@ -44,6 +58,8 @@ export class PlaybackService {
   public setPlaybackRequestId(id: number) {
     this.playbackRequestId = id;
     this.playbackGeneration = id;
+    this.lastReportedReadyGen = -1;
+    this.lastReportedStartedGen = -1;
   }
 
   public getPlaybackRequestId(): number {
@@ -588,8 +604,8 @@ export class PlaybackService {
             activeAudio.pause();
             return false;
           }
-          console.log(`[PLAYBACK_READY] trackId=${song.id} duration=${activeAudio.duration || song.duration || 0}`);
-          console.log(`[PLAYBACK_STARTED] trackId=${song.id} position=${activeAudio.currentTime}`);
+          this.emitPlaybackReady(song.id, activeAudio.duration || song.duration || 0, requestId);
+          this.emitPlaybackStarted(song.id, activeAudio.currentTime, requestId);
 
           const timeToFirstAudioMs = Math.round(performance.now() - playRequestedAt);
           PlaybackTelemetry.getInstance().recordMetric({
@@ -856,7 +872,8 @@ export class PlaybackService {
     if (!isNaN(active.duration) && Number.isFinite(active.duration) && active.duration > 0) {
       store.setDuration(active.duration);
       if (active.dataset.trackId) {
-        console.log(`[PLAYBACK_READY] trackId=${active.dataset.trackId} duration=${active.duration}`);
+        const gen = parseInt(active.dataset.playbackGeneration || '0', 10);
+        this.emitPlaybackReady(active.dataset.trackId, active.duration, gen);
       }
       MediaSessionManager.getInstance().setPositionState({
         duration: active.duration,
@@ -880,7 +897,8 @@ export class PlaybackService {
     const livePlaying = active ? !active.paused && !active.ended : isPlaying;
 
     if (livePlaying && active?.dataset.trackId) {
-      console.log(`[PLAYBACK_STARTED] trackId=${active.dataset.trackId} position=${active.currentTime || 0}`);
+      const gen = parseInt(active.dataset.playbackGeneration || '0', 10);
+      this.emitPlaybackStarted(active.dataset.trackId, active.currentTime || 0, gen);
     }
 
     // Guard: Ignore browser pause events during active track transitions/loading

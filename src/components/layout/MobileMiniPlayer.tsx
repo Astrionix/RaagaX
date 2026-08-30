@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { Play, Pause, SkipForward, SkipBack, Heart, MoreVertical, Disc3, Headphones, MonitorSmartphone } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, Heart, MoreVertical, Disc3, Headphones, MonitorSmartphone, Radio } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useJamStore } from '@/context/useJamStore';
 import { SeekBar } from '@/components/player/SeekBar';
+import { JamSyncBadge } from '@/components/jam/JamSyncBadge';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 
 /**
@@ -214,8 +216,27 @@ export function MobileMiniPlayer() {
             </div>
           </div>
 
-          {/* Right: Controls (Like, Play/Pause, Next) */}
+          {/* Right: Controls (Jam, Like, Play/Pause, Next) */}
           <div className="flex items-center gap-1 flex-shrink-0">
+            {/* Remote Jam Party button */}
+            {!isScrolled && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  useJamStore.getState().toggleJamModal(true);
+                }}
+                aria-label="Jam Party"
+                className="w-11 h-11 flex items-center justify-center text-[#94A3B8] hover:text-[#FA233B] active:scale-90 transition-transform cursor-pointer rounded-full"
+              >
+                <Radio
+                  className={`w-4 h-4 transition-colors ${
+                    useJamStore.getState().isInJam ? 'text-[#FA233B] animate-pulse' : ''
+                  }`}
+                  strokeWidth={2.2}
+                />
+              </button>
+            )}
+
             {/* Favorite button (visible in Normal state) */}
             {!isScrolled && (
               <button
