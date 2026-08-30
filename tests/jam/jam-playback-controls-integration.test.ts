@@ -132,6 +132,7 @@ describe('RaagaX Jam — Playback Controls & Multi-Device Sync Integration', () 
     const skipPrevSpy = vi.spyOn(client, 'sendSkipPrev').mockResolvedValue(true);
     const seekSpy = vi.spyOn(client, 'sendSeek').mockResolvedValue(true);
 
+    client.initUser('host_1', 'Host 1');
     const mockSession: any = {
       jamId: 'JAM_TEST_2',
       hostId: 'host_1',

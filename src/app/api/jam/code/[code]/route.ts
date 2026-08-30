@@ -21,7 +21,7 @@ export async function GET(
     }
 
     const engine = JamServerEngine.getInstance();
-    const session = engine.resolveJoinCode(rawCode);
+    const session = await engine.resolveJoinCodeAsync(rawCode);
 
     if (!session) {
       return NextResponse.json(

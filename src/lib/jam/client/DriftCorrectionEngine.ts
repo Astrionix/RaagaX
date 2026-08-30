@@ -96,15 +96,17 @@ export class DriftCorrectionEngine {
     this.scheduledGeneration = currentGen;
     this.scheduledTimelineId = currentTL;
 
+    const targetSec = (session.positionMs || 0) / 1000;
+
     if (delayMs > 10) {
       // Schedule local play execution at exact future server timestamp
       if (activeAudio) {
         // Pre-seek to authoritative starting position in preparation
-        const targetSec = session.positionMs / 1000;
         if (Math.abs(activeAudio.currentTime - targetSec) > 0.05) {
           activeAudio.currentTime = targetSec;
         }
       }
+      usePlayerStore.getState().setCurrentTime(targetSec, true);
 
       this.scheduledStartTimer = setTimeout(() => {
         // Generation guard: ignore callback if session or timeline changed while waiting
@@ -119,6 +121,14 @@ export class DriftCorrectionEngine {
         }
 
         try {
+          const nowServer = this.clockSync.estimatedServerNow();
+          const expectedPosMs = this.calculateExpectedPositionMs(liveSession, nowServer);
+          const expectedPosSec = expectedPosMs / 1000;
+          const liveAudio = PlaybackService.getInstance().getActiveAudio();
+          if (liveAudio && Math.abs(liveAudio.currentTime - expectedPosSec) > 0.05) {
+            liveAudio.currentTime = expectedPosSec;
+          }
+          usePlayerStore.getState().setCurrentTime(expectedPosSec, true);
           PlaybackService.getInstance().play();
         } catch {}
       }, delayMs);

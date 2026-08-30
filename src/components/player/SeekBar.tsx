@@ -1,9 +1,8 @@
-'use client';
-
 import React, { useRef, useState, useEffect } from 'react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { PlaybackEngine } from '@/lib/playback/PlaybackEngine';
 import { SeekLock } from '@/lib/playback/SeekLock';
+import { JamClientManager } from '@/lib/jam/client/JamClientManager';
 
 export function SeekBar({
   className = '',
@@ -39,17 +38,25 @@ export function SeekBar({
 
   const prevProgressRef = useRef(0);
 
-  // 60 FPS ultra-smooth local progress prediction driven by PlaybackEngine & Remote Anchor Clock
+  // 60 FPS ultra-smooth local progress prediction driven by Jam coordinator or PlaybackEngine
   useEffect(() => {
     let animFrame: number;
 
     const tick = () => {
       if (!isSeeking && !isSeekSettling && effectiveDuration > 0) {
-        const store = usePlayerStore.getState();
-        const engine = PlaybackEngine.getInstance();
-        const liveSec = engine.isPlayingLocally() ? engine.getCanonicalPositionMs() / 1000 : store.currentTime;
-        const validSec = Number.isFinite(liveSec) && !isNaN(liveSec) && liveSec >= 0 ? liveSec : 0;
+        const jamManager = JamClientManager.getInstance();
+        const jamSession = jamManager.getActiveSession();
+        let liveSec: number;
 
+        if (jamSession) {
+          liveSec = jamManager.getInterpolatedPosition();
+        } else {
+          const store = usePlayerStore.getState();
+          const engine = PlaybackEngine.getInstance();
+          liveSec = engine.isPlayingLocally() ? engine.getCanonicalPositionMs() / 1000 : store.currentTime;
+        }
+
+        const validSec = Number.isFinite(liveSec) && !isNaN(liveSec) && liveSec >= 0 ? liveSec : 0;
         const newProgress = Math.min(1, Math.max(0, validSec / effectiveDuration));
         if (Math.abs(newProgress - prevProgressRef.current) >= 0.0005) {
           prevProgressRef.current = newProgress;
@@ -138,8 +145,14 @@ export function SeekBar({
       // updates for 800ms after release so ExoPlayer can confirm the seek
       SeekLock.endSeeking(800);
 
-      setCurrentTime(newTime);
-      setSeekTarget(newTime);
+      const jamManager = JamClientManager.getInstance();
+      const jamSession = jamManager.getActiveSession();
+      if (jamSession) {
+        jamManager.sendSeek(Math.round(newTime * 1000));
+      } else {
+        setCurrentTime(newTime);
+        setSeekTarget(newTime);
+      }
 
       setTimeout(() => {
         setIsSeekSettling(false);

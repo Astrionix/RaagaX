@@ -10,7 +10,7 @@ export async function GET(
   try {
     const jamId = params.id;
     const engine = JamServerEngine.getInstance();
-    const session = engine.getSession(jamId);
+    const session = await engine.getSessionAsync(jamId);
 
     if (!session) {
       if (engine.isSessionEnded(jamId)) {
@@ -27,6 +27,14 @@ export async function GET(
 
     return NextResponse.json({
       success: true,
+      jamId: session.jamId,
+      status: session.status || 'ACTIVE',
+      createdAt: session.createdAt,
+      lastActivityAt: session.lastActivityAt || session.updatedAt,
+      expiresAt: session.expiresAt,
+      hostUserId: session.hostId,
+      revision: session.revision,
+      participantCount: Object.keys(session.participants).length,
       session,
       serverTime: Date.now(),
     });

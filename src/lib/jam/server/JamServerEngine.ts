@@ -53,6 +53,10 @@ export class JamServerEngine {
   // Restricted unambiguous alphabet: excludes 0, O, 1, I, L
   private static readonly JOIN_CODE_CHARS = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
 
+  // Explicit session lifecycle rules: 24h active lifetime, 12h idle lifetime
+  public static readonly SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+  public static readonly IDLE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+
   private constructor() {
     if (!globalForJam.__raaga_jam_sessions__) {
       globalForJam.__raaga_jam_sessions__ = new Map();
@@ -76,7 +80,7 @@ export class JamServerEngine {
     this.eventListeners = globalForJam.__raaga_jam_listeners__;
     this.idempotencyCache = globalForJam.__raaga_jam_idempotency__;
 
-    // Periodic cleanup of stale idempotency tokens & inactive sessions
+    // Periodic cleanup of stale idempotency tokens & truly expired sessions
     if (typeof setInterval !== 'undefined') {
       setInterval(() => this.pruneStaleData(), 60000);
     }
@@ -87,6 +91,113 @@ export class JamServerEngine {
       globalForJam.__raaga_jam_server_engine__ = new JamServerEngine();
     }
     return globalForJam.__raaga_jam_server_engine__;
+  }
+
+  /**
+   * Asynchronously persists or updates the JamSession in Supabase shared storage
+   */
+  public async persistSessionToDb(session: JamSession): Promise<void> {
+    try {
+      const { getSupabaseAdmin } = await import('@/lib/supabaseAdmin');
+      const admin = getSupabaseAdmin();
+      if (!admin) return;
+
+      await admin.from('jam_sessions').upsert(
+        {
+          jam_id: session.jamId,
+          join_code: session.joinCode,
+          host_id: session.hostId,
+          host_name: session.hostName,
+          name: session.name,
+          status: session.status || 'ACTIVE',
+          state: session.state,
+          track_id: session.trackId,
+          current_song: session.currentSong,
+          position_ms: session.positionMs,
+          base_position_ms: session.basePositionMs || session.positionMs,
+          server_timestamp: session.serverTimestamp,
+          start_at_server_time: session.startAtServerTime,
+          timeline_start_server_ms: session.timelineStartServerMs || session.startAtServerTime,
+          lead_time_ms: session.leadTimeMs,
+          revision: session.revision,
+          generation: session.generation || 1,
+          timeline_id: session.timelineId || 'TL_1',
+          transition_id: session.transitionId || 'TR_1',
+          permissions: session.permissions,
+          participants: session.participants,
+          queue: session.queue,
+          history: session.history,
+          is_nearby_discoverable: session.isNearbyDiscoverable !== false,
+          created_at: session.createdAt,
+          updated_at: session.updatedAt,
+          last_activity_at: session.lastActivityAt || session.updatedAt,
+          expires_at: session.expiresAt || (session.updatedAt + JamServerEngine.SESSION_TTL_MS),
+        },
+        { onConflict: 'jam_id' }
+      );
+    } catch {
+      // Graceful in-memory fallback if database is unconfigured or unreachable
+    }
+  }
+
+  /**
+   * Attempts to hydrate a session from Supabase shared storage into memory L1 cache
+   */
+  public async hydrateSessionFromDb(jamId: string): Promise<JamSession | null> {
+    if (this.endedSessions.has(jamId)) return null;
+
+    try {
+      const { getSupabaseAdmin } = await import('@/lib/supabaseAdmin');
+      const admin = getSupabaseAdmin();
+      if (!admin) return null;
+
+      const { data, error } = await admin
+        .from('jam_sessions')
+        .select('*')
+        .eq('jam_id', jamId)
+        .maybeSingle();
+
+      if (data && !error && data.status !== 'ENDED') {
+        const hydrated: JamSession = {
+          jamId: data.jam_id,
+          joinCode: data.join_code,
+          name: data.name,
+          hostId: data.host_id,
+          hostName: data.host_name,
+          status: data.status || 'ACTIVE',
+          state: data.state || 'PAUSED',
+          trackId: data.track_id || null,
+          currentSong: data.current_song || null,
+          positionMs: Number(data.position_ms || 0),
+          basePositionMs: Number(data.base_position_ms || 0),
+          serverTimestamp: Number(data.server_timestamp || Date.now()),
+          startAtServerTime: Number(data.start_at_server_time || Date.now()),
+          timelineStartServerMs: Number(data.timeline_start_server_ms || Date.now()),
+          leadTimeMs: Number(data.lead_time_ms || 400),
+          revision: Number(data.revision || 1),
+          generation: Number(data.generation || 1),
+          timelineId: data.timeline_id || 'TL_1',
+          transitionId: data.transition_id || 'TR_1',
+          permissions: data.permissions || {},
+          participants: data.participants || {},
+          queue: data.queue || [],
+          history: data.history || [],
+          isNearbyDiscoverable: data.is_nearby_discoverable !== false,
+          createdAt: Number(data.created_at || Date.now()),
+          updatedAt: Number(data.updated_at || Date.now()),
+          lastActivityAt: Number(data.last_activity_at || Date.now()),
+          expiresAt: Number(data.expires_at || (Date.now() + JamServerEngine.SESSION_TTL_MS)),
+        };
+
+        this.sessions.set(hydrated.jamId, hydrated);
+        this.joinCodes.set(hydrated.joinCode, hydrated.jamId);
+
+        console.log(`\n[JAM_FETCHED]\njamId=${hydrated.jamId}\nstatus=${hydrated.status}\nrevision=${hydrated.revision}\nsource=DATABASE_HYDRATION\n`);
+        return this.cloneSession(hydrated);
+      }
+    } catch {}
+
+    return null;
   }
 
   /**
@@ -132,6 +243,34 @@ export class JamServerEngine {
     const jamId = this.joinCodes.get(cleanCode);
     if (!jamId) return null;
     return this.getSession(jamId);
+  }
+
+  /**
+   * Asynchronously resolves a join code with database hydration fallback
+   */
+  public async resolveJoinCodeAsync(rawCode: string): Promise<JamSession | null> {
+    if (!rawCode) return null;
+    const cleanCode = rawCode.trim().toUpperCase().replace(/[^23456789ABCDEFGHJKMNPQRSTUVWXYZ]/g, '');
+    const localSession = this.resolveJoinCode(cleanCode);
+    if (localSession) return localSession;
+
+    try {
+      const { getSupabaseAdmin } = await import('@/lib/supabaseAdmin');
+      const admin = getSupabaseAdmin();
+      if (!admin) return null;
+
+      const { data, error } = await admin
+        .from('jam_sessions')
+        .select('jam_id')
+        .eq('join_code', cleanCode)
+        .maybeSingle();
+
+      if (data?.jam_id && !error) {
+        return this.getSessionAsync(data.jam_id);
+      }
+    } catch {}
+
+    return null;
   }
 
   /**
@@ -221,8 +360,10 @@ export class JamServerEngine {
       hostId: params.hostId,
       hostName: params.hostName,
       isNearbyDiscoverable: params.isNearbyDiscoverable !== false,
+      status: 'ACTIVE',
       state: params.initialSong ? 'PAUSED' : 'PAUSED',
       trackId: params.initialSong?.id || null,
+      currentQueueItemId: initialQueueItems[0]?.queueItemId || null,
       currentSong: params.initialSong || null,
       positionMs: 0,
       basePositionMs: 0,
@@ -236,6 +377,8 @@ export class JamServerEngine {
       transitionId: 'TR_1',
       createdAt: now,
       updatedAt: now,
+      lastActivityAt: now,
+      expiresAt: now + JamServerEngine.SESSION_TTL_MS,
       permissions: defaultPermissions,
       participants: {
         [params.hostId]: hostParticipant,
@@ -246,6 +389,9 @@ export class JamServerEngine {
 
     this.sessions.set(jamId, session);
     this.joinCodes.set(joinCode, jamId);
+    this.persistSessionToDb(session);
+
+    console.log(`\n[JAM_CREATED]\njamId=${jamId}\ncreatedAt=${now}\nexpiresAt=${session.expiresAt}\nstatus=ACTIVE\nhostUserId=${params.hostId}\nstorage=DATABASE_AND_MEMORY\nTTL=${JamServerEngine.SESSION_TTL_MS / 1000}s\nlastActivity=${now}\n`);
 
     const event: JamEvent = {
       eventId: `EV_${crypto.randomUUID()}`,
@@ -265,12 +411,23 @@ export class JamServerEngine {
   }
 
   /**
-   * Retrieves an authoritative session snapshot by ID
+   * Retrieves an authoritative session snapshot by ID (synchronous L1 memory check)
    */
   public getSession(jamId: string): JamSession | null {
     const session = this.sessions.get(jamId);
     if (!session) return null;
     return this.cloneSession(session);
+  }
+
+  /**
+   * Retrieves an authoritative session snapshot with asynchronous database fallback
+   */
+  public async getSessionAsync(jamId: string): Promise<JamSession | null> {
+    const session = this.sessions.get(jamId);
+    if (session) {
+      return this.cloneSession(session);
+    }
+    return this.hydrateSessionFromDb(jamId);
   }
 
   /**
@@ -292,6 +449,15 @@ export class JamServerEngine {
 
     const now = Date.now();
     const isExisting = Boolean(session.participants[user.userId]);
+    const isFirstParticipant = Object.keys(session.participants).length === 0;
+    const shouldBeHost = isExisting
+      ? session.participants[user.userId].role === 'HOST'
+      : (session.hostId === user.userId || isFirstParticipant);
+
+    if (isFirstParticipant) {
+      session.hostId = user.userId;
+      session.hostName = user.displayName || 'Host';
+    }
 
     const participant: JamParticipant = {
       participantId: isExisting
@@ -302,10 +468,8 @@ export class JamServerEngine {
       avatarUrl: user.avatarUrl,
       role: isExisting
         ? session.participants[user.userId].role
-        : session.hostId === user.userId
-        ? 'HOST'
-        : 'GUEST',
-      isHost: session.hostId === user.userId,
+        : (shouldBeHost ? 'HOST' : 'GUEST'),
+      isHost: shouldBeHost,
       status: 'SYNCING',
       joinedAt: isExisting ? session.participants[user.userId].joinedAt : now,
       lastSeenAt: now,
@@ -318,10 +482,18 @@ export class JamServerEngine {
 
     session.participants[user.userId] = participant;
     session.updatedAt = now;
+    session.lastActivityAt = now;
+    session.expiresAt = now + JamServerEngine.SESSION_TTL_MS;
+    if (session.status === 'IDLE') {
+      session.status = 'ACTIVE';
+    }
     session.revision += 1;
 
     // Recalculate dynamic lead time based on connected participants
     session.leadTimeMs = this.computeAdaptiveLeadTime(session);
+
+    this.persistSessionToDb(session);
+    console.log(`\n[JAM_PARTICIPANT_CONNECTED]\njamId=${jamId}\nuserId=${user.userId}\ndisplayName=${participant.displayName}\ntimestamp=${now}\n`);
 
     const event: JamEvent = {
       eventId: `EV_${crypto.randomUUID()}`,
@@ -335,6 +507,24 @@ export class JamServerEngine {
 
     this.broadcastEvent(jamId, event);
     return { success: true, session: this.cloneSession(session) };
+  }
+
+  /**
+   * Asynchronously joins a session with database hydration fallback
+   */
+  public async joinSessionAsync(
+    jamId: string,
+    user: {
+      userId: string;
+      displayName: string;
+      avatarUrl?: string;
+      deviceType?: 'mobile' | 'desktop' | 'web';
+    }
+  ): Promise<{ success: boolean; session?: JamSession; error?: string }> {
+    if (!this.sessions.has(jamId)) {
+      await this.hydrateSessionFromDb(jamId);
+    }
+    return this.joinSession(jamId, user);
   }
 
   /**
@@ -354,6 +544,8 @@ export class JamServerEngine {
     const now = Date.now();
     Object.assign(participant, state, { lastSeenAt: now });
     session.updatedAt = now;
+    session.lastActivityAt = now;
+    session.expiresAt = now + JamServerEngine.SESSION_TTL_MS;
 
     const event: JamEvent = {
       eventId: `EV_${crypto.randomUUID()}`,
@@ -366,6 +558,7 @@ export class JamServerEngine {
     };
 
     this.broadcastEvent(jamId, event);
+    this.persistSessionToDb(session);
     return { success: true, session: this.cloneSession(session) };
   }
 
@@ -382,24 +575,30 @@ export class JamServerEngine {
     const now = Date.now();
     delete session.participants[userId];
     session.updatedAt = now;
+    session.lastActivityAt = now;
     session.revision += 1;
+
+    console.log(`\n[JAM_PARTICIPANT_DISCONNECTED]\njamId=${jamId}\nuserId=${userId}\nreason=PARTICIPANT_LEFT\ntimestamp=${now}\n`);
 
     const remainingUserIds = Object.keys(session.participants);
 
-    // If no participants remain, clean up session
+    // If no participants remain, transition session to IDLE state (DO NOT immediately destroy healthy Jam)
     if (remainingUserIds.length === 0) {
-      this.sessions.delete(jamId);
-      const endEvent: JamEvent = {
+      session.status = 'IDLE';
+      session.expiresAt = now + JamServerEngine.IDLE_TTL_MS;
+      this.persistSessionToDb(session);
+
+      const idleEvent: JamEvent = {
         eventId: `EV_${crypto.randomUUID()}`,
         jamId,
-        type: 'SESSION_ENDED',
+        type: 'PARTICIPANT_LEFT',
         revision: session.revision,
         serverTimestamp: now,
         senderId: userId,
-        payload: { reason: 'All participants left' },
+        payload: { userId, reason: 'All participants left (Session is now IDLE)', revision: session.revision },
       };
-      this.broadcastEvent(jamId, endEvent);
-      return { success: true, sessionEnded: true };
+      this.broadcastEvent(jamId, idleEvent);
+      return { success: true, sessionEnded: false };
     }
 
     // If host left, transfer ownership to moderator first, or longest-standing participant
@@ -490,6 +689,17 @@ export class JamServerEngine {
     }
 
     const now = Date.now();
+    const lastActivityBefore = session.lastActivityAt || session.updatedAt;
+    session.lastActivityAt = now;
+    session.expiresAt = now + JamServerEngine.SESSION_TTL_MS;
+    if (session.status === 'IDLE' && command.action !== 'END_SESSION') {
+      session.status = 'ACTIVE';
+    }
+
+    if (command.action !== 'HEARTBEAT' && command.action !== 'UPDATE_PARTICIPANT_STATUS') {
+      console.log(`\n[JAM_ACTIVITY]\njamId=${session.jamId}\noperation=${command.action}\ntimestamp=${now}\nlastActivityBefore=${lastActivityBefore}\nlastActivityAfter=${now}\n`);
+    }
+
     let eventType: JamEvent['type'] = 'SESSION_UPDATED';
     let payload: any = {};
 
@@ -567,6 +777,7 @@ export class JamServerEngine {
           basePositionMs: session.basePositionMs,
           serverTimestamp: now,
           trackId: session.trackId,
+          currentQueueItemId: session.currentQueueItemId,
           timelineId,
           transitionId,
           generation: session.generation,
@@ -574,6 +785,45 @@ export class JamServerEngine {
 
         console.log('[PLAYBACK]', {
           trackId: session.trackId,
+          currentQueueItemId: session.currentQueueItemId,
+          timelineId,
+          transitionId,
+          generation: session.generation,
+          state: session.state,
+        });
+        break;
+      }
+
+      case 'STOP': {
+        session.generation = (session.generation ?? 0) + 1;
+        const timelineId = `TL_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
+        const transitionId = `TR_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
+
+        session.state = 'PAUSED';
+        session.positionMs = 0;
+        session.basePositionMs = 0;
+        session.serverTimestamp = now;
+        session.startAtServerTime = now;
+        session.timelineStartServerMs = now;
+        session.timelineId = timelineId;
+        session.transitionId = transitionId;
+
+        eventType = 'STOP';
+        payload = {
+          state: 'PAUSED',
+          positionMs: 0,
+          basePositionMs: 0,
+          serverTimestamp: now,
+          trackId: session.trackId,
+          currentQueueItemId: session.currentQueueItemId,
+          timelineId,
+          transitionId,
+          generation: session.generation,
+        };
+
+        console.log('[PLAYBACK]', {
+          trackId: session.trackId,
+          currentQueueItemId: session.currentQueueItemId,
           timelineId,
           transitionId,
           generation: session.generation,
@@ -613,6 +863,7 @@ export class JamServerEngine {
           timelineStartServerMs: session.timelineStartServerMs,
           state: session.state,
           trackId: session.trackId,
+          currentQueueItemId: session.currentQueueItemId,
           timelineId,
           transitionId,
           generation: session.generation,
@@ -620,6 +871,7 @@ export class JamServerEngine {
 
         console.log('[PLAYBACK]', {
           trackId: session.trackId,
+          currentQueueItemId: session.currentQueueItemId,
           timelineId,
           transitionId,
           generation: session.generation,
@@ -658,6 +910,7 @@ export class JamServerEngine {
             timelineStartServerMs: session.timelineStartServerMs,
             state: session.state,
             trackId: session.trackId,
+            currentQueueItemId: session.currentQueueItemId,
             timelineId,
             transitionId,
             generation: session.generation,
@@ -668,7 +921,7 @@ export class JamServerEngine {
         const nextItem = session.queue.shift()!;
         if (session.currentSong) {
           session.history.unshift({
-            queueItemId: `QI_HIST_${crypto.randomUUID()}`,
+            queueItemId: session.currentQueueItemId || `QI_HIST_${crypto.randomUUID()}`,
             trackId: session.currentSong.id,
             song: session.currentSong,
             addedBy: session.hostId,
@@ -681,6 +934,7 @@ export class JamServerEngine {
 
         session.currentSong = nextItem.song;
         session.trackId = nextItem.song.id;
+        session.currentQueueItemId = nextItem.queueItemId;
         session.positionMs = 0;
         session.basePositionMs = 0;
         session.serverTimestamp = now;
@@ -699,6 +953,7 @@ export class JamServerEngine {
         payload = {
           currentSong: session.currentSong,
           trackId: session.trackId,
+          currentQueueItemId: session.currentQueueItemId,
           positionMs: 0,
           basePositionMs: 0,
           startAtServerTime: session.startAtServerTime,
@@ -713,6 +968,7 @@ export class JamServerEngine {
 
         console.log('[PLAYBACK]', {
           trackId: session.trackId,
+          currentQueueItemId: session.currentQueueItemId,
           timelineId,
           transitionId,
           generation: session.generation,
@@ -722,13 +978,14 @@ export class JamServerEngine {
       }
 
       case 'SKIP_PREV': {
+        const currentPos = this.calculateCurrentAuthoritativePosition(session, now);
         const leadTime = this.computeAdaptiveLeadTime(session);
         session.generation = (session.generation ?? 0) + 1;
         const timelineId = `TL_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
         const transitionId = `TR_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
 
-        if (session.history.length === 0) {
-          // Restart current track at 0
+        // If played > 3s or no history, restart current song at 0:00
+        if (currentPos > 3000 || session.history.length === 0) {
           session.positionMs = 0;
           session.basePositionMs = 0;
           session.serverTimestamp = now;
@@ -751,6 +1008,7 @@ export class JamServerEngine {
             timelineStartServerMs: session.timelineStartServerMs,
             state: session.state,
             trackId: session.trackId,
+            currentQueueItemId: session.currentQueueItemId,
             timelineId,
             transitionId,
             generation: session.generation,
@@ -761,7 +1019,7 @@ export class JamServerEngine {
         const prevItem = session.history.shift()!;
         if (session.currentSong) {
           session.queue.unshift({
-            queueItemId: `QI_${crypto.randomUUID()}`,
+            queueItemId: session.currentQueueItemId || `QI_${crypto.randomUUID()}`,
             trackId: session.currentSong.id,
             song: session.currentSong,
             addedBy: session.hostId,
@@ -773,6 +1031,7 @@ export class JamServerEngine {
 
         session.currentSong = prevItem.song;
         session.trackId = prevItem.song.id;
+        session.currentQueueItemId = prevItem.queueItemId;
         session.positionMs = 0;
         session.basePositionMs = 0;
         session.serverTimestamp = now;
@@ -791,6 +1050,7 @@ export class JamServerEngine {
         payload = {
           currentSong: session.currentSong,
           trackId: session.trackId,
+          currentQueueItemId: session.currentQueueItemId,
           positionMs: 0,
           basePositionMs: 0,
           startAtServerTime: session.startAtServerTime,
@@ -805,6 +1065,7 @@ export class JamServerEngine {
 
         console.log('[PLAYBACK]', {
           trackId: session.trackId,
+          currentQueueItemId: session.currentQueueItemId,
           timelineId,
           transitionId,
           generation: session.generation,
@@ -835,7 +1096,7 @@ export class JamServerEngine {
         if (playNow || (!session.currentSong && session.queue.length === 0)) {
           if (session.currentSong && playNow) {
             session.history.unshift({
-              queueItemId: `QI_HIST_${crypto.randomUUID()}`,
+              queueItemId: session.currentQueueItemId || `QI_HIST_${crypto.randomUUID()}`,
               trackId: session.currentSong.id,
               song: session.currentSong,
               addedBy: session.hostId,
@@ -853,6 +1114,7 @@ export class JamServerEngine {
 
           session.currentSong = song;
           session.trackId = song.id;
+          session.currentQueueItemId = queueItem.queueItemId;
           session.positionMs = 0;
           session.basePositionMs = 0;
           session.serverTimestamp = now;
@@ -867,6 +1129,7 @@ export class JamServerEngine {
           payload = {
             currentSong: session.currentSong,
             trackId: session.trackId,
+            currentQueueItemId: session.currentQueueItemId,
             positionMs: 0,
             basePositionMs: 0,
             startAtServerTime: session.startAtServerTime,
@@ -881,6 +1144,7 @@ export class JamServerEngine {
 
           console.log('[PLAYBACK]', {
             trackId: session.trackId,
+            currentQueueItemId: session.currentQueueItemId,
             timelineId,
             transitionId,
             generation: session.generation,
@@ -997,6 +1261,28 @@ export class JamServerEngine {
         break;
       }
 
+      case 'HEARTBEAT': {
+        if (participant) {
+          participant.lastSeenAt = now;
+          if (command.payload?.status) {
+            participant.status = command.payload.status;
+          }
+          if (typeof command.payload?.clockOffsetMs === 'number') {
+            participant.clockOffsetMs = command.payload.clockOffsetMs;
+          }
+          if (typeof command.payload?.rttMs === 'number') {
+            participant.rttMs = command.payload.rttMs;
+          }
+          if (typeof command.payload?.playbackDriftMs === 'number') {
+            participant.playbackDriftMs = command.payload.playbackDriftMs;
+          }
+        }
+        eventType = 'HEARTBEAT';
+        payload = { userId: command.userId, lastSeenAt: now };
+        console.log(`\n[JAM_HEARTBEAT]\njamId=${session.jamId}\nparticipantId=${command.userId}\ntimestamp=${now}\n`);
+        break;
+      }
+
       case 'PROMOTE_MODERATOR': {
         if (session.hostId !== command.userId) {
           return { success: false, error: 'Only the host can promote moderators' };
@@ -1028,11 +1314,15 @@ export class JamServerEngine {
         if (session.hostId !== command.userId) {
           return { success: false, code: 'INVALID_COMMAND', error: 'Only the host can end the Jam' };
         }
+        session.status = 'ENDED';
         this.sessions.delete(session.jamId);
         this.endedSessions.set(session.jamId, now);
         this.joinCodes.delete(session.joinCode);
         eventType = 'SESSION_ENDED';
         payload = { reason: 'Ended by host' };
+
+        console.log(`\n[JAM_ENDED]\njamId=${session.jamId}\nreason=EXPLICIT_HOST_END\ntimestamp=${now}\ndestroyedBy=${command.userId}\n`);
+        console.log(`\n[JAM_DESTROYED]\njamId=${session.jamId}\nreason=EXPLICIT_HOST_END\ncaller=${command.userId}\ntimestamp=${now}\ncreatedAt=${session.createdAt}\nexpiresAt=${session.expiresAt}\nlastActivity=${session.lastActivityAt}\ndestroyedBy=${command.userId}\n`);
         break;
       }
 
@@ -1055,6 +1345,7 @@ export class JamServerEngine {
     };
 
     this.broadcastEvent(session.jamId, event);
+    this.persistSessionToDb(session);
 
     const result: CommandResult = {
       success: true,
@@ -1067,6 +1358,16 @@ export class JamServerEngine {
     }
 
     return result;
+  }
+
+  /**
+   * Asynchronously executes a state-changing command with database hydration fallback
+   */
+  public async executeCommandAsync(command: JamCommand): Promise<CommandResult> {
+    if (!this.sessions.has(command.jamId)) {
+      await this.hydrateSessionFromDb(command.jamId);
+    }
+    return this.executeCommand(command);
   }
 
   /**
@@ -1159,6 +1460,7 @@ export class JamServerEngine {
     switch (command.action) {
       case 'PLAY':
       case 'PAUSE':
+      case 'STOP':
         return p.canControlPlayback
           ? { allowed: true }
           : { allowed: false, reason: 'Playback controls are disabled for participants' };
@@ -1193,6 +1495,7 @@ export class JamServerEngine {
       case 'END_SESSION':
         return { allowed: false, reason: 'Only the host may perform this action' };
       case 'UPDATE_PARTICIPANT_STATUS':
+      case 'HEARTBEAT':
       case 'REPORT_METRICS':
         return { allowed: true };
       default:
@@ -1266,10 +1569,22 @@ export class JamServerEngine {
       }
     }
 
-    // Prune dead sessions with 0 participants older than 1 hour
+    // Prune truly expired sessions (after 24 hours of inactivity)
     for (const [jamId, session] of this.sessions.entries()) {
-      if (Object.keys(session.participants).length === 0 && (now - session.updatedAt > 3600000)) {
+      const isExpired = session.expiresAt
+        ? now > session.expiresAt
+        : (now - (session.lastActivityAt || session.updatedAt) > JamServerEngine.SESSION_TTL_MS);
+
+      if (isExpired) {
+        session.status = 'ENDED';
         this.sessions.delete(jamId);
+        this.endedSessions.set(jamId, now);
+        this.joinCodes.delete(session.joinCode);
+        this.persistSessionToDb(session);
+
+        console.log(`\n[JAM_EXPIRED]\njamId=${jamId}\nreason=IDLE_TIMEOUT\ntimestamp=${now}\ncreatedAt=${session.createdAt}\nexpiresAt=${session.expiresAt}\nlastActivityAt=${session.lastActivityAt || session.updatedAt}\n`);
+
+        console.log(`\n[JAM_DESTROYED]\njamId=${jamId}\nreason=IDLE_TIMEOUT\ncaller=CLEANUP_JOB\ntimestamp=${now}\ncreatedAt=${session.createdAt}\nexpiresAt=${session.expiresAt}\nlastActivity=${session.lastActivityAt || session.updatedAt}\ndestroyedBy=SYSTEM\n`);
       }
     }
   }

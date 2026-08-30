@@ -435,3 +435,45 @@ DROP TRIGGER IF EXISTS trigger_cap_recently_played ON public.recently_played;
 CREATE TRIGGER trigger_cap_recently_played
 AFTER INSERT ON public.recently_played
 FOR EACH ROW EXECUTE FUNCTION public.cap_recently_played();
+
+-- ============================================================================
+-- 10. JAM SESSIONS DURABLE SHARED STORAGE
+-- ============================================================================
+DROP TABLE IF EXISTS public.jam_sessions CASCADE;
+
+CREATE TABLE public.jam_sessions (
+    jam_id TEXT PRIMARY KEY,
+    join_code TEXT UNIQUE NOT NULL,
+    host_id TEXT NOT NULL,
+    host_name TEXT NOT NULL,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'ACTIVE',
+    state TEXT NOT NULL DEFAULT 'PAUSED',
+    track_id TEXT,
+    current_song JSONB,
+    position_ms BIGINT DEFAULT 0,
+    base_position_ms BIGINT DEFAULT 0,
+    server_timestamp BIGINT NOT NULL,
+    start_at_server_time BIGINT NOT NULL,
+    timeline_start_server_ms BIGINT NOT NULL,
+    lead_time_ms INT DEFAULT 400,
+    revision INT DEFAULT 1,
+    generation INT DEFAULT 1,
+    timeline_id TEXT DEFAULT 'TL_1',
+    transition_id TEXT DEFAULT 'TR_1',
+    permissions JSONB NOT NULL DEFAULT '{}'::jsonb,
+    participants JSONB NOT NULL DEFAULT '{}'::jsonb,
+    queue JSONB NOT NULL DEFAULT '[]'::jsonb,
+    history JSONB NOT NULL DEFAULT '[]'::jsonb,
+    is_nearby_discoverable BOOLEAN DEFAULT TRUE,
+    created_at BIGINT NOT NULL,
+    updated_at BIGINT NOT NULL,
+    last_activity_at BIGINT NOT NULL,
+    expires_at BIGINT NOT NULL
+);
+
+CREATE INDEX idx_jam_sessions_join_code ON public.jam_sessions(join_code);
+CREATE INDEX idx_jam_sessions_status ON public.jam_sessions(status);
+CREATE INDEX idx_jam_sessions_expires_at ON public.jam_sessions(expires_at);
+CREATE INDEX idx_jam_sessions_last_activity ON public.jam_sessions(last_activity_at);
+

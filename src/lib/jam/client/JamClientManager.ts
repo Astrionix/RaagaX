@@ -11,6 +11,7 @@ import { ClockSyncEngine } from './ClockSyncEngine';
 import { DriftCorrectionEngine } from './DriftCorrectionEngine';
 import { NetworkQualityEngine } from './NetworkQualityEngine';
 import { JamDiscoveryEngine } from './JamDiscoveryEngine';
+import { JamPlaybackStateMachine } from './JamPlaybackStateMachine';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { supabase } from '@/lib/supabase';
@@ -40,16 +41,19 @@ export class JamClientManager {
   private reconnectAttempts = 0;
   private reconnectTimer: any = null;
   private metricsReportTimer: any = null;
+  private notFoundVerificationRetries = 0;
 
   private clockSync: ClockSyncEngine;
   private driftEngine: DriftCorrectionEngine;
   private networkEngine: NetworkQualityEngine;
+  private stateMachine: JamPlaybackStateMachine;
   private stateListeners: Set<JamStateListener> = new Set();
 
   private constructor() {
     this.clockSync = ClockSyncEngine.getInstance();
     this.driftEngine = DriftCorrectionEngine.getInstance();
     this.networkEngine = NetworkQualityEngine.getInstance();
+    this.stateMachine = JamPlaybackStateMachine.getInstance();
 
     // Listen to network online / offline and interface change events
     if (typeof window !== 'undefined') {
@@ -293,12 +297,14 @@ export class JamClientManager {
     this.activeSession = null;
     this.localRevision = 0;
     this.participantState = 'READY';
+    this.notFoundVerificationRetries = 0;
     // Invalidate any in-flight async loadAudioSource calls from the previous session
     this.activeTransitionId = `CLEANUP_${Date.now()}`;
 
     this.clockSync.stopPeriodicSync();
     this.driftEngine.stop();
     this.driftEngine.setSession(null);
+    this.stateMachine.reset();
     JamDiscoveryEngine.getInstance().stopBroadcasting();
 
     if (this.eventSource) {
@@ -337,6 +343,8 @@ export class JamClientManager {
       const es = new EventSource(getApiUrl(`/api/jam/${jamId}/events`));
       this.eventSource = es;
 
+      console.log(`\n[JAM_REALTIME_CONNECTED]\njamId=${jamId}\ntransport=SSE\ntimestamp=${Date.now()}\n`);
+
       es.onmessage = (e) => {
         try {
           const event: JamEvent = JSON.parse(e.data);
@@ -350,6 +358,8 @@ export class JamClientManager {
         if (this.eventSource === es) {
           this.eventSource = null;
         }
+
+        console.log(`\n[JAM_REALTIME_DISCONNECTED]\njamId=${jamId}\ntransport=SSE\nreason=STREAM_ERROR\ntimestamp=${Date.now()}\n`);
 
         if (!this.activeSession) return;
         console.warn(`[JamClientManager] SSE stream dropped for ${jamId}, validating session...`);
@@ -463,6 +473,21 @@ export class JamClientManager {
         this.driftEngine.setSession(s);
         PlaybackService.getInstance().pause();
         usePlayerStore.setState({ isPlaying: false });
+        this.stateMachine.handleTransition(s, event);
+        break;
+      }
+
+      case 'STOP': {
+        s.state = 'PAUSED';
+        s.positionMs = 0;
+        s.basePositionMs = 0;
+        this.driftEngine.setSession(s);
+        PlaybackService.getInstance().pause();
+        const activeAudio = PlaybackService.getInstance().getActiveAudio();
+        if (activeAudio) activeAudio.currentTime = 0;
+        usePlayerStore.getState().setCurrentTime(0, true);
+        usePlayerStore.setState({ isPlaying: false });
+        this.stateMachine.handleTransition(s, event);
         break;
       }
 
@@ -499,12 +524,14 @@ export class JamClientManager {
         } else {
           pb.pause();
         }
+        this.stateMachine.handleTransition(s, event);
         break;
       }
 
       case 'TRACK_CHANGED': {
         s.currentSong = event.payload.currentSong;
         s.trackId = event.payload.trackId;
+        s.currentQueueItemId = event.payload.currentQueueItemId;
         s.positionMs = event.payload.positionMs;
         s.startAtServerTime = event.payload.startAtServerTime;
         s.queue = event.payload.queue || s.queue;
@@ -517,6 +544,7 @@ export class JamClientManager {
         const thisTransitionId = event.transitionId || event.payload?.transitionId || `TR_${Date.now()}`;
         this.activeTransitionId = thisTransitionId;
 
+        this.stateMachine.handleTransition(s, event);
         this.syncPlaybackWithSession(s, s.state === 'PLAYING');
         break;
       }
@@ -570,16 +598,21 @@ export class JamClientManager {
       }
 
       case 'HOST_TRANSFERRED': {
-        s.hostId = event.payload.newHostId;
-        s.hostName = event.payload.newHostName;
-        Object.values(s.participants).forEach((p) => {
-          p.isHost = p.userId === s.hostId;
-        });
+        if (event.payload.newHostId) {
+          s.hostId = event.payload.newHostId;
+          s.hostName = event.payload.newHostName;
+          for (const p of Object.values(s.participants)) {
+            p.isHost = p.userId === s.hostId;
+            if (p.isHost) p.role = 'HOST';
+          }
+        }
         break;
       }
 
       case 'PERMISSIONS_UPDATED': {
-        s.permissions = event.payload.permissions;
+        if (event.payload.permissions) {
+          s.permissions = { ...s.permissions, ...event.payload.permissions };
+        }
         break;
       }
 
@@ -615,38 +648,52 @@ export class JamClientManager {
     this.localRevision = session.revision;
 
     this.driftEngine.setSession(session);
+    this.stateMachine.handleTransition(session);
     this.syncPlaybackWithSession(session, session.state === 'PLAYING');
     this.setParticipantState(session.state === 'PLAYING' ? 'PLAYING' : 'READY');
     this.notify();
   }
 
   /**
-   * Fetches latest authoritative session snapshot from server
+   * Fetches latest authoritative session snapshot from server with multi-attempt resilience
    */
   public async resyncSnapshot(jamId: string): Promise<boolean> {
     try {
       const res = await fetch(getApiUrl(`/api/jam/${jamId}`), { cache: 'no-store' });
-      if (res.status === 410) {
-        console.warn(`[JamClientManager] Session ${jamId} has ended (410).`);
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {}
+
+      if (res.status === 410 || data?.code === 'JAM_ENDED') {
+        console.warn(`[JamClientManager] Session ${jamId} has ended (410). Cleaning up.`);
+        this.notFoundVerificationRetries = 0;
         this.cleanupSession();
         if (typeof window !== 'undefined') {
-          usePlayerStore.getState().setToastMessage('Jam party has ended');
+          usePlayerStore.getState().setToastMessage('Jam session ended');
         }
         return false;
       }
 
-      if (res.status === 404) {
-        console.warn(`[JamClientManager] Session ${jamId} not found on server (404).`);
-        this.cleanupSession();
-        if (typeof window !== 'undefined') {
-          usePlayerStore.getState().setToastMessage('Jam party not found');
+      if (res.status === 404 || data?.code === 'JAM_NOT_FOUND') {
+        this.notFoundVerificationRetries++;
+        console.warn(`[JamClientManager] Session ${jamId} returned 404 (verification attempt ${this.notFoundVerificationRetries}/4). Retrying before concluding session ended...`);
+        if (this.notFoundVerificationRetries >= 4) {
+          this.notFoundVerificationRetries = 0;
+          this.cleanupSession();
+          if (typeof window !== 'undefined') {
+            usePlayerStore.getState().setToastMessage('Jam session not found');
+          }
+          return false;
         }
         return false;
       }
 
       if (!res.ok) return false;
-      const data = await res.json();
+
       if (data?.session) {
+        this.notFoundVerificationRetries = 0;
         this.applySessionSnapshot(data.session);
         return true;
       }
@@ -668,7 +715,7 @@ export class JamClientManager {
 
     // Convert JamQueueItem[] to Song[] for local player store UI
     const clientQueue: Song[] = [song, ...session.queue.map((item) => item.song)];
-
+    const initialSec = (session.positionMs || 0) / 1000;
     usePlayerStore.setState({
       currentSong: song,
       queue: clientQueue,
@@ -676,7 +723,9 @@ export class JamClientManager {
       duration: song.duration || 0,
       isPlaying: session.state === 'PLAYING',
       playbackIntent: session.state === 'PLAYING' ? 'PLAYING' : 'PAUSED',
+      currentTime: initialSec,
     });
+    store.setCurrentTime(initialSec, true);
 
     const pb = PlaybackService.getInstance();
 
@@ -701,9 +750,9 @@ export class JamClientManager {
       pb.pause();
       const activeAudio = pb.getActiveAudio();
       if (activeAudio) {
-        activeAudio.currentTime = session.positionMs / 1000;
+        activeAudio.currentTime = initialSec;
       }
-      store.setCurrentTime(session.positionMs / 1000, true);
+      store.setCurrentTime(initialSec, true);
     }
   }
 
@@ -721,13 +770,11 @@ export class JamClientManager {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          commandId: `CMD_${crypto.randomUUID()}`,
+          commandId: requestId,
           jamId,
           userId: this.currentUserId,
           action,
           payload,
-          requestId,
-          expectedRevision: this.localRevision,
         }),
       });
 
@@ -735,9 +782,7 @@ export class JamClientManager {
       let data: any = {};
       try {
         data = JSON.parse(text);
-      } catch {
-        return false;
-      }
+      } catch {}
 
       if (res.status === 410 || data.code === 'JAM_ENDED') {
         console.warn(`[JamClientManager] Session ${jamId} has ended. Cleaning up.`);
@@ -749,25 +794,23 @@ export class JamClientManager {
       }
 
       if (res.status === 404 || data.code === 'JAM_NOT_FOUND') {
-        // If session was not found during a background status update, do NOT destroy local Jam!
-        if (action === 'UPDATE_PARTICIPANT_STATUS') {
-          console.warn(`[JamClientManager] Participant status update failed: Jam not found. Triggering background snapshot verification...`);
+        // Background telemetry & heartbeats must NEVER directly destroy the local session!
+        if (action === 'UPDATE_PARTICIPANT_STATUS' || action === 'HEARTBEAT' || action === 'REPORT_METRICS') {
+          console.log(`\n[JAM_HEARTBEAT_FAILED]\njamId=${jamId}\nparticipantId=${this.currentUserId}\nreason=TRANSIENT_404\n`);
           this.resyncSnapshot(jamId);
           return false;
         }
 
-        console.warn(`[JamClientManager] Session ${jamId} not found on server. Cleaning up.`);
-        this.cleanupSession();
-        if (typeof window !== 'undefined') {
-          usePlayerStore.getState().setToastMessage('Jam session not found');
-        }
-        return false;
+        // For user-triggered actions, verify authoritative status before teardown
+        console.warn(`[JamClientManager] Command ${action} encountered 404 for ${jamId}. Verifying session snapshot...`);
+        const snapshotValid = await this.resyncSnapshot(jamId);
+        return snapshotValid;
       }
 
       if (res.status === 403 || data.code === 'UNAUTHORIZED') {
         // If participant was cleared on server (e.g. server restart in dev), auto re-join silently
-        if (action === 'UPDATE_PARTICIPANT_STATUS') {
-          console.warn(`[JamClientManager] Participant unauthorized during status update. Auto re-joining Jam ${jamId}...`);
+        if (action === 'UPDATE_PARTICIPANT_STATUS' || action === 'HEARTBEAT' || action === 'REPORT_METRICS') {
+          console.warn(`[JamClientManager] Participant unauthorized during heartbeat. Auto re-joining Jam ${jamId}...`);
           this.joinJam(jamId).catch(() => {});
           return false;
         }
@@ -780,16 +823,15 @@ export class JamClientManager {
       if (!res.ok) {
         // 400 INVALID_COMMAND or 5xx: Reconcile state, do NOT delete local session
         console.warn(`[JamClientManager] Command ${action} rejected (${res.status}): ${data.error || 'Unknown error'}`);
-        if (typeof window !== 'undefined' && data.error && action !== 'UPDATE_PARTICIPANT_STATUS') {
+        if (typeof window !== 'undefined' && data.error && action !== 'UPDATE_PARTICIPANT_STATUS' && action !== 'HEARTBEAT') {
           usePlayerStore.getState().setToastMessage(data.error);
         }
         return false;
       }
 
       if (data?.session) {
-        this.activeSession = data.session;
-        this.localRevision = data.session.revision;
-        this.notify();
+        this.notFoundVerificationRetries = 0;
+        this.applySessionSnapshot(data.session);
       }
 
       return true;
@@ -808,8 +850,16 @@ export class JamClientManager {
     return this.sendCommand('PAUSE');
   }
 
+  public async sendStop() {
+    return this.sendCommand('STOP');
+  }
+
   public async sendSeek(positionMs: number) {
     return this.sendCommand('SEEK', { positionMs });
+  }
+
+  public getInterpolatedPosition(): number {
+    return this.stateMachine.getInterpolatedPosition(this.activeSession);
   }
 
   public async sendSkipNext() {
@@ -914,7 +964,7 @@ export class JamClientManager {
       const netMetrics = this.networkEngine.getMetrics();
       const drift = this.driftEngine.getPlaybackDriftMs();
 
-      this.sendCommand('UPDATE_PARTICIPANT_STATUS', {
+      this.sendCommand('HEARTBEAT', {
         status: this.participantState,
         clockOffsetMs: clockState.offsetMs,
         rttMs: netMetrics.rttMedian,

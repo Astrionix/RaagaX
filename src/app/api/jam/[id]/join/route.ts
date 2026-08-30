@@ -18,7 +18,7 @@ export async function POST(
     } = body;
 
     const engine = JamServerEngine.getInstance();
-    const result = engine.joinSession(jamId, {
+    const result = await engine.joinSessionAsync(jamId, {
       userId,
       displayName,
       avatarUrl,

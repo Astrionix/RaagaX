@@ -11,7 +11,7 @@ export async function GET(
   try {
     const jamId = params.id;
     const engine = JamServerEngine.getInstance();
-    const session = engine.getSession(jamId);
+    const session = await engine.getSessionAsync(jamId);
 
     if (!session) {
       return new Response(JSON.stringify({ error: 'Jam session not found' }), {
@@ -19,6 +19,8 @@ export async function GET(
         headers: { 'Content-Type': 'application/json' },
       });
     }
+
+    console.log(`\n[JAM_REALTIME_CONNECTED]\njamId=${jamId}\ntransport=SSE\ntimestamp=${Date.now()}\n`);
 
     const encoder = new TextEncoder();
 
@@ -70,13 +72,14 @@ export async function GET(
         }, 15000);
 
         req.signal.addEventListener('abort', () => {
+          console.log(`\n[JAM_REALTIME_DISCONNECTED]\njamId=${jamId}\ntransport=SSE\nreason=CLIENT_ABORT\ntimestamp=${Date.now()}\n`);
           isClosed = true;
           clearInterval(heartbeat);
           unsubscribe();
         });
       },
       cancel() {
-        // Stream cancelled
+        console.log(`\n[JAM_REALTIME_DISCONNECTED]\njamId=${jamId}\ntransport=SSE\nreason=STREAM_CANCELLED\ntimestamp=${Date.now()}\n`);
       },
     });
 

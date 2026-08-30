@@ -58,7 +58,7 @@ export class PreloadManager {
    * prepareNextTrack — Pre-resolves audio source, pre-buffers audio bytes into standby element,
    * and keeps it fully ready for 0ms instantaneous handoff when user taps Next or track ends.
    */
-  public async prepareNextTrack(song: Song, standbyElement: HTMLAudioElement | null, force: boolean = false): Promise<boolean> {
+  public async prepareNextTrack(song: Song, standbyElement: HTMLAudioElement | null = null, force: boolean = false): Promise<boolean> {
     if (!song || !song.id) return false;
 
     // Skip if already preloaded and ready

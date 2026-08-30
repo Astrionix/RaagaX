@@ -144,6 +144,8 @@ export interface NetworkMetrics {
   lastCheckedAt: number;
 }
 
+export type JamSessionStatus = 'CREATING' | 'ACTIVE' | 'IDLE' | 'ENDING' | 'ENDED';
+
 export interface JamSession {
   jamId: string;
   joinCode: string; // 5-character restricted-alphabet human code (e.g. 7K29P)
@@ -151,8 +153,10 @@ export interface JamSession {
   hostId: string;
   hostName: string;
   isNearbyDiscoverable?: boolean;
+  status?: JamSessionStatus;
   state: JamPlaybackState;
   trackId: string | null;
+  currentQueueItemId?: string | null;
   currentSong: Song | null;
   positionMs: number; // Playback position at serverTimestamp / startAtServerTime
   basePositionMs?: number;
@@ -166,10 +170,26 @@ export interface JamSession {
   generation?: number; // Monotonically increasing playback generation counter
   createdAt: number;
   updatedAt: number;
+  lastActivityAt?: number;
+  expiresAt?: number;
   permissions: JamPermissions;
   participants: Record<string, JamParticipant>;
   queue: JamQueueItem[];
   history: JamQueueItem[];
+}
+
+export interface TrackMetadata {
+  trackId: string;
+  title: string;
+  artist: string;
+  album?: string;
+  albumId?: string;
+  artwork?: string;
+  durationMs: number;
+  sourceUrl?: string;
+  language?: string;
+  genre?: string;
+  generation?: number;
 }
 
 export interface DiscoveredJam {
@@ -201,10 +221,12 @@ export type JamEventType =
   | 'QUEUE_REORDERED'
   | 'PLAY'
   | 'PAUSE'
+  | 'STOP'
   | 'SEEK'
   | 'TRACK_CHANGED'
   | 'SYNC'
   | 'RESYNC_REQUIRED'
+  | 'HEARTBEAT'
   | 'SESSION_ENDED';
 
 export interface JamEvent {
@@ -224,6 +246,7 @@ export interface JamEvent {
 export type JamCommandAction =
   | 'PLAY'
   | 'PAUSE'
+  | 'STOP'
   | 'SEEK'
   | 'SKIP_NEXT'
   | 'SKIP_PREV'
@@ -236,6 +259,7 @@ export type JamCommandAction =
   | 'PROMOTE_MODERATOR'
   | 'SET_PRESET'
   | 'UPDATE_PARTICIPANT_STATUS'
+  | 'HEARTBEAT'
   | 'REPORT_METRICS'
   | 'END_SESSION';
 
@@ -269,6 +293,7 @@ export interface JamSyncDiagnostics {
   timelineId?: string;
   transitionId?: string;
   generation?: number;
+  currentQueueItemId?: string | null;
   expectedPositionSec?: number;
   actualPositionSec?: number;
   transport?: 'CLOUD' | 'LAN' | 'PEER';

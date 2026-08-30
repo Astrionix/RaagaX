@@ -37,7 +37,7 @@ export async function POST(
     };
 
     const engine = JamServerEngine.getInstance();
-    const result = engine.executeCommand(command);
+    const result = await engine.executeCommandAsync(command);
 
     if (!result.success) {
       let status = 400;
