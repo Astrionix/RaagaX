@@ -317,8 +317,7 @@ export class JamPlaybackStateMachine {
       return session.positionMs / 1000;
     }
 
-    const clockState = this.clockSync.getState();
-    const serverNow = Date.now() + clockState.offsetMs;
+    const serverNow = this.clockSync.estimatedServerNow();
     const timelineStart = session.startAtServerTime || session.serverTimestamp;
 
     if (serverNow < timelineStart) {
