@@ -538,8 +538,28 @@ export class JamServerEngine {
       }
 
       case 'SKIP_NEXT': {
+        const leadTime = this.computeAdaptiveLeadTime(session);
+        const timelineId = `TL_${crypto.randomUUID()}`;
+
         if (session.queue.length === 0) {
-          return { success: false, error: 'Queue is empty' };
+          // If queue is empty, restart current track from 0:00
+          session.positionMs = 0;
+          session.serverTimestamp = now;
+          session.leadTimeMs = leadTime;
+          if (session.state === 'PLAYING') {
+            session.startAtServerTime = now + leadTime;
+          } else {
+            session.startAtServerTime = now;
+          }
+          eventType = 'SEEK';
+          payload = {
+            positionMs: 0,
+            startAtServerTime: session.startAtServerTime,
+            state: session.state,
+            trackId: session.trackId,
+            timelineId,
+          };
+          break;
         }
 
         const nextItem = session.queue.shift()!;
@@ -556,7 +576,6 @@ export class JamServerEngine {
           if (session.history.length > 50) session.history.pop();
         }
 
-        const leadTime = this.computeAdaptiveLeadTime(session);
         session.currentSong = nextItem.song;
         session.trackId = nextItem.song.id;
         session.positionMs = 0;
@@ -575,21 +594,35 @@ export class JamServerEngine {
           trackId: session.trackId,
           positionMs: 0,
           startAtServerTime: session.startAtServerTime,
+          state: session.state,
           queue: session.queue,
+          timelineId,
         };
         break;
       }
 
       case 'SKIP_PREV': {
+        const leadTime = this.computeAdaptiveLeadTime(session);
+        const timelineId = `TL_${crypto.randomUUID()}`;
+
         if (session.history.length === 0) {
           // Restart current track at 0
           session.positionMs = 0;
           session.serverTimestamp = now;
+          session.leadTimeMs = leadTime;
           if (session.state === 'PLAYING') {
-            session.startAtServerTime = now + this.computeAdaptiveLeadTime(session);
+            session.startAtServerTime = now + leadTime;
+          } else {
+            session.startAtServerTime = now;
           }
           eventType = 'SEEK';
-          payload = { positionMs: 0, startAtServerTime: session.startAtServerTime };
+          payload = {
+            positionMs: 0,
+            startAtServerTime: session.startAtServerTime,
+            state: session.state,
+            trackId: session.trackId,
+            timelineId,
+          };
           break;
         }
 
@@ -606,7 +639,6 @@ export class JamServerEngine {
           });
         }
 
-        const leadTime = this.computeAdaptiveLeadTime(session);
         session.currentSong = prevItem.song;
         session.trackId = prevItem.song.id;
         session.positionMs = 0;
@@ -625,7 +657,9 @@ export class JamServerEngine {
           trackId: session.trackId,
           positionMs: 0,
           startAtServerTime: session.startAtServerTime,
+          state: session.state,
           queue: session.queue,
+          timelineId,
         };
         break;
       }
@@ -636,6 +670,7 @@ export class JamServerEngine {
           return { success: false, error: 'Invalid song payload' };
         }
 
+        const playNow = Boolean(command.payload?.playNow);
         const orderKey = command.payload?.orderKey || `${(session.queue.length + 1) * 1000}`;
         const queueItem: JamQueueItem = {
           queueItemId: `QI_${crypto.randomUUID()}`,
@@ -648,19 +683,45 @@ export class JamServerEngine {
           orderKey,
         };
 
-        // If no song is currently playing or selected, set as currentSong
-        if (!session.currentSong && session.queue.length === 0) {
+        if (playNow || (!session.currentSong && session.queue.length === 0)) {
+          if (session.currentSong && playNow) {
+            session.history.unshift({
+              queueItemId: `QI_HIST_${crypto.randomUUID()}`,
+              trackId: session.currentSong.id,
+              song: session.currentSong,
+              addedBy: session.hostId,
+              addedByName: session.hostName,
+              addedAt: now,
+              orderKey: '0',
+            });
+            if (session.history.length > 50) session.history.pop();
+          }
+
+          const leadTime = this.computeAdaptiveLeadTime(session);
+          const timelineId = `TL_${crypto.randomUUID()}`;
           session.currentSong = song;
           session.trackId = song.id;
           session.positionMs = 0;
           session.serverTimestamp = now;
-          session.startAtServerTime = now;
+          session.leadTimeMs = leadTime;
+          session.state = 'PLAYING';
+          session.startAtServerTime = now + leadTime;
+
+          eventType = 'TRACK_CHANGED';
+          payload = {
+            currentSong: session.currentSong,
+            trackId: session.trackId,
+            positionMs: 0,
+            startAtServerTime: session.startAtServerTime,
+            state: session.state,
+            queue: session.queue,
+            timelineId,
+          };
         } else {
           session.queue.push(queueItem);
+          eventType = 'QUEUE_ITEM_ADDED';
+          payload = { item: queueItem, queue: session.queue, currentSong: session.currentSong };
         }
-
-        eventType = 'QUEUE_ITEM_ADDED';
-        payload = { item: queueItem, queue: session.queue, currentSong: session.currentSong };
         break;
       }
 

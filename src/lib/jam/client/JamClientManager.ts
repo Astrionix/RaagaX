@@ -60,6 +60,14 @@ export class JamClientManager {
     return JamClientManager.instance;
   }
 
+  public resetForTesting() {
+    this.cleanupSession();
+    this.currentUserId = '';
+    this.currentUserName = '';
+    this.currentUserAvatar = undefined;
+    this.stateListeners.clear();
+  }
+
   public subscribe(listener: JamStateListener): () => void {
     this.stateListeners.add(listener);
     listener(this.activeSession, this.participantState);
@@ -143,7 +151,8 @@ export class JamClientManager {
     this.localRevision = session.revision;
     this.setParticipantState('READY');
 
-    // Start background sync & drift engines
+    // Step 1: Initial clock sync on host & start periodic sync
+    await this.clockSync.synchronize(6);
     this.clockSync.startPeriodicSync(15000);
     this.driftEngine.setSession(session);
     this.driftEngine.start();
@@ -582,6 +591,8 @@ export class JamClientManager {
       queue: clientQueue,
       queueIndex: 0,
       duration: song.duration || 0,
+      isPlaying: session.state === 'PLAYING',
+      playbackIntent: session.state === 'PLAYING' ? 'PLAYING' : 'PAUSED',
     });
 
     const pb = PlaybackService.getInstance();
@@ -618,6 +629,8 @@ export class JamClientManager {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          commandId: `CMD_${crypto.randomUUID()}`,
+          jamId,
           userId: this.currentUserId,
           action,
           payload,
@@ -626,25 +639,38 @@ export class JamClientManager {
         }),
       });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        console.warn(`[JamClientManager] Command ${action} rejected:`, err?.error || res.statusText);
-        if (res.status === 404 || err?.error?.includes('not found') || err?.error?.includes('ended')) {
-          console.warn(`[JamClientManager] Session ${jamId} is invalid or ended. Cleaning up.`);
-          this.cleanupSession();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        return false;
+      }
+
+      if (res.status === 400 && data.error === 'Jam session not found') {
+        console.warn(`[JamClientManager] Session ${jamId} is invalid or ended. Cleaning up.`);
+        this.cleanupSession();
+        if (typeof window !== 'undefined') {
+          usePlayerStore.getState().setToastMessage('Jam session ended');
         }
         return false;
       }
 
-      const data = await res.json();
+      if (!res.ok) {
+        if (typeof window !== 'undefined' && data.error) {
+          usePlayerStore.getState().setToastMessage(data.error);
+        }
+        return false;
+      }
+
       if (data?.session) {
         this.activeSession = data.session;
         this.localRevision = data.session.revision;
         this.notify();
       }
+
       return true;
-    } catch (err) {
-      console.error(`[JamClientManager] Error sending command ${action}:`, err);
+    } catch {
       return false;
     }
   }
@@ -671,8 +697,8 @@ export class JamClientManager {
     return this.sendCommand('SKIP_PREV');
   }
 
-  public async sendAddTrack(song: Song) {
-    return this.sendCommand('ADD_TRACK', { song });
+  public async sendAddTrack(song: Song, playNow: boolean = false) {
+    return this.sendCommand('ADD_TRACK', { song, playNow });
   }
 
   public async sendRemoveTrack(queueItemId: string) {

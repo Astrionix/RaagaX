@@ -63,6 +63,7 @@ import { JioSaavnMediaPipeline } from '@/lib/media/JioSaavnMediaPipeline';
 import { SongUniquenessEngine } from '@/lib/music/SongUniquenessEngine';
 import { SongFormatter } from '@/lib/music/SongFormatter';
 import { MediaSessionManager } from '@/lib/playback/MediaSessionManager';
+import { JamClientManager } from '@/lib/jam/client/JamClientManager';
 
 import { AudioQuality, AudioQualityState } from '@/lib/playback/types';
 import { DownloadStorage } from '@/lib/offline/DownloadStorage';
@@ -1102,6 +1103,17 @@ export const usePlayerStore = create<PlayerState>()(
           coverUrl: resolvedCover,
         });
 
+        // If currently inside a shared Jam Party, route track change/addition through Jam server
+        try {
+          const jamManager = JamClientManager.getInstance();
+          const jamSession = jamManager.getActiveSession();
+          if (jamSession) {
+            jamManager.sendAddTrack(activePlaySong, true);
+            get().setToastMessage(`Playing "${activePlaySong.title}" in Jam Party`);
+            return;
+          }
+        } catch {}
+
         // NOTE: navigator.onLine is intentionally NOT used here.
         // On Android/Capacitor WebView it can return false even with a live network
         // connection, which would block all liked/library songs from playing.
@@ -1231,14 +1243,28 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       togglePlayPause: async () => {
-
-        // Single Source of Truth: derive true playing state directly from the active engine
+        // 1. Single Source of Truth: derive true playing state directly from store or active engine
         let currentLivePlaying = get().isPlaying;
-        if (RaagaXNativePlayer.isNative()) {
-          currentLivePlaying = get().isPlaying;
-        } else {
-          currentLivePlaying = PlaybackService.getInstance().getLivePlayingState();
+        if (!RaagaXNativePlayer.isNative()) {
+          const servicePlaying = PlaybackService.getInstance().getLivePlayingState();
+          if (servicePlaying) {
+            currentLivePlaying = true;
+          }
         }
+
+        // 2. If in Jam, dispatch authoritative Jam play/pause command
+        try {
+          const jamManager = JamClientManager.getInstance();
+          const jamSession = jamManager.getActiveSession();
+          if (jamSession) {
+            if (currentLivePlaying) {
+              await jamManager.sendPause();
+            } else {
+              await jamManager.sendPlay();
+            }
+            return;
+          }
+        } catch {}
 
         const isNowPlaying = !currentLivePlaying;
 
@@ -1313,6 +1339,16 @@ export const usePlayerStore = create<PlayerState>()(
       toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 
       playNext: async () => {
+        // If in Jam, dispatch authoritative skip next command
+        try {
+          const jamManager = JamClientManager.getInstance();
+          const jamSession = jamManager.getActiveSession();
+          if (jamSession) {
+            await jamManager.sendSkipNext();
+            return;
+          }
+        } catch {}
+
         const { duration, currentTime, isPlaying, playbackIntent } = get();
         const isComplete = duration > 0 && currentTime >= duration - 5;
         get().logCurrentTelemetry(isComplete ? 'complete' : 'skip');
@@ -1351,6 +1387,20 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       playPrev: async () => {
+        // If in Jam, dispatch authoritative skip prev or restart seek command
+        try {
+          const jamManager = JamClientManager.getInstance();
+          const jamSession = jamManager.getActiveSession();
+          if (jamSession) {
+            if (get().currentTime > 3) {
+              await jamManager.sendSeek(0);
+            } else {
+              await jamManager.sendSkipPrev();
+            }
+            return;
+          }
+        } catch {}
+
         const { queue, queueIndex, currentTime, currentSong, repeatMode, isPlaying, playbackIntent } = get();
 
         // If track played more than 3 seconds, restart current track at 0:00 and keep current playing state

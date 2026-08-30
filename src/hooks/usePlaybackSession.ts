@@ -35,9 +35,7 @@ export function usePlaybackSession() {
 
   const seek = (timeSec: number) => {
     setCurrentTime(timeSec);
-    import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
-      PlaybackService.getInstance().seek(timeSec);
-    }).catch(() => {});
+    usePlayerStore.getState().setSeekTarget(timeSec);
   };
 
   return {

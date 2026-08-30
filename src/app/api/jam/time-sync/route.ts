@@ -21,7 +21,13 @@ export async function POST(req: NextRequest) {
     serverSendTime,
   };
 
-  return NextResponse.json(response);
+  return NextResponse.json(response, {
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    },
+  });
 }
 
 export async function GET() {
@@ -30,5 +36,11 @@ export async function GET() {
     clientSendTime: now,
     serverReceiveTime: now,
     serverSendTime: now,
+  }, {
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    },
   });
 }
