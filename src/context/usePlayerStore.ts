@@ -1339,12 +1339,19 @@ export const usePlayerStore = create<PlayerState>()(
       toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 
       playNext: async () => {
-        // If in Jam, dispatch authoritative skip next command
+        // If in Jam: ONLY the host is authorized to issue SKIP_NEXT.
+        // Guests must silently wait for the server's TRACK_CHANGED broadcast.
+        // This prevents every device from independently firing SKIP_NEXT when their audio ends,
+        // which would cause the server to process multiple concurrent skips.
         try {
           const jamManager = JamClientManager.getInstance();
           const jamSession = jamManager.getActiveSession();
           if (jamSession) {
-            await jamManager.sendSkipNext();
+            if (jamManager.isHost()) {
+              await jamManager.sendSkipNext();
+            } else {
+              console.log('[playNext] In Jam as guest — waiting for authoritative TRACK_CHANGED from server.');
+            }
             return;
           }
         } catch {}
@@ -1387,15 +1394,20 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       playPrev: async () => {
-        // If in Jam, dispatch authoritative skip prev or restart seek command
+        // If in Jam: ONLY the host is authorized to issue SKIP_PREV.
+        // Guests cannot independently trigger prev without a server command.
         try {
           const jamManager = JamClientManager.getInstance();
           const jamSession = jamManager.getActiveSession();
           if (jamSession) {
-            if (get().currentTime > 3) {
-              await jamManager.sendSeek(0);
+            if (jamManager.isHost()) {
+              if (get().currentTime > 3) {
+                await jamManager.sendSeek(0);
+              } else {
+                await jamManager.sendSkipPrev();
+              }
             } else {
-              await jamManager.sendSkipPrev();
+              console.log('[playPrev] In Jam as guest — waiting for authoritative TRACK_CHANGED from server.');
             }
             return;
           }

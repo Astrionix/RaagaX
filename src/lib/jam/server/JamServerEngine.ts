@@ -705,6 +705,7 @@ export class JamServerEngine {
           timelineStartServerMs: session.timelineStartServerMs,
           state: session.state,
           queue: session.queue,
+          history: session.history,
           timelineId,
           transitionId,
           generation: session.generation,
@@ -796,6 +797,7 @@ export class JamServerEngine {
           timelineStartServerMs: session.timelineStartServerMs,
           state: session.state,
           queue: session.queue,
+          history: session.history,
           timelineId,
           transitionId,
           generation: session.generation,
@@ -871,6 +873,7 @@ export class JamServerEngine {
             timelineStartServerMs: session.timelineStartServerMs,
             state: session.state,
             queue: session.queue,
+            history: session.history,
             timelineId,
             transitionId,
             generation: session.generation,
@@ -886,7 +889,10 @@ export class JamServerEngine {
         } else {
           session.queue.push(queueItem);
           eventType = 'QUEUE_ITEM_ADDED';
-          payload = { item: queueItem, queue: session.queue, currentSong: session.currentSong };
+          // NOTE: Do NOT include currentSong here even if non-null.
+          // TRACK_CHANGED is the sole authoritative event for loading a new current track.
+          // Including currentSong in QUEUE_ITEM_ADDED causes clients to double-load the audio source.
+          payload = { item: queueItem, queue: session.queue };
         }
         break;
       }

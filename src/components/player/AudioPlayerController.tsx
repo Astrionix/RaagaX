@@ -179,8 +179,19 @@ export function AudioPlayerController() {
     });
 
     // queueEnded fires when the current track finishes playing in ExoPlayer.
-    // Trigger store.playNext() to seamlessly advance to the next track in the authoritative queue.
+    // In Jam mode: only the host fires SKIP_NEXT. Guests silently wait for TRACK_CHANGED.
     const unsubQueueEnded = RaagaXNativePlayer.addQueueEndedListener(() => {
+      const jamManager = JamClientManager.getInstance();
+      if (jamManager.getActiveSession()) {
+        if (jamManager.isHost()) {
+          console.log('[AudioPlayerController] Native queueEnded in Jam (host) — sending SKIP_NEXT to server');
+          jamManager.sendSkipNext().catch(() => {});
+        } else {
+          console.log('[AudioPlayerController] Native queueEnded in Jam (guest) — waiting for TRACK_CHANGED broadcast');
+        }
+        return;
+      }
+
       if (Date.now() - lastSeekTimeRef.current < 1500) {
         console.log('[AudioPlayerController] Ignoring native queueEnded during seek settle lock');
         return;

@@ -28,6 +28,13 @@ export class JamClientManager {
   private currentUserAvatar?: string;
   private localRevision: number = 0;
 
+  /**
+   * Tracks the active transitionId so that async audio loads can detect when
+   * a newer track transition has superseded them and self-cancel.
+   * This prevents stale loadAudioSource() resolutions from overwriting a newer track.
+   */
+  private activeTransitionId: string = '';
+
   private eventSource: EventSource | null = null;
   private supabaseChannel: any = null;
   private reconnectAttempts = 0;
@@ -286,6 +293,8 @@ export class JamClientManager {
     this.activeSession = null;
     this.localRevision = 0;
     this.participantState = 'READY';
+    // Invalidate any in-flight async loadAudioSource calls from the previous session
+    this.activeTransitionId = `CLEANUP_${Date.now()}`;
 
     this.clockSync.stopPeriodicSync();
     this.driftEngine.stop();
@@ -426,8 +435,23 @@ export class JamClientManager {
         s.trackId = event.payload.trackId;
 
         this.driftEngine.setSession(s);
-        this.driftEngine.evaluateScheduledStart(s);
         usePlayerStore.setState({ isPlaying: true });
+
+        // Bug #2 fix: Verify audio is loaded to the correct track before scheduling playback start.
+        // If the audio element is not yet ready (e.g. guest just joined or previous load is in progress),
+        // we trigger syncPlaybackWithSession which will load then schedule start.
+        const pb = PlaybackService.getInstance();
+        const audio = pb.getActiveAudio();
+        const expectedTrackId = s.trackId || s.currentSong?.id;
+        const audioTrackId = audio?.dataset?.trackId || '';
+        const isAudioReady = audio && audio.readyState >= 2 && audioTrackId === expectedTrackId;
+
+        if (!isAudioReady) {
+          console.log(`[JamClientManager] PLAY: audio not ready for track ${expectedTrackId}, triggering load+sync`);
+          this.syncPlaybackWithSession(s, true);
+        } else {
+          this.driftEngine.evaluateScheduledStart(s);
+        }
         break;
       }
 
@@ -453,7 +477,20 @@ export class JamClientManager {
         const targetSec = s.positionMs / 1000;
 
         if (activeAudio) {
-          activeAudio.currentTime = targetSec;
+          if (activeAudio.readyState >= 2) {
+            // Audio is ready: apply seek immediately
+            activeAudio.currentTime = targetSec;
+          } else {
+            // Bug #4 fix: Audio not yet ready — defer seek application until canplay.
+            // This handles the case where SEEK arrives while the audio element is still loading.
+            const onCanPlay = () => {
+              activeAudio.removeEventListener('canplay', onCanPlay);
+              if (this.activeSession?.positionMs === s.positionMs) {
+                activeAudio.currentTime = targetSec;
+              }
+            };
+            activeAudio.addEventListener('canplay', onCanPlay, { once: true });
+          }
         }
         usePlayerStore.getState().setCurrentTime(targetSec, true);
 
@@ -471,6 +508,14 @@ export class JamClientManager {
         s.positionMs = event.payload.positionMs;
         s.startAtServerTime = event.payload.startAtServerTime;
         s.queue = event.payload.queue || s.queue;
+        // Bug #5 / server fix: also sync history so guest prev-track state matches
+        if (Array.isArray(event.payload.history)) {
+          s.history = event.payload.history;
+        }
+
+        // Bug #3 fix: Set activeTransitionId BEFORE the async load so stale loads can detect they've been superseded.
+        const thisTransitionId = event.transitionId || event.payload?.transitionId || `TR_${Date.now()}`;
+        this.activeTransitionId = thisTransitionId;
 
         this.syncPlaybackWithSession(s, s.state === 'PLAYING');
         break;
@@ -482,11 +527,11 @@ export class JamClientManager {
         } else if (event.payload.item) {
           s.queue.push(event.payload.item);
         }
-        if (event.payload.currentSong && !s.currentSong) {
-          s.currentSong = event.payload.currentSong;
-          s.trackId = event.payload.currentSong.id;
-          this.syncPlaybackWithSession(s, false);
-        }
+        // Bug #5 fix: Do NOT call syncPlaybackWithSession here.
+        // When a song is added as the first (and becomes currentSong), the server now emits
+        // TRACK_CHANGED (not QUEUE_ITEM_ADDED) as the authoritative load trigger.
+        // Calling syncPlaybackWithSession from both QUEUE_ITEM_ADDED and TRACK_CHANGED
+        // causes a double-load race on the audio element.
         break;
       }
 
@@ -636,9 +681,18 @@ export class JamClientManager {
     const pb = PlaybackService.getInstance();
 
     if (!isAlreadyLoaded) {
+      // Bug #3 fix: Snapshot the transitionId before the async load begins.
+      // After the await, if activeTransitionId has changed, a newer TRACK_CHANGED event
+      // arrived while we were loading — discard this stale result entirely.
+      const snapshotTransitionId = this.activeTransitionId;
       const reqId = Date.now();
       pb.setPlaybackRequestId(reqId);
       await pb.loadAudioSource(song, reqId, false);
+
+      if (this.activeTransitionId !== snapshotTransitionId) {
+        console.log(`[JamClientManager] syncPlaybackWithSession: stale load for ${song.id} (transitionId changed from ${snapshotTransitionId} to ${this.activeTransitionId}) — discarding`);
+        return;
+      }
     }
 
     if (session.state === 'PLAYING' && autoPlay) {
