@@ -124,7 +124,7 @@ export function PlayerBar() {
   return (
     <aside
       aria-label="Floating Media Player"
-      className={`hidden md:flex fixed bottom-5 z-40 group/player select-none items-center justify-between px-3.5 sm:px-4 py-1.5 bg-[#1c1c1e]/85 hover:bg-[#1c1c1e]/95 backdrop-blur-2xl border border-white/10 hover:border-white/15 rounded-full shadow-[0_12px_36px_rgba(0,0,0,0.65)] ring-1 ring-white/5 transition-all duration-300 max-w-[840px] w-auto h-[54px] gap-3 sm:gap-4 -translate-x-1/2 ${
+      className={`hidden md:flex fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] z-40 group/player select-none items-center justify-between px-3.5 sm:px-4 py-1.5 bg-[#1c1c1e]/90 hover:bg-[#1c1c1e]/95 backdrop-blur-2xl border border-white/10 hover:border-white/15 rounded-full shadow-[0_12px_36px_rgba(0,0,0,0.65)] ring-1 ring-white/5 transition-all duration-300 max-w-[calc(100vw-18rem)] md:max-w-[760px] lg:max-w-[840px] w-auto h-[54px] gap-2.5 sm:gap-4 -translate-x-1/2 ${
         isQueueOpen
           ? 'left-[calc(50%+8rem)] xl:left-[calc(50%+8rem-180px)]'
           : 'left-[calc(50%+8rem)]'

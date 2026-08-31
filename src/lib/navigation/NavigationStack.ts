@@ -17,7 +17,10 @@ export interface NavigationEntry {
 export class NavigationStack {
   private static instance: NavigationStack;
   private stack: NavigationEntry[] = [];
+  private forwardStack: NavigationEntry[] = [];
   private isNavigatingBack: boolean = false;
+  private isNavigatingForward: boolean = false;
+  private listeners: Set<() => void> = new Set();
 
   private constructor() {
     this.resetToInitial('home');
@@ -28,6 +31,19 @@ export class NavigationStack {
       NavigationStack.instance = new NavigationStack();
     }
     return NavigationStack.instance;
+  }
+
+  public subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private notify() {
+    for (const listener of this.listeners) {
+      try {
+        listener();
+      } catch {}
+    }
   }
 
   public resetToInitial(tab: ActiveTab = 'home') {
@@ -42,6 +58,8 @@ export class NavigationStack {
         timestamp: Date.now(),
       },
     ];
+    this.forwardStack = [];
+    this.notify();
   }
 
   public getCurrent(): NavigationEntry | null {
@@ -53,11 +71,19 @@ export class NavigationStack {
     return [...this.stack];
   }
 
+  public canGoBack(): boolean {
+    return this.stack.length > 1 || Boolean(this.getCurrent()?.isPlayerExpanded);
+  }
+
+  public canGoForward(): boolean {
+    return this.forwardStack.length > 0;
+  }
+
   /**
    * Pushes a new navigation state onto the stack.
    */
   public push(entry: Omit<NavigationEntry, 'id' | 'timestamp'>) {
-    if (this.isNavigatingBack) return;
+    if (this.isNavigatingBack || this.isNavigatingForward) return;
 
     const current = this.getCurrent();
     // Deduplicate if identical to top of stack
@@ -80,6 +106,8 @@ export class NavigationStack {
     };
 
     this.stack.push(newEntry);
+    this.forwardStack = []; // New navigation clears forward history
+    this.notify();
     console.log(`[NavigationStack] Pushed: tab=${entry.activeTab} album=${entry.selectedAlbumId} artist=${entry.selectedArtistId} pl=${entry.selectedPlaylistId} playerExpanded=${entry.isPlayerExpanded} fromPlayer=${entry.fromPlayer} (Depth: ${this.stack.length})`);
   }
 
@@ -130,6 +158,7 @@ export class NavigationStack {
       if (root?.isPlayerExpanded) {
         root.isPlayerExpanded = false;
         if (applyStateCallback) applyStateCallback(root);
+        this.notify();
         return true;
       }
       return false;
@@ -138,6 +167,9 @@ export class NavigationStack {
     this.isNavigatingBack = true;
     try {
       const popped = this.stack.pop();
+      if (popped) {
+        this.forwardStack.push(popped);
+      }
       console.log(`[NavigationStack] Popped: tab=${popped?.activeTab} fromPlayer=${popped?.fromPlayer} (Remaining: ${this.stack.length})`);
 
       const target = this.getCurrent();
@@ -163,9 +195,45 @@ export class NavigationStack {
         ScrollManager.getInstance().navigateTo(targetKey);
       }
 
+      this.notify();
       return true;
     } finally {
       this.isNavigatingBack = false;
+    }
+  }
+
+  /**
+   * Executes forward navigation.
+   */
+  public goForward(applyStateCallback?: (target: NavigationEntry) => void): boolean {
+    if (this.forwardStack.length === 0) return false;
+
+    this.isNavigatingForward = true;
+    try {
+      const nextEntry = this.forwardStack.pop();
+      if (!nextEntry) return false;
+
+      this.stack.push(nextEntry);
+      console.log(`[NavigationStack] Forward: tab=${nextEntry.activeTab} (Depth: ${this.stack.length})`);
+
+      if (applyStateCallback) {
+        applyStateCallback(nextEntry);
+      }
+
+      if (typeof window !== 'undefined') {
+        const targetKey = ScrollManager.getInstance().getRouteKey({
+          activeTab: nextEntry.activeTab,
+          selectedAlbumId: nextEntry.selectedAlbumId,
+          selectedArtistId: nextEntry.selectedArtistId,
+          selectedPlaylistId: nextEntry.selectedPlaylistId,
+        });
+        ScrollManager.getInstance().navigateTo(targetKey);
+      }
+
+      this.notify();
+      return true;
+    } finally {
+      this.isNavigatingForward = false;
     }
   }
 }

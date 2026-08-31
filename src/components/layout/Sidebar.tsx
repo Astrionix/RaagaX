@@ -16,6 +16,7 @@ import {
   BarChart3,
   Clock,
   Radio,
+  Download,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
@@ -162,8 +163,25 @@ export function Sidebar() {
           </span>
 
           <button
+            onClick={() => {
+              usePlayerStore.getState().setSelectedAlbumId(null);
+              usePlayerStore.getState().setSelectedArtistId(null);
+              usePlayerStore.getState().setSelectedPlaylistId(null);
+              setActiveTab('library');
+            }}
+            className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer ${
+              activeTab === 'library'
+                ? 'bg-[#FA233B]/15 text-[#FA233B] font-semibold'
+                : 'text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100 font-medium'
+            }`}
+          >
+            <ListMusic className={`w-4 h-4 flex-shrink-0 ${activeTab === 'library' ? 'text-[#FA233B]' : 'text-zinc-400'}`} />
+            <span>Library</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('favorites')}
-            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+            className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer ${
               activeTab === 'favorites'
                 ? 'bg-[#FA233B]/15 text-[#FA233B] font-semibold'
                 : 'text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100 font-medium'
@@ -174,11 +192,23 @@ export function Sidebar() {
           </button>
 
           <button
+            onClick={() => setActiveTab('downloads')}
+            className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer ${
+              activeTab === 'downloads'
+                ? 'bg-[#FA233B]/15 text-[#FA233B] font-semibold'
+                : 'text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100 font-medium'
+            }`}
+          >
+            <Download className={`w-4 h-4 flex-shrink-0 ${activeTab === 'downloads' ? 'text-[#FA233B]' : 'text-zinc-400'}`} />
+            <span>Downloads</span>
+          </button>
+
+          <button
             onClick={() => {
               usePlayerStore.getState().setSelectedArtistId(null);
               setActiveTab('artist');
             }}
-            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+            className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer ${
               activeTab === 'artist' && !usePlayerStore.getState().selectedArtistId
                 ? 'bg-[#FA233B]/15 text-[#FA233B] font-semibold'
                 : 'text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100 font-medium'
@@ -193,7 +223,7 @@ export function Sidebar() {
               usePlayerStore.getState().setSelectedAlbumId(null);
               setActiveTab('album');
             }}
-            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+            className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer ${
               activeTab === 'album' && !usePlayerStore.getState().selectedAlbumId
                 ? 'bg-[#FA233B]/15 text-[#FA233B] font-semibold'
                 : 'text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100 font-medium'
@@ -205,7 +235,7 @@ export function Sidebar() {
 
           <button
             onClick={() => setActiveTab('history')}
-            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+            className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer ${
               activeTab === 'history'
                 ? 'bg-[#FA233B]/15 text-[#FA233B] font-semibold'
                 : 'text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100 font-medium'
@@ -217,7 +247,7 @@ export function Sidebar() {
 
           <button
             onClick={() => setActiveTab('insights')}
-            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+            className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer ${
               activeTab === 'insights'
                 ? 'bg-[#FA233B]/15 text-[#FA233B] font-semibold'
                 : 'text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100 font-medium'
