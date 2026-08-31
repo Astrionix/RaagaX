@@ -1506,6 +1506,91 @@ export class JamServerEngine {
         break;
       }
 
+      case 'ADD_TRACKS': {
+        const songs: Song[] = command.payload?.songs;
+        if (!Array.isArray(songs) || songs.length === 0) {
+          return { success: false, error: 'Invalid songs array payload' };
+        }
+
+        const playNow = Boolean(command.payload?.playNow);
+        const startIndex = Math.max(0, Math.min(Number(command.payload?.startIndex || 0), songs.length - 1));
+        const activeSong = songs[startIndex];
+
+        const remainingSongs = [
+          ...songs.slice(startIndex + 1),
+          ...songs.slice(0, startIndex),
+        ];
+
+        const newQueueItems: JamQueueItem[] = remainingSongs.map((song, idx) => ({
+          queueItemId: `QI_${crypto.randomUUID()}`,
+          trackId: song.id,
+          song,
+          addedBy: command.userId,
+          addedByName: participant?.displayName || 'Participant',
+          addedByAvatar: participant?.avatarUrl,
+          addedAt: now + idx,
+          orderKey: `${(session.queue.length + idx + 1) * 1000}`,
+        }));
+
+        if (playNow || !session.currentSong) {
+          if (session.currentSong && playNow) {
+            session.history.unshift({
+              queueItemId: session.currentQueueItemId || `QI_HIST_${crypto.randomUUID()}`,
+              trackId: session.currentSong.id,
+              song: session.currentSong,
+              addedBy: session.hostId,
+              addedByName: session.hostName,
+              addedAt: now,
+              orderKey: '0',
+            });
+            if (session.history.length > 50) session.history.pop();
+          }
+
+          const leadTime = this.computeAdaptiveLeadTime(session);
+          session.generation = (session.generation ?? 0) + 1;
+          const timelineId = `TL_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
+          const transitionId = `TR_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
+
+          session.currentSong = activeSong;
+          session.trackId = activeSong.id;
+          session.currentQueueItemId = `QI_${crypto.randomUUID()}`;
+          session.positionMs = 0;
+          session.basePositionMs = 0;
+          session.serverTimestamp = now;
+          session.leadTimeMs = leadTime;
+          session.state = 'PLAYING';
+          session.startAtServerTime = now + leadTime;
+          session.timelineStartServerMs = session.startAtServerTime;
+          session.timelineId = timelineId;
+          session.transitionId = transitionId;
+
+          // Populate shared queue with all other tracks in the collection/album/playlist
+          session.queue = newQueueItems;
+
+          eventType = 'TRACK_CHANGED';
+          payload = {
+            currentSong: session.currentSong,
+            trackId: session.trackId,
+            currentQueueItemId: session.currentQueueItemId,
+            positionMs: 0,
+            basePositionMs: 0,
+            startAtServerTime: session.startAtServerTime,
+            timelineStartServerMs: session.timelineStartServerMs,
+            state: session.state,
+            queue: session.queue,
+            history: session.history,
+            timelineId,
+            transitionId,
+            generation: session.generation,
+          };
+        } else {
+          session.queue.push(...newQueueItems);
+          eventType = 'QUEUE_REORDERED';
+          payload = { queue: session.queue };
+        }
+        break;
+      }
+
       case 'REMOVE_TRACK': {
         const queueItemId = command.payload?.queueItemId;
         if (!queueItemId) return { success: false, error: 'Missing queueItemId' };
@@ -1786,6 +1871,7 @@ export class JamServerEngine {
         command.action === 'SKIP_NEXT' ||
         command.action === 'SKIP_PREV' ||
         command.action === 'ADD_TRACK' ||
+        command.action === 'ADD_TRACKS' ||
         command.action === 'REMOVE_TRACK' ||
         command.action === 'REORDER_QUEUE'
       ) {
@@ -1796,7 +1882,7 @@ export class JamServerEngine {
     // 3. Per-User Custom Overrides
     if (participant?.customPermissions) {
       const custom = participant.customPermissions;
-      if (command.action === 'ADD_TRACK' && typeof custom.canAddSongs === 'boolean') {
+      if ((command.action === 'ADD_TRACK' || command.action === 'ADD_TRACKS') && typeof custom.canAddSongs === 'boolean') {
         return custom.canAddSongs
           ? { allowed: true }
           : { allowed: false, reason: 'Adding tracks is disabled for your account' };
@@ -1832,6 +1918,7 @@ export class JamServerEngine {
           ? { allowed: true }
           : { allowed: false, reason: 'Track skipping is disabled for participants' };
       case 'ADD_TRACK':
+      case 'ADD_TRACKS':
         return p.canAddSongs
           ? { allowed: true }
           : { allowed: false, reason: 'Adding tracks is disabled for participants' };

@@ -364,6 +364,7 @@ export type JamCommandAction =
   | 'SKIP_NEXT'
   | 'SKIP_PREV'
   | 'ADD_TRACK'
+  | 'ADD_TRACKS'
   | 'REMOVE_TRACK'
   | 'REORDER_QUEUE'
   | 'REQUEST_HANDOFF'

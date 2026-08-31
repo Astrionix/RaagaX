@@ -51,7 +51,8 @@ interface JamState {
   sendSeek: (positionMs: number) => Promise<boolean>;
   sendSkipNext: () => Promise<boolean>;
   sendSkipPrev: () => Promise<boolean>;
-  sendAddTrack: (song: Song) => Promise<boolean>;
+  sendAddTrack: (song: Song, playNow?: boolean) => Promise<boolean>;
+  sendAddTracks: (songs: Song[], playNow?: boolean, startIndex?: number) => Promise<boolean>;
   sendRemoveTrack: (queueItemId: string) => Promise<boolean>;
   sendReorderQueue: (newQueue: JamQueueItem[]) => Promise<boolean>;
   sendUpdatePermissions: (permissions: Partial<JamPermissions>) => Promise<boolean>;
@@ -273,8 +274,12 @@ export const useJamStore = create<JamState>((set, get) => {
       return JamClientManager.getInstance().sendSkipPrev();
     },
 
-    sendAddTrack: async (song) => {
-      return JamClientManager.getInstance().sendAddTrack(song);
+    sendAddTrack: async (song, playNow = false) => {
+      return JamClientManager.getInstance().sendAddTrack(song, playNow);
+    },
+
+    sendAddTracks: async (songs, playNow = false, startIndex = 0) => {
+      return JamClientManager.getInstance().sendAddTracks(songs, playNow, startIndex);
     },
 
     sendRemoveTrack: async (queueItemId) => {

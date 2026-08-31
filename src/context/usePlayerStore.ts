@@ -1118,8 +1118,15 @@ export const usePlayerStore = create<PlayerState>()(
           const jamManager = JamClientManager.getInstance();
           const jamSession = jamManager.getActiveSession();
           if (jamSession) {
-            jamManager.sendAddTrack(activePlaySong, true);
-            get().setToastMessage(`Playing "${activePlaySong.title}" in Jam Party`);
+            if (newQueue && Array.isArray(newQueue) && newQueue.length > 1) {
+              const startIdx = newQueue.findIndex((s) => s.id === activePlaySong.id);
+              const effectiveIdx = startIdx >= 0 ? startIdx : 0;
+              jamManager.sendAddTracks(newQueue, true, effectiveIdx);
+              get().setToastMessage(`Playing "${activePlaySong.title}" & ${newQueue.length - 1} upcoming tracks in Jam`);
+            } else {
+              jamManager.sendAddTrack(activePlaySong, true);
+              get().setToastMessage(`Playing "${activePlaySong.title}" in Jam Party`);
+            }
             return;
           }
         } catch {}

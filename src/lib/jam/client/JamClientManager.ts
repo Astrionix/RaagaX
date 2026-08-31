@@ -943,6 +943,10 @@ export class JamClientManager {
     return this.sendCommand('ADD_TRACK', { song, playNow });
   }
 
+  public async sendAddTracks(songs: Song[], playNow: boolean = false, startIndex: number = 0) {
+    return this.sendCommand('ADD_TRACKS', { songs, playNow, startIndex });
+  }
+
   public async sendRemoveTrack(queueItemId: string) {
     return this.sendCommand('REMOVE_TRACK', { queueItemId });
   }
