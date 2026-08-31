@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { AccountIsolationGuard } from '@/lib/auth/AccountIsolationGuard';
 
 interface LibraryMutation {
   id: string;
@@ -104,19 +105,6 @@ export class LibrarySyncManager {
     this.processMutationQueue();
   }
 
-  private cleanup() {
-    if (this.channel) {
-      this.channel.unsubscribe();
-      this.channel = null;
-    }
-    this.userId = null;
-    this.isInitializedForUserId = null;
-    this.inFlightReconcile = null;
-    this.mutationQueue = [];
-    this.localRevision = 0;
-    this.saveQueueToStorage();
-  }
-
   private async subscribeToChannel() {
     if (this.channel) {
       try { await supabase.removeChannel(this.channel); } catch (e) {}
@@ -197,7 +185,6 @@ export class LibrarySyncManager {
     if (!payload || payload.deviceId === this.deviceId) return; // Ignore our own broadcasts
 
     // ACCOUNT ISOLATION GUARD: Ensure payload belongs to active user
-    const { AccountIsolationGuard } = require('@/lib/auth/AccountIsolationGuard');
     if (!AccountIsolationGuard.getInstance().assertAccountIsolation(this.userId, 'LIBRARY_REALTIME_MUTATION')) {
       console.warn('[LibrarySync] Discarding remote mutation: user mismatch');
       return;
@@ -354,6 +341,7 @@ export class LibrarySyncManager {
     this.isInitializedForUserId = null;
     this.inFlightReconcile = null;
     this.mutationQueue = [];
+    this.localRevision = 0;
     if (typeof localStorage !== 'undefined') {
       try {
         localStorage.removeItem('raagax_library_mutation_queue');
