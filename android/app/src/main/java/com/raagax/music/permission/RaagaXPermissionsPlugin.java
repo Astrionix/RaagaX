@@ -28,6 +28,26 @@ public class RaagaXPermissionsPlugin extends Plugin {
         result.put("notifications",    status.notifications);
         result.put("bluetoothConnect", status.bluetoothConnect);
         result.put("bluetoothScan",    status.bluetoothScan);
+        result.put("camera",           status.camera);
+        call.resolve(result);
+    }
+
+    @PluginMethod
+    public void requestCamera(PluginCall call) {
+        boolean alreadyGranted = PermissionManager.getInstance()
+                .hasCameraPermission(getContext());
+
+        if (alreadyGranted) {
+            JSObject result = new JSObject();
+            result.put("granted", true);
+            call.resolve(result);
+            return;
+        }
+
+        PermissionManager.getInstance().requestCameraPermission(getActivity());
+
+        JSObject result = new JSObject();
+        result.put("granted", false);
         call.resolve(result);
     }
 

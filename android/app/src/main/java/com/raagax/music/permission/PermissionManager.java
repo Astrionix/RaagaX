@@ -29,6 +29,7 @@ public class PermissionManager {
 
     public static final int REQUEST_CODE_NOTIFICATIONS = 1001;
     public static final int REQUEST_CODE_BLUETOOTH     = 1002;
+    public static final int REQUEST_CODE_CAMERA        = 1003;
 
     private PermissionManager() {}
 
@@ -37,6 +38,31 @@ public class PermissionManager {
             instance = new PermissionManager();
         }
         return instance;
+    }
+
+    // ── Camera Permission (For Jam QR Scanning) ────────────────────────────────
+
+    /**
+     * Returns true if CAMERA is granted.
+     */
+    public boolean hasCameraPermission(Context context) {
+        return ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /**
+     * Request CAMERA permission.
+     * Call this when the user opens the Jam QR scanner.
+     */
+    public void requestCameraPermission(Activity activity) {
+        if (hasCameraPermission(activity)) return;
+
+        Log.d(TAG, "Requesting CAMERA permission");
+        ActivityCompat.requestPermissions(
+                activity,
+                new String[]{Manifest.permission.CAMERA},
+                REQUEST_CODE_CAMERA
+        );
     }
 
     // ── Notification Permission ───────────────────────────────────────────────
@@ -123,7 +149,8 @@ public class PermissionManager {
         return new PermissionStatus(
                 hasNotificationPermission(context),
                 hasBluetoothConnectPermission(context),
-                hasBluetoothScanPermission(context)
+                hasBluetoothScanPermission(context),
+                hasCameraPermission(context)
         );
     }
 
@@ -131,11 +158,13 @@ public class PermissionManager {
         public final boolean notifications;
         public final boolean bluetoothConnect;
         public final boolean bluetoothScan;
+        public final boolean camera;
 
-        PermissionStatus(boolean notifications, boolean bluetoothConnect, boolean bluetoothScan) {
+        PermissionStatus(boolean notifications, boolean bluetoothConnect, boolean bluetoothScan, boolean camera) {
             this.notifications     = notifications;
             this.bluetoothConnect  = bluetoothConnect;
             this.bluetoothScan     = bluetoothScan;
+            this.camera            = camera;
         }
     }
 }

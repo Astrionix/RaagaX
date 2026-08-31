@@ -3,6 +3,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Camera, X, RefreshCw, Zap, ZapOff, AlertCircle, CheckCircle2, SwitchCamera } from 'lucide-react';
 import jsQR from 'jsqr';
+import { RaagaXPermissions } from '@/lib/playback/native/RaagaXPermissions';
 
 interface JamCameraScannerProps {
   isOpen: boolean;
@@ -50,12 +51,12 @@ export function JamCameraScanner({ isOpen, onClose, onScanSuccess }: JamCameraSc
       if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
         const url = new URL(trimmed);
         const jamParam = url.searchParams.get('jam') || url.searchParams.get('code');
-        if (jamParam) return jamParam;
+        if (jamParam) return jamParam.trim();
 
         const pathParts = url.pathname.split('/').filter(Boolean);
         const jamIndex = pathParts.indexOf('jam');
         if (jamIndex !== -1 && pathParts[jamIndex + 1]) {
-          return pathParts[jamIndex + 1];
+          return pathParts[jamIndex + 1].trim();
         }
       }
     } catch {}
@@ -69,6 +70,15 @@ export function JamCameraScanner({ isOpen, onClose, onScanSuccess }: JamCameraSc
     setErrorMessage(null);
     setIsSuccess(false);
 
+    // Request native Android permission if in Capacitor environment
+    if (RaagaXPermissions.isNative()) {
+      try {
+        await RaagaXPermissions.requestCameraPermission();
+      } catch (e) {
+        console.warn('[JamCameraScanner] Native permission request exception:', e);
+      }
+    }
+
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
       setHasPermission(false);
       setErrorMessage('Camera access is not supported on this browser or device.');
@@ -76,16 +86,26 @@ export function JamCameraScanner({ isOpen, onClose, onScanSuccess }: JamCameraSc
     }
 
     try {
-      const constraints: MediaStreamConstraints = {
-        video: {
-          facingMode: { ideal: facingMode },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-        audio: false,
-      };
+      let stream: MediaStream;
+      try {
+        // Try ideal resolution with chosen facingMode
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        });
+      } catch (constraintErr) {
+        console.warn('[JamCameraScanner] High-res constraints failed, falling back to basic video:', constraintErr);
+        // Fallback to basic video constraint
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facingMode },
+          audio: false,
+        });
+      }
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
       setHasPermission(true);
 
@@ -99,6 +119,7 @@ export function JamCameraScanner({ isOpen, onClose, onScanSuccess }: JamCameraSc
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.setAttribute('playsinline', 'true');
+        videoRef.current.setAttribute('webkit-playsinline', 'true');
         await videoRef.current.play();
         isScanningRef.current = true;
         scanLoop();
@@ -107,7 +128,7 @@ export function JamCameraScanner({ isOpen, onClose, onScanSuccess }: JamCameraSc
       console.warn('[JamCameraScanner] Camera access failed:', err);
       setHasPermission(false);
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setErrorMessage('Camera permission was denied. Please allow camera access in browser settings.');
+        setErrorMessage('Camera permission was denied. Please allow camera access in App Settings.');
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
         setErrorMessage('No camera found on this device.');
       } else {
@@ -151,7 +172,7 @@ export function JamCameraScanner({ isOpen, onClose, onScanSuccess }: JamCameraSc
     setTimeout(() => {
       stopCamera();
       onScanSuccess(cleanResult);
-    }, 450);
+    }, 400);
   };
 
   const scanLoop = () => {
@@ -163,15 +184,18 @@ export function JamCameraScanner({ isOpen, onClose, onScanSuccess }: JamCameraSc
     if (video && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && canvas) {
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (ctx) {
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 480;
+        // Optimize canvas resolution for fast decoding
+        const width = video.videoWidth || 640;
+        const height = video.videoHeight || 480;
+        canvas.width = width;
+        canvas.height = height;
 
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(video, 0, 0, width, height);
+        const imageData = ctx.getImageData(0, 0, width, height);
 
-        // Scan via jsQR
+        // Scan via jsQR (attemptBoth for maximum detection speed)
         const code = jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: 'dontInvert',
+          inversionAttempts: 'attemptBoth',
         });
 
         if (code && code.data && code.data.trim()) {

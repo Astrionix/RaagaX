@@ -31,12 +31,14 @@ export type PermissionState = 'granted' | 'denied' | 'not_requested';
 export interface PermissionStore {
   notification: PermissionState;
   bluetooth: PermissionState;
+  camera?: PermissionState;
   setupCompleted: boolean;
 }
 
 const DEFAULT_STORE: PermissionStore = {
   notification: 'not_requested',
   bluetooth: 'not_requested',
+  camera: 'not_requested',
   setupCompleted: false,
 };
 
@@ -178,6 +180,24 @@ export const RaagaXPermissions = {
   },
 
   /**
+   * Request Camera permission — ONLY when user opens QR code scanner.
+   */
+  async requestCameraPermission(): Promise<PermissionState> {
+    const plugin = getPermPlugin();
+    if (plugin && typeof plugin.requestCamera === 'function') {
+      try {
+        const res = await plugin.requestCamera();
+        if (res?.granted) return 'granted';
+        const status = await plugin.getStatus();
+        return status?.camera ? 'granted' : 'denied';
+      } catch (err) {
+        console.warn('[RaagaXPermissions] requestCamera error:', err);
+      }
+    }
+    return 'granted';
+  },
+
+  /**
    * Sync the real OS permission state into the store.
    * Call on app resume to detect if user changed permissions in Settings.
    */
@@ -190,6 +210,9 @@ export const RaagaXPermissions = {
       const store = loadStore();
       store.notification = status?.notifications ? 'granted' : store.notification === 'not_requested' ? 'not_requested' : 'denied';
       store.bluetooth = (status?.bluetoothConnect && status?.bluetoothScan) ? 'granted' : store.bluetooth === 'not_requested' ? 'not_requested' : 'denied';
+      if (typeof status?.camera === 'boolean') {
+        store.camera = status.camera ? 'granted' : store.camera === 'not_requested' ? 'not_requested' : 'denied';
+      }
       saveStore(store);
     } catch {}
   },
