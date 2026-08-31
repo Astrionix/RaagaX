@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Activity,
   Clock,
@@ -23,11 +23,29 @@ interface JamSyncBadgeProps {
   showLabel?: boolean;
   className?: string;
   size?: 'sm' | 'md';
+  placement?: 'down' | 'up';
 }
 
-export function JamSyncBadge({ showLabel = true, className = '', size = 'md' }: JamSyncBadgeProps) {
+export function JamSyncBadge({
+  showLabel = true,
+  className = '',
+  size = 'md',
+  placement = 'down',
+}: JamSyncBadgeProps) {
   const { session, isInJam, diagnostics, participantState } = useJamStore();
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showDiagnostics) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowDiagnostics(false);
+      }
+    };
+    window.addEventListener('pointerdown', handleClickOutside);
+    return () => window.removeEventListener('pointerdown', handleClickOutside);
+  }, [showDiagnostics]);
 
   if (!isInJam || !session) return null;
 
@@ -70,8 +88,12 @@ export function JamSyncBadge({ showLabel = true, className = '', size = 'md' }: 
   const platform = diagnostics.platform ? diagnostics.platform.toUpperCase() : 'WEB';
   const transport = diagnostics.transportLabel || (diagnostics.transport === 'LAN' ? 'LOCAL LAN' : 'LOCAL LAN / CLOUD RELAY');
 
+  const positionClasses = placement === 'up'
+    ? 'fixed md:absolute bottom-16 md:bottom-full mb-2 left-1/2 -translate-x-1/2'
+    : 'fixed md:absolute top-20 md:top-full md:mt-2 left-1/2 md:left-0 -translate-x-1/2 md:translate-x-0';
+
   return (
-    <div className="relative inline-flex items-center">
+    <div ref={containerRef} className="relative inline-flex items-center">
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -88,7 +110,7 @@ export function JamSyncBadge({ showLabel = true, className = '', size = 'md' }: 
       {showDiagnostics && (
         <div
           onClick={(e) => e.stopPropagation()}
-          className="fixed md:absolute bottom-16 md:bottom-full mb-2 left-1/2 -translate-x-1/2 z-[150] w-84 max-w-[94vw] p-3.5 bg-[#0e1017]/95 backdrop-blur-2xl border border-white/15 rounded-2xl shadow-[0_16px_50px_rgba(0,0,0,0.85)] text-white text-xs select-none animate-in fade-in zoom-in-95 duration-150 max-h-[82vh] overflow-y-auto"
+          className={`${positionClasses} z-[150] w-84 max-w-[94vw] p-3.5 bg-[#0e1017]/95 backdrop-blur-2xl border border-white/15 rounded-2xl shadow-[0_16px_50px_rgba(0,0,0,0.85)] text-white text-xs select-none animate-in fade-in zoom-in-95 duration-150 max-h-[75vh] overflow-y-auto`}
         >
           {/* Header */}
           <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-white/10">
