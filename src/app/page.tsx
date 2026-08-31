@@ -35,6 +35,7 @@ import { JamShareModal } from '@/components/jam/JamShareModal';
 import { AddToJamModal } from '@/components/jam/AddToJamModal';
 import { JoinJamModal } from '@/components/jam/JoinJamModal';
 import { JamDevSyncPanel } from '@/components/jam/JamDevSyncPanel';
+import { ConnectDeviceModal } from '@/components/connect/ConnectDeviceModal';
 
 import { Toast } from '@/components/ui/Toast';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
@@ -330,6 +331,11 @@ export default function Page() {
       </ErrorBoundary>
       <ErrorBoundary name="UpdateModal">
         <UpdateModal />
+      </ErrorBoundary>
+
+      {/* ── RaagaX Connect (Spotify Connect Style Remote Control & Device Switcher) ── */}
+      <ErrorBoundary name="ConnectDeviceModal">
+        <ConnectDeviceModal />
       </ErrorBoundary>
 
       {/* ── Remote Jam Party Modals ── */}

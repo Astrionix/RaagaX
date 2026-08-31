@@ -3,6 +3,7 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { PlaybackEngine } from '@/lib/playback/PlaybackEngine';
 import { SeekLock } from '@/lib/playback/SeekLock';
 import { JamClientManager } from '@/lib/jam/client/JamClientManager';
+import { ConnectClientManager } from '@/lib/connect/ConnectClientManager';
 
 export function SeekBar({
   className = '',
@@ -44,11 +45,14 @@ export function SeekBar({
 
     const tick = () => {
       if (!isSeeking && !isSeekSettling && effectiveDuration > 0) {
+        const connectClient = ConnectClientManager.getInstance();
         const jamManager = JamClientManager.getInstance();
         const jamSession = jamManager.getActiveSession();
         let liveSec: number;
 
-        if (jamSession) {
+        if (connectClient.isRemoteMode()) {
+          liveSec = connectClient.getInterpolatedPosition();
+        } else if (jamSession) {
           liveSec = jamManager.getInterpolatedPosition();
         } else {
           const store = usePlayerStore.getState();
@@ -145,9 +149,13 @@ export function SeekBar({
       // updates for 800ms after release so ExoPlayer can confirm the seek
       SeekLock.endSeeking(800);
 
+      const connectClient = ConnectClientManager.getInstance();
       const jamManager = JamClientManager.getInstance();
       const jamSession = jamManager.getActiveSession();
-      if (jamSession) {
+
+      if (connectClient.isRemoteMode()) {
+        connectClient.sendCommand('SEEK', { positionMs: Math.round(newTime * 1000) });
+      } else if (jamSession) {
         jamManager.sendSeek(Math.round(newTime * 1000));
       } else {
         setCurrentTime(newTime);

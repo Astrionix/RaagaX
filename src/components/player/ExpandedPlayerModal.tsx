@@ -55,6 +55,8 @@ import { LiquidGlass } from '@/components/common/LiquidGlass';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 import { AlbumCatalogEngine } from '@/lib/albumCatalog';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
+import { ConnectButton } from '@/components/connect/ConnectButton';
+import { useConnectStore } from '@/context/useConnectStore';
 
 export function ExpandedPlayerModal() {
   const { playlists, addSongToPlaylist } = usePlaylistStore();
@@ -124,8 +126,19 @@ export function ExpandedPlayerModal() {
   } = usePlayerStore();
 
   const { session, isInJam } = useJamStore();
-  const currentSong = (isInJam && session?.currentSong) ? session.currentSong : localCurrentSong;
-  const isPlaying = (isInJam && session) ? session.state === 'PLAYING' : localIsPlaying;
+  const { isRemoteMode, remoteSession, sendPlay, sendPause, sendNext, sendPrev } = useConnectStore();
+
+  const currentSong = (isRemoteMode && remoteSession?.currentSong)
+    ? remoteSession.currentSong
+    : (isInJam && session?.currentSong)
+    ? session.currentSong
+    : localCurrentSong;
+
+  const isPlaying = (isRemoteMode && remoteSession)
+    ? remoteSession.isPlaying
+    : (isInJam && session)
+    ? session.state === 'PLAYING'
+    : localIsPlaying;
 
   // Gesture handling for swipe-down to minimize on touch devices
   const touchStartY = useRef<number | null>(null);
@@ -1041,6 +1054,12 @@ export function ExpandedPlayerModal() {
                     <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping" />
                   )}
                 </button>
+
+                {/* RaagaX Connect: Remote Device Control & Switcher */}
+                <ConnectButton
+                  showLabel={true}
+                  className="px-3.5 sm:px-4 py-1.5 border border-white/10 bg-white/[0.06] hover:bg-white/[0.12] text-xs font-semibold"
+                />
               </div>
             </div>
 

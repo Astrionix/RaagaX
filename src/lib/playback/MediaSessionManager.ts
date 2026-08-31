@@ -15,6 +15,7 @@ export class MediaSessionManager {
   private static instance: MediaSessionManager;
   private lastPositionUpdate = 0;
   private lastPositionValue = -1;
+  private isRemoteBindingActive = false;
 
   private constructor() {}
 
@@ -50,12 +51,14 @@ export class MediaSessionManager {
   /**
    * Formats and publishes authoritative track metadata to Android MediaSession.
    */
-  public updateSongMetadata(song: Song, options?: { isOffline?: boolean; downloadText?: string }): void {
+  public updateSongMetadata(song: Song, options?: { isOffline?: boolean; downloadText?: string; remoteSpeakerName?: string }): void {
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
 
     try {
       let displayTitle = song.title || 'Unknown Title';
-      if (options?.isOffline) {
+      if (options?.remoteSpeakerName) {
+        displayTitle = `🔊 ${options.remoteSpeakerName}: ${displayTitle}`;
+      } else if (options?.isOffline) {
         displayTitle = `✓ ${displayTitle}`;
       } else if (options?.downloadText) {
         displayTitle = `${displayTitle} (${options.downloadText})`;
@@ -76,6 +79,49 @@ export class MediaSessionManager {
     } catch (e) {
       console.warn('[MediaSessionManager] Failed to update track metadata:', e);
     }
+  }
+
+  /**
+   * Bind OS lockscreen and notification media keys to Remote Controller RPCs
+   */
+  public setupRemoteMediaHandlers(): void {
+    if (this.isRemoteBindingActive) return;
+    this.isRemoteBindingActive = true;
+
+    this.setActionHandlers({
+      onPlay: () => {
+        import('@/lib/connect/ConnectClientManager').then(({ ConnectClientManager }) => {
+          ConnectClientManager.getInstance().sendCommand('RESUME');
+        });
+      },
+      onPause: () => {
+        import('@/lib/connect/ConnectClientManager').then(({ ConnectClientManager }) => {
+          ConnectClientManager.getInstance().sendCommand('PAUSE');
+        });
+      },
+      onNext: () => {
+        import('@/lib/connect/ConnectClientManager').then(({ ConnectClientManager }) => {
+          ConnectClientManager.getInstance().sendCommand('SKIP_NEXT');
+        });
+      },
+      onPrev: () => {
+        import('@/lib/connect/ConnectClientManager').then(({ ConnectClientManager }) => {
+          ConnectClientManager.getInstance().sendCommand('SKIP_PREV');
+        });
+      },
+      onSeek: (time: number) => {
+        import('@/lib/connect/ConnectClientManager').then(({ ConnectClientManager }) => {
+          ConnectClientManager.getInstance().sendCommand('SEEK', { positionMs: Math.round(time * 1000) });
+        });
+      },
+    });
+  }
+
+  public restoreLocalMediaHandlers(): void {
+    this.isRemoteBindingActive = false;
+    import('./PlaybackService').then(({ PlaybackService }) => {
+      PlaybackService.getInstance().setupMediaSessionHandlers();
+    });
   }
 
   public updateMetadata(metadata: MediaMetadataInit): void {
@@ -102,18 +148,16 @@ export class MediaSessionManager {
     }
   }
 
-  /**
-   * Throttled position updater to keep Android notification progress bar synced smoothly.
-   */
   public setPositionState(state: { duration: number; playbackRate?: number; position: number }): void {
-    if (typeof navigator === 'undefined' || !('mediaSession' in navigator) || typeof navigator.mediaSession.setPositionState !== 'function') {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) {
       return;
     }
 
     try {
-      const now = Date.now();
-      // Throttle updates to at most once per 400ms unless seeking
-      if (Math.abs(state.position - this.lastPositionValue) < 0.5 && now - this.lastPositionUpdate < 400) {
+      const now = performance.now();
+      // Throttle rapid updates — maximum 1 update per 250ms unless seek step is > 1.5s
+      const isLargeJump = Math.abs(state.position - this.lastPositionValue) > 1.5;
+      if (now - this.lastPositionUpdate < 250 && !isLargeJump) {
         return;
       }
 

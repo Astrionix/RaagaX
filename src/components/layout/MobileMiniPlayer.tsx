@@ -4,6 +4,7 @@ import React, { useRef, useState } from 'react';
 import { Play, Pause, SkipForward, SkipBack, Heart, MoreVertical, Disc3, Headphones, MonitorSmartphone, Radio } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useJamStore } from '@/context/useJamStore';
+import { useConnectStore } from '@/context/useConnectStore';
 import { SeekBar } from '@/components/player/SeekBar';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 
@@ -67,8 +68,19 @@ export function MobileMiniPlayer() {
   } = usePlayerStore();
 
   const { session, isInJam } = useJamStore();
-  const currentSong = (isInJam && session?.currentSong) ? session.currentSong : localCurrentSong;
-  const isPlaying = (isInJam && session) ? session.state === 'PLAYING' : localIsPlaying;
+  const { isRemoteMode, activePlaybackDevice, remoteSession, sendPlay, sendPause, sendNext, sendPrev } = useConnectStore();
+
+  const currentSong = (isRemoteMode && remoteSession?.currentSong)
+    ? remoteSession.currentSong
+    : (isInJam && session?.currentSong)
+    ? session.currentSong
+    : localCurrentSong;
+
+  const isPlaying = (isRemoteMode && remoteSession)
+    ? remoteSession.isPlaying
+    : (isInJam && session)
+    ? session.state === 'PLAYING'
+    : localIsPlaying;
 
   if (!mounted || !currentSong) return null;
 
@@ -213,7 +225,14 @@ export function MobileMiniPlayer() {
               </h4>
               {!isScrolled && (
                 <p className="text-[11px] text-[var(--text-secondary)] truncate leading-tight flex items-center gap-1 mt-0.5 animate-in fade-in duration-200">
-                  <span>{currentSong.artist}</span>
+                  {isRemoteMode ? (
+                    <span className="text-emerald-400 font-semibold flex items-center gap-1 truncate">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+                      <span className="truncate">🔊 {activePlaybackDevice?.deviceName || 'Speaker'}: {currentSong.artist}</span>
+                    </span>
+                  ) : (
+                    <span>{currentSong.artist}</span>
+                  )}
                 </p>
               )}
             </div>
@@ -263,6 +282,14 @@ export function MobileMiniPlayer() {
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                if (isRemoteMode) {
+                  if (isPlaying) {
+                    sendPause();
+                  } else {
+                    sendPlay();
+                  }
+                  return;
+                }
                 togglePlayPause();
               }}
               aria-label={isPlaying ? 'Pause' : 'Play'}
@@ -280,6 +307,10 @@ export function MobileMiniPlayer() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
+                  if (isRemoteMode) {
+                    sendNext();
+                    return;
+                  }
                   playNext();
                 }}
                 aria-label="Next track"

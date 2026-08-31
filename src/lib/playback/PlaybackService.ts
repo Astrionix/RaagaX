@@ -129,6 +129,14 @@ export class PlaybackService {
       const store = usePlayerStore.getState();
 
       if (store.isPlaying && store.playbackIntent === 'PLAYING' && active.paused && !active.ended && !this.isTransitioning) {
+        // CONNECT SAFETY: Do NOT recover playback if this device is acting as a remote controller
+        try {
+          const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
+          if (ConnectClientManager.getInstance().isRemoteMode()) {
+            return;
+          }
+        } catch {}
+
         if (active.readyState >= 2) {
           // WATCHDOG JAM SAFETY (Phase 4):
           // Do NOT recover playback if the Jam session is in a transient lifecycle state.
@@ -486,6 +494,14 @@ export class PlaybackService {
   public async loadAudioSource(song: Song, requestId: number, autoPlay: boolean = true, initialPositionSec: number = 0): Promise<boolean> {
     if (!song) return false;
     if (requestId !== this.playbackRequestId) return false;
+
+    // CONNECT SAFETY: Do NOT load or play local audio on a remote controller device
+    try {
+      const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
+      if (ConnectClientManager.getInstance().isRemoteMode()) {
+        return false;
+      }
+    } catch {}
 
     const store = usePlayerStore.getState();
     this.isTransitioning = true;
@@ -854,6 +870,14 @@ export class PlaybackService {
   }
 
   public play() {
+    // CONNECT SAFETY: Do NOT play local audio if this device is acting as a remote controller
+    try {
+      const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
+      if (ConnectClientManager.getInstance().isRemoteMode()) {
+        return;
+      }
+    } catch {}
+
     if (RaagaXNativePlayer.isNative()) {
       RaagaXNativePlayer.resume();
       this.notifyStorePlaying(true);

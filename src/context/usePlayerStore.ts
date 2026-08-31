@@ -965,6 +965,60 @@ export const usePlayerStore = create<PlayerState>()(
       switchTrack: async (track: Song, index: number, autoPlay: boolean = true) => {
         if (!track) return false;
 
+        // RaagaX Connect: If in Remote Controller mode in browser, dispatch command to the playback device
+        if (typeof window !== 'undefined') {
+          try {
+            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
+            const { useConnectStore } = await import('@/context/useConnectStore');
+            const connectClient = ConnectClientManager.getInstance();
+            if (connectClient.isRemoteMode()) {
+              console.log(`[CONNECT_CONTROLLER_SWITCH_TRACK] Forwarding "${track.title}" to target playback device`);
+              const resolvedCover = JioSaavnMediaPipeline.getInstance().resolveSongArtwork({
+                songCoverUrl: track.songCoverUrl,
+                albumCoverUrl: track.albumCoverUrl,
+                coverUrl: track.coverUrl,
+              }) || (JioSaavnMediaPipeline.getInstance().isDirectSongOrAlbumArtwork(track.coverUrl) ? SongCoverEngine.getInstance().formatRawCoverUrl(track.coverUrl) : '/app-icon.png');
+
+              const formattedTrack = SongFormatter.formatSong({
+                ...track,
+                coverUrl: resolvedCover,
+              });
+
+              useConnectStore.setState((prev) => ({
+                remoteSession: prev.remoteSession ? {
+                  ...prev.remoteSession,
+                  currentTrackId: formattedTrack.id,
+                  currentSong: formattedTrack,
+                  queue: get().queue.length > 0 ? get().queue : [formattedTrack],
+                  queueIndex: index,
+                  isPlaying: autoPlay,
+                  positionMs: 0,
+                  anchorPositionMs: 0,
+                  anchorTimeMs: Date.now(),
+                } : null,
+              }));
+
+              set({
+                currentSong: formattedTrack,
+                queueIndex: index,
+                isPlaying: autoPlay,
+                playbackIntent: autoPlay ? 'PLAYING' : 'PAUSED',
+                currentTime: 0,
+                duration: formattedTrack.duration || 0,
+              });
+
+              await connectClient.sendCommand('TRANSFER_PLAYBACK', {
+                song: formattedTrack,
+                queue: get().queue.length > 0 ? get().queue : [formattedTrack],
+                queueIndex: index,
+                isPlaying: autoPlay,
+                positionMs: 0,
+              });
+              return true;
+            }
+          } catch {}
+        }
+
         const oldSong = get().currentSong;
         const oldIndex = get().queueIndex;
 
@@ -1378,6 +1432,18 @@ export const usePlayerStore = create<PlayerState>()(
         //   If auto-next on a non-host participant, we MUST wait for the host's authoritative
         //   TRACK_CHANGED broadcast — otherwise both host and participant fire SKIP_NEXT simultaneously.
         // This is the AUTO_NEXT SINGLE OWNER guarantee (Phase 6).
+        // RaagaX Connect: If in Remote Controller mode in browser, dispatch SKIP_NEXT
+        if (typeof window !== 'undefined') {
+          try {
+            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
+            const connectClient = ConnectClientManager.getInstance();
+            if (connectClient.isRemoteMode()) {
+              await connectClient.sendCommand('SKIP_NEXT');
+              return;
+            }
+          } catch {}
+        }
+
         try {
           const jamManager = JamClientManager.getInstance();
           const jamSession = jamManager.getActiveSession();
@@ -1435,6 +1501,22 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       playPrev: async () => {
+        // RaagaX Connect: If in Remote Controller mode in browser, dispatch SKIP_PREV / SEEK(0)
+        if (typeof window !== 'undefined') {
+          try {
+            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
+            const connectClient = ConnectClientManager.getInstance();
+            if (connectClient.isRemoteMode()) {
+              if (get().currentTime > 3) {
+                await connectClient.sendCommand('SEEK', { positionMs: 0 });
+              } else {
+                await connectClient.sendCommand('SKIP_PREV');
+              }
+              return;
+            }
+          } catch {}
+        }
+
         // If in Jam: host or participants with canSkip permission are authorized to issue SKIP_PREV.
         try {
           const jamManager = JamClientManager.getInstance();

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useJamStore } from '@/context/useJamStore';
+import { useConnectStore } from '@/context/useConnectStore';
 import { ActiveTab } from '@/types/music';
 import { SeekBar } from '@/components/player/SeekBar';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
@@ -32,11 +33,23 @@ export function MobileBottomController() {
     playNext,
     playPrev,
     togglePlayerExpanded,
+    isPlayerExpanded,
   } = usePlayerStore();
 
   const { session, isInJam } = useJamStore();
-  const currentSong = (isInJam && session?.currentSong) ? session.currentSong : localCurrentSong;
-  const isPlaying = (isInJam && session) ? session.state === 'PLAYING' : localIsPlaying;
+  const { isRemoteMode, activePlaybackDevice, remoteSession, sendPlay, sendPause, sendNext, sendPrev } = useConnectStore();
+
+  const currentSong = (isRemoteMode && remoteSession?.currentSong)
+    ? remoteSession.currentSong
+    : (isInJam && session?.currentSong)
+    ? session.currentSong
+    : localCurrentSong;
+
+  const isPlaying = (isRemoteMode && remoteSession)
+    ? remoteSession.isPlaying
+    : (isInJam && session)
+    ? session.state === 'PLAYING'
+    : localIsPlaying;
 
   useEffect(() => {
     setMounted(true);
@@ -76,10 +89,18 @@ export function MobileBottomController() {
       togglePlayerExpanded();
     } else if (diffX < -45 && Math.abs(diffX) > Math.abs(diffY)) {
       haptics.lightImpact();
-      playNext();
+      if (isRemoteMode) {
+        sendNext();
+      } else {
+        playNext();
+      }
     } else if (diffX > 45 && Math.abs(diffX) > Math.abs(diffY)) {
       haptics.lightImpact();
-      playPrev();
+      if (isRemoteMode) {
+        sendPrev();
+      } else {
+        playPrev();
+      }
     }
 
     touchStartX.current = null;
@@ -88,33 +109,40 @@ export function MobileBottomController() {
 
   if (!mounted) return null;
 
-  const coverUrl = currentSong?.coverUrl && !currentSong.coverUrl.includes('/null/') && !currentSong.coverUrl.includes('null/null')
-    ? currentSong.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500')
+  const isPlayerFull = isPlayerExpanded;
+  const isPlayerSuppressed = isPlayerFull;
+
+  const rawCover = currentSong?.coverUrl;
+  const coverUrl = rawCover && !rawCover.includes('/null/') && !rawCover.includes('null/null')
+    ? rawCover.replace(/150x150|50x50/g, '500x500')
     : '/app-icon.png';
 
   return (
-    <div className="md:hidden fixed left-0 right-0 bottom-0 z-40 select-none pointer-events-auto">
-      {/* Continuous Edge-to-Edge Dark Glass Dock */}
-      <div className="relative w-full flex flex-col gap-0 bg-[#16161a]/96 backdrop-blur-2xl border-t border-white/[0.10] shadow-[0_-8px_32px_rgba(0,0,0,0.85)] pb-[env(safe-area-inset-bottom,0px)]">
-
-        {/* ── 1. MINI-PLAYER BAR (APPLE MUSIC STYLE) ─────────────────────────── */}
-        {currentSong && (
+    <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden pointer-events-none select-none flex flex-col items-center">
+      {/* ── 1. FLOATING MINI-PLAYER BAR (APPLE MUSIC PILL STYLE) ───────────── */}
+      <div className="w-full px-3 pb-2 flex justify-center pointer-events-auto">
+        {currentSong && !isPlayerSuppressed && (
           <div
-            className="relative h-[52px] px-3.5 flex items-center justify-between gap-3 border-b border-white/[0.08] cursor-pointer"
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
             onClick={() => {
-              haptics.mediumImpact();
+              haptics.lightImpact();
               togglePlayerExpanded();
             }}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            className="w-full max-w-[430px] h-[52px] rounded-[16px] bg-[#1C1C1E]/80 backdrop-blur-2xl border border-white/10 shadow-[0_12px_32px_rgba(0,0,0,0.7)] flex items-center justify-between px-3 cursor-pointer active:scale-[0.985] transition-all overflow-hidden relative"
           >
-            {/* Top Border Progress Indicator */}
-            <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden pointer-events-none z-20">
-              <SeekBar className="w-full h-full" height="h-[2px]" thumbSize="w-0 h-0" />
-            </div>
+            {/* Ambient Background Glow matching song cover art */}
+            <div
+              className="absolute -inset-1 opacity-25 blur-xl pointer-events-none"
+              style={{
+                backgroundImage: `url(${coverUrl})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+              }}
+            />
 
-            {/* Left: Album Cover + Track Title */}
-            <div className="flex items-center gap-3 min-w-0 flex-1">
+            {/* Left: Thumbnail & Title */}
+            <div className="flex items-center gap-3 min-w-0 flex-1 pr-2 z-10">
               <div className="relative w-[38px] h-[38px] rounded-md overflow-hidden bg-black/60 border border-white/10 flex-shrink-0 shadow-sm">
                 <OptimizedImage
                   src={coverUrl}
@@ -125,21 +153,31 @@ export function MobileBottomController() {
               </div>
 
               <div className="min-w-0 flex-1">
-                <h4 className="text-[14px] font-semibold text-white truncate leading-snug tracking-tight">
+                <h4 className="text-[13px] font-semibold text-white truncate leading-snug tracking-tight">
                   {currentSong.title}
                 </h4>
+                {isRemoteMode && (
+                  <p className="text-[10px] text-emerald-400 font-semibold truncate flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+                    <span className="truncate">🔊 {activePlaybackDevice?.deviceName || 'Speaker'}</span>
+                  </p>
+                )}
               </div>
             </div>
 
             {/* Right: Direct Solid White Action Icons (Play/Pause ▶ + FastForward ⏩) */}
             <div
-              className="flex items-center gap-4 flex-shrink-0 pr-1"
+              className="flex items-center gap-4 flex-shrink-0 pr-1 z-10"
               onClick={(e) => e.stopPropagation()}
             >
               <button
                 onClick={() => {
                   haptics.mediumImpact();
-                  togglePlayPause();
+                  if (isRemoteMode) {
+                    isPlaying ? sendPause() : sendPlay();
+                  } else {
+                    togglePlayPause();
+                  }
                 }}
                 aria-label={isPlaying ? 'Pause' : 'Play'}
                 className="w-9 h-9 flex items-center justify-center text-white active:scale-90 transition-transform cursor-pointer"
@@ -154,7 +192,11 @@ export function MobileBottomController() {
               <button
                 onClick={() => {
                   haptics.lightImpact();
-                  playNext();
+                  if (isRemoteMode) {
+                    sendNext();
+                  } else {
+                    playNext();
+                  }
                 }}
                 aria-label="Next track"
                 className="w-9 h-9 flex items-center justify-center text-white active:scale-90 transition-transform cursor-pointer"
