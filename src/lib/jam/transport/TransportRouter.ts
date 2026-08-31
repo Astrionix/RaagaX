@@ -193,22 +193,23 @@ export class TransportRouter {
     const lanHealth = this.lanTransport.getHealth();
     const now = Date.now();
 
-    // Anti-flapping hold time check
+    // Anti-flapping hold time check (strict 15s hold)
     const isHoldActive = this.lastFailoverAt !== null && (now - this.lastFailoverAt < TransportRouter.FLAPPING_HOLD_TIME_MS);
+    if (isHoldActive) return;
 
-    // 1. If active is LOCAL_LAN but LAN is failing/degraded -> Fallback to CLOUD
+    // 1. If active is LOCAL_LAN but LAN has sustained hard failure -> Fallback to CLOUD
     if (this.activeTransportType === 'LOCAL_LAN') {
-      if (lanHealth.state === 'FAILED' || lanHealth.failureCount >= TransportRouter.LAN_FAILURE_THRESHOLD || lanHealth.rttMs > 350) {
+      if (lanHealth.state === 'FAILED' && lanHealth.failureCount >= TransportRouter.LAN_FAILURE_THRESHOLD && !this.lanTransport.isConnected) {
         this.lanConsecutiveHealthyCount = 0;
-        this.executeFailover('CLOUD_REALTIME', `LAN degraded (failures: ${lanHealth.failureCount}, RTT: ${lanHealth.rttMs}ms)`);
+        this.executeFailover('CLOUD_REALTIME', `LAN sustained disconnection (${lanHealth.failureCount} hard failures)`);
       }
     }
-    // 2. If active is CLOUD_REALTIME but LAN has sustained recovery -> Promote to LOCAL_LAN
-    else if (this.activeTransportType === 'CLOUD_REALTIME' && !isHoldActive) {
-      if (this.lanTransport.isConnected && lanHealth.state === 'CONNECTED' && lanHealth.rttMedianMs < 100 && lanHealth.failureCount === 0) {
+    // 2. If active is CLOUD_REALTIME but LAN has rock-solid sustained recovery -> Promote to LOCAL_LAN
+    else if (this.activeTransportType === 'CLOUD_REALTIME') {
+      if (this.lanTransport.isConnected && lanHealth.state === 'CONNECTED' && lanHealth.rttMedianMs < 60 && lanHealth.failureCount === 0) {
         this.lanConsecutiveHealthyCount++;
         if (this.lanConsecutiveHealthyCount >= TransportRouter.LAN_RECOVERY_THRESHOLD) {
-          this.executeFailover('LOCAL_LAN', `LAN sustained healthy recovery (${this.lanConsecutiveHealthyCount} samples, RTT: ${lanHealth.rttMedianMs}ms)`);
+          this.executeFailover('LOCAL_LAN', `LAN sustained healthy recovery (${this.lanConsecutiveHealthyCount} consecutive samples, RTT: ${lanHealth.rttMedianMs}ms)`);
         }
       } else {
         this.lanConsecutiveHealthyCount = 0;

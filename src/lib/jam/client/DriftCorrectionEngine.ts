@@ -482,8 +482,14 @@ export class DriftCorrectionEngine {
       action = 'MODULATE_RATE';
       targetRate = driftMs < 0 ? 1.052 : 0.948;
       this.consecutiveLargeDriftCount = 0;
+    } else if (absDrift > 5000) {
+      // Safety Guard: Drift > 5s indicates timeline/anchor mismatch or stale state — NEVER blindly seek!
+      console.warn(`[TIMELINE_ANOMALY_SUPPRESSED] drift=${driftMs}ms timelineId=${session.timelineId} gen=${session.generation} — suppressing blind seek`);
+      action = 'NONE';
+      targetRate = 1.0;
+      this.consecutiveLargeDriftCount = 0;
     } else {
-      // Tier 4: Large Drift (> 500ms) -> Controlled seek with cooldown & persistence protection
+      // Tier 4: Controlled Drift (500ms - 5000ms) -> Controlled seek with cooldown protection
       this.consecutiveLargeDriftCount++;
       const now = Date.now();
       const isCooldownElapsed = now - this.lastHardSeekTimeMs >= DriftCorrectionEngine.HARD_SEEK_COOLDOWN_MS;
