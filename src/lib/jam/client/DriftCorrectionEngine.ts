@@ -5,6 +5,20 @@ import { PlaybackService } from '@/lib/playback/PlaybackService';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { RaagaXNativePlayer } from '@/lib/playback/native/RaagaXNativePlayer';
 
+export type DriftQualityState = 'SYNCED' | 'CORRECTING' | 'HIGH_DRIFT' | 'CRITICAL' | 'INVESTIGATION';
+export type DriftReadinessState = 'IDLE' | 'LOADING' | 'PREPARING' | 'BUFFERING' | 'SEEKING' | 'SCHEDULED' | 'STARTING' | 'PLAYING_CONFIRMED' | 'PAUSED';
+
+export interface CorrectionRecord {
+  correctionId: string;
+  timelineId: string;
+  generation: number;
+  targetPositionMs: number;
+  driftMs: number;
+  startTime: number;
+  action: 'RATE_MODULATION' | 'HARD_SEEK';
+  completionState: 'PENDING' | 'COMPLETED' | 'SUPERSEDED';
+}
+
 export interface DriftStatus {
   expectedPositionMs: number;
   actualLocalMs: number;
@@ -13,8 +27,12 @@ export interface DriftStatus {
   isWaitingForStart: boolean;
   leadTimeRemainingMs: number;
   correctionAction: 'NONE' | 'MODULATE_RATE' | 'HARD_SEEK' | 'WAITING_FOR_SCHEDULED_START';
+  qualityState: DriftQualityState;
+  readinessState: DriftReadinessState;
+  correctionId?: string;
   timelineId?: string;
   generation?: number;
+  revision?: number;
 }
 
 export type DriftListener = (status: DriftStatus) => void;
@@ -41,13 +59,14 @@ export class DriftCorrectionEngine {
   private static readonly HARD_SEEK_COOLDOWN_MS = 3500;
   private static readonly RATE_CHANGE_HOLD_MS = 800;
 
-  private readinessState: 'IDLE' | 'LOADING' | 'PREPARING' | 'SCHEDULED' | 'STARTING' | 'SEEKING' | 'STABILIZING' | 'STEADY_PLAYING' | 'PAUSED' = 'IDLE';
+  private readinessState: DriftReadinessState = 'IDLE';
+  private activeCorrection: CorrectionRecord | null = null;
 
   // STARTUP DRIFT GRACE (Phase 3 + Section 4):
   // After a session loads, resumes, or changes state, suppress drift evaluation
   // for a 3s window so the audio element has time to seek and start playing smoothly
   // before we start computing micro-drift. This prevents the audio element reporting
-  // currentTime=0 from ever triggering false 270s+ hard seeks.
+  // currentTime=0 from ever triggering false hard seeks.
   private lastSessionLoadTimeMs = 0;
   private static readonly STARTUP_GRACE_MS = 3000;
 
@@ -65,6 +84,14 @@ export class DriftCorrectionEngine {
 
   public getHardSeekCount(): number {
     return this.hardSeekCount;
+  }
+
+  public getReadinessState(): DriftReadinessState {
+    return this.readinessState;
+  }
+
+  public setReadinessState(state: DriftReadinessState) {
+    this.readinessState = state;
   }
 
   public setSession(session: JamSession | null) {
@@ -367,6 +394,8 @@ export class DriftCorrectionEngine {
         isWaitingForStart: false,
         leadTimeRemainingMs: 0,
         correctionAction: 'NONE',
+        qualityState: 'SYNCED',
+        readinessState: 'IDLE',
       };
     }
 
@@ -383,7 +412,8 @@ export class DriftCorrectionEngine {
       ? usePlayerStore.getState().currentTime * 1000
       : (activeAudio ? activeAudio.currentTime * 1000 : 0);
 
-    // Priority 17: During loading, buffering, seeking, or transitions, drift engine must not fight playback
+    // Section 2: Required States Guarding
+    // During LOADING, PREPARING, BUFFERING, SEEKING, SCHEDULED, STARTING, drift engine must not fight playback
     const storeState = usePlayerStore.getState();
     const isAudioBufferingOrSyncing = isNative
       ? (storeState.playbackIntent === 'PLAYING' && !storeState.isPlaying) || this.readinessState === 'SEEKING'
@@ -391,7 +421,27 @@ export class DriftCorrectionEngine {
         ? activeAudio.paused || activeAudio.seeking || (typeof activeAudio.readyState === 'number' && activeAudio.readyState < 2)
         : true);
 
-    if ((!activeAudio && !isNative) || session.state === 'PAUSED' || isWaitingForStart || isAudioBufferingOrSyncing) {
+    const timeSinceLoadMs = this.lastSessionLoadTimeMs > 0 ? Date.now() - this.lastSessionLoadTimeMs : Infinity;
+    const isAudioNearStart = actualLocalMs < 1000;
+    const isAudioNotYetPositioned = expectedPositionMs > 3000 && actualLocalMs < 1000 && timeSinceLoadMs < 3000;
+    const isInStartupGrace = timeSinceLoadMs < DriftCorrectionEngine.STARTUP_GRACE_MS && isAudioNearStart;
+
+    let currentReadiness: DriftReadinessState = 'PLAYING_CONFIRMED';
+    if (session.state === 'PAUSED') {
+      currentReadiness = 'PAUSED';
+    } else if (isWaitingForStart) {
+      currentReadiness = 'SCHEDULED';
+    } else if (isAudioBufferingOrSyncing) {
+      currentReadiness = (activeAudio?.seeking || this.readinessState === 'SEEKING') ? 'SEEKING' : 'BUFFERING';
+    } else if (isInStartupGrace || isAudioNotYetPositioned) {
+      currentReadiness = isAudioNotYetPositioned ? 'STARTING' : 'PREPARING';
+    } else {
+      currentReadiness = 'PLAYING_CONFIRMED';
+    }
+    this.readinessState = currentReadiness;
+
+    // If not in PLAYING_CONFIRMED state, do NOT run active correction
+    if (currentReadiness !== 'PLAYING_CONFIRMED' || (!activeAudio && !isNative)) {
       if (activeAudio && activeAudio.playbackRate !== 1.0) {
         activeAudio.playbackRate = 1.0;
         this.currentRate = 1.0;
@@ -406,91 +456,68 @@ export class DriftCorrectionEngine {
         isWaitingForStart,
         leadTimeRemainingMs,
         correctionAction: isWaitingForStart ? 'WAITING_FOR_SCHEDULED_START' : 'NONE',
+        qualityState: 'SYNCED',
+        readinessState: currentReadiness,
         timelineId: session.timelineId,
         generation: session.generation,
+        revision: session.revision,
       };
       this.notify(status);
       return status;
     }
 
-    const timeSinceLoadMs = this.lastSessionLoadTimeMs > 0 ? Date.now() - this.lastSessionLoadTimeMs : Infinity;
-    const isAudioNearStart = actualLocalMs < 1000;
-    const isAudioNotYetPositioned = expectedPositionMs > 3000 && actualLocalMs < 1000 && timeSinceLoadMs < 3000;
-    const isInStartupGrace = timeSinceLoadMs < DriftCorrectionEngine.STARTUP_GRACE_MS && isAudioNearStart;
-
-    if (isInStartupGrace || isAudioNotYetPositioned) {
-      if (isAudioNotYetPositioned) {
-        this.readinessState = 'STARTING';
-        // If audio is stalled at 0 after 600ms, nudge seek directly to expected position
-        if (timeSinceLoadMs > 600 && timeSinceLoadMs < 5000 && activeAudio && (activeAudio.readyState >= 1 || !activeAudio.seeking)) {
-          try {
-            activeAudio.currentTime = expectedPositionMs / 1000;
-            this.lastSessionLoadTimeMs = Date.now();
-          } catch {}
-        }
-      } else {
-        this.readinessState = 'STABILIZING';
-      }
-
-      if (activeAudio && activeAudio.playbackRate !== 1.0) {
-        activeAudio.playbackRate = 1.0;
-        this.currentRate = 1.0;
-      }
-      this.lastDriftMs = 0;
-      const status: DriftStatus = {
-        expectedPositionMs,
-        actualLocalMs,
-        driftMs: 0,
-        playbackRate: 1.0,
-        isWaitingForStart: false,
-        leadTimeRemainingMs: 0,
-        correctionAction: 'NONE',
-        timelineId: session.timelineId,
-        generation: session.generation,
-      };
-      this.notify(status);
-      return status;
-    }
-
-    this.readinessState = 'STEADY_PLAYING';
-
-    // Drift = actualLocal - expected (positive = local device is ahead, negative = behind)
+    // Section 1: Strict Drift Definition (driftMs = actualPlayerPositionMs - expectedTimelinePositionMs)
+    // NEVER fake, clamp, or hide measured drift
     const driftMs = Math.round(actualLocalMs - expectedPositionMs);
     this.lastDriftMs = driftMs;
 
     let targetRate = 1.0;
     let action: DriftStatus['correctionAction'] = 'NONE';
+    let qualityState: DriftQualityState = 'SYNCED';
+    let correctionId: string | undefined = undefined;
 
     const absDrift = Math.abs(driftMs);
 
-    // Diagnostic logging for investigation when drift exceeds 300ms
+    // Diagnostic logging when drift exceeds 300ms
     if (absDrift > 300) {
       this.logLargeDriftDiagnostic(session, expectedPositionMs, actualLocalMs, driftMs, activeAudio);
     }
 
-    if (absDrift <= 35) {
-      // Tier 1: In Sync (|drift| <= 35ms) -> Normal 1.0x
+    // Section 4 & 18: Progressive Correction Strategy & Quality States
+    if (absDrift < 30) {
+      // 0–30ms: SYNCED -> Target achieved, no correction
+      qualityState = 'SYNCED';
       targetRate = 1.0;
       action = 'NONE';
       this.consecutiveLargeDriftCount = 0;
-    } else if (absDrift <= 120) {
-      // Tier 2: Micro Drift (35ms - 120ms) -> Imperceptible rate nudge (0.982x / 1.018x)
+    } else if (absDrift < 100) {
+      // 30–100ms: CORRECTING -> Gentle playback-rate correction (0.982x / 1.018x)
+      qualityState = 'CORRECTING';
       action = 'MODULATE_RATE';
       targetRate = driftMs < 0 ? 1.018 : 0.982;
       this.consecutiveLargeDriftCount = 0;
-    } else if (absDrift <= 500) {
-      // Tier 3: Moderate Drift (120ms - 500ms) -> Firm rate nudge (0.948x / 1.052x)
+    } else if (absDrift < 300) {
+      // 100–300ms: HIGH DRIFT -> Stronger controlled rate correction (0.948x / 1.052x)
+      qualityState = 'HIGH_DRIFT';
       action = 'MODULATE_RATE';
       targetRate = driftMs < 0 ? 1.052 : 0.948;
       this.consecutiveLargeDriftCount = 0;
+    } else if (absDrift <= 500) {
+      // 300–500ms: CRITICAL -> Controlled convergence (0.925x / 1.075x)
+      qualityState = 'CRITICAL';
+      action = 'MODULATE_RATE';
+      targetRate = driftMs < 0 ? 1.075 : 0.925;
+      this.consecutiveLargeDriftCount = 0;
     } else if (absDrift > 5000) {
-      // Safety Guard: Drift > 5s indicates timeline/anchor mismatch or stale state — NEVER blindly seek!
+      // >5000ms: Timeline Anomaly Guard (suppress blind seek, investigate state)
+      qualityState = 'INVESTIGATION';
       console.warn(`[TIMELINE_ANOMALY_SUPPRESSED] drift=${driftMs}ms timelineId=${session.timelineId} gen=${session.generation} — suppressing blind seek`);
       action = 'NONE';
       targetRate = 1.0;
       this.consecutiveLargeDriftCount = 0;
     } else {
-      // Tier 4: Controlled Seek (500ms - 5000ms) -> Controlled seek with cooldown protection
+      // 500ms - 5000ms: INVESTIGATION -> Confirmed persistent drift triggers ONE controlled seek
+      qualityState = 'INVESTIGATION';
       this.consecutiveLargeDriftCount++;
       const now = Date.now();
       const isCooldownElapsed = now - this.lastHardSeekTimeMs >= DriftCorrectionEngine.HARD_SEEK_COOLDOWN_MS;
@@ -503,17 +530,29 @@ export class DriftCorrectionEngine {
         this.consecutiveLargeDriftCount = 0;
         this.readinessState = 'SEEKING';
 
+        correctionId = `corr_${now}_${Math.random().toString(36).slice(2, 7)}`;
+        this.activeCorrection = {
+          correctionId,
+          timelineId: session.timelineId || 'TL_1',
+          generation: session.generation ?? 1,
+          targetPositionMs: expectedPositionMs,
+          driftMs,
+          startTime: now,
+          action: 'HARD_SEEK',
+          completionState: 'PENDING',
+        };
+
         if (activeAudio) {
           activeAudio.currentTime = Math.max(0, expectedPositionMs / 1000);
         }
         if (isNative) {
           RaagaXNativePlayer.seekTo(Math.max(0, expectedPositionMs));
         }
-        console.log(`[PLAYBACK_EFFECT] action=SEEK reason=DRIFT_CORRECTION timelineId=${session.timelineId || 'TL_1'} driftMs=${driftMs} hardSeekCount=${this.hardSeekCount}`);
+        console.log(`[PLAYBACK_EFFECT] action=SEEK reason=DRIFT_CORRECTION timelineId=${session.timelineId || 'TL_1'} driftMs=${driftMs} hardSeekCount=${this.hardSeekCount} correctionId=${correctionId}`);
       } else {
-        // While waiting for cooldown/stability (avoiding rapid seek loop), apply firm rate nudge rather than rapid-seeking
+        // While waiting for cooldown/stability, apply firm rate nudge rather than rapid-seeking
         action = 'MODULATE_RATE';
-        targetRate = driftMs < 0 ? 1.052 : 0.948;
+        targetRate = driftMs < 0 ? 1.075 : 0.925;
       }
     }
 
@@ -539,8 +578,12 @@ export class DriftCorrectionEngine {
       isWaitingForStart: false,
       leadTimeRemainingMs: 0,
       correctionAction: action,
+      qualityState,
+      readinessState: this.readinessState,
+      correctionId,
       timelineId: session.timelineId,
       generation: session.generation,
+      revision: session.revision,
     };
 
     this.notify(status);

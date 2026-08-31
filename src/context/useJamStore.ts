@@ -385,6 +385,15 @@ export const useJamStore = create<JamState>((set, get) => {
       const startError = 4; // Sub-5ms OS scheduling accuracy
       const pb = PlaybackService.getInstance();
       const bufDiag = pb.getBufferDiagnostics();
+      const absDrift = Math.abs(drift);
+      let driftQualityState: 'SYNCED' | 'CORRECTING' | 'HIGH_DRIFT' | 'CRITICAL' | 'INVESTIGATION' = 'SYNCED';
+      if (absDrift < 30) driftQualityState = 'SYNCED';
+      else if (absDrift < 100) driftQualityState = 'CORRECTING';
+      else if (absDrift < 300) driftQualityState = 'HIGH_DRIFT';
+      else if (absDrift <= 500) driftQualityState = 'CRITICAL';
+      else driftQualityState = 'INVESTIGATION';
+
+      const driftReadinessState = DriftCorrectionEngine.getInstance().getReadinessState();
       const hardSeekCount = DriftCorrectionEngine.getInstance().getHardSeekCount();
       const bufferingCount = pb.getBufferingCount();
 
@@ -402,6 +411,8 @@ export const useJamStore = create<JamState>((set, get) => {
           packetLossPercent: activeHealth.packetLoss,
           connectionQuality: activeHealth.quality || netMetrics.quality,
           playbackDriftMs: drift,
+          driftQualityState,
+          driftReadinessState,
           serverTime: Date.now() + clock.offsetMs,
           localTime: Date.now(),
           revision: session?.revision || 0,
@@ -421,7 +432,7 @@ export const useJamStore = create<JamState>((set, get) => {
           deviceType,
           platform: caps.platform,
 
-          // Real Buffer & Stability Telemetry (Section 14)
+          // Real Buffer & Stability Telemetry (Section 14 & 18)
           bufferedAheadMs: bufDiag.bufferedAheadMs,
           audioReadyState: bufDiag.readyState,
           audioPaused: bufDiag.paused,

@@ -442,7 +442,9 @@ export interface JamSyncDiagnostics {
   deviceType?: 'desktop' | 'mobile' | 'tablet';
   platform?: string;
 
-  // Real Audio Buffer & Playback Health (Section 14)
+  // Real Audio Buffer & Playback Health (Section 14 & 18)
+  driftQualityState?: 'SYNCED' | 'CORRECTING' | 'HIGH_DRIFT' | 'CRITICAL' | 'INVESTIGATION';
+  driftReadinessState?: 'IDLE' | 'LOADING' | 'PREPARING' | 'BUFFERING' | 'SEEKING' | 'SCHEDULED' | 'STARTING' | 'PLAYING_CONFIRMED' | 'PAUSED';
   bufferedAheadMs?: number;
   audioReadyState?: number;
   audioPaused?: boolean;

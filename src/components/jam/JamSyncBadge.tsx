@@ -154,9 +154,30 @@ export function JamSyncBadge({
                   <span className="text-slate-400 flex items-center gap-1">
                     <Gauge className="w-3 h-3 text-cyan-400" /> Playback Drift
                   </span>
-                  <span className={`font-bold ${Math.abs(diagnostics.playbackDriftMs) <= 35 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                    {diagnostics.playbackDriftMs > 0 ? `+${diagnostics.playbackDriftMs}` : diagnostics.playbackDriftMs} ms
-                  </span>
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <span className={
+                      Math.abs(diagnostics.playbackDriftMs) < 30
+                        ? 'text-emerald-400'
+                        : Math.abs(diagnostics.playbackDriftMs) < 100
+                        ? 'text-cyan-400'
+                        : Math.abs(diagnostics.playbackDriftMs) < 300
+                        ? 'text-amber-400'
+                        : 'text-rose-400'
+                    }>
+                      {diagnostics.playbackDriftMs > 0 ? `+${diagnostics.playbackDriftMs}` : diagnostics.playbackDriftMs} ms
+                    </span>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold ${
+                      Math.abs(diagnostics.playbackDriftMs) < 30
+                        ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                        : Math.abs(diagnostics.playbackDriftMs) < 100
+                        ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30'
+                        : Math.abs(diagnostics.playbackDriftMs) < 300
+                        ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                        : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
+                    }`}>
+                      {diagnostics.driftQualityState || (Math.abs(diagnostics.playbackDriftMs) < 30 ? 'SYNCED' : 'CORRECTING')}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between py-0.5">
