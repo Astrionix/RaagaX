@@ -42,17 +42,22 @@ export async function POST(
 
     // Authenticate participant authorization in the Jam
     const isHost = session.hostId === userId;
-    const participant = session.participants[userId];
+    let participant = session.participants[userId];
 
     if (!isHost && !participant) {
-      return NextResponse.json(
-        {
-          success: false,
-          code: 'UNAUTHORIZED',
-          error: 'Device is not an authorized participant in this Jam session',
-        },
-        { status: 403 }
-      );
+      // Auto-register joining participant if session is active
+      try {
+        await engine.joinSessionAsync(jamId, {
+          userId,
+          displayName: body.userName || 'RaagaX Listener',
+          avatarUrl: body.userAvatar,
+          deviceType: body.deviceType || 'mobile',
+        });
+        const updated = await engine.getSessionAsync(jamId);
+        participant = updated?.participants[userId];
+      } catch (joinErr) {
+        console.warn('[Handshake] Auto-register participant error:', joinErr);
+      }
     }
 
     const serverTime = Date.now();

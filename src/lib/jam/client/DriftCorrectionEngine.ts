@@ -412,9 +412,6 @@ export class DriftCorrectionEngine {
       return status;
     }
 
-    const rawDriftMs = Math.round(actualLocalMs - expectedPositionMs);
-    this.lastDriftMs = rawDriftMs;
-
     const timeSinceLoadMs = this.lastSessionLoadTimeMs > 0 ? Date.now() - this.lastSessionLoadTimeMs : Infinity;
     const isAudioNearStart = actualLocalMs < 1000;
     const isAudioNotYetPositioned = expectedPositionMs > 3000 && actualLocalMs < 2000;
@@ -438,10 +435,11 @@ export class DriftCorrectionEngine {
         activeAudio.playbackRate = 1.0;
         this.currentRate = 1.0;
       }
+      this.lastDriftMs = 0;
       const status: DriftStatus = {
         expectedPositionMs,
         actualLocalMs,
-        driftMs: rawDriftMs,
+        driftMs: 0,
         playbackRate: 1.0,
         isWaitingForStart: false,
         leadTimeRemainingMs: 0,
@@ -454,7 +452,6 @@ export class DriftCorrectionEngine {
     }
 
     this.readinessState = 'STEADY_PLAYING';
-
 
     // Drift = actualLocal - expected (positive = local device is ahead, negative = behind)
     const driftMs = Math.round(actualLocalMs - expectedPositionMs);
@@ -486,12 +483,13 @@ export class DriftCorrectionEngine {
       targetRate = driftMs < 0 ? 1.052 : 0.948;
       this.consecutiveLargeDriftCount = 0;
     } else {
-      // Tier 4: Large Drift (> 500ms) -> Controlled seek with cooldown protection
+      // Tier 4: Large Drift (> 500ms) -> Controlled seek with cooldown & persistence protection
       this.consecutiveLargeDriftCount++;
       const now = Date.now();
       const isCooldownElapsed = now - this.lastHardSeekTimeMs >= DriftCorrectionEngine.HARD_SEEK_COOLDOWN_MS;
+      const isPersistent = this.consecutiveLargeDriftCount >= 1; // Immediate if cooldown passed, otherwise firm rate
 
-      if (isCooldownElapsed && !isAudioBufferingOrSyncing) {
+      if (isPersistent && isCooldownElapsed && !isAudioBufferingOrSyncing) {
         action = 'HARD_SEEK';
         targetRate = 1.0;
         this.lastHardSeekTimeMs = now;

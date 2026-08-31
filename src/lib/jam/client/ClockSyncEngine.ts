@@ -150,21 +150,23 @@ export class ClockSyncEngine {
   public processSamples(newSamples: ClockSample[]) {
     if (newSamples.length === 0) return;
 
-    // 1. Sort by RTT to find median
+    // 1. Sort by RTT (lowest latency = highest accuracy)
     const sorted = [...newSamples].sort((a, b) => a.rtt - b.rtt);
     const medianRtt = sorted[Math.floor(sorted.length / 2)].rtt;
 
-    // 2. Filter out noisy outliers with RTT > 1.8x median (or min 250ms threshold)
-    const validSamples = sorted.filter((s) => s.rtt <= Math.max(250, medianRtt * 1.8));
-    const effectiveSamples = validSamples.length > 0 ? validSamples : sorted.slice(0, 2);
+    // 2. Filter out noisy outliers with RTT > 1.4x median (or min 120ms threshold)
+    const validSamples = sorted.filter((s) => s.rtt <= Math.max(120, medianRtt * 1.4));
+    const candidateSamples = validSamples.length > 0 ? validSamples : sorted.slice(0, 2);
+    // Take the best 60% lowest-latency samples to eliminate asymmetric queuing delay
+    const effectiveSamples = candidateSamples.slice(0, Math.max(2, Math.ceil(candidateSamples.length * 0.6)));
 
-    // 3. Compute weighted offset: samples with lower RTT get exponentially higher weight
+    // 3. Compute quadratic-weighted offset: lowest RTT samples get quadratically higher weight
     let totalWeight = 0;
     let weightedOffsetSum = 0;
     let weightedRttSum = 0;
 
     for (const s of effectiveSamples) {
-      const weight = 1 / Math.max(1, s.rtt);
+      const weight = 1 / Math.max(1, s.rtt * s.rtt);
       totalWeight += weight;
       weightedOffsetSum += s.offset * weight;
       weightedRttSum += s.rtt * weight;
@@ -173,13 +175,13 @@ export class ClockSyncEngine {
     const calculatedOffset = weightedOffsetSum / totalWeight;
     const calculatedRtt = weightedRttSum / totalWeight;
 
-    // 4. Update state with Exponential Moving Average (EMA)
+    // 4. Update state with Exponential Moving Average (EMA) with stable alpha
     if (this.sampleCount === 0) {
       this.offsetMs = calculatedOffset;
       this.rttMs = calculatedRtt;
       this.jitterMs = 2;
     } else {
-      const alpha = 0.35; // Smoothing factor
+      const alpha = 0.20; // Smooth steady-state filter
       const oldRtt = this.rttMs;
       this.offsetMs = (alpha * calculatedOffset) + ((1 - alpha) * this.offsetMs);
       this.rttMs = (alpha * calculatedRtt) + ((1 - alpha) * this.rttMs);

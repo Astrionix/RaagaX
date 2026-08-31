@@ -31,9 +31,9 @@ export class TransportRouter {
 
   // Hysteresis & Anti-Flapping State
   private lanConsecutiveHealthyCount = 0;
-  private static readonly LAN_RECOVERY_THRESHOLD = 3; // 3 consecutive healthy checks to switch back to LAN
+  private static readonly LAN_RECOVERY_THRESHOLD = 5; // 5 consecutive healthy checks to switch back to LAN
   private static readonly LAN_FAILURE_THRESHOLD = 3; // 3 consecutive failures to switch to Cloud
-  private static readonly FLAPPING_HOLD_TIME_MS = 5000; // Minimum 5s hold between switches
+  private static readonly FLAPPING_HOLD_TIME_MS = 15000; // Minimum 15s hold between switches
 
   private failoverCount = 0;
   private lastFailoverAt: number | null = null;
