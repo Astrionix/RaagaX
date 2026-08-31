@@ -441,6 +441,17 @@ export interface JamSyncDiagnostics {
   deviceName?: string;
   deviceType?: 'desktop' | 'mobile' | 'tablet';
   platform?: string;
+
+  // Real Audio Buffer & Playback Health (Section 14)
+  bufferedAheadMs?: number;
+  audioReadyState?: number;
+  audioPaused?: boolean;
+  audioNetworkState?: number;
+  audioError?: string | null;
+  hardSeekCount?: number;
+  bufferingCount?: number;
+  cloudRttMs?: number;
+  cloudJitterMs?: number;
 }
 
 export interface TimeSyncPing {

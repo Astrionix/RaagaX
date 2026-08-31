@@ -13,6 +13,7 @@ import { JamDiscoveryEngine } from '@/lib/jam/client/JamDiscoveryEngine';
 import { ClockSyncEngine } from '@/lib/jam/client/ClockSyncEngine';
 import { DriftCorrectionEngine } from '@/lib/jam/client/DriftCorrectionEngine';
 import { NetworkQualityEngine } from '@/lib/jam/client/NetworkQualityEngine';
+import { PlaybackService } from '@/lib/playback/PlaybackService';
 import { useAuthStore } from './useAuthStore';
 import { usePlayerStore } from './usePlayerStore';
 
@@ -382,6 +383,10 @@ export const useJamStore = create<JamState>((set, get) => {
       const commandDelivery = Math.round(activeRtt / 2);
       const audioPrep = typeof window !== 'undefined' ? 180 : 0;
       const startError = 4; // Sub-5ms OS scheduling accuracy
+      const pb = PlaybackService.getInstance();
+      const bufDiag = pb.getBufferDiagnostics();
+      const hardSeekCount = DriftCorrectionEngine.getInstance().getHardSeekCount();
+      const bufferingCount = pb.getBufferingCount();
 
       set({
         diagnostics: {
@@ -402,7 +407,7 @@ export const useJamStore = create<JamState>((set, get) => {
           revision: session?.revision || 0,
           syncState,
           estimatedLeadTimeMs: session?.leadTimeMs || 400,
-          bufferSec: 3.5,
+          bufferSec: Math.round((bufDiag.bufferedAheadMs / 1000) * 10) / 10 || 3.5,
           timelineId: session?.timelineId || 'TL_1',
           transitionId: session?.transitionId || 'TR_1',
           generation: session?.generation ?? 1,
@@ -415,6 +420,17 @@ export const useJamStore = create<JamState>((set, get) => {
           deviceName,
           deviceType,
           platform: caps.platform,
+
+          // Real Buffer & Stability Telemetry (Section 14)
+          bufferedAheadMs: bufDiag.bufferedAheadMs,
+          audioReadyState: bufDiag.readyState,
+          audioPaused: bufDiag.paused,
+          audioNetworkState: bufDiag.networkState,
+          audioError: bufDiag.error,
+          hardSeekCount,
+          bufferingCount,
+          cloudRttMs: routerStatus.cloudHealth?.rttMs || netMetrics.rtt,
+          cloudJitterMs: routerStatus.cloudHealth?.jitterMs || netMetrics.jitter,
         },
       });
     },

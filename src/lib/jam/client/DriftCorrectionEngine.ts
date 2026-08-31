@@ -37,10 +37,11 @@ export class DriftCorrectionEngine {
   private consecutiveLargeDriftCount = 0;
   private lastHardSeekTimeMs = 0;
   private lastRateChangeTimeMs = 0;
-  private static readonly HARD_SEEK_COOLDOWN_MS = 3000;
-  private static readonly RATE_CHANGE_HOLD_MS = 1000;
+  private hardSeekCount = 0;
+  private static readonly HARD_SEEK_COOLDOWN_MS = 3500;
+  private static readonly RATE_CHANGE_HOLD_MS = 800;
 
-  private readinessState: 'IDLE' | 'LOADING' | 'PREPARING' | 'SCHEDULED' | 'STARTING' | 'STABILIZING' | 'STEADY_PLAYING' | 'PAUSED' = 'IDLE';
+  private readinessState: 'IDLE' | 'LOADING' | 'PREPARING' | 'SCHEDULED' | 'STARTING' | 'SEEKING' | 'STABILIZING' | 'STEADY_PLAYING' | 'PAUSED' = 'IDLE';
 
   // STARTUP DRIFT GRACE (Phase 3 + Section 4):
   // After a session loads, resumes, or changes state, suppress drift evaluation
@@ -60,6 +61,10 @@ export class DriftCorrectionEngine {
       DriftCorrectionEngine.instance = new DriftCorrectionEngine();
     }
     return DriftCorrectionEngine.instance;
+  }
+
+  public getHardSeekCount(): number {
+    return this.hardSeekCount;
   }
 
   public setSession(session: JamSession | null) {
@@ -131,9 +136,16 @@ export class DriftCorrectionEngine {
     const currentTL = session.timelineId ?? `TL_${session.revision}`;
 
     // If audio is ALREADY playing this running timeline smoothly, do not restart or seek
-    if (!isNative && activeAudio && !activeAudio.paused && this.scheduledGeneration === currentGen && this.scheduledTimelineId === currentTL) {
-      console.log(`[PLAYBACK_EFFECT] action=NO_OP reason=ALREADY_PLAYING_TIMELINE timelineId=${currentTL} generation=${currentGen}`);
-      return;
+    if (!isNative && activeAudio && !activeAudio.paused) {
+      const nowServer = this.clockSync.estimatedServerNow();
+      const expectedPosMs = this.calculateExpectedPositionMs(session, nowServer);
+      const curLocalMs = activeAudio.currentTime * 1000;
+      if (Math.abs(curLocalMs - expectedPosMs) < 800) {
+        console.log(`[PLAYBACK_EFFECT] action=NO_OP reason=ALREADY_PLAYING_TIMELINE timelineId=${currentTL} generation=${currentGen}`);
+        this.scheduledGeneration = currentGen;
+        this.scheduledTimelineId = currentTL;
+        return;
+      }
     }
 
     this.scheduledGeneration = currentGen;
@@ -452,17 +464,17 @@ export class DriftCorrectionEngine {
       action = 'NONE';
       this.consecutiveLargeDriftCount = 0;
     } else if (absDrift <= 120) {
-      // Tier 2: Micro Drift (35ms - 120ms) -> Imperceptible rate nudge (0.982x - 1.018x)
+      // Tier 2: Micro Drift (35ms - 120ms) -> Imperceptible rate nudge (0.982x / 1.018x)
       action = 'MODULATE_RATE';
       targetRate = driftMs < 0 ? 1.018 : 0.982;
       this.consecutiveLargeDriftCount = 0;
     } else if (absDrift <= 500) {
-      // Tier 3: Moderate Drift (120ms - 500ms) -> Firm rate nudge (0.948x - 1.052x)
+      // Tier 3: Moderate Drift (120ms - 500ms) -> Firm rate nudge (0.948x / 1.052x)
       action = 'MODULATE_RATE';
       targetRate = driftMs < 0 ? 1.052 : 0.948;
       this.consecutiveLargeDriftCount = 0;
     } else {
-      // Tier 4: Large Drift (> 500ms) -> Controlled seek with 3s cooldown protection
+      // Tier 4: Large Drift (> 500ms) -> Controlled seek with cooldown protection
       this.consecutiveLargeDriftCount++;
       const now = Date.now();
       const isCooldownElapsed = now - this.lastHardSeekTimeMs >= DriftCorrectionEngine.HARD_SEEK_COOLDOWN_MS;
@@ -471,7 +483,9 @@ export class DriftCorrectionEngine {
         action = 'HARD_SEEK';
         targetRate = 1.0;
         this.lastHardSeekTimeMs = now;
+        this.hardSeekCount++;
         this.consecutiveLargeDriftCount = 0;
+        this.readinessState = 'SEEKING';
 
         if (activeAudio) {
           activeAudio.currentTime = Math.max(0, expectedPositionMs / 1000);
@@ -479,22 +493,22 @@ export class DriftCorrectionEngine {
         if (isNative) {
           RaagaXNativePlayer.seekTo(Math.max(0, expectedPositionMs));
         }
-        console.log(`[PLAYBACK_EFFECT] action=SEEK reason=DRIFT_CORRECTION timelineId=${session.timelineId || 'TL_1'} driftMs=${driftMs}`);
+        console.log(`[PLAYBACK_EFFECT] action=SEEK reason=DRIFT_CORRECTION timelineId=${session.timelineId || 'TL_1'} driftMs=${driftMs} hardSeekCount=${this.hardSeekCount}`);
       } else {
-        // While waiting for cooldown (avoiding rapid seek loop on mobile), apply firm rate nudge rather than rapid-seeking
+        // While waiting for cooldown (avoiding rapid seek loop), apply firm rate nudge rather than rapid-seeking
         action = 'MODULATE_RATE';
         targetRate = driftMs < 0 ? 1.052 : 0.948;
       }
     }
 
-    // Apply playback rate smoothly with rate-hold window to avoid rapid rate flutter on mobile decoders
+    // Apply playback rate smoothly with rate-hold window; ALWAYS restore 1.0x when converged
     if (activeAudio) {
       const now = Date.now();
       const rateDiff = Math.abs(activeAudio.playbackRate - targetRate);
       const isReturningToNormal = targetRate === 1.0 && rateDiff > 0.005;
       const isHoldElapsed = now - this.lastRateChangeTimeMs >= DriftCorrectionEngine.RATE_CHANGE_HOLD_MS;
 
-      if (isReturningToNormal || (rateDiff > 0.01 && isHoldElapsed)) {
+      if (isReturningToNormal || (rateDiff > 0.008 && isHoldElapsed)) {
         activeAudio.playbackRate = targetRate;
         this.currentRate = targetRate;
         this.lastRateChangeTimeMs = now;
@@ -558,6 +572,7 @@ export class DriftCorrectionEngine {
     this.consecutiveLargeDriftCount = 0;
     this.lastHardSeekTimeMs = 0;
     this.lastRateChangeTimeMs = 0;
+    this.hardSeekCount = 0;
     this.listeners.clear();
   }
 }

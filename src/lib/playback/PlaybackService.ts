@@ -181,6 +181,46 @@ export class PlaybackService {
     return this.activeTag === 'A' ? this.audioB : this.audioA;
   }
 
+  private bufferingCount = 0;
+
+  public getBufferingCount(): number {
+    return this.bufferingCount;
+  }
+
+  public getBufferDiagnostics() {
+    const active = this.getActiveAudio();
+    if (!active) {
+      return {
+        bufferedAheadMs: 0,
+        readyState: 0,
+        paused: true,
+        networkState: 0,
+        error: null,
+      };
+    }
+
+    const curTime = typeof active.currentTime === 'number' ? active.currentTime : 0;
+    const buffered = active.buffered;
+    let bufferedEnd = curTime;
+    if (buffered) {
+      for (let i = 0; i < buffered.length; i++) {
+        if (buffered.start(i) <= curTime && curTime <= buffered.end(i)) {
+          bufferedEnd = buffered.end(i);
+          break;
+        }
+      }
+    }
+
+    const bufferedAheadSec = Math.max(0, bufferedEnd - curTime);
+    return {
+      bufferedAheadMs: Math.round(bufferedAheadSec * 1000),
+      readyState: active.readyState,
+      paused: active.paused,
+      networkState: active.networkState,
+      error: active.error ? (active.error.message || `MediaError ${active.error.code}`) : null,
+    };
+  }
+
   private attachedListenersMap = new Map<HTMLAudioElement, Array<{ event: string; fn: EventListener }>>();
 
   private attachListeners() {
@@ -201,6 +241,8 @@ export class PlaybackService {
       add('play', () => this.handleNativePlayState(tag, true));
       add('playing', () => this.handleNativePlayState(tag, true));
       add('pause', () => this.handleNativePlayState(tag, false));
+      add('waiting', () => { this.bufferingCount++; });
+      add('stalled', () => { this.bufferingCount++; });
       add('error', (e) => this.handleNativeError(tag, e));
 
       this.attachedListenersMap.set(audio, listenerList);

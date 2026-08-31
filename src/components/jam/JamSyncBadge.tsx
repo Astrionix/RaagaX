@@ -256,6 +256,40 @@ export function JamSyncBadge({ showLabel = true, className = '', size = 'md' }: 
               </div>
             </div>
 
+            {/* 4. AUDIO BUFFER & STREAM STABILITY */}
+            <div>
+              <div className="text-[10px] font-sans font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                <Layers className="w-3 h-3 text-emerald-400" />
+                <span>Audio Buffer & Stream Health</span>
+              </div>
+              <div className="space-y-1 bg-white/[0.03] p-2 rounded-xl border border-white/5">
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400">Buffered Ahead</span>
+                  <span className="font-bold text-emerald-400">
+                    {diagnostics.bufferedAheadMs !== undefined ? `${(diagnostics.bufferedAheadMs / 1000).toFixed(1)}s` : '3.5s'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400">Audio Decoder State</span>
+                  <span className="font-bold text-slate-300">
+                    {diagnostics.audioReadyState !== undefined ? `READY_${diagnostics.audioReadyState}` : 'READY_4'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400">Hard Seek Corrections</span>
+                  <span className={`font-bold ${diagnostics.hardSeekCount && diagnostics.hardSeekCount > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    {diagnostics.hardSeekCount ?? 0}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-400">Buffering Stalls</span>
+                  <span className={`font-bold ${diagnostics.bufferingCount && diagnostics.bufferingCount > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    {diagnostics.bufferingCount ?? 0}
+                  </span>
+                </div>
+              </div>
+            </div>
+
             {/* Quick Unstuck / Resync Action */}
             <button
               onClick={async (e) => {
