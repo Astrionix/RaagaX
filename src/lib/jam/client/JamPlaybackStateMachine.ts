@@ -297,6 +297,8 @@ export class JamPlaybackStateMachine {
     });
     store.setCurrentTime(inFlightSec, true);
 
+    console.log(`\n[JAM_PLAYER_APPLIED]\ntrackId=${song.id}\ntransitionId=${transitionId}\ngeneration=${generation}\npositionMs=${Math.round(inFlightMs)}\nisPlaying=${session.state === 'PLAYING'}\n`);
+
     if (!isAlreadyLoaded) {
       // New track: load audio source with inFlightSec preserved
       const reqId = Date.now();

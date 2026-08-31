@@ -14,6 +14,7 @@ import {
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
 import { useThemeStore } from '@/context/useThemeStore';
+import { useNotificationStore } from '@/context/useNotificationStore';
 import { RaagaXLogo } from '@/components/brand/RaagaXLogo';
 import { RaagaXWordmark } from '@/components/brand/RaagaXWordmark';
 import { NetworkManager } from '@/lib/offline/NetworkManager';
@@ -58,8 +59,9 @@ export function Header() {
     togglePlayerExpanded,
     searchQuery,
     setSearchQuery,
-    toggleNotificationCenter,
   } = usePlayerStore();
+
+  const toggleNotificationCenter = useNotificationStore((s) => s.setOpen);
 
   const { user } = useAuthStore();
 

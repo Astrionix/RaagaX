@@ -301,6 +301,7 @@ export class DriftCorrectionEngine {
           }
           usePlayerStore.getState().setCurrentTime(expectedPosSec, true);
           console.log(`[PLAYBACK_EFFECT] action=PLAY reason=SCHEDULED_START timelineId=${liveTL} generation=${liveGen}`);
+          console.log(`\n[JAM_PLAYING_CONFIRMED]\ntrackId=${this.currentSession?.trackId || 'NONE'}\ntimelineId=${liveTL}\ngeneration=${liveGen}\n`);
           PlaybackService.getInstance().play();
         } catch {}
       }, delayMs);
@@ -326,6 +327,7 @@ export class DriftCorrectionEngine {
         try {
           usePlayerStore.getState().setCurrentTime(liveExpectedPosSec, true);
           console.log(`[PLAYBACK_EFFECT] action=PLAY reason=IMMEDIATE_START timelineId=${currentTL} generation=${currentGen}`);
+          console.log(`\n[JAM_PLAYING_CONFIRMED]\ntrackId=${liveSession.trackId || 'NONE'}\ntimelineId=${currentTL}\ngeneration=${currentGen}\n`);
           pb.play();
         } catch {}
       };
@@ -580,6 +582,10 @@ export class DriftCorrectionEngine {
 
     const absDrift    = Math.abs(this.smoothedDriftMs);
     const absRawDrift = Math.abs(rawDriftMs);
+
+    if (absRawDrift > 0 || Math.abs(this.smoothedDriftMs) > 0) {
+      console.log(`\n[JAM_DRIFT]\nexpectedMs=${Math.round(expectedPositionMs)}\nactualMs=${Math.round(actualLocalMs)}\ndriftMs=${Math.round(rawDriftMs)}\n`);
+    }
 
     // Diagnostic logging when raw drift exceeds 300ms
     if (absRawDrift > 300) {

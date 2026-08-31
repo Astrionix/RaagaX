@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { JamServerEngine } from '@/lib/jam/server/JamServerEngine';
+import { JamParticipant } from '@/types/jam';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,7 +43,7 @@ export async function POST(
 
     // Authenticate participant authorization in the Jam
     const isHost = session.hostId === userId;
-    let participant = session.participants[userId];
+    let participant: JamParticipant | undefined = session.participants[userId];
 
     if (!isHost && !participant) {
       // Auto-register joining participant if session is active

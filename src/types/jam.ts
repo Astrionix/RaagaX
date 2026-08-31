@@ -253,13 +253,19 @@ export interface JamSession {
   isNearbyDiscoverable?: boolean;
   status?: JamSessionStatus;
   state: JamPlaybackState;
+  playbackState?: JamPlaybackState;
+  isPlaying?: boolean;
   trackId: string | null;
+  currentTrackId?: string | null;
   currentQueueItemId?: string | null;
   currentSong: Song | null;
   positionMs: number; // Playback position at serverTimestamp / startAtServerTime
   basePositionMs?: number;
+  anchorPositionMs?: number; // Explicit authoritative anchor position ms
+  durationMs?: number; // Current track duration in milliseconds
   serverTimestamp: number; // Server clock time when state was last updated
   startAtServerTime: number; // Authoritative future timestamp when playback should begin
+  anchorServerTimeMs?: number; // Explicit authoritative anchor server time ms
   timelineStartServerMs?: number;
   leadTimeMs: number; // Dynamic schedule buffer for latency adaptation
   revision: number; // Monotonically increasing revision number
@@ -354,6 +360,14 @@ export interface JamEvent {
   transitionId?: string;
   generation?: number;
   deviceId?: string;
+  trackId?: string | null;
+  currentTrackId?: string | null;
+  positionMs?: number;
+  anchorPositionMs?: number;
+  anchorServerTimeMs?: number;
+  durationMs?: number;
+  isPlaying?: boolean;
+  playbackState?: JamPlaybackState;
 }
 
 export type JamCommandAction =

@@ -478,14 +478,20 @@ export class JamServerEngine {
       hostName: params.hostName,
       isNearbyDiscoverable: params.isNearbyDiscoverable !== false,
       status: 'ACTIVE',
-      state: params.initialSong ? 'PAUSED' : 'PAUSED',
+      state: 'PAUSED',
+      playbackState: 'PAUSED',
+      isPlaying: false,
       trackId: params.initialSong?.id || null,
+      currentTrackId: params.initialSong?.id || null,
       currentQueueItemId: currentQueueItemId || (initialQueueItems[0]?.queueItemId ?? null),
       currentSong: params.initialSong || null,
       positionMs: 0,
       basePositionMs: 0,
+      anchorPositionMs: 0,
+      durationMs: params.initialSong?.duration ? params.initialSong.duration * 1000 : undefined,
       serverTimestamp: now,
       startAtServerTime: now,
+      anchorServerTimeMs: now,
       timelineStartServerMs: now,
       leadTimeMs: 400,
       revision: 1,
@@ -524,6 +530,14 @@ export class JamServerEngine {
       generation: 1,
       timelineId: 'TL_1',
       transitionId: 'TR_1',
+      trackId: session.trackId,
+      currentTrackId: session.currentTrackId,
+      positionMs: 0,
+      anchorPositionMs: 0,
+      anchorServerTimeMs: now,
+      durationMs: session.durationMs,
+      isPlaying: false,
+      playbackState: 'PAUSED',
       serverTimestamp: now,
       senderId: params.hostId,
       payload: { session },
@@ -822,6 +836,7 @@ export class JamServerEngine {
 
     if (command.action !== 'HEARTBEAT' && command.action !== 'UPDATE_PARTICIPANT_STATUS') {
       console.log(`\n[JAM_ACTIVITY]\njamId=${session.jamId}\noperation=${command.action}\ntimestamp=${now}\nlastActivityBefore=${lastActivityBefore}\nlastActivityAfter=${now}\n`);
+      console.log(`\n[JAM_COMMAND_REQUEST]\ncommand=${command.action}\nrequestId=${idKey || 'NONE'}\ntransitionId=${session.transitionId || 'NONE'}\n`);
     }
 
     let eventType: JamEvent['type'] = 'SESSION_UPDATED';
@@ -1763,6 +1778,27 @@ export class JamServerEngine {
 
     session.updatedAt = now;
     session.revision += 1;
+    session.currentTrackId = session.trackId || session.currentSong?.id || null;
+    session.durationMs = session.currentSong?.duration ? session.currentSong.duration * 1000 : undefined;
+    session.isPlaying = session.state === 'PLAYING';
+    session.playbackState = session.state;
+    session.anchorPositionMs = session.basePositionMs ?? session.positionMs;
+    session.anchorServerTimeMs = session.timelineStartServerMs ?? session.startAtServerTime;
+    if (command.action !== 'UPDATE_PARTICIPANT_STATUS') {
+      console.log(`\n[JAM_COMMAND_ACCEPTED]\nrevision=${session.revision}\ngeneration=${session.generation || 1}\ntimelineId=${session.timelineId || 'TL_1'}\n`);
+    }
+
+    const isPlaybackTransition =
+      ['PLAY', 'PAUSE', 'STOP', 'SEEK', 'SKIP_NEXT', 'SKIP_PREV'].includes(command.action) ||
+      eventType === 'TRACK_CHANGED' ||
+      eventType === 'PLAY' ||
+      eventType === 'PAUSE' ||
+      eventType === 'SEEK' ||
+      eventType === 'STOP';
+
+    if (isPlaybackTransition) {
+      console.log(`\n[JAM_PLAYBACK_TRANSITION]\ntrackId=${session.trackId || 'NONE'}\npositionMs=${session.positionMs}\nanchorServerTimeMs=${session.anchorServerTimeMs}\nisPlaying=${session.isPlaying}\n`);
+    }
 
     const event: JamEvent = {
       eventId: `EV_${crypto.randomUUID()}`,
@@ -1771,6 +1807,17 @@ export class JamServerEngine {
       revision: session.revision,
       serverTimestamp: now,
       senderId: command.userId,
+      timelineId: session.timelineId,
+      transitionId: session.transitionId,
+      generation: session.generation,
+      trackId: session.trackId,
+      currentTrackId: session.currentTrackId,
+      positionMs: session.positionMs,
+      anchorPositionMs: session.anchorPositionMs,
+      anchorServerTimeMs: session.anchorServerTimeMs,
+      durationMs: session.durationMs,
+      isPlaying: session.isPlaying,
+      playbackState: session.playbackState,
       payload: { ...payload, revision: session.revision },
       requestId: command.requestId,
     };
