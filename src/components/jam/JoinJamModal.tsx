@@ -106,32 +106,32 @@ export function JoinJamModal() {
 
   return (
     <>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-in fade-in duration-200">
         <div
-          className="w-full max-w-md bg-[#12141C]/95 border border-white/10 rounded-3xl p-6 text-white shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]"
+          className="w-full max-w-md bg-[#0A0B10]/95 border border-white/15 rounded-[28px] p-6 text-white shadow-[0_32px_96px_rgba(0,0,0,0.9)] relative overflow-hidden flex flex-col max-h-[90vh]"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Glow ambient accent */}
           <div className="absolute -top-24 -right-24 w-56 h-56 bg-[#FA233B]/15 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-24 -left-24 w-56 h-56 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -left-24 w-56 h-56 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
           {/* Header */}
           <div className="flex items-center justify-between pb-4 border-b border-white/10 relative z-10 flex-shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-[#FA233B]/20 border border-[#FA233B]/30 flex items-center justify-center text-[#FA233B]">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#FA233B] to-rose-500 flex items-center justify-center text-white shadow-[0_4px_16px_rgba(250,35,59,0.35)]">
                 <Radio className="w-5 h-5 animate-pulse" />
               </div>
               <div>
                 <h2 className="text-base sm:text-lg font-black tracking-tight">Join Jam Party</h2>
-                <p className="text-xs text-zinc-400">Camera QR • Same Wi-Fi • Join Code</p>
+                <p className="text-xs text-slate-400">QR Scanner • Nearby Radar • Join Code</p>
               </div>
             </div>
             <button
               onClick={() => toggleJoinModal(false)}
-              className="p-2 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
               aria-label="Close"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
 

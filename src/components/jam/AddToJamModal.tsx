@@ -136,29 +136,31 @@ export function AddToJamModal() {
       {/* Backdrop */}
       <div
         onClick={() => toggleAddToJamModal(false)}
-        className="absolute inset-0 bg-black/75 backdrop-blur-md transition-opacity"
+        className="absolute inset-0 bg-black/80 backdrop-blur-xl transition-opacity"
       />
 
       {/* Modal Container */}
-      <div className="relative z-10 w-full max-w-md h-[85vh] max-h-[640px] bg-[#12131a]/95 border border-white/15 rounded-3xl shadow-[0_24px_64px_rgba(0,0,0,0.9)] overflow-hidden text-white flex flex-col p-4 animate-in zoom-in-95 duration-200">
+      <div className="relative z-10 w-full max-w-md h-[85vh] max-h-[640px] bg-[#0A0B10]/95 border border-white/15 rounded-[28px] shadow-[0_32px_96px_rgba(0,0,0,0.9)] overflow-hidden text-white flex flex-col p-5 animate-in zoom-in-95 duration-200">
+        {/* Glow ambient accent */}
+        <div className="absolute -top-24 -right-24 w-56 h-56 bg-[#FA233B]/15 rounded-full blur-3xl pointer-events-none" />
         
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-white/10 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-[#FA233B]/15 text-[#FA233B] border border-[#FA233B]/25">
-              <Plus className="w-4 h-4" />
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#FA233B] to-rose-500 flex items-center justify-center text-white shadow-[0_4px_16px_rgba(250,35,59,0.35)]">
+              <Plus className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-base font-black text-white">Add Songs to Jam</h3>
-              <p className="text-[10px] text-zinc-400">Search millions of songs or choose from your library</p>
+              <p className="text-xs text-slate-400">Search tracks or select from your queue & downloads</p>
             </div>
           </div>
           <button
             onClick={() => toggleAddToJamModal(false)}
-            className="p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
             aria-label="Close"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 

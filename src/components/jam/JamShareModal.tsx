@@ -45,18 +45,21 @@ export function JamShareModal() {
       {/* Backdrop */}
       <div
         onClick={() => toggleShareModal(false)}
-        className="absolute inset-0 bg-black/75 backdrop-blur-md transition-opacity"
+        className="absolute inset-0 bg-black/80 backdrop-blur-xl transition-opacity"
       />
 
       {/* Modal Card */}
-      <div className="relative z-10 w-full max-w-sm bg-[#12131a]/95 border border-white/15 rounded-3xl shadow-[0_24px_64px_rgba(0,0,0,0.9)] overflow-hidden text-white p-5 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+      <div className="relative z-10 w-full max-w-sm bg-[#0A0B10]/95 border border-white/15 rounded-[28px] shadow-[0_32px_96px_rgba(0,0,0,0.9)] overflow-hidden text-white p-6 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+        {/* Glow ambient accent */}
+        <div className="absolute -top-20 -right-20 w-48 h-48 bg-[#FA233B]/15 rounded-full blur-3xl pointer-events-none" />
+
         {/* Close Button */}
         <button
           onClick={() => toggleShareModal(false)}
-          className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+          className="absolute top-4 right-4 p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
           title="Close"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
         {/* Brand Jam Badge */}
