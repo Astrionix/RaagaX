@@ -384,8 +384,9 @@ export class DriftCorrectionEngine {
       : (activeAudio ? activeAudio.currentTime * 1000 : 0);
 
     // Priority 17: During loading, buffering, seeking, or transitions, drift engine must not fight playback
+    const storeState = usePlayerStore.getState();
     const isAudioBufferingOrSyncing = isNative
-      ? false
+      ? (storeState.playbackIntent === 'PLAYING' && !storeState.isPlaying) || this.readinessState === 'SEEKING'
       : (activeAudio
         ? activeAudio.paused || activeAudio.seeking || (typeof activeAudio.readyState === 'number' && activeAudio.readyState < 2)
         : true);
@@ -414,7 +415,7 @@ export class DriftCorrectionEngine {
 
     const timeSinceLoadMs = this.lastSessionLoadTimeMs > 0 ? Date.now() - this.lastSessionLoadTimeMs : Infinity;
     const isAudioNearStart = actualLocalMs < 1000;
-    const isAudioNotYetPositioned = expectedPositionMs > 3000 && actualLocalMs < 2000;
+    const isAudioNotYetPositioned = expectedPositionMs > 3000 && actualLocalMs < 1000 && timeSinceLoadMs < 3000;
     const isInStartupGrace = timeSinceLoadMs < DriftCorrectionEngine.STARTUP_GRACE_MS && isAudioNearStart;
 
     if (isInStartupGrace || isAudioNotYetPositioned) {
@@ -489,13 +490,12 @@ export class DriftCorrectionEngine {
       targetRate = 1.0;
       this.consecutiveLargeDriftCount = 0;
     } else {
-      // Tier 4: Controlled Drift (500ms - 5000ms) -> Controlled seek with cooldown protection
+      // Tier 4: Controlled Seek (500ms - 5000ms) -> Controlled seek with cooldown protection
       this.consecutiveLargeDriftCount++;
       const now = Date.now();
       const isCooldownElapsed = now - this.lastHardSeekTimeMs >= DriftCorrectionEngine.HARD_SEEK_COOLDOWN_MS;
-      const isPersistent = this.consecutiveLargeDriftCount >= 1; // Immediate if cooldown passed, otherwise firm rate
 
-      if (isPersistent && isCooldownElapsed && !isAudioBufferingOrSyncing) {
+      if (isCooldownElapsed && !isAudioBufferingOrSyncing) {
         action = 'HARD_SEEK';
         targetRate = 1.0;
         this.lastHardSeekTimeMs = now;
@@ -511,7 +511,7 @@ export class DriftCorrectionEngine {
         }
         console.log(`[PLAYBACK_EFFECT] action=SEEK reason=DRIFT_CORRECTION timelineId=${session.timelineId || 'TL_1'} driftMs=${driftMs} hardSeekCount=${this.hardSeekCount}`);
       } else {
-        // While waiting for cooldown (avoiding rapid seek loop), apply firm rate nudge rather than rapid-seeking
+        // While waiting for cooldown/stability (avoiding rapid seek loop), apply firm rate nudge rather than rapid-seeking
         action = 'MODULATE_RATE';
         targetRate = driftMs < 0 ? 1.052 : 0.948;
       }
