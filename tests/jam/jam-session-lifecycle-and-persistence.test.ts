@@ -8,10 +8,17 @@ const mockSong: Song = {
   id: 'song_persistence_1',
   title: 'Eternal Resonance',
   artist: 'RaagaX Master',
+  artistId: 'art_master',
   album: 'Cosmic Vol 1',
+  albumId: 'alb_cosmic_1',
   duration: 240,
   audioUrl: 'https://cdn.example.com/audio/res.mp4',
   coverUrl: 'https://cdn.example.com/images/res.jpg',
+  genre: 'Classical',
+  category: 'melody',
+  releaseYear: 2024,
+  plays: 100,
+  likes: 20,
 };
 
 describe('RaagaX Jam — Comprehensive Session Lifecycle, Persistence & Resilience Suite', () => {

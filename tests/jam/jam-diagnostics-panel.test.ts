@@ -8,9 +8,17 @@ const mockSong: Song = {
   id: 'TRK_123',
   title: 'Pehla Nasha',
   artist: 'Udit Narayan',
+  artistId: 'art_udit',
+  album: 'JJWS',
+  albumId: 'alb_jjws',
   duration: 270,
   audioUrl: 'https://cdn.example.com/pehla_nasha.mp3',
   coverUrl: 'https://cdn.example.com/pehla_nasha.jpg',
+  genre: 'Bollywood',
+  category: 'melody',
+  releaseYear: 1992,
+  plays: 100,
+  likes: 50,
 };
 
 describe('RaagaX Jam — Advanced Network & Playback Sync Diagnostic Panel Suite', () => {

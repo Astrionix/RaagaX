@@ -7,27 +7,51 @@ const mockSongA: Song = {
   id: 'song_a',
   title: 'Kesariya',
   artist: 'Arijit Singh',
+  artistId: 'art_arijit',
+  album: 'Brahmastra',
+  albumId: 'alb_brahmastra',
   duration: 240,
   audioUrl: 'https://cdn.example.com/kesariya.mp3',
   coverUrl: 'https://cdn.example.com/kesariya.jpg',
+  genre: 'Bollywood',
+  category: 'melody',
+  releaseYear: 2022,
+  plays: 100,
+  likes: 50,
 };
 
 const mockSongB: Song = {
   id: 'song_b',
   title: 'Hukum',
   artist: 'Anirudh Ravichander',
+  artistId: 'art_anirudh',
+  album: 'Jailer',
+  albumId: 'alb_jailer',
   duration: 200,
   audioUrl: 'https://cdn.example.com/hukum.mp3',
   coverUrl: 'https://cdn.example.com/hukum.jpg',
+  genre: 'Tamil',
+  category: 'mass',
+  releaseYear: 2023,
+  plays: 200,
+  likes: 80,
 };
 
 const mockSongC: Song = {
   id: 'song_c',
   title: 'Chaleya',
   artist: 'Arijit Singh',
+  artistId: 'art_arijit',
+  album: 'Jawan',
+  albumId: 'alb_jawan',
   duration: 190,
   audioUrl: 'https://cdn.example.com/chaleya.mp3',
   coverUrl: 'https://cdn.example.com/chaleya.jpg',
+  genre: 'Bollywood',
+  category: 'melody',
+  releaseYear: 2023,
+  plays: 150,
+  likes: 60,
 };
 
 describe('RaagaX Jam — Advanced Capabilities: Playback Handoff, History & Capabilities Suite', () => {

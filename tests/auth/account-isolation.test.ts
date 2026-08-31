@@ -121,6 +121,9 @@ describe('RaagaX Critical Security & State — Account Isolation Suite', () => {
       playlists: [{
         id: 'PL_USER_A_1',
         title: "User A's Rock Mix",
+        description: 'Test Playlist',
+        coverUrl: '',
+        creator: 'User A',
         visibility: 'private',
         ownerId: userAId,
         songs: [sampleSongA],

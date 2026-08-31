@@ -1267,8 +1267,11 @@ export const usePlayerStore = create<PlayerState>()(
           const jamSession = jamManager.getActiveSession();
           if (jamSession) {
             if (currentLivePlaying) {
+              set({ isPlaying: false, playbackIntent: 'PAUSED' });
+              PlaybackService.getInstance().pause();
               await jamManager.sendPause();
             } else {
+              set({ isPlaying: true, playbackIntent: 'PLAYING' });
               const currentPosMs = Math.round((get().currentTime || 0) * 1000);
               await jamManager.sendPlay(currentPosMs > 0 ? currentPosMs : undefined);
             }

@@ -7,10 +7,17 @@ const mockSong: Song = {
   id: 'song_seek_1',
   title: 'Synchronized Anthem',
   artist: 'RaagaX Master',
+  artistId: 'art_master',
   album: 'Synchronized Hits',
+  albumId: 'alb_hits',
   duration: 300, // 5 minutes (300,000 ms)
   audioUrl: 'https://cdn.example.com/anthem.mp4',
   coverUrl: 'https://cdn.example.com/anthem.jpg',
+  genre: 'Rock',
+  category: 'melody',
+  releaseYear: 2024,
+  plays: 500,
+  likes: 100,
 };
 
 describe('RaagaX Jam — Synchronized Seek-Bar Dragging Suite', () => {

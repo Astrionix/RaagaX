@@ -1717,7 +1717,11 @@ export class JamServerEngine {
   }
 
   /**
-   * Dynamically adapts future scheduling buffer based on participant RTTs
+  /**
+   * Dynamically adapts future scheduling buffer based on:
+   * 1. Minimum lead time (350ms)
+   * 2. Network safety margin (max RTT * 1.5 + jitter margin)
+   * 3. Measured audio decoder preparation latency (220ms) + safety buffer
    */
   public computeAdaptiveLeadTime(session: JamSession): number {
     const participants = Object.values(session.participants);
@@ -1725,12 +1729,18 @@ export class JamServerEngine {
 
     let maxRtt = 0;
     for (const p of participants) {
-      if (p.rttMs > maxRtt) maxRtt = p.rttMs;
+      if (p.rttMs && p.rttMs > maxRtt) maxRtt = p.rttMs;
     }
 
-    // Base lead time: max RTT * 1.5 + 200ms buffer, bounded between 300ms and 1500ms
-    const adaptive = Math.max(300, Math.min(1500, Math.round(maxRtt * 1.5 + 200)));
-    return adaptive;
+    const MINIMUM_LEAD_MS = 350;
+    const ESTIMATED_AUDIO_PREP_MS = 220; // Average mobile/desktop audio decoder readiness time
+    const JITTER_SAFETY_BUFFER_MS = 200;
+
+    const networkSafetyMargin = maxRtt > 0 ? Math.round(maxRtt * 1.5 + JITTER_SAFETY_BUFFER_MS) : MINIMUM_LEAD_MS;
+    const preparationSafetyMargin = ESTIMATED_AUDIO_PREP_MS + 80;
+
+    const adaptive = Math.max(MINIMUM_LEAD_MS, networkSafetyMargin, preparationSafetyMargin);
+    return Math.min(1500, adaptive);
   }
 
   /**

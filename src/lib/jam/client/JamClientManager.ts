@@ -19,6 +19,7 @@ import { PreloadManager } from '@/lib/playback/PreloadManager';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { supabase } from '@/lib/supabase';
 import { getApiUrl } from '@/lib/config/apiConfig';
+import { TransportRouter } from '@/lib/jam/transport/TransportRouter';
 
 export type JamStateListener = (session: JamSession | null, state: JamParticipantState) => void;
 
@@ -51,6 +52,7 @@ export class JamClientManager {
   private driftEngine: DriftCorrectionEngine;
   private networkEngine: NetworkQualityEngine;
   private stateMachine: JamPlaybackStateMachine;
+  private transportRouter: TransportRouter;
   private stateListeners: Set<JamStateListener> = new Set();
 
   private constructor() {
@@ -58,6 +60,7 @@ export class JamClientManager {
     this.driftEngine = DriftCorrectionEngine.getInstance();
     this.networkEngine = NetworkQualityEngine.getInstance();
     this.stateMachine = JamPlaybackStateMachine.getInstance();
+    this.transportRouter = TransportRouter.getInstance();
 
     // Listen to network online / offline and interface change events
     if (typeof window !== 'undefined') {
@@ -185,9 +188,15 @@ export class JamClientManager {
     await this.clockSync.synchronize(6);
     this.clockSync.startPeriodicSync(15000);
     this.driftEngine.setSession(session);
-    this.driftEngine.start();
+    // Connect multi-transport routing layer (LAN preferred, Cloud fallback)
+    await this.transportRouter.initialize(
+      session.jamId,
+      { userId: this.currentUserId || session.hostId, userName: this.currentUserName, userAvatar: this.currentUserAvatar },
+      (session as any).lanEndpoint
+    );
+    this.transportRouter.subscribe((event) => this.handleIncomingEvent(event));
 
-    // Connect real-time transport
+    // Connect real-time fallback channels
     this.connectRealtimeTransport(session.jamId);
     this.startMetricsReporting(session.jamId);
 
@@ -274,6 +283,14 @@ export class JamClientManager {
       this.driftEngine.setSession(session);
       this.driftEngine.start();
 
+      // Step 4: Multi-transport initialization
+      await this.transportRouter.initialize(
+        session.jamId,
+        { userId: this.currentUserId, userName: this.currentUserName, userAvatar: this.currentUserAvatar },
+        (session as any).lanEndpoint
+      );
+      this.transportRouter.subscribe((event) => this.handleIncomingEvent(event));
+
       if (session.state === 'PLAYING') {
         const estServerNow = this.clockSync.estimatedServerNow();
         if (estServerNow < session.startAtServerTime) {
@@ -326,6 +343,7 @@ export class JamClientManager {
     this.driftEngine.stop();
     this.driftEngine.setSession(null);
     this.stateMachine.reset();
+    this.transportRouter.cleanup();
     JamDiscoveryEngine.getInstance().stopBroadcasting();
 
     if (this.eventSource) {
@@ -811,7 +829,7 @@ export class JamClientManager {
   }
 
   /**
-   * Sends an authoritative command to the Jam server with precise error handling
+   * Sends an authoritative command through TransportRouter (LAN preferred, Cloud fallback)
    */
   public async sendCommand(action: JamCommandAction, payload?: any): Promise<boolean> {
     if (!this.activeSession) return false;
@@ -820,72 +838,31 @@ export class JamClientManager {
     const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
     try {
-      const res = await fetch(getApiUrl(`/api/jam/${jamId}/command`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          commandId: requestId,
-          jamId,
-          userId: this.currentUserId,
-          action,
-          payload,
-        }),
+      const response = await this.transportRouter.sendCommand({
+        commandId: requestId,
+        jamId,
+        userId: this.currentUserId,
+        action,
+        payload,
+        timestamp: Date.now(),
       });
 
-      const text = await res.text();
-      let data: any = {};
-      try {
-        data = JSON.parse(text);
-      } catch {}
-
-      if (res.status === 410 || data.code === 'JAM_ENDED') {
-        console.warn(`[JamClientManager] Session ${jamId} has ended. Cleaning up.`);
-        this.cleanupSession();
-        if (typeof window !== 'undefined') {
-          usePlayerStore.getState().setToastMessage('Jam session ended');
-        }
-        return false;
-      }
-
-      if (res.status === 404 || data.code === 'JAM_NOT_FOUND') {
-        // Background telemetry & heartbeats must NEVER directly destroy the local session!
-        if (action === 'UPDATE_PARTICIPANT_STATUS' || action === 'HEARTBEAT' || action === 'REPORT_METRICS') {
-          console.log(`\n[JAM_HEARTBEAT_FAILED]\njamId=${jamId}\nparticipantId=${this.currentUserId}\nreason=TRANSIENT_404\n`);
-          this.resyncSnapshot(jamId);
-          return false;
-        }
-
-        // For user-triggered actions, verify authoritative status before teardown
-        console.warn(`[JamClientManager] Command ${action} encountered 404 for ${jamId}. Verifying session snapshot...`);
-        const snapshotValid = await this.resyncSnapshot(jamId);
-        return snapshotValid;
-      }
-
-      if (res.status === 403 || data.code === 'UNAUTHORIZED') {
-        // If participant was cleared on server (e.g. server restart in dev), auto re-join silently
-        if (action === 'UPDATE_PARTICIPANT_STATUS' || action === 'HEARTBEAT' || action === 'REPORT_METRICS') {
-          console.warn(`[JamClientManager] Participant unauthorized during heartbeat. Auto re-joining Jam ${jamId}...`);
-          this.joinJam(jamId).catch(() => {});
-          return false;
-        }
-        if (typeof window !== 'undefined' && data.error) {
-          usePlayerStore.getState().setToastMessage(data.error);
-        }
-        return false;
-      }
-
-      if (!res.ok) {
-        // 400 INVALID_COMMAND or 5xx: Reconcile state, do NOT delete local session
-        console.warn(`[JamClientManager] Command ${action} rejected (${res.status}): ${data.error || 'Unknown error'}`);
-        if (typeof window !== 'undefined' && data.error && action !== 'UPDATE_PARTICIPANT_STATUS' && action !== 'HEARTBEAT') {
-          usePlayerStore.getState().setToastMessage(data.error);
-        }
-        return false;
-      }
-
-      if (data?.session) {
+      if (response && response.session) {
         this.notFoundVerificationRetries = 0;
-        this.applySessionSnapshot(data.session);
+        this.applySessionSnapshot(response.session);
+        return true;
+      }
+
+      if (!response.success) {
+        if (response.error?.includes('410') || response.error?.includes('ended')) {
+          this.cleanupSession();
+          if (typeof window !== 'undefined') usePlayerStore.getState().setToastMessage('Jam session ended');
+          return false;
+        }
+        if (response.error && typeof window !== 'undefined' && action !== 'UPDATE_PARTICIPANT_STATUS' && action !== 'HEARTBEAT') {
+          usePlayerStore.getState().setToastMessage(response.error);
+        }
+        return false;
       }
 
       return true;
@@ -954,6 +931,10 @@ export class JamClientManager {
 
   public async sendRequestHandoff(targetUserId: string, targetDeviceId?: string) {
     return this.sendCommand('REQUEST_HANDOFF', { targetUserId, targetDeviceId });
+  }
+
+  public getTransportRouter(): TransportRouter {
+    return this.transportRouter;
   }
 
   public getLocalDeviceCapabilities(): DeviceCapabilities {

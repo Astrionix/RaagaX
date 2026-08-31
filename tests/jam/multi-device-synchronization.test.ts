@@ -9,20 +9,34 @@ const mockSongA: Song = {
   id: 'song_alpha',
   title: 'Alpha Song',
   artist: 'Artist A',
+  artistId: 'art_a',
   album: 'Album Alpha',
+  albumId: 'alb_a',
   duration: 240,
   audioUrl: 'https://cdn.example.com/alpha.mp4',
   coverUrl: 'https://cdn.example.com/alpha.jpg',
+  genre: 'Pop',
+  category: 'melody',
+  releaseYear: 2024,
+  plays: 10,
+  likes: 1,
 };
 
 const mockSongB: Song = {
   id: 'song_beta',
   title: 'Beta Song',
   artist: 'Artist B',
+  artistId: 'art_b',
   album: 'Album Beta',
+  albumId: 'alb_b',
   duration: 180,
   audioUrl: 'https://cdn.example.com/beta.mp4',
   coverUrl: 'https://cdn.example.com/beta.jpg',
+  genre: 'Pop',
+  category: 'melody',
+  releaseYear: 2024,
+  plays: 20,
+  likes: 2,
 };
 
 describe('RaagaX Jam — Two-Device & Multi-Device Synchronization Suite', () => {

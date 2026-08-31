@@ -10,20 +10,34 @@ const mockSong1: Song = {
   id: 'track_alpha',
   title: 'Song Alpha',
   artist: 'Artist Alpha',
+  artistId: 'art_alpha',
   album: 'Album Alpha',
+  albumId: 'alb_alpha',
   duration: 200,
   audioUrl: 'https://cdn.example.com/audio/alpha.mp4',
   coverUrl: 'https://cdn.example.com/images/alpha.jpg',
+  genre: 'Pop',
+  category: 'melody',
+  releaseYear: 2024,
+  plays: 10,
+  likes: 1,
 };
 
 const mockSong2: Song = {
   id: 'track_beta',
   title: 'Song Beta',
   artist: 'Artist Beta',
+  artistId: 'art_beta',
   album: 'Album Beta',
+  albumId: 'alb_beta',
   duration: 180,
   audioUrl: 'https://cdn.example.com/audio/beta.mp4',
   coverUrl: 'https://cdn.example.com/images/beta.jpg',
+  genre: 'Pop',
+  category: 'melody',
+  releaseYear: 2024,
+  plays: 20,
+  likes: 2,
 };
 
 describe('RaagaX Jam — Modular 4-Tier Architecture & JamPlaybackStateMachine Suite', () => {

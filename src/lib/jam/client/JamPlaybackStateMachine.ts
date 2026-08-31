@@ -126,48 +126,7 @@ export class JamPlaybackStateMachine {
       return;
     }
 
-    // 2a. Pure PAUSE/PLAY on same track: same generation + same trackId → state-only reconciliation
-    //     Do NOT reload audio. Do NOT call prepareAudioPlayback. Just update play/pause state.
-    const isSameTrackSameGeneration =
-      this.state.activeGeneration === eventGeneration &&
-      this.state.activeTrackId === trackId &&
-      trackId !== null;
-
-    if (isSameTrackSameGeneration) {
-      // Update the timeline/transition IDs so subsequent duplicate checks work correctly
-      this.state.activeTimelineId = timelineId;
-      this.state.activeTransitionId = transitionId;
-      if (queueItemId) this.state.activeQueueItemId = queueItemId;
-
-      const targetState = session.state === 'PLAYING' ? 'PLAYING' : 'PAUSED';
-      if (this.state.playbackState !== targetState) {
-        this.state.playbackState = targetState;
-        if (targetState === 'PAUSED') {
-          PlaybackService.getInstance().pause();
-          usePlayerStore.setState({ isPlaying: false, playbackIntent: 'PAUSED' });
-          console.log(`[PLAYBACK_EFFECT] action=PAUSE reason=PURE_SAME_TRACK_PAUSE trackId=${trackId} positionMs=${session.positionMs} timelineId=${timelineId} generation=${eventGeneration}`);
-        } else {
-          // Resume: drift engine will seek to correct position and call play()
-          this.driftEngine.evaluateScheduledStart(session);
-          usePlayerStore.setState({ isPlaying: true, playbackIntent: 'PLAYING' });
-          console.log(`[PLAYBACK_EFFECT] action=RESUME reason=PURE_SAME_TRACK_RESUME trackId=${trackId} positionMs=${session.positionMs} timelineId=${timelineId} generation=${eventGeneration}`);
-        }
-      } else {
-        console.log(`[PLAYBACK_EFFECT] action=NO_OP reason=DUPLICATE_STATE trackId=${trackId} state=${targetState} timelineId=${timelineId} generation=${eventGeneration}`);
-      }
-
-      // Reconcile queue in player store without touching audio position
-      if (session.queue) {
-        const store = usePlayerStore.getState();
-        if (store.currentSong) {
-          const clientQueue: Song[] = [store.currentSong, ...session.queue.map((item) => item.song)];
-          usePlayerStore.setState({ queue: clientQueue });
-        }
-      }
-      return;
-    }
-
-    // 2b. Exact same identity check (same generation + timelineId + transitionId + trackId)
+    // 2a. Exact duplicate identity check (same generation + timelineId + transitionId + trackId)
     const isSameIdentity =
       this.state.activeGeneration === eventGeneration &&
       this.state.activeTimelineId === timelineId &&
@@ -193,6 +152,43 @@ export class JamPlaybackStateMachine {
       }
 
       // Reconcile queue & metadata in player store cleanly without touching playback position
+      if (session.queue) {
+        const store = usePlayerStore.getState();
+        if (store.currentSong) {
+          const clientQueue: Song[] = [store.currentSong, ...session.queue.map((item) => item.song)];
+          usePlayerStore.setState({ queue: clientQueue });
+        }
+      }
+      return;
+    }
+
+    // 2b. Pure PAUSE/PLAY on same track: same generation + same trackId → state-only reconciliation
+    //     Do NOT reload audio. Do NOT call prepareAudioPlayback. Just update play/pause state.
+    const isSameTrackSameGeneration =
+      this.state.activeGeneration === eventGeneration &&
+      this.state.activeTrackId === trackId &&
+      trackId !== null;
+
+    if (isSameTrackSameGeneration) {
+      // Update the timeline/transition IDs so subsequent duplicate checks work correctly
+      this.state.activeTimelineId = timelineId;
+      this.state.activeTransitionId = transitionId;
+      if (queueItemId) this.state.activeQueueItemId = queueItemId;
+
+      const targetState = session.state === 'PLAYING' ? 'PLAYING' : 'PAUSED';
+      this.state.playbackState = targetState;
+      if (targetState === 'PAUSED') {
+        PlaybackService.getInstance().pause();
+        usePlayerStore.setState({ isPlaying: false, playbackIntent: 'PAUSED' });
+        console.log(`[PLAYBACK_EFFECT] action=PAUSE reason=PURE_SAME_TRACK_PAUSE trackId=${trackId} positionMs=${session.positionMs} timelineId=${timelineId} generation=${eventGeneration}`);
+      } else {
+        // Resume: drift engine will seek to correct position and call play()
+        this.driftEngine.evaluateScheduledStart(session);
+        usePlayerStore.setState({ isPlaying: true, playbackIntent: 'PLAYING' });
+        console.log(`[PLAYBACK_EFFECT] action=RESUME reason=PURE_SAME_TRACK_RESUME trackId=${trackId} positionMs=${session.positionMs} timelineId=${timelineId} generation=${eventGeneration}`);
+      }
+
+      // Reconcile queue in player store without touching audio position
       if (session.queue) {
         const store = usePlayerStore.getState();
         if (store.currentSong) {

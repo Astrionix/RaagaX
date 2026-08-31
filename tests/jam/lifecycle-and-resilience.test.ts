@@ -8,10 +8,17 @@ const testSong: Song = {
   id: 'song_life_1',
   title: 'Lifecycle Track',
   artist: 'RaagaX Artist',
+  artistId: 'art_life',
   album: 'Album Life',
+  albumId: 'alb_life',
   duration: 300,
   audioUrl: 'https://cdn.example.com/life.mp4',
   coverUrl: 'https://cdn.example.com/life.jpg',
+  genre: 'Pop',
+  category: 'melody',
+  releaseYear: 2024,
+  plays: 10,
+  likes: 1,
 };
 
 describe('RaagaX Jam — Lifecycle, Error Semantics & Synchronization Resilience Suite', () => {
@@ -138,6 +145,7 @@ describe('RaagaX Jam — Lifecycle, Error Semantics & Synchronization Resilience
       hostId: 'user_host',
       hostName: 'Host',
       state: 'PLAYING',
+      trackId: testSong.id,
       currentSong: testSong,
       positionMs: 0,
       basePositionMs: 0,
@@ -183,6 +191,7 @@ describe('RaagaX Jam — Lifecycle, Error Semantics & Synchronization Resilience
       hostId: 'user_host',
       hostName: 'Host',
       state: 'PLAYING',
+      trackId: testSong.id,
       currentSong: testSong,
       positionMs: 0,
       startAtServerTime: Date.now() + 500, // 500ms in future

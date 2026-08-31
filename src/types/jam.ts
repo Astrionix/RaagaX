@@ -382,11 +382,28 @@ export interface JamCommand {
   timelineId?: string;
   generation?: number;
   deviceId?: string;
+  timestamp?: number;
+}
+
+export interface JamCommandResponse {
+  success: boolean;
+  session?: JamSession;
+  error?: string;
+  code?: string;
+  revision: number;
+  commandId?: string;
+  isIdempotentReplay?: boolean;
 }
 
 export interface JamSyncDiagnostics {
+  // 4-Tier Latency Breakdown
+  rttMs: number; // 1. Network RTT
+  commandDeliveryLatencyMs?: number; // 2. Command delivery latency
+  audioPreparationLatencyMs?: number; // 3. Audio preparation / decoder readiness latency
+  scheduledStartErrorMs?: number; // 4. Scheduled start execution error
+  steadyDriftMs?: number; // 5. Steady-state playback drift
+
   clockOffsetMs: number;
-  rttMs: number;
   rttMedianMs: number;
   rttAverageMs: number;
   jitterMs: number;

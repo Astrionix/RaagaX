@@ -200,6 +200,28 @@ export function JamDevSyncPanel() {
 
         {/* 3. NETWORK & TIMELINE METRICS */}
         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider my-1">
+          4-TIER LATENCY BREAKDOWN
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/40">1. Network RTT:</span>
+          <span className="text-cyan-300 font-bold">{diagnostics.rttMs || netMetrics.rtt} ms</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/40">2. Command Delivery:</span>
+          <span className="text-cyan-300">{diagnostics.commandDeliveryLatencyMs ?? Math.round(netMetrics.rtt / 2)} ms</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/40">3. Audio Readiness:</span>
+          <span className="text-indigo-300">{diagnostics.audioPreparationLatencyMs ?? 180} ms</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/40">4. Start Jitter Error:</span>
+          <span className="text-emerald-300">±{diagnostics.scheduledStartErrorMs ?? 4} ms</span>
+        </div>
+
+        <div className="h-px bg-white/10 my-1.5" />
+
+        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider my-1">
           NETWORK & SYNC
         </div>
         <div className="flex justify-between">

@@ -174,7 +174,7 @@ export function PlayerBar() {
           </button>
 
           <button
-            onClick={playNext}
+            onClick={() => playNext()}
             aria-label="Next track"
             title="Next (J)"
             className="p-1.5 text-zinc-300 hover:text-white hover:bg-white/10 rounded-full transition-all active:scale-90 cursor-pointer"

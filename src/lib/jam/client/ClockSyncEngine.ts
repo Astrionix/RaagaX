@@ -214,6 +214,18 @@ export class ClockSyncEngine {
   }
 
   /**
+   * Direct hardware radio NTP clock synchronization from Bluetooth/LAN peer
+   */
+  public setPeerClockOffset(offsetMs: number, rttMs: number) {
+    this.offsetMs = offsetMs;
+    this.rttMs = rttMs;
+    this.jitterMs = 1;
+    this.sampleCount++;
+    this.lastSyncedAt = Date.now();
+    NetworkQualityEngine.getInstance().recordPing(rttMs, true);
+  }
+
+  /**
    * Reset for testing
    */
   public resetForTesting(initialOffset = 0) {

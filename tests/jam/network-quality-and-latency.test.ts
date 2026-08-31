@@ -222,7 +222,7 @@ describe('RaagaX Jam — Network Quality & Latency Synchronization Suite', () =>
       expect(playRes.session?.timelineId).toMatch(/^TL_1_/);
       expect(playRes.session?.transitionId).toMatch(/^TR_1_/);
       expect(playRes.session?.state).toBe('PLAYING');
-      expect(playRes.session?.payload?.isPureResume ?? playRes.session?.isPureResume).toBeFalsy(); // payload flag
+      expect((playRes.session as any)?.payload?.isPureResume ?? (playRes.session as any)?.isPureResume).toBeFalsy(); // payload flag
 
       // SEEK command — increments generation (genuine timeline change)
       const seekRes = serverEngine.executeCommand({

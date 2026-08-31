@@ -8,18 +8,34 @@ const mockSongA: Song = {
   id: 'song_a',
   title: 'Track Alpha',
   artist: 'Artist One',
+  artistId: 'art_1',
+  album: 'Album One',
+  albumId: 'alb_1',
   duration: 200,
   coverUrl: 'https://cdn.test/a.jpg',
   audioUrl: 'https://cdn.test/a.mp3',
+  genre: 'Pop',
+  category: 'melody',
+  releaseYear: 2024,
+  plays: 10,
+  likes: 2,
 };
 
 const mockSongB: Song = {
   id: 'song_b',
   title: 'Track Bravo',
   artist: 'Artist Two',
+  artistId: 'art_2',
+  album: 'Album Two',
+  albumId: 'alb_2',
   duration: 240,
   coverUrl: 'https://cdn.test/b.jpg',
   audioUrl: 'https://cdn.test/b.mp3',
+  genre: 'Pop',
+  category: 'melody',
+  releaseYear: 2024,
+  plays: 20,
+  likes: 4,
 };
 
 describe('RaagaX Jam — Playback Controls & Multi-Device Sync Integration', () => {
@@ -177,9 +193,9 @@ describe('RaagaX Jam — Playback Controls & Multi-Device Sync Integration', () 
   });
 
   it('7. JamServerEngine: createSession properly slices initialQueue without duplicate active track (TEST 4)', () => {
-    const songC: Song = { id: 'song_c', title: 'Track Charlie', artist: 'Artist Three', duration: 180, coverUrl: '', audioUrl: '' };
-    const songD: Song = { id: 'song_d', title: 'Track Delta', artist: 'Artist Four', duration: 210, coverUrl: '', audioUrl: '' };
-    const songE: Song = { id: 'song_e', title: 'Track Echo', artist: 'Artist Five', duration: 190, coverUrl: '', audioUrl: '' };
+    const songC: Song = { id: 'song_c', title: 'Track Charlie', artist: 'Artist Three', artistId: 'art_3', album: 'Alb 3', albumId: 'alb_3', duration: 180, coverUrl: '', audioUrl: '', genre: 'Pop', category: 'melody', releaseYear: 2024, plays: 1, likes: 1 };
+    const songD: Song = { id: 'song_d', title: 'Track Delta', artist: 'Artist Four', artistId: 'art_4', album: 'Alb 4', albumId: 'alb_4', duration: 210, coverUrl: '', audioUrl: '', genre: 'Pop', category: 'melody', releaseYear: 2024, plays: 1, likes: 1 };
+    const songE: Song = { id: 'song_e', title: 'Track Echo', artist: 'Artist Five', artistId: 'art_5', album: 'Alb 5', albumId: 'alb_5', duration: 190, coverUrl: '', audioUrl: '', genre: 'Pop', category: 'melody', releaseYear: 2024, plays: 1, likes: 1 };
 
     const initialQueue = [mockSongA, mockSongB, songC, songD, songE];
 
@@ -213,8 +229,8 @@ describe('RaagaX Jam — Playback Controls & Multi-Device Sync Integration', () 
   });
 
   it('8. JamServerEngine: createSession when initialSong is in middle of queue populates history and upcoming queue correctly', () => {
-    const songC: Song = { id: 'song_c', title: 'Track Charlie', artist: 'Artist Three', duration: 180, coverUrl: '', audioUrl: '' };
-    const songD: Song = { id: 'song_d', title: 'Track Delta', artist: 'Artist Four', duration: 210, coverUrl: '', audioUrl: '' };
+    const songC: Song = { id: 'song_c', title: 'Track Charlie', artist: 'Artist Three', artistId: 'art_3', album: 'Alb 3', albumId: 'alb_3', duration: 180, coverUrl: '', audioUrl: '', genre: 'Pop', category: 'melody', releaseYear: 2024, plays: 1, likes: 1 };
+    const songD: Song = { id: 'song_d', title: 'Track Delta', artist: 'Artist Four', artistId: 'art_4', album: 'Alb 4', albumId: 'alb_4', duration: 210, coverUrl: '', audioUrl: '', genre: 'Pop', category: 'melody', releaseYear: 2024, plays: 1, likes: 1 };
 
     const initialQueue = [mockSongA, mockSongB, songC, songD];
 
@@ -323,8 +339,8 @@ describe('RaagaX Jam — Playback Controls & Multi-Device Sync Integration', () 
   });
 
   it('11. JamServerEngine: Rapid consecutive SKIP_NEXT calls transition deterministically (TEST 5)', () => {
-    const songC: Song = { id: 'song_c', title: 'Track Charlie', artist: 'Artist Three', duration: 180, coverUrl: '', audioUrl: '' };
-    const songD: Song = { id: 'song_d', title: 'Track Delta', artist: 'Artist Four', duration: 210, coverUrl: '', audioUrl: '' };
+    const songC: Song = { id: 'song_c', title: 'Track Charlie', artist: 'Artist Three', artistId: 'art_3', album: 'Alb 3', albumId: 'alb_3', duration: 180, coverUrl: '', audioUrl: '', genre: 'Pop', category: 'melody', releaseYear: 2024, plays: 1, likes: 1 };
+    const songD: Song = { id: 'song_d', title: 'Track Delta', artist: 'Artist Four', artistId: 'art_4', album: 'Alb 4', albumId: 'alb_4', duration: 210, coverUrl: '', audioUrl: '', genre: 'Pop', category: 'melody', releaseYear: 2024, plays: 1, likes: 1 };
 
     const { session } = server.createSession({
       hostId: 'host_1',

@@ -5,7 +5,8 @@ import { DriftCorrectionEngine } from '@/lib/jam/client/DriftCorrectionEngine';
 import { ClockSyncEngine } from '@/lib/jam/client/ClockSyncEngine';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
 import { usePlayerStore } from '@/context/usePlayerStore';
-import { Song, JamSession, JamEvent } from '@/types/music';
+import { Song } from '@/types/music';
+import { JamSession, JamEvent } from '@/types/jam';
 
 // ─── Test fixtures ────────────────────────────────────────────────────────────
 
@@ -313,7 +314,7 @@ describe('RaagaX Jam — Race Condition Safety Suite (Phase 10)', () => {
     server.executeCommand({ commandId: 'c2', jamId: session.jamId, userId: 'host_user', action: 'SEEK', payload: { positionMs: 30000 } });
 
     const currentSession = server.getSession(session.jamId)!;
-    const currentGen = currentSession.generation;
+    const currentGen = currentSession.generation || 1;
 
     // Simulate a stale snapshot from before the SEEK (lower generation)
     const staleSession: JamSession = { ...currentSession, generation: currentGen - 1, positionMs: 5000 };
@@ -368,11 +369,11 @@ describe('RaagaX Jam — Race Condition Safety Suite (Phase 10)', () => {
 
     const res1 = server.executeCommand({ commandId: 'cmd_next', jamId: session.jamId, userId: 'host_user', action: 'SKIP_NEXT' });
     expect(res1.success).toBe(true);
-    const genAfterNext = server.getSession(session.jamId)!.generation;
+    const genAfterNext = server.getSession(session.jamId)!.generation || 0;
 
     const res2 = server.executeCommand({ commandId: 'cmd_prev', jamId: session.jamId, userId: 'host_user', action: 'SKIP_PREV' });
     expect(res2.success).toBe(true);
-    const genAfterPrev = server.getSession(session.jamId)!.generation;
+    const genAfterPrev = server.getSession(session.jamId)!.generation || 0;
 
     // Each SKIP creates a new generation
     expect(genAfterPrev).toBeGreaterThan(genAfterNext);

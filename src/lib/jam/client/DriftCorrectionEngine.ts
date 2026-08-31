@@ -35,6 +35,10 @@ export class DriftCorrectionEngine {
   private scheduledTimelineId: string = '';
 
   private consecutiveLargeDriftCount = 0;
+  private lastHardSeekTimeMs = 0;
+  private lastRateChangeTimeMs = 0;
+  private static readonly HARD_SEEK_COOLDOWN_MS = 3000;
+  private static readonly RATE_CHANGE_HOLD_MS = 1000;
 
   // STARTUP DRIFT GRACE (Phase 3):
   // After a new session loads (join, reconnect, or track change), suppress drift evaluation
@@ -437,24 +441,43 @@ export class DriftCorrectionEngine {
       targetRate = driftMs < 0 ? 1.052 : 0.948;
       this.consecutiveLargeDriftCount = 0;
     } else {
-      // Tier 4: Large Drift (> 500ms or persistent) -> Controlled seek
+      // Tier 4: Large Drift (> 500ms) -> Controlled seek with 3s cooldown protection
       this.consecutiveLargeDriftCount++;
-      action = 'HARD_SEEK';
-      targetRate = 1.0;
-      if (activeAudio) {
-        activeAudio.currentTime = Math.max(0, expectedPositionMs / 1000);
+      const now = Date.now();
+      const isCooldownElapsed = now - this.lastHardSeekTimeMs >= DriftCorrectionEngine.HARD_SEEK_COOLDOWN_MS;
+
+      if (isCooldownElapsed && !isAudioBufferingOrSyncing) {
+        action = 'HARD_SEEK';
+        targetRate = 1.0;
+        this.lastHardSeekTimeMs = now;
+        this.consecutiveLargeDriftCount = 0;
+
+        if (activeAudio) {
+          activeAudio.currentTime = Math.max(0, expectedPositionMs / 1000);
+        }
+        if (isNative) {
+          RaagaXNativePlayer.seekTo(Math.max(0, expectedPositionMs));
+        }
+        console.log(`[PLAYBACK_EFFECT] action=SEEK reason=DRIFT_CORRECTION timelineId=${session.timelineId || 'TL_1'} driftMs=${driftMs}`);
+      } else {
+        // While waiting for cooldown (avoiding rapid seek loop on mobile), apply firm rate nudge rather than rapid-seeking
+        action = 'MODULATE_RATE';
+        targetRate = driftMs < 0 ? 1.052 : 0.948;
       }
-      if (isNative) {
-        RaagaXNativePlayer.seekTo(Math.max(0, expectedPositionMs));
-      }
-      console.log(`[PLAYBACK_EFFECT] action=SEEK reason=DRIFT_CORRECTION timelineId=${session.timelineId || 'TL_1'} driftMs=${driftMs}`);
-      this.consecutiveLargeDriftCount = 0;
     }
 
-    // Apply playback rate smoothly (web only)
-    if (activeAudio && Math.abs(activeAudio.playbackRate - targetRate) > 0.005) {
-      activeAudio.playbackRate = targetRate;
-      this.currentRate = targetRate;
+    // Apply playback rate smoothly with rate-hold window to avoid rapid rate flutter on mobile decoders
+    if (activeAudio) {
+      const now = Date.now();
+      const rateDiff = Math.abs(activeAudio.playbackRate - targetRate);
+      const isReturningToNormal = targetRate === 1.0 && rateDiff > 0.005;
+      const isHoldElapsed = now - this.lastRateChangeTimeMs >= DriftCorrectionEngine.RATE_CHANGE_HOLD_MS;
+
+      if (isReturningToNormal || (rateDiff > 0.01 && isHoldElapsed)) {
+        activeAudio.playbackRate = targetRate;
+        this.currentRate = targetRate;
+        this.lastRateChangeTimeMs = now;
+      }
     }
 
     const status: DriftStatus = {
@@ -512,6 +535,8 @@ export class DriftCorrectionEngine {
     this.lastDriftMs = 0;
     this.currentRate = 1.0;
     this.consecutiveLargeDriftCount = 0;
+    this.lastHardSeekTimeMs = 0;
+    this.lastRateChangeTimeMs = 0;
     this.listeners.clear();
   }
 }
