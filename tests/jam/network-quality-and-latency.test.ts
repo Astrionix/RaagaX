@@ -293,7 +293,7 @@ describe('RaagaX Jam — Network Quality & Latency Synchronization Suite', () =>
       mockAudio.currentTime = 10.02; // 10020ms (20ms ahead)
 
       const status = driftEngine.evaluateAndCorrect();
-      // Drift = 10020 - 10000 = +20ms (<= 35ms)
+      // Drift = 10020 - 10000 = +20ms (<= 30ms dead-band) -> SYNCED, no correction
       expect(status.driftMs).toBe(20);
       expect(status.correctionAction).toBe('NONE');
       expect(mockAudio.playbackRate).toBe(1.0);
@@ -336,10 +336,13 @@ describe('RaagaX Jam — Network Quality & Latency Synchronization Suite', () =>
       mockAudio.currentTime = 10.08; // 10080ms (80ms ahead)
 
       const status = driftEngine.evaluateAndCorrect();
-      // Drift = +80ms (ahead) -> slow down to 0.982x
+      // Drift = +80ms (ahead) -> PD controller slows down (rate < 1.0)
       expect(status.driftMs).toBe(80);
       expect(status.correctionAction).toBe('MODULATE_RATE');
-      expect(mockAudio.playbackRate).toBeCloseTo(0.982, 3);
+      // PD rate = 1.0 - (Kp * 80) = 1.0 - 0.144 = 0.856, clamped to 0.88
+      // Rate should be below 1.0 (slowing down to correct positive drift)
+      expect(mockAudio.playbackRate).toBeGreaterThan(0.87);
+      expect(mockAudio.playbackRate).toBeLessThan(1.0);
     });
 
     it('applies Tier 3 moderate rate modulation (0.948x / 1.052x) when 120ms < |drift| <= 500ms', () => {
@@ -379,10 +382,13 @@ describe('RaagaX Jam — Network Quality & Latency Synchronization Suite', () =>
       mockAudio.currentTime = 9.8; // 9800ms (200ms behind)
 
       const status = driftEngine.evaluateAndCorrect();
-      // Drift = -200ms (behind) -> speed up to 1.052x
+      // Drift = -200ms (behind) -> PD controller speeds up (rate > 1.0)
       expect(status.driftMs).toBe(-200);
       expect(status.correctionAction).toBe('MODULATE_RATE');
-      expect(mockAudio.playbackRate).toBeCloseTo(1.052, 3);
+      // PD rate = 1.0 - (Kp * -200) = 1.0 + 0.36 = 1.36, clamped to 1.12
+      // Rate should be above 1.0 (speeding up to correct negative drift)
+      expect(mockAudio.playbackRate).toBeGreaterThan(1.0);
+      expect(mockAudio.playbackRate).toBeLessThanOrEqual(1.12);
     });
 
     it('applies Tier 4 controlled seek when |drift| > 500ms and logs diagnostic context when drift > 300ms', () => {
@@ -427,7 +433,12 @@ describe('RaagaX Jam — Network Quality & Latency Synchronization Suite', () =>
 
       const status = driftEngine.evaluateAndCorrect();
       expect(status.correctionAction).toBe('HARD_SEEK');
-      expect(mockAudio.currentTime).toBe(10.0); // Pre-seek to 10s
+      // Predictive seek: target = expectedPos (10s) + estimatedSeekLatency
+      // estimatedSeekLatency = max(80, rttMedian*1.5+40) — based on network RTT
+      // The seek target should be slightly AHEAD of the expected position to
+      // compensate for seek completion latency
+      expect(mockAudio.currentTime).toBeGreaterThan(10.0); // ahead of bare expected position
+      expect(mockAudio.currentTime).toBeLessThan(10.5);    // but within 500ms buffer window
 
       // Verify diagnostic warning was logged with full context
       expect(consoleWarnSpy).toHaveBeenCalledWith(

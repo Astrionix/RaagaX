@@ -56,8 +56,8 @@ export class DriftCorrectionEngine {
   private lastHardSeekTimeMs = 0;
   private lastRateChangeTimeMs = 0;
   private hardSeekCount = 0;
-  private static readonly HARD_SEEK_COOLDOWN_MS = 3500;
-  private static readonly RATE_CHANGE_HOLD_MS = 800;
+  private static readonly HARD_SEEK_COOLDOWN_MS = 2000;
+  private static readonly RATE_CHANGE_HOLD_MS = 400;
 
   private readinessState: DriftReadinessState = 'IDLE';
   private activeCorrection: CorrectionRecord | null = null;
@@ -69,6 +69,62 @@ export class DriftCorrectionEngine {
   // currentTime=0 from ever triggering false hard seeks.
   private lastSessionLoadTimeMs = 0;
   private static readonly STARTUP_GRACE_MS = 3000;
+
+  // ─── PID Controller & EMA Filter (Broadcast-grade Drift Engine) ───────────────
+  // Proportional gain: base rate change per ms of smoothed drift
+  private static readonly Kp = 0.0018;
+  // Integral gain: corrects steady-state bias (e.g. clock running 0.02% fast)
+  private static readonly Ki = 0.000015;
+  // Derivative gain: rate change per ms/s of drift velocity (anti-overshoot)
+  private static readonly Kd = 0.0009;
+  // Anti-windup: clamp accumulated integral to prevent runaway on large transients
+  private static readonly INTEGRAL_CLAMP_MS_S = 40;
+  // EMA alpha: higher = more responsive, lower = smoother (noise rejection)
+  private static readonly EMA_ALPHA = 0.35;
+  // rAF throttle: run PID at most every 50ms even on 60fps rAF (avoids stale-currentTime noise)
+  private static readonly RAF_MIN_INTERVAL_MS = 50;
+  // Foreground grace: suppress hard seeks for this many ms after app/tab returns to foreground
+  private static readonly FOREGROUND_GRACE_MS = 3000;
+
+  // Smoothed drift (EMA output fed into the PID controller)
+  private smoothedDriftMs = 0;
+  // Previous EMA value used to compute velocity
+  private prevSmoothedDriftMs = 0;
+  // Drift velocity in ms/s (derivative term)
+  private driftVelocityMsPerSec = 0;
+  // Accumulated integral error for bias elimination (ms·s)
+  private integralMs = 0;
+  // Timestamp of last evaluateAndCorrect() call, for Δt computation
+  private lastEvalTimeMs = 0;
+
+  // requestAnimationFrame handle (web only; null on native)
+  private rafHandle: number | null = null;
+  // Last timestamp that rAF actually ran a PID evaluation (throttle guard)
+  private lastRafEvalMs = 0;
+  // setInterval handle used when page/app is hidden (rAF stops in background)
+  private visibilityFallbackInterval: any = null;
+  // performance.now() timestamp when the page/app returned to foreground
+  // Used to suppress hard seeks during the initial resync window
+  private foregroundRestoreTimeMs = 0;
+  // visibilitychange listener ref for cleanup
+  private visibilityListener: (() => void) | null = null;
+
+  // ── Gap 2: Native position interpolation ─────────────────────────────────
+  // ExoPlayer reports position at ~1Hz via usePlayerStore.currentTime.
+  // We anchor the last known position + a performance.now() timestamp so we can
+  // interpolate sub-second positions between updates, giving the PID accurate
+  // velocity readings on native (instead of seeing Δdrift=0 then a 1000ms jump).
+  private lastNativePositionMs = 0;
+  private lastNativeAnchorMs   = 0;  // performance.now() at last ExoPlayer update
+
+  // ── Gap 6: Network transport change detection ─────────────────────────────
+  // When the link changes (Wi-Fi→cellular), reset EMA/integral immediately so the
+  // adaptive gains re-tune to the new RTT/jitter without a 10s EMA settling delay.
+  private lastKnownTransport = '';
+
+  // Hysteresis flag: prevents rate flapping at the SYNCED boundary
+  // Enter SYNCED when |smoothed| < deadBand; exit only when |smoothed| > deadBand + 10ms
+  private isInSyncedZone = true;
 
   private constructor() {
     this.clockSync = ClockSyncEngine.getInstance();
@@ -113,6 +169,14 @@ export class DriftCorrectionEngine {
       if (isNewPlaybackIdentity) {
         this.lastSessionLoadTimeMs = Date.now();
         this.readinessState = session.state === 'PLAYING' ? 'PREPARING' : 'PAUSED';
+        // Seed EMA to zero so stale drift from previous track/seek cannot
+        // bleed into the first correction cycle of the new playback identity.
+        this.smoothedDriftMs = 0;
+        this.prevSmoothedDriftMs = 0;
+        this.driftVelocityMsPerSec = 0;
+        this.integralMs = 0;       // reset integral so no previous bias bleeds into new track
+        this.lastEvalTimeMs = 0;
+        this.isInSyncedZone = true;
       }
 
       this.evaluateScheduledStart(session);
@@ -408,9 +472,26 @@ export class DriftCorrectionEngine {
     // Get actual local playback position from audio element or native store
     const isNative = RaagaXNativePlayer.isNative();
     const activeAudio = PlaybackService.getInstance().getActiveAudio();
-    const actualLocalMs = isNative
-      ? usePlayerStore.getState().currentTime * 1000
-      : (activeAudio ? activeAudio.currentTime * 1000 : 0);
+
+    // ── Gap 2: Native position interpolation ─────────────────────────────
+    // ExoPlayer pushes positionMs at ~1Hz. Between updates, interpolate using
+    // performance.now() so the PID gets accurate sub-second positions and
+    // the derivative term doesn't see phantom Δdrift=0 → 1000ms jumps.
+    let actualLocalMs: number;
+    if (isNative) {
+      const storePositionMs = usePlayerStore.getState().currentTime * 1000;
+      const perfNow = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      // If ExoPlayer updated more recently than our anchor, re-anchor
+      if (storePositionMs !== this.lastNativePositionMs) {
+        this.lastNativePositionMs = storePositionMs;
+        this.lastNativeAnchorMs   = perfNow;
+      }
+      // Interpolate: add elapsed time since last ExoPlayer report (capped at 1.5s)
+      const msSinceUpdate = Math.min(1500, perfNow - this.lastNativeAnchorMs);
+      actualLocalMs = this.lastNativePositionMs + (usePlayerStore.getState().isPlaying ? msSinceUpdate : 0);
+    } else {
+      actualLocalMs = activeAudio ? activeAudio.currentTime * 1000 : 0;
+    }
 
     // Section 2: Required States Guarding
     // During LOADING, PREPARING, BUFFERING, SEEKING, SCHEDULED, STARTING, drift engine must not fight playback
@@ -466,124 +547,279 @@ export class DriftCorrectionEngine {
       return status;
     }
 
-    // Section 1: Strict Drift Definition (driftMs = actualPlayerPositionMs - expectedTimelinePositionMs)
-    // NEVER fake, clamp, or hide measured drift
-    const driftMs = Math.round(actualLocalMs - expectedPositionMs);
-    this.lastDriftMs = driftMs;
+    // ── Step 1: Raw drift (authoritative, never hidden) ──────────────────────
+    const rawDriftMs = actualLocalMs - expectedPositionMs;
+    const evalNow = Date.now();
 
-    let targetRate = 1.0;
-    let action: DriftStatus['correctionAction'] = 'NONE';
-    let qualityState: DriftQualityState = 'SYNCED';
-    let correctionId: string | undefined = undefined;
+    // ── Step 2: EMA smoother — reject single-frame currentTime noise ─────────
+    // First sample after a new playback identity: seed EMA directly from rawDrift
+    // so tests and real sessions see the true drift immediately on the first tick.
+    // Subsequent calls blend via EMA to filter jitter/noise.
+    const isFirstSample = this.lastEvalTimeMs === 0;
+    const deltaT = isFirstSample
+      ? 0.1
+      : Math.min((evalNow - this.lastEvalTimeMs) / 1000, 1.0);  // cap at 1s (tab focus protection)
+    this.lastEvalTimeMs = evalNow;
 
-    const absDrift = Math.abs(driftMs);
+    this.prevSmoothedDriftMs = this.smoothedDriftMs;
+    this.smoothedDriftMs = isFirstSample
+      ? rawDriftMs   // hard-seed: no blending on first tick of a new identity
+      : DriftCorrectionEngine.EMA_ALPHA * rawDriftMs +
+        (1 - DriftCorrectionEngine.EMA_ALPHA) * this.smoothedDriftMs;
 
-    // Diagnostic logging when drift exceeds 300ms
-    if (absDrift > 300) {
-      this.logLargeDriftDiagnostic(session, expectedPositionMs, actualLocalMs, driftMs, activeAudio);
+    // ── Step 3: Derivative — drift velocity (ms/s) ───────────────────────────
+    // Positive velocity = drift is growing; negative = drift is shrinking (converging).
+    this.driftVelocityMsPerSec = deltaT > 0.01
+      ? (this.smoothedDriftMs - this.prevSmoothedDriftMs) / deltaT
+      : 0;
+
+    // Expose smoothed drift to callers (badge, store, test suite)
+    this.lastDriftMs = Math.round(this.smoothedDriftMs);
+
+    const absDrift    = Math.abs(this.smoothedDriftMs);
+    const absRawDrift = Math.abs(rawDriftMs);
+
+    // Diagnostic logging when raw drift exceeds 300ms
+    if (absRawDrift > 300) {
+      this.logLargeDriftDiagnostic(session, expectedPositionMs, actualLocalMs, Math.round(rawDriftMs), activeAudio);
     }
 
-    // Section 4 & 18: Progressive Correction Strategy & Quality States
-    if (absDrift < 30) {
-      // 0–30ms: SYNCED -> Target achieved, no correction
-      qualityState = 'SYNCED';
-      targetRate = 1.0;
-      action = 'NONE';
-      this.consecutiveLargeDriftCount = 0;
-    } else if (absDrift < 100) {
-      // 30–100ms: CORRECTING -> Gentle playback-rate correction (0.982x / 1.018x)
-      qualityState = 'CORRECTING';
-      action = 'MODULATE_RATE';
-      targetRate = driftMs < 0 ? 1.018 : 0.982;
-      this.consecutiveLargeDriftCount = 0;
-    } else if (absDrift < 300) {
-      // 100–300ms: HIGH DRIFT -> Stronger controlled rate correction (0.948x / 1.052x)
-      qualityState = 'HIGH_DRIFT';
-      action = 'MODULATE_RATE';
-      targetRate = driftMs < 0 ? 1.052 : 0.948;
-      this.consecutiveLargeDriftCount = 0;
-    } else if (absDrift <= 500) {
-      // 300–500ms: CRITICAL -> Controlled convergence (0.925x / 1.075x)
-      qualityState = 'CRITICAL';
-      action = 'MODULATE_RATE';
-      targetRate = driftMs < 0 ? 1.075 : 0.925;
-      this.consecutiveLargeDriftCount = 0;
-    } else if (absDrift > 5000) {
-      // >5000ms: Timeline Anomaly Guard (suppress blind seek, investigate state)
+    // ── Step 4: Network-adaptive dead-band ───────────────────────────────────
+    // LAN/Bluetooth peers have very low RTT → tighten dead-band to ±15ms.
+    // High-latency cloud links → widen dead-band proportional to RTT/6.7
+    // so we don't chase measurement noise larger than the clock uncertainty.
+    const netMetrics  = this.networkEngine.getMetrics();
+    const isLanOrPeer = netMetrics.transport === 'LAN' || netMetrics.transport === 'PEER';
+    const baseDead    = isLanOrPeer ? 15 : 30;
+    const deadBandMs  = Math.max(baseDead, netMetrics.rttMedian * 0.15);
+    // Hysteresis guard: once SYNCED, require drift to exceed deadBand+10ms before re-engaging
+    const exitThresholdMs = deadBandMs + 10;
+
+    // ── Gap 6: Network transport change — flush EMA + integral immediately ─
+    // When the link changes (Wi-Fi→cellular or LAN→CLOUD), the old EMA history
+    // is invalid for the new RTT/jitter regime. Reset so PID re-tunes now.
+    const currentTransport = netMetrics.transport ?? '';
+    if (this.lastKnownTransport && this.lastKnownTransport !== currentTransport) {
+      this.smoothedDriftMs      = rawDriftMs;  // hard-seed to current raw reading
+      this.prevSmoothedDriftMs  = rawDriftMs;
+      this.driftVelocityMsPerSec = 0;
+      this.integralMs            = 0;
+      this.lastEvalTimeMs        = 0;  // force isFirstSample on next tick
+      console.log(`[DRIFT_ENGINE] Network transport changed: ${this.lastKnownTransport} → ${currentTransport}. EMA + integral reset.`);
+    }
+    this.lastKnownTransport = currentTransport;
+
+    let targetRate   = 1.0;
+    let action: DriftStatus['correctionAction'] = 'NONE';
+    let qualityState: DriftQualityState = 'SYNCED';
+    let correctionId: string | undefined;
+
+    // ── Step 5: Correction decision ──────────────────────────────────────────
+    if (absDrift > 5000) {
+      // Timeline Anomaly Guard: >5s anomaly is almost always a clock domain bug,
+      // not a real drift. Suppress to avoid catastrophic blind seeks.
       qualityState = 'INVESTIGATION';
-      console.warn(`[TIMELINE_ANOMALY_SUPPRESSED] drift=${driftMs}ms timelineId=${session.timelineId} gen=${session.generation} — suppressing blind seek`);
-      action = 'NONE';
+      console.warn(
+        `[TIMELINE_ANOMALY_SUPPRESSED] smoothedDrift=${Math.round(this.smoothedDriftMs)}ms ` +
+        `rawDrift=${Math.round(rawDriftMs)}ms timelineId=${session.timelineId} gen=${session.generation} — suppressing blind seek`
+      );
+      action    = 'NONE';
       targetRate = 1.0;
       this.consecutiveLargeDriftCount = 0;
-    } else {
-      // 500ms - 5000ms: INVESTIGATION -> Confirmed persistent drift triggers ONE controlled seek
+      // Reset EMA so we re-seed cleanly once the anomaly clears
+      this.smoothedDriftMs     = 0;
+      this.prevSmoothedDriftMs = 0;
+
+    } else if (absDrift > (isNative ? 300 : 500)) {
+      // ── Gap 5: Native seek-only mode — tighter hard-seek threshold ───────
+      // On native, rate modulation goes to /dev/null (activeAudio is null).
+      // Compensate by triggering hard seeks at 300ms (not 500ms) so correction
+      // still happens — just via ExoPlayer seekTo() instead of playbackRate.
+      //
+      // 300–5000ms (native) / 500–5000ms (web): INVESTIGATION → confirmed drift → hard seek
       qualityState = 'INVESTIGATION';
       this.consecutiveLargeDriftCount++;
-      const now = Date.now();
-      const isCooldownElapsed = now - this.lastHardSeekTimeMs >= DriftCorrectionEngine.HARD_SEEK_COOLDOWN_MS;
+      const isCooldownElapsed = evalNow - this.lastHardSeekTimeMs >= DriftCorrectionEngine.HARD_SEEK_COOLDOWN_MS;
 
-      if (isCooldownElapsed && !isAudioBufferingOrSyncing) {
-        action = 'HARD_SEEK';
+      // ── Gap 4: Foreground grace window ────────────────────────────────────
+      // After tab/app returns from background, background-accumulated drift looks
+      // like real drift but the audio was simply paused/suspended. Suppress hard
+      // seeks for FOREGROUND_GRACE_MS so the PID can rate-correct gently first.
+      const msSinceForeground = this.foregroundRestoreTimeMs > 0
+        ? Date.now() - this.foregroundRestoreTimeMs
+        : Infinity;
+      const isInForegroundGrace = msSinceForeground < DriftCorrectionEngine.FOREGROUND_GRACE_MS;
+
+      if (isCooldownElapsed && !isAudioBufferingOrSyncing && !isInForegroundGrace) {
+        action     = 'HARD_SEEK';
         targetRate = 1.0;
-        this.lastHardSeekTimeMs = now;
+        this.lastHardSeekTimeMs     = evalNow;
         this.hardSeekCount++;
         this.consecutiveLargeDriftCount = 0;
         this.readinessState = 'SEEKING';
+        // Reset EMA + integral after seek so we start fresh from the new position
+        this.smoothedDriftMs     = 0;
+        this.prevSmoothedDriftMs = 0;
+        this.integralMs          = 0;
+        this.isInSyncedZone      = true;
 
-        correctionId = `corr_${now}_${Math.random().toString(36).slice(2, 7)}`;
+        correctionId = `corr_${evalNow}_${Math.random().toString(36).slice(2, 7)}`;
+
+        // ── Predictive seek compensation ─────────────────────────────────
+        // Seeking takes time (50–300ms web, 200–1500ms native due to ExoPlayer
+        // buffer rebuild). We seek ahead by the estimated seek completion time
+        // so the position is already correct when playback resumes.
+        //
+        // Gap 7: native uses a much higher base estimate (300ms vs 80ms)
+        // to account for ExoPlayer buffer clearing + network refill time.
+        const estimatedSeekLatencyMs = isNative
+          ? Math.min(1200, Math.max(300, netMetrics.rttMedian * 2 + 100))
+          : Math.min(400,  Math.max(80,  netMetrics.rttMedian * 1.5 + 40));
+        const predictiveTargetMs = Math.max(0, expectedPositionMs + estimatedSeekLatencyMs);
+        const predictiveTargetSec = predictiveTargetMs / 1000;
+
         this.activeCorrection = {
           correctionId,
-          timelineId: session.timelineId || 'TL_1',
-          generation: session.generation ?? 1,
-          targetPositionMs: expectedPositionMs,
-          driftMs,
-          startTime: now,
-          action: 'HARD_SEEK',
-          completionState: 'PENDING',
+          timelineId:       session.timelineId || 'TL_1',
+          generation:       session.generation ?? 1,
+          targetPositionMs: predictiveTargetMs,
+          driftMs:          Math.round(rawDriftMs),
+          startTime:        evalNow,
+          action:           'HARD_SEEK',
+          completionState:  'PENDING',
         };
 
         if (activeAudio) {
-          activeAudio.currentTime = Math.max(0, expectedPositionMs / 1000);
+          activeAudio.currentTime = predictiveTargetSec;
         }
         if (isNative) {
-          RaagaXNativePlayer.seekTo(Math.max(0, expectedPositionMs));
+          RaagaXNativePlayer.seekTo(predictiveTargetMs);
         }
-        console.log(`[PLAYBACK_EFFECT] action=SEEK reason=DRIFT_CORRECTION timelineId=${session.timelineId || 'TL_1'} driftMs=${driftMs} hardSeekCount=${this.hardSeekCount} correctionId=${correctionId}`);
+        console.log(
+          `[PLAYBACK_EFFECT] action=SEEK reason=DRIFT_CORRECTION ` +
+          `timelineId=${session.timelineId || 'TL_1'} smoothedDrift=${Math.round(this.smoothedDriftMs)}ms ` +
+          `rawDrift=${Math.round(rawDriftMs)}ms predictiveTarget=${Math.round(predictiveTargetMs)}ms ` +
+          `seekLatencyEstimate=${Math.round(estimatedSeekLatencyMs)}ms hardSeekCount=${this.hardSeekCount} correctionId=${correctionId}`
+        );
       } else {
-        // While waiting for cooldown/stability, apply firm rate nudge rather than rapid-seeking
+        // While waiting for cooldown, apply strong rate nudge (10%) rather than rapid-seeking
+        action     = 'MODULATE_RATE';
+        targetRate = this.smoothedDriftMs < 0 ? 1.100 : 0.900;
+      }
+
+    } else {
+      // ── PD Controller zone: |drift| ≤ 500ms ──────────────────────────────
+      this.consecutiveLargeDriftCount = 0;
+
+      // Hysteresis: update SYNCED zone membership
+      if (this.isInSyncedZone) {
+        // Stay SYNCED unless drift clearly escapes the exit threshold
+        if (absDrift > exitThresholdMs) this.isInSyncedZone = false;
+      } else {
+        // Return to SYNCED once drift is back inside the dead-band
+        if (absDrift < deadBandMs) this.isInSyncedZone = true;
+      }
+
+      if (this.isInSyncedZone) {
+        // Dead-band: no correction needed — holds steady 1.0x
+        // Reset integral here: once synced, any accumulated bias is irrelevant
+        // and we don't want it to fight us when we next leave the dead-band.
+        this.integralMs = 0;
+        qualityState = 'SYNCED';
+        action       = 'NONE';
+        targetRate   = 1.0;
+
+      } else {
+        // Label quality state for UI / telemetry
+        if      (absDrift < 100) qualityState = 'CORRECTING';
+        else if (absDrift < 300) qualityState = 'HIGH_DRIFT';
+        else                     qualityState = 'CRITICAL';
         action = 'MODULATE_RATE';
-        targetRate = driftMs < 0 ? 1.075 : 0.925;
+
+        // ── Adaptive gains (jitter-scaled) ──────────────────────────────────────
+        // On high-jitter networks, reduce Kp to avoid chasing measurement noise.
+        // On LAN/Bluetooth (very low jitter), boost Kp for tighter sync.
+        // jitterMs: ~2ms (excellent LAN) to ~100ms (poor cellular)
+        const jitterMs      = netMetrics.jitter;
+        const jitterScale   = Math.max(0.5, Math.min(1.0, 1.0 - (jitterMs - 5) / 120));
+        const lanBoost      = isLanOrPeer ? 1.5 : 1.0;
+        const adaptiveKp    = Math.min(0.004, DriftCorrectionEngine.Kp * jitterScale * lanBoost);
+        const adaptiveKd    = Math.min(0.002, DriftCorrectionEngine.Kd * jitterScale * lanBoost);
+        // Ki stays fixed — integral gain should not scale with jitter
+        // (bias is real; jitter is noise — they are orthogonal)
+        const adaptiveKi    = DriftCorrectionEngine.Ki;
+
+        // ── Integral accumulation with anti-windup ───────────────────────────
+        // Accumulate smoothed drift × time to detect persistent bias
+        // (e.g. audio clock running 0.02% fast = +12ms steady-state error)
+        this.integralMs += this.smoothedDriftMs * deltaT;
+        // Anti-windup: clamp to ±INTEGRAL_CLAMP so a large transient
+        // doesn't wind up the integral and fight future corrections
+        this.integralMs = Math.max(
+          -DriftCorrectionEngine.INTEGRAL_CLAMP_MS_S,
+          Math.min(DriftCorrectionEngine.INTEGRAL_CLAMP_MS_S, this.integralMs)
+        );
+
+        // ── PID rate formula ──────────────────────────────────────────────────
+        // Positive smoothedDrift = local is AHEAD  → need to SLOW DOWN  (targetRate < 1)
+        // Negative smoothedDrift = local is BEHIND → need to SPEED UP   (targetRate > 1)
+        //
+        // Anti-overshoot brake: if drift is already converging (velocity opposes drift),
+        // halve Kp so we decelerate before crossing zero.
+        const isConverging = this.smoothedDriftMs * this.driftVelocityMsPerSec < 0;
+        const effectiveKp  = isConverging ? adaptiveKp * 0.5 : adaptiveKp;
+
+        let pidAdjust =
+          effectiveKp * this.smoothedDriftMs +         // P: current error
+          adaptiveKi  * this.integralMs +              // I: accumulated bias
+          adaptiveKd  * this.driftVelocityMsPerSec;   // D: rate of change
+
+        // ── Clock-confidence gating ──────────────────────────────────────
+        // Scale down when NTP clock is still warming up (< 5 samples, conf < 0.7).
+        const clockConf = this.clockSync.getState().confidence;
+        if (clockConf < 0.7) {
+          pidAdjust *= (clockConf / 0.7);
+        }
+
+        // Clamp to ±12% — beyond that, a hard seek is faster and cleaner
+        targetRate = Math.max(0.88, Math.min(1.12, 1.0 - pidAdjust));
       }
     }
 
-    // Apply playback rate smoothly with rate-hold window; ALWAYS restore 1.0x when converged
+    // ── Step 6: Apply rate with hold-window (debounce rapid flapping) ────────
     if (activeAudio) {
-      const now = Date.now();
-      const rateDiff = Math.abs(activeAudio.playbackRate - targetRate);
+      const rateDiff            = Math.abs(activeAudio.playbackRate - targetRate);
       const isReturningToNormal = targetRate === 1.0 && rateDiff > 0.005;
-      const isHoldElapsed = now - this.lastRateChangeTimeMs >= DriftCorrectionEngine.RATE_CHANGE_HOLD_MS;
+      const isHoldElapsed       = evalNow - this.lastRateChangeTimeMs >= DriftCorrectionEngine.RATE_CHANGE_HOLD_MS;
 
       if (isReturningToNormal || (rateDiff > 0.008 && isHoldElapsed)) {
-        activeAudio.playbackRate = targetRate;
-        this.currentRate = targetRate;
-        this.lastRateChangeTimeMs = now;
+        // ── Gap 3: iOS Safari playbackRate guard ───────────────────────────
+        // iOS Safari silently ignores playbackRate changes on a paused element.
+        // Only apply the rate when actually playing to avoid stale rate state.
+        const isIOS = typeof navigator !== 'undefined' &&
+          /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+        if (!isIOS || !activeAudio.paused) {
+          activeAudio.playbackRate  = targetRate;
+          this.currentRate          = targetRate;
+          this.lastRateChangeTimeMs = evalNow;
+        }
       }
     }
 
     const status: DriftStatus = {
       expectedPositionMs,
       actualLocalMs,
-      driftMs,
-      playbackRate: targetRate,
+      driftMs:         this.lastDriftMs,  // smoothed value
+      playbackRate:    targetRate,
       isWaitingForStart: false,
       leadTimeRemainingMs: 0,
       correctionAction: action,
       qualityState,
       readinessState: this.readinessState,
       correctionId,
-      timelineId: session.timelineId,
-      generation: session.generation,
-      revision: session.revision,
+      timelineId:  session.timelineId,
+      generation:  session.generation,
+      revision:    session.revision,
     };
 
     this.notify(status);
@@ -591,22 +827,129 @@ export class DriftCorrectionEngine {
   }
 
   /**
-   * Starts the continuous drift monitoring loop (every 250ms)
+   * Starts the drift monitoring loop.
+   *
+   * Web: uses requestAnimationFrame (~16ms) throttled to RAF_MIN_INTERVAL_MS (50ms)
+   *      for high-precision timing with low jitter vs setInterval.
+   * Native: falls back to setInterval(100ms) since rAF is not available.
+   *
+   * The throttle ensures we don't waste CPU reading stale AudioElement.currentTime
+   * on every 60fps frame — browsers update currentTime roughly every 250ms.
    */
   public start() {
     if (this.isCorrectionRunning) return;
     this.isCorrectionRunning = true;
 
-    this.loopInterval = setInterval(() => {
-      this.evaluateAndCorrect();
-    }, 250);
+    const isNative = RaagaXNativePlayer.isNative();
+    const hasRaf   = !isNative && typeof requestAnimationFrame !== 'undefined';
+
+    // Helpers: start/stop the rAF loop and the background setInterval fallback
+    const startRaf = () => {
+      if (this.rafHandle !== null) return;
+      const rafLoop = () => {
+        if (!this.isCorrectionRunning) return;
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        if (now - this.lastRafEvalMs >= DriftCorrectionEngine.RAF_MIN_INTERVAL_MS) {
+          this.lastRafEvalMs = now;
+          this.evaluateAndCorrect();
+        }
+        this.rafHandle = requestAnimationFrame(rafLoop);
+      };
+      this.rafHandle = requestAnimationFrame(rafLoop);
+    };
+
+    const stopRaf = () => {
+      if (this.rafHandle !== null) {
+        cancelAnimationFrame(this.rafHandle);
+        this.rafHandle = null;
+      }
+    };
+
+    const startVisibilityFallback = () => {
+      if (this.visibilityFallbackInterval) return;
+      // Browsers throttle setInterval to ~1Hz when hidden — still enough to
+      // keep the PID alive and not miss a complete session reset.
+      this.visibilityFallbackInterval = setInterval(() => {
+        if (this.isCorrectionRunning) this.evaluateAndCorrect();
+      }, 500);
+    };
+
+    const stopVisibilityFallback = () => {
+      if (this.visibilityFallbackInterval) {
+        clearInterval(this.visibilityFallbackInterval);
+        this.visibilityFallbackInterval = null;
+      }
+    };
+
+    if (hasRaf) {
+      // ── Gap 1: Visibility change handler ─────────────────────────────────
+      // rAF stops completely when a tab is hidden or app is backgrounded.
+      // Switch to a 500ms setInterval while hidden (browsers allow this at 1Hz
+      // even in background — enough to not miss a full session reset).
+      // On restore: flush EMA hard-seed, set foreground grace window,
+      // then resume rAF for high-precision corrections.
+      this.visibilityListener = () => {
+        if (typeof document === 'undefined') return;
+        if (document.hidden) {
+          // Tab/app going to background
+          stopRaf();
+          startVisibilityFallback();
+        } else {
+          // Tab/app returning to foreground
+          stopVisibilityFallback();
+
+          // ── Gap 4: Foreground grace window ──────────────────────────────
+          // Background-accumulated drift looks like real drift but audio was
+          // simply paused/suspended. Reset EMA so the hard-seed on the first
+          // tick reflects actual current drift, and start the grace window
+          // so only rate correction (not hard seeks) fires for 3s.
+          this.lastEvalTimeMs      = 0;  // triggers EMA hard-seed on next tick
+          this.smoothedDriftMs     = 0;
+          this.prevSmoothedDriftMs = 0;
+          this.driftVelocityMsPerSec = 0;
+          this.integralMs          = 0;
+          this.foregroundRestoreTimeMs = Date.now();
+
+          startRaf();
+        }
+      };
+
+      if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', this.visibilityListener);
+      }
+
+      // Start rAF immediately (tab starts visible)
+      startRaf();
+    } else {
+      // Native / SSR / test fallback: setInterval at 100ms
+      this.loopInterval = setInterval(() => {
+        this.evaluateAndCorrect();
+      }, 100);
+    }
   }
 
   /**
-   * Stops the drift monitoring loop
+   * Stops the drift monitoring loop and restores 1.0x playback rate.
    */
   public stop() {
     this.isCorrectionRunning = false;
+
+    // Cancel rAF loop (web)
+    if (this.rafHandle !== null) {
+      cancelAnimationFrame(this.rafHandle);
+      this.rafHandle = null;
+    }
+    // Cancel visibility fallback interval
+    if (this.visibilityFallbackInterval) {
+      clearInterval(this.visibilityFallbackInterval);
+      this.visibilityFallbackInterval = null;
+    }
+    // Remove visibilitychange listener
+    if (this.visibilityListener && typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.visibilityListener);
+      this.visibilityListener = null;
+    }
+    // Cancel setInterval fallback (native / test)
     if (this.loopInterval) {
       clearInterval(this.loopInterval);
       this.loopInterval = null;
@@ -619,19 +962,75 @@ export class DriftCorrectionEngine {
     }
   }
 
+  /**
+   * Called by the native ExoPlayer position listener whenever a new position
+   * is reported. Anchors the interpolation base used by evaluateAndCorrect()
+   * to give the PID accurate sub-1s position readings on Android.
+   */
+  public updateNativePosition(positionMs: number) {
+    this.lastNativePositionMs = positionMs;
+    this.lastNativeAnchorMs   = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  }
+
   public getPlaybackDriftMs(): number {
     return this.lastDriftMs;
   }
 
+  /**
+   * Returns full PID controller diagnostics for the debug badge and test suite.
+   * All values reflect the state after the most recent evaluateAndCorrect() call.
+   */
+  public getDriftDiagnostics(): {
+    rawDriftMs:             number;
+    smoothedDriftMs:        number;
+    driftVelocityMsPerSec:  number;
+    integralMs:             number;
+    isInSyncedZone:         boolean;
+    currentRate:            number;
+    hardSeekCount:          number;
+    clockConfidence:        number;
+    loopMode:               'RAF' | 'INTERVAL';
+  } {
+    return {
+      rawDriftMs:            this.lastDriftMs,
+      smoothedDriftMs:       Math.round(this.smoothedDriftMs),
+      driftVelocityMsPerSec: Math.round(this.driftVelocityMsPerSec),
+      integralMs:            Math.round(this.integralMs * 100) / 100,
+      isInSyncedZone:        this.isInSyncedZone,
+      currentRate:           this.currentRate,
+      hardSeekCount:         this.hardSeekCount,
+      clockConfidence:       this.clockSync.getState().confidence,
+      loopMode:              this.rafHandle !== null ? 'RAF' : 'INTERVAL',
+    };
+  }
+
   public resetForTesting() {
     this.stop();
-    this.currentSession = null;
-    this.lastDriftMs = 0;
-    this.currentRate = 1.0;
+    this.currentSession             = null;
+    this.lastDriftMs                = 0;
+    this.currentRate                = 1.0;
     this.consecutiveLargeDriftCount = 0;
-    this.lastHardSeekTimeMs = 0;
-    this.lastRateChangeTimeMs = 0;
-    this.hardSeekCount = 0;
+    this.lastHardSeekTimeMs         = 0;
+    this.lastRateChangeTimeMs       = 0;
+    this.hardSeekCount              = 0;
+    // PID controller / EMA state
+    this.smoothedDriftMs            = 0;
+    this.prevSmoothedDriftMs        = 0;
+    this.driftVelocityMsPerSec      = 0;
+    this.integralMs                 = 0;
+    this.lastEvalTimeMs             = 0;
+    this.isInSyncedZone             = true;
+    // rAF + visibility state
+    this.rafHandle                  = null;
+    this.lastRafEvalMs              = 0;
+    this.visibilityFallbackInterval = null;
+    this.foregroundRestoreTimeMs    = 0;
+    this.visibilityListener         = null;
+    // Native interpolation state
+    this.lastNativePositionMs       = 0;
+    this.lastNativeAnchorMs         = 0;
+    // Network transport state
+    this.lastKnownTransport         = '';
     this.listeners.clear();
   }
 }
