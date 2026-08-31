@@ -40,23 +40,25 @@ export class AccountSyncEngine {
 
   private constructor() {
     if (typeof window !== 'undefined') {
-      this.isOnline = navigator.onLine;
-      window.addEventListener('online', () => {
-        this.isOnline = true;
-        if (!isOfflineMode()) {
-          this.flushPendingMutations();
-          if (this.subscribedUserId) {
-            this.subscribeToRealtime(this.subscribedUserId);
-            this.reconcile(this.subscribedUserId);
+      this.isOnline = typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean' ? navigator.onLine : true;
+      if (typeof window.addEventListener === 'function') {
+        window.addEventListener('online', () => {
+          this.isOnline = true;
+          if (!isOfflineMode()) {
+            this.flushPendingMutations();
+            if (this.subscribedUserId) {
+              this.subscribeToRealtime(this.subscribedUserId);
+              this.reconcile(this.subscribedUserId);
+            }
           }
-        }
-      });
-      window.addEventListener('offline', () => {
-        this.isOnline = false;
-      });
+        });
+        window.addEventListener('offline', () => {
+          this.isOnline = false;
+        });
+      }
 
       // Handle App Foreground / Visibility Resume (Reconcile missed changes and resubscribe if needed)
-      if (typeof document !== 'undefined') {
+      if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible' && this.subscribedUserId && !isOfflineMode()) {
             this.subscribeToRealtime(this.subscribedUserId);

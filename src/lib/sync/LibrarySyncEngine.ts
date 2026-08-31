@@ -117,7 +117,8 @@ export class LibrarySyncEngine {
    * Background Reconciliation Pipeline: Flushes pending operations to Supabase
    */
   public async flushPendingOperations(): Promise<void> {
-    if (this.isSyncing || typeof window === 'undefined' || !navigator.onLine) return;
+    const isOnline = typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean' ? navigator.onLine : true;
+    if (this.isSyncing || typeof window === 'undefined' || !isOnline) return;
     this.isSyncing = true;
 
     try {

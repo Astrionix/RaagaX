@@ -67,6 +67,7 @@ describe('RaagaX Critical Security & State — Account Isolation Suite', () => {
       localStorage: mockLocalStorage,
       sessionStorage: mockLocalStorage,
       location: { reload: vi.fn() },
+      navigator: { onLine: true },
     });
     vi.stubGlobal('document', {
       addEventListener: vi.fn(),
@@ -76,6 +77,16 @@ describe('RaagaX Critical Security & State — Account Isolation Suite', () => {
     vi.stubGlobal('localStorage', mockLocalStorage);
     vi.stubGlobal('sessionStorage', mockLocalStorage);
     mockLocalStorage.clear();
+
+    if (typeof globalThis.navigator === 'undefined') {
+      try {
+        Object.defineProperty(globalThis, 'navigator', {
+          value: { onLine: true },
+          configurable: true,
+          writable: true,
+        });
+      } catch {}
+    }
 
     usePlayerStore.getState().resetUserLibraryState();
     usePlaylistStore.getState().resetPlaylistState();
