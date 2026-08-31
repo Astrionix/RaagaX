@@ -193,10 +193,14 @@ export class JamClientManager {
     await this.stateMachine.handleTransition(session, undefined, 'NEW_TRANSITION');
 
     // Connect multi-transport routing layer (LAN preferred, Cloud fallback)
+    const hostLanEndpoint =
+      (session as any).lanEndpoint ||
+      (typeof window !== 'undefined' ? window.location.origin : undefined);
+
     await this.transportRouter.initialize(
       session.jamId,
       { userId: this.currentUserId || session.hostId, userName: this.currentUserName, userAvatar: this.currentUserAvatar },
-      (session as any).lanEndpoint
+      hostLanEndpoint
     );
     this.transportRouter.subscribe((event) => this.handleIncomingEvent(event));
 
@@ -274,6 +278,10 @@ export class JamClientManager {
       this.activeSession = session;
       this.localRevision = session.revision;
 
+      if (session.currentSong) {
+        usePlayerStore.setState({ currentSong: session.currentSong });
+      }
+
       // Step 1: Synchronize clock (NTP burst)
       this.setParticipantState('CLOCK_SYNCING');
       await this.clockSync.synchronize(6);
@@ -288,10 +296,15 @@ export class JamClientManager {
       this.driftEngine.start();
 
       // Step 4: Multi-transport initialization
+      const discoveredLanEndpoint =
+        (session as any).lanEndpoint ||
+        JamDiscoveryEngine.getInstance().getLanEndpointForJam(session.jamId) ||
+        (typeof window !== 'undefined' ? window.location.origin : undefined);
+
       await this.transportRouter.initialize(
         session.jamId,
         { userId: this.currentUserId, userName: this.currentUserName, userAvatar: this.currentUserAvatar },
-        (session as any).lanEndpoint
+        discoveredLanEndpoint
       );
       this.transportRouter.subscribe((event) => this.handleIncomingEvent(event));
 
@@ -466,8 +479,12 @@ export class JamClientManager {
       return;
     }
 
-    // Stale event check
-    if (event.revision <= this.localRevision && event.type !== 'SYNC') {
+    // Stale event check: reject stale revisions across all event types including SYNC
+    if (typeof event.revision === 'number' && event.revision <= this.localRevision) {
+      if (event.type === 'SYNC' && event.payload?.session && event.payload.session.revision > this.localRevision) {
+        // Accept SYNC only if inner session snapshot has a strictly newer revision
+        this.applySessionSnapshot(event.payload.session);
+      }
       return;
     }
 
@@ -551,6 +568,9 @@ export class JamClientManager {
 
       case 'TRACK_CHANGED': {
         s.currentSong = event.payload.currentSong;
+        if (event.payload.currentSong) {
+          usePlayerStore.setState({ currentSong: event.payload.currentSong });
+        }
         s.trackId = event.payload.trackId;
         s.currentQueueItemId = event.payload.currentQueueItemId;
         s.positionMs = event.payload.positionMs;
@@ -734,9 +754,19 @@ export class JamClientManager {
     if (!session) return;
 
     // Ignore stale out-of-order snapshots (e.g. from delayed background HTTP requests or stale sync)
-    if (this.activeSession && typeof session.revision === 'number' && session.revision < this.localRevision) {
-      console.log(`[JamClientManager] Ignoring stale snapshot revision ${session.revision} (current localRevision is ${this.localRevision})`);
-      return;
+    if (this.activeSession) {
+      if (typeof session.revision === 'number' && session.revision < this.localRevision) {
+        console.log(`[JamClientManager] Ignoring stale snapshot revision ${session.revision} (current localRevision is ${this.localRevision})`);
+        return;
+      }
+      if (
+        typeof session.generation === 'number' &&
+        typeof this.activeSession.generation === 'number' &&
+        session.generation < this.activeSession.generation
+      ) {
+        console.log(`[JamClientManager] Ignoring stale snapshot generation ${session.generation} (current activeGeneration is ${this.activeSession.generation})`);
+        return;
+      }
     }
 
     // RECONNECT DIRECT RECONCILIATION (Phase 5 + 8):
@@ -753,6 +783,10 @@ export class JamClientManager {
 
     this.activeSession = session;
     this.localRevision = Math.max(this.localRevision, session.revision);
+
+    if (session.currentSong) {
+      usePlayerStore.setState({ currentSong: session.currentSong });
+    }
 
     if (isSamePlaybackIdentity) {
       // Same track already playing/paused: only update drift anchors

@@ -5,7 +5,6 @@ import { Play, Pause, SkipForward, SkipBack, Heart, MoreVertical, Disc3, Headpho
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useJamStore } from '@/context/useJamStore';
 import { SeekBar } from '@/components/player/SeekBar';
-import { JamSyncBadge } from '@/components/jam/JamSyncBadge';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 
 /**
@@ -57,8 +56,8 @@ export function MobileMiniPlayer() {
   }, []);
 
   const {
-    currentSong,
-    isPlaying,
+    currentSong: localCurrentSong,
+    isPlaying: localIsPlaying,
     togglePlayPause,
     playNext,
     playPrev,
@@ -66,6 +65,10 @@ export function MobileMiniPlayer() {
     likedSongIds,
     toggleLikeSong,
   } = usePlayerStore();
+
+  const { session, isInJam } = useJamStore();
+  const currentSong = (isInJam && session?.currentSong) ? session.currentSong : localCurrentSong;
+  const isPlaying = (isInJam && session) ? session.state === 'PLAYING' : localIsPlaying;
 
   if (!mounted || !currentSong) return null;
 

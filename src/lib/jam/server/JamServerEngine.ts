@@ -326,6 +326,8 @@ export class JamServerEngine {
       if (participantCount === 0) continue;
       if (session.isNearbyDiscoverable === false) continue;
 
+      const hostParticipant = session.participants[session.hostId];
+
       discovered.push({
         jamId: session.jamId,
         joinCode: session.joinCode,
@@ -336,7 +338,21 @@ export class JamServerEngine {
         currentSongCover: session.currentSong?.coverUrl,
         participantCount,
         discoveryMethod: clientSubnet ? 'subnet' : 'wifi',
-        signalStrength: Math.floor(Math.random() * 30) + 70, // 70-100%
+        signalStrength: 95,
+        deviceId: session.hostId,
+        deviceName: `${session.hostName}'s Jam`,
+        platform: hostParticipant?.deviceType || 'desktop',
+        protocolVersion: '2.0.0',
+        capabilities: hostParticipant?.capabilities || {
+          deviceId: session.hostId,
+          deviceName: `${session.hostName}'s Device`,
+          platform: 'web',
+          supportedCodecs: ['mp3', 'aac', 'opus', 'flac'],
+          backgroundPlayback: true,
+          lanSupported: true,
+          cloudSupported: true,
+          protocolVersion: '2.0.0',
+        },
         discoveredAt: now,
       });
     }
@@ -1606,10 +1622,11 @@ export class JamServerEngine {
             participant.playbackDriftMs = command.payload.playbackDriftMs;
           }
         }
-        eventType = 'HEARTBEAT';
-        payload = { userId: command.userId, lastSeenAt: now };
         console.log(`\n[JAM_HEARTBEAT]\njamId=${session.jamId}\nparticipantId=${command.userId}\ntimestamp=${now}\n`);
-        break;
+        return {
+          success: true,
+          session: this.cloneSession(session),
+        };
       }
 
       case 'PROMOTE_MODERATOR': {

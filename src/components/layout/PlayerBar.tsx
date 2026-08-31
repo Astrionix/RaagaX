@@ -21,7 +21,6 @@ import {
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useJamStore } from '@/context/useJamStore';
 import { SeekBar } from '@/components/player/SeekBar';
-import { JamSyncBadge } from '@/components/jam/JamSyncBadge';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { SongFormatter } from '@/lib/music/SongFormatter';
@@ -53,6 +52,8 @@ export function PlayerBar() {
     togglePlayerExpanded,
   } = usePlayerStore();
 
+  const { isInJam, session, diagnostics, participantState, toggleJamModal } = useJamStore();
+
   useEffect(() => {
     setMounted(true);
     import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
@@ -60,12 +61,15 @@ export function PlayerBar() {
     }).catch(() => {});
   }, []);
 
+  const activeSong = (isInJam && session?.currentSong) ? session.currentSong : currentSong;
+  const isPlayingActive = (isInJam && session) ? session.state === 'PLAYING' : isPlaying;
+
   // Extract subtle dominant ambient glow from artwork
   useEffect(() => {
     let isSubscribed = true;
-    if (currentSong?.coverUrl && !currentSong.coverUrl.includes('/null/')) {
+    if (activeSong?.coverUrl && !activeSong.coverUrl.includes('/null/')) {
       ArtworkColorExtractor.getInstance()
-        .extractPalette(currentSong.coverUrl)
+        .extractPalette(activeSong.coverUrl)
         .then((p) => {
           if (isSubscribed) setPalette(p);
         })
@@ -76,7 +80,7 @@ export function PlayerBar() {
     return () => {
       isSubscribed = false;
     };
-  }, [currentSong?.coverUrl]);
+  }, [activeSong?.coverUrl]);
 
   // Spacebar Desktop Keyboard Listener
   useEffect(() => {
@@ -102,7 +106,7 @@ export function PlayerBar() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  if (!mounted || !currentSong || isPlayerExpanded) return null;
+  if (!mounted || !activeSong || isPlayerExpanded) return null;
 
   const themeColor = palette?.primary || '#FA233B';
   const glowColor = palette?.glow || 'rgba(250, 35, 59, 0.2)';
@@ -112,9 +116,9 @@ export function PlayerBar() {
     return r === 'ONE' || r === 'TRACK' ? 'ONE' : r === 'ALL' || r === 'CONTEXT' ? 'ALL' : 'OFF';
   })();
 
-  const cleanTitle = currentSong ? SongFormatter.cleanSongTitle(currentSong.title) : 'Select a track to play';
-  const cleanArtist = currentSong ? (SongFormatter.decodeHtml(currentSong.artist) || currentSong.artist || 'Unknown Artist') : '';
-  const cleanAlbum = currentSong?.album ? SongFormatter.cleanAlbumTitle(currentSong.album) : '';
+  const cleanTitle = activeSong ? SongFormatter.cleanSongTitle(activeSong.title) : 'Select a track to play';
+  const cleanArtist = activeSong ? (SongFormatter.decodeHtml(activeSong.artist) || activeSong.artist || 'Unknown Artist') : '';
+  const cleanAlbum = activeSong?.album ? SongFormatter.cleanAlbumTitle(activeSong.album) : '';
   const subtitle = cleanArtist && cleanAlbum ? `${cleanArtist} — ${cleanAlbum}` : (cleanArtist || cleanAlbum);
 
   return (
@@ -162,11 +166,11 @@ export function PlayerBar() {
 
           <button
             onClick={togglePlayPause}
-            aria-label={isPlaying ? 'Pause' : 'Play'}
-            title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+            aria-label={isPlayingActive ? 'Pause' : 'Play'}
+            title={isPlayingActive ? 'Pause (Space)' : 'Play (Space)'}
             className="p-1.5 text-white hover:scale-110 active:scale-95 transition-all cursor-pointer rounded-full hover:bg-white/10 flex items-center justify-center"
           >
-            {isPlaying ? (
+            {isPlayingActive ? (
               <Pause className="w-4 h-4 fill-white text-white" />
             ) : (
               <Play className="w-4 h-4 fill-white text-white ml-0.5" />
@@ -202,7 +206,7 @@ export function PlayerBar() {
 
         {/* ── 2. CENTER: Album Art, Title, Artist • Album & More Menu ── */}
         <div className="flex items-center gap-2.5 min-w-0 flex-1 max-w-[280px] sm:max-w-[340px]">
-          {currentSong ? (
+          {activeSong ? (
             <>
               <div
                 onClick={togglePlayerExpanded}
@@ -210,8 +214,8 @@ export function PlayerBar() {
                 title="Expand Player (F)"
               >
                 <OptimizedImage
-                  src={currentSong.coverUrl}
-                  alt={currentSong.title}
+                  src={activeSong.coverUrl}
+                  alt={activeSong.title}
                   size="thumb"
                   className="w-full h-full object-cover group-hover/art:scale-110 transition-transform duration-300"
                   fallbackSrc="/app-icon.png"
@@ -238,7 +242,7 @@ export function PlayerBar() {
               </div>
 
               <div className="flex-shrink-0 text-zinc-400 hover:text-white transition-colors">
-                <SongActionMenu song={currentSong} />
+                <SongActionMenu song={activeSong} />
               </div>
             </>
           ) : (
@@ -251,19 +255,32 @@ export function PlayerBar() {
 
         {/* ── 3. RIGHT CONTROLS: Jam, Lyrics, Queue, Volume ── */}
         <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
-          <JamSyncBadge showLabel={false} />
-
           <button
-            onClick={() => useJamStore.getState().toggleJamModal(true)}
+            onClick={() => toggleJamModal(true)}
             aria-label="Remote Jam Party"
-            title="Remote Jam Party"
-            className={`p-1.5 rounded-full transition-colors cursor-pointer ${
-              useJamStore.getState().isInJam
-                ? 'text-[#FA233B] bg-[#FA233B]/15'
+            title={
+              isInJam
+                ? `Jam Party (${diagnostics.syncState === 'SYNCHRONIZED' ? 'Synced' : diagnostics.syncState || 'Active'})`
+                : 'Remote Jam Party'
+            }
+            className={`relative p-1.5 rounded-full transition-all cursor-pointer ${
+              isInJam
+                ? 'text-[#FA233B] bg-[#FA233B]/15 hover:bg-[#FA233B]/25'
                 : 'text-zinc-400 hover:text-white hover:bg-white/10'
             }`}
           >
-            <Radio className={`w-3.5 h-3.5 ${useJamStore.getState().isInJam ? 'animate-pulse' : ''}`} />
+            <Radio className={`w-3.5 h-3.5 ${isInJam ? 'animate-pulse' : ''}`} />
+            {isInJam && (
+              <span
+                className={`absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full border border-black/80 ${
+                  diagnostics.syncState === 'SYNCHRONIZED'
+                    ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)] animate-pulse'
+                    : diagnostics.syncState === 'SYNCHRONIZING' || participantState === 'SYNCING'
+                    ? 'bg-amber-400 animate-bounce'
+                    : 'bg-rose-500 animate-ping'
+                }`}
+              />
+            )}
           </button>
 
           <button
@@ -337,7 +354,7 @@ export function PlayerBar() {
         </div>
 
         {/* ── 4. INTEGRATED PROGRESS BAR (Along Bottom Edge) ── */}
-        {currentSong && (
+        {activeSong && (
           <div className="absolute left-5 right-5 -bottom-[1px] z-30 pointer-events-auto">
             <SeekBar
               className="w-full"

@@ -205,6 +205,7 @@ describe('RaagaX Jam — Advanced Local LAN Low-Latency Synchronization & Transp
     const lanSendCommandSpy = vi.spyOn(router.getLanTransport(), 'sendCommand').mockResolvedValue({
       success: false,
       error: 'LAN connection timeout',
+      revision: 0,
     });
 
     const cloudSendCommandSpy = vi.spyOn(router.getCloudTransport(), 'sendCommand').mockResolvedValue({
@@ -213,6 +214,7 @@ describe('RaagaX Jam — Advanced Local LAN Low-Latency Synchronization & Transp
     });
 
     const res = await router.sendCommand({
+      commandId: 'cmd_play_test',
       action: 'PLAY',
       jamId: 'JAM_LAN_01',
       userId: 'user_host',

@@ -139,14 +139,20 @@ export class PlaybackService {
           try {
             const { JamClientManager } = require('@/lib/jam/client/JamClientManager');
             const jamManager = JamClientManager.getInstance();
-            const jamState = jamManager.getParticipantState();
-            const JAM_TRANSIENT_STATES = new Set([
-              'JOINING', 'JOIN_REQUESTED', 'AUTHORIZED', 'SNAPSHOT_RECEIVED',
-              'CLOCK_SYNCING', 'PREPARING', 'SCHEDULED', 'RECONNECTING',
-            ]);
-            if (jamManager.getActiveSession() && JAM_TRANSIENT_STATES.has(jamState)) {
-              console.log(`[WATCHDOG_SKIPPED] reason=JAM_LIFECYCLE_STATE state=${jamState} trackId=${active.dataset?.trackId || 'unknown'}`);
-              return;
+            const activeJam = jamManager.getActiveSession();
+            if (activeJam) {
+              if (activeJam.state !== 'PLAYING') {
+                return;
+              }
+              const jamState = jamManager.getParticipantState();
+              const JAM_TRANSIENT_STATES = new Set([
+                'JOINING', 'JOIN_REQUESTED', 'AUTHORIZED', 'SNAPSHOT_RECEIVED',
+                'CLOCK_SYNCING', 'PREPARING', 'SCHEDULED', 'RECONNECTING',
+              ]);
+              if (JAM_TRANSIENT_STATES.has(jamState)) {
+                console.log(`[WATCHDOG_SKIPPED] reason=JAM_LIFECYCLE_STATE state=${jamState} trackId=${active.dataset?.trackId || 'unknown'}`);
+                return;
+              }
             }
           } catch {
             // If JamClientManager is not available, proceed with normal watchdog

@@ -152,12 +152,12 @@ export class JamPlaybackStateMachine {
       }
 
       // Reconcile queue & metadata in player store cleanly without touching playback position
+      const activeSong = session.currentSong || usePlayerStore.getState().currentSong;
       if (session.queue) {
-        const store = usePlayerStore.getState();
-        if (store.currentSong) {
-          const clientQueue: Song[] = [store.currentSong, ...session.queue.map((item) => item.song)];
-          usePlayerStore.setState({ queue: clientQueue });
-        }
+        const clientQueue: Song[] = activeSong ? [activeSong, ...session.queue.map((item) => item.song)] : session.queue.map((item) => item.song);
+        usePlayerStore.setState({ queue: clientQueue, currentSong: activeSong });
+      } else if (activeSong && usePlayerStore.getState().currentSong?.id !== activeSong.id) {
+        usePlayerStore.setState({ currentSong: activeSong });
       }
       return;
     }
@@ -189,12 +189,12 @@ export class JamPlaybackStateMachine {
       }
 
       // Reconcile queue in player store without touching audio position
+      const activeSong2b = session.currentSong || usePlayerStore.getState().currentSong;
       if (session.queue) {
-        const store = usePlayerStore.getState();
-        if (store.currentSong) {
-          const clientQueue: Song[] = [store.currentSong, ...session.queue.map((item) => item.song)];
-          usePlayerStore.setState({ queue: clientQueue });
-        }
+        const clientQueue: Song[] = activeSong2b ? [activeSong2b, ...session.queue.map((item) => item.song)] : session.queue.map((item) => item.song);
+        usePlayerStore.setState({ queue: clientQueue, currentSong: activeSong2b });
+      } else if (activeSong2b && usePlayerStore.getState().currentSong?.id !== activeSong2b.id) {
+        usePlayerStore.setState({ currentSong: activeSong2b });
       }
       return;
     }

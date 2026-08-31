@@ -122,6 +122,7 @@ export const JAM_PERMISSION_PRESETS: Record<JamPresetName, JamPermissions> = {
 
 export interface DeviceCapabilities {
   deviceId: string;
+  deviceName?: string;
   platform: 'android' | 'ios' | 'windows' | 'macos' | 'linux' | 'web';
   supportedCodecs: string[];
   audioCapabilities?: {
@@ -131,6 +132,9 @@ export interface DeviceCapabilities {
     maxBitrate?: number;
   };
   backgroundPlayback: boolean;
+  lanSupported?: boolean;
+  cloudSupported?: boolean;
+  protocolVersion?: string;
   outputCapabilities?: {
     bluetooth?: boolean;
     airplay?: boolean;
@@ -300,6 +304,12 @@ export interface DiscoveredJam {
   discoveryMethod: 'wifi' | 'lan' | 'subnet' | 'nearby';
   signalStrength?: number; // RSSI or latency ms
   localIp?: string;
+  lanEndpoint?: string;
+  deviceId?: string;
+  deviceName?: string;
+  platform?: string;
+  protocolVersion?: string;
+  capabilities?: DeviceCapabilities;
   discoveredAt: number;
 }
 

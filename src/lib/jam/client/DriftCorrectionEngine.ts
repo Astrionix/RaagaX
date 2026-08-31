@@ -40,13 +40,15 @@ export class DriftCorrectionEngine {
   private static readonly HARD_SEEK_COOLDOWN_MS = 3000;
   private static readonly RATE_CHANGE_HOLD_MS = 1000;
 
-  // STARTUP DRIFT GRACE (Phase 3):
-  // After a new session loads (join, reconnect, or track change), suppress drift evaluation
-  // for a brief window so the audio element has time to seek to the correct position before
-  // we start computing drift from currentTime=0. Without this, every join triggers a false
-  // >500ms drift that causes a spurious hard seek back to 0.
+  private readinessState: 'IDLE' | 'LOADING' | 'PREPARING' | 'SCHEDULED' | 'STARTING' | 'STABILIZING' | 'STEADY_PLAYING' | 'PAUSED' = 'IDLE';
+
+  // STARTUP DRIFT GRACE (Phase 3 + Section 4):
+  // After a session loads, resumes, or changes state, suppress drift evaluation
+  // for a 3s window so the audio element has time to seek and start playing smoothly
+  // before we start computing micro-drift. This prevents the audio element reporting
+  // currentTime=0 from ever triggering false 270s+ hard seeks.
   private lastSessionLoadTimeMs = 0;
-  private static readonly STARTUP_GRACE_MS = 2500; // 2.5s grace after session load
+  private static readonly STARTUP_GRACE_MS = 3000;
 
   private constructor() {
     this.clockSync = ClockSyncEngine.getInstance();
@@ -64,22 +66,27 @@ export class DriftCorrectionEngine {
     const prevSession = this.currentSession;
     this.currentSession = session;
     if (session) {
-      // STARTUP DRIFT GRACE (Phase 3):
-      // Only start the grace period when the playback IDENTITY changes (new track or new generation).
-      // Pure session updates (position sync, participant updates) on the same track do NOT restart the
-      // grace period — this prevents the grace from wrongly suppressing drift on a running track.
+      // Re-trigger grace window on:
+      // 1. New session or track change
+      // 2. Generation change
+      // 3. State transition (PAUSED -> PLAYING / Resume)
+      // 4. Anchor / Seek position update
       const isNewPlaybackIdentity =
         prevSession === null ||
         prevSession.trackId !== session.trackId ||
-        prevSession.generation !== session.generation;
+        prevSession.generation !== session.generation ||
+        (prevSession.state !== 'PLAYING' && session.state === 'PLAYING') ||
+        Math.abs((prevSession.positionMs || 0) - (session.positionMs || 0)) > 500;
 
       if (isNewPlaybackIdentity) {
         this.lastSessionLoadTimeMs = Date.now();
+        this.readinessState = session.state === 'PLAYING' ? 'PREPARING' : 'PAUSED';
       }
 
       this.evaluateScheduledStart(session);
     } else {
       this.lastSessionLoadTimeMs = 0;
+      this.readinessState = 'IDLE';
       this.cancelScheduledStart();
     }
   }
@@ -380,16 +387,28 @@ export class DriftCorrectionEngine {
       return status;
     }
 
-    // STARTUP DRIFT GRACE (Phase 3):
-    // Suppress drift evaluation immediately after session load so audio has time to seek to the
-    // correct starting position. Without this, currentTime=0 causes false large-drift spurious seeks.
-    // GUARD: Only apply grace when audio is still near the start (actualLocalMs < 1000ms).
-    // If audio is already playing past 1s, it has been seeked correctly — no grace needed.
-    const timeSinceLoadMs = Date.now() - this.lastSessionLoadTimeMs;
+    // STARTUP DRIFT GRACE & POSITION SEEK READINESS (Phase 3 + Section 4):
+    // 1. Suppress drift evaluation ONLY when audio is still near 0:00 or not yet positioned at the anchor.
+    // 2. If audio is already playing at the correct position (>1s), compute steady-state drift immediately.
+    // 3. Filter out false 0:00 readings when audio is still preparing / seeking to a mid-song anchor.
+    const timeSinceLoadMs = this.lastSessionLoadTimeMs > 0 ? Date.now() - this.lastSessionLoadTimeMs : Infinity;
     const isAudioNearStart = actualLocalMs < 1000;
-    if (this.lastSessionLoadTimeMs > 0 && timeSinceLoadMs < DriftCorrectionEngine.STARTUP_GRACE_MS && isAudioNearStart) {
-      const remainingMs = DriftCorrectionEngine.STARTUP_GRACE_MS - timeSinceLoadMs;
-      console.log(`[DRIFT_GRACE] reason=STARTUP_GRACE_PERIOD remainingMs=${Math.round(remainingMs)} expectedMs=${expectedPositionMs} actualMs=${actualLocalMs}`);
+    const isAudioNotYetPositioned = expectedPositionMs > 3000 && actualLocalMs < 2000;
+    const isInStartupGrace = timeSinceLoadMs < DriftCorrectionEngine.STARTUP_GRACE_MS && isAudioNearStart;
+
+    if (isInStartupGrace || isAudioNotYetPositioned) {
+      if (isAudioNotYetPositioned) {
+        this.readinessState = 'STARTING';
+        // If audio is stalled at 0 after 600ms, nudge seek directly to expected position
+        if (timeSinceLoadMs > 600 && timeSinceLoadMs < 5000 && activeAudio && (activeAudio.readyState >= 1 || !activeAudio.seeking)) {
+          try {
+            activeAudio.currentTime = expectedPositionMs / 1000;
+            this.lastSessionLoadTimeMs = Date.now();
+          } catch {}
+        }
+      } else {
+        this.readinessState = 'STABILIZING';
+      }
 
       if (activeAudio && activeAudio.playbackRate !== 1.0) {
         activeAudio.playbackRate = 1.0;
@@ -409,6 +428,8 @@ export class DriftCorrectionEngine {
       this.notify(status);
       return status;
     }
+
+    this.readinessState = 'STEADY_PLAYING';
 
 
     // Drift = actualLocal - expected (positive = local device is ahead, negative = behind)

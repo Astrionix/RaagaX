@@ -1,4 +1,4 @@
-import { DiscoveredJam, JamSession } from '@/types/jam';
+import { DeviceCapabilities, DiscoveredJam, JamSession } from '@/types/jam';
 import { getApiUrl } from '@/lib/config/apiConfig';
 
 type DiscoveryListener = (jams: DiscoveredJam[]) => void;
@@ -14,6 +14,12 @@ interface NearbyBeaconMessage {
   currentSongCover?: string;
   participantCount: number;
   localIp?: string;
+  lanEndpoint?: string;
+  deviceId: string;
+  deviceName: string;
+  platform: 'android' | 'ios' | 'windows' | 'macos' | 'linux' | 'web';
+  protocolVersion: string;
+  capabilities?: DeviceCapabilities;
   timestamp: number;
 }
 
@@ -142,6 +148,21 @@ export class JamDiscoveryEngine {
     const s = this.activeBroadcastingSession;
     if (!s) return;
 
+    let platform: DeviceCapabilities['platform'] = 'web';
+    let deviceName = 'RaagaX Host';
+    if (typeof window !== 'undefined') {
+      const ua = navigator.userAgent.toLowerCase();
+      if (/android/i.test(ua)) { platform = 'android'; deviceName = 'Android Device'; }
+      else if (/iphone|ipad|ipod/i.test(ua)) { platform = 'ios'; deviceName = 'iOS Device'; }
+      else if (/windows/i.test(ua)) { platform = 'windows'; deviceName = 'Windows PC'; }
+      else if (/macintosh|mac os x/i.test(ua)) { platform = 'macos'; deviceName = 'Mac'; }
+      else if (/linux/i.test(ua)) { platform = 'linux'; deviceName = 'Linux Device'; }
+    }
+
+    const lanEndpoint = typeof window !== 'undefined' && window.location.origin
+      ? window.location.origin
+      : undefined;
+
     const payload: NearbyBeaconMessage = {
       type: 'JAM_NEARBY_BEACON',
       jamId: s.jamId,
@@ -152,6 +173,21 @@ export class JamDiscoveryEngine {
       currentSongArtist: s.currentSong?.artist,
       currentSongCover: s.currentSong?.coverUrl,
       participantCount: Object.keys(s.participants).length,
+      lanEndpoint,
+      deviceId: s.hostId || `host_${s.jamId}`,
+      deviceName,
+      platform,
+      protocolVersion: '2.0.0',
+      capabilities: {
+        deviceId: s.hostId,
+        deviceName,
+        platform,
+        supportedCodecs: ['mp3', 'aac', 'opus', 'flac'],
+        backgroundPlayback: true,
+        lanSupported: true,
+        cloudSupported: true,
+        protocolVersion: '2.0.0',
+      },
       timestamp: Date.now(),
     };
 
@@ -180,6 +216,12 @@ export class JamDiscoveryEngine {
       participantCount: msg.participantCount,
       discoveryMethod: 'wifi',
       signalStrength: 95,
+      lanEndpoint: msg.lanEndpoint,
+      deviceId: msg.deviceId,
+      deviceName: msg.deviceName,
+      platform: msg.platform,
+      protocolVersion: msg.protocolVersion || '2.0.0',
+      capabilities: msg.capabilities,
       discoveredAt: Date.now(),
     };
 
@@ -203,18 +245,31 @@ export class JamDiscoveryEngine {
       if (data.success && Array.isArray(data.jams)) {
         const now = Date.now();
         for (const jam of data.jams) {
-          if (!this.discoveredJams.has(jam.jamId)) {
-            this.discoveredJams.set(jam.jamId, {
-              ...jam,
-              discoveredAt: now,
-            });
-          }
+          const existing = this.discoveredJams.get(jam.jamId);
+          this.discoveredJams.set(jam.jamId, {
+            ...jam,
+            lanEndpoint: jam.lanEndpoint || existing?.lanEndpoint,
+            deviceId: jam.deviceId || existing?.deviceId,
+            deviceName: jam.deviceName || existing?.deviceName,
+            platform: jam.platform || existing?.platform,
+            protocolVersion: jam.protocolVersion || existing?.protocolVersion || '2.0.0',
+            capabilities: jam.capabilities || existing?.capabilities,
+            discoveredAt: now,
+          });
         }
         this.notify();
       }
     } catch (e) {
       // Network hiccup - ignore and retry next cycle
     }
+  }
+
+  /**
+   * Retrieves the discovered LAN endpoint for a specific Jam ID if available
+   */
+  public getLanEndpointForJam(jamId: string): string | null {
+    const jam = this.discoveredJams.get(jamId);
+    return jam?.lanEndpoint || this.lanEndpointUrl || null;
   }
 
   /**

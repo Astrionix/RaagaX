@@ -8,6 +8,7 @@ import {
 } from './JamTransport';
 import { CloudRealtimeTransport } from './CloudRealtimeTransport';
 import { LocalLanTransport } from './LocalLanTransport';
+import { NetworkQualityEngine } from '../client/NetworkQualityEngine';
 
 export interface TransportRouterStatus {
   activeTransport: JamTransportType;
@@ -31,7 +32,8 @@ export class TransportRouter {
   // Hysteresis & Anti-Flapping State
   private lanConsecutiveHealthyCount = 0;
   private static readonly LAN_RECOVERY_THRESHOLD = 3; // 3 consecutive healthy checks to switch back to LAN
-  private static readonly LAN_FAILURE_THRESHOLD = 2; // 2 consecutive failures to switch to Cloud
+  private static readonly LAN_FAILURE_THRESHOLD = 3; // 3 consecutive failures to switch to Cloud
+  private static readonly FLAPPING_HOLD_TIME_MS = 5000; // Minimum 5s hold between switches
 
   private failoverCount = 0;
   private lastFailoverAt: number | null = null;
@@ -64,7 +66,8 @@ export class TransportRouter {
   public async initialize(
     jamId: string,
     auth: JamAuthCredentials,
-    lanEndpoint?: string
+    lanEndpoint?: string,
+    _isHost?: boolean
   ): Promise<boolean> {
     this.cleanup();
 
@@ -81,9 +84,11 @@ export class TransportRouter {
     if (lanOk && this.lanTransport.isHealthy()) {
       this.activeTransportType = 'LOCAL_LAN';
       this.lanConsecutiveHealthyCount = TransportRouter.LAN_RECOVERY_THRESHOLD;
+      NetworkQualityEngine.getInstance().setTransport('LAN');
       console.log(`[TRANSPORT_SELECTED] transport=LOCAL_LAN rttMs=${this.lanTransport.getHealth().rttMs}ms (Same Wi-Fi preferred)`);
     } else {
       this.activeTransportType = 'CLOUD_REALTIME';
+      NetworkQualityEngine.getInstance().setTransport('CLOUD');
       console.log(`[TRANSPORT_SELECTED] transport=CLOUD_REALTIME rttMs=${this.cloudTransport.getHealth().rttMs}ms (Cloud Realtime default)`);
     }
 
@@ -103,7 +108,8 @@ export class TransportRouter {
 
   /**
    * Dispatches a Jam command through the currently preferred healthy transport.
-   * If the active transport fails, seamlessly attempts immediate failover retry.
+   * If the active transport fails, seamlessly attempts immediate failover retry
+   * while preserving requestId, timelineId, and generation for idempotency.
    */
   public async sendCommand(command: JamCommand): Promise<JamCommandResponse> {
     const primaryTransport = this.activeTransport;
@@ -121,9 +127,9 @@ export class TransportRouter {
       }
 
       // If LAN transport failed, execute seamless fallback to Cloud Realtime
-      if (initialTransportType === 'LOCAL_LAN' && !response.success) {
-        console.warn(`[TRANSPORT_FAILOVER] from=LOCAL_LAN to=CLOUD_REALTIME reason=Command execution failed: ${response.error}`);
-        this.executeFailover('CLOUD_REALTIME', `Command failed on LAN: ${response.error}`);
+      if (initialTransportType === 'LOCAL_LAN' && (!response || !response.success)) {
+        console.warn(`[TRANSPORT_FAILOVER] from=LOCAL_LAN to=CLOUD_REALTIME reason=Command execution failed: ${response?.error || 'Unknown'}`);
+        this.executeFailover('CLOUD_REALTIME', `Command failed on LAN: ${response?.error || 'Unknown'}`);
         return await this.cloudTransport.sendCommand(command);
       }
 
@@ -185,17 +191,21 @@ export class TransportRouter {
    */
   private evaluateTransportHealth() {
     const lanHealth = this.lanTransport.getHealth();
+    const now = Date.now();
+
+    // Anti-flapping hold time check
+    const isHoldActive = this.lastFailoverAt !== null && (now - this.lastFailoverAt < TransportRouter.FLAPPING_HOLD_TIME_MS);
 
     // 1. If active is LOCAL_LAN but LAN is failing/degraded -> Fallback to CLOUD
     if (this.activeTransportType === 'LOCAL_LAN') {
-      if (lanHealth.state === 'FAILED' || lanHealth.failureCount >= TransportRouter.LAN_FAILURE_THRESHOLD || lanHealth.rttMs > 400) {
+      if (lanHealth.state === 'FAILED' || lanHealth.failureCount >= TransportRouter.LAN_FAILURE_THRESHOLD || lanHealth.rttMs > 350) {
         this.lanConsecutiveHealthyCount = 0;
         this.executeFailover('CLOUD_REALTIME', `LAN degraded (failures: ${lanHealth.failureCount}, RTT: ${lanHealth.rttMs}ms)`);
       }
     }
-    // 2. If active is CLOUD_REALTIME but LAN has recovered -> Consider promoting
-    else if (this.activeTransportType === 'CLOUD_REALTIME') {
-      if (this.lanTransport.isConnected && lanHealth.state === 'CONNECTED' && lanHealth.rttMedianMs < 120 && lanHealth.failureCount === 0) {
+    // 2. If active is CLOUD_REALTIME but LAN has sustained recovery -> Promote to LOCAL_LAN
+    else if (this.activeTransportType === 'CLOUD_REALTIME' && !isHoldActive) {
+      if (this.lanTransport.isConnected && lanHealth.state === 'CONNECTED' && lanHealth.rttMedianMs < 100 && lanHealth.failureCount === 0) {
         this.lanConsecutiveHealthyCount++;
         if (this.lanConsecutiveHealthyCount >= TransportRouter.LAN_RECOVERY_THRESHOLD) {
           this.executeFailover('LOCAL_LAN', `LAN sustained healthy recovery (${this.lanConsecutiveHealthyCount} samples, RTT: ${lanHealth.rttMedianMs}ms)`);
@@ -215,6 +225,7 @@ export class TransportRouter {
     this.lastFailoverAt = Date.now();
     this.lastFailoverReason = reason;
 
+    NetworkQualityEngine.getInstance().setTransport(targetTransport === 'LOCAL_LAN' ? 'LAN' : 'CLOUD');
     console.log(`[TRANSPORT_FAILOVER] from=${prev} to=${targetTransport} reason=${reason} failoverCount=${this.failoverCount}`);
   }
 

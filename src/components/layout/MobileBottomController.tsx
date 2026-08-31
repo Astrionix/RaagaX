@@ -12,6 +12,7 @@ import {
   Library,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useJamStore } from '@/context/useJamStore';
 import { ActiveTab } from '@/types/music';
 import { SeekBar } from '@/components/player/SeekBar';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
@@ -25,13 +26,17 @@ export function MobileBottomController() {
   const {
     activeTab,
     setActiveTab,
-    currentSong,
-    isPlaying,
+    currentSong: localCurrentSong,
+    isPlaying: localIsPlaying,
     togglePlayPause,
     playNext,
     playPrev,
     togglePlayerExpanded,
   } = usePlayerStore();
+
+  const { session, isInJam } = useJamStore();
+  const currentSong = (isInJam && session?.currentSong) ? session.currentSong : localCurrentSong;
+  const isPlaying = (isInJam && session) ? session.state === 'PLAYING' : localIsPlaying;
 
   useEffect(() => {
     setMounted(true);

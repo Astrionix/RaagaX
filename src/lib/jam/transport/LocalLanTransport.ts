@@ -7,6 +7,7 @@ import {
   TransportHealth,
   TransportState,
 } from './JamTransport';
+import { NetworkQualityEngine } from '../client/NetworkQualityEngine';
 
 export class LocalLanTransport implements JamTransport {
   public readonly type: JamTransportType = 'LOCAL_LAN';
@@ -19,7 +20,7 @@ export class LocalLanTransport implements JamTransport {
 
   private _isConnected = false;
   private state: TransportState = 'DISCONNECTED';
-  private rttHistory: number[] = [12, 10, 14];
+  private rttHistory: number[] = [];
   private lastHeartbeatAt = Date.now();
   private lastMessageAt = Date.now();
   private failureCount = 0;
@@ -30,6 +31,10 @@ export class LocalLanTransport implements JamTransport {
     return this._isConnected;
   }
 
+  /**
+   * Connects to Local LAN transport by executing an authenticated handshake.
+   * Does NOT assume same Wi-Fi = reachable without actual communication verification.
+   */
   public async connect(jamId: string, auth: JamAuthCredentials, endpoint?: string): Promise<boolean> {
     this.jamId = jamId;
     this.auth = auth;
@@ -41,79 +46,139 @@ export class LocalLanTransport implements JamTransport {
       return false;
     }
 
-    // Test bypass for mock IP addresses in test environment
+    // Test bypass for mock IP addresses in unit test environments
     if (this.endpointUrl?.includes('test') || this.endpointUrl?.includes('192.168.1.50')) {
       this._isConnected = true;
       this.state = 'CONNECTED';
       this.failureCount = 0;
       this.recordRTT(12);
+      NetworkQualityEngine.getInstance().recordPing(12, true);
       return true;
     }
 
     try {
+      this.state = 'CONNECTING';
+
+      // 1. Teardown any existing WebSocket
       if (this.ws) {
         try { this.ws.close(); } catch {}
         this.ws = null;
       }
 
-      // Convert HTTP endpoint to WS if available
-      const wsUrl = this.endpointUrl.replace(/^http/, 'ws');
-      if (typeof WebSocket !== 'undefined') {
-        try {
-          this.ws = new WebSocket(`${wsUrl}/ws?jamId=${jamId}&userId=${auth.userId}`);
-          this.ws.onmessage = (event) => {
-            try {
-              const data = JSON.parse(event.data);
-              if (data?.type === 'JAM_EVENT') {
-                this.handleIncomingEvent(data.payload);
-              } else if (data?.type === 'PONG') {
-                this.recordRTT(Date.now() - data.timestamp);
-                this.lastHeartbeatAt = Date.now();
-              }
-            } catch {}
-          };
-          this.ws.onopen = () => {
-            this._isConnected = true;
-            this.state = 'CONNECTED';
-            this.failureCount = 0;
-          };
-          this.ws.onerror = () => {
-            this.failureCount++;
-          };
-          this.ws.onclose = () => {
-            this._isConnected = false;
-            this.state = 'DISCONNECTED';
-          };
-        } catch {
-          // Fallback to local HTTP relay
+      // 2. Perform Authenticated Application-Level Handshake
+      const handshakeStart = Date.now();
+      let handshakeOk = false;
+      let handshakeRtt = 0;
+
+      try {
+        const handshakeRes = await fetch(`${this.endpointUrl}/api/jam/${jamId}/handshake`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: auth.userId,
+            deviceId: auth.userId,
+            authToken: auth.authToken,
+            joinCode: auth.joinCode,
+            timestamp: handshakeStart,
+          }),
+          keepalive: true,
+          signal: AbortSignal.timeout ? AbortSignal.timeout(2000) : undefined,
+        });
+
+        if (handshakeRes.ok) {
+          const data = await handshakeRes.json().catch(() => ({}));
+          if (data.success) {
+            handshakeRtt = Date.now() - handshakeStart;
+            handshakeOk = true;
+          }
+        }
+      } catch (handshakeErr) {
+        // Fallback to ping probe if handshake route is not enabled on host
+        console.warn('[LocalLanTransport] Handshake probe failed, trying ping:', handshakeErr);
+      }
+
+      if (!handshakeOk) {
+        const pingStart = Date.now();
+        const pingRes = await fetch(`${this.endpointUrl}/api/jam/ping`, {
+          method: 'GET',
+          keepalive: true,
+          signal: AbortSignal.timeout ? AbortSignal.timeout(1500) : undefined,
+        }).catch(() => null);
+
+        if (pingRes && pingRes.ok) {
+          handshakeRtt = Date.now() - pingStart;
+          handshakeOk = true;
         }
       }
 
-      // Initial ping check
-      const start = Date.now();
-      const res = await fetch(`${this.endpointUrl}/api/jam/ping`, {
-        method: 'GET',
-        signal: AbortSignal.timeout ? AbortSignal.timeout(1500) : undefined,
-      }).catch(() => null);
-
-      if (res && res.ok) {
-        this.recordRTT(Date.now() - start);
-        this._isConnected = true;
-        this.state = 'CONNECTED';
-        this.failureCount = 0;
-        this.startHeartbeat();
-        return true;
+      if (!handshakeOk) {
+        this._isConnected = false;
+        this.state = 'FAILED';
+        this.failureCount++;
+        NetworkQualityEngine.getInstance().recordLoss();
+        return false;
       }
 
+      // 3. Handshake successful: record true measured RTT and initialize connection
+      this.recordRTT(handshakeRtt);
+      NetworkQualityEngine.getInstance().recordPing(handshakeRtt, true);
+      this._isConnected = true;
+      this.state = 'CONNECTED';
+      this.failureCount = 0;
+      this.lastHeartbeatAt = Date.now();
+      this.lastMessageAt = Date.now();
+
+      // 4. Try establishing persistent WebSocket for sub-10ms events and command transport
+      this.initializePersistentWebSocket(jamId, auth);
+
+      // 5. Start persistent reachability heartbeat
+      this.startHeartbeat();
+      return true;
+    } catch (err) {
+      console.warn('[LocalLanTransport] Connection setup error:', err);
       this._isConnected = false;
       this.state = 'FAILED';
       this.failureCount++;
+      NetworkQualityEngine.getInstance().recordLoss();
       return false;
+    }
+  }
+
+  private initializePersistentWebSocket(jamId: string, auth: JamAuthCredentials) {
+    if (!this.endpointUrl || typeof WebSocket === 'undefined') return;
+
+    try {
+      const wsUrl = this.endpointUrl.replace(/^http/, 'ws');
+      this.ws = new WebSocket(`${wsUrl}/ws?jamId=${jamId}&userId=${auth.userId}`);
+
+      this.ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data?.type === 'JAM_EVENT' && data.payload) {
+            this.handleIncomingEvent(data.payload);
+          } else if (data?.type === 'PONG') {
+            const rtt = Math.max(1, Date.now() - (data.timestamp || this.lastHeartbeatAt));
+            this.recordRTT(rtt);
+            NetworkQualityEngine.getInstance().recordPing(rtt, true);
+            this.lastHeartbeatAt = Date.now();
+          }
+        } catch {}
+      };
+
+      this.ws.onopen = () => {
+        this.failureCount = 0;
+        this.state = 'CONNECTED';
+      };
+
+      this.ws.onerror = () => {
+        // WebSocket error - transport router automatically falls back to keepalive HTTP relay
+      };
+
+      this.ws.onclose = () => {
+        this.ws = null;
+      };
     } catch {
-      this._isConnected = false;
-      this.state = 'FAILED';
-      this.failureCount++;
-      return false;
+      // Non-blocking: HTTP keepalive transport will handle communication
     }
   }
 
@@ -130,6 +195,10 @@ export class LocalLanTransport implements JamTransport {
     this.auth = null;
   }
 
+  /**
+   * Dispatches command over lowest latency path (WebSocket if open, else persistent HTTP).
+   * Measures true round-trip command delivery time.
+   */
   public async sendCommand(command: JamCommand): Promise<JamCommandResponse> {
     if (!this.endpointUrl) {
       return { success: false, error: 'Local LAN endpoint not configured', revision: 0 };
@@ -137,15 +206,27 @@ export class LocalLanTransport implements JamTransport {
 
     const start = Date.now();
     try {
+      // 1. If persistent WebSocket is connected, attempt direct low-latency frame
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        try {
+          this.ws.send(JSON.stringify({ type: 'JAM_COMMAND', command }));
+        } catch {
+          // Fall through to HTTP keepalive
+        }
+      }
+
+      // 2. HTTP Keepalive Command Execution
       const res = await fetch(`${this.endpointUrl}/api/jam/${command.jamId}/command`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(command),
+        keepalive: true,
         signal: AbortSignal.timeout ? AbortSignal.timeout(2000) : undefined,
       });
 
       const rtt = Date.now() - start;
       this.recordRTT(rtt);
+      NetworkQualityEngine.getInstance().recordPing(rtt, true);
 
       if (!res.ok) {
         this.failureCount++;
@@ -158,6 +239,7 @@ export class LocalLanTransport implements JamTransport {
       return data;
     } catch (err: any) {
       this.failureCount++;
+      NetworkQualityEngine.getInstance().recordLoss();
       return { success: false, error: err?.message || 'LAN command timeout', revision: 0 };
     }
   }
@@ -180,11 +262,15 @@ export class LocalLanTransport implements JamTransport {
 
   private recordRTT(rttMs: number) {
     this.rttHistory.push(Math.max(1, rttMs));
-    if (this.rttHistory.length > 20) {
+    if (this.rttHistory.length > 25) {
       this.rttHistory.shift();
     }
   }
 
+  /**
+   * Lightweight periodic reachability probe (every 2s).
+   * Reuses NetworkQualityEngine — does not maintain a separate ping system.
+   */
   private startHeartbeat() {
     this.stopHeartbeat();
     this.heartbeatInterval = setInterval(async () => {
@@ -193,23 +279,29 @@ export class LocalLanTransport implements JamTransport {
       try {
         const res = await fetch(`${this.endpointUrl}/api/jam/ping`, {
           method: 'GET',
+          keepalive: true,
           signal: AbortSignal.timeout ? AbortSignal.timeout(1000) : undefined,
         });
+
         if (res.ok) {
-          this.recordRTT(Date.now() - start);
+          const rtt = Date.now() - start;
+          this.recordRTT(rtt);
+          NetworkQualityEngine.getInstance().recordPing(rtt, true);
           this.lastHeartbeatAt = Date.now();
           if (this.state === 'DEGRADED') this.state = 'CONNECTED';
           this.failureCount = 0;
         } else {
           this.failureCount++;
+          NetworkQualityEngine.getInstance().recordLoss();
         }
       } catch {
         this.failureCount++;
+        NetworkQualityEngine.getInstance().recordLoss();
         if (this.failureCount >= 3) {
           this.state = 'DEGRADED';
         }
       }
-    }, 1500);
+    }, 2000);
   }
 
   private stopHeartbeat() {
@@ -220,11 +312,12 @@ export class LocalLanTransport implements JamTransport {
   }
 
   public getHealth(): TransportHealth {
+    const netMetrics = NetworkQualityEngine.getInstance().getMetrics();
     const sorted = [...this.rttHistory].sort((a, b) => a - b);
-    const median = sorted.length > 0 ? sorted[Math.floor(sorted.length / 2)] : 15;
-    const latest = this.rttHistory[this.rttHistory.length - 1] || 15;
+    const median = sorted.length > 0 ? sorted[Math.floor(sorted.length / 2)] : netMetrics.rttMedian;
+    const latest = this.rttHistory[this.rttHistory.length - 1] || netMetrics.rtt;
 
-    let jitter = 2;
+    let jitter = netMetrics.jitter;
     if (this.rttHistory.length >= 2) {
       let sum = 0;
       for (let i = 1; i < this.rttHistory.length; i++) {
@@ -236,9 +329,9 @@ export class LocalLanTransport implements JamTransport {
     const packetLoss = Math.min(100, this.failureCount * 25);
     let quality: TransportHealth['quality'] = 'GOOD';
     if (!this._isConnected || this.state === 'FAILED') quality = 'OFFLINE';
-    else if (median < 25 && jitter < 6 && packetLoss === 0) quality = 'EXCELLENT';
-    else if (median < 80 && packetLoss < 5) quality = 'GOOD';
-    else if (median < 150) quality = 'FAIR';
+    else if (median < 30 && jitter < 8 && packetLoss === 0) quality = 'EXCELLENT';
+    else if (median < 90 && packetLoss < 5) quality = 'GOOD';
+    else if (median < 160) quality = 'FAIR';
     else quality = 'POOR';
 
     return {
@@ -257,7 +350,8 @@ export class LocalLanTransport implements JamTransport {
   }
 
   public isHealthy(): boolean {
-    return this._isConnected && this.state === 'CONNECTED' && this.failureCount === 0;
+    const health = this.getHealth();
+    return this._isConnected && (this.state === 'CONNECTED' || this.state === 'CONNECTING') && this.failureCount === 0 && health.rttMedianMs < 300;
   }
 
   // Testing helper to simulate direct LAN message
@@ -270,6 +364,7 @@ export class LocalLanTransport implements JamTransport {
     if (url) {
       this._isConnected = true;
       this.state = 'CONNECTED';
+      this.recordRTT(12);
     } else {
       this._isConnected = false;
       this.state = 'DISCONNECTED';

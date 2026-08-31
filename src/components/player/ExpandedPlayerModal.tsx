@@ -87,8 +87,8 @@ export function ExpandedPlayerModal() {
     isMuted,
     setVolume,
     toggleMute,
-    currentSong,
-    isPlaying,
+    currentSong: localCurrentSong,
+    isPlaying: localIsPlaying,
     togglePlayPause,
     currentTime,
     duration,
@@ -122,6 +122,10 @@ export function ExpandedPlayerModal() {
     sleepTimerEndsAt,
     sleepTimerMode,
   } = usePlayerStore();
+
+  const { session, isInJam } = useJamStore();
+  const currentSong = (isInJam && session?.currentSong) ? session.currentSong : localCurrentSong;
+  const isPlaying = (isInJam && session) ? session.state === 'PLAYING' : localIsPlaying;
 
   // Gesture handling for swipe-down to minimize on touch devices
   const touchStartY = useRef<number | null>(null);
