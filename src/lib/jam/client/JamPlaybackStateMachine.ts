@@ -261,6 +261,8 @@ export class JamPlaybackStateMachine {
     }
   }
 
+  private loadedTrackId: string | null = null;
+
   /**
    * Prepares and coordinates physical audio playback on the local device
    */
@@ -276,10 +278,7 @@ export class JamPlaybackStateMachine {
     const isNative = RaagaXNativePlayer.isNative();
     const activeAudio = pb.getActiveAudio();
 
-    const isAudioReadyForTrack = isNative
-      ? store.currentSong?.id === song.id
-      : Boolean(activeAudio && activeAudio.dataset?.trackId === song.id);
-    const isAlreadyLoaded = store.currentSong?.id === song.id && isAudioReadyForTrack;
+    const isAlreadyLoaded = this.loadedTrackId === song.id;
     const clientQueue: Song[] = [song, ...session.queue.map((item) => item.song)];
 
     const inFlightMs = this.driftEngine.calculateExpectedPositionMs(session);
@@ -320,6 +319,8 @@ export class JamPlaybackStateMachine {
         console.warn(`[JamPlaybackStateMachine] Audio source unavailable for track ${song.id} on joining device`);
         return;
       }
+
+      this.loadedTrackId = song.id;
 
       if (activeAudio) {
         if (!activeAudio.dataset) {
@@ -416,6 +417,7 @@ export class JamPlaybackStateMachine {
       currentMetadata: null,
       isPreloadingNext: false,
     };
+    this.loadedTrackId = null;
     this.metadataCache.clear();
   }
 }

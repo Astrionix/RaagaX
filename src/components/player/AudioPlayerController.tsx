@@ -98,6 +98,11 @@ export function AudioPlayerController() {
     //   App returns from background -> query native -> update UI state -> NO playback restart.
     const syncNativeStateToUI = async (reason: string) => {
       try {
+        const jamManager = JamClientManager.getInstance();
+        if (jamManager.getActiveSession()) {
+          console.log(`[AudioPlayerController] Skipping native state overwrite in Jam mode (${reason})`);
+          return;
+        }
         const state = await RaagaXNativePlayer.getPlaybackState();
         if (!state) return;
         console.log(`[AudioPlayerController] Native state re-sync (${reason}): isPlaying=${state.isPlaying} pos=${state.positionMs}ms dur=${state.durationMs}ms title="${state.title ?? ''}"`);
@@ -159,6 +164,20 @@ export function AudioPlayerController() {
     const unsubPlaybackState = RaagaXNativePlayer.addPlaybackStateListener((data) => {
       console.log('[AudioPlayerController] Native playbackStateChanged — isPlaying:', data.isPlaying, 'durationMs:', data.durationMs, 'positionMs:', data.positionMs);
       const store = usePlayerStore.getState();
+      const jamManager = JamClientManager.getInstance();
+      const jamSession = jamManager.getActiveSession();
+
+      if (jamSession) {
+        // In Jam session: update position/duration without overriding Jam playback state or currentSong
+        if (typeof data.durationMs === 'number' && data.durationMs > 0) {
+          store.setDuration(data.durationMs / 1000);
+        }
+        if (typeof data.positionMs === 'number' && data.positionMs >= 0) {
+          store.setCurrentTime(data.positionMs / 1000, true);
+        }
+        return;
+      }
+
       // If store is in the middle of a track transition with PLAYING intent, ignore transient false from buffer init
       if (!data.isPlaying && store.playbackIntent === 'PLAYING') {
         console.log('[AudioPlayerController] Ignoring transient buffer false isPlaying while playbackIntent is PLAYING');
@@ -212,6 +231,13 @@ export function AudioPlayerController() {
 
     const unsubChanged = RaagaXNativePlayer.addTrackChangedListener((data) => {
       lastTrackChangeTimeRef.current = Date.now();
+      const jamManager = JamClientManager.getInstance();
+      const jamSession = jamManager.getActiveSession();
+      if (jamSession) {
+        console.log(`[AudioPlayerController] Native trackChanged in Jam session (${data.title}) — keeping Jam authoritative track`);
+        return;
+      }
+
       const currentStoreTrack = usePlayerStore.getState().currentSong;
       const oldTrackId = data.oldTrackId || currentStoreTrack?.id || '';
       const newTrackId = data.trackId || '';
