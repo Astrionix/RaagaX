@@ -34,10 +34,7 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { SongFormatter } from '@/lib/music/SongFormatter';
 import { JamSyncBadge } from './JamSyncBadge';
-import { SeekBar } from '@/components/player/SeekBar';
 import { JamCameraScanner } from './JamCameraScanner';
-import { PlaybackService } from '@/lib/playback/PlaybackService';
-import { DriftCorrectionEngine } from '@/lib/jam/client/DriftCorrectionEngine';
 
 export function JamModal() {
   const {
@@ -51,11 +48,6 @@ export function JamModal() {
     createJam,
     joinJam,
     leaveJam,
-    sendPlay,
-    sendPause,
-    sendSeek,
-    sendSkipNext,
-    sendSkipPrev,
     sendRemoveTrack,
     sendReorderQueue,
     sendUpdatePermissions,
@@ -66,8 +58,8 @@ export function JamModal() {
     isLoading,
   } = useJamStore();
 
-  const { isPlaying, currentSong } = usePlayerStore();
-  const [activeTab, setActiveTab] = useState<'now_playing' | 'queue' | 'participants'>('now_playing');
+  const { currentSong } = usePlayerStore();
+  const [activeTab, setActiveTab] = useState<'queue' | 'participants'>('queue');
   const [joinCodeInput, setJoinCodeInput] = useState('');
   const [jamNameInput, setJamNameInput] = useState('');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -139,44 +131,28 @@ export function JamModal() {
                 </h3>
                 {session && <JamSyncBadge />}
               </div>
-              <div className="flex items-center gap-2 mt-0.5">
-                <p className="text-[11px] text-slate-400 font-medium">
-                  {session ? `${participantsList.length} listening in sync` : 'Listen together in real-time'}
-                </p>
-                {session?.joinCode && (
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(session.joinCode);
-                      usePlayerStore.getState().setToastMessage(`Join Code ${session.joinCode} copied!`);
-                    }}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FA233B]/15 border border-[#FA233B]/30 text-[#FA233B] text-[10px] font-mono font-bold hover:bg-[#FA233B]/25 transition-all cursor-pointer"
-                    title="Click to copy Join Code"
-                  >
-                    <span>Code:</span>
-                    <span className="tracking-wider">{session.joinCode}</span>
-                    <Copy className="w-2.5 h-2.5 ml-0.5" />
-                  </button>
-                )}
-              </div>
+              <p className="text-[11px] text-slate-400 truncate">
+                {session ? `Host: ${session.hostName}` : 'Listen with friends in sync'}
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {isInJam && (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {session && (
               <button
                 onClick={() => toggleShareModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 text-xs font-bold text-white transition-all cursor-pointer"
-                title="Invite to Jam"
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white transition-all cursor-pointer"
+                title="Share Jam / QR Code"
               >
-                <Share2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Invite</span>
+                <Share2 className="w-4 h-4" />
               </button>
             )}
+
             <button
               onClick={() => toggleJamModal(false)}
-              className="p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition-all cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -199,7 +175,7 @@ export function JamModal() {
                 disabled={isLoading}
                 className="w-full py-3 px-4 rounded-2xl bg-[#FA233B] hover:bg-[#ff3b53] text-sm font-black text-white shadow-[0_8px_24px_rgba(250,35,59,0.4)] transition-all cursor-pointer active:scale-98 flex items-center justify-center gap-2"
               >
-                <Sparkles className="w-4 h-4" />
+                <Radio className="w-4 h-4" />
                 <span>{isLoading ? 'Creating Jam...' : 'Start a Jam Party'}</span>
               </button>
 
@@ -237,18 +213,6 @@ export function JamModal() {
             {/* Tab Navigation */}
             <div className="flex items-center px-5 border-b border-white/10 gap-6 flex-shrink-0">
               <button
-                onClick={() => setActiveTab('now_playing')}
-                className={`py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
-                  activeTab === 'now_playing'
-                    ? 'border-[#FA233B] text-white'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Radio className="w-3.5 h-3.5" />
-                <span>Now Playing</span>
-              </button>
-
-              <button
                 onClick={() => setActiveTab('queue')}
                 className={`py-3 text-xs font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
                   activeTab === 'queue'
@@ -279,136 +243,46 @@ export function JamModal() {
               </button>
             </div>
 
-            {/* TAB 1: NOW PLAYING & PRESENCE */}
-            {activeTab === 'now_playing' && (
-              <div className="flex-1 p-5 flex flex-col justify-between overflow-y-auto">
-                <div className="flex flex-col items-center text-center my-auto">
-                  {/* Artwork */}
-                  <div className="relative w-44 h-44 sm:w-52 sm:h-52 rounded-3xl overflow-hidden shadow-[0_16px_40px_rgba(0,0,0,0.8)] border border-white/10 mb-4 flex-shrink-0 group">
-                    <OptimizedImage
-                      src={activeTrack?.coverUrl || '/app-icon.png'}
-                      alt={activeTrack?.title || 'Jam Track'}
-                      className="w-full h-full object-cover"
-                      fallbackSrc="/app-icon.png"
-                    />
-                    {session.state === 'PLAYING' && (
-                      <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                        <div className="flex items-end gap-1 h-6">
-                          <span className="w-1 bg-white/90 rounded-full animate-[bounce_1s_infinite_100ms] h-6" />
-                          <span className="w-1 bg-white/90 rounded-full animate-[bounce_1s_infinite_300ms] h-4" />
-                          <span className="w-1 bg-white/90 rounded-full animate-[bounce_1s_infinite_200ms] h-5" />
-                          <span className="w-1 bg-white/90 rounded-full animate-[bounce_1s_infinite_400ms] h-3" />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Metadata */}
-                  <h3 className="text-lg font-black text-white truncate max-w-xs">
-                    {activeTrack ? SongFormatter.cleanSongTitle(activeTrack.title) : 'Select a track'}
-                  </h3>
-                  <p className="text-xs text-slate-400 truncate max-w-xs mt-0.5">
-                    {activeTrack
-                      ? SongFormatter.decodeHtml(activeTrack.artist) || activeTrack.artist
-                      : 'Add a track to begin synchronized listening'}
-                  </p>
-
-                  {/* Synchronized Playback Controls */}
-                  <div className="w-full max-w-sm mt-4 px-2">
-                    <SeekBar className="w-full" />
-
-                    <div className="flex items-center justify-center gap-6 mt-3">
-                      <button
-                        onClick={() => sendSkipPrev()}
-                        disabled={!isHost && !permissions?.canSkip}
-                        className="p-2 text-slate-400 hover:text-white disabled:opacity-30 transition-colors cursor-pointer"
-                        title="Previous Track"
-                      >
-                        <SkipBack className="w-5 h-5" />
-                      </button>
-
-                      <button
-                        onClick={async () => {
-                          if (session.state === 'PLAYING') {
-                            const isLivePlaying = PlaybackService.getInstance().getLivePlayingState();
-                            if (!isLivePlaying) {
-                              usePlayerStore.setState({ isPlaying: true, playbackIntent: 'PLAYING' });
-                              DriftCorrectionEngine.getInstance().evaluateScheduledStart(session);
-                              PlaybackService.getInstance().play();
-                            } else {
-                              await sendPause();
-                            }
-                          } else {
-                            const posMs = Math.round((usePlayerStore.getState().currentTime || 0) * 1000);
-                            await sendPlay(posMs > 0 ? posMs : undefined);
-                          }
-                        }}
-                        disabled={!isHost && !permissions?.canControlPlayback}
-                        className="w-12 h-12 rounded-full bg-[#FA233B] hover:bg-[#ff3b53] disabled:opacity-40 text-white flex items-center justify-center shadow-[0_4px_20px_rgba(250,35,59,0.4)] transition-all cursor-pointer active:scale-95"
-                        title={session.state === 'PLAYING' ? 'Pause Jam' : 'Play Jam'}
-                      >
-                        {session.state === 'PLAYING' ? (
-                          <Pause className="w-6 h-6 fill-white" />
-                        ) : (
-                          <Play className="w-6 h-6 fill-white ml-0.5" />
-                        )}
-                      </button>
-
-                      <button
-                        onClick={() => sendSkipNext()}
-                        disabled={!isHost && !permissions?.canSkip}
-                        className="p-2 text-slate-400 hover:text-white disabled:opacity-30 transition-colors cursor-pointer"
-                        title="Next Track"
-                      >
-                        <SkipForward className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Live Participants Avatars Footer */}
-                <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between flex-shrink-0">
-                  <div className="flex items-center -space-x-2 overflow-hidden">
-                    {participantsList.slice(0, 6).map((p) => (
-                      <div
-                        key={p.userId}
-                        className="relative w-8 h-8 rounded-full border-2 border-[#0d0e14] bg-white/10 flex items-center justify-center text-xs font-bold overflow-hidden shadow-sm"
-                        title={`${p.displayName} ${p.isHost ? '(Host)' : ''}`}
-                      >
-                        {p.avatarUrl ? (
-                          <img src={p.avatarUrl} alt={p.displayName} className="w-full h-full object-cover" />
-                        ) : (
-                          <span>{p.displayName[0]?.toUpperCase() || '👤'}</span>
-                        )}
-                        {p.isHost && (
-                          <div className="absolute bottom-0 right-0 p-0.5 bg-amber-500 rounded-full">
-                            <Crown className="w-2 h-2 text-black fill-black" />
+            {/* TAB 1: SHARED QUEUE */}
+            {activeTab === 'queue' && (
+              <div className="flex-1 p-4 flex flex-col min-h-0">
+                {/* Currently Playing in Jam Header Card */}
+                {activeTrack && (
+                  <div className="p-3 rounded-2xl bg-gradient-to-r from-[#FA233B]/15 via-white/[0.04] to-transparent border border-[#FA233B]/30 flex items-center justify-between gap-3 mb-3 flex-shrink-0">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="relative w-11 h-11 rounded-xl overflow-hidden shadow-md flex-shrink-0 border border-white/10">
+                        <OptimizedImage
+                          src={activeTrack.coverUrl}
+                          alt={activeTrack.title}
+                          className="w-full h-full object-cover"
+                          fallbackSrc="/app-icon.png"
+                        />
+                        {session.state === 'PLAYING' && (
+                          <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                            <div className="flex items-end gap-0.5 h-3.5">
+                              <span className="w-0.5 bg-[#FA233B] rounded-full animate-[bounce_1s_infinite_100ms] h-3.5" />
+                              <span className="w-0.5 bg-[#FA233B] rounded-full animate-[bounce_1s_infinite_300ms] h-2" />
+                              <span className="w-0.5 bg-[#FA233B] rounded-full animate-[bounce_1s_infinite_200ms] h-3" />
+                            </div>
                           </div>
                         )}
                       </div>
-                    ))}
-                    {participantsList.length > 6 && (
-                      <div className="w-8 h-8 rounded-full border-2 border-[#0d0e14] bg-white/20 flex items-center justify-center text-[10px] font-bold text-white">
-                        +{participantsList.length - 6}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-[#FA233B]">Now Playing</span>
+                        </div>
+                        <h4 className="font-bold text-xs text-white truncate">
+                          {SongFormatter.cleanSongTitle(activeTrack.title)}
+                        </h4>
+                        <p className="text-[10px] text-slate-400 truncate">
+                          {SongFormatter.decodeHtml(activeTrack.artist) || activeTrack.artist}
+                        </p>
                       </div>
-                    )}
+                    </div>
                   </div>
+                )}
 
-                  <button
-                    onClick={() => toggleShareModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-white transition-all cursor-pointer"
-                  >
-                    <QrCode className="w-3.5 h-3.5" />
-                    <span>Invite</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 2: SHARED QUEUE */}
-            {activeTab === 'queue' && (
-              <div className="flex-1 p-4 flex flex-col min-h-0">
-                <div className="flex items-center justify-between pb-3 border-b border-white/10 flex-shrink-0">
+                <div className="flex items-center justify-between pb-2.5 border-b border-white/10 flex-shrink-0">
                   <span className="text-xs text-slate-400 font-bold">Up Next in Jam</span>
                   <button
                     onClick={() => toggleAddToJamModal(true)}
@@ -493,6 +367,43 @@ export function JamModal() {
                       <p className="text-[10px] text-slate-600">Add songs to listen with participants</p>
                     </div>
                   )}
+                </div>
+
+                {/* Live Participants Avatars Footer */}
+                <div className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between flex-shrink-0">
+                  <div className="flex items-center -space-x-2 overflow-hidden">
+                    {participantsList.slice(0, 6).map((p) => (
+                      <div
+                        key={p.userId}
+                        className="relative w-7 h-7 rounded-full border-2 border-[#0d0e14] bg-white/10 flex items-center justify-center text-[10px] font-bold overflow-hidden shadow-sm"
+                        title={`${p.displayName} ${p.isHost ? '(Host)' : ''}`}
+                      >
+                        {p.avatarUrl ? (
+                          <img src={p.avatarUrl} alt={p.displayName} className="w-full h-full object-cover" />
+                        ) : (
+                          <span>{p.displayName[0]?.toUpperCase() || '👤'}</span>
+                        )}
+                        {p.isHost && (
+                          <div className="absolute bottom-0 right-0 p-0.5 bg-amber-500 rounded-full">
+                            <Crown className="w-1.5 h-1.5 text-black fill-black" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {participantsList.length > 6 && (
+                      <div className="w-7 h-7 rounded-full border-2 border-[#0d0e14] bg-white/20 flex items-center justify-center text-[9px] font-bold text-white">
+                        +{participantsList.length - 6}
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => toggleShareModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-white transition-all cursor-pointer"
+                  >
+                    <QrCode className="w-3.5 h-3.5" />
+                    <span>Invite</span>
+                  </button>
                 </div>
               </div>
             )}
