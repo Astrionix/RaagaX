@@ -691,6 +691,7 @@ public class RaagaXPlaybackService extends Service {
         else if ("RESUME".equals(action))    { resume(); }
         else if ("SEEK".equals(action))      { seekTo(intent.getLongExtra("positionMs", 0)); }
         else if ("SET_VOLUME".equals(action)){ setVolume(intent.getFloatExtra("volume", 1.0f)); }
+        else if ("SET_SPEED".equals(action)) { setPlaybackSpeed(intent.getFloatExtra("speed", 1.0f)); }
         else if ("SET_REPEAT".equals(action)){ setRepeatMode(intent.getStringExtra("repeatMode")); }
         else if ("UPDATE_QUEUE_URL".equals(action)) {
             String trackId = intent.getStringExtra("trackId");
@@ -1471,6 +1472,16 @@ public class RaagaXPlaybackService extends Service {
         runOnMainThread(() -> {
             baselineVolume = v;
             applyNormalizedVolume();
+        });
+    }
+
+    public void setPlaybackSpeed(float speed) {
+        runOnMainThread(() -> {
+            if (player != null) {
+                float safeSpeed = Math.max(0.5f, Math.min(2.0f, speed));
+                player.setPlaybackParameters(new androidx.media3.common.PlaybackParameters(safeSpeed));
+                Log.d(TAG, "[PLAYBACK_SPEED] setPlaybackSpeed=" + safeSpeed);
+            }
         });
     }
 

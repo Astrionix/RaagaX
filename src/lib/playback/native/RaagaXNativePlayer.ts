@@ -129,6 +129,12 @@ export const RaagaXNativePlayer = {
     await plugin.setVolume({ volume });
   },
 
+  async setPlaybackRate(rate: number): Promise<void> {
+    const plugin = getPlugin();
+    if (!plugin) return;
+    await plugin.setPlaybackRate({ rate });
+  },
+
   async updateQueueUrl(trackId: string, url: string): Promise<void> {
     const plugin = getPlugin();
     if (!plugin) return;

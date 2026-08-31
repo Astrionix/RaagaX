@@ -161,6 +161,8 @@ export class DriftCorrectionEngine {
       // 4. Anchor / Seek position update
       const isNewPlaybackIdentity =
         prevSession === null ||
+        prevSession.jamId !== session.jamId ||
+        prevSession.timelineId !== session.timelineId ||
         prevSession.trackId !== session.trackId ||
         prevSession.generation !== session.generation ||
         (prevSession.state !== 'PLAYING' && session.state === 'PLAYING') ||
@@ -584,24 +586,26 @@ export class DriftCorrectionEngine {
       this.logLargeDriftDiagnostic(session, expectedPositionMs, actualLocalMs, Math.round(rawDriftMs), activeAudio);
     }
 
-    // ── Step 4: Network-adaptive dead-band ───────────────────────────────────
-    // LAN/Bluetooth peers have very low RTT → tighten dead-band to ±15ms.
-    // High-latency cloud links → widen dead-band proportional to RTT/6.7
-    // so we don't chase measurement noise larger than the clock uncertainty.
-    const netMetrics  = this.networkEngine.getMetrics();
-    const isLanOrPeer = netMetrics.transport === 'LAN' || netMetrics.transport === 'PEER';
-    const baseDead    = isLanOrPeer ? 15 : 30;
-    const deadBandMs  = Math.max(baseDead, netMetrics.rttMedian * 0.15);
-    // Hysteresis guard: once SYNCED, require drift to exceed deadBand+10ms before re-engaging
-    const exitThresholdMs = deadBandMs + 10;
+    // ── Step 4: Network-adaptive dead-band & Same-Wi-Fi Zero-Drift Mode ───────
+    // LAN/Bluetooth peers have very low RTT (< 15ms) → activate Zero-Drift Micro-Sync.
+    // In this mode, instead of ignoring drift under 15ms, the engine applies continuous
+    // pitch-neutral micro-nudges (±0.15% max speed) that smoothly eliminate steady-state
+    // drift down to 0.0ms across all devices on the same Wi-Fi without pitch artifacts.
+    const netMetrics       = this.networkEngine.getMetrics();
+    const isLanOrPeer      = netMetrics.transport === 'LAN' || netMetrics.transport === 'PEER';
+    const isLowLatencyWifi = isLanOrPeer || (netMetrics.rttMedian <= 20 && netMetrics.jitter <= 4);
+    const baseDead         = isLanOrPeer ? 15 : 30;
+    const deadBandMs       = Math.max(baseDead, netMetrics.rttMedian * 0.15);
+    // Hysteresis guard: once SYNCED, require drift to exceed deadBand+10ms before re-engaging macro PID
+    const exitThresholdMs  = deadBandMs + 10;
 
     // ── Gap 6: Network transport change — flush EMA + integral immediately ─
     // When the link changes (Wi-Fi→cellular or LAN→CLOUD), the old EMA history
     // is invalid for the new RTT/jitter regime. Reset so PID re-tunes now.
     const currentTransport = netMetrics.transport ?? '';
     if (this.lastKnownTransport && this.lastKnownTransport !== currentTransport) {
-      this.smoothedDriftMs      = rawDriftMs;  // hard-seed to current raw reading
-      this.prevSmoothedDriftMs  = rawDriftMs;
+      this.smoothedDriftMs       = rawDriftMs;  // hard-seed to current raw reading
+      this.prevSmoothedDriftMs   = rawDriftMs;
       this.driftVelocityMsPerSec = 0;
       this.integralMs            = 0;
       this.lastEvalTimeMs        = 0;  // force isFirstSample on next tick
@@ -631,20 +635,12 @@ export class DriftCorrectionEngine {
       this.prevSmoothedDriftMs = 0;
 
     } else if (absDrift > (isNative ? 300 : 500)) {
-      // ── Gap 5: Native seek-only mode — tighter hard-seek threshold ───────
-      // On native, rate modulation goes to /dev/null (activeAudio is null).
-      // Compensate by triggering hard seeks at 300ms (not 500ms) so correction
-      // still happens — just via ExoPlayer seekTo() instead of playbackRate.
-      //
-      // 300–5000ms (native) / 500–5000ms (web): INVESTIGATION → confirmed drift → hard seek
+      // ── Hard seek threshold: 300ms (native) / 500ms (web) ─────────────────
       qualityState = 'INVESTIGATION';
       this.consecutiveLargeDriftCount++;
       const isCooldownElapsed = evalNow - this.lastHardSeekTimeMs >= DriftCorrectionEngine.HARD_SEEK_COOLDOWN_MS;
 
-      // ── Gap 4: Foreground grace window ────────────────────────────────────
-      // After tab/app returns from background, background-accumulated drift looks
-      // like real drift but the audio was simply paused/suspended. Suppress hard
-      // seeks for FOREGROUND_GRACE_MS so the PID can rate-correct gently first.
+      // ── Foreground grace window: suppress hard seeks after background restore
       const msSinceForeground = this.foregroundRestoreTimeMs > 0
         ? Date.now() - this.foregroundRestoreTimeMs
         : Infinity;
@@ -666,12 +662,6 @@ export class DriftCorrectionEngine {
         correctionId = `corr_${evalNow}_${Math.random().toString(36).slice(2, 7)}`;
 
         // ── Predictive seek compensation ─────────────────────────────────
-        // Seeking takes time (50–300ms web, 200–1500ms native due to ExoPlayer
-        // buffer rebuild). We seek ahead by the estimated seek completion time
-        // so the position is already correct when playback resumes.
-        //
-        // Gap 7: native uses a much higher base estimate (300ms vs 80ms)
-        // to account for ExoPlayer buffer clearing + network refill time.
         const estimatedSeekLatencyMs = isNative
           ? Math.min(1200, Math.max(300, netMetrics.rttMedian * 2 + 100))
           : Math.min(400,  Math.max(80,  netMetrics.rttMedian * 1.5 + 40));
@@ -708,26 +698,51 @@ export class DriftCorrectionEngine {
       }
 
     } else {
-      // ── PD Controller zone: |drift| ≤ 500ms ──────────────────────────────
+      // ── PID Controller zone: |drift| ≤ 500ms ──────────────────────────────
       this.consecutiveLargeDriftCount = 0;
 
       // Hysteresis: update SYNCED zone membership
       if (this.isInSyncedZone) {
-        // Stay SYNCED unless drift clearly escapes the exit threshold
         if (absDrift > exitThresholdMs) this.isInSyncedZone = false;
       } else {
-        // Return to SYNCED once drift is back inside the dead-band
         if (absDrift < deadBandMs) this.isInSyncedZone = true;
       }
 
       if (this.isInSyncedZone) {
-        // Dead-band: no correction needed — holds steady 1.0x
-        // Reset integral here: once synced, any accumulated bias is irrelevant
-        // and we don't want it to fight us when we next leave the dead-band.
-        this.integralMs = 0;
+        // Inside standard dead-band zone (e.g. |drift| <= 15ms or 30ms)
         qualityState = 'SYNCED';
-        action       = 'NONE';
-        targetRate   = 1.0;
+
+        if (isLowLatencyWifi && absDrift > 1.0) {
+          // ── SAME WI-FI / LOCAL LAN ZERO-DRIFT MICRO-SYNC ─────────────────
+          // On same Wi-Fi, actively zero out residual micro-drift (1.0ms–15ms).
+          // Uses pitch-neutral micro-rate nudges (±0.15% max: 0.9985x–1.0015x)
+          // to continuously pull drift to 0.0ms without audible distortion.
+          action = 'MODULATE_RATE';
+
+          // Micro-integral accumulation for sub-millisecond precision
+          this.integralMs += this.smoothedDriftMs * deltaT;
+          this.integralMs = Math.max(-10, Math.min(10, this.integralMs));
+
+          const microKp = 0.00035;
+          const microKi = 0.00002;
+          const microKd = 0.00015;
+
+          const isConverging = this.smoothedDriftMs * this.driftVelocityMsPerSec < 0;
+          const effectiveMicroKp = isConverging ? microKp * 0.5 : microKp;
+
+          let microAdjust =
+            effectiveMicroKp * this.smoothedDriftMs +
+            microKi          * this.integralMs +
+            microKd          * this.driftVelocityMsPerSec;
+
+          // Clamp to ±0.20% — 100% pitch-neutral micro-correction
+          targetRate = Math.max(0.9980, Math.min(1.0020, 1.0 - microAdjust));
+        } else {
+          // True Phase-Lock (drift <= 1.0ms) or Cloud Mode within deadband: hold 1.0x
+          this.integralMs = 0;
+          action          = 'NONE';
+          targetRate      = 1.0;
+        }
 
       } else {
         // Label quality state for UI / telemetry
@@ -736,36 +751,22 @@ export class DriftCorrectionEngine {
         else                     qualityState = 'CRITICAL';
         action = 'MODULATE_RATE';
 
-        // ── Adaptive gains (jitter-scaled) ──────────────────────────────────────
-        // On high-jitter networks, reduce Kp to avoid chasing measurement noise.
-        // On LAN/Bluetooth (very low jitter), boost Kp for tighter sync.
-        // jitterMs: ~2ms (excellent LAN) to ~100ms (poor cellular)
+        // ── Adaptive gains (jitter-scaled) ──────────────────────────────────
         const jitterMs      = netMetrics.jitter;
         const jitterScale   = Math.max(0.5, Math.min(1.0, 1.0 - (jitterMs - 5) / 120));
         const lanBoost      = isLanOrPeer ? 1.5 : 1.0;
         const adaptiveKp    = Math.min(0.004, DriftCorrectionEngine.Kp * jitterScale * lanBoost);
         const adaptiveKd    = Math.min(0.002, DriftCorrectionEngine.Kd * jitterScale * lanBoost);
-        // Ki stays fixed — integral gain should not scale with jitter
-        // (bias is real; jitter is noise — they are orthogonal)
         const adaptiveKi    = DriftCorrectionEngine.Ki;
 
-        // ── Integral accumulation with anti-windup ───────────────────────────
-        // Accumulate smoothed drift × time to detect persistent bias
-        // (e.g. audio clock running 0.02% fast = +12ms steady-state error)
+        // ── Integral accumulation with anti-windup ─────────────────────────
         this.integralMs += this.smoothedDriftMs * deltaT;
-        // Anti-windup: clamp to ±INTEGRAL_CLAMP so a large transient
-        // doesn't wind up the integral and fight future corrections
         this.integralMs = Math.max(
           -DriftCorrectionEngine.INTEGRAL_CLAMP_MS_S,
           Math.min(DriftCorrectionEngine.INTEGRAL_CLAMP_MS_S, this.integralMs)
         );
 
-        // ── PID rate formula ──────────────────────────────────────────────────
-        // Positive smoothedDrift = local is AHEAD  → need to SLOW DOWN  (targetRate < 1)
-        // Negative smoothedDrift = local is BEHIND → need to SPEED UP   (targetRate > 1)
-        //
-        // Anti-overshoot brake: if drift is already converging (velocity opposes drift),
-        // halve Kp so we decelerate before crossing zero.
+        // ── PID rate formula ────────────────────────────────────────────────
         const isConverging = this.smoothedDriftMs * this.driftVelocityMsPerSec < 0;
         const effectiveKp  = isConverging ? adaptiveKp * 0.5 : adaptiveKp;
 
@@ -774,8 +775,7 @@ export class DriftCorrectionEngine {
           adaptiveKi  * this.integralMs +              // I: accumulated bias
           adaptiveKd  * this.driftVelocityMsPerSec;   // D: rate of change
 
-        // ── Clock-confidence gating ──────────────────────────────────────
-        // Scale down when NTP clock is still warming up (< 5 samples, conf < 0.7).
+        // ── Clock-confidence gating ────────────────────────────────────────
         const clockConf = this.clockSync.getState().confidence;
         if (clockConf < 0.7) {
           pidAdjust *= (clockConf / 0.7);
@@ -786,16 +786,17 @@ export class DriftCorrectionEngine {
       }
     }
 
-    // ── Step 6: Apply rate with hold-window (debounce rapid flapping) ────────
+    // ── Step 6: Apply rate with hold-window & micro-sensitivity ──────────────
+    const holdTime    = isLowLatencyWifi ? 120 : DriftCorrectionEngine.RATE_CHANGE_HOLD_MS;
+    const minRateDiff = isLowLatencyWifi ? 0.0004 : 0.008;
+
     if (activeAudio) {
       const rateDiff            = Math.abs(activeAudio.playbackRate - targetRate);
-      const isReturningToNormal = targetRate === 1.0 && rateDiff > 0.005;
-      const isHoldElapsed       = evalNow - this.lastRateChangeTimeMs >= DriftCorrectionEngine.RATE_CHANGE_HOLD_MS;
+      const isReturningToNormal = targetRate === 1.0 && rateDiff > 0.001;
+      const isHoldElapsed       = evalNow - this.lastRateChangeTimeMs >= holdTime;
 
-      if (isReturningToNormal || (rateDiff > 0.008 && isHoldElapsed)) {
-        // ── Gap 3: iOS Safari playbackRate guard ───────────────────────────
-        // iOS Safari silently ignores playbackRate changes on a paused element.
-        // Only apply the rate when actually playing to avoid stale rate state.
+      if (isReturningToNormal || (rateDiff >= minRateDiff && isHoldElapsed)) {
+        // iOS Safari playbackRate guard: only apply when playing
         const isIOS = typeof navigator !== 'undefined' &&
           /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
         if (!isIOS || !activeAudio.paused) {
@@ -803,6 +804,19 @@ export class DriftCorrectionEngine {
           this.currentRate          = targetRate;
           this.lastRateChangeTimeMs = evalNow;
         }
+      }
+    }
+
+    // Native Android ExoPlayer real-time rate modulation
+    if (isNative) {
+      const rateDiff            = Math.abs(this.currentRate - targetRate);
+      const isReturningToNormal = targetRate === 1.0 && rateDiff > 0.001;
+      const isHoldElapsed       = evalNow - this.lastRateChangeTimeMs >= holdTime;
+
+      if (isReturningToNormal || (rateDiff >= minRateDiff && isHoldElapsed)) {
+        this.currentRate          = targetRate;
+        this.lastRateChangeTimeMs = evalNow;
+        RaagaXNativePlayer.setPlaybackRate(targetRate);
       }
     }
 

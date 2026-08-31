@@ -328,6 +328,20 @@ public class RaagaXCapacitorPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void setPlaybackRate(PluginCall call) {
+        float rate = call.getFloat("rate", 1.0f);
+        RaagaXPlaybackService service = getService();
+        if (service != null) {
+            service.setPlaybackSpeed(rate);
+        } else {
+            Intent intent = new Intent("SET_SPEED");
+            intent.putExtra("speed", rate);
+            sendCommandToService(intent);
+        }
+        call.resolve(new JSObject().put("success", true));
+    }
+
+    @PluginMethod
     public void setRepeatMode(PluginCall call) {
         String mode = call.getString("repeatMode", "OFF");
         RaagaXPlaybackService service = getService();
