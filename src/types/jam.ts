@@ -297,7 +297,7 @@ export interface DiscoveredJam {
   currentSongArtist?: string;
   currentSongCover?: string;
   participantCount: number;
-  discoveryMethod: 'bluetooth' | 'wifi' | 'lan' | 'subnet';
+  discoveryMethod: 'wifi' | 'lan' | 'subnet' | 'nearby';
   signalStrength?: number; // RSSI or latency ms
   localIp?: string;
   discoveredAt: number;

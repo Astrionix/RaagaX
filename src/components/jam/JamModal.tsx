@@ -26,7 +26,6 @@ import {
   Smartphone,
   Monitor,
   Copy,
-  Bluetooth,
   Wifi,
   Camera,
 } from 'lucide-react';
@@ -227,7 +226,6 @@ export function JamModal() {
                 className="w-full py-2.5 px-4 rounded-2xl bg-white/10 hover:bg-white/15 text-xs font-bold text-white transition-all cursor-pointer flex items-center justify-center gap-2 border border-white/10"
               >
                 <div className="flex items-center gap-1 text-[#FA233B]">
-                  <Bluetooth className="w-3.5 h-3.5" />
                   <Wifi className="w-3.5 h-3.5" />
                 </div>
                 <span>Nearby / Enter Join Code</span>

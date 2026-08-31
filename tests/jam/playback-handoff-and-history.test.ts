@@ -198,7 +198,6 @@ describe('RaagaX Jam — Advanced Capabilities: Playback Handoff, History & Capa
           backgroundPlayback: true,
           outputCapabilities: {
             speaker: true,
-            bluetooth: true,
           },
         },
       });

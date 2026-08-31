@@ -971,7 +971,6 @@ export class JamClientManager {
       backgroundPlayback: platform === 'android' || platform === 'ios',
       outputCapabilities: {
         speaker: true,
-        bluetooth: true,
       },
     };
   }

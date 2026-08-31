@@ -86,7 +86,7 @@ export class JamDiscoveryEngine {
   }
 
   /**
-   * Starts nearby scanning (Bluetooth / Nearby Beacon + Same Wi-Fi / Subnet)
+   * Starts nearby scanning (Same Wi-Fi / Local LAN / Subnet Beacon)
    */
   public startScanning() {
     if (this.isScanning) return;
@@ -99,9 +99,6 @@ export class JamDiscoveryEngine {
     this.scanIntervalTimer = setInterval(() => {
       this.queryNetworkDiscoveredJams();
     }, 3000);
-
-    // 3. Web Bluetooth LE Scan (where supported by browser/device)
-    this.scanWebBluetooth().catch(() => {});
   }
 
   /**
@@ -116,7 +113,7 @@ export class JamDiscoveryEngine {
   }
 
   /**
-   * Host starts advertising nearby presence beacon (Bluetooth / Local Wi-Fi)
+   * Host starts advertising nearby presence beacon (Local Wi-Fi / LAN)
    */
   public startBroadcasting(session: JamSession) {
     this.activeBroadcastingSession = session;
@@ -181,7 +178,7 @@ export class JamDiscoveryEngine {
       currentSongArtist: msg.currentSongArtist,
       currentSongCover: msg.currentSongCover,
       participantCount: msg.participantCount,
-      discoveryMethod: 'bluetooth',
+      discoveryMethod: 'wifi',
       signalStrength: 95,
       discoveredAt: Date.now(),
     };
@@ -206,7 +203,6 @@ export class JamDiscoveryEngine {
       if (data.success && Array.isArray(data.jams)) {
         const now = Date.now();
         for (const jam of data.jams) {
-          // Avoid overwriting a direct bluetooth beacon with lower wifi latency unless fresher
           if (!this.discoveredJams.has(jam.jamId)) {
             this.discoveredJams.set(jam.jamId, {
               ...jam,
@@ -218,19 +214,6 @@ export class JamDiscoveryEngine {
       }
     } catch (e) {
       // Network hiccup - ignore and retry next cycle
-    }
-  }
-
-  /**
-   * Optional Web Bluetooth LE Nearby Scanner
-   */
-  private async scanWebBluetooth(): Promise<void> {
-    if (typeof navigator === 'undefined' || !(navigator as any).bluetooth) return;
-    try {
-      // Web Bluetooth API availability check
-      // Bluetooth is used strictly for Discovery / Handshake, not for audio streaming
-    } catch (e) {
-      // Graceful fallback to Wi-Fi / Local Subnet
     }
   }
 

@@ -8,11 +8,9 @@ import {
 } from './JamTransport';
 import { CloudRealtimeTransport } from './CloudRealtimeTransport';
 import { LocalLanTransport } from './LocalLanTransport';
-import { BluetoothDiscoveryTransport } from './BluetoothDiscoveryTransport';
 
 export interface TransportRouterStatus {
   activeTransport: JamTransportType;
-  bluetoothHealth: TransportHealth;
   lanHealth: TransportHealth;
   cloudHealth: TransportHealth;
   failoverCount: number;
@@ -25,13 +23,12 @@ export class TransportRouter {
 
   private cloudTransport: CloudRealtimeTransport;
   private lanTransport: LocalLanTransport;
-  private bluetoothTransport: BluetoothDiscoveryTransport;
 
   private activeTransportType: JamTransportType = 'CLOUD_REALTIME';
   private listeners: Set<JamEventListener> = new Set();
   private unsubscribers: Array<() => void> = [];
 
-  // Hysteresis & Anti-Flapping State (Section 10)
+  // Hysteresis & Anti-Flapping State
   private lanConsecutiveHealthyCount = 0;
   private static readonly LAN_RECOVERY_THRESHOLD = 3; // 3 consecutive healthy checks to switch back to LAN
   private static readonly LAN_FAILURE_THRESHOLD = 2; // 2 consecutive failures to switch to Cloud
@@ -47,7 +44,6 @@ export class TransportRouter {
   private constructor() {
     this.cloudTransport = new CloudRealtimeTransport();
     this.lanTransport = new LocalLanTransport();
-    this.bluetoothTransport = new BluetoothDiscoveryTransport();
   }
 
   public static getInstance(): TransportRouter {
@@ -58,9 +54,6 @@ export class TransportRouter {
   }
 
   public get activeTransport(): JamTransport {
-    if (this.activeTransportType === 'BLUETOOTH_PEER_SYNC') {
-      return this.bluetoothTransport;
-    }
     return this.activeTransportType === 'LOCAL_LAN' ? this.lanTransport : this.cloudTransport;
   }
 
@@ -71,8 +64,7 @@ export class TransportRouter {
   public async initialize(
     jamId: string,
     auth: JamAuthCredentials,
-    lanEndpoint?: string,
-    enableBluetooth = false
+    lanEndpoint?: string
   ): Promise<boolean> {
     this.cleanup();
 
@@ -85,47 +77,33 @@ export class TransportRouter {
       lanOk = await this.lanTransport.connect(jamId, auth, lanEndpoint);
     }
 
-    // 3. Connect Bluetooth Peer Sync channel if explicitly enabled
-    let btOk = false;
-    if (enableBluetooth) {
-      btOk = await this.bluetoothTransport.connect(jamId, auth);
-    }
-
-    // 4. Transport Selection Hierarchy: Same Wi-Fi (Local LAN) -> Cloud Realtime
+    // 3. Transport Selection Hierarchy: Same Wi-Fi (Local LAN) -> Cloud Realtime
     if (lanOk && this.lanTransport.isHealthy()) {
       this.activeTransportType = 'LOCAL_LAN';
       this.lanConsecutiveHealthyCount = TransportRouter.LAN_RECOVERY_THRESHOLD;
       console.log(`[TRANSPORT_SELECTED] transport=LOCAL_LAN rttMs=${this.lanTransport.getHealth().rttMs}ms (Same Wi-Fi preferred)`);
-    } else if (enableBluetooth && btOk && this.bluetoothTransport.hasActivePeers() && this.bluetoothTransport.isHealthy()) {
-      this.activeTransportType = 'BLUETOOTH_PEER_SYNC';
-      console.log(`[TRANSPORT_SELECTED] transport=BLUETOOTH_PEER_SYNC rttMs=${this.bluetoothTransport.getHealth().rttMs}ms`);
     } else {
       this.activeTransportType = 'CLOUD_REALTIME';
       console.log(`[TRANSPORT_SELECTED] transport=CLOUD_REALTIME rttMs=${this.cloudTransport.getHealth().rttMs}ms (Cloud Realtime default)`);
     }
 
-    // 5. Wire up unified event listeners from active transports
+    // 4. Wire up unified event listeners from active transports
     this.unsubscribers.push(
       this.cloudTransport.subscribe((event) => this.routeIncomingEvent(event, 'CLOUD_REALTIME'))
     );
     this.unsubscribers.push(
       this.lanTransport.subscribe((event) => this.routeIncomingEvent(event, 'LOCAL_LAN'))
     );
-    if (enableBluetooth) {
-      this.unsubscribers.push(
-        this.bluetoothTransport.subscribe((event) => this.routeIncomingEvent(event, 'BLUETOOTH_PEER_SYNC'))
-      );
-    }
 
-    // 6. Start periodic health monitoring and hysteresis evaluation (every 1s)
+    // 5. Start periodic health monitoring and hysteresis evaluation (every 1s)
     this.startHealthMonitor();
 
-    return cloudOk || lanOk || btOk;
+    return cloudOk || lanOk;
   }
 
   /**
    * Dispatches a Jam command through the currently preferred healthy transport.
-   * If the active transport fails, seamlessly attempts immediate failover retry (Section 23 & 24).
+   * If the active transport fails, seamlessly attempts immediate failover retry.
    */
   public async sendCommand(command: JamCommand): Promise<JamCommandResponse> {
     const primaryTransport = this.activeTransport;
@@ -142,13 +120,6 @@ export class TransportRouter {
         return response;
       }
 
-      // If Bluetooth fails, fail over to LAN or Cloud
-      if (initialTransportType === 'BLUETOOTH_PEER_SYNC') {
-        const nextTransport = (this.lanTransport.isConnected && this.lanTransport.isHealthy()) ? 'LOCAL_LAN' : 'CLOUD_REALTIME';
-        this.executeFailover(nextTransport, `Command failed on Bluetooth: ${response?.error || 'Unknown error'}`);
-        return await (nextTransport === 'LOCAL_LAN' ? this.lanTransport : this.cloudTransport).sendCommand(command);
-      }
-
       // If LAN transport failed, execute seamless fallback to Cloud Realtime
       if (initialTransportType === 'LOCAL_LAN' && !response.success) {
         console.warn(`[TRANSPORT_FAILOVER] from=LOCAL_LAN to=CLOUD_REALTIME reason=Command execution failed: ${response.error}`);
@@ -158,11 +129,6 @@ export class TransportRouter {
 
       return response;
     } catch (err: any) {
-      if (initialTransportType === 'BLUETOOTH_PEER_SYNC') {
-        const nextTransport = (this.lanTransport.isConnected && this.lanTransport.isHealthy()) ? 'LOCAL_LAN' : 'CLOUD_REALTIME';
-        this.executeFailover(nextTransport, `Bluetooth network error: ${err?.message}`);
-        return await (nextTransport === 'LOCAL_LAN' ? this.lanTransport : this.cloudTransport).sendCommand(command);
-      }
       if (initialTransportType === 'LOCAL_LAN') {
         console.warn(`[TRANSPORT_FAILOVER] from=LOCAL_LAN to=CLOUD_REALTIME reason=LAN network error: ${err?.message}`);
         this.executeFailover('CLOUD_REALTIME', `LAN network error: ${err?.message}`);
@@ -190,7 +156,7 @@ export class TransportRouter {
     if (this.processedEvents.has(eventKey)) {
       const lastSeen = this.processedEvents.get(eventKey)!;
       if (now - lastSeen < 10000) {
-        // Safe duplicate dropped (Section 27)
+        // Safe duplicate dropped
         return;
       }
     }
@@ -215,33 +181,21 @@ export class TransportRouter {
   }
 
   /**
-   * Evaluates transport health and applies hysteresis to prevent flapping (Section 10).
+   * Evaluates transport health and applies hysteresis to prevent flapping.
    */
   private evaluateTransportHealth() {
-    const btHealth = this.bluetoothTransport.getHealth();
     const lanHealth = this.lanTransport.getHealth();
 
-    // 1. Bluetooth Peer Sync degradation handling
-    if (this.activeTransportType === 'BLUETOOTH_PEER_SYNC') {
-      if (!this.bluetoothTransport.isHealthy() || btHealth.failureCount > 0) {
-        const nextTransport = (this.lanTransport.isConnected && this.lanTransport.isHealthy()) ? 'LOCAL_LAN' : 'CLOUD_REALTIME';
-        this.executeFailover(nextTransport, `Bluetooth degraded (failures: ${btHealth.failureCount})`);
-        return;
-      }
-    }
-
-    // 2. If active is LOCAL_LAN but LAN is failing/degraded -> Fallback to CLOUD
+    // 1. If active is LOCAL_LAN but LAN is failing/degraded -> Fallback to CLOUD
     if (this.activeTransportType === 'LOCAL_LAN') {
       if (lanHealth.state === 'FAILED' || lanHealth.failureCount >= TransportRouter.LAN_FAILURE_THRESHOLD || lanHealth.rttMs > 400) {
         this.lanConsecutiveHealthyCount = 0;
         this.executeFailover('CLOUD_REALTIME', `LAN degraded (failures: ${lanHealth.failureCount}, RTT: ${lanHealth.rttMs}ms)`);
       }
     }
-    // 3. If active is CLOUD_REALTIME but Bluetooth/LAN has recovered -> Consider promoting
+    // 2. If active is CLOUD_REALTIME but LAN has recovered -> Consider promoting
     else if (this.activeTransportType === 'CLOUD_REALTIME') {
-      if (this.bluetoothTransport.isConnected && this.bluetoothTransport.isHealthy()) {
-        this.executeFailover('BLUETOOTH_PEER_SYNC', 'Bluetooth Peer Sync active and healthy');
-      } else if (this.lanTransport.isConnected && lanHealth.state === 'CONNECTED' && lanHealth.rttMedianMs < 120 && lanHealth.failureCount === 0) {
+      if (this.lanTransport.isConnected && lanHealth.state === 'CONNECTED' && lanHealth.rttMedianMs < 120 && lanHealth.failureCount === 0) {
         this.lanConsecutiveHealthyCount++;
         if (this.lanConsecutiveHealthyCount >= TransportRouter.LAN_RECOVERY_THRESHOLD) {
           this.executeFailover('LOCAL_LAN', `LAN sustained healthy recovery (${this.lanConsecutiveHealthyCount} samples, RTT: ${lanHealth.rttMedianMs}ms)`);
@@ -281,7 +235,6 @@ export class TransportRouter {
   public getStatus(): TransportRouterStatus {
     return {
       activeTransport: this.activeTransportType,
-      bluetoothHealth: this.bluetoothTransport.getHealth(),
       lanHealth: this.lanTransport.getHealth(),
       cloudHealth: this.cloudTransport.getHealth(),
       failoverCount: this.failoverCount,
@@ -298,10 +251,6 @@ export class TransportRouter {
     return this.lanTransport;
   }
 
-  public getBluetoothTransport(): BluetoothDiscoveryTransport {
-    return this.bluetoothTransport;
-  }
-
   public cleanup() {
     this.stopHealthMonitor();
     this.unsubscribers.forEach((unsub) => {
@@ -310,7 +259,6 @@ export class TransportRouter {
     this.unsubscribers = [];
     this.cloudTransport.disconnect();
     this.lanTransport.disconnect();
-    this.bluetoothTransport.disconnect();
     this.processedEvents.clear();
     this.lanConsecutiveHealthyCount = 0;
   }

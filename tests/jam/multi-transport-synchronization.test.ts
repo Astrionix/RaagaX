@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { TransportRouter } from '@/lib/jam/transport/TransportRouter';
 import { LocalLanTransport } from '@/lib/jam/transport/LocalLanTransport';
 import { CloudRealtimeTransport } from '@/lib/jam/transport/CloudRealtimeTransport';
-import { BluetoothDiscoveryTransport } from '@/lib/jam/transport/BluetoothDiscoveryTransport';
 import { JamClientManager } from '@/lib/jam/client/JamClientManager';
 import { JamPlaybackStateMachine } from '@/lib/jam/client/JamPlaybackStateMachine';
 import { DriftCorrectionEngine } from '@/lib/jam/client/DriftCorrectionEngine';

@@ -353,9 +353,9 @@ export const useJamStore = create<JamState>((set, get) => {
       const deviceName = `${platformTitle} — ${browserName}`;
       const routerStatus = clientManager.getTransportRouter().getStatus();
       const activeType = routerStatus.activeTransport;
-      const activeHealth = activeType === 'BLUETOOTH_PEER_SYNC' ? routerStatus.bluetoothHealth : activeType === 'LOCAL_LAN' ? routerStatus.lanHealth : routerStatus.cloudHealth;
-      const transportLabel = activeType === 'BLUETOOTH_PEER_SYNC' ? 'BLUETOOTH SYNC' : activeType === 'LOCAL_LAN' ? 'LOCAL LAN' : activeType === 'BLUETOOTH_DISCOVERY' ? 'BLUETOOTH BOOTSTRAP' : 'CLOUD RELAY';
-      const transport = activeType === 'BLUETOOTH_PEER_SYNC' || activeType === 'BLUETOOTH_DISCOVERY' ? 'PEER' : activeType === 'LOCAL_LAN' ? 'LAN' : 'CLOUD';
+      const activeHealth = activeType === 'LOCAL_LAN' ? routerStatus.lanHealth : routerStatus.cloudHealth;
+      const transportLabel = activeType === 'LOCAL_LAN' ? 'LOCAL LAN' : 'CLOUD REALTIME';
+      const transport = activeType === 'LOCAL_LAN' ? 'LAN' : 'CLOUD';
 
       const activeRtt = activeHealth.rttMs || netMetrics.rtt || 10;
       const commandDelivery = Math.round(activeRtt / 2);

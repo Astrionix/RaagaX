@@ -1,6 +1,6 @@
 import { JamCommand, JamCommandResponse, JamEvent } from '@/types/jam';
 
-export type JamTransportType = 'BLUETOOTH_PEER_SYNC' | 'LOCAL_LAN' | 'CLOUD_REALTIME' | 'BLUETOOTH_DISCOVERY';
+export type JamTransportType = 'LOCAL_LAN' | 'CLOUD_REALTIME';
 
 export type TransportState =
   | 'DISCONNECTED'
@@ -40,7 +40,6 @@ export interface DeviceCapabilities {
   audioEngine: 'HTML5_AUDIO' | 'RAAGAX_NATIVE_EXOPLAYER' | 'AVPLAYER';
   supportedCodecs: string[];
   backgroundPlayback: boolean;
-  bluetoothSupported: boolean;
   lanSupported: boolean;
   cloudSupported: boolean;
   protocolVersion: string;
@@ -50,7 +49,7 @@ export type JamEventListener = (event: JamEvent) => void;
 
 /**
  * Standard Jam Transport Interface
- * All transports (LAN, Cloud, Bluetooth) must implement this common contract.
+ * All transports (Same Wi-Fi / Local LAN, Cloud Realtime) implement this common contract.
  * Transports NEVER maintain independent playback clocks or state.
  */
 export interface JamTransport {

@@ -20,7 +20,7 @@ const mockSong: Song = {
   likes: 10,
 };
 
-describe('Jam Bluetooth, Wi-Fi Discovery & Join Code Architecture', () => {
+describe('Jam Wi-Fi / Local LAN Discovery & Join Code Architecture', () => {
   let serverEngine: JamServerEngine;
   let clientDiscovery: JamDiscoveryEngine;
 

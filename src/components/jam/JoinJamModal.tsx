@@ -3,7 +3,6 @@ import {
   X,
   Radio,
   Wifi,
-  Bluetooth,
   ArrowRight,
   Loader2,
   Users,
@@ -124,7 +123,7 @@ export function JoinJamModal() {
               </div>
               <div>
                 <h2 className="text-base sm:text-lg font-black tracking-tight">Join Jam Party</h2>
-                <p className="text-xs text-zinc-400">Camera QR • Bluetooth • Join Code</p>
+                <p className="text-xs text-zinc-400">Camera QR • Same Wi-Fi • Join Code</p>
               </div>
             </div>
             <button
@@ -162,12 +161,11 @@ export function JoinJamModal() {
               </div>
             </button>
 
-            {/* 2. NEARBY JAMS SECTION (Bluetooth + Wi-Fi) */}
+            {/* 2. NEARBY JAMS SECTION (Same Wi-Fi / Local LAN) */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-xs font-bold text-zinc-300">
                   <div className="flex items-center gap-1 text-[#FA233B]">
-                    <Bluetooth className="w-3.5 h-3.5" />
                     <Wifi className="w-3.5 h-3.5" />
                   </div>
                   <span>Nearby Jams</span>
@@ -241,13 +239,13 @@ export function JoinJamModal() {
               ) : (
                 <div className="p-4 rounded-2xl bg-white/[0.02] border border-dashed border-white/10 text-center space-y-2">
                   <div className="w-8 h-8 mx-auto rounded-full bg-white/[0.04] flex items-center justify-center text-zinc-500">
-                    <Bluetooth className="w-4 h-4" />
+                    <Wifi className="w-4 h-4" />
                   </div>
                   <p className="text-xs font-medium text-zinc-400">
-                    {isScanningNearby ? 'Searching for nearby Bluetooth & Wi-Fi Jams...' : 'No nearby Jams found yet.'}
+                    {isScanningNearby ? 'Searching for nearby Wi-Fi / LAN Jams...' : 'No nearby Jams found yet.'}
                   </p>
                   <p className="text-[11px] text-zinc-500 leading-relaxed">
-                    Make sure the host is nearby with Jam active, or scan their QR code above.
+                    Make sure the host is connected on the same Wi-Fi with Jam active, or scan their QR code above.
                   </p>
                 </div>
               )}
