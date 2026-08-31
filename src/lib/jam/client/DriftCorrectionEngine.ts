@@ -213,29 +213,42 @@ export class DriftCorrectionEngine {
       }, delayMs);
     } else {
       // Already past schedule time: compute exact in-flight timeline position and seek before playing
-      const expectedPosMs = this.calculateExpectedPositionMs(session, estimatedServerTime);
-      const expectedPosSec = expectedPosMs / 1000;
+      const startPlaybackAtExpectedPosition = () => {
+        const liveSession = this.currentSession;
+        if (!liveSession || liveSession.state !== 'PLAYING') return;
+        const nowServer = this.clockSync.estimatedServerNow();
+        const liveExpectedPosMs = this.calculateExpectedPositionMs(liveSession, nowServer);
+        const liveExpectedPosSec = liveExpectedPosMs / 1000;
+        const liveAudio = PlaybackService.getInstance().getActiveAudio();
 
-      if (activeAudio && typeof activeAudio.currentTime === 'number' && Math.abs(activeAudio.currentTime - expectedPosSec) > 0.05) {
-        if (typeof activeAudio.readyState === 'number' && activeAudio.readyState >= 1) {
-          activeAudio.currentTime = expectedPosSec;
-        } else if (typeof activeAudio.addEventListener === 'function') {
+        if (liveAudio && typeof liveAudio.currentTime === 'number' && Math.abs(liveAudio.currentTime - liveExpectedPosSec) > 0.05) {
+          try {
+            liveAudio.currentTime = liveExpectedPosSec;
+          } catch {}
+        }
+        if (isNative) {
+          RaagaXNativePlayer.seekTo(liveExpectedPosMs);
+        }
+
+        try {
+          usePlayerStore.getState().setCurrentTime(liveExpectedPosSec, true);
+          console.log(`[PLAYBACK_EFFECT] action=PLAY reason=IMMEDIATE_START timelineId=${currentTL} generation=${currentGen}`);
+          pb.play();
+        } catch {}
+      };
+
+      if (activeAudio && typeof activeAudio.readyState === 'number' && activeAudio.readyState < 1) {
+        // Audio metadata not loaded yet: wait for loadedmetadata before seeking and starting
+        if (typeof activeAudio.addEventListener === 'function') {
           activeAudio.addEventListener('loadedmetadata', () => {
-            try { activeAudio.currentTime = expectedPosSec; } catch {}
+            startPlaybackAtExpectedPosition();
           }, { once: true });
         } else {
-          activeAudio.currentTime = expectedPosSec;
+          startPlaybackAtExpectedPosition();
         }
+      } else {
+        startPlaybackAtExpectedPosition();
       }
-      if (isNative) {
-        RaagaXNativePlayer.seekTo(expectedPosMs);
-      }
-
-      try {
-        usePlayerStore.getState().setCurrentTime(expectedPosSec, true);
-        console.log(`[PLAYBACK_EFFECT] action=PLAY reason=IMMEDIATE_START timelineId=${currentTL} generation=${currentGen}`);
-        pb.play();
-      } catch {}
     }
   }
 
@@ -399,10 +412,9 @@ export class DriftCorrectionEngine {
       return status;
     }
 
-    // STARTUP DRIFT GRACE & POSITION SEEK READINESS (Phase 3 + Section 4):
-    // 1. Suppress drift evaluation ONLY when audio is still near 0:00 or not yet positioned at the anchor.
-    // 2. If audio is already playing at the correct position (>1s), compute steady-state drift immediately.
-    // 3. Filter out false 0:00 readings when audio is still preparing / seeking to a mid-song anchor.
+    const rawDriftMs = Math.round(actualLocalMs - expectedPositionMs);
+    this.lastDriftMs = rawDriftMs;
+
     const timeSinceLoadMs = this.lastSessionLoadTimeMs > 0 ? Date.now() - this.lastSessionLoadTimeMs : Infinity;
     const isAudioNearStart = actualLocalMs < 1000;
     const isAudioNotYetPositioned = expectedPositionMs > 3000 && actualLocalMs < 2000;
@@ -429,7 +441,7 @@ export class DriftCorrectionEngine {
       const status: DriftStatus = {
         expectedPositionMs,
         actualLocalMs,
-        driftMs: 0,
+        driftMs: rawDriftMs,
         playbackRate: 1.0,
         isWaitingForStart: false,
         leadTimeRemainingMs: 0,
