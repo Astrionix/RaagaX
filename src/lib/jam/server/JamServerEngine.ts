@@ -354,6 +354,7 @@ export class JamServerEngine {
     jamName?: string;
     initialSong?: Song | null;
     initialQueue?: Song[];
+    initialQueueIndex?: number;
     deviceType?: 'mobile' | 'desktop' | 'web';
     isNearbyDiscoverable?: boolean;
   }): { session: JamSession; event: JamEvent } {
@@ -382,16 +383,76 @@ export class JamServerEngine {
       isReadyForPlayback: true,
     };
 
-    const initialQueueItems: JamQueueItem[] = (params.initialQueue || []).map((song, idx) => ({
-      queueItemId: `QI_${crypto.randomUUID()}`,
-      trackId: song.id,
-      song,
-      addedBy: params.hostId,
-      addedByName: params.hostName || 'Host',
-      addedByAvatar: params.hostAvatar,
-      addedAt: now + idx,
-      orderKey: `${(idx + 1) * 1000}`,
-    }));
+    const rawQueue = params.initialQueue || [];
+    let initialQueueItems: JamQueueItem[] = [];
+    let initialHistoryItems: JamQueueItem[] = [];
+    let currentQueueItemId: string | null = null;
+
+    if (params.initialSong) {
+      currentQueueItemId = `QI_${crypto.randomUUID()}`;
+
+      if (params.initialQueueIndex !== undefined && params.initialQueueIndex >= 0 && params.initialQueueIndex < rawQueue.length) {
+        const activeIdx = params.initialQueueIndex;
+        // Items before activeIdx become history
+        initialHistoryItems = rawQueue.slice(0, activeIdx).map((song, idx) => ({
+          queueItemId: `QI_HIST_${crypto.randomUUID()}`,
+          trackId: song.id,
+          song,
+          addedBy: params.hostId,
+          addedByName: params.hostName || 'Host',
+          addedByAvatar: params.hostAvatar,
+          addedAt: now - (activeIdx - idx) * 1000,
+          orderKey: `${(idx + 1) * 1000}`,
+        }));
+
+        // Items strictly after activeIdx become upcoming queue
+        initialQueueItems = rawQueue.slice(activeIdx + 1).map((song, idx) => ({
+          queueItemId: `QI_${crypto.randomUUID()}`,
+          trackId: song.id,
+          song,
+          addedBy: params.hostId,
+          addedByName: params.hostName || 'Host',
+          addedByAvatar: params.hostAvatar,
+          addedAt: now + (idx + 1) * 1000,
+          orderKey: `${(idx + 1) * 1000}`,
+        }));
+      } else if (rawQueue.length > 0 && rawQueue[0]?.id === params.initialSong?.id) {
+        // Active item is at index 0 of rawQueue (e.g. store.queue starting with currentSong)
+        initialQueueItems = rawQueue.slice(1).map((song, idx) => ({
+          queueItemId: `QI_${crypto.randomUUID()}`,
+          trackId: song.id,
+          song,
+          addedBy: params.hostId,
+          addedByName: params.hostName || 'Host',
+          addedByAvatar: params.hostAvatar,
+          addedAt: now + (idx + 1) * 1000,
+          orderKey: `${(idx + 1) * 1000}`,
+        }));
+      } else {
+        // rawQueue is passed without initialSong at index 0 (already upcoming queue or independent list)
+        initialQueueItems = rawQueue.map((song, idx) => ({
+          queueItemId: `QI_${crypto.randomUUID()}`,
+          trackId: song.id,
+          song,
+          addedBy: params.hostId,
+          addedByName: params.hostName || 'Host',
+          addedByAvatar: params.hostAvatar,
+          addedAt: now + (idx + 1) * 1000,
+          orderKey: `${(idx + 1) * 1000}`,
+        }));
+      }
+    } else {
+      initialQueueItems = rawQueue.map((song, idx) => ({
+        queueItemId: `QI_${crypto.randomUUID()}`,
+        trackId: song.id,
+        song,
+        addedBy: params.hostId,
+        addedByName: params.hostName || 'Host',
+        addedByAvatar: params.hostAvatar,
+        addedAt: now + idx,
+        orderKey: `${(idx + 1) * 1000}`,
+      }));
+    }
 
     const session: JamSession = {
       jamId,
@@ -403,7 +464,7 @@ export class JamServerEngine {
       status: 'ACTIVE',
       state: params.initialSong ? 'PAUSED' : 'PAUSED',
       trackId: params.initialSong?.id || null,
-      currentQueueItemId: initialQueueItems[0]?.queueItemId || null,
+      currentQueueItemId: currentQueueItemId || (initialQueueItems[0]?.queueItemId ?? null),
       currentSong: params.initialSong || null,
       positionMs: 0,
       basePositionMs: 0,
@@ -424,7 +485,7 @@ export class JamServerEngine {
         [params.hostId]: hostParticipant,
       },
       queue: initialQueueItems,
-      history: [],
+      history: initialHistoryItems,
       playbackHistory: [],
       activeHandoff: null,
     };
@@ -707,8 +768,9 @@ export class JamServerEngine {
    */
   public executeCommand(command: JamCommand): CommandResult {
     // 1. Idempotency check: if already processed, return cached outcome
-    if (command.requestId) {
-      const cached = this.idempotencyCache.get(command.requestId);
+    const idKey = command.requestId || (command as any).commandId;
+    if (idKey) {
+      const cached = this.idempotencyCache.get(idKey);
       if (cached && (Date.now() - cached.timestamp) < 30000) {
         return { ...cached.result, isIdempotentReplay: true };
       }
@@ -771,9 +833,15 @@ export class JamServerEngine {
 
         const leadTime = this.computeAdaptiveLeadTime(session);
         const scheduledStart = now + leadTime;
-        session.generation = (session.generation ?? 0) + 1;
-        const timelineId = `TL_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
-        const transitionId = `TR_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
+
+        // SAME-TRACK TIMELINE PROTECTION (Part 1/4):
+        // PLAY (resume) of the same track does NOT increment generation.
+        // Generation is only bumped for genuine track transitions (SKIP_NEXT/PREV, SEEK, STOP, ADD_TRACK).
+        // Preserving generation means clients recognize this as a state-only change (PAUSED→PLAYING)
+        // and do NOT reload audio or restart the track from 0.
+        const currentGeneration = session.generation ?? 1;
+        const timelineId = `TL_${currentGeneration}_${crypto.randomUUID().slice(0, 6)}`;
+        const transitionId = `TR_${currentGeneration}_${crypto.randomUUID().slice(0, 6)}`;
 
         session.state = 'PLAYING';
         session.startAtServerTime = scheduledStart;
@@ -799,7 +867,8 @@ export class JamServerEngine {
           currentQueueItemId: session.currentQueueItemId,
           timelineId,
           transitionId,
-          generation: session.generation,
+          generation: currentGeneration,
+          isPureResume: true,
         };
 
         console.log('[PLAYBACK_STARTED]', {
@@ -810,18 +879,21 @@ export class JamServerEngine {
           queueItemId: session.currentQueueItemId,
           transitionId,
           timelineId,
-          generation: session.generation,
+          generation: currentGeneration,
           deviceId: command.deviceId || command.userId,
           state: session.state,
           position: session.positionMs,
+          isPureResume: true,
         });
 
+        console.log(`[PLAYBACK_RESUMED] trackId=${session.trackId} position=${session.positionMs} timelineId=${session.timelineId} revision=${session.revision}`);
         console.log('[PLAYBACK]', {
           trackId: session.trackId,
           timelineId,
           transitionId,
-          generation: session.generation,
+          generation: currentGeneration,
           state: session.state,
+          isPureResume: true,
         });
         break;
       }
@@ -835,9 +907,15 @@ export class JamServerEngine {
 
         // Calculate exact authoritative position at pause time
         const currentPos = this.calculateCurrentAuthoritativePosition(session, now);
-        session.generation = (session.generation ?? 0) + 1;
-        const timelineId = `TL_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
-        const transitionId = `TR_${session.generation}_${crypto.randomUUID().slice(0, 6)}`;
+
+        // SAME-TRACK TIMELINE PROTECTION (Part 1/4):
+        // PAUSE of the same track does NOT increment generation.
+        // The exact pause position is preserved in positionMs and basePositionMs.
+        // Clients recognize same generation+trackId → state-only reconciliation (PLAYING→PAUSED).
+        // No audio reload, no seek to 0, no new track identity.
+        const currentGeneration = session.generation ?? 1;
+        const timelineId = `TL_${currentGeneration}_${crypto.randomUUID().slice(0, 6)}`;
+        const transitionId = `TR_${currentGeneration}_${crypto.randomUUID().slice(0, 6)}`;
 
         session.state = 'PAUSED';
         session.positionMs = currentPos;
@@ -858,16 +936,19 @@ export class JamServerEngine {
           currentQueueItemId: session.currentQueueItemId,
           timelineId,
           transitionId,
-          generation: session.generation,
+          generation: currentGeneration,
+          isPureResume: false,
         };
 
+        console.log(`[PLAYBACK_PAUSED] trackId=${session.trackId} position=${session.positionMs} timelineId=${session.timelineId} revision=${session.revision}`);
         console.log('[PLAYBACK]', {
           trackId: session.trackId,
           currentQueueItemId: session.currentQueueItemId,
           timelineId,
           transitionId,
-          generation: session.generation,
+          generation: currentGeneration,
           state: session.state,
+          isPureResume: false,
         });
         break;
       }
@@ -1004,6 +1085,7 @@ export class JamServerEngine {
           break;
         }
 
+        const oldQueueItemId = session.currentQueueItemId;
         const nextItem = session.queue.shift()!;
         if (session.currentSong) {
           session.history.unshift({
@@ -1036,6 +1118,8 @@ export class JamServerEngine {
         session.timelineStartServerMs = session.startAtServerTime;
 
         this.recordPlaybackHistory(session, 'MANUAL_NEXT', now, session.currentSong, session.currentQueueItemId);
+
+        console.log(`[SKIP_NEXT] fromQueueItem=${oldQueueItemId} toQueueItem=${session.currentQueueItemId} transitionId=${session.transitionId} revision=${session.revision}`);
 
         eventType = 'TRACK_CHANGED';
         payload = {
@@ -1598,8 +1682,8 @@ export class JamServerEngine {
       event,
     };
 
-    if (command.requestId) {
-      this.idempotencyCache.set(command.requestId, { result, timestamp: now });
+    if (idKey) {
+      this.idempotencyCache.set(idKey, { result, timestamp: now });
     }
 
     return result;

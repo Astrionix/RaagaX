@@ -142,10 +142,11 @@ export class JamClientManager {
   /**
    * Creates a new Jam session on the server
    */
-  public async createJam(params?: { jamName?: string; initialSong?: Song | null; initialQueue?: Song[] }): Promise<JamSession> {
+  public async createJam(params?: { jamName?: string; initialSong?: Song | null; initialQueue?: Song[]; initialQueueIndex?: number }): Promise<JamSession> {
     const store = usePlayerStore.getState();
     const currentSong = params?.initialSong ?? store.currentSong;
     const initialQueue = params?.initialQueue ?? store.queue;
+    const initialQueueIndex = params?.initialQueueIndex ?? (params?.initialQueue ? undefined : store.queueIndex);
 
     const res = await fetch(getApiUrl('/api/jam'), {
       method: 'POST',
@@ -157,6 +158,7 @@ export class JamClientManager {
         jamName: params?.jamName,
         initialSong: currentSong,
         initialQueue,
+        initialQueueIndex,
         deviceType: this.detectDeviceType(),
       }),
     });
@@ -396,7 +398,24 @@ export class JamClientManager {
       channel
         .on('broadcast', { event: 'jam_event' }, (payload: any) => {
           if (payload?.payload) {
-            this.handleIncomingEvent(payload.payload);
+            const event: JamEvent = payload.payload;
+            // SUPABASE DEDUPLICATION (Phase 5):
+            // Supabase events may duplicate SSE events for the same action.
+            // Use eventId if present. Otherwise fall back to a composite key: type_revision.
+            // This prevents the same command response arriving twice from SSE + Supabase.
+            if (event.eventId) {
+              if (this.processedEventIds.has(event.eventId)) {
+                return; // Already processed via SSE
+              }
+              // Don't add to processedEventIds here — handleIncomingEvent will do it
+            } else if (event.type && typeof event.revision === 'number') {
+              const fallbackKey = `${event.jamId}_${event.type}_${event.revision}`;
+              if (this.processedEventIds.has(fallbackKey)) {
+                return; // Already processed
+              }
+              this.processedEventIds.add(fallbackKey);
+            }
+            this.handleIncomingEvent(event);
           }
         })
         .subscribe();
@@ -683,7 +702,11 @@ export class JamClientManager {
   }
 
   /**
-   * Full snapshot restoration
+  /**
+   * Full snapshot restoration with same-identity short-circuit.
+   * If incoming snapshot has the same playback identity (trackId+generation+timelineId)
+   * as current active session, only update drift engine — no audio reload.
+   * This prevents reconnect/snapshot from restarting audio on the same track.
    */
   public applySessionSnapshot(session: JamSession) {
     if (!session) return;
@@ -694,12 +717,38 @@ export class JamClientManager {
       return;
     }
 
+    // RECONNECT DIRECT RECONCILIATION (Phase 5 + 8):
+    // If the snapshot has the same playback identity as what is already active,
+    // only update the drift engine — do NOT reload audio or call stateMachine.handleTransition
+    // (which would trigger prepareAudioPlayback on the already-playing track).
+    const prevSession = this.activeSession;
+    const isSamePlaybackIdentity =
+      prevSession !== null &&
+      prevSession.trackId === session.trackId &&
+      prevSession.generation === session.generation &&
+      prevSession.timelineId === session.timelineId &&
+      session.trackId !== null;
+
     this.activeSession = session;
     this.localRevision = Math.max(this.localRevision, session.revision);
 
-    this.driftEngine.setSession(session);
-    this.stateMachine.handleTransition(session);
-    this.syncPlaybackWithSession(session, session.state === 'PLAYING');
+    if (isSamePlaybackIdentity) {
+      // Same track already playing/paused: only update drift anchors
+      console.log(`[SNAPSHOT_RECONCILE] action=IDENTITY_UNCHANGED trackId=${session.trackId} generation=${session.generation} timelineId=${session.timelineId} revision=${session.revision}`);
+      this.driftEngine.setSession(session);
+      // Still reconcile state (playing/paused) without reloading audio
+      this.stateMachine.handleTransition(session);
+    } else {
+      console.log(`[SNAPSHOT_RECONCILE] action=IDENTITY_CHANGED toTrackId=${session.trackId} generation=${session.generation} revision=${session.revision}`);
+      this.driftEngine.setSession(session);
+      // Full reconciliation — new track or new generation
+      this.stateMachine.handleTransition(session);
+    }
+
+    // NOTE: syncPlaybackWithSession is intentionally NOT called here.
+    // stateMachine.handleTransition is the single authoritative reconciliation entrypoint.
+    // Calling both caused double audio loads (the original double-reconciliation bug).
+
     this.setParticipantState(session.state === 'PLAYING' ? 'PLAYING' : 'READY');
     this.notify();
   }

@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { LocalDatabase, PendingMutation } from '@/lib/offline/LocalDatabase';
 import { Song } from '@/types/music';
 import { isOfflineMode } from '@/context/usePlayerStore';
+import { AccountIsolationGuard } from '@/lib/auth/AccountIsolationGuard';
 
 export interface UserPlaylist {
   id: string;
@@ -127,6 +128,11 @@ export class AccountSyncEngine {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'user_library_state', filter: `user_id=eq.${userId}` },
           (payload: any) => {
+            // ACCOUNT ISOLATION GUARD: Verify realtime event belongs to active user
+            if (AccountIsolationGuard.getInstance().getActiveUserId() !== userId) {
+              console.log(`[AccountSyncEngine] Ignoring realtime event for inactive user ${userId}`);
+              return;
+            }
             console.log('[AccountSyncEngine] Realtime user_library_state revision changed:', payload.new?.revision);
             triggerReconcile();
           }
@@ -275,6 +281,8 @@ export class AccountSyncEngine {
 
   public unsubscribe() {
     this.subscribedUserId = null;
+    this.inFlightReconcile = null;
+    this.lastReconciledUser = null;
     if (this.channel) {
       try {
         supabase.removeChannel(this.channel);
@@ -325,23 +333,34 @@ export class AccountSyncEngine {
         const localRevision = await localDb.getUserStore<number>(userId, 'library_revision') || 0;
         const currentLikedSongIds = usePlayerStore.getState().likedSongIds || [];
 
+        const startAuthGen = AccountIsolationGuard.getInstance().getAuthGeneration();
+
         // If revisions match, restore cached liked songs list and metadata from IndexedDB to skip DB queries
         if (!revError && revData && remoteRevision === localRevision) {
           const cachedIds = await localDb.getUserStore<string[]>(userId, 'liked_songs') || [];
           console.log(`[AccountSyncEngine] Local revision (${localRevision}) matches remote revision (${remoteRevision}). Restoring ${cachedIds.length} cached liked songs.`);
           
+          if (!AccountIsolationGuard.getInstance().assertAccountIsolation(userId, 'RECONCILE_CACHE_HIT', startAuthGen)) {
+            console.log(`[AccountSyncEngine] Discarding reconcile cache hit: auth context changed`);
+            return [];
+          }
+
           usePlayerStore.setState({ likedSongIds: cachedIds });
           
           // Load metadata from IndexedDB cache
           const { SongResolver } = await import('@/lib/discovery/SongResolver');
           const resolved = await SongResolver.resolveSongs(cachedIds);
-          usePlayerStore.setState({ likedSongs: resolved });
+          if (AccountIsolationGuard.getInstance().isCurrentAuthGeneration(startAuthGen, userId)) {
+            usePlayerStore.setState({ likedSongs: resolved });
+          }
 
           // Verify local download files count as requested
           const catalog = OfflineCatalog.getInstance();
           const allLocalTracks = await catalog.getAllTracks();
           const localIds = allLocalTracks.map((t) => t.trackId);
-          usePlayerStore.setState({ downloadedSongIds: localIds });
+          if (AccountIsolationGuard.getInstance().isCurrentAuthGeneration(startAuthGen, userId)) {
+            usePlayerStore.setState({ downloadedSongIds: localIds });
+          }
           return cachedIds;
         }
 
@@ -357,12 +376,18 @@ export class AccountSyncEngine {
         if (!likedError && likedData) {
           const songIds = likedData.map((row: any) => row.song_id);
           await localDb.setUserStore(userId, 'liked_songs', songIds);
+
+          if (!AccountIsolationGuard.getInstance().assertAccountIsolation(userId, 'RECONCILE_LIKED_DATA', startAuthGen)) {
+            console.log(`[AccountSyncEngine] Discarding reconcile liked songs: auth context changed`);
+            return [];
+          }
+
           usePlayerStore.setState({ likedSongIds: songIds });
 
           // Resolve full song metadata for liked songs cache
           import('@/lib/discovery/SongResolver').then(({ SongResolver }) => {
             SongResolver.resolveSongs(songIds).then((resolved) => {
-              if (resolved && resolved.length > 0) {
+              if (resolved && resolved.length > 0 && AccountIsolationGuard.getInstance().isCurrentAuthGeneration(startAuthGen, userId)) {
                 usePlayerStore.setState({ likedSongs: resolved });
               }
             }).catch(() => { });
@@ -944,6 +969,12 @@ export class AccountSyncEngine {
    */
   public async migrateGuestDataToUser(userId: string): Promise<void> {
     if (!this.isUUID(userId)) return;
+
+    // ACCOUNT ISOLATION GUARD: Never migrate if session was not an unauthenticated guest session
+    if (!AccountIsolationGuard.getInstance().getIsGuestSession()) {
+      console.log(`[AccountSyncEngine] Skipping guest migration: not a guest session.`);
+      return;
+    }
 
     try {
       const { usePlayerStore } = await import('@/context/usePlayerStore');

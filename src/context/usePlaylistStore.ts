@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '@/lib/supabase';
 import { Playlist, Song } from '@/types/music';
+import { AccountIsolationGuard } from '@/lib/auth/AccountIsolationGuard';
 
 export interface UserPlaylist extends Playlist {
   visibility: 'public' | 'private' | 'unlisted';
@@ -44,6 +45,7 @@ interface PlaylistStore {
   generateInviteLink: (playlistId: string) => string;
   joinCollaborativePlaylist: (inviteCodeOrId: string) => Promise<UserPlaylist | null>;
   toggleCollaborative: (playlistId: string, isCollaborative: boolean) => Promise<boolean>;
+  resetPlaylistState: () => void;
 }
 
 export const usePlaylistStore = create<PlaylistStore>()(
@@ -58,12 +60,15 @@ export const usePlaylistStore = create<PlaylistStore>()(
           return;
         }
         set({ isLoading: true });
+        const startAuthGen = AccountIsolationGuard.getInstance().getAuthGeneration();
+
         try {
           const { data: { session } } = await supabase.auth.getSession();
           if (!session) {
             set({ isLoading: false });
             return;
           }
+          const reqUserId = session.user.id;
 
           // Fetch playlists owned by authenticated user
           const { data: playlistsData, error } = await supabase
@@ -144,6 +149,12 @@ export const usePlaylistStore = create<PlaylistStore>()(
             } catch (resolveErr) {
               console.warn('[usePlaylistStore] SongResolver background hydration failed:', resolveErr);
             }
+          }
+
+          // ACCOUNT ISOLATION GUARD: Ensure auth generation hasn't changed during async fetches
+          if (!AccountIsolationGuard.getInstance().isCurrentAuthGeneration(startAuthGen, reqUserId)) {
+            console.log(`[usePlaylistStore] Discarding stale playlist fetch result for user ${reqUserId} (auth generation changed)`);
+            return;
           }
 
           set({
@@ -570,6 +581,19 @@ export const usePlaylistStore = create<PlaylistStore>()(
           playlists: state.playlists.map((p) => (p.id === playlistId ? { ...p, isCollaborative } : p)),
         }));
         return true;
+      },
+
+      resetPlaylistState: () => {
+        set({
+          playlists: [],
+          isLoading: false,
+          lastFetchedTime: undefined,
+        });
+        if (typeof window !== 'undefined') {
+          try {
+            window.localStorage.removeItem('raagax-playlists-store-v2');
+          } catch {}
+        }
       },
     }),
     {

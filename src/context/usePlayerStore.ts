@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { Song, RepeatMode, AIDJState, ActiveTab, Renderer } from '@/types/music';
+import { AccountIsolationGuard } from '@/lib/auth/AccountIsolationGuard';
 
 const safeLocalStorage = createJSONStorage(() => ({
   getItem: (name: string): string | null => {
@@ -240,7 +241,7 @@ interface PlayerState {
   setVolume: (vol: number) => void;
   toggleMute: () => void;
 
-  playNext: () => void;
+  playNext: (isNaturalAutoEnd?: boolean) => void;
   playPrev: () => void;
   toggleShuffle: () => void;
   setRepeatMode: (mode: RepeatMode) => void;
@@ -255,6 +256,8 @@ interface PlayerState {
   moveQueueItem: (fromUpNextIndex: number, toUpNextIndex: number) => void;
   deduplicateQueue: () => void;
   saveQueueAsPlaylist: (title?: string) => Promise<boolean>;
+
+  resetUserLibraryState: () => void;
 
   toggleLikeSong: (songId: string) => void;
   setLikedSongIds: (songIds: string[]) => void;
@@ -336,6 +339,7 @@ function persistSessionHelper(state: {
     likedSongIds: state.likedSongIds || [],
     searchHistory: LocalDatabase.getInstance().getSearchHistory(),
     preferredLanguage: state.preferredLanguage,
+    userId: AccountIsolationGuard.getInstance().getActiveUserId() || undefined,
     timestamp: Date.now(),
   };
   LocalDatabase.getInstance().savePlaybackSession(payload);
@@ -355,6 +359,11 @@ const getInitialSession = () => {
   try {
     const session = LocalDatabase.getInstance().getSyncPlaybackSession();
     if (session && session.timestamp && (Date.now() - session.timestamp < 7 * 24 * 60 * 60 * 1000)) {
+      const activeUserId = AccountIsolationGuard.getInstance().getActiveUserId();
+      // ACCOUNT ISOLATION: If session was recorded for a specific user, never restore it for a different user
+      if (session.userId && activeUserId && session.userId !== activeUserId) {
+        return null;
+      }
       return session;
     }
   } catch { }
@@ -1260,7 +1269,8 @@ export const usePlayerStore = create<PlayerState>()(
             if (currentLivePlaying) {
               await jamManager.sendPause();
             } else {
-              await jamManager.sendPlay();
+              const currentPosMs = Math.round((get().currentTime || 0) * 1000);
+              await jamManager.sendPlay(currentPosMs > 0 ? currentPosMs : undefined);
             }
             return;
           }
@@ -1338,19 +1348,27 @@ export const usePlayerStore = create<PlayerState>()(
       },
       toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 
-      playNext: async () => {
-        // If in Jam: ONLY the host is authorized to issue SKIP_NEXT.
-        // Guests must silently wait for the server's TRACK_CHANGED broadcast.
-        // This prevents every device from independently firing SKIP_NEXT when their audio ends,
-        // which would cause the server to process multiple concurrent skips.
+      playNext: async (isNaturalAutoEnd: boolean = false) => {
+        // If in Jam: authorize who may advance the queue.
+        // - Host: always authorized for both user-gesture NEXT and auto-next (track ended naturally).
+        // - Participant with canSkip: authorized ONLY for user-gesture NEXT (not auto-next).
+        //   If auto-next on a non-host participant, we MUST wait for the host's authoritative
+        //   TRACK_CHANGED broadcast — otherwise both host and participant fire SKIP_NEXT simultaneously.
+        // This is the AUTO_NEXT SINGLE OWNER guarantee (Phase 6).
         try {
           const jamManager = JamClientManager.getInstance();
           const jamSession = jamManager.getActiveSession();
           if (jamSession) {
             if (jamManager.isHost()) {
+              // Host always authoritative — send SKIP_NEXT for both manual and auto-next
+              await jamManager.sendSkipNext();
+            } else if (jamSession.permissions?.canSkip && !isNaturalAutoEnd) {
+              // canSkip participant: only for explicit user gesture, not for audio ended event
               await jamManager.sendSkipNext();
             } else {
-              console.log('[playNext] In Jam as guest — waiting for authoritative TRACK_CHANGED from server.');
+              // Non-host participant in auto-next: wait for server TRACK_CHANGED
+              const reason = isNaturalAutoEnd ? 'AUTO_NEXT_HOST_ONLY' : 'INSUFFICIENT_PERMISSION';
+              console.log(`[playNext] In Jam \u2014 skipped sendSkipNext: reason=${reason} isHost=${jamManager.isHost()} canSkip=${jamSession.permissions?.canSkip} isNaturalAutoEnd=${isNaturalAutoEnd}`);
             }
             return;
           }
@@ -1394,20 +1412,19 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       playPrev: async () => {
-        // If in Jam: ONLY the host is authorized to issue SKIP_PREV.
-        // Guests cannot independently trigger prev without a server command.
+        // If in Jam: host or participants with canSkip permission are authorized to issue SKIP_PREV.
         try {
           const jamManager = JamClientManager.getInstance();
           const jamSession = jamManager.getActiveSession();
           if (jamSession) {
-            if (jamManager.isHost()) {
+            if (jamManager.isHost() || jamSession.permissions?.canSkip) {
               if (get().currentTime > 3) {
                 await jamManager.sendSeek(0);
               } else {
                 await jamManager.sendSkipPrev();
               }
             } else {
-              console.log('[playPrev] In Jam as guest — waiting for authoritative TRACK_CHANGED from server.');
+              console.log('[playPrev] In Jam as guest without skip permission — waiting for authoritative TRACK_CHANGED from server.');
             }
             return;
           }
@@ -1768,6 +1785,28 @@ export const usePlayerStore = create<PlayerState>()(
           });
         });
       },
+
+      resetUserLibraryState: () => {
+        set({
+          likedSongIds: [],
+          likedSongs: [],
+          librarySongIds: [],
+          favoriteArtistIds: [],
+          favoriteAlbumIds: [],
+          cloudDownloadedSongIds: [],
+          cloudDownloadRecords: [],
+          historySongIds: [],
+          queue: [],
+          currentSong: null,
+          playbackContext: null,
+          trackSource: null,
+          isPlaying: false,
+          playbackIntent: 'IDLE',
+          currentTime: 0,
+          duration: 0,
+        });
+      },
+
       setLikedSongIds: (songIds) => {
         set({ likedSongIds: songIds });
       },
@@ -2147,12 +2186,9 @@ export const usePlayerStore = create<PlayerState>()(
         loudnessNormalizationEnabled: state.loudnessNormalizationEnabled,
         lastTrackId: state.currentSong?.id || null,
         lastPositionSec: state.lastPositionSec || 0,
-        // Tiny bounded sets for offline resilience
-        likedSongIds: state.likedSongIds || [],
-        librarySongIds: state.librarySongIds || [],
-        downloadedSongIds: state.downloadedSongIds || [],
-        favoriteArtistIds: state.favoriteArtistIds || [],
-        favoriteAlbumIds: state.favoriteAlbumIds || [],
+        // ACCOUNT ISOLATION: User library items (likedSongIds, librarySongIds, favoriteArtistIds, favoriteAlbumIds)
+        // are intentionally NOT persisted in global un-scoped preferences to maintain strict account isolation.
+        // User library is persisted user-scoped in IndexedDB via LocalDatabase / AccountSyncEngine.
       }),
     }
   )

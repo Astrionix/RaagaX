@@ -130,6 +130,28 @@ export class PlaybackService {
 
       if (store.isPlaying && store.playbackIntent === 'PLAYING' && active.paused && !active.ended && !this.isTransitioning) {
         if (active.readyState >= 2) {
+          // WATCHDOG JAM SAFETY (Phase 4):
+          // Do NOT recover playback if the Jam session is in a transient lifecycle state.
+          // During JOINING, PREPARING, SCHEDULED, CLOCK_SYNCING, SNAPSHOT_RECEIVED, or RECONNECTING
+          // the DriftCorrectionEngine / ScheduledStart is in control of play() timing.
+          // Triggering play() here would interfere with the scheduled start and cause a premature
+          // audio start before the correct timeline position has been seeked.
+          try {
+            const { JamClientManager } = require('@/lib/jam/client/JamClientManager');
+            const jamManager = JamClientManager.getInstance();
+            const jamState = jamManager.getParticipantState();
+            const JAM_TRANSIENT_STATES = new Set([
+              'JOINING', 'JOIN_REQUESTED', 'AUTHORIZED', 'SNAPSHOT_RECEIVED',
+              'CLOCK_SYNCING', 'PREPARING', 'SCHEDULED', 'RECONNECTING',
+            ]);
+            if (jamManager.getActiveSession() && JAM_TRANSIENT_STATES.has(jamState)) {
+              console.log(`[WATCHDOG_SKIPPED] reason=JAM_LIFECYCLE_STATE state=${jamState} trackId=${active.dataset?.trackId || 'unknown'}`);
+              return;
+            }
+          } catch {
+            // If JamClientManager is not available, proceed with normal watchdog
+          }
+
           console.warn('[PlaybackService Watchdog] Active audio paused unexpectedly while isPlaying=true. Recovering play()...');
           active.play().catch((err) => {
             console.warn('[PlaybackService Watchdog] Auto-resume recovery failed:', err);
@@ -138,6 +160,7 @@ export class PlaybackService {
       }
     }, 3000);
   }
+
 
   public primeAudioElements() {
     // Zero automatic play calls on initialization to prevent unwanted autoplay
@@ -412,7 +435,7 @@ export class PlaybackService {
    * loadAudioSource — Atomically loads and starts audio for a requested track.
    * Uses requestId stale-check to guarantee older async loads NEVER overwrite newer requests.
    */
-  public async loadAudioSource(song: Song, requestId: number, autoPlay: boolean = true): Promise<boolean> {
+  public async loadAudioSource(song: Song, requestId: number, autoPlay: boolean = true, initialPositionSec: number = 0): Promise<boolean> {
     if (!song) return false;
     if (requestId !== this.playbackRequestId) return false;
 
@@ -493,6 +516,14 @@ export class PlaybackService {
           loudness: (song as any).loudness ?? null,
         }, requestId);
 
+        if (initialPositionSec > 0) {
+          await RaagaXNativePlayer.seekTo(Math.round(initialPositionSec * 1000));
+        }
+
+        if (!autoPlay) {
+          await RaagaXNativePlayer.pause();
+        }
+
         if (requestId !== this.playbackRequestId) return false;
 
         const timeToFirstAudioMs = Math.round(performance.now() - playRequestedAt);
@@ -566,18 +597,35 @@ export class PlaybackService {
       this.activeCandidates = resolvedSource?.candidates && resolvedSource.candidates.length > 0 ? resolvedSource.candidates : [finalSrc];
       this.activeCandidateIndex = 0;
 
-      // Reset currentTime to 0 and load new audio URL
+      // Reset currentTime to initialPositionSec (or 0) and load new audio URL
       try {
-        activeAudio.pause();
-        activeAudio.currentTime = 0;
+        if (typeof activeAudio.pause === 'function') activeAudio.pause();
+        activeAudio.currentTime = initialPositionSec > 0 ? initialPositionSec : 0;
       } catch {}
 
       activeAudio.src = finalSrc;
-      activeAudio.load();
-
       try {
-        activeAudio.currentTime = 0;
+        if (typeof activeAudio.load === 'function') activeAudio.load();
       } catch {}
+
+      if (initialPositionSec > 0) {
+        const applyInitialSeek = () => {
+          try {
+            activeAudio.currentTime = initialPositionSec;
+          } catch {}
+        };
+        if (typeof activeAudio.readyState === 'number' && activeAudio.readyState >= 1) {
+          applyInitialSeek();
+        } else if (typeof activeAudio.addEventListener === 'function') {
+          activeAudio.addEventListener('loadedmetadata', applyInitialSeek, { once: true });
+        } else {
+          applyInitialSeek();
+        }
+      }
+
+      if (!activeAudio.dataset) {
+        (activeAudio as any).dataset = {};
+      }
 
       activeAudio.dataset.playbackRequestId = String(requestId);
       activeAudio.dataset.playbackGeneration = String(requestId);
@@ -729,7 +777,11 @@ export class PlaybackService {
       if (isNaturalEnd || store.isPlaying || store.playbackIntent === 'PLAYING') {
         usePlayerStore.setState({ isPlaying: true, playbackIntent: 'PLAYING' });
       }
-      await usePlayerStore.getState().playNext();
+      // AUTO_NEXT SINGLE OWNER (Phase 6):
+      // Pass isNaturalEnd=true so usePlayerStore.playNext knows this is an automatic
+      // end-of-track advance (not a user gesture). In Jam mode, only the host may
+      // send SKIP_NEXT for auto-next; participants wait for TRACK_CHANGED from server.
+      await usePlayerStore.getState().playNext(isNaturalEnd);
       return true;
     } catch {
       return false;
@@ -953,7 +1005,9 @@ export class PlaybackService {
     // Check if crossfade/gapless is actively committing
     if (TransitionManager.getInstance().getState() !== 'IDLE') return;
 
+    console.log(`[PLAYBACK_ENDED] trackId=${endedTrackId} generation=${generation} tag=${tag}`);
     console.log(`[PlaybackService] Track ended naturally on audio ${tag} (gen ${generation}). Advancing queue...`);
+    // Pass isNaturalEnd=true so Jam-aware playNext suppresses auto-next for non-host participants
     this.playNextTrack(true);
   }
 

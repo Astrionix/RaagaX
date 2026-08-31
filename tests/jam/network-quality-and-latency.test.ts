@@ -197,7 +197,7 @@ describe('RaagaX Jam — Network Quality & Latency Synchronization Suite', () =>
       expect(cellularLeadTime).toBeLessThanOrEqual(1000);
     });
 
-    it('increments generation and creates new timelineId / transitionId on PLAY, PAUSE, and SEEK', () => {
+    it('increments generation only for SEEK; PLAY/PAUSE preserve generation (same-track timeline protection)', () => {
       const { session } = serverEngine.createSession({
         hostId: 'host-1',
         hostName: 'Alice',
@@ -207,7 +207,7 @@ describe('RaagaX Jam — Network Quality & Latency Synchronization Suite', () =>
       expect(session.generation).toBe(1);
       expect(session.timelineId).toBe('TL_1');
 
-      // PLAY command
+      // PLAY command — PHASE 1: preserves generation (isPureResume=true)
       const playRes = serverEngine.executeCommand({
         commandId: 'cmd-play-1',
         jamId: session.jamId,
@@ -217,12 +217,14 @@ describe('RaagaX Jam — Network Quality & Latency Synchronization Suite', () =>
       });
 
       expect(playRes.success).toBe(true);
-      expect(playRes.session?.generation).toBe(2);
-      expect(playRes.session?.timelineId).toMatch(/^TL_2_/);
-      expect(playRes.session?.transitionId).toMatch(/^TR_2_/);
+      // PHASE 1 BEHAVIOR: PLAY is a pure resume — generation stays at 1
+      expect(playRes.session?.generation).toBe(1);
+      expect(playRes.session?.timelineId).toMatch(/^TL_1_/);
+      expect(playRes.session?.transitionId).toMatch(/^TR_1_/);
       expect(playRes.session?.state).toBe('PLAYING');
+      expect(playRes.session?.payload?.isPureResume ?? playRes.session?.isPureResume).toBeFalsy(); // payload flag
 
-      // SEEK command
+      // SEEK command — increments generation (genuine timeline change)
       const seekRes = serverEngine.executeCommand({
         commandId: 'cmd-seek-1',
         jamId: session.jamId,
@@ -232,11 +234,11 @@ describe('RaagaX Jam — Network Quality & Latency Synchronization Suite', () =>
       });
 
       expect(seekRes.success).toBe(true);
-      expect(seekRes.session?.generation).toBe(3);
-      expect(seekRes.session?.timelineId).toMatch(/^TL_3_/);
+      expect(seekRes.session?.generation).toBe(2);
+      expect(seekRes.session?.timelineId).toMatch(/^TL_2_/);
       expect(seekRes.session?.positionMs).toBe(45000);
 
-      // PAUSE command
+      // PAUSE command — PHASE 1: preserves generation (isPureResume=false)
       const pauseRes = serverEngine.executeCommand({
         commandId: 'cmd-pause-1',
         jamId: session.jamId,
@@ -245,8 +247,9 @@ describe('RaagaX Jam — Network Quality & Latency Synchronization Suite', () =>
       });
 
       expect(pauseRes.success).toBe(true);
-      expect(pauseRes.session?.generation).toBe(4);
-      expect(pauseRes.session?.timelineId).toMatch(/^TL_4_/);
+      // PHASE 1 BEHAVIOR: PAUSE preserves generation — stays at 2 (from SEEK)
+      expect(pauseRes.session?.generation).toBe(2);
+      expect(pauseRes.session?.timelineId).toMatch(/^TL_2_/);
       expect(pauseRes.session?.state).toBe('PAUSED');
     });
   });

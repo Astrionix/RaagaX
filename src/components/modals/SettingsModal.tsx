@@ -53,8 +53,8 @@ export function SettingsModal() {
   };
 
   const handleSignOut = async () => {
-    const { supabase } = await import('@/lib/supabase');
-    await supabase.auth.signOut();
+    const { useAuthStore } = await import('@/context/useAuthStore');
+    await useAuthStore.getState().signOut();
     window.location.reload();
   };
 

@@ -98,9 +98,11 @@ describe('RaagaX Jam — New Device Join During Active Playback Suite', () => {
     const targetStartMs = driftEngine.calculateExpectedPositionMs(activeSession, readyServerTime);
     expect(targetStartMs).toBe(152120);
 
-    // 5. Joining device joins existing timeline without creating a new generation
-    expect(activeSession.generation).toBe(2);
-    expect(activeSession.timelineId).toMatch(/^TL_2_/);
+    // 5. Joining device joins existing timeline without creating a new generation.
+    // PHASE 1 BEHAVIOR: PLAY preserves generation (same-track timeline protection).
+    // Session was created with generation=1, and PLAY keeps it at 1.
+    expect(activeSession.generation).toBe(1);
+    expect(activeSession.timelineId).toMatch(/^TL_1_/);
   });
 
   it('2. Joining is completely side-effect-free for existing devices', async () => {

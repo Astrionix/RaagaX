@@ -196,6 +196,13 @@ export class LibrarySyncManager {
   private handleRemoteMutation(payload: any) {
     if (!payload || payload.deviceId === this.deviceId) return; // Ignore our own broadcasts
 
+    // ACCOUNT ISOLATION GUARD: Ensure payload belongs to active user
+    const { AccountIsolationGuard } = require('@/lib/auth/AccountIsolationGuard');
+    if (!AccountIsolationGuard.getInstance().assertAccountIsolation(this.userId, 'LIBRARY_REALTIME_MUTATION')) {
+      console.warn('[LibrarySync] Discarding remote mutation: user mismatch');
+      return;
+    }
+
     const { type, songId, revision } = payload;
     
     // Revision gap detection
@@ -324,15 +331,33 @@ export class LibrarySyncManager {
         type,
         songId,
         deviceId: this.deviceId,
-        revision
+        revision,
+        userId: this.userId
       }
     };
-
 
     if (this.channel.state === 'joined') {
       this.channel.send(payload).catch(() => {});
     } else if (typeof (this.channel as any).httpSend === 'function') {
       (this.channel as any).httpSend('LIBRARY_MUTATION', payload.payload).catch(() => {});
+    }
+  }
+
+  public cleanup() {
+    if (this.channel) {
+      try {
+        supabase.removeChannel(this.channel);
+      } catch {}
+      this.channel = null;
+    }
+    this.userId = null;
+    this.isInitializedForUserId = null;
+    this.inFlightReconcile = null;
+    this.mutationQueue = [];
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.removeItem('raagax_library_mutation_queue');
+      } catch {}
     }
   }
 }

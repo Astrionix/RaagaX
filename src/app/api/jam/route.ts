@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
       jamName,
       initialSong,
       initialQueue,
+      initialQueueIndex,
       deviceType,
     } = body;
 
@@ -24,6 +25,7 @@ export async function POST(req: NextRequest) {
       jamName,
       initialSong,
       initialQueue,
+      initialQueueIndex,
       deviceType,
     });
 

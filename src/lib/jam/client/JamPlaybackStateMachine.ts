@@ -6,6 +6,7 @@ import { PreloadManager } from '@/lib/playback/PreloadManager';
 import { DriftCorrectionEngine } from '@/lib/jam/client/DriftCorrectionEngine';
 import { ClockSyncEngine } from '@/lib/jam/client/ClockSyncEngine';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { RaagaXNativePlayer } from '@/lib/playback/native/RaagaXNativePlayer';
 
 export interface JamPlaybackCoordinatorState {
   activeGeneration: number;
@@ -93,6 +94,11 @@ export class JamPlaybackStateMachine {
   /**
    * Authoritative entrypoint: processes a JamEvent or fresh JamSession snapshot.
    * Separates NEW PLAYBACK TRANSITIONS from STATE RECONCILIATION and DRIFT CORRECTION.
+   *
+   * Identity rules (Phase 1 + 2):
+   *  - PAUSE / PLAY (pure resume) preserve generation → same generation + same trackId → STATE_ONLY
+   *  - SEEK, SKIP_NEXT/PREV, STOP, ADD_TRACK increment generation → NEW_TRANSITION
+   *  - Same generation + same transitionId → DUPLICATE → NO_OP
    */
   public async handleTransition(
     session: JamSession,
@@ -106,6 +112,13 @@ export class JamPlaybackStateMachine {
     const currentSong = session.currentSong;
     const queueItemId = session.currentQueueItemId || (session.queue[0]?.queueItemId ?? null);
 
+    // isPureResume: server signals PAUSE/PLAY did not change track, generation is preserved
+    const isPureResume = triggerEvent?.payload?.isPureResume !== undefined
+      ? Boolean(triggerEvent.payload.isPureResume)
+      : (session as any).isPureResume !== undefined
+        ? Boolean((session as any).isPureResume)
+        : false;
+
     // 1. Stale generation check: reject before any side effects
     if (eventGeneration < this.state.activeGeneration) {
       console.warn(`[JamPlaybackStateMachine] Discarding stale transition (Gen ${eventGeneration} < Active ${this.state.activeGeneration})`);
@@ -113,7 +126,48 @@ export class JamPlaybackStateMachine {
       return;
     }
 
-    // 2. Playback Identity Matching: check if incoming state represents the exact same active transition
+    // 2a. Pure PAUSE/PLAY on same track: same generation + same trackId → state-only reconciliation
+    //     Do NOT reload audio. Do NOT call prepareAudioPlayback. Just update play/pause state.
+    const isSameTrackSameGeneration =
+      this.state.activeGeneration === eventGeneration &&
+      this.state.activeTrackId === trackId &&
+      trackId !== null;
+
+    if (isSameTrackSameGeneration) {
+      // Update the timeline/transition IDs so subsequent duplicate checks work correctly
+      this.state.activeTimelineId = timelineId;
+      this.state.activeTransitionId = transitionId;
+      if (queueItemId) this.state.activeQueueItemId = queueItemId;
+
+      const targetState = session.state === 'PLAYING' ? 'PLAYING' : 'PAUSED';
+      if (this.state.playbackState !== targetState) {
+        this.state.playbackState = targetState;
+        if (targetState === 'PAUSED') {
+          PlaybackService.getInstance().pause();
+          usePlayerStore.setState({ isPlaying: false, playbackIntent: 'PAUSED' });
+          console.log(`[PLAYBACK_EFFECT] action=PAUSE reason=PURE_SAME_TRACK_PAUSE trackId=${trackId} positionMs=${session.positionMs} timelineId=${timelineId} generation=${eventGeneration}`);
+        } else {
+          // Resume: drift engine will seek to correct position and call play()
+          this.driftEngine.evaluateScheduledStart(session);
+          usePlayerStore.setState({ isPlaying: true, playbackIntent: 'PLAYING' });
+          console.log(`[PLAYBACK_EFFECT] action=RESUME reason=PURE_SAME_TRACK_RESUME trackId=${trackId} positionMs=${session.positionMs} timelineId=${timelineId} generation=${eventGeneration}`);
+        }
+      } else {
+        console.log(`[PLAYBACK_EFFECT] action=NO_OP reason=DUPLICATE_STATE trackId=${trackId} state=${targetState} timelineId=${timelineId} generation=${eventGeneration}`);
+      }
+
+      // Reconcile queue in player store without touching audio position
+      if (session.queue) {
+        const store = usePlayerStore.getState();
+        if (store.currentSong) {
+          const clientQueue: Song[] = [store.currentSong, ...session.queue.map((item) => item.song)];
+          usePlayerStore.setState({ queue: clientQueue });
+        }
+      }
+      return;
+    }
+
+    // 2b. Exact same identity check (same generation + timelineId + transitionId + trackId)
     const isSameIdentity =
       this.state.activeGeneration === eventGeneration &&
       this.state.activeTimelineId === timelineId &&
@@ -223,9 +277,12 @@ export class JamPlaybackStateMachine {
   ) {
     const store = usePlayerStore.getState();
     const pb = PlaybackService.getInstance();
+    const isNative = RaagaXNativePlayer.isNative();
     const activeAudio = pb.getActiveAudio();
 
-    const isAudioReadyForTrack = activeAudio && activeAudio.dataset?.trackId === song.id;
+    const isAudioReadyForTrack = isNative
+      ? store.currentSong?.id === song.id
+      : Boolean(activeAudio && activeAudio.dataset?.trackId === song.id);
     const isAlreadyLoaded = store.currentSong?.id === song.id && isAudioReadyForTrack;
     const clientQueue: Song[] = [song, ...session.queue.map((item) => item.song)];
 
@@ -246,12 +303,12 @@ export class JamPlaybackStateMachine {
     store.setCurrentTime(inFlightSec, true);
 
     if (!isAlreadyLoaded) {
-      // New track: load audio source
+      // New track: load audio source with inFlightSec preserved
       const reqId = Date.now();
       pb.setPlaybackRequestId(reqId);
       let loadSuccess = false;
       try {
-        loadSuccess = await pb.loadAudioSource(song, reqId, false);
+        loadSuccess = await pb.loadAudioSource(song, reqId, false, inFlightSec);
       } catch (err) {
         console.warn(`[JamPlaybackStateMachine] Audio loading error on joining device for track ${song.id}:`, err);
         loadSuccess = false;
@@ -279,6 +336,9 @@ export class JamPlaybackStateMachine {
       if (activeAudio) {
         activeAudio.currentTime = inFlightSec;
       }
+      if (isNative) {
+        RaagaXNativePlayer.seekTo(inFlightMs);
+      }
       usePlayerStore.setState({ currentTime: inFlightSec });
       store.setCurrentTime(inFlightSec, true);
     }
@@ -289,6 +349,9 @@ export class JamPlaybackStateMachine {
       pb.pause();
       if (activeAudio && isExplicitSeek) {
         activeAudio.currentTime = inFlightSec;
+      }
+      if (isNative && isExplicitSeek) {
+        RaagaXNativePlayer.seekTo(inFlightMs);
       }
       store.setCurrentTime(inFlightSec, true);
     }

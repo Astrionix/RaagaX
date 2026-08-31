@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { AccountIsolationGuard } from '@/lib/auth/AccountIsolationGuard';
 
 const mockDbState = {
   liked_songs: [] as { user_id: string; song_id: string }[],
@@ -166,6 +167,8 @@ describe('RaagaX Cross-Device Library Synchronization Architecture Tests', () =>
       playlists: [],
       isLoading: false,
     });
+
+    AccountIsolationGuard.getInstance().setAuthenticatedUser(testUserId, 'TEST_SYNC_SUITE');
   });
 
   // ── SCENARIO 1 & 2: Realtime Like Event (Mobile ❤️ -> Laptop Immediately) ───

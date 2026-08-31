@@ -175,4 +175,186 @@ describe('RaagaX Jam — Playback Controls & Multi-Device Sync Integration', () 
     await usePlayerStore.getState().playSong(mockSongB);
     expect(addTrackSpy).toHaveBeenCalledWith(expect.objectContaining({ id: 'song_b' }), true);
   });
+
+  it('7. JamServerEngine: createSession properly slices initialQueue without duplicate active track (TEST 4)', () => {
+    const songC: Song = { id: 'song_c', title: 'Track Charlie', artist: 'Artist Three', duration: 180, coverUrl: '', audioUrl: '' };
+    const songD: Song = { id: 'song_d', title: 'Track Delta', artist: 'Artist Four', duration: 210, coverUrl: '', audioUrl: '' };
+    const songE: Song = { id: 'song_e', title: 'Track Echo', artist: 'Artist Five', duration: 190, coverUrl: '', audioUrl: '' };
+
+    const initialQueue = [mockSongA, mockSongB, songC, songD, songE];
+
+    const { session } = server.createSession({
+      hostId: 'host_1',
+      hostName: 'Host User',
+      initialSong: mockSongA,
+      initialQueue,
+    });
+
+    expect(session.currentSong?.id).toBe('song_a');
+    expect(session.queue.length).toBe(4);
+    expect(session.queue[0]?.song.id).toBe('song_b');
+    expect(session.queue[1]?.song.id).toBe('song_c');
+    expect(session.queue[2]?.song.id).toBe('song_d');
+    expect(session.queue[3]?.song.id).toBe('song_e');
+    expect(session.history.length).toBe(0);
+
+    // First SKIP_NEXT must transition immediately to Song B on click 1!
+    const res = server.executeCommand({
+      commandId: 'cmd_next_click_1',
+      jamId: session.jamId,
+      userId: 'host_1',
+      action: 'SKIP_NEXT',
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.session?.currentSong?.id).toBe('song_b');
+    expect(res.session?.queue[0]?.song.id).toBe('song_c');
+    expect(res.session?.history[0]?.song.id).toBe('song_a');
+  });
+
+  it('8. JamServerEngine: createSession when initialSong is in middle of queue populates history and upcoming queue correctly', () => {
+    const songC: Song = { id: 'song_c', title: 'Track Charlie', artist: 'Artist Three', duration: 180, coverUrl: '', audioUrl: '' };
+    const songD: Song = { id: 'song_d', title: 'Track Delta', artist: 'Artist Four', duration: 210, coverUrl: '', audioUrl: '' };
+
+    const initialQueue = [mockSongA, mockSongB, songC, songD];
+
+    const { session } = server.createSession({
+      hostId: 'host_1',
+      hostName: 'Host User',
+      initialSong: songC,
+      initialQueue,
+      initialQueueIndex: 2,
+    });
+
+    expect(session.currentSong?.id).toBe('song_c');
+    expect(session.history.length).toBe(2);
+    expect(session.history.map(h => h.song.id)).toEqual(['song_a', 'song_b']);
+    expect(session.queue.length).toBe(1);
+    expect(session.queue[0]?.song.id).toBe('song_d');
+  });
+
+  it('9. JamServerEngine: Pause -> Resume preserves exact position (TEST 1 & 2)', () => {
+    const { session } = server.createSession({
+      hostId: 'host_1',
+      hostName: 'Host User',
+      initialSong: mockSongA,
+    });
+
+    // Start playing
+    server.executeCommand({
+      commandId: 'cmd_play_1',
+      jamId: session.jamId,
+      userId: 'host_1',
+      action: 'PLAY',
+      payload: { positionMs: 0 },
+    });
+
+    // Advance authoritative position
+    session.positionMs = 15200;
+    session.basePositionMs = 15200;
+
+    // Pause at 15.2s
+    const pauseRes = server.executeCommand({
+      commandId: 'cmd_pause_1',
+      jamId: session.jamId,
+      userId: 'host_1',
+      action: 'PAUSE',
+    });
+
+    expect(pauseRes.success).toBe(true);
+    expect(pauseRes.session?.state).toBe('PAUSED');
+    expect(pauseRes.session?.positionMs).toBe(15200);
+
+    // Resume without explicit payload -> preserves 15200ms
+    const resumeRes = server.executeCommand({
+      commandId: 'cmd_resume_1',
+      jamId: session.jamId,
+      userId: 'host_1',
+      action: 'PLAY',
+    });
+
+    expect(resumeRes.success).toBe(true);
+    expect(resumeRes.session?.state).toBe('PLAYING');
+    expect(resumeRes.session?.positionMs).toBe(15200);
+    expect(resumeRes.session?.basePositionMs).toBe(15200);
+  });
+
+  it('10. JamServerEngine: Pause -> Seek while paused -> Resume resumes from sought position (TEST 3)', () => {
+    const { session } = server.createSession({
+      hostId: 'host_1',
+      hostName: 'Host User',
+      initialSong: mockSongA,
+    });
+
+    // Pause at 15s
+    session.positionMs = 15000;
+    session.basePositionMs = 15000;
+    server.executeCommand({
+      commandId: 'cmd_pause_seek_test',
+      jamId: session.jamId,
+      userId: 'host_1',
+      action: 'PAUSE',
+    });
+
+    // Seek to 30s while paused
+    const seekRes = server.executeCommand({
+      commandId: 'cmd_seek_30',
+      jamId: session.jamId,
+      userId: 'host_1',
+      action: 'SEEK',
+      payload: { positionMs: 30000 },
+    });
+
+    expect(seekRes.success).toBe(true);
+    expect(seekRes.session?.positionMs).toBe(30000);
+    expect(seekRes.session?.state).toBe('PAUSED');
+
+    // Resume
+    const resumeRes = server.executeCommand({
+      commandId: 'cmd_resume_after_seek',
+      jamId: session.jamId,
+      userId: 'host_1',
+      action: 'PLAY',
+    });
+
+    expect(resumeRes.success).toBe(true);
+    expect(resumeRes.session?.positionMs).toBe(30000);
+    expect(resumeRes.session?.state).toBe('PLAYING');
+  });
+
+  it('11. JamServerEngine: Rapid consecutive SKIP_NEXT calls transition deterministically (TEST 5)', () => {
+    const songC: Song = { id: 'song_c', title: 'Track Charlie', artist: 'Artist Three', duration: 180, coverUrl: '', audioUrl: '' };
+    const songD: Song = { id: 'song_d', title: 'Track Delta', artist: 'Artist Four', duration: 210, coverUrl: '', audioUrl: '' };
+
+    const { session } = server.createSession({
+      hostId: 'host_1',
+      hostName: 'Host User',
+      initialSong: mockSongA,
+      initialQueue: [mockSongA, mockSongB, songC, songD],
+    });
+
+    const res1 = server.executeCommand({ commandId: 'c1', jamId: session.jamId, userId: 'host_1', action: 'SKIP_NEXT' });
+    expect(res1.session?.currentSong?.id).toBe('song_b');
+
+    const res2 = server.executeCommand({ commandId: 'c2', jamId: session.jamId, userId: 'host_1', action: 'SKIP_NEXT' });
+    expect(res2.session?.currentSong?.id).toBe('song_c');
+
+    const res3 = server.executeCommand({ commandId: 'c3', jamId: session.jamId, userId: 'host_1', action: 'SKIP_NEXT' });
+    expect(res3.session?.currentSong?.id).toBe('song_d');
+  });
+
+  it('12. JamServerEngine: Duplicate events are idempotent NO-OPs (TEST 6)', () => {
+    const { session } = server.createSession({
+      hostId: 'host_1',
+      hostName: 'Host User',
+      initialSong: mockSongA,
+    });
+
+    const res1 = server.executeCommand({ commandId: 'c_pause_1', jamId: session.jamId, userId: 'host_1', action: 'PAUSE' });
+    expect(res1.success).toBe(true);
+
+    const res2 = server.executeCommand({ commandId: 'c_pause_2', jamId: session.jamId, userId: 'host_1', action: 'PAUSE' });
+    expect(res2.success).toBe(true);
+    expect(res2.isIdempotentReplay).toBe(true);
+  });
 });
