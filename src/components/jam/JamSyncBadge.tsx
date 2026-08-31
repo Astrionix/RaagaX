@@ -255,11 +255,23 @@ export function JamSyncBadge({ showLabel = true, className = '', size = 'md' }: 
                 </div>
               </div>
             </div>
+
+            {/* Quick Unstuck / Resync Action */}
+            <button
+              onClick={async (e) => {
+                e.stopPropagation();
+                await useJamStore.getState().resyncPlayback();
+              }}
+              className="w-full py-2 px-3 rounded-xl bg-[#FA233B]/20 hover:bg-[#FA233B]/30 border border-[#FA233B]/40 text-xs font-bold text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-sm"
+            >
+              <Zap className="w-3.5 h-3.5 text-[#FA233B]" />
+              <span>Resync Playback / Fix Lag</span>
+            </button>
           </div>
 
           <div className="mt-3 pt-2 border-t border-white/10 text-[9px] text-slate-400 font-sans flex items-center gap-1">
             <Info className="w-3 h-3 text-slate-500 flex-shrink-0" />
-            <span>NTP clock synchronization, adaptive lead time, and multi-device telemetry.</span>
+            <span>Auto-syncs every 3s. Click Resync above if playback ever stalls on Cloud.</span>
           </div>
         </div>
       )}

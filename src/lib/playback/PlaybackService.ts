@@ -828,7 +828,18 @@ export class PlaybackService {
             MediaSessionManager.getInstance().setPlaybackState('playing');
             AudioFocusManager.getInstance().requestFocus();
           }).catch((err) => {
-            if (err?.name !== 'AbortError' && err?.name !== 'NotAllowedError') {
+            if (err?.name === 'NotAllowedError') {
+              console.warn('[PlaybackService] Autoplay blocked by browser policy. Attaching user gesture unlocker.');
+              const unlock = () => {
+                window.removeEventListener('pointerdown', unlock);
+                window.removeEventListener('keydown', unlock);
+                window.removeEventListener('touchstart', unlock);
+                active.play().catch(() => {});
+              };
+              window.addEventListener('pointerdown', unlock, { once: true });
+              window.addEventListener('keydown', unlock, { once: true });
+              window.addEventListener('touchstart', unlock, { once: true });
+            } else if (err?.name !== 'AbortError') {
               console.warn('[PlaybackService] play() error:', err);
             }
           });

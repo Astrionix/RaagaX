@@ -654,6 +654,16 @@ export function JamModal() {
                 {/* Session Actions */}
                 <div className="pt-3 border-t border-white/10 space-y-2">
                   <button
+                    onClick={async () => {
+                      await useJamStore.getState().resyncPlayback();
+                    }}
+                    className="w-full py-2.5 px-3 rounded-xl bg-[#FA233B]/15 hover:bg-[#FA233B]/25 border border-[#FA233B]/30 text-xs font-bold text-white flex items-center justify-center gap-1.5 transition-colors cursor-pointer active:scale-98"
+                  >
+                    <Activity className="w-3.5 h-3.5 text-[#FA233B]" />
+                    <span>Resync Audio with Host</span>
+                  </button>
+
+                  <button
                     onClick={() => leaveJam()}
                     className="w-full py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-white flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                   >

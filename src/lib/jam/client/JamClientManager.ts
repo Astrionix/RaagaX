@@ -210,6 +210,7 @@ export class JamClientManager {
 
     // Start nearby discovery beacon advertising
     JamDiscoveryEngine.getInstance().startBroadcasting(session);
+    this.startReconciliationLoop(session.jamId);
 
     return session;
   }
@@ -322,6 +323,7 @@ export class JamClientManager {
       // Connect real-time channels
       this.connectRealtimeTransport(jamId);
       this.startMetricsReporting(jamId);
+      this.startReconciliationLoop(jamId);
 
       return session;
     } catch (err) {
@@ -383,7 +385,50 @@ export class JamClientManager {
       this.reconnectTimer = null;
     }
 
+    this.stopReconciliationLoop();
+
     this.notify();
+  }
+
+  private reconciliationInterval: any = null;
+
+  private startReconciliationLoop(jamId: string) {
+    this.stopReconciliationLoop();
+    this.reconciliationInterval = setInterval(async () => {
+      if (!this.activeSession || this.activeSession.jamId !== jamId) {
+        this.stopReconciliationLoop();
+        return;
+      }
+      // If host, local state is authoritative; for non-host participants, periodically reconcile
+      if (this.isHost()) return;
+
+      try {
+        const res = await fetch(getApiUrl(`/api/jam/${jamId}`), { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json().catch(() => null);
+        if (!data?.session) return;
+
+        const remote: JamSession = data.session;
+        const local = this.activeSession;
+
+        const isRevisionAhead = typeof remote.revision === 'number' && remote.revision > this.localRevision;
+        const isGenerationAhead = (remote.generation ?? 0) > (local.generation ?? 0);
+        const isTrackDiffering = remote.trackId !== local.trackId;
+        const isStateDiffering = remote.state !== local.state;
+
+        if (isRevisionAhead || isGenerationAhead || isTrackDiffering || isStateDiffering) {
+          console.log(`[JamClientManager] Background reconciliation updated session (remote rev ${remote.revision} vs local ${this.localRevision})`);
+          this.applySessionSnapshot(remote);
+        }
+      } catch {}
+    }, 3500);
+  }
+
+  private stopReconciliationLoop() {
+    if (this.reconciliationInterval) {
+      clearInterval(this.reconciliationInterval);
+      this.reconciliationInterval = null;
+    }
   }
 
   /**

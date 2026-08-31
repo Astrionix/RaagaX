@@ -14,6 +14,7 @@ import { ClockSyncEngine } from '@/lib/jam/client/ClockSyncEngine';
 import { DriftCorrectionEngine } from '@/lib/jam/client/DriftCorrectionEngine';
 import { NetworkQualityEngine } from '@/lib/jam/client/NetworkQualityEngine';
 import { useAuthStore } from './useAuthStore';
+import { usePlayerStore } from './usePlayerStore';
 
 interface JamState {
   session: JamSession | null;
@@ -60,6 +61,7 @@ interface JamState {
   sendKickParticipant: (targetUserId: string) => Promise<boolean>;
   sendRequestHandoff: (targetUserId: string, targetDeviceId?: string) => Promise<boolean>;
   sendEndSession: () => Promise<boolean>;
+  resyncPlayback: () => Promise<boolean>;
 
   updateDiagnostics: () => void;
 }
@@ -317,6 +319,20 @@ export const useJamStore = create<JamState>((set, get) => {
         });
       }
       return ok;
+    },
+
+    resyncPlayback: async () => {
+      const session = get().session;
+      if (!session) return false;
+      try {
+        const ok = await JamClientManager.getInstance().resyncSnapshot(session.jamId);
+        if (ok) {
+          usePlayerStore.getState().setToastMessage('Jam playback resynced with host');
+        }
+        return ok;
+      } catch {
+        return false;
+      }
     },
 
     updateDiagnostics: () => {
