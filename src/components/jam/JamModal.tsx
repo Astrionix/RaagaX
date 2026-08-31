@@ -37,6 +37,8 @@ import { SongFormatter } from '@/lib/music/SongFormatter';
 import { JamSyncBadge } from './JamSyncBadge';
 import { SeekBar } from '@/components/player/SeekBar';
 import { JamCameraScanner } from './JamCameraScanner';
+import { PlaybackService } from '@/lib/playback/PlaybackService';
+import { DriftCorrectionEngine } from '@/lib/jam/client/DriftCorrectionEngine';
 
 export function JamModal() {
   const {
@@ -328,7 +330,21 @@ export function JamModal() {
                       </button>
 
                       <button
-                        onClick={() => (session.state === 'PLAYING' ? sendPause() : sendPlay())}
+                        onClick={async () => {
+                          if (session.state === 'PLAYING') {
+                            const isLivePlaying = PlaybackService.getInstance().getLivePlayingState();
+                            if (!isLivePlaying) {
+                              usePlayerStore.setState({ isPlaying: true, playbackIntent: 'PLAYING' });
+                              DriftCorrectionEngine.getInstance().evaluateScheduledStart(session);
+                              PlaybackService.getInstance().play();
+                            } else {
+                              await sendPause();
+                            }
+                          } else {
+                            const posMs = Math.round((usePlayerStore.getState().currentTime || 0) * 1000);
+                            await sendPlay(posMs > 0 ? posMs : undefined);
+                          }
+                        }}
                         disabled={!isHost && !permissions?.canControlPlayback}
                         className="w-12 h-12 rounded-full bg-[#FA233B] hover:bg-[#ff3b53] disabled:opacity-40 text-white flex items-center justify-center shadow-[0_4px_20px_rgba(250,35,59,0.4)] transition-all cursor-pointer active:scale-95"
                         title={session.state === 'PLAYING' ? 'Pause Jam' : 'Play Jam'}

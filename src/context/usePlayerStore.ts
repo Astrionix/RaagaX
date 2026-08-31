@@ -65,6 +65,7 @@ import { SongUniquenessEngine } from '@/lib/music/SongUniquenessEngine';
 import { SongFormatter } from '@/lib/music/SongFormatter';
 import { MediaSessionManager } from '@/lib/playback/MediaSessionManager';
 import { JamClientManager } from '@/lib/jam/client/JamClientManager';
+import { DriftCorrectionEngine } from '@/lib/jam/client/DriftCorrectionEngine';
 
 import { AudioQuality, AudioQualityState } from '@/lib/playback/types';
 import { DownloadStorage } from '@/lib/offline/DownloadStorage';
@@ -1314,6 +1315,18 @@ export const usePlayerStore = create<PlayerState>()(
         MediaSessionManager.getInstance().setPlaybackState(playing ? 'playing' : 'paused');
 
         if (!fromRemote) {
+          try {
+            const jamManager = JamClientManager.getInstance();
+            const jamSession = jamManager.getActiveSession();
+            if (jamSession && (jamManager.isHost() || jamSession.permissions?.canControlPlayback)) {
+              if (playing && jamSession.state !== 'PLAYING') {
+                jamManager.sendPlay(Math.round((get().currentTime || 0) * 1000)).catch(() => {});
+              } else if (!playing && jamSession.state === 'PLAYING') {
+                jamManager.sendPause().catch(() => {});
+              }
+            }
+          } catch {}
+
           if (RaagaXNativePlayer.isNative()) {
             if (!playing) {
               await RaagaXNativePlayer.pause();

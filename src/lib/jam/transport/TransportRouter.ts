@@ -72,48 +72,50 @@ export class TransportRouter {
     jamId: string,
     auth: JamAuthCredentials,
     lanEndpoint?: string,
-    enableBluetooth = true
+    enableBluetooth = false
   ): Promise<boolean> {
     this.cleanup();
 
     // 1. Connect to Cloud Realtime Transport (authoritative cloud backbone)
     const cloudOk = await this.cloudTransport.connect(jamId, auth);
 
-    // 2. Connect to Local LAN Transport if local endpoint is present
+    // 2. Connect to Local LAN Transport if local endpoint is present (Same Wi-Fi)
     let lanOk = false;
     if (lanEndpoint) {
       lanOk = await this.lanTransport.connect(jamId, auth, lanEndpoint);
     }
 
-    // 3. Connect Bluetooth Peer Sync channel if enabled
+    // 3. Connect Bluetooth Peer Sync channel if explicitly enabled
     let btOk = false;
     if (enableBluetooth) {
       btOk = await this.bluetoothTransport.connect(jamId, auth);
     }
 
-    // 4. Transport Selection Hierarchy: Bluetooth Peer Sync (when active peer connected) -> Local LAN -> Cloud Realtime
-    if (btOk && this.bluetoothTransport.hasActivePeers() && this.bluetoothTransport.isHealthy()) {
-      this.activeTransportType = 'BLUETOOTH_PEER_SYNC';
-      console.log(`[TRANSPORT_SELECTED] transport=BLUETOOTH_PEER_SYNC rttMs=${this.bluetoothTransport.getHealth().rttMs}ms (Direct Radio preferred)`);
-    } else if (lanOk && this.lanTransport.isHealthy()) {
+    // 4. Transport Selection Hierarchy: Same Wi-Fi (Local LAN) -> Cloud Realtime
+    if (lanOk && this.lanTransport.isHealthy()) {
       this.activeTransportType = 'LOCAL_LAN';
       this.lanConsecutiveHealthyCount = TransportRouter.LAN_RECOVERY_THRESHOLD;
-      console.log(`[TRANSPORT_SELECTED] transport=LOCAL_LAN rttMs=${this.lanTransport.getHealth().rttMs}ms (Local Wi-Fi preferred)`);
+      console.log(`[TRANSPORT_SELECTED] transport=LOCAL_LAN rttMs=${this.lanTransport.getHealth().rttMs}ms (Same Wi-Fi preferred)`);
+    } else if (enableBluetooth && btOk && this.bluetoothTransport.hasActivePeers() && this.bluetoothTransport.isHealthy()) {
+      this.activeTransportType = 'BLUETOOTH_PEER_SYNC';
+      console.log(`[TRANSPORT_SELECTED] transport=BLUETOOTH_PEER_SYNC rttMs=${this.bluetoothTransport.getHealth().rttMs}ms`);
     } else {
       this.activeTransportType = 'CLOUD_REALTIME';
       console.log(`[TRANSPORT_SELECTED] transport=CLOUD_REALTIME rttMs=${this.cloudTransport.getHealth().rttMs}ms (Cloud Realtime default)`);
     }
 
-    // 5. Wire up unified event listeners from all transports
+    // 5. Wire up unified event listeners from active transports
     this.unsubscribers.push(
       this.cloudTransport.subscribe((event) => this.routeIncomingEvent(event, 'CLOUD_REALTIME'))
     );
     this.unsubscribers.push(
       this.lanTransport.subscribe((event) => this.routeIncomingEvent(event, 'LOCAL_LAN'))
     );
-    this.unsubscribers.push(
-      this.bluetoothTransport.subscribe((event) => this.routeIncomingEvent(event, 'BLUETOOTH_PEER_SYNC'))
-    );
+    if (enableBluetooth) {
+      this.unsubscribers.push(
+        this.bluetoothTransport.subscribe((event) => this.routeIncomingEvent(event, 'BLUETOOTH_PEER_SYNC'))
+      );
+    }
 
     // 6. Start periodic health monitoring and hysteresis evaluation (every 1s)
     this.startHealthMonitor();

@@ -188,6 +188,10 @@ export class JamClientManager {
     await this.clockSync.synchronize(6);
     this.clockSync.startPeriodicSync(15000);
     this.driftEngine.setSession(session);
+
+    // Step 2: Initialize state machine with created session
+    await this.stateMachine.handleTransition(session, undefined, 'NEW_TRANSITION');
+
     // Connect multi-transport routing layer (LAN preferred, Cloud fallback)
     await this.transportRouter.initialize(
       session.jamId,
