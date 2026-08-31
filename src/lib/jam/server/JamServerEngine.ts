@@ -1990,14 +1990,17 @@ export class JamServerEngine {
       import('@/lib/supabaseAdmin').then(({ getSupabaseAdmin }) => {
         const admin = getSupabaseAdmin();
         if (admin) {
-          admin
-            .channel(`jam:${jamId}`)
-            .send({
-              type: 'broadcast',
-              event: 'jam_event',
-              payload: event,
-            })
-            .catch(() => {});
+          const chan = admin.channel(`jam:${jamId}`);
+          chan.send({
+            type: 'broadcast',
+            event: 'jam_event',
+            payload: event,
+          }).catch((err) => console.warn('[JamServerEngine] Realtime broadcast error:', err));
+          chan.send({
+            type: 'broadcast',
+            event: 'JAM_EVENT',
+            payload: event,
+          }).catch(() => {});
         }
       }).catch(() => {});
     } catch {}

@@ -43,7 +43,7 @@ export class CloudRealtimeTransport implements JamTransport {
         this.channel = null;
       }
 
-      const channelName = `jam-session:${jamId}`;
+      const channelName = `jam:${jamId}`;
       const rawChannels = typeof supabase.getChannels === 'function' ? supabase.getChannels() : [];
       const channels = Array.isArray(rawChannels) ? rawChannels : [];
       const existing = channels.find((c: any) => c.topic === `realtime:${channelName}` || c.topic === channelName);
@@ -56,6 +56,11 @@ export class CloudRealtimeTransport implements JamTransport {
       });
 
       this.channel
+        .on('broadcast', { event: 'jam_event' }, (payload: any) => {
+          if (payload?.payload) {
+            this.handleIncomingEvent(payload.payload);
+          }
+        })
         .on('broadcast', { event: 'JAM_EVENT' }, (payload: any) => {
           if (payload?.payload) {
             this.handleIncomingEvent(payload.payload);
