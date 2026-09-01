@@ -1556,17 +1556,22 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       playPrev: async () => {
-        // RaagaX Connect: If in Remote Controller mode in browser, dispatch target previous track with pre-resolved audioUrl
+        const { queue, queueIndex, currentTime, currentSong, repeatMode, isPlaying, playbackIntent } = get();
+
+        // RaagaX Connect: If in Remote Controller mode in browser
         if (typeof window !== 'undefined') {
           try {
             const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
             const connectClient = ConnectClientManager.getInstance();
             if (connectClient.isRemoteMode()) {
-              const { queue, queueIndex, repeatMode } = get();
-              const prevIndex = getPreviousQueueIndex(queue, queueIndex, repeatMode);
-              if (prevIndex >= 0 && prevIndex < queue.length) {
-                const prevTrack = queue[prevIndex];
-                await get().switchTrack(prevTrack, prevIndex, true);
+              if (currentTime > 3) {
+                await connectClient.sendCommand('SEEK', { positionMs: 0 });
+              } else {
+                const prevIndex = getPreviousQueueIndex(queue, queueIndex, repeatMode);
+                if (prevIndex >= 0 && prevIndex < queue.length) {
+                  const prevTrack = queue[prevIndex];
+                  await get().switchTrack(prevTrack, prevIndex, true);
+                }
               }
               return;
             }
@@ -1579,7 +1584,11 @@ export const usePlayerStore = create<PlayerState>()(
           const jamSession = jamManager.getActiveSession();
           if (jamSession) {
             if (jamManager.isHost() || jamSession.permissions?.canSkip) {
-              await jamManager.sendSkipPrev();
+              if (currentTime > 3) {
+                await jamManager.sendSeek(0);
+              } else {
+                await jamManager.sendSkipPrev();
+              }
             } else {
               console.log('[playPrev] In Jam as guest without skip permission — waiting for authoritative TRACK_CHANGED from server.');
             }
@@ -1587,7 +1596,17 @@ export const usePlayerStore = create<PlayerState>()(
           }
         } catch { }
 
-        const { queue, queueIndex, repeatMode, isPlaying, playbackIntent } = get();
+        // If track played more than 3 seconds, restart current track at 0:00 and keep current playing state
+        if (currentTime > 3) {
+          console.log(`[RESTART] ${currentSong?.id || 'unknown'} (pos: ${currentTime.toFixed(1)}s > 3s)`);
+          get().setCurrentTime(0, true);
+          get().setSeekTarget(0);
+          PlaybackService.getInstance().seek(0);
+          if (isPlaying || playbackIntent === 'PLAYING') {
+            PlaybackService.getInstance().play();
+          }
+          return;
+        }
 
         get().logCurrentTelemetry('skip');
 
