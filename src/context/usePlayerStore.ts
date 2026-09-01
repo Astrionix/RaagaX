@@ -959,7 +959,7 @@ export const usePlayerStore = create<PlayerState>()(
       switchTrack: async (track: Song, index: number, autoPlay: boolean = true) => {
         if (!track) return false;
 
-        // RaagaX Connect: If in Remote Controller mode in browser, dispatch command to the playback device
+        // RaagaX Connect: If in Remote Controller mode in browser, dispatch PLAY_SONG to the speaker
         if (typeof window !== 'undefined') {
           try {
             const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
@@ -978,6 +978,7 @@ export const usePlayerStore = create<PlayerState>()(
                 coverUrl: resolvedCover,
               });
 
+              // Optimistic UI update — mirror what the speaker will reflect
               useConnectStore.setState((prev) => ({
                 remoteSession: prev.remoteSession ? {
                   ...prev.remoteSession,
@@ -1001,7 +1002,9 @@ export const usePlayerStore = create<PlayerState>()(
                 duration: formattedTrack.duration || 0,
               });
 
-              await connectClient.sendCommand('TRANSFER_PLAYBACK', {
+              // PLAY_SONG: instructs speaker to load and play this specific song.
+              // TRANSFER_PLAYBACK was wrong here — that is for device handover, not song selection.
+              await connectClient.sendCommand('PLAY_SONG', {
                 song: formattedTrack,
                 queue: get().queue.length > 0 ? get().queue : [formattedTrack],
                 queueIndex: index,

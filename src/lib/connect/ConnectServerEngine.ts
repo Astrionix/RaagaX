@@ -201,13 +201,16 @@ export class ConnectServerEngine {
       this.currentSession.controllerIds.push(command.senderDeviceId);
     }
 
-    // 3. Stale revision protection: skip for TRANSFER_PLAYBACK (authoritative user action)
-    if (command.action !== 'TRANSFER_PLAYBACK' && typeof command.expectedRevision === 'number' && command.expectedRevision < this.currentSession.revision) {
+    // 3. Stale revision protection: skip for TRANSFER_PLAYBACK / PLAY_SONG (authoritative user action)
+    if (command.action !== 'TRANSFER_PLAYBACK' && command.action !== 'PLAY_SONG' && typeof command.expectedRevision === 'number' && command.expectedRevision < this.currentSession.revision) {
       console.warn(`[CONNECT_COMMAND_REJECTED] Stale revision (expected ${command.expectedRevision} < current ${this.currentSession.revision})`);
       return { success: false, session: this.getSession() };
     }
 
     switch (command.action) {
+      // PLAY_SONG: controller selects a specific track to play on this speaker.
+      // Falls through to TRANSFER_PLAYBACK which handles the full load+play sequence.
+      case 'PLAY_SONG':
       case 'TRANSFER_PLAYBACK': {
         const payload = command.payload;
         if (!payload || !payload.song) {

@@ -36,6 +36,7 @@ import { AddToJamModal } from '@/components/jam/AddToJamModal';
 import { JoinJamModal } from '@/components/jam/JoinJamModal';
 import { JamDevSyncPanel } from '@/components/jam/JamDevSyncPanel';
 import { ConnectDeviceModal } from '@/components/connect/ConnectDeviceModal';
+import { ConnectedPlayerFooter } from '@/components/connect/ConnectedPlayerFooter';
 
 import { Toast } from '@/components/ui/Toast';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
@@ -278,6 +279,11 @@ export default function Page() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Spotify Connect Style Persistent Remote Banner */}
+      <div className="fixed bottom-0 left-0 right-0 z-40">
+        <ConnectedPlayerFooter />
       </div>
 
       {/* Desktop Persistent Bottom Audio Player Bar */}

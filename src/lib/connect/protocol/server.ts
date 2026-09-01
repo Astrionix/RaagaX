@@ -169,9 +169,10 @@ export class ConnectCoordinatorServer {
 
     const session = this.getOrCreateSession(userId);
 
-    // 2. Monotonic out-of-order drop guard (Skip for atomic handoff)
+    // 2. Monotonic out-of-order drop guard (Skip for atomic handoff / song selection)
     if (
       command.action !== 'TRANSFER_PLAYBACK' &&
+      command.action !== 'PLAY_SONG' &&
       typeof command.expectedVersion === 'number' &&
       command.expectedVersion < session.stateVersion
     ) {

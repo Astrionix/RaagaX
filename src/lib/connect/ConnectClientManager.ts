@@ -488,6 +488,11 @@ export class ConnectClientManager {
       return;
     }
 
+    // NOTE: Auto-adoption deliberately removed.
+    // isRemoteMode is ONLY set via an explicit user action (transferPlaybackTo).
+    // Auto-adopting here caused the speaker device to enter isRemoteMode, blocking
+    // its own loadAudioSource, causing 2-minute flicker / stall on next-song playback.
+
     const isTarget = this.activeTargetDevice && (
       session.playbackDeviceId === this.activeTargetDevice.deviceId ||
       session.playbackDeviceId === 'dev_local'

@@ -55,6 +55,7 @@ export interface ClientCommandMessage {
   readonly commandId: string;
   readonly action:
     | 'TRANSFER_PLAYBACK'
+    | 'PLAY_SONG'
     | 'PLAY'
     | 'PAUSE'
     | 'SEEK'
@@ -114,6 +115,7 @@ export type ClientCommandAction =
   | 'SET_REPEAT'
   | 'SKIP_NEXT'
   | 'SKIP_PREV'
+  | 'PLAY_SONG'
   | 'QUEUE_MUTATE'
   | 'HEARTBEAT';
 

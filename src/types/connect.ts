@@ -58,6 +58,7 @@ export type ConnectCommandAction =
   | 'SKIP_PREV'
   | 'SET_VOLUME'
   | 'TRANSFER_PLAYBACK'
+  | 'PLAY_SONG'
   | 'SET_QUEUE'
   | 'ADD_TO_QUEUE'
   | 'REMOVE_FROM_QUEUE'
