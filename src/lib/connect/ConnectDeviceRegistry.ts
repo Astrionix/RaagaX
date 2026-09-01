@@ -63,6 +63,16 @@ export class ConnectDeviceRegistry {
     for (const [id, dev] of store.devices.entries()) {
       if (now - dev.lastSeenAt > DEVICE_TTL_MS) {
         store.devices.delete(id);
+        // Dead-Sink Failover: If the active speaker tab/device dropped, pause session and notify controllers
+        for (const [sessId, session] of store.sessions.entries()) {
+          if (session.playbackDeviceId === id) {
+            session.isPlaying = false;
+            session.playbackState = 'PAUSED';
+            session.updatedAt = now;
+            session.revision = (session.revision || 0) + 1;
+            ConnectDeviceRegistry.publishSession(session);
+          }
+        }
         continue;
       }
 
@@ -144,15 +154,15 @@ export class ConnectDeviceRegistry {
       updatedAt: Date.now(),
     });
 
-    // Push session update instantly to target device and all connected controllers
-    const recipients = new Set<string>([session.playbackDeviceId, ...session.controllerIds]);
+    // Push session update instantly to ALL connected clients (Inclusive Room-Wide Broadcast)
     const clients = store.streamClients || (store.streamClients = new Map());
-    recipients.forEach((deviceId) => {
-      const callbacks = clients.get(deviceId);
-      if (callbacks) {
-        callbacks.forEach((cb) => cb({ type: 'SESSION_UPDATE', payload: session }));
-      }
-    });
+    for (const callbacks of clients.values()) {
+      callbacks.forEach((cb) => {
+        try {
+          cb({ type: 'SESSION_UPDATE', payload: session });
+        } catch {}
+      });
+    }
   }
 
   public static getSession(playbackDeviceId: string): ConnectPlaybackSession | null {

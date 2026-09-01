@@ -104,18 +104,21 @@ export function FollowedArtistsNewReleasesShelf() {
     };
   }, [favoriteArtistIds, preferredLanguage]);
 
+  const shelfItems: ShelfItem[] = React.useMemo(() => {
+    if (!artistReleases || artistReleases.length === 0) return [];
+    return artistReleases.map((s) => ({
+      id: s.id,
+      title: s.title,
+      subtitle: `By ${s.artist} • 2026`,
+      imageUrl: s.coverUrl,
+      type: 'song',
+      rawItem: s,
+    }));
+  }, [artistReleases]);
+
   if (favoriteArtistIds.length === 0 || artistReleases.length === 0) {
     return null;
   }
-
-  const shelfItems: ShelfItem[] = artistReleases.map((s) => ({
-    id: s.id,
-    title: s.title,
-    subtitle: `By ${s.artist} • 2026`,
-    imageUrl: s.coverUrl,
-    type: 'song',
-    rawItem: s,
-  }));
 
   return (
     <section className="animate-in fade-in duration-200">

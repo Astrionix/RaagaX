@@ -39,13 +39,13 @@ export function MobileBottomController() {
   const { session, isInJam } = useJamStore();
   const { isRemoteMode, activePlaybackDevice, remoteSession, sendPlay, sendPause, sendNext, sendPrev } = useConnectStore();
 
-  const currentSong = (isRemoteMode && remoteSession?.currentSong)
+  const currentSong = remoteSession?.currentSong
     ? remoteSession.currentSong
     : (isInJam && session?.currentSong)
     ? session.currentSong
     : localCurrentSong;
 
-  const isPlaying = (isRemoteMode && remoteSession)
+  const isPlaying = remoteSession
     ? remoteSession.isPlaying
     : (isInJam && session)
     ? session.state === 'PLAYING'

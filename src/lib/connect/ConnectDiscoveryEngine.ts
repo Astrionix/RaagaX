@@ -7,6 +7,8 @@
 
 import { ConnectDevice, ConnectDeviceType, ConnectTransportType } from '@/types/connect';
 import { ConnectServerEngine } from './ConnectServerEngine';
+import { DeviceIdentity } from './identity/DeviceIdentity';
+import { LocalLanDiscovery } from './discovery/LocalLanDiscovery';
 
 type DeviceListListener = (devices: ConnectDevice[]) => void;
 
@@ -26,7 +28,11 @@ export class ConnectDiscoveryEngine {
     this.localDevice = this.initializeLocalDevice();
     if (typeof window !== 'undefined') {
       this.setupBroadcastChannel();
+      this.setupLifecycleListeners();
       this.startAdvertising();
+      try {
+        LocalLanDiscovery.getInstance().connectStream();
+      } catch {}
     }
   }
 
@@ -39,7 +45,6 @@ export class ConnectDiscoveryEngine {
 
   private initializeLocalDevice(): ConnectDevice {
     try {
-      const { DeviceIdentity } = require('./identity/DeviceIdentity');
       return DeviceIdentity.getInstance().toConnectDevice();
     } catch {
       return {
@@ -74,6 +79,37 @@ export class ConnectDiscoveryEngine {
         }
       };
     } catch {}
+  }
+
+  private setupLifecycleListeners() {
+    if (typeof window === 'undefined') return;
+
+    const onWakeOrReconnect = () => {
+      console.log('[CONNECT_LIFECYCLE] App wake / focus / network online detected. Triggering instant session rehydration.');
+      // 1. Broadcast beacon immediately
+      this.broadcastBeacon();
+      // 2. Scan available devices
+      this.scanNow();
+      // 3. Request latest session snapshot from active speaker
+      try {
+        const { ConnectClientManager } = require('./ConnectClientManager');
+        ConnectClientManager.getInstance().requestCurrentPlaybackState();
+      } catch {}
+      // 4. Reconnect SSE stream if dropped during mobile sleep
+      try {
+        LocalLanDiscovery.getInstance().connectStream();
+      } catch {}
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          onWakeOrReconnect();
+        }
+      });
+    }
+    window.addEventListener('focus', onWakeOrReconnect);
+    window.addEventListener('online', onWakeOrReconnect);
   }
 
   public getLocalDevice(): ConnectDevice {

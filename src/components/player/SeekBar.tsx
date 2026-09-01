@@ -1,5 +1,7 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useConnectStore } from '@/context/useConnectStore';
+import { useJamStore } from '@/context/useJamStore';
 import { PlaybackEngine } from '@/lib/playback/PlaybackEngine';
 import { SeekLock } from '@/lib/playback/SeekLock';
 import { JamClientManager } from '@/lib/jam/client/JamClientManager';
@@ -22,10 +24,12 @@ export function SeekBar({
   accentGlow?: string;
   trackColor?: string;
 }) {
-  const duration = usePlayerStore((s) => s.duration);
-  const currentSongDuration = usePlayerStore((s) => s.currentSong?.duration);
+  const storeSong = usePlayerStore((s) => s.currentSong);
+  const storeDuration = usePlayerStore((s) => s.duration);
   const setCurrentTime = usePlayerStore((s) => s.setCurrentTime);
   const setSeekTarget = usePlayerStore((s) => s.setSeekTarget);
+  const { isRemoteMode, remoteSession } = useConnectStore();
+  const { session: jamSession, isInJam } = useJamStore();
   const trackRef = useRef<HTMLDivElement>(null);
   
   const [isSeeking, setIsSeeking] = useState(false);
@@ -33,13 +37,39 @@ export function SeekBar({
   const [localProgress, setLocalProgress] = useState(0); // 0 to 1
   const [hoverProgress, setHoverProgress] = useState<number | null>(null);
 
-  const effectiveDuration = Number.isFinite(duration) && duration > 0 
-    ? duration 
-    : (Number.isFinite(currentSongDuration) && (currentSongDuration || 0) > 0 ? (currentSongDuration || 0) : 0);
+  const activeSong = remoteSession?.currentSong
+    ? remoteSession.currentSong
+    : (isInJam && jamSession?.currentSong)
+    ? jamSession.currentSong
+    : storeSong;
+
+  const effectiveDuration = useMemo(() => {
+    if (remoteSession) {
+      if (remoteSession.durationMs > 0) return remoteSession.durationMs / 1000;
+      if (remoteSession.currentSong?.duration) return remoteSession.currentSong.duration;
+    }
+    if (activeSong?.duration && activeSong.duration > 0) {
+      return activeSong.duration;
+    }
+    if (Number.isFinite(storeDuration) && storeDuration > 0) {
+      return storeDuration;
+    }
+    return 0;
+  }, [remoteSession?.durationMs, remoteSession?.currentSong?.duration, activeSong?.duration, storeDuration]);
 
   const prevProgressRef = useRef(0);
 
-  // 60 FPS ultra-smooth local progress prediction driven by Jam coordinator or PlaybackEngine
+  // Instantly reset seek progress when track switches
+  useEffect(() => {
+    prevProgressRef.current = 0;
+    const initialPos = (remoteSession?.currentSong?.id === activeSong?.id && typeof remoteSession?.positionMs === 'number')
+      ? remoteSession.positionMs / 1000
+      : 0;
+    const p = effectiveDuration > 0 ? Math.min(1, Math.max(0, initialPos / effectiveDuration)) : 0;
+    setLocalProgress(p);
+  }, [activeSong?.id, effectiveDuration]);
+
+  // 60 FPS ultra-smooth local progress prediction driven by Connect/Jam coordinator or direct audio clock
   useEffect(() => {
     let animFrame: number;
 
@@ -47,17 +77,26 @@ export function SeekBar({
       if (!isSeeking && !isSeekSettling && effectiveDuration > 0) {
         const connectClient = ConnectClientManager.getInstance();
         const jamManager = JamClientManager.getInstance();
-        const jamSession = jamManager.getActiveSession();
+        const activeJam = jamManager.getActiveSession();
         let liveSec: number;
 
-        if (connectClient.isRemoteMode()) {
+        if (connectClient.isRemoteMode() || remoteSession) {
           liveSec = connectClient.getInterpolatedPosition();
-        } else if (jamSession) {
+        } else if (activeJam) {
           liveSec = jamManager.getInterpolatedPosition();
         } else {
-          const store = usePlayerStore.getState();
-          const engine = PlaybackEngine.getInstance();
-          liveSec = engine.isPlayingLocally() ? engine.getCanonicalPositionMs() / 1000 : store.currentTime;
+          let activeAudio: HTMLAudioElement | null = null;
+          try {
+            const { PlaybackService } = require('@/lib/playback/PlaybackService');
+            activeAudio = PlaybackService.getInstance().getActiveAudio();
+          } catch {}
+
+          if (activeAudio && !activeAudio.paused && !activeAudio.seeking && !isNaN(activeAudio.currentTime) && activeAudio.currentTime >= 0) {
+            liveSec = activeAudio.currentTime;
+          } else {
+            const store = usePlayerStore.getState();
+            liveSec = store.currentTime || 0;
+          }
         }
 
         const validSec = Number.isFinite(liveSec) && !isNaN(liveSec) && liveSec >= 0 ? liveSec : 0;

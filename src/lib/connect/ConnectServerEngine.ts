@@ -20,6 +20,7 @@ import { ConnectDiscoveryEngine } from './ConnectDiscoveryEngine';
 import { Song } from '@/types/music';
 import { SongFormatter } from '@/lib/music/SongFormatter';
 import { JioSaavnMediaPipeline } from '@/lib/media/JioSaavnMediaPipeline';
+import { SeekLock } from '@/lib/playback/SeekLock';
 
 type SessionUpdateListener = (session: ConnectPlaybackSession) => void;
 
@@ -33,10 +34,22 @@ export class ConnectServerEngine {
 
   private constructor() {
     const now = Date.now();
+    let initialDeviceId = 'dev_local';
+    let initialDeviceName = 'This Device';
+    if (typeof window !== 'undefined') {
+      try {
+        const local = ConnectDiscoveryEngine.getInstance().getLocalDevice();
+        if (local && local.deviceId) {
+          initialDeviceId = local.deviceId;
+          initialDeviceName = local.deviceName;
+        }
+      } catch {}
+    }
+
     this.currentSession = {
       sessionId: `SESS_${now.toString(36)}`,
-      playbackDeviceId: 'dev_local',
-      playbackDeviceName: 'This Device',
+      playbackDeviceId: initialDeviceId,
+      playbackDeviceName: initialDeviceName,
       controllerIds: [],
       currentTrackId: null,
       currentQueueItemId: null,
@@ -84,7 +97,7 @@ export class ConnectServerEngine {
         if (event.data?.type === 'CONNECT_COMMAND' && event.data.command) {
           const cmd = event.data.command as ConnectCommand;
           const localDevice = ConnectDiscoveryEngine.getInstance().getLocalDevice();
-          if (cmd.targetDeviceId === localDevice.deviceId || cmd.targetDeviceId === this.currentSession.playbackDeviceId) {
+          if (cmd.targetDeviceId === localDevice.deviceId || cmd.targetDeviceId === this.currentSession.playbackDeviceId || cmd.targetDeviceId === 'dev_local') {
             this.handleIncomingCommand(cmd);
           }
         }
@@ -123,20 +136,35 @@ export class ConnectServerEngine {
       if (this.currentSession.isPlaying) {
         this.publishPeriodicAnchor();
       }
-    }, 2000);
+    }, 1000);
   }
 
   private publishPeriodicAnchor() {
     const store = usePlayerStore.getState();
-    const actualCurrentSec = store.currentTime || 0;
+    let actualCurrentSec = store.currentTime || 0;
+    try {
+      const { PlaybackService } = require('@/lib/playback/PlaybackService');
+      const active = PlaybackService.getInstance().getActiveAudio();
+      if (active && !active.paused && !isNaN(active.currentTime)) {
+        actualCurrentSec = active.currentTime;
+      }
+    } catch {}
+
     const actualCurrentMs = Math.round(actualCurrentSec * 1000);
     const now = Date.now();
+    const durationMs = Math.round((store.duration || store.currentSong?.duration || 0) * 1000);
 
     this.currentSession.positionMs = actualCurrentMs;
     this.currentSession.anchorPositionMs = actualCurrentMs;
     this.currentSession.anchorTimeMs = now;
     this.currentSession.updatedAt = now;
-    this.currentSession.durationMs = Math.round((store.duration || store.currentSong?.duration || 0) * 1000);
+    this.currentSession.durationMs = durationMs;
+
+    // Keep the host store's currentTime fresh so the seekbar reads the live
+    // position without relying on a BroadcastChannel echo (which is 2 s stale).
+    if (!SeekLock.shouldBlockRemoteUpdate) {
+      store.setCurrentTime(actualCurrentSec);
+    }
 
     this.broadcastSessionUpdate();
   }
@@ -145,10 +173,13 @@ export class ConnectServerEngine {
    * Execute an incoming remote command with strict idempotency and revision protection
    */
   public async handleIncomingCommand(command: ConnectCommand): Promise<{ success: boolean; session: ConnectPlaybackSession; duplicate?: boolean }> {
-    // In browser environment, ignore commands intended for a different device
+    // In browser environment, verify target is this device
     if (typeof window !== 'undefined') {
       const localDevice = ConnectDiscoveryEngine.getInstance().getLocalDevice();
-      if (command.targetDeviceId !== localDevice.deviceId && command.targetDeviceId !== this.currentSession.playbackDeviceId) {
+      const isTargetMe = command.targetDeviceId === localDevice.deviceId ||
+                         command.targetDeviceId === this.currentSession.playbackDeviceId ||
+                         command.targetDeviceId === 'dev_local';
+      if (!isTargetMe) {
         return { success: false, session: this.getSession() };
       }
     }
@@ -170,8 +201,8 @@ export class ConnectServerEngine {
       this.currentSession.controllerIds.push(command.senderDeviceId);
     }
 
-    // 3. Stale revision protection: if expectedRevision is provided and strictly older than current, reject
-    if (typeof command.expectedRevision === 'number' && command.expectedRevision < this.currentSession.revision) {
+    // 3. Stale revision protection: skip for TRANSFER_PLAYBACK (authoritative user action)
+    if (command.action !== 'TRANSFER_PLAYBACK' && typeof command.expectedRevision === 'number' && command.expectedRevision < this.currentSession.revision) {
       console.warn(`[CONNECT_COMMAND_REJECTED] Stale revision (expected ${command.expectedRevision} < current ${this.currentSession.revision})`);
       return { success: false, session: this.getSession() };
     }
@@ -189,11 +220,14 @@ export class ConnectServerEngine {
         const startPositionMs = payload.positionMs || 0;
         const shouldPlay = payload.isPlaying !== false;
 
+        const localDevice = typeof window !== 'undefined' ? ConnectDiscoveryEngine.getInstance().getLocalDevice() : null;
+
         console.log(`[CONNECT_HANDOFF]\nfromDevice=${payload.sourceDeviceId || command.senderDeviceId}\ntoDevice=${command.targetDeviceId}\npositionMs=${startPositionMs}`);
 
         this.currentSession = {
           ...this.currentSession,
-          playbackDeviceId: command.targetDeviceId,
+          playbackDeviceId: localDevice?.deviceId || command.targetDeviceId,
+          playbackDeviceName: localDevice?.deviceName || this.currentSession.playbackDeviceName,
           currentTrackId: song.id,
           currentQueueItemId: `qitem_${song.id}_${now}`,
           currentSong: song,
@@ -323,12 +357,53 @@ export class ConnectServerEngine {
       }
 
       case 'SKIP_NEXT': {
-        if (this.currentSession.queue.length > 0) {
-          const nextIdx = (this.currentSession.queueIndex + 1) % this.currentSession.queue.length;
-          const nextSong = this.currentSession.queue[nextIdx];
+        const queue = this.currentSession.queue;
+        if (queue.length > 0) {
+          const currentIdx = this.currentSession.queueIndex;
+          const repeat = (this.currentSession.repeat || 'OFF').toUpperCase();
+
+          let nextIdx = -1;
+          if (repeat === 'ONE' || repeat === 'TRACK') {
+            nextIdx = currentIdx;
+          } else if (currentIdx + 1 < queue.length) {
+            nextIdx = currentIdx + 1;
+          } else if (repeat === 'ALL' || repeat === 'CONTEXT') {
+            nextIdx = 0;
+          } else {
+            // Repeat OFF: Queue Exhausted! Do NOT loop back to track 0!
+            nextIdx = -1;
+          }
+
           if (this.currentSession.currentSong) {
             this.currentSession.history.push(this.currentSession.currentSong);
           }
+
+          if (nextIdx === -1) {
+            // Strict Queue Exhaustion: pause playback gracefully
+            this.currentSession.isPlaying = false;
+            this.currentSession.playbackState = 'PAUSED';
+            this.currentSession.positionMs = 0;
+            this.currentSession.anchorPositionMs = 0;
+            this.currentSession.anchorTimeMs = now;
+            this.currentSession.revision += 1;
+            this.currentSession.updatedAt = now;
+
+            usePlayerStore.setState({
+              isPlaying: false,
+              playbackIntent: 'PAUSED',
+              currentTime: 0,
+            });
+
+            if (RaagaXNativePlayer.isNative()) {
+              await RaagaXNativePlayer.pause().catch(() => {});
+            } else {
+              const pb = PlaybackService.getInstance().getActiveAudio();
+              if (pb) pb.pause();
+            }
+            break;
+          }
+
+          const nextSong = queue[nextIdx];
           if (nextSong) {
             this.currentSession.currentTrackId = nextSong.id;
             this.currentSession.currentQueueItemId = `qitem_${nextSong.id}_${now}`;
@@ -352,6 +427,7 @@ export class ConnectServerEngine {
               currentTime: 0,
               duration: nextSong.duration || 0,
               isPlaying: true,
+              playbackIntent: 'PLAYING',
             });
 
             if (RaagaXNativePlayer.isNative() && nextSong.audioUrl) {
@@ -373,9 +449,37 @@ export class ConnectServerEngine {
       }
 
       case 'SKIP_PREV': {
-        if (this.currentSession.queue.length > 0) {
-          const prevIdx = (this.currentSession.queueIndex - 1 + this.currentSession.queue.length) % this.currentSession.queue.length;
-          const prevSong = this.currentSession.queue[prevIdx];
+        const queue = this.currentSession.queue;
+        if (queue.length > 0) {
+          const currentIdx = this.currentSession.queueIndex;
+          const currentSec = store.currentTime || 0;
+          const repeat = (this.currentSession.repeat || 'OFF').toUpperCase();
+
+          // If listened to more than 3 seconds, seek back to 0 of current song
+          if (currentSec > 3) {
+            this.currentSession.positionMs = 0;
+            this.currentSession.anchorPositionMs = 0;
+            this.currentSession.anchorTimeMs = now;
+            this.currentSession.revision += 1;
+            this.currentSession.updatedAt = now;
+            store.setCurrentTime(0);
+            const pb = PlaybackService.getInstance().getActiveAudio();
+            if (pb) pb.currentTime = 0;
+            break;
+          }
+
+          let prevIdx = 0;
+          if (repeat === 'ONE' || repeat === 'TRACK') {
+            prevIdx = currentIdx;
+          } else if (currentIdx > 0) {
+            prevIdx = currentIdx - 1;
+          } else if (repeat === 'ALL' || repeat === 'CONTEXT') {
+            prevIdx = queue.length - 1;
+          } else {
+            prevIdx = 0;
+          }
+
+          const prevSong = queue[prevIdx];
           if (prevSong) {
             this.currentSession.currentTrackId = prevSong.id;
             this.currentSession.currentQueueItemId = `qitem_${prevSong.id}_${now}`;
@@ -399,6 +503,7 @@ export class ConnectServerEngine {
               currentTime: 0,
               duration: prevSong.duration || 0,
               isPlaying: true,
+              playbackIntent: 'PLAYING',
             });
 
             if (RaagaXNativePlayer.isNative() && prevSong.audioUrl) {
@@ -425,6 +530,11 @@ export class ConnectServerEngine {
         this.currentSession.revision += 1;
         this.currentSession.updatedAt = now;
         store.setVolume(vol);
+        try {
+          const { PlaybackService } = require('@/lib/playback/PlaybackService');
+          const pb = PlaybackService.getInstance().getActiveAudio();
+          if (pb) pb.volume = vol;
+        } catch {}
         break;
       }
 

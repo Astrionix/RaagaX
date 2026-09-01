@@ -215,12 +215,53 @@ export class PlaybackAuthority {
       }
 
       case 'SKIP_NEXT': {
-        if (this.currentSession.queue.length > 0) {
-          const nextIdx = (this.currentSession.queueIndex + 1) % this.currentSession.queue.length;
-          const nextSong = this.currentSession.queue[nextIdx];
+        const queue = this.currentSession.queue;
+        if (queue.length > 0) {
+          const currentIdx = this.currentSession.queueIndex;
+          const repeat = (this.currentSession.repeat || 'OFF').toUpperCase();
+
+          let nextIdx = -1;
+          if (repeat === 'ONE' || repeat === 'TRACK') {
+            nextIdx = currentIdx;
+          } else if (currentIdx + 1 < queue.length) {
+            nextIdx = currentIdx + 1;
+          } else if (repeat === 'ALL' || repeat === 'CONTEXT') {
+            nextIdx = 0;
+          } else {
+            // Repeat OFF: Queue Exhausted! Do NOT loop back to track 0!
+            nextIdx = -1;
+          }
+
           if (this.currentSession.currentSong) {
             this.currentSession.history.push(this.currentSession.currentSong);
           }
+
+          if (nextIdx === -1) {
+            // Strict Queue Exhaustion: pause playback gracefully
+            this.currentSession.isPlaying = false;
+            this.currentSession.playbackState = 'PAUSED';
+            this.currentSession.positionMs = 0;
+            this.currentSession.anchorPositionMs = 0;
+            this.currentSession.anchorTimeMs = now;
+            this.currentSession.revision = this.revisionManager.nextRevision();
+            this.currentSession.updatedAt = now;
+
+            usePlayerStore.setState({
+              isPlaying: false,
+              playbackIntent: 'PAUSED',
+              currentTime: 0,
+            });
+
+            if (RaagaXNativePlayer.isNative()) {
+              await RaagaXNativePlayer.pause().catch(() => {});
+            } else {
+              const pb = PlaybackService.getInstance().getActiveAudio();
+              if (pb) pb.pause();
+            }
+            break;
+          }
+
+          const nextSong = queue[nextIdx];
           if (nextSong) {
             this.currentSession.currentTrackId = nextSong.id;
             this.currentSession.currentQueueItemId = `qitem_${nextSong.id}_${now}`;
@@ -244,6 +285,7 @@ export class PlaybackAuthority {
               currentTime: 0,
               duration: nextSong.duration || 0,
               isPlaying: true,
+              playbackIntent: 'PLAYING',
             });
 
             if (RaagaXNativePlayer.isNative() && nextSong.audioUrl) {
@@ -265,9 +307,36 @@ export class PlaybackAuthority {
       }
 
       case 'SKIP_PREV': {
-        if (this.currentSession.queue.length > 0) {
-          const prevIdx = (this.currentSession.queueIndex - 1 + this.currentSession.queue.length) % this.currentSession.queue.length;
-          const prevSong = this.currentSession.queue[prevIdx];
+        const queue = this.currentSession.queue;
+        if (queue.length > 0) {
+          const currentIdx = this.currentSession.queueIndex;
+          const currentSec = usePlayerStore.getState().currentTime || 0;
+          const repeat = (this.currentSession.repeat || 'OFF').toUpperCase();
+
+          if (currentSec > 3) {
+            this.currentSession.positionMs = 0;
+            this.currentSession.anchorPositionMs = 0;
+            this.currentSession.anchorTimeMs = now;
+            this.currentSession.revision = this.revisionManager.nextRevision();
+            this.currentSession.updatedAt = now;
+            usePlayerStore.getState().setCurrentTime(0);
+            const pb = PlaybackService.getInstance().getActiveAudio();
+            if (pb) pb.currentTime = 0;
+            break;
+          }
+
+          let prevIdx = 0;
+          if (repeat === 'ONE' || repeat === 'TRACK') {
+            prevIdx = currentIdx;
+          } else if (currentIdx > 0) {
+            prevIdx = currentIdx - 1;
+          } else if (repeat === 'ALL' || repeat === 'CONTEXT') {
+            prevIdx = queue.length - 1;
+          } else {
+            prevIdx = 0;
+          }
+
+          const prevSong = queue[prevIdx];
           if (prevSong) {
             this.currentSession.currentTrackId = prevSong.id;
             this.currentSession.currentQueueItemId = `qitem_${prevSong.id}_${now}`;
@@ -291,6 +360,7 @@ export class PlaybackAuthority {
               currentTime: 0,
               duration: prevSong.duration || 0,
               isPlaying: true,
+              playbackIntent: 'PLAYING',
             });
 
             if (RaagaXNativePlayer.isNative() && prevSong.audioUrl) {
@@ -317,6 +387,10 @@ export class PlaybackAuthority {
         this.currentSession.revision = this.revisionManager.nextRevision();
         this.currentSession.updatedAt = now;
         store.setVolume(vol);
+        try {
+          const pb = PlaybackService.getInstance().getActiveAudio();
+          if (pb) pb.volume = vol;
+        } catch {}
         break;
       }
 

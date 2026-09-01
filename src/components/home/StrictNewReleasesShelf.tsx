@@ -37,14 +37,16 @@ export function StrictNewReleasesShelf({
     setSelectedLang(codeOrName);
   };
 
-  const shelfItems: ShelfItem[] = songs.map((s) => ({
-    id: s.id,
-    title: s.title,
-    subtitle: NewReleasesEngine.getReleaseDateBadge(s),
-    imageUrl: s.coverUrl,
-    type: 'song',
-    rawItem: s,
-  }));
+  const shelfItems: ShelfItem[] = React.useMemo(() => {
+    return songs.map((s) => ({
+      id: s.id,
+      title: s.title,
+      subtitle: NewReleasesEngine.getReleaseDateBadge(s),
+      imageUrl: s.coverUrl,
+      type: 'song',
+      rawItem: s,
+    }));
+  }, [songs]);
 
   const displayTitle = selectedLang.toLowerCase() === 'all'
     ? 'New Releases • All Languages'

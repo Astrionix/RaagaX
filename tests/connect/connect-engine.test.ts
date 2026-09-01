@@ -194,4 +194,54 @@ describe('RaagaX Connect — Standalone Authoritative Playback & Controller Suit
 
     expect(result.success).toBe(false);
   });
+
+  it('8. Track change resets progress and eliminates stuck timeline (e.g. 4:26 / -0:00 bug)', () => {
+    const client = ConnectClientManager.getInstance();
+    const now = Date.now();
+
+    // Prior state: track Alpha at end-position (266 seconds = 4:26)
+    usePlayerStore.setState({
+      currentSong: mockTrackA,
+      currentTime: 266, // 4:26
+      duration: 266,
+      isPlaying: false,
+    });
+
+    expect(usePlayerStore.getState().currentTime).toBe(266);
+
+    // Incoming broadcast: Firestorm (mockTrackB) starts at 0ms
+    client.handleIncomingSession({
+      sessionId: 'sess_new_track',
+      playbackDeviceId: 'dev_local',
+      playbackDeviceName: 'Speaker',
+      controllerIds: [],
+      currentTrackId: mockTrackB.id,
+      currentQueueItemId: 'q_b',
+      currentSong: mockTrackB,
+      metadata: null,
+      queue: [mockTrackB],
+      queueIndex: 0,
+      history: [mockTrackA],
+      isPlaying: true,
+      playbackState: 'PLAYING',
+      positionMs: 0, // Reset to 0
+      durationMs: 180000,
+      volume: 0.8,
+      shuffle: false,
+      repeat: 'OFF',
+      revision: 99,
+      generation: 1,
+      timelineId: 'TL_new',
+      anchorPositionMs: 0,
+      anchorTimeMs: now,
+      updatedAt: now,
+    });
+
+    const updatedStore = usePlayerStore.getState();
+    // Verify track metadata updated
+    expect(updatedStore.currentSong?.id).toBe(mockTrackB.id);
+    // Verify currentTime was reset from 266 down to 0, NOT stuck at 4:26
+    expect(updatedStore.currentTime).toBe(0);
+    expect(updatedStore.duration).toBe(180);
+  });
 });

@@ -128,17 +128,17 @@ export function ExpandedPlayerModal() {
   const { session, isInJam } = useJamStore();
   const { isRemoteMode, remoteSession, sendPlay, sendPause, sendNext, sendPrev } = useConnectStore();
 
-  const currentSong = (isRemoteMode && remoteSession?.currentSong)
+  const currentSong = remoteSession?.currentSong
     ? remoteSession.currentSong
     : (isInJam && session?.currentSong)
-    ? session.currentSong
-    : localCurrentSong;
+      ? session.currentSong
+      : localCurrentSong;
 
-  const isPlaying = (isRemoteMode && remoteSession)
+  const isPlaying = remoteSession
     ? remoteSession.isPlaying
     : (isInJam && session)
-    ? session.state === 'PLAYING'
-    : localIsPlaying;
+      ? session.state === 'PLAYING'
+      : localIsPlaying;
 
   // Gesture handling for swipe-down to minimize on touch devices
   const touchStartY = useRef<number | null>(null);
@@ -222,8 +222,74 @@ export function ExpandedPlayerModal() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const songDuration = Number.isFinite(duration) && duration > 0 ? duration : (Number.isFinite(currentSong?.duration) && (currentSong?.duration || 0) > 0 ? (currentSong?.duration || 0) : 0);
-  const remainingTime = Math.max(0, songDuration - currentTime);
+  const [displaySec, setDisplaySec] = useState<number>(currentTime || 0);
+  const lastGoodSecRef = useRef<number>(currentTime || 0);
+
+  // Instantly reset displayed seconds when track changes
+  useEffect(() => {
+    const initialPos = (remoteSession?.currentSong?.id === currentSong?.id && typeof remoteSession?.positionMs === 'number')
+      ? remoteSession.positionMs / 1000
+      : 0;
+    lastGoodSecRef.current = initialPos;
+    setDisplaySec(initialPos);
+    usePlayerStore.setState({ currentTime: initialPos });
+  }, [currentSong?.id]);
+
+  useEffect(() => {
+    let animFrame: number;
+    let lastSecFloor = -1;
+
+    const tick = () => {
+      let liveSec = lastGoodSecRef.current;
+      if (isRemoteMode || remoteSession) {
+        try {
+          const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
+          liveSec = ConnectClientManager.getInstance().getInterpolatedPosition();
+          lastGoodSecRef.current = liveSec;
+        } catch { }
+      } else {
+        try {
+          const { PlaybackService } = require('@/lib/playback/PlaybackService');
+          const activeAudio = PlaybackService.getInstance().getActiveAudio();
+          if (activeAudio && !activeAudio.paused && !activeAudio.seeking && !isNaN(activeAudio.currentTime) && activeAudio.currentTime >= 0) {
+            liveSec = activeAudio.currentTime;
+            lastGoodSecRef.current = liveSec;
+          } else {
+            const store = usePlayerStore.getState();
+            liveSec = store.currentTime || 0;
+            lastGoodSecRef.current = liveSec;
+          }
+        } catch { }
+      }
+
+      const secFloor = Math.floor(liveSec);
+      if (secFloor !== lastSecFloor) {
+        lastSecFloor = secFloor;
+        setDisplaySec(liveSec);
+      }
+      animFrame = requestAnimationFrame(tick);
+    };
+
+    animFrame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animFrame);
+  }, [isRemoteMode, remoteSession, currentSong?.id]);
+
+  const exactDuration = useMemo(() => {
+    if (remoteSession) {
+      if (remoteSession.durationMs > 0) return remoteSession.durationMs / 1000;
+      if (remoteSession.currentSong?.duration) return remoteSession.currentSong.duration;
+    }
+    if (currentSong?.duration && currentSong.duration > 0) {
+      return currentSong.duration;
+    }
+    if (Number.isFinite(duration) && duration > 0) {
+      return duration;
+    }
+    return 0;
+  }, [remoteSession?.durationMs, remoteSession?.currentSong?.duration, currentSong?.duration, duration]);
+
+  const songDuration = exactDuration;
+  const remainingTime = Math.max(0, songDuration - displaySec);
 
   // Exact ID-based entity resolution
   const exactArtistId = useMemo(() => {
@@ -481,14 +547,14 @@ export function ExpandedPlayerModal() {
 
       {/* ── 3. MAIN WORKSPACE (CENTRAL UNBOXED STAGE + OPTIONAL DESKTOP QUEUE) ─ */}
       <div className="relative z-20 flex-1 flex items-center justify-center w-full max-w-7xl mx-auto px-5 sm:px-10 py-1 min-h-0 overflow-hidden">
-        
+
         {/* ── DESKTOP STAGE (MD+) ───────────────────────────────────────── */}
         {desktopView === 'info' ? (
           /* ── 1. DEFAULT DESKTOP VIEW (EXACT SIDE-BY-SIDE METADATA & FULL CONTROLS) ── */
           <div className="hidden md:flex flex-1 flex-col justify-between items-center h-full w-full max-w-5xl mx-auto transition-all duration-300 min-h-0 py-2 sm:py-3 gap-3">
             {/* Top 2-Column Row (Artwork on Left, Song Info & Structured Metadata & Actions on Right) */}
             <div className="flex-1 flex flex-row items-center justify-center gap-10 lg:gap-16 w-full my-auto min-h-0">
-              
+
               {/* Left: Album Artwork (Pure raw cover, no surrounding dark frame or letterbox) */}
               <div className="flex flex-col items-center flex-shrink-0">
                 <div
@@ -525,9 +591,8 @@ export function ExpandedPlayerModal() {
                       navigateFromPlayer({ tab: 'artist', artistId: exactArtistId });
                     }
                   }}
-                  className={`text-base lg:text-lg font-medium text-white/70 hover:text-white transition-colors truncate mt-1 ${
-                    exactArtistId ? 'cursor-pointer' : ''
-                  }`}
+                  className={`text-base lg:text-lg font-medium text-white/70 hover:text-white transition-colors truncate mt-1 ${exactArtistId ? 'cursor-pointer' : ''
+                    }`}
                   title={currentSong.artist}
                 >
                   {SongFormatter.decodeHtml(currentSong.artist) || currentSong.artist}
@@ -659,7 +724,7 @@ export function ExpandedPlayerModal() {
                   accentGlow={palette ? `0 0 8px ${palette.glow}` : undefined}
                 />
                 <div className="flex items-center justify-between text-xs font-mono text-white/50 font-medium px-0.5">
-                  <span>{formatTime(currentTime)}</span>
+                  <span>{formatTime(displaySec)}</span>
                   <span>{songDuration > 0 ? `-${formatTime(remainingTime)}` : '--:--'}</span>
                 </div>
               </div>
@@ -668,9 +733,8 @@ export function ExpandedPlayerModal() {
               <div className="w-full flex items-center justify-center gap-6 sm:gap-8">
                 <button
                   onClick={toggleShuffle}
-                  className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${
-                    shuffleMode !== 'OFF' ? 'text-[#F0444F]' : 'text-white/40 hover:text-white'
-                  }`}
+                  className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${shuffleMode !== 'OFF' ? 'text-[#F0444F]' : 'text-white/40 hover:text-white'
+                    }`}
                   title={`Shuffle: ${shuffleMode} (S)`}
                 >
                   <Shuffle className="w-5 h-5" />
@@ -706,9 +770,8 @@ export function ExpandedPlayerModal() {
 
                 <button
                   onClick={cycleRepeatMode}
-                  className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${
-                    normRepeat !== 'OFF' ? 'text-[#F0444F]' : 'text-white/40 hover:text-white'
-                  }`}
+                  className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${normRepeat !== 'OFF' ? 'text-[#F0444F]' : 'text-white/40 hover:text-white'
+                    }`}
                   title={`Repeat: ${normRepeat} (R)`}
                 >
                   {normRepeat === 'ONE' ? (
@@ -796,11 +859,10 @@ export function ExpandedPlayerModal() {
                     haptics.lightImpact();
                     toggleSleepTimerModal(true);
                   }}
-                  className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    sleepTimerEndsAt || sleepTimerMode
+                  className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${sleepTimerEndsAt || sleepTimerMode
                       ? 'bg-purple-500/25 text-purple-300 border-purple-400/40 shadow-sm'
                       : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
-                  }`}
+                    }`}
                   title="Sleep Timer"
                 >
                   <Moon className="w-3.5 h-3.5" />
@@ -845,9 +907,8 @@ export function ExpandedPlayerModal() {
                   </h1>
                   <p
                     onClick={() => exactArtistId && navigateFromPlayer({ tab: 'artist', artistId: exactArtistId })}
-                    className={`text-sm lg:text-base font-medium text-white/70 hover:text-white transition-colors truncate mt-0.5 ${
-                      exactArtistId ? 'cursor-pointer' : ''
-                    }`}
+                    className={`text-sm lg:text-base font-medium text-white/70 hover:text-white transition-colors truncate mt-0.5 ${exactArtistId ? 'cursor-pointer' : ''
+                      }`}
                     title={currentSong.artist}
                   >
                     {currentSong.artist}
@@ -865,9 +926,8 @@ export function ExpandedPlayerModal() {
                     title={isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
                   >
                     <Heart
-                      className={`w-5 h-5 transition-colors ${
-                        isLiked ? 'fill-[#F0444F] text-[#F0444F]' : 'text-white/70 hover:text-white'
-                      }`}
+                      className={`w-5 h-5 transition-colors ${isLiked ? 'fill-[#F0444F] text-[#F0444F]' : 'text-white/70 hover:text-white'
+                        }`}
                       strokeWidth={2}
                     />
                   </button>
@@ -890,7 +950,7 @@ export function ExpandedPlayerModal() {
                   accentGlow={palette ? `0 0 8px ${palette.glow}` : undefined}
                 />
                 <div className="flex items-center justify-between text-xs font-mono text-white/50 font-medium px-0.5">
-                  <span>{formatTime(currentTime)}</span>
+                  <span>{formatTime(displaySec)}</span>
                   <span>{songDuration > 0 ? `-${formatTime(remainingTime)}` : '--:--'}</span>
                 </div>
               </div>
@@ -899,9 +959,8 @@ export function ExpandedPlayerModal() {
               <div className="w-full flex items-center justify-between px-2 flex-shrink-0">
                 <button
                   onClick={toggleShuffle}
-                  className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${
-                    shuffleMode !== 'OFF' ? 'text-[#F0444F]' : 'text-white/40 hover:text-white'
-                  }`}
+                  className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${shuffleMode !== 'OFF' ? 'text-[#F0444F]' : 'text-white/40 hover:text-white'
+                    }`}
                   title={`Shuffle: ${shuffleMode} (S)`}
                 >
                   <Shuffle className="w-5 h-5" />
@@ -937,9 +996,8 @@ export function ExpandedPlayerModal() {
 
                 <button
                   onClick={cycleRepeatMode}
-                  className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${
-                    normRepeat !== 'OFF' ? 'text-[#F0444F]' : 'text-white/40 hover:text-white'
-                  }`}
+                  className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${normRepeat !== 'OFF' ? 'text-[#F0444F]' : 'text-white/40 hover:text-white'
+                    }`}
                   title={`Repeat: ${normRepeat} (R)`}
                 >
                   {normRepeat === 'ONE' ? (
@@ -998,11 +1056,10 @@ export function ExpandedPlayerModal() {
                       setDesktopTab('lyrics');
                     }
                   }}
-                  className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    desktopTab === 'lyrics'
+                  className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${desktopTab === 'lyrics'
                       ? 'bg-white/20 text-white border-white/30 shadow-sm'
                       : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
-                  }`}
+                    }`}
                   title="Lyrics (L)"
                 >
                   <Mic2 className="w-3.5 h-3.5" />
@@ -1019,11 +1076,10 @@ export function ExpandedPlayerModal() {
                       setDesktopTab('upnext');
                     }
                   }}
-                  className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    desktopTab === 'upnext'
+                  className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${desktopTab === 'upnext'
                       ? 'bg-white/20 text-white border-white/30 shadow-sm'
                       : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
-                  }`}
+                    }`}
                   title="Up Next Queue (Q)"
                 >
                   <ListMusic className="w-3.5 h-3.5" />
@@ -1041,11 +1097,10 @@ export function ExpandedPlayerModal() {
                     haptics.lightImpact();
                     toggleSleepTimerModal(true);
                   }}
-                  className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    sleepTimerEndsAt || sleepTimerMode
+                  className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${sleepTimerEndsAt || sleepTimerMode
                       ? 'bg-purple-500/25 text-purple-300 border-purple-400/40 shadow-sm'
                       : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
-                  }`}
+                    }`}
                   title="Sleep Timer"
                 >
                   <Moon className="w-3.5 h-3.5" />
@@ -1069,9 +1124,8 @@ export function ExpandedPlayerModal() {
               <div className="flex items-center gap-8 border-b border-white/10 pb-3 flex-shrink-0">
                 <button
                   onClick={() => { haptics.lightImpact(); setDesktopTab('upnext'); }}
-                  className={`text-xs font-bold uppercase tracking-wider relative pb-1 transition-all cursor-pointer ${
-                    desktopTab === 'upnext' ? 'text-white' : 'text-white/40 hover:text-white/80'
-                  }`}
+                  className={`text-xs font-bold uppercase tracking-wider relative pb-1 transition-all cursor-pointer ${desktopTab === 'upnext' ? 'text-white' : 'text-white/40 hover:text-white/80'
+                    }`}
                 >
                   UP NEXT
                   {desktopTab === 'upnext' && (
@@ -1081,9 +1135,8 @@ export function ExpandedPlayerModal() {
 
                 <button
                   onClick={() => { haptics.lightImpact(); setDesktopTab('lyrics'); }}
-                  className={`text-xs font-bold uppercase tracking-wider relative pb-1 transition-all cursor-pointer ${
-                    desktopTab === 'lyrics' ? 'text-white' : 'text-white/40 hover:text-white/80'
-                  }`}
+                  className={`text-xs font-bold uppercase tracking-wider relative pb-1 transition-all cursor-pointer ${desktopTab === 'lyrics' ? 'text-white' : 'text-white/40 hover:text-white/80'
+                    }`}
                 >
                   LYRICS
                   {desktopTab === 'lyrics' && (
@@ -1093,9 +1146,8 @@ export function ExpandedPlayerModal() {
 
                 <button
                   onClick={() => { haptics.lightImpact(); setDesktopTab('related'); }}
-                  className={`text-xs font-bold uppercase tracking-wider relative pb-1 transition-all cursor-pointer ${
-                    desktopTab === 'related' ? 'text-white' : 'text-white/40 hover:text-white/80'
-                  }`}
+                  className={`text-xs font-bold uppercase tracking-wider relative pb-1 transition-all cursor-pointer ${desktopTab === 'related' ? 'text-white' : 'text-white/40 hover:text-white/80'
+                    }`}
                 >
                   RELATED
                   {desktopTab === 'related' && (
@@ -1117,9 +1169,8 @@ export function ExpandedPlayerModal() {
 
                 <button
                   onClick={() => setDesktopView('info')}
-                  className={`p-1 text-white/40 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer ${
-                    desktopTab !== 'lyrics' || !hasTransliteration ? 'ml-auto' : 'ml-2'
-                  }`}
+                  className={`p-1 text-white/40 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer ${desktopTab !== 'lyrics' || !hasTransliteration ? 'ml-auto' : 'ml-2'
+                    }`}
                   title="Close and return to song info"
                 >
                   <X className="w-4 h-4" />
@@ -1166,13 +1217,12 @@ export function ExpandedPlayerModal() {
                                 usePlayerStore.getState().setSeekTarget(sec);
                               }
                             }}
-                            className={`cursor-pointer transition-all duration-300 transform origin-left leading-relaxed ${
-                              isActive
+                            className={`cursor-pointer transition-all duration-300 transform origin-left leading-relaxed ${isActive
                                 ? 'text-xl lg:text-2xl font-black text-white scale-[1.02]'
                                 : isPassed
-                                ? 'text-sm lg:text-base font-medium text-white/30 hover:text-white/60'
-                                : 'text-sm lg:text-base font-medium text-white/50 hover:text-white'
-                            }`}
+                                  ? 'text-sm lg:text-base font-medium text-white/30 hover:text-white/60'
+                                  : 'text-sm lg:text-base font-medium text-white/50 hover:text-white'
+                              }`}
                           >
                             {mainContent}
                           </div>
@@ -1252,7 +1302,7 @@ export function ExpandedPlayerModal() {
                 {desktopTab === 'related' && (
                   <div className="space-y-4 pr-2">
                     <h3 className="text-sm font-bold text-white uppercase tracking-wider">Song Information</h3>
-                    
+
                     <div className="space-y-3 text-xs lg:text-sm">
                       <div className="flex items-center">
                         <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
@@ -1332,7 +1382,7 @@ export function ExpandedPlayerModal() {
 
         {/* ── MOBILE STAGE (VERTICAL UNBOXED VIEW ON MOBILE < MD) ─────────── */}
         <div className={`flex md:hidden flex-1 flex-col justify-between items-center h-full w-full transition-all duration-300 min-h-0 py-1 sm:py-2 gap-2 sm:gap-4 max-w-[390px] sm:max-w-[440px]`}>
-          
+
           {/* A. HERO ARTWORK / SYNCHRONIZED LYRICS / QUEUE / SLEEP TIMER */}
           {viewMode === 'art' ? (
             /* Large Unboxed Hero Artwork with Deep Cinematic Shadow */
@@ -1405,13 +1455,12 @@ export function ExpandedPlayerModal() {
                             usePlayerStore.getState().setSeekTarget(sec);
                           }
                         }}
-                        className={`w-full text-left transition-all duration-300 transform origin-left cursor-pointer py-1.5 ${
-                          isActive
+                        className={`w-full text-left transition-all duration-300 transform origin-left cursor-pointer py-1.5 ${isActive
                             ? 'text-xl sm:text-2xl font-black text-white scale-[1.03]'
                             : isPassed
-                            ? 'text-sm sm:text-base font-medium text-white/30'
-                            : 'text-sm sm:text-base font-semibold text-white/60 hover:text-white'
-                        }`}
+                              ? 'text-sm sm:text-base font-medium text-white/30'
+                              : 'text-sm sm:text-base font-semibold text-white/60 hover:text-white'
+                          }`}
                       >
                         {mainContent}
                       </div>
@@ -1556,10 +1605,10 @@ export function ExpandedPlayerModal() {
                       {sleepTimerMode === 'end_of_song'
                         ? 'Stopping at the end of current track'
                         : sleepTimerMode === 'end_of_queue'
-                        ? 'Stopping when queue finishes'
-                        : sleepTimerEndsAt
-                        ? `Stopping in ~${Math.max(1, Math.round((sleepTimerEndsAt - Date.now()) / 60000))} minutes`
-                        : 'Active'}
+                          ? 'Stopping when queue finishes'
+                          : sleepTimerEndsAt
+                            ? `Stopping in ~${Math.max(1, Math.round((sleepTimerEndsAt - Date.now()) / 60000))} minutes`
+                            : 'Active'}
                     </p>
                     <div className="flex items-center justify-center gap-2 pt-2">
                       <button
@@ -1604,11 +1653,10 @@ export function ExpandedPlayerModal() {
                           setToastMessage(`Sleep timer set to ${preset.label}`);
                           setViewMode('art');
                         }}
-                        className={`p-3 rounded-xl border text-xs font-bold transition-all text-center flex items-center justify-center cursor-pointer ${
-                          isSelected
+                        className={`p-3 rounded-xl border text-xs font-bold transition-all text-center flex items-center justify-center cursor-pointer ${isSelected
                             ? 'bg-purple-500/25 border-purple-400 text-white shadow-lg'
                             : 'bg-white/[0.06] hover:bg-white/[0.12] border-white/10 text-white/80 hover:text-white'
-                        }`}
+                          }`}
                       >
                         {preset.label}
                       </button>
@@ -1633,9 +1681,8 @@ export function ExpandedPlayerModal() {
                       navigateFromPlayer({ tab: 'artist', artistId: exactArtistId });
                     }
                   }}
-                  className={`text-sm sm:text-base font-medium text-white/70 hover:text-white transition-colors truncate mt-0.5 ${
-                    exactArtistId ? 'cursor-pointer' : 'cursor-default'
-                  }`}
+                  className={`text-sm sm:text-base font-medium text-white/70 hover:text-white transition-colors truncate mt-0.5 ${exactArtistId ? 'cursor-pointer' : 'cursor-default'
+                    }`}
                   title={currentSong.artist}
                 >
                   {currentSong.artist}
@@ -1654,9 +1701,8 @@ export function ExpandedPlayerModal() {
                   title={isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
                 >
                   <Heart
-                    className={`w-5 h-5 transition-colors ${
-                      isLiked ? 'fill-[#F0444F] text-[#F0444F]' : 'text-white/70 hover:text-white'
-                    }`}
+                    className={`w-5 h-5 transition-colors ${isLiked ? 'fill-[#F0444F] text-[#F0444F]' : 'text-white/70 hover:text-white'
+                      }`}
                     strokeWidth={2}
                   />
                 </button>
@@ -1680,7 +1726,7 @@ export function ExpandedPlayerModal() {
               accentGlow={palette ? `0 0 8px ${palette.glow}` : undefined}
             />
             <div className="flex items-center justify-between text-[11px] font-mono text-white/50 font-medium px-0.5">
-              <span>{formatTime(currentTime)}</span>
+              <span>{formatTime(displaySec)}</span>
               <span>{songDuration > 0 ? `-${formatTime(remainingTime)}` : '--:--'}</span>
             </div>
           </div>
@@ -1690,9 +1736,8 @@ export function ExpandedPlayerModal() {
             {/* Shuffle */}
             <button
               onClick={toggleShuffle}
-              className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${
-                shuffleMode !== 'OFF' ? 'text-[#F0444F]' : 'text-white/40 hover:text-white'
-              }`}
+              className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${shuffleMode !== 'OFF' ? 'text-[#F0444F]' : 'text-white/40 hover:text-white'
+                }`}
               title={`Shuffle: ${shuffleMode} (S)`}
             >
               <Shuffle className="w-5 h-5" />
@@ -1736,9 +1781,8 @@ export function ExpandedPlayerModal() {
             {/* Repeat */}
             <button
               onClick={cycleRepeatMode}
-              className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${
-                normRepeat !== 'OFF' ? 'text-[#F0444F]' : 'text-white/40 hover:text-white'
-              }`}
+              className={`w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${normRepeat !== 'OFF' ? 'text-[#F0444F]' : 'text-white/40 hover:text-white'
+                }`}
               title={`Repeat: ${normRepeat} (R)`}
             >
               {normRepeat === 'ONE' ? (
@@ -1793,11 +1837,10 @@ export function ExpandedPlayerModal() {
                 haptics.lightImpact();
                 setViewMode(viewMode === 'lyrics' ? 'art' : 'lyrics');
               }}
-              className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                viewMode === 'lyrics'
+              className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${viewMode === 'lyrics'
                   ? 'bg-white/20 text-white border-white/30 shadow-sm'
                   : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
-              }`}
+                }`}
               title="Synchronized Lyrics (L)"
             >
               <Mic2 className="w-3.5 h-3.5" />
@@ -1810,11 +1853,10 @@ export function ExpandedPlayerModal() {
                 haptics.lightImpact();
                 setViewMode(viewMode === 'queue' ? 'art' : 'queue');
               }}
-              className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                viewMode === 'queue'
+              className={`px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${viewMode === 'queue'
                   ? 'bg-white/20 text-white border-white/30 shadow-sm'
                   : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
-              }`}
+                }`}
               title="Up Next Queue (Q)"
             >
               <ListMusic className="w-3.5 h-3.5" />
@@ -1832,11 +1874,10 @@ export function ExpandedPlayerModal() {
                 haptics.lightImpact();
                 useJamStore.getState().toggleJamModal(true);
               }}
-              className={`px-3 sm:px-3.5 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                useJamStore.getState().isInJam
+              className={`px-3 sm:px-3.5 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${useJamStore.getState().isInJam
                   ? 'bg-[#FA233B]/25 text-[#FA233B] border-[#FA233B]/40 shadow-sm'
                   : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
-              }`}
+                }`}
               title="Remote Jam Party"
             >
               <Radio className={`w-3.5 h-3.5 ${useJamStore.getState().isInJam ? 'animate-pulse' : ''}`} />
@@ -1852,11 +1893,10 @@ export function ExpandedPlayerModal() {
                 haptics.lightImpact();
                 toggleSleepTimerModal(true);
               }}
-              className={`px-3 sm:px-3.5 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                sleepTimerEndsAt || sleepTimerMode
+              className={`px-3 sm:px-3.5 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${sleepTimerEndsAt || sleepTimerMode
                   ? 'bg-purple-500/25 text-purple-300 border-purple-400/40 shadow-sm'
                   : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
-              }`}
+                }`}
               title="Sleep Timer"
             >
               <Moon className="w-3.5 h-3.5" />
@@ -1871,7 +1911,7 @@ export function ExpandedPlayerModal() {
         {/* ── 4. RIGHT-SIDE SLIDING QUEUE PANEL (DESKTOP) ──────────────────── */}
         {isDesktopQueueOpen && (
           <div className="hidden md:flex flex-col w-[380px] lg:w-[420px] h-full max-h-[84vh] ml-6 bg-[#0E1017]/90 backdrop-blur-2xl border border-white/15 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden animate-in slide-in-from-right-6 fade-in duration-300 z-30">
-            
+
             {/* Header */}
             <div className="p-4 border-b border-white/10 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-2.5">
@@ -1911,7 +1951,7 @@ export function ExpandedPlayerModal() {
 
             {/* Scrollable Queue Content */}
             <div className="flex-1 overflow-y-auto no-scrollbar p-3 space-y-4">
-              
+
               {/* Currently Playing Card */}
               <div className="space-y-1.5">
                 <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 px-1">

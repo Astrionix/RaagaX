@@ -49,7 +49,7 @@ const safeLocalStorage = createJSONStorage(() => ({
       if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.removeItem(name);
       }
-    } catch {}
+    } catch { }
   },
 }));
 import { PersonalizationEngine } from '@/lib/recommendation/PersonalizationEngine';
@@ -1016,7 +1016,7 @@ export const usePlayerStore = create<PlayerState>()(
               });
               return true;
             }
-          } catch {}
+          } catch { }
         }
 
         const oldSong = get().currentSong;
@@ -1183,7 +1183,23 @@ export const usePlayerStore = create<PlayerState>()(
             }
             return;
           }
-        } catch {}
+        } catch { }
+
+        // RaagaX Connect: If acting as Remote Controller, forward song selection to authoritative Speaker
+        try {
+          const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
+          const connectClient = ConnectClientManager.getInstance();
+          if (connectClient.isRemoteMode()) {
+            console.log(`[CONNECT_CONTROLLER_PLAY_SONG] Routing "${activePlaySong.title}" to authoritative Speaker`);
+            const dedupedQueue = newQueue && newQueue.length > 0 ? newQueue : [activePlaySong];
+            const startIdx = dedupedQueue.findIndex((s: Song) => s.id === activePlaySong.id);
+            const effectiveIdx = startIdx >= 0 ? startIdx : 0;
+
+            set({ queue: dedupedQueue, queueIndex: effectiveIdx, currentSong: activePlaySong });
+            await get().switchTrack(activePlaySong, effectiveIdx, true);
+            return;
+          }
+        } catch { }
 
         // NOTE: navigator.onLine is intentionally NOT used here.
         // On Android/Capacitor WebView it can return false even with a live network
@@ -1314,6 +1330,25 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       togglePlayPause: async () => {
+        // 0. RaagaX Connect: If in Remote Controller mode in browser, dispatch command to the playback device
+        if (typeof window !== 'undefined') {
+          try {
+            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
+            const connectClient = ConnectClientManager.getInstance();
+            if (connectClient.isRemoteMode()) {
+              const isPlayingNow = get().isPlaying;
+              if (isPlayingNow) {
+                set({ isPlaying: false, playbackIntent: 'PAUSED' });
+                await connectClient.sendCommand('PAUSE');
+              } else {
+                set({ isPlaying: true, playbackIntent: 'PLAYING' });
+                await connectClient.sendCommand('RESUME');
+              }
+              return;
+            }
+          } catch { }
+        }
+
         // 1. Single Source of Truth: derive true playing state directly from store or active engine
         let currentLivePlaying = get().isPlaying;
         if (!RaagaXNativePlayer.isNative()) {
@@ -1339,7 +1374,7 @@ export const usePlayerStore = create<PlayerState>()(
             }
             return;
           }
-        } catch {}
+        } catch { }
 
         const isNowPlaying = !currentLivePlaying;
 
@@ -1381,12 +1416,12 @@ export const usePlayerStore = create<PlayerState>()(
             const jamSession = jamManager.getActiveSession();
             if (jamSession && (jamManager.isHost() || jamSession.permissions?.canControlPlayback)) {
               if (playing && jamSession.state !== 'PLAYING') {
-                jamManager.sendPlay(Math.round((get().currentTime || 0) * 1000)).catch(() => {});
+                jamManager.sendPlay(Math.round((get().currentTime || 0) * 1000)).catch(() => { });
               } else if (!playing && jamSession.state === 'PLAYING') {
-                jamManager.sendPause().catch(() => {});
+                jamManager.sendPause().catch(() => { });
               }
             }
-          } catch {}
+          } catch { }
 
           if (RaagaXNativePlayer.isNative()) {
             if (!playing) {
@@ -1441,7 +1476,7 @@ export const usePlayerStore = create<PlayerState>()(
               await connectClient.sendCommand('SKIP_NEXT');
               return;
             }
-          } catch {}
+          } catch { }
         }
 
         try {
@@ -1461,7 +1496,19 @@ export const usePlayerStore = create<PlayerState>()(
             }
             return;
           }
-        } catch {}
+        } catch { }
+
+        // RaagaX Connect: If in Remote Controller mode in browser, dispatch SKIP_NEXT to authoritative sink
+        if (typeof window !== 'undefined') {
+          try {
+            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
+            const connectClient = ConnectClientManager.getInstance();
+            if (connectClient.isRemoteMode()) {
+              await connectClient.sendCommand('SKIP_NEXT', {});
+              return;
+            }
+          } catch { }
+        }
 
         const { duration, currentTime, isPlaying, playbackIntent } = get();
         const isComplete = duration > 0 && currentTime >= duration - 5;
@@ -1514,7 +1561,7 @@ export const usePlayerStore = create<PlayerState>()(
               }
               return;
             }
-          } catch {}
+          } catch { }
         }
 
         // If in Jam: host or participants with canSkip permission are authorized to issue SKIP_PREV.
@@ -1533,7 +1580,7 @@ export const usePlayerStore = create<PlayerState>()(
             }
             return;
           }
-        } catch {}
+        } catch { }
 
         const { queue, queueIndex, currentTime, currentSong, repeatMode, isPlaying, playbackIntent } = get();
 
@@ -1572,6 +1619,20 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       toggleShuffle: async () => {
+        if (typeof window !== 'undefined') {
+          try {
+            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
+            const connectClient = ConnectClientManager.getInstance();
+            if (connectClient.isRemoteMode()) {
+              const curShuffle = get().shuffleMode !== 'OFF';
+              const nextShuffle = !curShuffle;
+              set({ shuffleMode: nextShuffle ? 'STANDARD' : 'OFF' });
+              await connectClient.sendCommand('SET_SHUFFLE', { shuffle: nextShuffle });
+              return;
+            }
+          } catch { }
+        }
+
         const manager = QueueManager.getInstance();
         manager.toggleShuffle();
         const snapshot = manager.getSnapshot();
@@ -1590,10 +1651,23 @@ export const usePlayerStore = create<PlayerState>()(
 
         PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
       },
-      setRepeatMode: (mode) => {
+      setRepeatMode: async (mode) => {
         const raw = (mode || 'OFF').toUpperCase();
         const normalized: 'OFF' | 'ALL' | 'ONE' = (raw === 'ONE' || raw === 'TRACK') ? 'ONE' : (raw === 'ALL' || raw === 'CONTEXT') ? 'ALL' : 'OFF';
         console.log(`[REPEAT] ${normalized}`);
+
+        if (typeof window !== 'undefined') {
+          try {
+            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
+            const connectClient = ConnectClientManager.getInstance();
+            if (connectClient.isRemoteMode()) {
+              set({ repeatMode: normalized as any });
+              await connectClient.sendCommand('SET_REPEAT', { repeat: normalized });
+              return;
+            }
+          } catch { }
+        }
+
         QueueManager.getInstance().setRepeatMode(normalized as any);
         set({ repeatMode: normalized as any });
         persistSessionHelper(get());
@@ -1611,7 +1685,20 @@ export const usePlayerStore = create<PlayerState>()(
         get().setRepeatMode(modes[nextIdx]);
       },
 
-      addToQueue: (song) => {
+      addToQueue: async (song) => {
+        if (typeof window !== 'undefined') {
+          try {
+            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
+            const connectClient = ConnectClientManager.getInstance();
+            if (connectClient.isRemoteMode()) {
+              const curQ = get().queue || [];
+              set({ queue: [...curQ, song] });
+              await connectClient.sendCommand('ADD_TO_QUEUE', { song });
+              return;
+            }
+          } catch { }
+        }
+
         const manager = QueueManager.getInstance();
         manager.addToQueue(song);
         const snapshot = manager.getSnapshot();
@@ -1632,7 +1719,20 @@ export const usePlayerStore = create<PlayerState>()(
       playLastInQueue: (song) => {
         get().addToQueue(song);
       },
-      removeFromQueue: (songId) => {
+      removeFromQueue: async (songId) => {
+        if (typeof window !== 'undefined') {
+          try {
+            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
+            const connectClient = ConnectClientManager.getInstance();
+            if (connectClient.isRemoteMode()) {
+              const curQ = (get().queue || []).filter((s) => s.id !== songId);
+              set({ queue: curQ });
+              await connectClient.sendCommand('REMOVE_FROM_QUEUE', { trackId: songId });
+              return;
+            }
+          } catch { }
+        }
+
         const manager = QueueManager.getInstance();
         const items = manager.getAllItems();
         const target = items.find((i: any) => i.trackId === songId);
@@ -1651,9 +1751,22 @@ export const usePlayerStore = create<PlayerState>()(
         set({ queue: newQueue });
         PlaybackService.getInstance().loadQueueContext(newQueue, get().queueIndex);
       },
-      clearQueue: () => {
+      clearQueue: async () => {
         const { queue, queueIndex } = get();
         // Keep active song and past history, remove only upcoming tracks
+        const activeSong = queue[queueIndex];
+        const trimmedQueue = activeSong ? [activeSong] : [];
+
+        if (typeof window !== 'undefined') {
+          try {
+            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
+            const connectClient = ConnectClientManager.getInstance();
+            if (connectClient.isRemoteMode()) {
+              set({ queue: trimmedQueue, queueIndex: 0 });
+              return;
+            }
+          } catch { }
+        }
         const remainingQueue = queue.slice(0, queueIndex + 1);
         const manager = QueueManager.getInstance();
         manager.replaceQueue(remainingQueue, queueIndex, 'USER');
@@ -1812,7 +1925,7 @@ export const usePlayerStore = create<PlayerState>()(
             } catch (err) {
               console.warn('[usePlayerStore] Background like resolution failed:', err);
             }
-          }).catch(() => {});
+          }).catch(() => { });
         }
 
         if (!isLiked && targetSong) {
@@ -2001,7 +2114,7 @@ export const usePlayerStore = create<PlayerState>()(
                 .eq('artist_id', artistId);
               if (!error) {
                 const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
-                await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.session.user.id).catch(() => {});
+                await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.session.user.id).catch(() => { });
               }
             } else {
               const { error } = await supabase.from('user_artists').upsert({
@@ -2010,7 +2123,7 @@ export const usePlayerStore = create<PlayerState>()(
               }, { onConflict: 'user_id,artist_id' });
               if (!error) {
                 const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
-                await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.session.user.id).catch(() => {});
+                await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.session.user.id).catch(() => { });
               }
             }
           }
@@ -2039,7 +2152,7 @@ export const usePlayerStore = create<PlayerState>()(
                 .eq('album_id', albumId);
               if (!error) {
                 const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
-                await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.session.user.id).catch(() => {});
+                await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.session.user.id).catch(() => { });
               }
             } else {
               const { error } = await supabase.from('saved_albums').upsert({
@@ -2048,7 +2161,7 @@ export const usePlayerStore = create<PlayerState>()(
               }, { onConflict: 'user_id,album_id' });
               if (!error) {
                 const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
-                await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.session.user.id).catch(() => {});
+                await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.session.user.id).catch(() => { });
               }
             }
           }
@@ -2147,7 +2260,7 @@ export const usePlayerStore = create<PlayerState>()(
         set({ loudnessNormalizationEnabled: enabled });
         import('@/lib/playback/native/RaagaXNativePlayer').then(({ RaagaXNativePlayer }) => {
           if (RaagaXNativePlayer.isNative()) {
-            RaagaXNativePlayer.setLoudnessNormalizationEnabled(enabled).catch(() => {});
+            RaagaXNativePlayer.setLoudnessNormalizationEnabled(enabled).catch(() => { });
           }
         });
       },

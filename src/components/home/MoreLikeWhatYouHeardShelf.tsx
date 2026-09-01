@@ -65,16 +65,19 @@ export function MoreLikeWhatYouHeardShelf({
     };
   }, [currentSong?.id, queue, queueIndex]);
 
-  if (!songs || songs.length === 0) return null;
+  const shelfItems: ShelfItem[] = React.useMemo(() => {
+    if (!songs || songs.length === 0) return [];
+    return songs.map((s) => ({
+      id: s.id,
+      title: s.title,
+      subtitle: `${s.artist}${s.language ? ` • ${s.language}` : ''}`,
+      imageUrl: s.coverUrl,
+      type: 'song',
+      rawItem: s,
+    }));
+  }, [songs]);
 
-  const shelfItems: ShelfItem[] = songs.map((s) => ({
-    id: s.id,
-    title: s.title,
-    subtitle: `${s.artist}${s.language ? ` • ${s.language}` : ''}`,
-    imageUrl: s.coverUrl,
-    type: 'song',
-    rawItem: s,
-  }));
+  if (!songs || songs.length === 0) return null;
 
   const subtitleText = activeSeedSong?.title
     ? `Based on "${activeSeedSong.title}"`

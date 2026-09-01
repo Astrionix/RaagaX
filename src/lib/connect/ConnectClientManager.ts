@@ -92,6 +92,9 @@ export class ConnectClientManager {
   /**
    * Connect to target device and transfer playback without restarting from 0
    */
+  /**
+   * Connect to target device and transfer playback without restarting from 0
+   */
   public async transferPlaybackTo(targetDevice: ConnectDevice): Promise<boolean> {
     const localDevice = ConnectDiscoveryEngine.getInstance().getLocalDevice();
 
@@ -101,15 +104,39 @@ export class ConnectClientManager {
 
     const store = usePlayerStore.getState();
     const currentSong = store.currentSong;
+    const isLocalPlaying = store.isPlaying;
 
-    if (!currentSong) {
-      this.activeTargetDevice = targetDevice;
+    // Spotify Connect Rule:
+    // If this device is paused/idle or has no song, adopt the target device's active session.
+    // If this device IS actively playing a song, transfer its audio to the target device.
+    const shouldAdoptTargetSession = !currentSong || !isLocalPlaying;
+
+    this.activeTargetDevice = targetDevice;
+
+    if (shouldAdoptTargetSession) {
+      // 1. Mute / pause local audio so sound only outputs from the target device
+      store.setIsPlaying(false);
+      try {
+        const { PlaybackService } = await import('@/lib/playback/PlaybackService');
+        PlaybackService.getInstance().pause();
+        PlaybackService.getInstance().stopAllAudio();
+      } catch {}
+      ConnectDiscoveryEngine.getInstance().setLocalPlaybackState('IDLE');
+
+      // 2. Start session polling & request active playback snapshot immediately
       this.startSessionPolling();
+      await this.requestCurrentPlaybackState();
+
+      useConnectStore.setState({
+        activePlaybackDevice: targetDevice,
+        isRemoteMode: true,
+      });
+
       return true;
     }
 
+    // Otherwise, this device was actively outputting audio and is transferring to target
     const currentPositionMs = Math.round((store.currentTime || 0) * 1000);
-    const isPlaying = store.isPlaying;
 
     console.log(`[CONNECT_HANDOFF]\nfromDevice=${localDevice.deviceId}\ntoDevice=${targetDevice.deviceId}\npositionMs=${currentPositionMs}`);
 
@@ -121,24 +148,21 @@ export class ConnectClientManager {
       targetDeviceId: targetDevice.deviceId,
       action: 'TRANSFER_PLAYBACK',
       payload: {
-        song: currentSong,
+        song: currentSong || undefined,
         queue: store.queue,
         queueIndex: store.queueIndex,
         positionMs: currentPositionMs,
-        isPlaying,
+        isPlaying: true,
         volume: store.volume,
         timelineId: `TL_${Date.now().toString(36)}`,
       },
       timestamp: Date.now(),
     };
 
-    // 1. Set active target device
-    this.activeTargetDevice = targetDevice;
-
-    // 2. Dispatch command
+    // 1. Dispatch command
     await this.dispatchCommand(command);
 
-    // 3. Mute/stop local audio on this device
+    // 2. Mute/stop local audio on this device
     store.setIsPlaying(false);
     try {
       const { PlaybackService } = await import('@/lib/playback/PlaybackService');
@@ -147,8 +171,14 @@ export class ConnectClientManager {
     } catch {}
     ConnectDiscoveryEngine.getInstance().setLocalPlaybackState('IDLE');
 
-    // 4. Start polling target session
+    // 3. Start polling target session
     this.startSessionPolling();
+
+    // 4. Bind hardware media keys and lock screen controls to remote controller RPCs
+    try {
+      const { MediaSessionManager } = await import('@/lib/playback/MediaSessionManager');
+      MediaSessionManager.getInstance().setupRemoteMediaHandlers();
+    } catch {}
 
     return true;
   }
@@ -185,23 +215,48 @@ export class ConnectClientManager {
     this.stopSessionPolling();
     useConnectStore.setState({ isRemoteMode: false, activePlaybackDevice: null, remoteSession: null });
 
+    // 3. Restore local media handlers
+    try {
+      const { MediaSessionManager } = await import('@/lib/playback/MediaSessionManager');
+      MediaSessionManager.getInstance().restoreLocalMediaHandlers();
+    } catch {}
+
     return true;
   }
 
   /**
-   * Disconnect and resume playback on THIS device
+   * Disconnect and resume playback on THIS device (Play on this device)
    */
   public async disconnectAndPlayLocally(): Promise<boolean> {
+    if (!this.activeTargetDevice) return true;
+
+    const target = this.activeTargetDevice;
     const currentSession = this.remoteSession;
+    const livePosSec = this.getInterpolatedPosition();
+
+    // 1. Send PAUSE command to target speaker device so it stops outputting audio
+    const pauseCmd: ConnectCommand = {
+      commandId: `cmd_${Date.now().toString(36)}`,
+      requestId: `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`,
+      senderDeviceId: ConnectDiscoveryEngine.getInstance().getLocalDevice().deviceId,
+      targetDeviceId: target.deviceId,
+      action: 'PAUSE',
+      timestamp: Date.now(),
+    };
+    await this.dispatchCommand(pauseCmd);
+
+    // 2. Disconnect remote controller mode
     await this.disconnect(false);
 
+    // 3. Resume audio locally on this device at the exact same millisecond
     if (currentSession && currentSession.currentSong) {
       usePlayerStore.setState({
         queue: currentSession.queue,
         queueIndex: currentSession.queueIndex,
         currentSong: currentSession.currentSong,
-        currentTime: currentSession.positionMs / 1000,
+        currentTime: livePosSec,
         isPlaying: currentSession.isPlaying,
+        playbackIntent: currentSession.isPlaying ? 'PLAYING' : 'PAUSED',
       });
       if (currentSession.isPlaying) {
         try {
@@ -212,7 +267,7 @@ export class ConnectClientManager {
             currentSession.currentSong,
             reqId,
             true,
-            currentSession.positionMs / 1000
+            livePosSec
           );
         } catch {}
       }
@@ -390,10 +445,58 @@ export class ConnectClientManager {
   }
 
   public handleIncomingSession(session: ConnectPlaybackSession): void {
-    if (!this.activeTargetDevice || session.playbackDeviceId !== this.activeTargetDevice.deviceId) return;
+    if (!session) return;
+    const localDevice = ConnectDiscoveryEngine.getInstance().getLocalDevice();
+    const isLocalPlaybackDevice = session.playbackDeviceId === localDevice.deviceId || session.playbackDeviceId === 'dev_local';
 
-    if (session.revision <= this.lastAppliedRevision && this.remoteSession) {
-      return;
+    // If session is playing on a remote device and this device is idle (not outputting local audio),
+    // automatically adopt the remote speaker so the controller UI mirrors playback in real-time
+    if (!isLocalPlaybackDevice && !this.activeTargetDevice && session.playbackDeviceId) {
+      const liveLocalPlaying = typeof window !== 'undefined'
+        ? (() => {
+            try {
+              const { PlaybackService } = require('@/lib/playback/PlaybackService');
+              return PlaybackService.getInstance().getLivePlayingState();
+            } catch { return false; }
+          })()
+        : false;
+
+      if (!liveLocalPlaying) {
+        this.activeTargetDevice = {
+          deviceId: session.playbackDeviceId,
+          deviceName: session.playbackDeviceName || 'Remote Speaker',
+          deviceType: 'speaker',
+          isOnline: true,
+          state: session.isPlaying ? 'PLAYING' : 'PAUSED',
+          lastSeenAt: Date.now(),
+          transport: 'LOCAL_LAN',
+        };
+        useConnectStore.setState({
+          isRemoteMode: true,
+          activePlaybackDevice: this.activeTargetDevice,
+          remoteSession: session,
+        });
+      }
+    }
+
+    const isTarget = this.activeTargetDevice && (
+      session.playbackDeviceId === this.activeTargetDevice.deviceId ||
+      session.playbackDeviceId === 'dev_local'
+    );
+
+    if (!isTarget && !isLocalPlaybackDevice && !this.isRemoteMode()) return;
+
+    // Detect if this is a fresh timeline anchor (periodic position update) with the same revision
+    const isNewerAnchor = this.remoteSession &&
+      session.revision === this.lastAppliedRevision &&
+      session.updatedAt > (this.remoteSession.updatedAt || 0);
+
+    if (session.revision < this.lastAppliedRevision) {
+      return; // Drop strictly older revision
+    }
+
+    if (session.revision === this.lastAppliedRevision && !isNewerAnchor && this.remoteSession) {
+      return; // Exact duplicate
     }
 
     this.lastAppliedRevision = session.revision;
@@ -402,6 +505,11 @@ export class ConnectClientManager {
 
     // Atomically synchronize the target playback device's track, queue, and state into the local store
     if (session.currentSong) {
+      const normShuffle = session.shuffle ? 'STANDARD' : 'OFF';
+      const normRepeat = session.repeat || 'OFF';
+      const store = usePlayerStore.getState();
+      const trackChanged = session.currentSong.id !== store.currentSong?.id;
+
       usePlayerStore.setState({
         currentSong: session.currentSong,
         queue: session.queue && session.queue.length > 0 ? session.queue : [session.currentSong],
@@ -409,8 +517,37 @@ export class ConnectClientManager {
         isPlaying: session.isPlaying,
         playbackIntent: session.isPlaying ? 'PLAYING' : 'PAUSED',
         duration: (session.durationMs || (session.currentSong.duration ? session.currentSong.duration * 1000 : 0)) / 1000,
-        currentTime: session.positionMs / 1000,
+        currentTime: trackChanged
+          ? (typeof session.positionMs === 'number' ? session.positionMs / 1000 : 0)
+          : (this.isRemoteMode()
+            ? (typeof session.positionMs === 'number' ? session.positionMs / 1000 : 0)
+            : store.currentTime),
+        shuffleMode: normShuffle as any,
+        repeatMode: normRepeat as any,
+        volume: typeof session.volume === 'number' ? session.volume : store.volume,
       });
+
+      // If this device is the speaker and the track changed, load the new audio
+      if (isLocalPlaybackDevice && trackChanged) {
+        try {
+          const { PlaybackService } = require('@/lib/playback/PlaybackService');
+          const reqId = Date.now();
+          PlaybackService.getInstance().setPlaybackRequestId(reqId);
+          PlaybackService.getInstance().loadAudioSource(
+            session.currentSong,
+            reqId,
+            session.isPlaying,
+            session.positionMs / 1000
+          );
+        } catch {}
+      }
+
+      try {
+        const { MediaSessionManager } = require('@/lib/playback/MediaSessionManager');
+        MediaSessionManager.getInstance().updateSongMetadata(session.currentSong, {
+          remoteSpeakerName: this.activeTargetDevice?.deviceName,
+        });
+      } catch {}
     }
 
     this.notifyListeners();

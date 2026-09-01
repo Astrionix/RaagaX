@@ -44,12 +44,24 @@ export function CarouselShelf({ title, subtitle, items, icon, showPlayAll, pagin
   
   const observer = useRef<IntersectionObserver | null>(null);
 
-  // Update local state if props change (e.g., language switch)
+  // Update local state if props change (e.g., language switch or new songs arrived)
   useEffect(() => {
-    setShelfItems(items);
+    setShelfItems((prev) => {
+      // Check if items actually changed
+      const isSame =
+        prev === items ||
+        (prev.length === items.length &&
+          prev.every((item, idx) => item.id === items[idx]?.id));
+
+      return isSame ? prev : items;
+    });
+
     setHasMore(pagination?.initialHasMore ?? false);
     loadedOffsets.current = new Set([0]);
-  }, [items, pagination?.initialHasMore]);
+  }, [
+    items.map((item) => item.id || (item as any)._id).join(','),
+    pagination?.initialHasMore,
+  ]);
 
   const loadMore = useCallback(async () => {
     if (!pagination?.enabled || !hasMore || loadingRef.current) return;
