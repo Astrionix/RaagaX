@@ -18,6 +18,7 @@ import { ActiveTab } from '@/types/music';
 import { SeekBar } from '@/components/player/SeekBar';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { haptics } from '@/lib/haptics/HapticEngine';
+import { ConnectButton } from '@/components/connect/ConnectButton';
 
 export function MobileBottomController() {
   const [mounted, setMounted] = useState(false);
@@ -172,11 +173,15 @@ export function MobileBottomController() {
               </div>
             </div>
 
-            {/* Right: Direct Solid White Action Icons (Play/Pause ▶ + FastForward ⏩) */}
+            {/* Right: Direct Action Icons (Connect to Device + Play/Pause ▶ + FastForward ⏩) */}
             <div
-              className="flex items-center gap-3 flex-shrink-0 pr-1 z-10"
+              className="flex items-center gap-2.5 flex-shrink-0 pr-1 z-10"
               onClick={(e) => e.stopPropagation()}
             >
+              {/* Connect to Device Button */}
+              <ConnectButton className="p-1.5" />
+
+              {/* Play / Pause Liquid Glass Button */}
               <button
                 onClick={() => {
                   haptics.mediumImpact();
