@@ -41,6 +41,7 @@ if (!store.streamClients) store.streamClients = new Map();
 export class ConnectDeviceRegistry {
   public static registerBeacon(device: ConnectDevice, subnet?: string, email?: string): void {
     const now = Date.now();
+    const isNew = !store.devices.has(device.deviceId);
     store.devices.set(device.deviceId, {
       ...device,
       subnet: subnet || '127.0.0',
@@ -48,12 +49,29 @@ export class ConnectDeviceRegistry {
       lastSeenAt: now,
       isOnline: true,
     });
+
+    if (isNew) {
+      ConnectDeviceRegistry.broadcastDeviceList();
+    }
   }
 
   public static unregisterDevice(deviceId: string): void {
     store.devices.delete(deviceId);
     store.pendingCommands.delete(deviceId);
     store.streamClients.delete(deviceId);
+    ConnectDeviceRegistry.broadcastDeviceList();
+  }
+
+  public static broadcastDeviceList(): void {
+    const clients = store.streamClients || (store.streamClients = new Map());
+    for (const [targetId, callbacks] of clients.entries()) {
+      const devices = ConnectDeviceRegistry.getActiveDevices(targetId);
+      callbacks.forEach((cb) => {
+        try {
+          cb({ type: 'DEVICE_LIST_UPDATED', payload: devices });
+        } catch {}
+      });
+    }
   }
 
   public static getActiveDevices(excludeDeviceId?: string, subnet?: string, accountId?: string): ConnectDevice[] {

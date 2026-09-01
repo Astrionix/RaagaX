@@ -80,6 +80,17 @@ export class LocalLanDiscovery {
         } catch {}
       });
 
+      this.sseEventSource.addEventListener('DEVICE_LIST_UPDATED', (e: MessageEvent) => {
+        try {
+          const devices = JSON.parse(e.data);
+          if (Array.isArray(devices)) {
+            import('@/lib/connect/ConnectDiscoveryEngine').then(({ ConnectDiscoveryEngine }) => {
+              ConnectDiscoveryEngine.getInstance().handleIncomingDeviceList(devices);
+            });
+          }
+        } catch {}
+      });
+
       this.sseEventSource.onerror = () => {
         // EventSource will automatically attempt reconnection
       };

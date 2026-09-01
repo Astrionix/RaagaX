@@ -242,6 +242,19 @@ export class ConnectDiscoveryEngine {
     this.notifyListeners();
   }
 
+  public handleIncomingDeviceList(devices: ConnectDevice[]): void {
+    let changed = false;
+    for (const dev of devices) {
+      if (dev.deviceId !== this.localDevice.deviceId) {
+        this.discoveredDevices.set(dev.deviceId, { ...dev, isCurrentDevice: false });
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.notifyListeners();
+    }
+  }
+
   public scanNow(): ConnectDevice[] {
     // 1. Scan LocalStorage for active local beacons
     if (typeof window !== 'undefined') {
