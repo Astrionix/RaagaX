@@ -342,6 +342,7 @@ export class ConnectServerEngine {
           const pb = PlaybackService.getInstance().getActiveAudio();
           if (pb) pb.play().catch(() => { });
         }
+        this.broadcastSessionUpdate();
         break;
       }
 
@@ -365,6 +366,7 @@ export class ConnectServerEngine {
           const pb = PlaybackService.getInstance().getActiveAudio();
           if (pb) pb.pause();
         }
+        this.broadcastSessionUpdate();
         break;
       }
 
@@ -386,6 +388,7 @@ export class ConnectServerEngine {
           const pb = PlaybackService.getInstance().getActiveAudio();
           if (pb) pb.currentTime = clampedMs / 1000;
         }
+        this.broadcastSessionUpdate();
         break;
       }
 
@@ -595,6 +598,7 @@ export class ConnectServerEngine {
           const pb = PlaybackService.getInstance().getActiveAudio();
           if (pb) pb.volume = vol;
         }
+        this.broadcastSessionUpdate();
         break;
       }
 
@@ -605,6 +609,7 @@ export class ConnectServerEngine {
           this.currentSession.revision += 1;
           this.currentSession.updatedAt = now;
           usePlayerStore.setState({ queue: newQueue });
+          this.broadcastSessionUpdate();
         }
         break;
       }
@@ -616,12 +621,14 @@ export class ConnectServerEngine {
           this.currentSession.revision += 1;
           this.currentSession.updatedAt = now;
           usePlayerStore.setState({ queue: newQueue });
+          this.broadcastSessionUpdate();
         } else if (command.payload?.trackId) {
           const newQueue = this.currentSession.queue.filter((s) => s.id !== command.payload?.trackId);
           this.currentSession.queue = newQueue;
           this.currentSession.revision += 1;
           this.currentSession.updatedAt = now;
           usePlayerStore.setState({ queue: newQueue });
+          this.broadcastSessionUpdate();
         }
         break;
       }
@@ -638,6 +645,7 @@ export class ConnectServerEngine {
             queue: command.payload.queue,
             ...(typeof command.payload.queueIndex === 'number' ? { queueIndex: command.payload.queueIndex } : {}),
           });
+          this.broadcastSessionUpdate();
         }
         break;
       }
@@ -646,6 +654,7 @@ export class ConnectServerEngine {
         this.currentSession.shuffle = !!command.payload?.shuffle;
         this.currentSession.revision += 1;
         this.currentSession.updatedAt = now;
+        this.broadcastSessionUpdate();
         break;
       }
 
@@ -653,6 +662,7 @@ export class ConnectServerEngine {
         this.currentSession.repeat = command.payload?.repeat || 'OFF';
         this.currentSession.revision += 1;
         this.currentSession.updatedAt = now;
+        this.broadcastSessionUpdate();
         break;
       }
 
