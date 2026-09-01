@@ -486,16 +486,23 @@ export class ConnectClientManager {
 
     if (!isTarget && !isLocalPlaybackDevice && !this.isRemoteMode()) return;
 
+    const isDifferentSession = !this.remoteSession || session.sessionId !== this.remoteSession.sessionId;
+    const isNewerGeneration = this.remoteSession && typeof session.generation === 'number' && typeof this.remoteSession.generation === 'number' && session.generation > this.remoteSession.generation;
+
+    if (isDifferentSession || isNewerGeneration) {
+      this.lastAppliedRevision = 0;
+    }
+
     // Detect if this is a fresh timeline anchor (periodic position update) with the same revision
     const isNewerAnchor = this.remoteSession &&
       session.revision === this.lastAppliedRevision &&
       session.updatedAt > (this.remoteSession.updatedAt || 0);
 
-    if (session.revision < this.lastAppliedRevision) {
-      return; // Drop strictly older revision
+    if (!isDifferentSession && !isNewerGeneration && session.revision < this.lastAppliedRevision) {
+      return; // Drop strictly older revision within the same session generation
     }
 
-    if (session.revision === this.lastAppliedRevision && !isNewerAnchor && this.remoteSession) {
+    if (session.revision === this.lastAppliedRevision && !isNewerAnchor && this.remoteSession && !isDifferentSession) {
       return; // Exact duplicate
     }
 

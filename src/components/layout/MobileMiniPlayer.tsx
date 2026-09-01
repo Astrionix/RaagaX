@@ -70,13 +70,13 @@ export function MobileMiniPlayer() {
   const { session, isInJam } = useJamStore();
   const { isRemoteMode, activePlaybackDevice, remoteSession, sendPlay, sendPause, sendNext, sendPrev } = useConnectStore();
 
-  const currentSong = remoteSession?.currentSong
+  const currentSong = (isRemoteMode && remoteSession?.currentSong)
     ? remoteSession.currentSong
     : (isInJam && session?.currentSong)
     ? session.currentSong
     : localCurrentSong;
 
-  const isPlaying = remoteSession
+  const isPlaying = (isRemoteMode && remoteSession)
     ? remoteSession.isPlaying
     : (isInJam && session)
     ? session.state === 'PLAYING'

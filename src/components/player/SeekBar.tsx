@@ -37,16 +37,20 @@ export function SeekBar({
   const [localProgress, setLocalProgress] = useState(0); // 0 to 1
   const [hoverProgress, setHoverProgress] = useState<number | null>(null);
 
-  const activeSong = remoteSession?.currentSong
+  const activeSong = (isRemoteMode && remoteSession?.currentSong)
     ? remoteSession.currentSong
     : (isInJam && jamSession?.currentSong)
     ? jamSession.currentSong
     : storeSong;
 
   const effectiveDuration = useMemo(() => {
-    if (remoteSession) {
+    if (isRemoteMode && remoteSession) {
       if (remoteSession.durationMs > 0) return remoteSession.durationMs / 1000;
       if (remoteSession.currentSong?.duration) return remoteSession.currentSong.duration;
+    }
+    if (isInJam && jamSession) {
+      if (jamSession.durationMs && jamSession.durationMs > 0) return jamSession.durationMs / 1000;
+      if (jamSession.currentSong?.duration) return jamSession.currentSong.duration;
     }
     if (activeSong?.duration && activeSong.duration > 0) {
       return activeSong.duration;
@@ -55,15 +59,17 @@ export function SeekBar({
       return storeDuration;
     }
     return 0;
-  }, [remoteSession?.durationMs, remoteSession?.currentSong?.duration, activeSong?.duration, storeDuration]);
+  }, [isRemoteMode, remoteSession?.durationMs, remoteSession?.currentSong?.duration, isInJam, jamSession?.durationMs, jamSession?.currentSong?.duration, activeSong?.duration, storeDuration]);
 
   const prevProgressRef = useRef(0);
 
   // Instantly reset seek progress when track switches
   useEffect(() => {
     prevProgressRef.current = 0;
-    const initialPos = (remoteSession?.currentSong?.id === activeSong?.id && typeof remoteSession?.positionMs === 'number')
+    const initialPos = (isRemoteMode && remoteSession?.currentSong?.id === activeSong?.id && typeof remoteSession?.positionMs === 'number')
       ? remoteSession.positionMs / 1000
+      : (isInJam && jamSession?.currentSong?.id === activeSong?.id && typeof jamSession?.positionMs === 'number')
+      ? jamSession.positionMs / 1000
       : 0;
     const p = effectiveDuration > 0 ? Math.min(1, Math.max(0, initialPos / effectiveDuration)) : 0;
     setLocalProgress(p);

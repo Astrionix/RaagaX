@@ -810,7 +810,9 @@ export class NewReleasesEngine {
     report.durationMs = Date.now() - startTime;
     this.persistRegistry();
 
-    console.log(`[NewReleasesEngine] Ingestion Run Report for ${targetLangName}:`, report);
+    if (report.newSongsInserted > 0) {
+      console.log(`[NewReleasesEngine] Ingestion Run Report for ${targetLangName}:`, report);
+    }
 
     return sorted.slice(0, targetLimit);
   }

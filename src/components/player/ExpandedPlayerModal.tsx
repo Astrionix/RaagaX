@@ -128,13 +128,13 @@ export function ExpandedPlayerModal() {
   const { session, isInJam } = useJamStore();
   const { isRemoteMode, remoteSession, sendPlay, sendPause, sendNext, sendPrev } = useConnectStore();
 
-  const currentSong = remoteSession?.currentSong
+  const currentSong = (isRemoteMode && remoteSession?.currentSong)
     ? remoteSession.currentSong
     : (isInJam && session?.currentSong)
       ? session.currentSong
       : localCurrentSong;
 
-  const isPlaying = remoteSession
+  const isPlaying = (isRemoteMode && remoteSession)
     ? remoteSession.isPlaying
     : (isInJam && session)
       ? session.state === 'PLAYING'
@@ -163,6 +163,22 @@ export function ExpandedPlayerModal() {
     }
     setTouchOffset(0);
     touchStartY.current = null;
+  };
+
+  const handlePlayNext = () => {
+    if (isRemoteMode) {
+      sendNext();
+      return;
+    }
+    playNext();
+  };
+
+  const handlePlayPrev = () => {
+    if (isRemoteMode) {
+      sendPrev();
+      return;
+    }
+    playPrev();
   };
 
   const navigateFromPlayer = (nav: { tab: any; artistId?: string; albumId?: string; playlistId?: string }) => {
@@ -216,7 +232,7 @@ export function ExpandedPlayerModal() {
 
   // Format time helpers
   const formatTime = (seconds: number) => {
-    if (isNaN(seconds) || seconds < 0) return '0:00';
+    if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -227,8 +243,10 @@ export function ExpandedPlayerModal() {
 
   // Instantly reset displayed seconds when track changes
   useEffect(() => {
-    const initialPos = (remoteSession?.currentSong?.id === currentSong?.id && typeof remoteSession?.positionMs === 'number')
+    const initialPos = (isRemoteMode && remoteSession?.currentSong?.id === currentSong?.id && typeof remoteSession?.positionMs === 'number')
       ? remoteSession.positionMs / 1000
+      : (isInJam && session?.currentSong?.id === currentSong?.id && typeof session?.positionMs === 'number')
+      ? session.positionMs / 1000
       : 0;
     lastGoodSecRef.current = initialPos;
     setDisplaySec(initialPos);
@@ -245,6 +263,12 @@ export function ExpandedPlayerModal() {
         try {
           const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
           liveSec = ConnectClientManager.getInstance().getInterpolatedPosition();
+          lastGoodSecRef.current = liveSec;
+        } catch { }
+      } else if (isInJam && session) {
+        try {
+          const { JamClientManager } = require('@/lib/jam/client/JamClientManager');
+          liveSec = JamClientManager.getInstance().getInterpolatedPosition();
           lastGoodSecRef.current = liveSec;
         } catch { }
       } else {
@@ -272,12 +296,16 @@ export function ExpandedPlayerModal() {
 
     animFrame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(animFrame);
-  }, [isRemoteMode, remoteSession, currentSong?.id]);
+  }, [isRemoteMode, remoteSession, isInJam, session, currentSong?.id]);
 
   const exactDuration = useMemo(() => {
-    if (remoteSession) {
+    if (isRemoteMode && remoteSession) {
       if (remoteSession.durationMs > 0) return remoteSession.durationMs / 1000;
       if (remoteSession.currentSong?.duration) return remoteSession.currentSong.duration;
+    }
+    if (isInJam && session) {
+      if (session.durationMs && session.durationMs > 0) return session.durationMs / 1000;
+      if (session.currentSong?.duration) return session.currentSong.duration;
     }
     if (currentSong?.duration && currentSong.duration > 0) {
       return currentSong.duration;
@@ -286,7 +314,7 @@ export function ExpandedPlayerModal() {
       return duration;
     }
     return 0;
-  }, [remoteSession?.durationMs, remoteSession?.currentSong?.duration, currentSong?.duration, duration]);
+  }, [isRemoteMode, remoteSession?.durationMs, remoteSession?.currentSong?.duration, isInJam, session?.durationMs, session?.currentSong?.duration, currentSong?.duration, duration]);
 
   const songDuration = exactDuration;
   const remainingTime = Math.max(0, songDuration - displaySec);
