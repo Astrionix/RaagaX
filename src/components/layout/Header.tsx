@@ -45,19 +45,6 @@ export function Header() {
             </div>
           )}
 
-          {/* Remote Jam Party Button */}
-          <button
-            onClick={() => {
-              import('@/context/useJamStore').then((m) => m.useJamStore.getState().toggleJamModal(true));
-            }}
-            className="flex items-center gap-1 px-2 py-1 rounded-full bg-[#FA233B]/10 hover:bg-[#FA233B]/20 border border-[#FA233B]/20 text-[#FA233B] text-[11px] font-bold transition-all cursor-pointer active:scale-95 flex-shrink-0"
-            title="Remote Jam Party"
-            aria-label="Remote Jam Party"
-          >
-            <Radio className="w-3.5 h-3.5 animate-pulse" />
-            <span className="text-[10px]">Jam</span>
-          </button>
-
           {/* Profile Avatar on Top Right -> Opens Profile Menu Drawer */}
           <button
             onClick={() => setIsProfileMenuOpen(true)}

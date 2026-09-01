@@ -826,8 +826,34 @@ export function ExpandedPlayerModal() {
               {/* Volume Slider */}
               <VolumeControl className="w-full max-w-md px-3" />
 
-              {/* Bottom Utilities Pills [ Lyrics | Queue | Sleep Timer ] */}
-              <div className="flex items-center justify-center gap-2 sm:gap-3 pt-1">
+              {/* Bottom Utilities Pills [ Connect | Jam | Lyrics | Queue | Sleep Timer ] */}
+              <div className="flex items-center justify-center gap-2 sm:gap-3 pt-1 flex-wrap">
+                {/* Connect to Device Button */}
+                <button
+                  onClick={() => {
+                    haptics.lightImpact();
+                    useConnectStore.getState().toggleConnectModal(true);
+                  }}
+                  className="px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                  title="Connect to Device"
+                >
+                  <Cast className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Connect</span>
+                </button>
+
+                {/* Jam / Listening Party Button */}
+                <button
+                  onClick={() => {
+                    haptics.lightImpact();
+                    import('@/context/useJamStore').then((m) => m.useJamStore.getState().toggleJamModal(true));
+                  }}
+                  className="px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-[#FA233B]/10 hover:bg-[#FA233B]/20 text-[#FA233B] border-[#FA233B]/30"
+                  title="Start Jam Listening Party"
+                >
+                  <Radio className="w-3.5 h-3.5 animate-pulse" />
+                  <span>Jam</span>
+                </button>
+
                 {/* Lyrics Button */}
                 <button
                   onClick={() => {
