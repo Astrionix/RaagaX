@@ -245,7 +245,8 @@ export class ConnectServerEngine {
 
         const localDevice = typeof window !== 'undefined' ? ConnectDiscoveryEngine.getInstance().getLocalDevice() : null;
 
-        console.log(`[CONNECT_HANDOFF]\nfromDevice=${payload.sourceDeviceId || command.senderDeviceId}\ntoDevice=${command.targetDeviceId}\npositionMs=${startPositionMs}`);
+        // 0ms INSTANT SOUND CUT: Stop previous audio buffer immediately on speaker
+        PlaybackService.getInstance().hardResetAudioPipeline();
 
         this.currentSession = {
           ...this.currentSession,
@@ -262,7 +263,7 @@ export class ConnectServerEngine {
           anchorTimeMs: now,
           durationMs: Math.round((song.duration || 0) * 1000),
           isPlaying: shouldPlay,
-          playbackState: shouldPlay ? 'PLAYING' : 'PAUSED',
+          playbackState: shouldPlay ? 'BUFFERING' : 'PAUSED',
           volume: typeof payload.volume === 'number' ? payload.volume : store.volume,
           generation: this.currentSession.generation + 1,
           revision: this.currentSession.revision + 1,
@@ -293,6 +294,9 @@ export class ConnectServerEngine {
           usePlayerStore.getState().setVolume(payload.volume);
         }
 
+        // Broadcast initial BUFFERING session state immediately to remote controllers
+        this.broadcastSessionUpdate();
+
         if (shouldPlay) {
           if (RaagaXNativePlayer.isNative() && formattedTrack.audioUrl) {
             await RaagaXNativePlayer.setQueue(
@@ -301,11 +305,15 @@ export class ConnectServerEngine {
               true,
               startPositionMs
             ).catch(() => {});
+            this.currentSession.playbackState = 'PLAYING';
+            this.broadcastSessionUpdate();
           } else {
             const pb = PlaybackService.getInstance();
             const reqId = Date.now();
             pb.setPlaybackRequestId(reqId);
             await pb.loadAudioSource(formattedTrack, reqId, true, startPositionMs / 1000);
+            this.currentSession.playbackState = 'PLAYING';
+            this.broadcastSessionUpdate();
           }
         }
         break;
@@ -428,6 +436,9 @@ export class ConnectServerEngine {
 
           const nextSong = queue[nextIdx];
           if (nextSong) {
+            // 0ms INSTANT SOUND CUT: Stop previous audio buffer immediately on speaker
+            PlaybackService.getInstance().hardResetAudioPipeline();
+
             this.currentSession.currentTrackId = nextSong.id;
             this.currentSession.currentQueueItemId = `qitem_${nextSong.id}_${now}`;
             this.currentSession.currentSong = nextSong;
@@ -438,7 +449,7 @@ export class ConnectServerEngine {
             this.currentSession.anchorTimeMs = now;
             this.currentSession.durationMs = Math.round((nextSong.duration || 0) * 1000);
             this.currentSession.isPlaying = true;
-            this.currentSession.playbackState = 'PLAYING';
+            this.currentSession.playbackState = 'BUFFERING';
             this.currentSession.generation += 1;
             this.currentSession.revision += 1;
             this.currentSession.timelineId = `TL_${now.toString(36)}`;
@@ -453,6 +464,8 @@ export class ConnectServerEngine {
               playbackIntent: 'PLAYING',
             });
 
+            this.broadcastSessionUpdate();
+
             if (RaagaXNativePlayer.isNative() && nextSong.audioUrl) {
               await RaagaXNativePlayer.setQueue(
                 [{ url: nextSong.audioUrl, title: nextSong.title, artist: nextSong.artist || '', artworkUrl: nextSong.coverUrl, trackId: nextSong.id }],
@@ -460,11 +473,15 @@ export class ConnectServerEngine {
                 true,
                 0
               ).catch(() => {});
+              this.currentSession.playbackState = 'PLAYING';
+              this.broadcastSessionUpdate();
             } else {
               const pb = PlaybackService.getInstance();
               const reqId = Date.now();
               pb.setPlaybackRequestId(reqId);
               await pb.loadAudioSource(nextSong, reqId, true, 0);
+              this.currentSession.playbackState = 'PLAYING';
+              this.broadcastSessionUpdate();
             }
           }
         }
@@ -504,6 +521,9 @@ export class ConnectServerEngine {
 
           const prevSong = queue[prevIdx];
           if (prevSong) {
+            // 0ms INSTANT SOUND CUT: Stop previous audio buffer immediately on speaker
+            PlaybackService.getInstance().hardResetAudioPipeline();
+
             this.currentSession.currentTrackId = prevSong.id;
             this.currentSession.currentQueueItemId = `qitem_${prevSong.id}_${now}`;
             this.currentSession.currentSong = prevSong;
@@ -514,7 +534,7 @@ export class ConnectServerEngine {
             this.currentSession.anchorTimeMs = now;
             this.currentSession.durationMs = Math.round((prevSong.duration || 0) * 1000);
             this.currentSession.isPlaying = true;
-            this.currentSession.playbackState = 'PLAYING';
+            this.currentSession.playbackState = 'BUFFERING';
             this.currentSession.generation += 1;
             this.currentSession.revision += 1;
             this.currentSession.timelineId = `TL_${now.toString(36)}`;
@@ -529,6 +549,8 @@ export class ConnectServerEngine {
               playbackIntent: 'PLAYING',
             });
 
+            this.broadcastSessionUpdate();
+
             if (RaagaXNativePlayer.isNative() && prevSong.audioUrl) {
               await RaagaXNativePlayer.setQueue(
                 [{ url: prevSong.audioUrl, title: prevSong.title, artist: prevSong.artist || '', artworkUrl: prevSong.coverUrl, trackId: prevSong.id }],
@@ -536,11 +558,15 @@ export class ConnectServerEngine {
                 true,
                 0
               ).catch(() => {});
+              this.currentSession.playbackState = 'PLAYING';
+              this.broadcastSessionUpdate();
             } else {
               const pb = PlaybackService.getInstance();
               const reqId = Date.now();
               pb.setPlaybackRequestId(reqId);
               await pb.loadAudioSource(prevSong, reqId, true, 0);
+              this.currentSession.playbackState = 'PLAYING';
+              this.broadcastSessionUpdate();
             }
           }
         }

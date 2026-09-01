@@ -29,6 +29,7 @@ export interface SpotifyConnectState {
   albumArtUrl: string;
   durationMs: number;
   isPaused: boolean;
+  isBuffering: boolean;
   interpolatedPositionMs: number;
   progressRatio: number;
   volume: number;
@@ -140,6 +141,10 @@ export function useSpotifyConnectEngine() {
   const isPaused = isRemoteController
     ? (!session?.isPlaying)
     : (!localIsPlaying);
+
+  const isBuffering = isRemoteController
+    ? (session?.playbackState === 'BUFFERING')
+    : false;
 
   const volume = isRemoteController
     ? (typeof session?.volume === 'number' ? Math.round(session.volume * 100) : 80)
@@ -264,6 +269,7 @@ export function useSpotifyConnectEngine() {
     albumArtUrl,
     durationMs,
     isPaused,
+    isBuffering,
     interpolatedPositionMs,
     progressRatio,
     volume,

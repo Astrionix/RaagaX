@@ -486,10 +486,24 @@ export class PlaybackService {
         } catch {}
       }
     });
+    if (RaagaXNativePlayer.isNative()) {
+      try {
+        RaagaXNativePlayer.pause();
+      } catch {}
+    }
     PreloadManager.getInstance().reset();
     if (this.audioA && this.audioB) {
       TransitionManager.getInstance().cancelTransition(this.audioA, this.audioB);
     }
+  }
+
+  /**
+   * Atomic Hard Reset of Audio Pipeline:
+   * Instantly kills previous song sound in 0ms, removes src attribute to flush
+   * memory buffer and aborts in-flight network downloads.
+   */
+  public hardResetAudioPipeline() {
+    this.stopAllAudio();
   }
 
   /**

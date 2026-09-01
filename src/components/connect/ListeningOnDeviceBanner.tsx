@@ -41,6 +41,7 @@ export function ListeningOnDeviceBanner() {
     trackTitle,
     durationMs,
     isPaused,
+    isBuffering,
     interpolatedPositionMs,
     progressRatio,
     isTakingOver,
@@ -146,9 +147,15 @@ export function ListeningOnDeviceBanner() {
             <button
               onClick={isPaused ? sendPlay : sendPause}
               className="w-6 h-6 rounded-full bg-[#1db954] hover:bg-[#1ed760] text-black flex items-center justify-center transition-transform hover:scale-105"
-              title={isPaused ? 'Play' : 'Pause'}
+              title={isBuffering ? 'Buffering...' : isPaused ? 'Play' : 'Pause'}
             >
-              {isPaused ? <Play className="w-3 h-3 fill-current ml-0.5" /> : <Pause className="w-3 h-3 fill-current" />}
+              {isBuffering ? (
+                <Loader2 className="w-3 h-3 animate-spin text-black" />
+              ) : isPaused ? (
+                <Play className="w-3 h-3 fill-current ml-0.5" />
+              ) : (
+                <Pause className="w-3 h-3 fill-current" />
+              )}
             </button>
             <button
               onClick={sendNext}
