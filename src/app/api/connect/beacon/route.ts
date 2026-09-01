@@ -18,9 +18,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing device payload' }, { status: 400 });
     }
 
-    const forwardedFor = request.headers.get('x-forwarded-for') || '';
-    const clientIp = forwardedFor.split(',')[0].trim() || '127.0.0.1';
-    const subnet = clientIp.split('.').slice(0, 3).join('.');
+    const forwardedFor = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || '';
+    let clientIp = forwardedFor.split(',')[0].trim() || '127.0.0.1';
+    if (clientIp.startsWith('::ffff:')) clientIp = clientIp.replace('::ffff:', '');
+    if (clientIp === '::1' || clientIp === 'localhost') clientIp = '127.0.0.1';
+    const subnet = clientIp.includes('.') ? clientIp.split('.').slice(0, 3).join('.') : '127.0.0';
 
     ConnectDeviceRegistry.registerBeacon(device, subnet, email);
 

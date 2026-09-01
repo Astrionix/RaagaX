@@ -85,14 +85,16 @@ export class ConnectDeviceRegistry {
       const isSameSubnet = Boolean(
         !subnet || !dev.subnet ||
         subnet === dev.subnet ||
-        subnet === '127.0.0' ||
-        dev.subnet === '127.0.0' ||
+        subnet.includes('127.0.0') ||
+        dev.subnet.includes('127.0.0') ||
+        subnet === '::1' ||
+        dev.subnet === '::1' ||
         dev.ip === '127.0.0.1' ||
         dev.ip === 'localhost'
       );
 
-      // Rule: If neither same account nor same subnet, omit (zero exposure across disparate networks)
-      if (accountId && dev.accountId && subnet && dev.subnet && !isSameAccount && !isSameSubnet) {
+      // Rule: Only omit if explicitly belonging to a DIFFERENT distinct account on a DIFFERENT network
+      if (accountId && dev.accountId && accountId !== dev.accountId && !isSameSubnet) {
         continue;
       }
 

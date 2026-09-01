@@ -200,12 +200,20 @@ export class ConnectDiscoveryEngine {
 
     // 3. HTTP Server Beacon (cross-browser, cross-device, LAN and cloud synchronization)
     if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+      try {
+        const { usePlayerStore } = require('@/context/usePlayerStore');
+        const user = usePlayerStore.getState().user;
+        if (user?.id) this.localDevice.accountId = user.id;
+        if (user?.email) (this.localDevice as any).email = user.email;
+      } catch {}
+
       fetch('/api/connect/beacon', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           device: this.localDevice,
           accountId: this.localDevice.accountId,
+          email: (this.localDevice as any).email,
         }),
       })
         .then((res) => res.json())
