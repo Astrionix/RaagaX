@@ -612,17 +612,25 @@ export function AudioPlayerController() {
     } else {
       const tm = TransitionManager.getInstance();
       if (tm.getState() === 'CROSSFADING') return;
-      const activeAudio = PlaybackService.getInstance().getActiveAudio();
-      if (activeAudio) {
-        let volumeMultiplier = 1.0;
-        if (loudnessNormalizationEnabled && currentSong && (currentSong as any).loudness !== undefined && (currentSong as any).loudness !== null) {
-          const targetLoudness = -14.0;
-          const dbGain = targetLoudness - (currentSong as any).loudness;
-          const clampedDbGain = Math.min(6.0, dbGain); // Limit boost to +6dB
-          volumeMultiplier = Math.pow(10, clampedDbGain / 20);
-        }
-        activeAudio.volume = Math.max(0, Math.min(1, effectiveVolume * volumeMultiplier));
+
+      // Compute loudness-normalised target volume
+      let volumeMultiplier = 1.0;
+      if (loudnessNormalizationEnabled && currentSong && (currentSong as any).loudness !== undefined && (currentSong as any).loudness !== null) {
+        const targetLoudness = -14.0;
+        const dbGain = targetLoudness - (currentSong as any).loudness;
+        const clampedDbGain = Math.min(6.0, dbGain); // Limit boost to +6dB
+        volumeMultiplier = Math.pow(10, clampedDbGain / 20);
       }
+      const targetVol = Math.max(0, Math.min(1, effectiveVolume * volumeMultiplier));
+
+      // Use smooth 25ms rAF ramp to avoid audio pop on volume change
+      import('@/lib/playback/SpeakerVolumeGainManager').then(({ SpeakerVolumeGainManager }) => {
+        SpeakerVolumeGainManager.getInstance().setSmoothVolume(targetVol);
+      }).catch(() => {
+        // Fallback: instant assignment
+        const activeAudio = PlaybackService.getInstance().getActiveAudio();
+        if (activeAudio) activeAudio.volume = targetVol;
+      });
     }
   }, [volume, isMuted, currentSong?.id, loudnessNormalizationEnabled]);
 

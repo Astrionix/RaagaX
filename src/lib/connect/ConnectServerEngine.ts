@@ -196,13 +196,32 @@ export class ConnectServerEngine {
       return { success: true, session: this.getSession(), duplicate: true };
     }
 
-    // 2. Register controller in active session if not already present
-    if (command.senderDeviceId && !this.currentSession.controllerIds.includes(command.senderDeviceId)) {
-      this.currentSession.controllerIds.push(command.senderDeviceId);
+    // 2. Register controller in active session if command came from an external controller
+    const localDevice = typeof window !== 'undefined' ? ConnectDiscoveryEngine.getInstance().getLocalDevice() : null;
+    const isFromRemoteController = command.senderDeviceId && (!localDevice || (command.senderDeviceId !== localDevice.deviceId && command.senderDeviceId !== 'dev_local'));
+
+    if (
+      isFromRemoteController &&
+      command.action !== 'DISCONNECT_CONTROLLER' &&
+      command.action !== 'CONTROLLER_DETACH_SELF' &&
+      command.action !== 'SPEAKER_DETACH_CONTROLLER'
+    ) {
+      this.currentSession.controllerDeviceId = command.senderDeviceId;
+      this.currentSession.controllerDeviceName = command.senderName || 'Remote Device';
+      if (!this.currentSession.controllerIds.includes(command.senderDeviceId)) {
+        this.currentSession.controllerIds.push(command.senderDeviceId);
+      }
     }
 
-    // 3. Stale revision protection: skip for TRANSFER_PLAYBACK / PLAY_SONG (authoritative user action)
-    if (command.action !== 'TRANSFER_PLAYBACK' && command.action !== 'PLAY_SONG' && typeof command.expectedRevision === 'number' && command.expectedRevision < this.currentSession.revision) {
+    // 3. Stale revision protection: skip for authoritative user actions
+    const bypassStaleCheck =
+      command.action === 'TRANSFER_PLAYBACK' ||
+      command.action === 'PLAY_SONG' ||
+      command.action === 'SPEAKER_DETACH_CONTROLLER' ||
+      command.action === 'CONTROLLER_DETACH_SELF' ||
+      command.action === 'DISCONNECT_CONTROLLER';
+
+    if (!bypassStaleCheck && typeof command.expectedRevision === 'number' && command.expectedRevision < this.currentSession.revision) {
       console.warn(`[CONNECT_COMMAND_REJECTED] Stale revision (expected ${command.expectedRevision} < current ${this.currentSession.revision})`);
       return { success: false, session: this.getSession() };
     }
@@ -533,11 +552,16 @@ export class ConnectServerEngine {
         this.currentSession.revision += 1;
         this.currentSession.updatedAt = now;
         store.setVolume(vol);
+        // Use smooth ramp (25ms rAF-based linear interpolation) to avoid audio pop on gain change
         try {
+          const { SpeakerVolumeGainManager } = require('@/lib/playback/SpeakerVolumeGainManager');
+          SpeakerVolumeGainManager.getInstance().setSmoothVolume(vol);
+        } catch {
+          // Fallback: instant assignment if manager unavailable
           const { PlaybackService } = require('@/lib/playback/PlaybackService');
           const pb = PlaybackService.getInstance().getActiveAudio();
           if (pb) pb.volume = vol;
-        } catch {}
+        }
         break;
       }
 
@@ -577,11 +601,40 @@ export class ConnectServerEngine {
         break;
       }
 
+      case 'CONTROLLER_DETACH_SELF':
       case 'DISCONNECT_CONTROLLER': {
         // INVARIANT: DISCONNECT MUST NOT STOP THE MUSIC.
         const controllerId = command.senderDeviceId;
         this.currentSession.controllerIds = this.currentSession.controllerIds.filter((id) => id !== controllerId);
+        if (this.currentSession.controllerDeviceId === controllerId) {
+          this.currentSession.controllerDeviceId = null;
+          this.currentSession.controllerDeviceName = null;
+        }
+        this.currentSession.revision += 1;
+        this.currentSession.updatedAt = now;
         console.log(`[CONNECT_DISCONNECT]\ncontrollerId=${controllerId}\nplaybackContinues=true`);
+        break;
+      }
+
+      case 'SPEAKER_DETACH_CONTROLLER': {
+        // Device Y cuts off controller Device X. Music keeps playing locally.
+        const targetControllerId = command.payload?.controllerId || this.currentSession.controllerDeviceId;
+        this.currentSession.controllerDeviceId = null;
+        this.currentSession.controllerDeviceName = null;
+        this.currentSession.controllerIds = [];
+        this.currentSession.revision += 1;
+        this.currentSession.updatedAt = now;
+        console.log(`[SPEAKER_DETACH_CONTROLLER]\ntargetControllerId=${targetControllerId}\nplaybackContinues=true`);
+
+        if (this.broadcastChannel && targetControllerId) {
+          try {
+            this.broadcastChannel.postMessage({
+              type: 'CONTROLLER_DETACHED_BY_SPEAKER',
+              controllerId: targetControllerId,
+              speakerId: this.currentSession.playbackDeviceId,
+            });
+          } catch {}
+        }
         break;
       }
 
@@ -710,6 +763,35 @@ export class ConnectServerEngine {
         this.broadcastSessionUpdate();
       }
     });
+  }
+
+  /**
+   * Speaker Action: Disconnect and detach any remote controller currently driving playback.
+   * Audio output on this speaker remains completely uninterrupted.
+   */
+  public disconnectRemoteController(): boolean {
+    const now = Date.now();
+    const oldControllerId = this.currentSession.controllerDeviceId;
+    this.currentSession.controllerDeviceId = null;
+    this.currentSession.controllerDeviceName = null;
+    this.currentSession.controllerIds = [];
+    this.currentSession.revision += 1;
+    this.currentSession.updatedAt = now;
+
+    console.log(`[SPEAKER_DETACH_CONTROLLER]\ndetachedController=${oldControllerId}\nplaybackContinues=true`);
+
+    if (this.broadcastChannel && oldControllerId) {
+      try {
+        this.broadcastChannel.postMessage({
+          type: 'CONTROLLER_DETACHED_BY_SPEAKER',
+          controllerId: oldControllerId,
+          speakerId: this.currentSession.playbackDeviceId,
+        });
+      } catch {}
+    }
+
+    this.broadcastSessionUpdate();
+    return true;
   }
 
   public subscribe(listener: SessionUpdateListener): () => void {

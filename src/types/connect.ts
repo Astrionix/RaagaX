@@ -68,6 +68,8 @@ export type ConnectCommandAction =
   | 'SET_REPEAT'
   | 'REQUEST_SNAPSHOT'
   | 'DISCONNECT_CONTROLLER'
+  | 'SPEAKER_DETACH_CONTROLLER'
+  | 'CONTROLLER_DETACH_SELF'
   | 'HANDOFF_PREPARE'
   | 'HANDOFF_COMMIT'
   | 'HEARTBEAT';
@@ -93,6 +95,8 @@ export interface ConnectCommand {
     timelineId?: string;
     sourceDeviceId?: string;
     targetDeviceId?: string;
+    controllerId?: string;
+    speakerId?: string;
     newIndex?: number;
     oldIndex?: number;
     songId?: string;
@@ -119,6 +123,8 @@ export interface ConnectPlaybackSession {
   playbackDeviceId: string;
   playbackDeviceName: string;
   controllerIds: string[];
+  controllerDeviceId?: string | null;
+  controllerDeviceName?: string | null;
   
   currentTrackId: string | null;
   currentQueueItemId: string | null;
@@ -156,4 +162,38 @@ export interface ConnectEvent {
   session: ConnectPlaybackSession;
   serverTimestamp: number;
   requestId?: string;
+}
+
+export interface DeviceNode {
+  id: string;
+  name: string;
+  type: 'mobile' | 'desktop' | 'browser';
+  lastSeen: number;
+}
+
+export interface UserConnectSession {
+  userId: string;
+  sessionId: string;
+  activeSpeakerId: string | null;     // Device Y (Actual Audio Out)
+  activeSpeakerName: string | null;
+  controllerId: string | null;        // Device X (Remote Driver)
+  controllerName: string | null;
+  stateVersion: number;
+  track: {
+    id: string;
+    title: string;
+    artist: string;
+    durationMs: number;
+    audioUrl: string;
+  } | null;
+  playback: {
+    isPaused: boolean;
+    positionMs: number;
+    timestamp: number; // Server epoch ms for clock-drift compensation
+  };
+  volume: {
+    value: number; // 0 - 100
+    isMuted: boolean;
+  };
+  registeredDevices: Record<string, DeviceNode>;
 }

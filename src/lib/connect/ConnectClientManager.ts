@@ -50,6 +50,19 @@ export class ConnectClientManager {
       this.broadcastChannel.onmessage = (event) => {
         if (event.data?.type === 'SESSION_STATE_CHANGED' && event.data.session) {
           this.handleIncomingSession(event.data.session);
+        } else if (event.data?.type === 'CONTROLLER_DETACHED_BY_SPEAKER') {
+          const local = ConnectDiscoveryEngine.getInstance().getLocalDevice();
+          if (event.data.controllerId === local.deviceId || event.data.controllerId === 'dev_local') {
+            console.log(`[CONNECT_DETACHED_BY_SPEAKER] Controller disconnected by speaker: ${event.data.speakerId}`);
+            this.activeTargetDevice = null;
+            this.remoteSession = null;
+            this.stopSessionPolling();
+            useConnectStore.setState({ isRemoteMode: false, activePlaybackDevice: null, remoteSession: null });
+            try {
+              const { MediaSessionManager } = require('@/lib/playback/MediaSessionManager');
+              MediaSessionManager.getInstance().restoreLocalMediaHandlers();
+            } catch {}
+          }
         }
       };
     } catch {}

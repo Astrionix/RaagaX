@@ -2,21 +2,41 @@
  * RaagaX Connect — Reactive Zustand Store
  *
  * Exposes device discovery state, active target device, remote playback session,
- * and remote control actions for the Connect UI.
+ * speaker-side remote control status, Same-User clustering, and remote control actions.
  */
 
 import { create } from 'zustand';
-import { ConnectDevice, ConnectPlaybackSession } from '@/types/connect';
+import { ConnectDevice, ConnectPlaybackSession, UserConnectSession, DeviceNode } from '@/types/connect';
 import { ConnectDiscoveryEngine } from '@/lib/connect/ConnectDiscoveryEngine';
 import { ConnectClientManager } from '@/lib/connect/ConnectClientManager';
+import { ConnectServerEngine } from '@/lib/connect/ConnectServerEngine';
 
 interface ConnectStoreState {
+  // Identity & User clustering
+  localDeviceId: string;
+  localDeviceName: string;
+  userId: string;
+  clockOffsetMs: number;
+
   devices: ConnectDevice[];
   activePlaybackDevice: ConnectDevice | null;
   remoteSession: ConnectPlaybackSession | null;
+  speakerSession: ConnectPlaybackSession | null;
   isConnectModalOpen: boolean;
   isRemoteMode: boolean;
+  isControlledByRemote: boolean;
+  controllerDeviceId: string | null;
+  controllerDeviceName: string | null;
   isScanning: boolean;
+
+  // Computed state helpers
+  isSpeaker: () => boolean;
+  isController: () => boolean;
+  getInterpolatedPosition: () => number;
+
+  // Identity actions
+  initDevice: (userId: string, name: string, type?: DeviceNode['type']) => void;
+  setClockOffset: (offsetMs: number) => void;
 
   // UI modal toggles
   toggleConnectModal: (open?: boolean) => void;
@@ -24,8 +44,11 @@ interface ConnectStoreState {
   // Actions
   scanDevices: () => void;
   transferPlayback: (targetDevice: ConnectDevice) => Promise<boolean>;
+  /** Detach this controller — the speaker KEEPS PLAYING, local enters idle/silent mode */
+  disconnect: () => Promise<boolean>;
   disconnectAndPlayLocally: () => Promise<boolean>;
-  getInterpolatedPosition: () => number;
+  /** Speaker action: detach any remote controller driving playback on this speaker */
+  disconnectRemoteControllerFromSpeaker: () => Promise<boolean>;
 
   // Remote Controller RPCs
   sendPlay: () => Promise<boolean>;
@@ -41,6 +64,8 @@ export const useConnectStore = create<ConnectStoreState>((set, get) => {
   if (typeof window !== 'undefined') {
     const discovery = ConnectDiscoveryEngine.getInstance();
     const client = ConnectClientManager.getInstance();
+    const server = ConnectServerEngine.getInstance();
+    const local = discovery.getLocalDevice();
 
     discovery.subscribe((devices) => {
       set({ devices });
@@ -53,15 +78,81 @@ export const useConnectStore = create<ConnectStoreState>((set, get) => {
         activePlaybackDevice: client.getActiveTargetDevice(),
       });
     });
+
+    server.subscribe((s) => {
+      const localDevice = discovery.getLocalDevice();
+      const isControlled =
+        !client.isRemoteMode() &&
+        !!s.controllerDeviceId &&
+        s.controllerDeviceId !== localDevice.deviceId &&
+        s.controllerDeviceId !== 'dev_local';
+
+      set({
+        speakerSession: s,
+        isControlledByRemote: isControlled,
+        controllerDeviceId: isControlled ? (s.controllerDeviceId || null) : null,
+        controllerDeviceName: isControlled ? (s.controllerDeviceName || 'Remote Device') : null,
+      });
+    });
   }
 
+  // Load or generate initial persistent local device identity
+  const initialLocalId =
+    typeof window !== 'undefined'
+      ? localStorage.getItem('connect_device_id') ||
+        ConnectDiscoveryEngine.getInstance().getLocalDevice().deviceId
+      : 'dev_local';
+
+  const initialLocalName =
+    typeof window !== 'undefined'
+      ? ConnectDiscoveryEngine.getInstance().getLocalDevice().deviceName
+      : 'RaagaX Device';
+
   return {
+    localDeviceId: initialLocalId,
+    localDeviceName: initialLocalName,
+    userId: '',
+    clockOffsetMs: 0,
+
     devices: [],
     activePlaybackDevice: null,
     remoteSession: null,
+    speakerSession: null,
     isConnectModalOpen: false,
     isRemoteMode: false,
+    isControlledByRemote: false,
+    controllerDeviceId: null,
+    controllerDeviceName: null,
     isScanning: false,
+
+    initDevice: (userId: string, name: string, _type?: DeviceNode['type']) => {
+      let storedId = typeof window !== 'undefined' ? localStorage.getItem('connect_device_id') : null;
+      if (!storedId) {
+        storedId = `dev_${Math.random().toString(36).substring(2, 9)}_${Date.now().toString(36)}`;
+        if (typeof window !== 'undefined') localStorage.setItem('connect_device_id', storedId);
+      }
+      set({
+        localDeviceId: storedId,
+        localDeviceName: name || get().localDeviceName,
+        userId,
+      });
+    },
+
+    setClockOffset: (clockOffsetMs: number) => set({ clockOffsetMs }),
+
+    isSpeaker: () => {
+      return !get().isRemoteMode;
+    },
+
+    isController: () => {
+      return get().isRemoteMode;
+    },
+
+    getInterpolatedPosition: () => {
+      const { clockOffsetMs } = get();
+      const basePos = ConnectClientManager.getInstance().getInterpolatedPosition();
+      return Math.max(0, basePos + clockOffsetMs / 1000);
+    },
 
     toggleConnectModal: (open) => {
       const nextState = typeof open === 'boolean' ? open : !get().isConnectModalOpen;
@@ -85,7 +176,23 @@ export const useConnectStore = create<ConnectStoreState>((set, get) => {
         set({
           activePlaybackDevice: client.getActiveTargetDevice(),
           isRemoteMode: client.isRemoteMode(),
-          isConnectModalOpen: false,
+        });
+      }
+      return success;
+    },
+
+    /**
+     * Detach this device as a controller.
+     * The speaker KEEPS PLAYING. This device enters idle/silent mode.
+     */
+    disconnect: async () => {
+      const client = ConnectClientManager.getInstance();
+      const success = await client.disconnect(false);
+      if (success) {
+        set({
+          activePlaybackDevice: null,
+          isRemoteMode: false,
+          remoteSession: null,
         });
       }
       return success;
@@ -105,8 +212,20 @@ export const useConnectStore = create<ConnectStoreState>((set, get) => {
       return success;
     },
 
-    getInterpolatedPosition: () => {
-      return ConnectClientManager.getInstance().getInterpolatedPosition();
+    /**
+     * Speaker action: Detach remote controller. Speaker continues playing locally.
+     */
+    disconnectRemoteControllerFromSpeaker: async () => {
+      const server = ConnectServerEngine.getInstance();
+      const success = server.disconnectRemoteController();
+      if (success) {
+        set({
+          isControlledByRemote: false,
+          controllerDeviceId: null,
+          controllerDeviceName: null,
+        });
+      }
+      return success;
     },
 
     sendPlay: async () => {

@@ -61,7 +61,9 @@ export interface ClientCommandMessage {
     | 'SEEK'
     | 'SKIP_NEXT'
     | 'SKIP_PREVIOUS'
-    | 'SET_VOLUME';
+    | 'SET_VOLUME'
+    | 'SPEAKER_DETACH_CONTROLLER'
+    | 'CONTROLLER_DETACH_SELF';
   readonly senderDeviceId: string;
   readonly timestamp: number;
   readonly payload?: {
@@ -69,6 +71,8 @@ export interface ClientCommandMessage {
     readonly seekPositionMs?: number;
     readonly volumeLevel?: number;
     readonly repeatMode?: 'OFF' | 'ALL' | 'ONE';
+    readonly controllerId?: string;
+    readonly speakerId?: string;
   };
 }
 
@@ -76,6 +80,8 @@ export interface PlaybackSessionState {
   readonly sessionId: string;
   readonly userId: string;
   readonly activeSinkDeviceId: string | null;
+  readonly controllerDeviceId?: string | null;
+  readonly controllerDeviceName?: string | null;
   readonly stateVersion: number; // Monotonically increasing epoch counter
   readonly serverTimestampMs: number;
   readonly playbackState: PlaybackState;
@@ -92,6 +98,8 @@ export interface PlaybackStateDelta {
   readonly stateVersion: number;
   readonly serverTimestampMs: number;
   readonly activeSinkDeviceId?: string | null;
+  readonly controllerDeviceId?: string | null;
+  readonly controllerDeviceName?: string | null;
   readonly playbackState?: PlaybackState;
   readonly currentTrack?: TrackMetadata | null;
   readonly positionMs?: number;
@@ -116,6 +124,8 @@ export type ClientCommandAction =
   | 'SKIP_NEXT'
   | 'SKIP_PREV'
   | 'PLAY_SONG'
+  | 'SPEAKER_DETACH_CONTROLLER'
+  | 'CONTROLLER_DETACH_SELF'
   | 'QUEUE_MUTATE'
   | 'HEARTBEAT';
 

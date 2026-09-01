@@ -37,6 +37,7 @@ import { JoinJamModal } from '@/components/jam/JoinJamModal';
 import { JamDevSyncPanel } from '@/components/jam/JamDevSyncPanel';
 import { ConnectDeviceModal } from '@/components/connect/ConnectDeviceModal';
 import { ConnectedPlayerFooter } from '@/components/connect/ConnectedPlayerFooter';
+import { SpeakerControlledBanner } from '@/components/connect/SpeakerControlledBanner';
 
 import { Toast } from '@/components/ui/Toast';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
@@ -249,7 +250,7 @@ export default function Page() {
             <main className={`flex-1 pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] md:pb-[5.5rem] ${
               activeTab === 'album' || activeTab === 'playlist' || (activeTab === 'artist' && selectedArtistId)
                 ? 'pt-0 px-0'
-                : 'pt-14 md:pt-4 px-3.5 sm:px-8'
+                : 'pt-14 md:pt-6 px-3.5 sm:px-8'
             }`}>
               {activeTab === 'home' && <HomeView />}
               {activeTab === 'new' && <NewView />}
@@ -281,10 +282,9 @@ export default function Page() {
         </div>
       </div>
 
-      {/* Spotify Connect Style Persistent Remote Banner */}
-      <div className="fixed bottom-0 left-0 right-0 z-40">
-        <ConnectedPlayerFooter />
-      </div>
+      {/* Spotify Connect Style Persistent Remote Banner (Controller Mode) & Speaker Controlled Banner (Speaker Mode) */}
+      <ConnectedPlayerFooter />
+      <SpeakerControlledBanner />
 
       {/* Desktop Persistent Bottom Audio Player Bar */}
       <PlayerBar />

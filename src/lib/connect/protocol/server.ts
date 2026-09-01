@@ -169,10 +169,12 @@ export class ConnectCoordinatorServer {
 
     const session = this.getOrCreateSession(userId);
 
-    // 2. Monotonic out-of-order drop guard (Skip for atomic handoff / song selection)
+    // 2. Monotonic out-of-order drop guard (Skip for atomic handoff / song selection / detach)
     if (
       command.action !== 'TRANSFER_PLAYBACK' &&
       command.action !== 'PLAY_SONG' &&
+      command.action !== 'SPEAKER_DETACH_CONTROLLER' &&
+      command.action !== 'CONTROLLER_DETACH_SELF' &&
       typeof command.expectedVersion === 'number' &&
       command.expectedVersion < session.stateVersion
     ) {
@@ -513,6 +515,26 @@ export class ConnectCoordinatorServer {
             });
           }
         }
+
+        this.broadcastToUser(userId, {
+          type: 'FULL_HYDRATE',
+          state: updated,
+          serverTimestampMs: now,
+        });
+        break;
+      }
+
+      case 'SPEAKER_DETACH_CONTROLLER':
+      case 'CONTROLLER_DETACH_SELF': {
+        const nextVersion = session.stateVersion + 1;
+        const updated: PlaybackSessionState = {
+          ...session,
+          controllerDeviceId: null,
+          controllerDeviceName: null,
+          serverTimestampMs: now,
+          stateVersion: nextVersion,
+        };
+        this.sessionsByUserId.set(userId, updated);
 
         this.broadcastToUser(userId, {
           type: 'FULL_HYDRATE',

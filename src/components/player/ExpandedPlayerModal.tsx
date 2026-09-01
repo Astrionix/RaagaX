@@ -57,6 +57,7 @@ import { AlbumCatalogEngine } from '@/lib/albumCatalog';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { ConnectButton } from '@/components/connect/ConnectButton';
 import { useConnectStore } from '@/context/useConnectStore';
+import { VolumeControl } from '@/components/player/VolumeControl';
 
 export function ExpandedPlayerModal() {
   const { playlists, addSongToPlaylist } = usePlaylistStore();
@@ -823,40 +824,7 @@ export function ExpandedPlayerModal() {
               </div>
 
               {/* Volume Slider */}
-              <div className="w-full max-w-md flex items-center gap-3 px-3">
-                <button
-                  onClick={toggleMute}
-                  className="flex-shrink-0 text-white/40 hover:text-white transition-colors cursor-pointer"
-                  title="Mute / Unmute (M)"
-                >
-                  {isMuted || volume === 0 ? (
-                    <VolumeX className="w-4 h-4 text-[#F0444F]" />
-                  ) : (
-                    <Volume2 className="w-4 h-4 text-white/50" />
-                  )}
-                </button>
-                <div className="relative flex-1 h-4 flex items-center group cursor-pointer">
-                  <div className="absolute left-0 right-0 h-1 rounded-full bg-white/15 group-hover:h-1.5 transition-all" />
-                  <div
-                    className="absolute left-0 h-1 group-hover:h-1.5 rounded-full pointer-events-none transition-all"
-                    style={{
-                      width: `${(isMuted ? 0 : volume) * 100}%`,
-                      background: palette ? `linear-gradient(90deg, ${palette.highlight} 0%, ${palette.accent} 100%)` : '#FA233B',
-                    }}
-                  />
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={isMuted ? 0 : volume}
-                    onChange={(e) => setVolume(parseFloat(e.target.value))}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    title={`Volume: ${Math.round((isMuted ? 0 : volume) * 100)}%`}
-                  />
-                </div>
-                <Volume2 className="w-4 h-4 text-white/50 flex-shrink-0" />
-              </div>
+              <VolumeControl className="w-full max-w-md px-3" />
 
               {/* Bottom Utilities Pills [ Lyrics | Queue | Sleep Timer ] */}
               <div className="flex items-center justify-center gap-2 sm:gap-3 pt-1">
@@ -1049,40 +1017,7 @@ export function ExpandedPlayerModal() {
               </div>
 
               {/* Volume */}
-              <div className="w-full flex items-center gap-3 px-2 flex-shrink-0">
-                <button
-                  onClick={toggleMute}
-                  className="flex-shrink-0 text-white/40 hover:text-white transition-colors cursor-pointer"
-                  title="Mute / Unmute (M)"
-                >
-                  {isMuted || volume === 0 ? (
-                    <VolumeX className="w-4 h-4 text-[#F0444F]" />
-                  ) : (
-                    <Volume2 className="w-4 h-4 text-white/50" />
-                  )}
-                </button>
-                <div className="relative flex-1 h-4 flex items-center group cursor-pointer">
-                  <div className="absolute left-0 right-0 h-1 rounded-full bg-white/15 group-hover:h-1.5 transition-all" />
-                  <div
-                    className="absolute left-0 h-1 group-hover:h-1.5 rounded-full pointer-events-none transition-all"
-                    style={{
-                      width: `${(isMuted ? 0 : volume) * 100}%`,
-                      background: palette ? `linear-gradient(90deg, ${palette.highlight} 0%, ${palette.accent} 100%)` : '#FA233B',
-                    }}
-                  />
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={isMuted ? 0 : volume}
-                    onChange={(e) => setVolume(parseFloat(e.target.value))}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    title={`Volume: ${Math.round((isMuted ? 0 : volume) * 100)}%`}
-                  />
-                </div>
-                <Volume2 className="w-4 h-4 text-white/50 flex-shrink-0" />
-              </div>
+              <VolumeControl className="w-full px-2 flex-shrink-0" />
 
               {/* Mode Pills [ Lyrics | Queue | Sleep Timer ] */}
               <div className="flex items-center justify-center gap-2 sm:gap-3 pt-1 flex-shrink-0">
@@ -1834,40 +1769,7 @@ export function ExpandedPlayerModal() {
           </div>
 
           {/* E. SUBTLE VOLUME SLIDER (Unboxed) */}
-          <div className="w-full flex items-center gap-3 px-3 flex-shrink-0">
-            <button
-              onClick={toggleMute}
-              className="flex-shrink-0 text-white/40 hover:text-white transition-colors cursor-pointer"
-              title="Mute / Unmute (M)"
-            >
-              {isMuted || volume === 0 ? (
-                <VolumeX className="w-4 h-4 text-[#F0444F]" />
-              ) : (
-                <Volume2 className="w-4 h-4 text-white/50" />
-              )}
-            </button>
-            <div className="relative flex-1 h-4 flex items-center group cursor-pointer">
-              <div className="absolute left-0 right-0 h-1 rounded-full bg-white/15 group-hover:h-1.5 transition-all" />
-              <div
-                className="absolute left-0 h-1 group-hover:h-1.5 rounded-full pointer-events-none transition-all"
-                style={{
-                  width: `${(isMuted ? 0 : volume) * 100}%`,
-                  background: palette ? `linear-gradient(90deg, ${palette.highlight} 0%, ${palette.accent} 100%)` : '#FFFFFF',
-                }}
-              />
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={isMuted ? 0 : volume}
-                onChange={(e) => setVolume(parseFloat(e.target.value))}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                title={`Volume: ${Math.round((isMuted ? 0 : volume) * 100)}%`}
-              />
-            </div>
-            <Volume2 className="w-4 h-4 text-white/50 flex-shrink-0" />
-          </div>
+          <VolumeControl className="w-full px-3 flex-shrink-0" />
 
           {/* F. BOTTOM UTILITIES ROW [ Lyrics | Queue | Sleep Timer ] (Unboxed Minimal Pills) */}
           <div className="w-full flex items-center justify-center gap-2 sm:gap-3 pt-1 pb-1 sm:pb-2 px-2 flex-shrink-0">
