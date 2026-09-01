@@ -116,10 +116,22 @@ export class ConnectClientManager {
   /**
    * Connect to target device and transfer playback without restarting from 0
    */
-  /**
-   * Connect to target device and transfer playback without restarting from 0
-   */
-  public async transferPlaybackTo(targetDevice: ConnectDevice): Promise<boolean> {
+  public async transferPlaybackTo(targetInput: ConnectDevice | string): Promise<boolean> {
+    if (!targetInput) return false;
+
+    const targetDevice: ConnectDevice = typeof targetInput === 'string'
+      ? (ConnectDiscoveryEngine.getInstance().getDiscoveredDevices().find((d) => d.deviceId === targetInput) || {
+          deviceId: targetInput,
+          deviceName: 'Remote Device',
+          deviceType: 'speaker',
+          isCurrentDevice: false,
+          isOnline: true,
+          state: 'IDLE',
+          transport: 'LOCAL_LAN',
+          lastSeenAt: Date.now(),
+        })
+      : targetInput;
+
     if (!targetDevice || !targetDevice.deviceId) return false;
 
     // Loading lock & double-click debounce (1.5s in browser)

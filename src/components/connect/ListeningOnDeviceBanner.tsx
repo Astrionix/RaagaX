@@ -1,20 +1,22 @@
 'use client';
 
 /**
- * ListeningOnDeviceBanner — Spotify Connect Style Remote Status Banner
+ * ListeningOnDeviceBanner — Spotify Connect Persistent Remote Status Bar
  *
- * Renders the persistent green device routing bar when this device is acting
- * as a Remote Controller driving another physical speaker.
+ * Renders the signature Spotify green (#1db954) bottom bar when the current device
+ * is acting as a Remote Controller driving another physical speaker under the same account.
  *
  * Features:
- * - Active Speaker Icon & Dynamic Equalizer Waves
- * - 60 FPS Mathematical Scrubber (No network audio polling)
- * - "Play on this device" One-Click Takeover Button with Loading State
- * - "Disconnect" Quick Detach Action
+ * - Active Speaker Icon & Animated Equalizer Indicator
+ * - "Listening on [Device Name]" with one-click device switching
+ * - 60 FPS Mathematical Scrubber (0 network audio polling)
+ * - "Play on this device / This Computer" Instant Takeover Button with Pre-buffer Loader
+ * - Headless Remote Transport Controls (Play/Pause/Next/Prev/Seek)
+ * - Quick Disconnect action
  */
 
 import React from 'react';
-import { useRemotePlaybackObserver } from '@/hooks/useRemotePlaybackObserver';
+import { useSpotifyConnectEngine } from '@/hooks/useSpotifyConnectEngine';
 import { useConnectStore } from '@/context/useConnectStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import {
@@ -28,12 +30,14 @@ import {
   SkipForward,
   SkipBack,
   Loader2,
+  X,
 } from 'lucide-react';
 
 export function ListeningOnDeviceBanner() {
   const {
     isRemoteController,
     activeSpeakerName,
+    activeSpeakerType,
     trackTitle,
     durationMs,
     isPaused,
@@ -47,10 +51,9 @@ export function ListeningOnDeviceBanner() {
     sendSeek,
     sendNext,
     sendPrev,
-  } = useRemotePlaybackObserver();
+  } = useSpotifyConnectEngine();
 
   const toggleConnectModal = useConnectStore((s) => s.toggleConnectModal);
-  const activePlaybackDevice = useConnectStore((s) => s.activePlaybackDevice);
   const isQueueOpen = usePlayerStore((s) => s.isQueueOpen);
 
   if (!isRemoteController || !activeSpeakerName) {
@@ -65,12 +68,10 @@ export function ListeningOnDeviceBanner() {
   };
 
   const getDeviceIcon = () => {
-    const type = activePlaybackDevice?.deviceType;
-    if (type === 'tv') return <Tv className="w-3.5 h-3.5" />;
-    if (type === 'mobile') return <Smartphone className="w-3.5 h-3.5" />;
-    if (type === 'tablet') return <Tablet className="w-3.5 h-3.5" />;
-    if (type === 'desktop') return <Laptop className="w-3.5 h-3.5" />;
-    return <Speaker className="w-3.5 h-3.5" />;
+    if ((activeSpeakerType as string) === 'tv') return <Tv className="w-4 h-4 text-[#1db954]" />;
+    if (activeSpeakerType === 'mobile') return <Smartphone className="w-4 h-4 text-[#1db954]" />;
+    if (activeSpeakerType === 'desktop') return <Laptop className="w-4 h-4 text-[#1db954]" />;
+    return <Speaker className="w-4 h-4 text-[#1db954]" />;
   };
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -83,123 +84,143 @@ export function ListeningOnDeviceBanner() {
 
   return (
     <>
-      {/* ── DESKTOP: Floating Pill Docked Above PlayerBar ── */}
+      {/* ── DESKTOP: Spotify Connect Green Floating Routing Pill ── */}
       <div
-        className={`hidden md:flex fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] z-40 select-none items-center justify-between px-4 py-1.5 bg-[#121214]/95 hover:bg-[#16161a] backdrop-blur-2xl border border-[#1db954]/30 hover:border-[#1db954]/50 rounded-full shadow-[0_12px_32px_rgba(0,0,0,0.7),0_0_20px_rgba(29,185,84,0.15)] transition-all duration-300 max-w-[calc(100vw-18rem)] md:max-w-[760px] lg:max-w-[840px] w-auto h-[38px] gap-3 -translate-x-1/2 animate-in slide-in-from-bottom-2 ${
+        className={`hidden md:flex fixed bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] z-40 select-none items-center justify-between px-4 py-2 bg-[#121214]/95 hover:bg-[#16161a] backdrop-blur-2xl border border-[#1db954]/30 hover:border-[#1db954]/50 rounded-full shadow-[0_12px_32px_rgba(0,0,0,0.7),0_0_20px_rgba(29,185,84,0.15)] transition-all duration-300 max-w-[calc(100vw-18rem)] md:max-w-[760px] lg:max-w-[840px] w-auto h-[42px] gap-3 -translate-x-1/2 animate-in slide-in-from-bottom-2 ${
           isQueueOpen
             ? 'left-[calc(50%+8rem)] xl:left-[calc(50%+8rem-180px)]'
             : 'left-[calc(50%+8rem)]'
         }`}
       >
-        {/* Device Indicator */}
+        {/* Device Indicator & Name */}
         <div
           onClick={() => toggleConnectModal(true)}
-          className="flex items-center gap-2 cursor-pointer group flex-shrink-0"
-          title="Change output device"
+          className="flex items-center gap-2.5 cursor-pointer group flex-shrink-0"
+          title="Switch audio playback device"
         >
-          <div className="relative w-6 h-6 rounded-full bg-[#1db954]/15 flex items-center justify-center text-[#1db954] group-hover:bg-[#1db954]/25 transition-colors">
+          <div className="relative w-7 h-7 rounded-full bg-[#1db954]/15 flex items-center justify-center group-hover:bg-[#1db954]/25 transition-colors">
             {getDeviceIcon()}
             {!isPaused && (
               <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#1db954] opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#1db954]"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#1db954]"></span>
               </span>
             )}
           </div>
-          <div className="text-[11px] font-medium text-zinc-300 group-hover:text-white transition-colors truncate max-w-[200px]">
-            <span>Listening on </span>
-            <span className="text-[#1db954] font-semibold underline underline-offset-2">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#1db954]">
+              Listening on
+            </span>
+            <span className="text-xs font-semibold text-white/90 truncate max-w-[130px] lg:max-w-[170px] group-hover:text-white transition-colors">
               {activeSpeakerName}
             </span>
           </div>
         </div>
 
-        {/* Live 60 FPS Scrubber */}
-        <div className="hidden lg:flex items-center gap-2 flex-1 max-w-[260px] mx-2">
-          <span className="text-[10px] font-mono text-zinc-400">
+        {/* Live Scrubber & Remote Transport */}
+        <div className="flex items-center gap-3 flex-1 min-w-[200px] max-w-[360px]">
+          <span className="text-[10px] font-medium text-white/50 w-7 text-right tabular-nums">
             {formatTime(interpolatedPositionMs)}
           </span>
           <div
             onClick={handleSeek}
-            className="relative flex-1 h-1 bg-white/10 hover:h-1.5 rounded-full cursor-pointer overflow-hidden transition-all group"
+            className="group/track relative flex-1 h-1.5 bg-white/10 hover:bg-white/20 rounded-full cursor-pointer overflow-hidden transition-all"
           >
             <div
-              className="h-full bg-[#1db954] rounded-full transition-[width] duration-75"
+              className="absolute left-0 top-0 bottom-0 bg-[#1db954] rounded-full transition-[width] duration-75"
               style={{ width: `${progressRatio * 100}%` }}
             />
           </div>
-          <span className="text-[10px] font-mono text-zinc-400">
+          <span className="text-[10px] font-medium text-white/50 w-7 tabular-nums">
             {formatTime(durationMs)}
           </span>
+
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <button
+              onClick={sendPrev}
+              className="p-1 text-white/60 hover:text-white transition-colors rounded-full hover:bg-white/10"
+              title="Previous"
+            >
+              <SkipBack className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={isPaused ? sendPlay : sendPause}
+              className="w-6 h-6 rounded-full bg-[#1db954] hover:bg-[#1ed760] text-black flex items-center justify-center transition-transform hover:scale-105"
+              title={isPaused ? 'Play' : 'Pause'}
+            >
+              {isPaused ? <Play className="w-3 h-3 fill-current ml-0.5" /> : <Pause className="w-3 h-3 fill-current" />}
+            </button>
+            <button
+              onClick={sendNext}
+              className="p-1 text-white/60 hover:text-white transition-colors rounded-full hover:bg-white/10"
+              title="Next"
+            >
+              <SkipForward className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        {/* Takeover Button & Disconnect */}
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
-            onClick={() => disconnect()}
-            className="px-2.5 py-0.5 text-[11px] font-medium text-zinc-400 hover:text-white hover:bg-white/10 rounded-full transition-all cursor-pointer"
-            title="Detach controller (speaker keeps playing)"
-          >
-            Disconnect
-          </button>
-          <button
-            onClick={() => takeoverPlayback()}
+            onClick={takeoverPlayback}
             disabled={isTakingOver}
-            className="px-3 py-1 bg-[#1db954] hover:bg-[#1ed760] active:scale-95 text-black text-[11px] font-bold rounded-full shadow transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-75"
-            title="Transfer audio to this device"
+            className="flex items-center gap-1.5 px-3 py-1 bg-[#1db954] hover:bg-[#1ed760] text-black text-xs font-bold rounded-full transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] shadow-sm disabled:opacity-50"
+            title="Transfer playback to this computer"
           >
             {isTakingOver ? (
               <>
                 <Loader2 className="w-3 h-3 animate-spin" />
-                <span>Switching...</span>
+                <span>Buffering...</span>
               </>
             ) : (
-              <>
-                <Laptop className="w-3 h-3" />
-                <span>Play Here</span>
-              </>
+              <span>Play on this device</span>
             )}
+          </button>
+          <button
+            onClick={disconnect}
+            className="p-1 text-white/40 hover:text-white/80 transition-colors rounded-full hover:bg-white/10"
+            title="Disconnect remote control"
+          >
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* ── MOBILE: Docked bottom bar ── */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#121214]/95 backdrop-blur-xl border-t border-[#1db954]/30 px-3.5 py-2 flex items-center justify-between text-xs select-none shadow-2xl">
+      {/* ── MOBILE: Persistent Green Docked Status Banner ── */}
+      <div className="md:hidden fixed bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] left-0 right-0 z-40 bg-[#1db954] text-black px-3.5 py-1.5 flex items-center justify-between shadow-[0_-4px_16px_rgba(0,0,0,0.5)] animate-in slide-in-from-bottom-2">
         <div
           onClick={() => toggleConnectModal(true)}
-          className="flex items-center gap-2 min-w-0 cursor-pointer"
+          className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer"
         >
-          <div className="w-7 h-7 rounded-full bg-[#1db954]/15 flex items-center justify-center text-[#1db954] flex-shrink-0">
+          <div className="w-5 h-5 rounded-full bg-black/15 flex items-center justify-center flex-shrink-0 text-black">
             {getDeviceIcon()}
           </div>
-          <div className="min-w-0 truncate">
-            <div className="text-[11px] font-semibold text-white truncate">
-              Listening on <span className="text-[#1db954]">{activeSpeakerName}</span>
-            </div>
-            <div className="text-[10px] text-zinc-400 truncate">
-              {trackTitle ? `▶ ${trackTitle}` : !isPaused ? 'Playing remotely' : 'Paused remotely'}
-            </div>
+          <div className="flex flex-col min-w-0">
+            <span className="text-[10px] font-black uppercase tracking-wider text-black/80">
+              Listening on
+            </span>
+            <span className="text-xs font-bold truncate text-black">
+              {activeSpeakerName}
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => (isPaused ? sendPlay() : sendPause())}
-            className="p-1.5 text-white hover:bg-white/10 rounded-full transition-all cursor-pointer"
-            aria-label={!isPaused ? 'Pause' : 'Play'}
+            onClick={takeoverPlayback}
+            disabled={isTakingOver}
+            className="px-2.5 py-1 bg-black text-white text-[11px] font-bold rounded-full transition-transform active:scale-95 disabled:opacity-50 flex items-center gap-1"
           >
-            {!isPaused ? (
-              <Pause className="w-4 h-4 fill-current" />
-            ) : (
-              <Play className="w-4 h-4 fill-current ml-0.5" />
-            )}
+            {isTakingOver ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : null}
+            <span>Play Here</span>
           </button>
           <button
-            onClick={() => takeoverPlayback()}
-            disabled={isTakingOver}
-            className="px-2.5 py-1 bg-[#1db954] text-black text-[11px] font-bold rounded-full shadow transition-all flex items-center gap-1 cursor-pointer disabled:opacity-75"
+            onClick={disconnect}
+            className="p-1 text-black/60 active:text-black"
+            title="Disconnect"
           >
-            {isTakingOver ? 'Switching...' : 'Play Here'}
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

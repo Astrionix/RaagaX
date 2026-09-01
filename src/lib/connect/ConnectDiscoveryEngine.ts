@@ -303,6 +303,10 @@ export class ConnectDiscoveryEngine {
     return list;
   }
 
+  public getDiscoveredDevices(): ConnectDevice[] {
+    return this.getAvailableDevices();
+  }
+
   public subscribe(listener: DeviceListListener): () => void {
     this.listeners.add(listener);
     listener(this.getAvailableDevices());
