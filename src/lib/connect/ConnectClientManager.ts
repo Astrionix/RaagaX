@@ -60,7 +60,16 @@ export class ConnectClientManager {
   }
 
   public isRemoteMode(): boolean {
-    return this.activeTargetDevice !== null && !this.activeTargetDevice.isCurrentDevice;
+    if (!this.activeTargetDevice) return false;
+    const local = ConnectDiscoveryEngine.getInstance().getLocalDevice();
+    if (
+      this.activeTargetDevice.isCurrentDevice ||
+      this.activeTargetDevice.deviceId === local.deviceId ||
+      this.activeTargetDevice.deviceId === 'dev_local'
+    ) {
+      return false;
+    }
+    return true;
   }
 
   public getRemoteSession(): ConnectPlaybackSession | null {
@@ -97,8 +106,7 @@ export class ConnectClientManager {
    */
   public async transferPlaybackTo(targetDevice: ConnectDevice): Promise<boolean> {
     const localDevice = ConnectDiscoveryEngine.getInstance().getLocalDevice();
-
-    if (targetDevice.deviceId === localDevice.deviceId) {
+    if (targetDevice.deviceId === localDevice.deviceId || targetDevice.isCurrentDevice || targetDevice.deviceId === 'dev_local') {
       return this.disconnectAndPlayLocally();
     }
 
@@ -339,8 +347,18 @@ export class ConnectClientManager {
       await this.dispatchCommand(pauseOldCmd);
     }
 
-    this.activeTargetDevice = toDevice;
-    this.startSessionPolling();
+    const localDevice = ConnectDiscoveryEngine.getInstance().getLocalDevice();
+    const isTargetLocal = toDevice.deviceId === localDevice.deviceId || toDevice.isCurrentDevice || toDevice.deviceId === 'dev_local';
+
+    if (isTargetLocal) {
+      this.activeTargetDevice = null;
+      this.stopSessionPolling();
+      useConnectStore.setState({ isRemoteMode: false, activePlaybackDevice: null });
+    } else {
+      this.activeTargetDevice = toDevice;
+      this.startSessionPolling();
+      useConnectStore.setState({ isRemoteMode: true, activePlaybackDevice: toDevice });
+    }
 
     return true;
   }
