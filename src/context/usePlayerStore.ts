@@ -1730,7 +1730,19 @@ export const usePlayerStore = create<PlayerState>()(
           PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
         }
       },
-      reorderQueue: (newQueue) => {
+      reorderQueue: async (newQueue) => {
+        if (typeof window !== 'undefined') {
+          try {
+            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
+            const connectClient = ConnectClientManager.getInstance();
+            if (connectClient.isRemoteMode()) {
+              set({ queue: newQueue });
+              await connectClient.sendCommand('REORDER_QUEUE', { queue: newQueue, queueIndex: get().queueIndex });
+              return;
+            }
+          } catch { }
+        }
+
         const manager = QueueManager.getInstance();
         manager.replaceQueue(newQueue, get().queueIndex, 'USER');
         set({ queue: newQueue });

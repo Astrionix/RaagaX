@@ -62,6 +62,7 @@ export type ConnectCommandAction =
   | 'SET_QUEUE'
   | 'ADD_TO_QUEUE'
   | 'REMOVE_FROM_QUEUE'
+  | 'REORDER_QUEUE'
   | 'MOVE_QUEUE_ITEM'
   | 'CLEAR_QUEUE'
   | 'SET_SHUFFLE'
@@ -100,6 +101,7 @@ export interface ConnectCommand {
     newIndex?: number;
     oldIndex?: number;
     songId?: string;
+    trackId?: string;
   };
   timestamp: number;
 }

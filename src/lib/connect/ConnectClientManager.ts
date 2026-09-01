@@ -290,21 +290,29 @@ export class ConnectClientManager {
     const currentSession = this.remoteSession;
     const livePosSec = this.getInterpolatedPosition();
 
-    // 1. Send PAUSE command to target speaker device so it stops outputting audio
+    // 1. Pre-warm & Pre-buffer local audio engine before halting remote speaker (Zero Latency Handover)
+    if (currentSession && currentSession.currentSong && currentSession.isPlaying) {
+      try {
+        const { PlaybackService } = await import('@/lib/playback/PlaybackService');
+        await PlaybackService.getInstance().prepareTrack(currentSession.currentSong, livePosSec);
+      } catch {}
+    }
+
+    // 2. Send PAUSE command to target speaker device so it stops outputting audio
     const pauseCmd: ConnectCommand = {
       commandId: `cmd_${Date.now().toString(36)}`,
       requestId: `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`,
-      senderDeviceId: ConnectDiscoveryEngine.getInstance().getLocalDevice().deviceId,
+      senderDeviceId: ConnectDiscoveryEngine.getInstance().getLocalDevice()?.deviceId || 'dev_local',
       targetDeviceId: target.deviceId,
       action: 'PAUSE',
       timestamp: Date.now(),
     };
     await this.dispatchCommand(pauseCmd);
 
-    // 2. Disconnect remote controller mode
+    // 3. Disconnect remote controller mode
     await this.disconnect(false);
 
-    // 3. Resume audio locally on this device at the exact same millisecond
+    // 4. Resume audio locally on this device at the exact same millisecond
     if (currentSession && currentSession.currentSong) {
       usePlayerStore.setState({
         queue: currentSession.queue,

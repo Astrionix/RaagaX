@@ -14,6 +14,7 @@ import { useDownloadStore } from '@/context/useDownloadStore';
 import { AdaptiveQueueController } from '../queue/AdaptiveQueueController';
 import { PlaybackTelemetry, PlaybackSourceType } from './PlaybackTelemetry';
 import { PlayableUrlCache } from './PlayableUrlCache';
+import { WakeLockManager } from './WakeLockManager';
 
 export class PlaybackService {
   private static instance: PlaybackService;
@@ -893,6 +894,7 @@ export class PlaybackService {
             this.notifyStorePlaying(true);
             MediaSessionManager.getInstance().setPlaybackState('playing');
             AudioFocusManager.getInstance().requestFocus();
+            WakeLockManager.getInstance().acquireWakeLock();
           }).catch((err) => {
             if (err?.name === 'NotAllowedError') {
               console.warn('[PlaybackService] Autoplay blocked by browser policy. Attaching user gesture unlocker.');
@@ -911,9 +913,11 @@ export class PlaybackService {
           });
         } else {
           this.notifyStorePlaying(true);
+          WakeLockManager.getInstance().acquireWakeLock();
         }
       } else {
         this.notifyStorePlaying(true);
+        WakeLockManager.getInstance().acquireWakeLock();
       }
     }
   }
@@ -937,6 +941,7 @@ export class PlaybackService {
       RaagaXNativePlayer.pause();
       const store = usePlayerStore.getState();
       store.setIsPlaying(false, true);
+      WakeLockManager.getInstance().releaseWakeLock();
       return;
     }
 
@@ -946,9 +951,11 @@ export class PlaybackService {
     store.setIsPlaying(false, true);
     MediaSessionManager.getInstance().setPlaybackState('paused');
     AudioFocusManager.getInstance().releaseFocus();
+    WakeLockManager.getInstance().releaseWakeLock();
   }
 
   public async resume(): Promise<boolean> {
+    WakeLockManager.getInstance().acquireWakeLock();
     if (RaagaXNativePlayer.isNative()) {
       RaagaXNativePlayer.resume();
       const store = usePlayerStore.getState();

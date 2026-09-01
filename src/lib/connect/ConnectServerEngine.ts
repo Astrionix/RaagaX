@@ -583,6 +583,28 @@ export class ConnectServerEngine {
           this.currentSession.revision += 1;
           this.currentSession.updatedAt = now;
           usePlayerStore.setState({ queue: newQueue });
+        } else if (command.payload?.trackId) {
+          const newQueue = this.currentSession.queue.filter((s) => s.id !== command.payload?.trackId);
+          this.currentSession.queue = newQueue;
+          this.currentSession.revision += 1;
+          this.currentSession.updatedAt = now;
+          usePlayerStore.setState({ queue: newQueue });
+        }
+        break;
+      }
+
+      case 'REORDER_QUEUE': {
+        if (Array.isArray(command.payload?.queue)) {
+          this.currentSession.queue = command.payload.queue;
+          if (typeof command.payload.queueIndex === 'number') {
+            this.currentSession.queueIndex = command.payload.queueIndex;
+          }
+          this.currentSession.revision += 1;
+          this.currentSession.updatedAt = now;
+          usePlayerStore.setState({
+            queue: command.payload.queue,
+            ...(typeof command.payload.queueIndex === 'number' ? { queueIndex: command.payload.queueIndex } : {}),
+          });
         }
         break;
       }
