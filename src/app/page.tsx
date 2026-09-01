@@ -38,6 +38,7 @@ import { JamDevSyncPanel } from '@/components/jam/JamDevSyncPanel';
 import { ConnectDeviceModal } from '@/components/connect/ConnectDeviceModal';
 import { ListeningOnDeviceBanner } from '@/components/connect/ListeningOnDeviceBanner';
 import { SpeakerControlledBanner } from '@/components/connect/SpeakerControlledBanner';
+import { useConnectAudioGuard } from '@/hooks/useConnectAudioGuard';
 
 import { Toast } from '@/components/ui/Toast';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
@@ -112,6 +113,9 @@ export default function Page() {
   // ── Global keyboard shortcuts (Space = play/pause, arrows = seek/volume, etc.)
   // Registered exactly once at the app root via AbortController — never duplicated.
   useGlobalKeyboardShortcuts();
+
+  // ── Spotify Connect Strict Audio Hardware Gating (Silences controllers to prevent double-sound)
+  useConnectAudioGuard();
 
   // Android Predictive Back Gesture & Navigation Hierarchy
   React.useEffect(() => {
