@@ -614,40 +614,56 @@ export class PlaybackService {
       }
 
       let resolvedSource: any = null;
-      try {
-        resolvedSource = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
-      } catch (e) {
-        console.warn('[PlaybackService] Source resolution failed:', e);
-      }
-
-      if (requestId !== this.playbackRequestId) {
-        console.log(`[PlaybackService] Discarding stale source resolution for req #${requestId} (current #${this.playbackRequestId})`);
-        return false;
-      }
-
-      const isCachedSource = Boolean(resolvedSource?.isCached || (resolvedSource?.type !== 'offline' && PlayableUrlCache.getInstance().get(song.id)));
-      if (resolvedSource?.type === 'offline') {
-        resolvedSourceType = 'LOCAL_DOWNLOAD';
-      } else if (isCachedSource) {
-        resolvedSourceType = 'URL_CACHE_HIT';
-      }
-
-      console.log(`[PLAYBACK_SOURCE_ATTEMPT] trackId=${song.id} sourceType=${isCachedSource ? 'CACHE' : 'DIRECT'}`);
-
       let finalSrc = '';
+      let isCachedSource = false;
       const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.();
-      const isInvalidWebScheme = !isNative && (
-        Boolean(resolvedSource?.url && (resolvedSource.url.includes('media3_cache') || resolvedSource.url.startsWith('media3://') || resolvedSource.url.startsWith('file://')))
+
+      // Fast-path: If track already contains direct CDN stream URL, use it immediately (0ms round-trip latency)
+      const hasDirectCdnUrl = Boolean(
+        song.audioUrl &&
+        (song.audioUrl.startsWith('https://') || song.audioUrl.startsWith('http://')) &&
+        !song.audioUrl.includes('pixabay.com') &&
+        (!isNative || (!song.audioUrl.includes('media3_cache') && !song.audioUrl.startsWith('media3://') && !song.audioUrl.startsWith('file://')))
       );
 
-      if (resolvedSource?.url && !isInvalidWebScheme) {
-        finalSrc = resolvedSource.url;
-      } else if (song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
-        const isSongInvalidWeb = !isNative && (song.audioUrl.includes('media3_cache') || song.audioUrl.startsWith('media3://') || song.audioUrl.startsWith('file://'));
-        if (!isSongInvalidWeb) {
-          finalSrc = song.audioUrl.replace(/^http:\/\//, 'https://');
+      if (hasDirectCdnUrl && song.audioUrl) {
+        finalSrc = song.audioUrl.replace(/^http:\/\//, 'https://');
+        resolvedSourceType = 'NETWORK_STREAM';
+        isCachedSource = false;
+      } else {
+        try {
+          resolvedSource = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+        } catch (e) {
+          console.warn('[PlaybackService] Source resolution failed:', e);
+        }
+
+        if (requestId !== this.playbackRequestId) {
+          console.log(`[PlaybackService] Discarding stale source resolution for req #${requestId} (current #${this.playbackRequestId})`);
+          return false;
+        }
+
+        isCachedSource = Boolean(resolvedSource?.isCached || (resolvedSource?.type !== 'offline' && PlayableUrlCache.getInstance().get(song.id)));
+        if (resolvedSource?.type === 'offline') {
+          resolvedSourceType = 'LOCAL_DOWNLOAD';
+        } else if (isCachedSource) {
+          resolvedSourceType = 'URL_CACHE_HIT';
+        }
+
+        const isInvalidWebScheme = !isNative && (
+          Boolean(resolvedSource?.url && (resolvedSource.url.includes('media3_cache') || resolvedSource.url.startsWith('media3://') || resolvedSource.url.startsWith('file://')))
+        );
+
+        if (resolvedSource?.url && !isInvalidWebScheme) {
+          finalSrc = resolvedSource.url;
+        } else if (song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
+          const isSongInvalidWeb = !isNative && (song.audioUrl.includes('media3_cache') || song.audioUrl.startsWith('media3://') || song.audioUrl.startsWith('file://'));
+          if (!isSongInvalidWeb) {
+            finalSrc = song.audioUrl.replace(/^http:\/\//, 'https://');
+          }
         }
       }
+
+      console.log(`[PLAYBACK_SOURCE_ATTEMPT] trackId=${song.id} sourceType=${resolvedSourceType} isFastPath=${hasDirectCdnUrl}`);
 
       if (!finalSrc) {
         if (isTest || typeof window === 'undefined') {
@@ -668,13 +684,17 @@ export class PlaybackService {
         activeAudio.currentTime = initialPositionSec > 0 ? initialPositionSec : 0;
       } catch {}
 
+      activeAudio.preload = 'auto';
       activeAudio.src = finalSrc;
       try {
         if (typeof activeAudio.load === 'function') activeAudio.load();
       } catch {}
 
       if (initialPositionSec > 0) {
+        let seekApplied = false;
         const applyInitialSeek = () => {
+          if (seekApplied) return;
+          seekApplied = true;
           try {
             activeAudio.currentTime = initialPositionSec;
           } catch {}
@@ -682,7 +702,9 @@ export class PlaybackService {
         if (typeof activeAudio.readyState === 'number' && activeAudio.readyState >= 1) {
           applyInitialSeek();
         } else if (typeof activeAudio.addEventListener === 'function') {
+          activeAudio.addEventListener('loadeddata', applyInitialSeek, { once: true });
           activeAudio.addEventListener('loadedmetadata', applyInitialSeek, { once: true });
+          activeAudio.addEventListener('canplay', applyInitialSeek, { once: true });
         } else {
           applyInitialSeek();
         }
