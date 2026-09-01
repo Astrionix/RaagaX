@@ -823,8 +823,8 @@ export function ExpandedPlayerModal() {
                 </button>
               </div>
 
-              {/* Volume Slider */}
-              <VolumeControl className="w-full max-w-md px-3" />
+              {/* Volume Slider (Desktop only) */}
+              <VolumeControl className="hidden md:flex w-full max-w-md px-3" />
 
               {/* Bottom Utilities Pills [ Connect | Jam | Lyrics | Queue | Sleep Timer ] */}
               <div className="flex items-center justify-center gap-2 sm:gap-3 pt-1 flex-wrap">
