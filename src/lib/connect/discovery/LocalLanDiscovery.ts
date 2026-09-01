@@ -8,6 +8,7 @@
 import { ConnectDevice } from '@/types/connect';
 import { DeviceIdentity } from '../identity/DeviceIdentity';
 import { DeviceRegistry } from '../identity/DeviceRegistry';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 export class LocalLanDiscovery {
   private static instance: LocalLanDiscovery;
@@ -19,8 +20,24 @@ export class LocalLanDiscovery {
   private constructor() {
     if (typeof window !== 'undefined') {
       this.setupBroadcastChannel();
+      this.setupLifecycle();
       this.connectStream();
     }
+  }
+
+  private setupLifecycle(): void {
+    if (typeof window === 'undefined') return;
+    const handleResume = () => {
+      if (document.visibilityState === 'visible') {
+        if (!this.sseEventSource || this.sseEventSource.readyState === EventSource.CLOSED) {
+          this.connectStream();
+        }
+        this.sendBeacon();
+        this.scan();
+      }
+    };
+    document.addEventListener('visibilitychange', handleResume);
+    window.addEventListener('online', handleResume);
   }
 
   public static getInstance(): LocalLanDiscovery {
@@ -56,7 +73,7 @@ export class LocalLanDiscovery {
 
     const localId = DeviceIdentity.getInstance().getDeviceId();
     try {
-      this.sseEventSource = new EventSource(`/api/connect/stream?deviceId=${encodeURIComponent(localId)}`);
+      this.sseEventSource = new EventSource(getApiUrl(`/api/connect/stream?deviceId=${encodeURIComponent(localId)}`));
 
       this.sseEventSource.addEventListener('COMMAND', (e: MessageEvent) => {
         try {
@@ -144,7 +161,7 @@ export class LocalLanDiscovery {
 
     // 2. HTTP Server Beacon
     if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
-      fetch('/api/connect/beacon', {
+      fetch(getApiUrl('/api/connect/beacon'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ device: localDevice }),
@@ -168,7 +185,7 @@ export class LocalLanDiscovery {
     const localId = DeviceIdentity.getInstance().getDeviceId();
 
     try {
-      const res = await fetch(`/api/connect/devices?excludeId=${encodeURIComponent(localId)}`);
+      const res = await fetch(getApiUrl(`/api/connect/devices?excludeId=${encodeURIComponent(localId)}`));
       const data = await res.json();
       if (data.success && Array.isArray(data.devices)) {
         data.devices.forEach((dev: ConnectDevice) => {

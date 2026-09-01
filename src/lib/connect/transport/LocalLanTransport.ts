@@ -6,6 +6,7 @@
  */
 
 import { ConnectCommand, ConnectPlaybackSession } from '@/types/connect';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 export type TransportHealth = 'HEALTHY' | 'DEGRADED' | 'FAILED';
 
@@ -48,7 +49,7 @@ export class LocalLanTransport {
     // 2. HTTP Server Relay
     if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
       try {
-        const res = await fetch('/api/connect/command', {
+        const res = await fetch(getApiUrl('/api/connect/command'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(command),

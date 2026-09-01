@@ -21,6 +21,7 @@ import { Song } from '@/types/music';
 import { SongFormatter } from '@/lib/music/SongFormatter';
 import { JioSaavnMediaPipeline } from '@/lib/media/JioSaavnMediaPipeline';
 import { SeekLock } from '@/lib/playback/SeekLock';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 type SessionUpdateListener = (session: ConnectPlaybackSession) => void;
 
@@ -725,7 +726,7 @@ export class ConnectServerEngine {
     }
 
     if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
-      fetch('/api/connect/session', {
+      fetch(getApiUrl('/api/connect/session'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(this.currentSession),

@@ -9,6 +9,7 @@ import { ConnectDevice, ConnectDeviceType, ConnectTransportType } from '@/types/
 import { ConnectServerEngine } from './ConnectServerEngine';
 import { DeviceIdentity } from './identity/DeviceIdentity';
 import { LocalLanDiscovery } from './discovery/LocalLanDiscovery';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 type DeviceListListener = (devices: ConnectDevice[]) => void;
 
@@ -207,7 +208,7 @@ export class ConnectDiscoveryEngine {
         if (user?.email) (this.localDevice as any).email = user.email;
       } catch {}
 
-      fetch('/api/connect/beacon', {
+      fetch(getApiUrl('/api/connect/beacon'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -277,7 +278,7 @@ export class ConnectDiscoveryEngine {
 
     // 2. Fetch from HTTP API for cross-browser / cross-device network peers
     if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
-      fetch(`/api/connect/devices?excludeId=${encodeURIComponent(this.localDevice.deviceId)}`)
+      fetch(getApiUrl(`/api/connect/devices?excludeId=${encodeURIComponent(this.localDevice.deviceId)}`))
         .then((res) => res.json())
         .then((data) => {
           if (data.success && Array.isArray(data.devices)) {

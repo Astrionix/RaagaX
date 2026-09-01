@@ -6,6 +6,7 @@
 
 import { ConnectEvent, ConnectPlaybackSession } from '@/types/connect';
 import { SnapshotManager } from './SnapshotManager';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 export class StateReplicator {
   private static instance: StateReplicator;
@@ -43,7 +44,7 @@ export class StateReplicator {
     }
 
     if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
-      fetch('/api/connect/session', {
+      fetch(getApiUrl('/api/connect/session'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(session),

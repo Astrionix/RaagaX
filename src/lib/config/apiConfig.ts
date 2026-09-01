@@ -8,6 +8,14 @@
 
 export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
+    // 1. Check custom configured server override from user settings or dev tunnel
+    try {
+      const custom = localStorage.getItem('rx_custom_api_base') || localStorage.getItem('raagax_connect_server_url');
+      if (custom && custom.trim()) {
+        return custom.trim().replace(/\/+$/, '');
+      }
+    } catch {}
+
     const origin = window.location.origin || '';
 
     // If running in any standard web browser (e.g. https://raaga-x-chi.vercel.app, localhost, custom domain):

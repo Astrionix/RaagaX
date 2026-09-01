@@ -34,7 +34,10 @@ import {
   X,
   Loader2,
   RefreshCw,
+  Settings,
+  Globe,
 } from 'lucide-react';
+import { getApiBaseUrl } from '@/lib/config/apiConfig';
 
 export function DeviceRoutingModal() {
   const isConnectModalOpen = useConnectStore((s) => s.isConnectModalOpen);
@@ -56,6 +59,25 @@ export function DeviceRoutingModal() {
 
   const [isScanning, setIsScanning] = useState(false);
   const [switchingDeviceId, setSwitchingDeviceId] = useState<string | null>(null);
+  const [showServerConfig, setShowServerConfig] = useState(false);
+  const [customServerUrl, setCustomServerUrl] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('rx_custom_api_base') || '';
+    }
+    return '';
+  });
+
+  const handleSaveServerUrl = () => {
+    if (typeof window !== 'undefined') {
+      if (customServerUrl.trim()) {
+        localStorage.setItem('rx_custom_api_base', customServerUrl.trim().replace(/\/+$/, ''));
+      } else {
+        localStorage.removeItem('rx_custom_api_base');
+      }
+      ConnectDiscoveryEngine.getInstance().scanNow();
+      setShowServerConfig(false);
+    }
+  };
 
   if (!isConnectModalOpen) return null;
 
@@ -267,9 +289,52 @@ export function DeviceRoutingModal() {
           </div>
         </div>
 
+        {/* Gateway & Network Info */}
+        <div className="mt-4 pt-3 border-t border-white/10">
+          <div className="flex items-center justify-between text-[11px] text-white/40">
+            <span className="flex items-center gap-1.5 truncate max-w-[240px]">
+              <Globe className="w-3 h-3 text-[#1db954]" />
+              <span className="truncate">{getApiBaseUrl()}</span>
+            </span>
+            <button
+              onClick={() => setShowServerConfig(!showServerConfig)}
+              className="text-white/60 hover:text-white flex items-center gap-1 transition-colors"
+            >
+              <Settings className="w-3 h-3" />
+              <span>{showServerConfig ? 'Close' : 'Server Settings'}</span>
+            </button>
+          </div>
+
+          {showServerConfig && (
+            <div className="mt-2.5 p-3 bg-white/5 rounded-xl border border-white/10 space-y-2 animate-in fade-in duration-150">
+              <label className="text-[11px] font-medium text-white/70 block">
+                Connect Gateway / LAN Server URL
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="e.g. http://192.168.1.15:3000"
+                  value={customServerUrl}
+                  onChange={(e) => setCustomServerUrl(e.target.value)}
+                  className="flex-1 px-2.5 py-1.5 bg-black/50 border border-white/10 rounded-lg text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#1db954]"
+                />
+                <button
+                  onClick={handleSaveServerUrl}
+                  className="px-3 py-1.5 bg-[#1db954] hover:bg-[#1ed760] text-black text-xs font-bold rounded-lg transition-colors"
+                >
+                  Save
+                </button>
+              </div>
+              <p className="text-[10px] text-white/30">
+                Leave empty for automatic Cloud Relay (https://raaga-x-chi.vercel.app).
+              </p>
+            </div>
+          )}
+        </div>
+
         {/* Footer Actions */}
         {isRemoteMode && (
-          <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between">
+          <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between">
             <button
               onClick={disconnect}
               className="text-xs text-red-400/80 hover:text-red-400 font-semibold transition-colors"

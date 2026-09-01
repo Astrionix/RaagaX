@@ -18,6 +18,7 @@ import { ConnectDiscoveryEngine } from './ConnectDiscoveryEngine';
 import { ConnectServerEngine } from './ConnectServerEngine';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useConnectStore } from '@/context/useConnectStore';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 type RemoteSessionListener = (session: ConnectPlaybackSession) => void;
 
@@ -428,7 +429,7 @@ export class ConnectClientManager {
 
     if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
       try {
-        const res = await fetch(`/api/connect/session?deviceId=${encodeURIComponent(targetDeviceId)}`);
+        const res = await fetch(getApiUrl(`/api/connect/session?deviceId=${encodeURIComponent(targetDeviceId)}`));
         const data = await res.json();
         if (data.success && data.session) {
           this.handleIncomingSession(data.session);
@@ -493,7 +494,7 @@ export class ConnectClientManager {
 
     // 3. HTTP Server Command Queue (cross-browser / cross-device)
     if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
-      fetch('/api/connect/command', {
+      fetch(getApiUrl('/api/connect/command'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(command),
@@ -523,7 +524,7 @@ export class ConnectClientManager {
     const target = this.activeTargetDevice;
     if (!target || !target.deviceId || typeof window === 'undefined' || typeof fetch === 'undefined') return;
 
-    fetch(`/api/connect/session?deviceId=${encodeURIComponent(target.deviceId)}`)
+    fetch(getApiUrl(`/api/connect/session?deviceId=${encodeURIComponent(target.deviceId)}`))
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.session) {
