@@ -232,6 +232,58 @@ export class ConnectDeviceRegistry {
       };
 
       ConnectDeviceRegistry.publishSession(updatedSession);
+    } else if (command.action === 'PAUSE') {
+      const existing = store.sessions.get(command.targetDeviceId);
+      if (existing) {
+        const now = Date.now();
+        const updatedSession: ConnectPlaybackSession = {
+          ...existing,
+          isPlaying: false,
+          playbackState: 'PAUSED',
+          revision: existing.revision + 1,
+          updatedAt: now,
+        };
+        ConnectDeviceRegistry.publishSession(updatedSession);
+      }
+    } else if (command.action === 'RESUME' || command.action === 'PLAY') {
+      const existing = store.sessions.get(command.targetDeviceId);
+      if (existing) {
+        const now = Date.now();
+        const updatedSession: ConnectPlaybackSession = {
+          ...existing,
+          isPlaying: true,
+          playbackState: 'PLAYING',
+          revision: existing.revision + 1,
+          updatedAt: now,
+        };
+        ConnectDeviceRegistry.publishSession(updatedSession);
+      }
+    } else if (command.action === 'SEEK') {
+      const existing = store.sessions.get(command.targetDeviceId);
+      if (existing && typeof command.payload?.positionMs === 'number') {
+        const now = Date.now();
+        const updatedSession: ConnectPlaybackSession = {
+          ...existing,
+          positionMs: command.payload.positionMs,
+          anchorPositionMs: command.payload.positionMs,
+          anchorTimeMs: now,
+          revision: existing.revision + 1,
+          updatedAt: now,
+        };
+        ConnectDeviceRegistry.publishSession(updatedSession);
+      }
+    } else if (command.action === 'SET_VOLUME') {
+      const existing = store.sessions.get(command.targetDeviceId);
+      if (existing && typeof command.payload?.volume === 'number') {
+        const now = Date.now();
+        const updatedSession: ConnectPlaybackSession = {
+          ...existing,
+          volume: command.payload.volume,
+          revision: existing.revision + 1,
+          updatedAt: now,
+        };
+        ConnectDeviceRegistry.publishSession(updatedSession);
+      }
     }
 
     const pCommands = store.pendingCommands || (store.pendingCommands = new Map());
