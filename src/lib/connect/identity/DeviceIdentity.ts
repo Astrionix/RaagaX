@@ -44,7 +44,8 @@ export class DeviceIdentity {
         deviceId = localStorage.getItem('rx_connect_device_id') || '';
         installationId = localStorage.getItem('rx_connect_install_id') || '';
         if (!deviceId) {
-          deviceId = `rx_dev_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
+          const prefix = deviceType === 'mobile' || deviceType === 'tablet' ? 'mob' : 'desk';
+          deviceId = `rx_dev_${prefix}_${Math.random().toString(36).substring(2, 8)}_${Date.now().toString(36)}`;
           localStorage.setItem('rx_connect_device_id', deviceId);
         }
         if (!installationId) {
