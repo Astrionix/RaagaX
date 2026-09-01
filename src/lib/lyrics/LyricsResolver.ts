@@ -81,8 +81,10 @@ export class LyricsResolver {
             source = apiData.source || 'RaagaX';
           }
         }
-      } catch (err) {
-        console.warn('[LyricsResolver] API proxy request error:', err);
+      } catch (err: any) {
+        if (err?.name !== 'AbortError' && err?.name !== 'TimeoutError') {
+          console.warn('[LyricsResolver] API proxy request error:', err);
+        }
       }
 
       if (!rawText) return null;

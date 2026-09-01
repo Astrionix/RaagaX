@@ -136,7 +136,19 @@ export class ConnectClientManager {
     }
 
     // Otherwise, this device was actively outputting audio and is transferring to target
-    const currentPositionMs = Math.round((store.currentTime || 0) * 1000);
+    const liveSec = typeof window !== 'undefined'
+      ? (() => {
+          try {
+            const { PlaybackService } = require('@/lib/playback/PlaybackService');
+            const active = PlaybackService.getInstance().getActiveAudio();
+            if (active && typeof active.currentTime === 'number' && !isNaN(active.currentTime) && active.currentTime > 0) {
+              return active.currentTime;
+            }
+          } catch {}
+          return store.currentTime || 0;
+        })()
+      : (store.currentTime || 0);
+    const currentPositionMs = Math.round(liveSec * 1000);
 
     console.log(`[CONNECT_HANDOFF]\nfromDevice=${localDevice.deviceId}\ntoDevice=${targetDevice.deviceId}\npositionMs=${currentPositionMs}`);
 
@@ -449,34 +461,13 @@ export class ConnectClientManager {
     const localDevice = ConnectDiscoveryEngine.getInstance().getLocalDevice();
     const isLocalPlaybackDevice = session.playbackDeviceId === localDevice.deviceId || session.playbackDeviceId === 'dev_local';
 
-    // If session is playing on a remote device and this device is idle (not outputting local audio),
-    // automatically adopt the remote speaker so the controller UI mirrors playback in real-time
-    if (!isLocalPlaybackDevice && !this.activeTargetDevice && session.playbackDeviceId) {
-      const liveLocalPlaying = typeof window !== 'undefined'
-        ? (() => {
-            try {
-              const { PlaybackService } = require('@/lib/playback/PlaybackService');
-              return PlaybackService.getInstance().getLivePlayingState();
-            } catch { return false; }
-          })()
-        : false;
-
-      if (!liveLocalPlaying) {
-        this.activeTargetDevice = {
-          deviceId: session.playbackDeviceId,
-          deviceName: session.playbackDeviceName || 'Remote Speaker',
-          deviceType: 'speaker',
-          isOnline: true,
-          state: session.isPlaying ? 'PLAYING' : 'PAUSED',
-          lastSeenAt: Date.now(),
-          transport: 'LOCAL_LAN',
-        };
-        useConnectStore.setState({
-          isRemoteMode: true,
-          activePlaybackDevice: this.activeTargetDevice,
-          remoteSession: session,
-        });
+    if (isLocalPlaybackDevice) {
+      if (this.isRemoteMode()) {
+        this.activeTargetDevice = null;
+        this.remoteSession = null;
+        useConnectStore.setState({ isRemoteMode: false, activePlaybackDevice: null, remoteSession: null });
       }
+      return;
     }
 
     const isTarget = this.activeTargetDevice && (
@@ -484,7 +475,7 @@ export class ConnectClientManager {
       session.playbackDeviceId === 'dev_local'
     );
 
-    if (!isTarget && !isLocalPlaybackDevice && !this.isRemoteMode()) return;
+    if (!isTarget && !this.isRemoteMode()) return;
 
     const isDifferentSession = !this.remoteSession || session.sessionId !== this.remoteSession.sessionId;
     const isNewerGeneration = this.remoteSession && typeof session.generation === 'number' && typeof this.remoteSession.generation === 'number' && session.generation > this.remoteSession.generation;

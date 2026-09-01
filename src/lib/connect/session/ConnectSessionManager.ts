@@ -6,7 +6,7 @@
  */
 
 import { ConnectPlaybackSession } from '@/types/connect';
-import { PlaybackAuthority } from './PlaybackAuthority';
+import { ConnectServerEngine } from '../ConnectServerEngine';
 import { StateReplicator } from '../state/StateReplicator';
 
 export class ConnectSessionManager {
@@ -22,7 +22,7 @@ export class ConnectSessionManager {
   }
 
   public getSession(): ConnectPlaybackSession {
-    return PlaybackAuthority.getInstance().getSession();
+    return ConnectServerEngine.getInstance().getSession();
   }
 
   public publishPeriodicSync(): void {

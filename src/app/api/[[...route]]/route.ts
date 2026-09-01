@@ -1,10 +1,23 @@
-import { handle } from 'hono/vercel'
-import { apiApp } from '@/api-app'
+import { apiApp } from '@/api-app';
 
 export const dynamic = 'force-dynamic';
 
-export const GET = handle(apiApp)
-export const POST = handle(apiApp)
-export const PUT = handle(apiApp)
-export const DELETE = handle(apiApp)
-export const OPTIONS = handle(apiApp)
+export async function GET(req: Request) {
+  return apiApp.fetch(req);
+}
+
+export async function POST(req: Request) {
+  return apiApp.fetch(req);
+}
+
+export async function PUT(req: Request) {
+  return apiApp.fetch(req);
+}
+
+export async function DELETE(req: Request) {
+  return apiApp.fetch(req);
+}
+
+export async function OPTIONS(req: Request) {
+  return apiApp.fetch(req);
+}

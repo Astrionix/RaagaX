@@ -449,10 +449,7 @@ const getNextQueueIndex = (queue: Song[], currentIndex: number, repeatMode: stri
   const norm = (repeatMode || 'off').toUpperCase();
   if (norm === 'ONE' || norm === 'TRACK') return currentIndex;
 
-  const isTest = typeof process !== 'undefined' && (process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST));
-  const isOffline = !isTest && typeof navigator !== 'undefined' && navigator.onLine === false;
-
-  if (isOffline) {
+  if (isOfflineMode()) {
     // Scan forward from currentIndex + 1 to find the next available offline downloaded track
     for (let i = currentIndex + 1; i < queue.length; i++) {
       if (isTrackDownloaded(queue[i].id)) return i;
@@ -476,10 +473,7 @@ const getPreviousQueueIndex = (queue: Song[], currentIndex: number, repeatMode: 
   const norm = (repeatMode || 'off').toUpperCase();
   if (norm === 'ONE' || norm === 'TRACK') return currentIndex;
 
-  const isTest = typeof process !== 'undefined' && (process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST));
-  const isOffline = !isTest && typeof navigator !== 'undefined' && navigator.onLine === false;
-
-  if (isOffline) {
+  if (isOfflineMode()) {
     // Scan backward from currentIndex - 1 to find the previous downloaded track
     for (let i = currentIndex - 1; i >= 0; i--) {
       if (isTrackDownloaded(queue[i].id)) return i;
@@ -1467,7 +1461,7 @@ export const usePlayerStore = create<PlayerState>()(
         //   If auto-next on a non-host participant, we MUST wait for the host's authoritative
         //   TRACK_CHANGED broadcast — otherwise both host and participant fire SKIP_NEXT simultaneously.
         // This is the AUTO_NEXT SINGLE OWNER guarantee (Phase 6).
-        // RaagaX Connect: If in Remote Controller mode in browser, dispatch SKIP_NEXT
+        // RaagaX Connect: If in Remote Controller mode in browser, dispatch SKIP_NEXT to authoritative sink
         if (typeof window !== 'undefined') {
           try {
             const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
@@ -1492,23 +1486,11 @@ export const usePlayerStore = create<PlayerState>()(
             } else {
               // Non-host participant in auto-next: wait for server TRACK_CHANGED
               const reason = isNaturalAutoEnd ? 'AUTO_NEXT_HOST_ONLY' : 'INSUFFICIENT_PERMISSION';
-              console.log(`[playNext] In Jam \u2014 skipped sendSkipNext: reason=${reason} isHost=${jamManager.isHost()} canSkip=${jamSession.permissions?.canSkip} isNaturalAutoEnd=${isNaturalAutoEnd}`);
+              console.log(`[playNext] In Jam — skipped sendSkipNext: reason=${reason} isHost=${jamManager.isHost()} canSkip=${jamSession.permissions?.canSkip} isNaturalAutoEnd=${isNaturalAutoEnd}`);
             }
             return;
           }
         } catch { }
-
-        // RaagaX Connect: If in Remote Controller mode in browser, dispatch SKIP_NEXT to authoritative sink
-        if (typeof window !== 'undefined') {
-          try {
-            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
-            const connectClient = ConnectClientManager.getInstance();
-            if (connectClient.isRemoteMode()) {
-              await connectClient.sendCommand('SKIP_NEXT', {});
-              return;
-            }
-          } catch { }
-        }
 
         const { duration, currentTime, isPlaying, playbackIntent } = get();
         const isComplete = duration > 0 && currentTime >= duration - 5;
@@ -1524,9 +1506,9 @@ export const usePlayerStore = create<PlayerState>()(
         if (queue.length === 0) return;
 
         // Preserve playback intent:
-        // If current track was playing (isPlaying === true or playbackIntent === 'PLAYING'), keep playing.
-        // If current track was explicitly paused (isPlaying === false && playbackIntent === 'PAUSED'), remain paused.
-        const shouldPlay = isPlaying || playbackIntent === 'PLAYING';
+        // When track ends naturally (isNaturalAutoEnd === true), ALWAYS play the next track.
+        // For manual next: if playing, keep playing; if paused, remain paused.
+        const shouldPlay = isNaturalAutoEnd ? true : (isPlaying || playbackIntent === 'PLAYING');
 
         const nextIndex = getNextQueueIndex(queue, queueIndex, repeatMode);
         if (nextIndex >= 0 && nextIndex < queue.length) {

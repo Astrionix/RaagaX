@@ -62,9 +62,6 @@ export class LocalLanDiscovery {
         try {
           const cmd = JSON.parse(e.data);
           if (cmd) {
-            import('@/lib/connect/session/PlaybackAuthority').then(({ PlaybackAuthority }) => {
-              PlaybackAuthority.getInstance().executeCommand(cmd);
-            });
             import('@/lib/connect/ConnectServerEngine').then(({ ConnectServerEngine }) => {
               ConnectServerEngine.getInstance().handleIncomingCommand(cmd);
             });
@@ -144,11 +141,6 @@ export class LocalLanDiscovery {
         .then((res) => res.json())
         .then((data) => {
           if (data.success && Array.isArray(data.pendingCommands) && data.pendingCommands.length > 0) {
-            import('@/lib/connect/session/PlaybackAuthority').then(({ PlaybackAuthority }) => {
-              data.pendingCommands.forEach((cmd: any) => {
-                PlaybackAuthority.getInstance().executeCommand(cmd);
-              });
-            });
             import('@/lib/connect/ConnectServerEngine').then(({ ConnectServerEngine }) => {
               data.pendingCommands.forEach((cmd: any) => {
                 ConnectServerEngine.getInstance().handleIncomingCommand(cmd);

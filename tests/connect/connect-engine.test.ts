@@ -199,6 +199,20 @@ describe('RaagaX Connect — Standalone Authoritative Playback & Controller Suit
     const client = ConnectClientManager.getInstance();
     const now = Date.now();
 
+    // Controller connected to remote speaker (dev_living_room_tv)
+    useConnectStore.setState({
+      isRemoteMode: true,
+      activePlaybackDevice: {
+        deviceId: 'dev_living_room_tv',
+        deviceName: 'Living Room TV',
+        deviceType: 'tv',
+        isOnline: true,
+        state: 'PLAYING',
+        lastSeenAt: now,
+        transport: 'LOCAL_LAN',
+      },
+    });
+
     // Prior state: track Alpha at end-position (266 seconds = 4:26)
     usePlayerStore.setState({
       currentSong: mockTrackA,
@@ -209,11 +223,11 @@ describe('RaagaX Connect — Standalone Authoritative Playback & Controller Suit
 
     expect(usePlayerStore.getState().currentTime).toBe(266);
 
-    // Incoming broadcast: Firestorm (mockTrackB) starts at 0ms
+    // Incoming broadcast from remote speaker: Firestorm (mockTrackB) starts at 0ms
     client.handleIncomingSession({
       sessionId: 'sess_new_track',
-      playbackDeviceId: 'dev_local',
-      playbackDeviceName: 'Speaker',
+      playbackDeviceId: 'dev_living_room_tv',
+      playbackDeviceName: 'Living Room TV',
       controllerIds: [],
       currentTrackId: mockTrackB.id,
       currentQueueItemId: 'q_b',

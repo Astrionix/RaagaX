@@ -81,10 +81,18 @@ export class ConnectDiscoveryEngine {
     } catch {}
   }
 
+  private lastRehydrationAt = 0;
+  private isRehydrating = false;
+
   private setupLifecycleListeners() {
     if (typeof window === 'undefined') return;
 
     const onWakeOrReconnect = () => {
+      const now = Date.now();
+      if (this.isRehydrating || now - this.lastRehydrationAt < 1500) return;
+      this.lastRehydrationAt = now;
+      this.isRehydrating = true;
+
       console.log('[CONNECT_LIFECYCLE] App wake / focus / network online detected. Triggering instant session rehydration.');
       // 1. Broadcast beacon immediately
       this.broadcastBeacon();
@@ -99,6 +107,10 @@ export class ConnectDiscoveryEngine {
       try {
         LocalLanDiscovery.getInstance().connectStream();
       } catch {}
+
+      setTimeout(() => {
+        this.isRehydrating = false;
+      }, 1000);
     };
 
     if (typeof document !== 'undefined') {

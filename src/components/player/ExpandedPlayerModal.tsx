@@ -165,6 +165,18 @@ export function ExpandedPlayerModal() {
     touchStartY.current = null;
   };
 
+  const handleTogglePlay = () => {
+    if (isRemoteMode) {
+      if (isPlaying) {
+        sendPause();
+      } else {
+        sendPlay();
+      }
+      return;
+    }
+    togglePlayPause();
+  };
+
   const handlePlayNext = () => {
     if (isRemoteMode) {
       sendNext();
@@ -769,7 +781,7 @@ export function ExpandedPlayerModal() {
                 </button>
 
                 <button
-                  onClick={() => { haptics.lightImpact(); playPrev(); }}
+                  onClick={() => { haptics.lightImpact(); handlePlayPrev(); }}
                   className="w-12 h-12 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-md"
                   title="Previous Track (←)"
                 >
@@ -777,7 +789,7 @@ export function ExpandedPlayerModal() {
                 </button>
 
                 <button
-                  onClick={() => { haptics.mediumImpact(); togglePlayPause(); }}
+                  onClick={() => { haptics.mediumImpact(); handleTogglePlay(); }}
                   className="relative w-16 h-16 rounded-full cursor-pointer flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center bg-white text-black shadow-[0_12px_36px_rgba(0,0,0,0.6),0_0_24px_rgba(255,255,255,0.25)] border-2 border-white/90 group"
                   title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
                 >
@@ -789,7 +801,7 @@ export function ExpandedPlayerModal() {
                 </button>
 
                 <button
-                  onClick={() => { haptics.lightImpact(); playNext(); }}
+                  onClick={() => { haptics.lightImpact(); handlePlayNext(); }}
                   className="w-12 h-12 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-md"
                   title="Next Track (→)"
                 >
@@ -995,7 +1007,7 @@ export function ExpandedPlayerModal() {
                 </button>
 
                 <button
-                  onClick={() => { haptics.lightImpact(); playPrev(); }}
+                  onClick={() => { haptics.lightImpact(); handlePlayPrev(); }}
                   className="w-12 h-12 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-md"
                   title="Previous Track (←)"
                 >
@@ -1003,7 +1015,7 @@ export function ExpandedPlayerModal() {
                 </button>
 
                 <button
-                  onClick={() => { haptics.mediumImpact(); togglePlayPause(); }}
+                  onClick={() => { haptics.mediumImpact(); handleTogglePlay(); }}
                   className="relative w-16 h-16 rounded-full cursor-pointer flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center bg-white text-black shadow-[0_12px_36px_rgba(0,0,0,0.6),0_0_24px_rgba(255,255,255,0.25)] border-2 border-white/90 group"
                   title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
                 >
@@ -1015,7 +1027,7 @@ export function ExpandedPlayerModal() {
                 </button>
 
                 <button
-                  onClick={() => { haptics.lightImpact(); playNext(); }}
+                  onClick={() => { haptics.lightImpact(); handlePlayNext(); }}
                   className="w-12 h-12 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-md"
                   title="Next Track (→)"
                 >
@@ -1773,7 +1785,7 @@ export function ExpandedPlayerModal() {
 
             {/* Previous Track */}
             <button
-              onClick={() => { haptics.lightImpact(); playPrev(); }}
+              onClick={() => { haptics.lightImpact(); handlePlayPrev(); }}
               className="w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-md"
               title="Previous Track (←)"
             >
@@ -1782,7 +1794,7 @@ export function ExpandedPlayerModal() {
 
             {/* HERO PLAY / PAUSE BUTTON (Circular, Bright Frosted 3D Surface with Subtle Depth) */}
             <button
-              onClick={() => { haptics.mediumImpact(); togglePlayPause(); }}
+              onClick={() => { haptics.mediumImpact(); handleTogglePlay(); }}
               className="relative w-16 h-16 sm:w-18 sm:h-18 rounded-full cursor-pointer flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center bg-white text-black shadow-[0_12px_36px_rgba(0,0,0,0.6),0_0_24px_rgba(255,255,255,0.25)] border-2 border-white/90 group"
               title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
             >
@@ -1799,7 +1811,7 @@ export function ExpandedPlayerModal() {
 
             {/* Next Track */}
             <button
-              onClick={() => { haptics.lightImpact(); playNext(); }}
+              onClick={() => { haptics.lightImpact(); handlePlayNext(); }}
               className="w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-md"
               title="Next Track (→)"
             >

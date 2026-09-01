@@ -297,11 +297,17 @@ export function ConnectDeviceModal() {
               <div className="flex-1 min-w-0">
                 <div className="text-[11px] text-white/45 leading-none mb-0.5">Playing on</div>
                 <div className="text-[13px] font-semibold text-white truncate">
-                  {activePlaybackDevice.deviceName}
+                  {activePlaybackDevice?.deviceName || 'Remote Speaker'}
                 </div>
               </div>
               <button
-                onClick={() => disconnectAndPlayLocally()}
+                onClick={async () => {
+                  try {
+                    await disconnectAndPlayLocally();
+                  } catch (err) {
+                    console.warn('[ConnectDeviceModal] Disconnect error:', err);
+                  }
+                }}
                 className="text-[11px] font-semibold px-2.5 py-1 rounded-full cursor-pointer
                            transition-all active:scale-95"
                 style={{
