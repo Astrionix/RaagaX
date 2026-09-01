@@ -62,8 +62,16 @@ export class ConnectClientManager {
             this.stopSessionPolling();
             useConnectStore.setState({ isRemoteMode: false, activePlaybackDevice: null, remoteSession: null });
             try {
+              const { PlaybackService } = require('@/lib/playback/PlaybackService');
+              PlaybackService.getInstance().pauseAudioElementOnly();
+              PlaybackService.getInstance().stopAllAudio();
+            } catch {}
+            try {
               const { MediaSessionManager } = require('@/lib/playback/MediaSessionManager');
               MediaSessionManager.getInstance().restoreLocalMediaHandlers();
+            } catch {}
+            try {
+              usePlayerStore.getState().setToastMessage('Disconnected from speaker');
             } catch {}
           }
         }
@@ -296,10 +304,22 @@ export class ConnectClientManager {
     this.stopSessionPolling();
     useConnectStore.setState({ isRemoteMode: false, activePlaybackDevice: null, remoteSession: null });
 
-    // 3. Restore local media handlers
+    // 3. Keep local audio engine silent (Prevent unexpected audio blast)
+    try {
+      const { PlaybackService } = await import('@/lib/playback/PlaybackService');
+      PlaybackService.getInstance().pauseAudioElementOnly();
+      PlaybackService.getInstance().stopAllAudio();
+    } catch {}
+
+    // 4. Restore local media handlers
     try {
       const { MediaSessionManager } = await import('@/lib/playback/MediaSessionManager');
       MediaSessionManager.getInstance().restoreLocalMediaHandlers();
+    } catch {}
+
+    // 5. Notify user
+    try {
+      usePlayerStore.getState().setToastMessage('Disconnected from speaker');
     } catch {}
 
     return true;
