@@ -29,6 +29,8 @@ export class ConnectClientManager {
   private listeners: Set<RemoteSessionListener> = new Set();
   private broadcastChannel: BroadcastChannel | null = null;
   private sessionPollTimer: any = null;
+  private isTransferring: boolean = false;
+  private transferLockTimer: any = null;
 
   private constructor() {
     if (typeof window !== 'undefined') {
@@ -118,8 +120,21 @@ export class ConnectClientManager {
    * Connect to target device and transfer playback without restarting from 0
    */
   public async transferPlaybackTo(targetDevice: ConnectDevice): Promise<boolean> {
+    if (!targetDevice || !targetDevice.deviceId) return false;
+
+    // Loading lock & double-click debounce (1.5s)
+    if (this.isTransferring) {
+      console.log('[CONNECT_HANDOFF] Handover already in progress. Debouncing duplicate transfer click.');
+      return false;
+    }
+    this.isTransferring = true;
+    if (this.transferLockTimer) clearTimeout(this.transferLockTimer);
+    this.transferLockTimer = setTimeout(() => {
+      this.isTransferring = false;
+    }, 1500);
+
     const localDevice = ConnectDiscoveryEngine.getInstance().getLocalDevice();
-    if (targetDevice.deviceId === localDevice.deviceId || targetDevice.isCurrentDevice || targetDevice.deviceId === 'dev_local') {
+    if (!localDevice || targetDevice.deviceId === localDevice.deviceId || targetDevice.isCurrentDevice || targetDevice.deviceId === 'dev_local') {
       return this.disconnectAndPlayLocally();
     }
 
@@ -146,7 +161,7 @@ export class ConnectClientManager {
 
       // 2. Start session polling & request active playback snapshot immediately
       this.startSessionPolling();
-      await this.requestCurrentPlaybackState();
+      await this.requestCurrentPlaybackState(targetDevice.deviceId);
 
       useConnectStore.setState({
         activePlaybackDevice: targetDevice,
@@ -221,19 +236,25 @@ export class ConnectClientManager {
    * INVARIANT: DISCONNECT MUST NOT STOP THE MUSIC ON THE PLAYBACK DEVICE.
    */
   public async disconnect(shouldResumeLocally: boolean = false): Promise<boolean> {
-    if (!this.activeTargetDevice) return true;
-
     const target = this.activeTargetDevice;
+    if (!target || !target.deviceId) {
+      this.activeTargetDevice = null;
+      this.remoteSession = null;
+      this.stopSessionPolling();
+      useConnectStore.setState({ isRemoteMode: false, activePlaybackDevice: null, remoteSession: null });
+      return true;
+    }
+
     const localDevice = ConnectDiscoveryEngine.getInstance().getLocalDevice();
 
-    console.log(`[CONNECT_DISCONNECT]\ncontrollerId=${localDevice.deviceId}\nplaybackContinues=true`);
+    console.log(`[CONNECT_DISCONNECT]\ncontrollerId=${localDevice?.deviceId || 'dev_local'}\nplaybackContinues=true`);
 
     // 1. Notify playback device that this controller is disconnecting
     const command: ConnectCommand = {
       commandId: `cmd_${Date.now().toString(36)}`,
       requestId: `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`,
-      senderDeviceId: localDevice.deviceId,
-      senderName: localDevice.deviceName,
+      senderDeviceId: localDevice?.deviceId || 'dev_local',
+      senderName: localDevice?.deviceName || 'RaagaX Device',
       targetDeviceId: target.deviceId,
       action: 'DISCONNECT_CONTROLLER',
       expectedRevision: this.remoteSession?.revision,
@@ -379,12 +400,13 @@ export class ConnectClientManager {
   /**
    * Request current playback snapshot on reconnection / foreground
    */
-  public async requestCurrentPlaybackState(): Promise<ConnectPlaybackSession | null> {
-    if (!this.activeTargetDevice) return null;
+  public async requestCurrentPlaybackState(deviceId?: string | null): Promise<ConnectPlaybackSession | null> {
+    const targetDeviceId = deviceId || this.activeTargetDevice?.deviceId;
+    if (!targetDeviceId) return null;
 
     if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
       try {
-        const res = await fetch(`/api/connect/session?deviceId=${encodeURIComponent(this.activeTargetDevice.deviceId)}`);
+        const res = await fetch(`/api/connect/session?deviceId=${encodeURIComponent(targetDeviceId)}`);
         const data = await res.json();
         if (data.success && data.session) {
           this.handleIncomingSession(data.session);
@@ -394,7 +416,7 @@ export class ConnectClientManager {
     }
 
     const serverSession = ConnectServerEngine.getInstance().getSession();
-    if (serverSession && serverSession.playbackDeviceId === this.activeTargetDevice.deviceId) {
+    if (serverSession && serverSession.playbackDeviceId === targetDeviceId) {
       this.handleIncomingSession(serverSession);
       return serverSession;
     }
@@ -406,15 +428,16 @@ export class ConnectClientManager {
    * Dispatch a remote command with UUID requestId and expectedRevision
    */
   public async sendCommand(action: ConnectCommandAction, payload?: any): Promise<boolean> {
-    if (!this.activeTargetDevice) return false;
+    const target = this.activeTargetDevice;
+    if (!target || !target.deviceId) return false;
 
     const localDevice = ConnectDiscoveryEngine.getInstance().getLocalDevice();
     const command: ConnectCommand = {
       commandId: `cmd_${Date.now().toString(36)}`,
       requestId: `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`,
-      senderDeviceId: localDevice.deviceId,
-      senderName: localDevice.deviceName,
-      targetDeviceId: this.activeTargetDevice.deviceId,
+      senderDeviceId: localDevice?.deviceId || 'dev_local',
+      senderName: localDevice?.deviceName || 'RaagaX Device',
+      targetDeviceId: target.deviceId,
       action,
       expectedRevision: this.remoteSession?.revision,
       payload,
@@ -475,9 +498,10 @@ export class ConnectClientManager {
   }
 
   private fetchTargetSession(): void {
-    if (!this.activeTargetDevice || typeof window === 'undefined' || typeof fetch === 'undefined') return;
+    const target = this.activeTargetDevice;
+    if (!target || !target.deviceId || typeof window === 'undefined' || typeof fetch === 'undefined') return;
 
-    fetch(`/api/connect/session?deviceId=${encodeURIComponent(this.activeTargetDevice.deviceId)}`)
+    fetch(`/api/connect/session?deviceId=${encodeURIComponent(target.deviceId)}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.session) {

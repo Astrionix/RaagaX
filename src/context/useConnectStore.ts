@@ -170,6 +170,7 @@ export const useConnectStore = create<ConnectStoreState>((set, get) => {
     },
 
     transferPlayback: async (targetDevice: ConnectDevice) => {
+      if (!targetDevice || !targetDevice.deviceId) return false;
       const client = ConnectClientManager.getInstance();
       const success = await client.transferPlaybackTo(targetDevice);
       if (success) {

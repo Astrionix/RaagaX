@@ -295,6 +295,14 @@ export class AccountSyncEngine {
 
   public async reconcile(userId: string): Promise<string[]> {
     if (!this.isUUID(userId) || isOfflineMode()) return [];
+    if (!userId || userId === 'anonymous' || userId === 'guest' || userId === 'none') return [];
+
+    // Guard against out-of-sync auth state
+    const currentAuthUserId = AccountIsolationGuard.getInstance().getActiveUserId();
+    if (currentAuthUserId && currentAuthUserId !== 'none' && currentAuthUserId !== userId) {
+      console.warn(`[AccountSyncEngine] Bypassing sync: context mismatch (${userId} vs ${currentAuthUserId})`);
+      return [];
+    }
 
     // Coalesce duplicate concurrent reconcile calls
     if (this.inFlightReconcile && this.lastReconciledUser === userId) {
@@ -398,7 +406,9 @@ export class AccountSyncEngine {
 
         // 2. Reconcile Playlists
         try {
-          await usePlaylistStore.getState().fetchPlaylists(true);
+          if (AccountIsolationGuard.getInstance().isCurrentAuthGeneration(startAuthGen, userId)) {
+            await usePlaylistStore.getState().fetchPlaylists(true);
+          }
         } catch (plErr) {
           console.warn('[AccountSyncEngine] Failed to reconcile playlists:', plErr);
         }
@@ -410,12 +420,14 @@ export class AccountSyncEngine {
             supabase.from('saved_albums').select('album_id').eq('user_id', userId)
           ]);
 
-          const favArtists = artistsRes.data ? artistsRes.data.map((f: any) => f.artist_id) : [];
-          const favAlbums = albumsRes.data ? albumsRes.data.map((f: any) => f.album_id) : [];
-          usePlayerStore.setState({
-            favoriteArtistIds: favArtists,
-            favoriteAlbumIds: favAlbums
-          });
+          if (AccountIsolationGuard.getInstance().isCurrentAuthGeneration(startAuthGen, userId)) {
+            const favArtists = artistsRes.data ? artistsRes.data.map((f: any) => f.artist_id) : [];
+            const favAlbums = albumsRes.data ? albumsRes.data.map((f: any) => f.album_id) : [];
+            usePlayerStore.setState({
+              favoriteArtistIds: favArtists,
+              favoriteAlbumIds: favAlbums
+            });
+          }
         } catch (favErr) {
           console.warn('[AccountSyncEngine] Failed to reconcile favorites:', favErr);
         }
@@ -429,7 +441,7 @@ export class AccountSyncEngine {
             .order('created_at', { ascending: false })
             .limit(50);
 
-          if (!historyError && historyData && historyData.length > 0) {
+          if (!historyError && historyData && historyData.length > 0 && AccountIsolationGuard.getInstance().isCurrentAuthGeneration(startAuthGen, userId)) {
             const cloudHistory = Array.from(new Set(historyData.map((d: any) => d.song_id).filter(Boolean)));
             const currentHistory = usePlayerStore.getState().historySongIds || [];
             const mergedHistory = Array.from(new Set([...cloudHistory, ...currentHistory])).slice(0, 100);
@@ -451,7 +463,7 @@ export class AccountSyncEngine {
               if (downloadError.code === '42P01' || downloadError.message?.includes('does not exist')) {
                 this.hasUserDownloadsTable = false;
               }
-            } else if (downloadData) {
+            } else if (downloadData && AccountIsolationGuard.getInstance().isCurrentAuthGeneration(startAuthGen, userId)) {
               const records: CloudDownloadRecord[] = downloadData.map((row: any) => ({
                 song_id: row.song_id,
                 user_id: row.user_id,
@@ -479,10 +491,12 @@ export class AccountSyncEngine {
         const catalog = OfflineCatalog.getInstance();
         const allLocalTracks = await catalog.getAllTracks();
         const localIds = allLocalTracks.map((t) => t.trackId);
-        usePlayerStore.setState({ downloadedSongIds: localIds });
+        if (AccountIsolationGuard.getInstance().isCurrentAuthGeneration(startAuthGen, userId)) {
+          usePlayerStore.setState({ downloadedSongIds: localIds });
+        }
 
         // Update local revision in IndexedDB
-        if (!revError && revData) {
+        if (!revError && revData && AccountIsolationGuard.getInstance().isCurrentAuthGeneration(startAuthGen, userId)) {
           await localDb.setUserStore(userId, 'library_revision', remoteRevision);
           console.log(`[AccountSyncEngine] Local revision updated to remote revision: ${remoteRevision}`);
         }

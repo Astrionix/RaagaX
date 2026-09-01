@@ -101,7 +101,7 @@ export class ConnectDiscoveryEngine {
       // 3. Request latest session snapshot from active speaker
       try {
         const { ConnectClientManager } = require('./ConnectClientManager');
-        ConnectClientManager.getInstance().requestCurrentPlaybackState();
+        ConnectClientManager.getInstance().requestCurrentPlaybackState()?.catch?.(() => {});
       } catch {}
       // 4. Reconnect SSE stream if dropped during mobile sleep
       try {
