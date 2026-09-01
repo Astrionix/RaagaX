@@ -978,13 +978,32 @@ export const usePlayerStore = create<PlayerState>()(
                 coverUrl: resolvedCover,
               });
 
+              // Pre-resolve direct stream URL if possible to eliminate speaker fetch latency
+              let directAudioUrl = formattedTrack.audioUrl;
+              if (!directAudioUrl || directAudioUrl.includes('pixabay.com')) {
+                try {
+                  const { PlaybackSourceResolver } = await import('@/lib/playbackSourceResolver');
+                  const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(formattedTrack);
+                  if (source?.url) {
+                    directAudioUrl = source.url;
+                  }
+                } catch {}
+              }
+
+              const trackWithUrl: Song = {
+                ...formattedTrack,
+                audioUrl: directAudioUrl || formattedTrack.audioUrl,
+              };
+
+              const currentQueue = get().queue.length > 0 ? get().queue : [trackWithUrl];
+
               // Optimistic UI update — mirror what the speaker will reflect
               useConnectStore.setState((prev) => ({
                 remoteSession: prev.remoteSession ? {
                   ...prev.remoteSession,
-                  currentTrackId: formattedTrack.id,
-                  currentSong: formattedTrack,
-                  queue: get().queue.length > 0 ? get().queue : [formattedTrack],
+                  currentTrackId: trackWithUrl.id,
+                  currentSong: trackWithUrl,
+                  queue: currentQueue,
                   queueIndex: index,
                   isPlaying: autoPlay,
                   positionMs: 0,
@@ -994,19 +1013,18 @@ export const usePlayerStore = create<PlayerState>()(
               }));
 
               set({
-                currentSong: formattedTrack,
+                currentSong: trackWithUrl,
                 queueIndex: index,
                 isPlaying: autoPlay,
                 playbackIntent: autoPlay ? 'PLAYING' : 'PAUSED',
                 currentTime: 0,
-                duration: formattedTrack.duration || 0,
+                duration: trackWithUrl.duration || 0,
               });
 
-              // PLAY_SONG: instructs speaker to load and play this specific song.
-              // TRANSFER_PLAYBACK was wrong here — that is for device handover, not song selection.
+              // PLAY_SONG: instructs speaker to load and play this specific song immediately
               await connectClient.sendCommand('PLAY_SONG', {
-                song: formattedTrack,
-                queue: get().queue.length > 0 ? get().queue : [formattedTrack],
+                song: trackWithUrl,
+                queue: currentQueue,
                 queueIndex: index,
                 isPlaying: autoPlay,
                 positionMs: 0,

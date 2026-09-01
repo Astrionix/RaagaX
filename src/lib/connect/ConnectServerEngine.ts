@@ -307,6 +307,7 @@ export class ConnectServerEngine {
             ).catch(() => {});
             this.currentSession.playbackState = 'PLAYING';
             this.broadcastSessionUpdate();
+            try { PlaybackService.getInstance().triggerNextPreload(); } catch {}
           } else {
             const pb = PlaybackService.getInstance();
             const reqId = Date.now();
@@ -314,6 +315,7 @@ export class ConnectServerEngine {
             await pb.loadAudioSource(formattedTrack, reqId, true, startPositionMs / 1000);
             this.currentSession.playbackState = 'PLAYING';
             this.broadcastSessionUpdate();
+            try { pb.triggerNextPreload(); } catch {}
           }
         }
         break;
@@ -475,6 +477,7 @@ export class ConnectServerEngine {
               ).catch(() => {});
               this.currentSession.playbackState = 'PLAYING';
               this.broadcastSessionUpdate();
+              try { PlaybackService.getInstance().triggerNextPreload(); } catch {}
             } else {
               const pb = PlaybackService.getInstance();
               const reqId = Date.now();
@@ -482,6 +485,7 @@ export class ConnectServerEngine {
               await pb.loadAudioSource(nextSong, reqId, true, 0);
               this.currentSession.playbackState = 'PLAYING';
               this.broadcastSessionUpdate();
+              try { pb.triggerNextPreload(); } catch {}
             }
           }
         }
@@ -560,6 +564,7 @@ export class ConnectServerEngine {
               ).catch(() => {});
               this.currentSession.playbackState = 'PLAYING';
               this.broadcastSessionUpdate();
+              try { PlaybackService.getInstance().triggerNextPreload(); } catch {}
             } else {
               const pb = PlaybackService.getInstance();
               const reqId = Date.now();
@@ -567,6 +572,7 @@ export class ConnectServerEngine {
               await pb.loadAudioSource(prevSong, reqId, true, 0);
               this.currentSession.playbackState = 'PLAYING';
               this.broadcastSessionUpdate();
+              try { pb.triggerNextPreload(); } catch {}
             }
           }
         }

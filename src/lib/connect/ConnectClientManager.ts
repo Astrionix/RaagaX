@@ -203,6 +203,18 @@ export class ConnectClientManager {
 
     console.log(`[CONNECT_HANDOFF]\nfromDevice=${localDevice.deviceId}\ntoDevice=${targetDevice.deviceId}\npositionMs=${currentPositionMs}`);
 
+    // Pre-resolve direct stream URL if possible to eliminate speaker fetch latency
+    let songPayload = currentSong;
+    if (currentSong && (!currentSong.audioUrl || currentSong.audioUrl.includes('pixabay.com'))) {
+      try {
+        const { PlaybackSourceResolver } = await import('@/lib/playbackSourceResolver');
+        const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(currentSong);
+        if (source?.url) {
+          songPayload = { ...currentSong, audioUrl: source.url };
+        }
+      } catch {}
+    }
+
     const command: ConnectCommand = {
       commandId: `cmd_${Date.now().toString(36)}`,
       requestId: `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`,
@@ -211,7 +223,7 @@ export class ConnectClientManager {
       targetDeviceId: targetDevice.deviceId,
       action: 'TRANSFER_PLAYBACK',
       payload: {
-        song: currentSong || undefined,
+        song: songPayload || undefined,
         queue: store.queue,
         queueIndex: store.queueIndex,
         positionMs: currentPositionMs,
