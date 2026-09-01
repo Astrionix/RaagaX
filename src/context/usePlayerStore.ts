@@ -1482,13 +1482,18 @@ export const usePlayerStore = create<PlayerState>()(
         //   If auto-next on a non-host participant, we MUST wait for the host's authoritative
         //   TRACK_CHANGED broadcast — otherwise both host and participant fire SKIP_NEXT simultaneously.
         // This is the AUTO_NEXT SINGLE OWNER guarantee (Phase 6).
-        // RaagaX Connect: If in Remote Controller mode in browser, dispatch SKIP_NEXT to authoritative sink
+        // RaagaX Connect: If in Remote Controller mode in browser, dispatch target track with pre-resolved audioUrl
         if (typeof window !== 'undefined') {
           try {
             const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
             const connectClient = ConnectClientManager.getInstance();
             if (connectClient.isRemoteMode()) {
-              await connectClient.sendCommand('SKIP_NEXT');
+              const { queue, queueIndex, repeatMode } = get();
+              const nextIndex = getNextQueueIndex(queue, queueIndex, repeatMode);
+              if (nextIndex >= 0 && nextIndex < queue.length) {
+                const nextTrack = queue[nextIndex];
+                await get().switchTrack(nextTrack, nextIndex, true);
+              }
               return;
             }
           } catch { }
@@ -1551,16 +1556,17 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       playPrev: async () => {
-        // RaagaX Connect: If in Remote Controller mode in browser, dispatch SKIP_PREV / SEEK(0)
+        // RaagaX Connect: If in Remote Controller mode in browser, dispatch target previous track with pre-resolved audioUrl
         if (typeof window !== 'undefined') {
           try {
             const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
             const connectClient = ConnectClientManager.getInstance();
             if (connectClient.isRemoteMode()) {
-              if (get().currentTime > 3) {
-                await connectClient.sendCommand('SEEK', { positionMs: 0 });
-              } else {
-                await connectClient.sendCommand('SKIP_PREV');
+              const { queue, queueIndex, repeatMode } = get();
+              const prevIndex = getPreviousQueueIndex(queue, queueIndex, repeatMode);
+              if (prevIndex >= 0 && prevIndex < queue.length) {
+                const prevTrack = queue[prevIndex];
+                await get().switchTrack(prevTrack, prevIndex, true);
               }
               return;
             }
@@ -1573,11 +1579,7 @@ export const usePlayerStore = create<PlayerState>()(
           const jamSession = jamManager.getActiveSession();
           if (jamSession) {
             if (jamManager.isHost() || jamSession.permissions?.canSkip) {
-              if (get().currentTime > 3) {
-                await jamManager.sendSeek(0);
-              } else {
-                await jamManager.sendSkipPrev();
-              }
+              await jamManager.sendSkipPrev();
             } else {
               console.log('[playPrev] In Jam as guest without skip permission — waiting for authoritative TRACK_CHANGED from server.');
             }
@@ -1585,19 +1587,7 @@ export const usePlayerStore = create<PlayerState>()(
           }
         } catch { }
 
-        const { queue, queueIndex, currentTime, currentSong, repeatMode, isPlaying, playbackIntent } = get();
-
-        // If track played more than 3 seconds, restart current track at 0:00 and keep current playing state
-        if (currentTime > 3) {
-          console.log(`[RESTART] ${currentSong?.id || 'unknown'} (pos: ${currentTime.toFixed(1)}s > 3s)`);
-          get().setCurrentTime(0, true);
-          get().setSeekTarget(0);
-          PlaybackService.getInstance().seek(0);
-          if (isPlaying || playbackIntent === 'PLAYING') {
-            PlaybackService.getInstance().play();
-          }
-          return;
-        }
+        const { queue, queueIndex, repeatMode, isPlaying, playbackIntent } = get();
 
         get().logCurrentTelemetry('skip');
 
@@ -1611,7 +1601,7 @@ export const usePlayerStore = create<PlayerState>()(
           await get().switchTrack(prevTrack, prevIndex, shouldPlay);
         } else {
           // At beginning of queue and no previous: restart at 0:00
-          console.log(`[RESTART] ${currentSong?.id || 'unknown'} (beginning of queue)`);
+          console.log(`[RESTART] ${get().currentSong?.id || 'unknown'} (beginning of queue)`);
           get().setCurrentTime(0, true);
           get().setSeekTarget(0);
           PlaybackService.getInstance().seek(0);

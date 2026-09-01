@@ -88,6 +88,9 @@ export class PreloadManager {
       if (source && source.url) {
         finalSrc = source.url;
         song.audioUrl = finalSrc;
+        try {
+          PlayableUrlCache.getInstance().set(song.id, finalSrc, [finalSrc], source.type === 'offline' ? 'offline' : 'remote');
+        } catch {}
       }
 
       // Update native player queue URL just-in-time

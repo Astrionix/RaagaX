@@ -53,7 +53,7 @@ export class PlaybackService {
     console.log(`[PLAYBACK_STARTED] trackId=${trackId} position=${position}`);
   }
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): PlaybackService {
     if (!PlaybackService.instance) {
@@ -136,7 +136,7 @@ export class PlaybackService {
           if (ConnectClientManager.getInstance().isRemoteMode()) {
             return;
           }
-        } catch {}
+        } catch { }
 
         if (active.readyState >= 2) {
           // WATCHDOG JAM SAFETY (Phase 4):
@@ -308,7 +308,7 @@ export class PlaybackService {
     if (!options.songs || options.songs.length === 0) return false;
     const index = options.startIndex || 0;
     const firstSong = options.songs[index] || options.songs[0];
-    
+
     const store = usePlayerStore.getState();
 
     store.playSong(firstSong, options.songs);
@@ -368,7 +368,7 @@ export class PlaybackService {
             try {
               const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
               if (source?.url) finalSrc = source.url;
-            } catch {}
+            } catch { }
             if (!finalSrc && song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
               finalSrc = song.audioUrl;
             }
@@ -383,12 +383,12 @@ export class PlaybackService {
             }
           }
           return {
-            trackId:    song.id,
-            url:        finalSrc,
-            title:      song.title ?? 'Unknown Title',
-            artist:     song.artist ?? 'Unknown Artist',
+            trackId: song.id,
+            url: finalSrc,
+            title: song.title ?? 'Unknown Title',
+            artist: song.artist ?? 'Unknown Artist',
             artworkUrl: song.coverUrl ?? '',
-            loudness:   (song as any).loudness ?? null,
+            loudness: (song as any).loudness ?? null,
           };
         })
       );
@@ -435,7 +435,7 @@ export class PlaybackService {
       try {
         const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
         if (source?.url) finalSrc = source.url;
-      } catch {}
+      } catch { }
       if (!finalSrc && song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
         finalSrc = song.audioUrl;
       }
@@ -450,7 +450,7 @@ export class PlaybackService {
         if (positionSec > 0) {
           try {
             activeAudio.currentTime = positionSec;
-          } catch {}
+          } catch { }
         }
       }
 
@@ -483,13 +483,13 @@ export class PlaybackService {
           if (typeof a.load === 'function') {
             a.load();
           }
-        } catch {}
+        } catch { }
       }
     });
     if (RaagaXNativePlayer.isNative()) {
       try {
         RaagaXNativePlayer.pause();
-      } catch {}
+      } catch { }
     }
     PreloadManager.getInstance().reset();
     if (this.audioA && this.audioB) {
@@ -520,7 +520,7 @@ export class PlaybackService {
       if (ConnectClientManager.getInstance().isRemoteMode()) {
         return false;
       }
-    } catch {}
+    } catch { }
 
     const store = usePlayerStore.getState();
     this.isTransitioning = true;
@@ -570,19 +570,39 @@ export class PlaybackService {
 
       if (RaagaXNativePlayer.isNative()) {
         let finalSrc = '';
-        try {
-          const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
-          if (source?.url) {
-            finalSrc = source.url;
-            resolvedSourceType = source.type === 'offline' ? 'LOCAL_DOWNLOAD' : 'NETWORK_STREAM';
-            // Update native player queue URL just-in-time
-            await RaagaXNativePlayer.updateQueueUrl(song.id, finalSrc);
-          }
-        } catch (e) {
-          console.warn('[PlaybackService] Native source resolution failed:', e);
-        }
-        if (!finalSrc && song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
+        
+        // 1. Instant Fast-Path: Use already-resolved or cached stream URL (< 5ms)
+        if (song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
           finalSrc = song.audioUrl;
+          resolvedSourceType = 'NETWORK_STREAM';
+        } else {
+          try {
+            const cached = PlayableUrlCache.getInstance().get(song.id);
+            if (cached && cached.url) {
+              finalSrc = cached.url;
+              resolvedSourceType = 'NETWORK_STREAM';
+              song.audioUrl = finalSrc;
+            }
+          } catch {}
+        }
+
+        // 2. Fallback Resolution: Resolve only if not already cached
+        if (!finalSrc) {
+          try {
+            const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+            if (source?.url) {
+              finalSrc = source.url;
+              resolvedSourceType = source.type === 'offline' ? 'LOCAL_DOWNLOAD' : 'NETWORK_STREAM';
+              song.audioUrl = finalSrc;
+              try {
+                PlayableUrlCache.getInstance().set(song.id, finalSrc, [finalSrc], resolvedSourceType === 'LOCAL_DOWNLOAD' ? 'offline' : 'remote');
+              } catch {}
+              // Update native player queue URL just-in-time
+              await RaagaXNativePlayer.updateQueueUrl(song.id, finalSrc);
+            }
+          } catch (e) {
+            console.warn('[PlaybackService] Native source resolution failed:', e);
+          }
         }
         if (requestId !== this.playbackRequestId) return false;
         if (!finalSrc) {
@@ -700,13 +720,13 @@ export class PlaybackService {
       try {
         if (typeof activeAudio.pause === 'function') activeAudio.pause();
         activeAudio.currentTime = initialPositionSec > 0 ? initialPositionSec : 0;
-      } catch {}
+      } catch { }
 
       activeAudio.preload = 'auto';
       activeAudio.src = finalSrc;
       try {
         if (typeof activeAudio.load === 'function') activeAudio.load();
-      } catch {}
+      } catch { }
 
       if (initialPositionSec > 0) {
         let seekApplied = false;
@@ -715,7 +735,7 @@ export class PlaybackService {
           seekApplied = true;
           try {
             activeAudio.currentTime = initialPositionSec;
-          } catch {}
+          } catch { }
         };
         if (typeof activeAudio.readyState === 'number' && activeAudio.readyState >= 1) {
           applyInitialSeek();
@@ -867,12 +887,12 @@ export class PlaybackService {
     const nextItem = manager.peekNext();
 
     if (nextItem && nextItem.song) {
-      PreloadManager.getInstance().prepareNextTrack(nextItem.song, standby).catch(() => {});
+      PreloadManager.getInstance().prepareNextTrack(nextItem.song, standby).catch(() => { });
     }
 
     const snapshot = manager.getSnapshot();
     if (snapshot.currentIndex > 0 && snapshot.items[snapshot.currentIndex - 1]?.song) {
-      PreloadManager.getInstance().preparePreviousTrack(snapshot.items[snapshot.currentIndex - 1].song).catch(() => {});
+      PreloadManager.getInstance().preparePreviousTrack(snapshot.items[snapshot.currentIndex - 1].song).catch(() => { });
     }
   }
 
@@ -917,7 +937,7 @@ export class PlaybackService {
       if (ConnectClientManager.getInstance().isRemoteMode()) {
         return;
       }
-    } catch {}
+    } catch { }
 
     if (RaagaXNativePlayer.isNative()) {
       RaagaXNativePlayer.resume();
@@ -942,7 +962,7 @@ export class PlaybackService {
                 window.removeEventListener('pointerdown', unlock);
                 window.removeEventListener('keydown', unlock);
                 window.removeEventListener('touchstart', unlock);
-                active.play().catch(() => {});
+                active.play().catch(() => { });
               };
               window.addEventListener('pointerdown', unlock, { once: true });
               window.addEventListener('keydown', unlock, { once: true });
@@ -965,13 +985,13 @@ export class PlaybackService {
   private notifyStorePlaying(isPlaying: boolean) {
     try {
       usePlayerStore.getState().setIsPlaying(isPlaying, true);
-    } catch {}
+    } catch { }
   }
 
   public pauseAudioElementOnly() {
     [this.audioA, this.audioB].forEach(audio => {
       if (audio && !audio.paused) {
-        try { audio.pause(); } catch {}
+        try { audio.pause(); } catch { }
       }
     });
   }
@@ -1142,7 +1162,7 @@ export class PlaybackService {
         console.log('[PlaybackService] In Connect remote controller mode — skipping auto-next trigger (Speaker owns transition)');
         return;
       }
-    } catch {}
+    } catch { }
 
     console.log(`[PLAYBACK_ENDED] trackId=${endedTrackId} generation=${generation} tag=${tag}`);
     console.log(`[PlaybackService] Track ended naturally on audio ${tag} (gen ${generation}). Advancing queue...`);
@@ -1286,7 +1306,7 @@ export class PlaybackService {
           if (source?.url) {
             finalSrc = source.url;
           }
-        } catch {}
+        } catch { }
         if (!finalSrc && song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
           if (typeof navigator === 'undefined' || navigator.onLine !== false) {
             finalSrc = song.audioUrl;
@@ -1318,7 +1338,7 @@ export class PlaybackService {
     try {
       const store = usePlayerStore.getState();
       const isDownloaded = store.downloadedSongIds?.includes(song.id);
-      
+
       let downloadText: string | undefined;
       try {
         const downloadStore = require('@/context/useDownloadStore').useDownloadStore.getState();
@@ -1326,7 +1346,7 @@ export class PlaybackService {
         if (downloadTask && (downloadTask.status === 'DOWNLOADING' || downloadTask.status === 'QUEUED')) {
           downloadText = `Downloading • ${downloadTask.progress || 0}%`;
         }
-      } catch {}
+      } catch { }
 
       const mediaSession = MediaSessionManager.getInstance();
       mediaSession.updateSongMetadata(song, {

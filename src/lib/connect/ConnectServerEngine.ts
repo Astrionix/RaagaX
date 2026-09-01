@@ -44,7 +44,7 @@ export class ConnectServerEngine {
           initialDeviceId = local.deviceId;
           initialDeviceName = local.deviceName;
         }
-      } catch {}
+      } catch { }
     }
 
     this.currentSession = {
@@ -103,7 +103,7 @@ export class ConnectServerEngine {
           }
         }
       };
-    } catch {}
+    } catch { }
   }
 
   public getSession(): ConnectPlaybackSession {
@@ -149,7 +149,7 @@ export class ConnectServerEngine {
       if (active && !active.paused && !isNaN(active.currentTime)) {
         actualCurrentSec = active.currentTime;
       }
-    } catch {}
+    } catch { }
 
     const actualCurrentMs = Math.round(actualCurrentSec * 1000);
     const now = Date.now();
@@ -178,8 +178,8 @@ export class ConnectServerEngine {
     if (typeof window !== 'undefined') {
       const localDevice = ConnectDiscoveryEngine.getInstance().getLocalDevice();
       const isTargetMe = command.targetDeviceId === localDevice.deviceId ||
-                         command.targetDeviceId === this.currentSession.playbackDeviceId ||
-                         command.targetDeviceId === 'dev_local';
+        command.targetDeviceId === this.currentSession.playbackDeviceId ||
+        command.targetDeviceId === 'dev_local';
       if (!isTargetMe) {
         return { success: false, session: this.getSession() };
       }
@@ -304,10 +304,10 @@ export class ConnectServerEngine {
               0,
               true,
               startPositionMs
-            ).catch(() => {});
+            ).catch(() => { });
             this.currentSession.playbackState = 'PLAYING';
             this.broadcastSessionUpdate();
-            try { PlaybackService.getInstance().triggerNextPreload(); } catch {}
+            try { PlaybackService.getInstance().triggerNextPreload(); } catch { }
           } else {
             const pb = PlaybackService.getInstance();
             const reqId = Date.now();
@@ -315,7 +315,7 @@ export class ConnectServerEngine {
             await pb.loadAudioSource(formattedTrack, reqId, true, startPositionMs / 1000);
             this.currentSession.playbackState = 'PLAYING';
             this.broadcastSessionUpdate();
-            try { pb.triggerNextPreload(); } catch {}
+            try { pb.triggerNextPreload(); } catch { }
           }
         }
         break;
@@ -337,10 +337,10 @@ export class ConnectServerEngine {
 
         store.setIsPlaying(true);
         if (RaagaXNativePlayer.isNative()) {
-          await RaagaXNativePlayer.resume().catch(() => {});
+          await RaagaXNativePlayer.resume().catch(() => { });
         } else {
           const pb = PlaybackService.getInstance().getActiveAudio();
-          if (pb) pb.play().catch(() => {});
+          if (pb) pb.play().catch(() => { });
         }
         break;
       }
@@ -360,7 +360,7 @@ export class ConnectServerEngine {
 
         store.setIsPlaying(false);
         if (RaagaXNativePlayer.isNative()) {
-          await RaagaXNativePlayer.pause().catch(() => {});
+          await RaagaXNativePlayer.pause().catch(() => { });
         } else {
           const pb = PlaybackService.getInstance().getActiveAudio();
           if (pb) pb.pause();
@@ -381,7 +381,7 @@ export class ConnectServerEngine {
 
         store.setCurrentTime(clampedMs / 1000);
         if (RaagaXNativePlayer.isNative()) {
-          await RaagaXNativePlayer.seekTo(clampedMs / 1000).catch(() => {});
+          await RaagaXNativePlayer.seekTo(clampedMs / 1000).catch(() => { });
         } else {
           const pb = PlaybackService.getInstance().getActiveAudio();
           if (pb) pb.currentTime = clampedMs / 1000;
@@ -428,7 +428,7 @@ export class ConnectServerEngine {
             });
 
             if (RaagaXNativePlayer.isNative()) {
-              await RaagaXNativePlayer.pause().catch(() => {});
+              await RaagaXNativePlayer.pause().catch(() => { });
             } else {
               const pb = PlaybackService.getInstance().getActiveAudio();
               if (pb) pb.pause();
@@ -474,10 +474,10 @@ export class ConnectServerEngine {
                 0,
                 true,
                 0
-              ).catch(() => {});
+              ).catch(() => { });
               this.currentSession.playbackState = 'PLAYING';
               this.broadcastSessionUpdate();
-              try { PlaybackService.getInstance().triggerNextPreload(); } catch {}
+              try { PlaybackService.getInstance().triggerNextPreload(); } catch { }
             } else {
               const pb = PlaybackService.getInstance();
               const reqId = Date.now();
@@ -485,7 +485,7 @@ export class ConnectServerEngine {
               await pb.loadAudioSource(nextSong, reqId, true, 0);
               this.currentSession.playbackState = 'PLAYING';
               this.broadcastSessionUpdate();
-              try { pb.triggerNextPreload(); } catch {}
+              try { pb.triggerNextPreload(); } catch { }
             }
           }
         }
@@ -561,10 +561,10 @@ export class ConnectServerEngine {
                 0,
                 true,
                 0
-              ).catch(() => {});
+              ).catch(() => { });
               this.currentSession.playbackState = 'PLAYING';
               this.broadcastSessionUpdate();
-              try { PlaybackService.getInstance().triggerNextPreload(); } catch {}
+              try { PlaybackService.getInstance().triggerNextPreload(); } catch { }
             } else {
               const pb = PlaybackService.getInstance();
               const reqId = Date.now();
@@ -572,7 +572,7 @@ export class ConnectServerEngine {
               await pb.loadAudioSource(prevSong, reqId, true, 0);
               this.currentSession.playbackState = 'PLAYING';
               this.broadcastSessionUpdate();
-              try { pb.triggerNextPreload(); } catch {}
+              try { pb.triggerNextPreload(); } catch { }
             }
           }
         }
@@ -688,7 +688,7 @@ export class ConnectServerEngine {
               controllerId: targetControllerId,
               speakerId: this.currentSession.playbackDeviceId,
             });
-          } catch {}
+          } catch { }
         }
         break;
       }
@@ -754,7 +754,7 @@ export class ConnectServerEngine {
           serverTimestamp: Date.now(),
         };
         this.broadcastChannel.postMessage(event);
-      } catch {}
+      } catch { }
     }
 
     if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
@@ -762,7 +762,7 @@ export class ConnectServerEngine {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(this.currentSession),
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     this.notifyListeners();
@@ -778,7 +778,7 @@ export class ConnectServerEngine {
         if (ConnectClientManager.getInstance().isRemoteMode()) {
           return;
         }
-      } catch {}
+      } catch { }
 
       const localDevice = ConnectDiscoveryEngine.getInstance().getLocalDevice();
       this.currentSession.playbackDeviceId = localDevice.deviceId;
@@ -842,7 +842,7 @@ export class ConnectServerEngine {
           controllerId: oldControllerId,
           speakerId: this.currentSession.playbackDeviceId,
         });
-      } catch {}
+      } catch { }
     }
 
     this.broadcastSessionUpdate();
@@ -862,7 +862,7 @@ export class ConnectServerEngine {
     this.listeners.forEach((listener) => {
       try {
         listener(session);
-      } catch {}
+      } catch { }
     });
   }
 }
