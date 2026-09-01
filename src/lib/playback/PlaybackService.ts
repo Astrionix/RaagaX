@@ -478,7 +478,11 @@ export class PlaybackService {
       if (a) {
         try {
           a.pause();
+          a.removeAttribute('src');
           a.currentTime = 0;
+          if (typeof a.load === 'function') {
+            a.load();
+          }
         } catch {}
       }
     });
