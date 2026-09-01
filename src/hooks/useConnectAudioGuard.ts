@@ -36,15 +36,7 @@ export function useConnectAudioGuard() {
       try {
         const playback = PlaybackService.getInstance();
         playback.pauseAudioElementOnly();
-
-        const activeAudio = playback.getActiveAudio();
-        if (activeAudio) {
-          activeAudio.pause();
-          if (activeAudio.src) {
-            activeAudio.removeAttribute('src');
-            activeAudio.load();
-          }
-        }
+        playback.hardResetAudioPipeline();
 
         if (RaagaXNativePlayer.isNative()) {
           RaagaXNativePlayer.pause();

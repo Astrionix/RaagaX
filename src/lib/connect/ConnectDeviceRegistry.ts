@@ -190,6 +190,50 @@ export class ConnectDeviceRegistry {
   }
 
   public static queueCommand(command: ConnectCommand): void {
+    // 1. Central Session Link Persistence (Single Source of Truth)
+    if (command.action === 'TRANSFER_PLAYBACK' || command.action === 'PLAY_SONG') {
+      const now = Date.now();
+      const existing = store.sessions.get(command.targetDeviceId);
+      const updatedSession: ConnectPlaybackSession = {
+        sessionId: existing?.sessionId || `sess_${now.toString(36)}`,
+        playbackDeviceId: command.targetDeviceId,
+        playbackDeviceName: store.devices.get(command.targetDeviceId)?.deviceName || 'Remote Speaker',
+        controllerDeviceId: command.senderDeviceId,
+        controllerDeviceName: command.senderName || 'Remote Controller',
+        controllerIds: [command.senderDeviceId],
+        currentTrackId: command.payload?.song?.id || existing?.currentTrackId || '',
+        currentQueueItemId: `qitem_${command.payload?.song?.id || 'track'}_${now}`,
+        currentSong: command.payload?.song || existing?.currentSong || null,
+        metadata: {
+          trackId: command.payload?.song?.id || '',
+          title: command.payload?.song?.title || 'Unknown Title',
+          artist: command.payload?.song?.artist || 'Unknown Artist',
+          album: command.payload?.song?.album || '',
+          artworkUrl: command.payload?.song?.coverUrl || '',
+          durationMs: Math.round((command.payload?.song?.duration || 0) * 1000),
+          audioUrl: command.payload?.song?.audioUrl || '',
+        },
+        queue: command.payload?.queue || existing?.queue || [],
+        queueIndex: command.payload?.queueIndex ?? existing?.queueIndex ?? 0,
+        history: existing?.history || [],
+        positionMs: command.payload?.positionMs ?? existing?.positionMs ?? 0,
+        anchorPositionMs: command.payload?.positionMs ?? existing?.anchorPositionMs ?? 0,
+        anchorTimeMs: now,
+        durationMs: Math.round((command.payload?.song?.duration || 0) * 1000),
+        isPlaying: command.payload?.isPlaying ?? true,
+        playbackState: 'BUFFERING',
+        volume: command.payload?.volume ?? existing?.volume ?? 0.8,
+        shuffle: existing?.shuffle ?? false,
+        repeat: existing?.repeat ?? 'OFF',
+        timelineId: command.payload?.timelineId || `TL_${now.toString(36)}`,
+        generation: (existing?.generation || 0) + 1,
+        revision: (existing?.revision || 0) + 1,
+        updatedAt: now,
+      };
+
+      ConnectDeviceRegistry.publishSession(updatedSession);
+    }
+
     const pCommands = store.pendingCommands || (store.pendingCommands = new Map());
     const list = pCommands.get(command.targetDeviceId) || [];
     list.push(command);

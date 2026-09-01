@@ -157,9 +157,8 @@ export function ConnectDeviceModal() {
     const isAlreadyActive = activePlaybackDevice?.deviceId === device.deviceId;
 
     if (isAlreadyActive) {
-      setTransferringId(device.deviceId);
-      await disconnect();
-      setTransferringId(null);
+      // Already connected to this device — keep active and close modal
+      toggleConnectModal(false);
       return;
     }
 

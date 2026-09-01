@@ -85,6 +85,7 @@ export function DeviceRoutingModal() {
   const localDeviceId = localDevice?.deviceId || 'dev_local';
 
   const handleDeviceSelect = async (device: ConnectDevice) => {
+    if (switchingDeviceId) return;
     if (device.deviceId === localDeviceId) {
       // User tapped "This Device" while listening remotely
       setSwitchingDeviceId(device.deviceId);

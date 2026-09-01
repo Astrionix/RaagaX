@@ -1135,6 +1135,15 @@ export class PlaybackService {
     // Check if crossfade/gapless is actively committing
     if (TransitionManager.getInstance().getState() !== 'IDLE') return;
 
+    // In Connect Remote Controller mode: Authoritative Speaker owns the queue progression
+    try {
+      const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
+      if (ConnectClientManager.getInstance().isRemoteMode()) {
+        console.log('[PlaybackService] In Connect remote controller mode — skipping auto-next trigger (Speaker owns transition)');
+        return;
+      }
+    } catch {}
+
     console.log(`[PLAYBACK_ENDED] trackId=${endedTrackId} generation=${generation} tag=${tag}`);
     console.log(`[PlaybackService] Track ended naturally on audio ${tag} (gen ${generation}). Advancing queue...`);
     // Pass isNaturalEnd=true so Jam-aware playNext suppresses auto-next for non-host participants

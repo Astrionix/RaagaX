@@ -484,7 +484,16 @@ export function AudioPlayerController() {
       if (jamState.isInJam && jamState.session) {
         JamClientManager.getInstance().sendSeek(Math.round(targetSec * 1000));
       } else {
-        PlaybackService.getInstance().seek(targetSec);
+        try {
+          const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
+          if (ConnectClientManager.getInstance().isRemoteMode()) {
+            ConnectClientManager.getInstance().sendCommand('SEEK', { positionMs: Math.round(targetSec * 1000) });
+          } else {
+            PlaybackService.getInstance().seek(targetSec);
+          }
+        } catch {
+          PlaybackService.getInstance().seek(targetSec);
+        }
       }
 
       LyricsEngine.getInstance().seek(targetSec * 1000);
