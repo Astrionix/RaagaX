@@ -39,6 +39,7 @@ import { ConnectDeviceModal } from '@/components/connect/ConnectDeviceModal';
 import { ListeningOnDeviceBanner } from '@/components/connect/ListeningOnDeviceBanner';
 import { SpeakerControlledBanner } from '@/components/connect/SpeakerControlledBanner';
 import { useConnectAudioGuard } from '@/hooks/useConnectAudioGuard';
+import { useMediaSessionSync } from '@/hooks/useMediaSessionSync';
 
 import { Toast } from '@/components/ui/Toast';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
@@ -116,6 +117,9 @@ export default function Page() {
 
   // ── Spotify Connect Strict Audio Hardware Gating (Silences controllers to prevent double-sound)
   useConnectAudioGuard();
+
+  // ── Spotify Connect Media Session Sync (Silent Anchor + Notification Widget for Remote Controllers)
+  useMediaSessionSync();
 
   // Android Predictive Back Gesture & Navigation Hierarchy
   React.useEffect(() => {

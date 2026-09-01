@@ -144,4 +144,16 @@ describe('Spotify Connect — Canonical Engine & Gateway Architecture', () => {
     expect(sessionAfter.activeSpeakerId).toBe(speakerIdBefore);
     expect(!sessionAfter.playback.isPaused).toBe(isPlayingBefore);
   });
+
+  it('6. Silent Media Anchor: Activates and deactivates keepalive audio loop safely', async () => {
+    const { silentMediaAnchor } = await import('@/lib/connect/SilentAudioAnchor');
+    expect(silentMediaAnchor).toBeDefined();
+    expect(silentMediaAnchor.getIsActive()).toBe(false);
+
+    silentMediaAnchor.activate();
+    expect(silentMediaAnchor.getIsActive()).toBe(true);
+
+    silentMediaAnchor.deactivate();
+    expect(silentMediaAnchor.getIsActive()).toBe(false);
+  });
 });
