@@ -122,16 +122,18 @@ export class ConnectClientManager {
   public async transferPlaybackTo(targetDevice: ConnectDevice): Promise<boolean> {
     if (!targetDevice || !targetDevice.deviceId) return false;
 
-    // Loading lock & double-click debounce (1.5s)
-    if (this.isTransferring) {
+    // Loading lock & double-click debounce (1.5s in browser)
+    if (typeof window !== 'undefined' && this.isTransferring) {
       console.log('[CONNECT_HANDOFF] Handover already in progress. Debouncing duplicate transfer click.');
       return false;
     }
-    this.isTransferring = true;
-    if (this.transferLockTimer) clearTimeout(this.transferLockTimer);
-    this.transferLockTimer = setTimeout(() => {
-      this.isTransferring = false;
-    }, 1500);
+    if (typeof window !== 'undefined') {
+      this.isTransferring = true;
+      if (this.transferLockTimer) clearTimeout(this.transferLockTimer);
+      this.transferLockTimer = setTimeout(() => {
+        this.isTransferring = false;
+      }, 1500);
+    }
 
     const localDevice = ConnectDiscoveryEngine.getInstance().getLocalDevice();
     if (!localDevice || targetDevice.deviceId === localDevice.deviceId || targetDevice.isCurrentDevice || targetDevice.deviceId === 'dev_local') {
