@@ -327,7 +327,7 @@ export function DeviceRoutingModal() {
                 </button>
               </div>
               <p className="text-[10px] text-white/30">
-                Leave empty for automatic Cloud Relay (https://raagax.padalalmnteddy.workers.dev).
+                Leave empty for automatic Cloud Relay (https://raagax.padalalmrreddy.workers.dev).
               </p>
             </div>
           )}

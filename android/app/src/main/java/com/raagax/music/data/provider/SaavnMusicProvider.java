@@ -327,7 +327,8 @@ public class SaavnMusicProvider implements MusicProvider {
         String[] endpoints = new String[] {
             "https://saavn.dev/api/songs?id=" + trackId,
             "https://saavn.dev/api/songs/" + trackId,
-            "https://raagax.padalalmnteddy.workers.dev/api/songs?id=" + trackId
+            "https://raagax.padalalmrreddy.workers.dev/api/songs?ids=" + trackId,
+            "https://raagax.padalalmrreddy.workers.dev/api/songs/" + trackId
         };
 
         for (String url : endpoints) {

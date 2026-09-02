@@ -35,10 +35,10 @@ export function getApiBaseUrl(): string {
 
     // In Capacitor Android/iOS Native APK:
     // Route to hosted HTTPS production backend
-    return process.env.NEXT_PUBLIC_API_BASE_URL || 'https://raagax.padalalmnteddy.workers.dev';
+    return process.env.NEXT_PUBLIC_API_BASE_URL || 'https://raagax.padalalmrreddy.workers.dev';
   }
 
-  return process.env.NEXT_PUBLIC_API_BASE_URL || 'https://raagax.padalalmnteddy.workers.dev';
+  return process.env.NEXT_PUBLIC_API_BASE_URL || 'https://raagax.padalalmrreddy.workers.dev';
 }
 
 export function getApiUrl(path: string): string {

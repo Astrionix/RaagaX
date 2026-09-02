@@ -568,7 +568,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
       },
 
       generateInviteLink: (playlistId) => {
-        const baseUrl = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://raagax.padalalmnteddy.workers.dev');
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://raagax.padalalmrreddy.workers.dev');
         return `${baseUrl}/playlist/${playlistId}`;
       },
 
