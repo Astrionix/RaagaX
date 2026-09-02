@@ -324,6 +324,24 @@ export class AccountSyncEngine {
         const { usePlaylistStore } = await import('@/context/usePlaylistStore');
         const { OfflineCatalog } = await import('@/lib/offline/OfflineCatalog');
 
+        const startAuthGen = AccountIsolationGuard.getInstance().getAuthGeneration();
+
+        // INSTANT LOCAL CACHE HYDRATION (0ms latency):
+        // Immediately restore cached liked songs from IndexedDB without waiting for network queries
+        const initialCachedIds = await localDb.getUserStore<string[]>(userId, 'liked_songs') || [];
+        if (initialCachedIds.length > 0 && usePlayerStore.getState().likedSongIds.length === 0) {
+          if (AccountIsolationGuard.getInstance().assertAccountIsolation(userId, 'INSTANT_CACHE_HYDRATION', startAuthGen)) {
+            usePlayerStore.setState({ likedSongIds: initialCachedIds });
+            import('@/lib/discovery/SongResolver').then(({ SongResolver }) => {
+              SongResolver.resolveSongs(initialCachedIds).then((resolved) => {
+                if (resolved && resolved.length > 0 && AccountIsolationGuard.getInstance().isCurrentAuthGeneration(startAuthGen, userId)) {
+                  usePlayerStore.setState({ likedSongs: resolved });
+                }
+              }).catch(() => {});
+            }).catch(() => {});
+          }
+        }
+
         // 0. Revision Check Framework
         let revData: any = null;
         let revError: any = null;
@@ -342,8 +360,6 @@ export class AccountSyncEngine {
         const remoteRevision = revData ? Number(revData.revision) : 0;
         const localRevision = await localDb.getUserStore<number>(userId, 'library_revision') || 0;
         const currentLikedSongIds = usePlayerStore.getState().likedSongIds || [];
-
-        const startAuthGen = AccountIsolationGuard.getInstance().getAuthGeneration();
 
         // If revisions match, restore cached liked songs list and metadata from IndexedDB to skip DB queries
         if (!revError && revData && remoteRevision === localRevision) {

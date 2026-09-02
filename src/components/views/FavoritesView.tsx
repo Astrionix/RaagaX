@@ -84,6 +84,27 @@ export function FavoritesView() {
     });
   }, []);
 
+  // Instant local cache hydration if likedSongIds is empty on initial view mount
+  useEffect(() => {
+    if (likedSongIds.length === 0) {
+      import('@/lib/auth/AccountIsolationGuard').then(({ AccountIsolationGuard }) => {
+        const activeUserId = AccountIsolationGuard.getInstance().getActiveUserId();
+        if (activeUserId) {
+          import('@/lib/offline/LocalDatabase').then(({ LocalDatabase }) => {
+            LocalDatabase.getInstance().getUserStore<string[]>(activeUserId, 'liked_songs').then((cached) => {
+              if (cached && cached.length > 0 && usePlayerStore.getState().likedSongIds.length === 0) {
+                usePlayerStore.setState({ likedSongIds: cached });
+              }
+            });
+          });
+          import('@/lib/sync/AccountSyncEngine').then(({ AccountSyncEngine }) => {
+            AccountSyncEngine.getInstance().reconcile(activeUserId);
+          }).catch(() => {});
+        }
+      });
+    }
+  }, [likedSongIds.length]);
+
   const handleSortChange = (opt: LikedSongSortOption) => {
     setSortBy(opt);
     if (typeof window !== 'undefined') {

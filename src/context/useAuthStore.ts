@@ -105,6 +105,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const initialUser = error ? null : (session?.user || null);
       if (initialUser?.id) {
         AccountIsolationGuard.getInstance().setAuthenticatedUser(initialUser.id, 'INITIAL_SESSION');
+        // Instantly reconcile library and playlists for authenticated user
+        import('@/lib/sync/AccountSyncEngine').then(({ AccountSyncEngine }) => {
+          AccountSyncEngine.getInstance().reconcile(initialUser.id);
+        }).catch(() => {});
+        import('@/context/usePlaylistStore').then(({ usePlaylistStore }) => {
+          usePlaylistStore.getState().fetchPlaylists(true);
+        }).catch(() => {});
       } else {
         AccountIsolationGuard.getInstance().clearAuthenticatedUser('INITIAL_GUEST');
       }
@@ -120,7 +127,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const newUserId = newSession?.user?.id || null;
         const currentGuardUser = AccountIsolationGuard.getInstance().getActiveUserId();
 
-        if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
+        if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN' || (event as string) === 'INITIAL_SESSION') {
           // If switching from another account or re-authenticating, purge previous account state first
           if (currentGuardUser && newUserId && currentGuardUser !== newUserId) {
             console.log(`[useAuthStore] User switch detected: ${currentGuardUser} -> ${newUserId}. Purging state...`);
@@ -135,15 +142,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             user: newSession?.user || null
           });
 
-          if (event === 'SIGNED_IN' && newUserId) {
+          if (newUserId) {
             // Only migrate guest data if this session was genuinely an unauthenticated guest session
-            if (wasGuest && !currentGuardUser) {
+            if (event === 'SIGNED_IN' && wasGuest && !currentGuardUser) {
               import('@/lib/sync/AccountSyncEngine').then(({ AccountSyncEngine }) => {
                 AccountSyncEngine.getInstance().migrateGuestDataToUser(newUserId);
               }).catch(() => { });
             }
 
-            // Freshly bootstrap library for the newly signed in user
+            // Freshly bootstrap library for the authenticated user
             import('@/context/usePlaylistStore').then(({ usePlaylistStore }) => {
               usePlaylistStore.getState().fetchPlaylists(true);
             }).catch(() => {});
