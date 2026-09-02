@@ -131,6 +131,17 @@ export class DeviceIdentity {
   }
 
   public toConnectDevice(state: ConnectDevice['state'] = 'IDLE'): ConnectDevice {
+    let accountId: string | undefined;
+    let email: string | undefined;
+    if (typeof window !== 'undefined') {
+      try {
+        const { useAuthStore } = require('@/context/useAuthStore');
+        const user = useAuthStore.getState().user;
+        if (user?.id) accountId = user.id;
+        if (user?.email) email = user.email;
+      } catch {}
+    }
+
     return {
       deviceId: this.profile.deviceId,
       deviceName: this.profile.deviceName,
@@ -141,6 +152,7 @@ export class DeviceIdentity {
       state,
       lastSeenAt: Date.now(),
       transport: 'LOCAL_LAN',
+      accountId,
       capabilities: {
         canPlayAudio: true,
         supportsVolume: true,

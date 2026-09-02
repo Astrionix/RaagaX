@@ -767,6 +767,12 @@ export class ConnectServerEngine {
       } catch { }
     }
 
+    // Broadcast via Supabase Realtime across any network
+    try {
+      const { ConnectDiscoveryEngine } = require('./ConnectDiscoveryEngine');
+      ConnectDiscoveryEngine.getInstance().sendSupabaseBroadcast('SESSION_UPDATE', this.currentSession);
+    } catch { }
+
     if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
       fetch(getApiUrl('/api/connect/session'), {
         method: 'POST',

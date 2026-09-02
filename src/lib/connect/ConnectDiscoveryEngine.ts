@@ -24,6 +24,8 @@ export class ConnectDiscoveryEngine {
   private listeners: Set<DeviceListListener> = new Set();
   private heartbeatTimer: any = null;
   private broadcastChannel: BroadcastChannel | null = null;
+  private presenceChannel: any = null;
+  private subscribedUserId: string | null = null;
 
   private constructor() {
     this.localDevice = this.initializeLocalDevice();
@@ -31,6 +33,7 @@ export class ConnectDiscoveryEngine {
       this.setupBroadcastChannel();
       this.setupLifecycleListeners();
       this.startAdvertising();
+      this.setupPresenceFromCurrentAuth();
       try {
         LocalLanDiscovery.getInstance().connectStream();
       } catch {}
@@ -123,6 +126,137 @@ export class ConnectDiscoveryEngine {
     }
     window.addEventListener('focus', onWakeOrReconnect);
     window.addEventListener('online', onWakeOrReconnect);
+
+    // Automatically sync presence channel when user logs in or out
+    try {
+      const { useAuthStore } = require('@/context/useAuthStore');
+      useAuthStore.subscribe((state: any, prevState: any) => {
+        const uid = state?.user?.id;
+        const prevUid = prevState?.user?.id;
+        if (uid && uid !== prevUid) {
+          this.localDevice.accountId = uid;
+          this.setupPresenceChannel(uid);
+        } else if (!uid && prevUid) {
+          this.cleanupPresenceChannel();
+        }
+      });
+    } catch {}
+  }
+
+  public setupPresenceFromCurrentAuth(): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const { useAuthStore } = require('@/context/useAuthStore');
+      const user = useAuthStore.getState().user;
+      if (user?.id) {
+        this.localDevice.accountId = user.id;
+        if (user.email) (this.localDevice as any).email = user.email;
+        this.setupPresenceChannel(user.id);
+      }
+    } catch {}
+  }
+
+  public setupPresenceChannel(userId: string): void {
+    if (!userId || typeof window === 'undefined') return;
+    if (this.subscribedUserId === userId && this.presenceChannel) return;
+
+    this.subscribedUserId = userId;
+    this.localDevice.accountId = userId;
+
+    if (this.presenceChannel) {
+      try {
+        const { supabase } = require('@/lib/supabase');
+        supabase.removeChannel(this.presenceChannel);
+      } catch {}
+      this.presenceChannel = null;
+    }
+
+    try {
+      const { supabase } = require('@/lib/supabase');
+      const channelName = `raaga_connect_presence:${userId}`;
+      this.presenceChannel = supabase.channel(channelName, {
+        config: {
+          presence: { key: this.localDevice.deviceId },
+          broadcast: { self: false },
+        },
+      });
+
+      this.presenceChannel
+        .on('presence', { event: 'sync' }, () => {
+          const state = this.presenceChannel?.presenceState() || {};
+          let changed = false;
+          for (const [key, presences] of Object.entries(state)) {
+            if (key === this.localDevice.deviceId) continue;
+            if (Array.isArray(presences) && presences.length > 0) {
+              const remote = (presences[0] as any)?.device as ConnectDevice;
+              if (remote && remote.deviceId && remote.deviceId !== this.localDevice.deviceId) {
+                this.discoveredDevices.set(remote.deviceId, {
+                  ...remote,
+                  isCurrentDevice: false,
+                  lastSeenAt: Date.now(),
+                  transport: 'CLOUD_RELAY',
+                  authStatus: 'AUTO_AUTHORIZED',
+                  isSameAccount: true,
+                });
+                changed = true;
+              }
+            }
+          }
+          if (changed) {
+            this.notifyListeners();
+          }
+        })
+        .on('broadcast', { event: 'CONNECT_COMMAND' }, (msg: any) => {
+          const cmd = msg?.payload || msg;
+          if (cmd && cmd.targetDeviceId === this.localDevice.deviceId) {
+            import('./ConnectServerEngine').then(({ ConnectServerEngine }) => {
+              ConnectServerEngine.getInstance().handleIncomingCommand(cmd);
+            });
+          }
+        })
+        .on('broadcast', { event: 'SESSION_UPDATE' }, (msg: any) => {
+          const session = msg?.payload || msg;
+          if (session) {
+            import('./ConnectClientManager').then(({ ConnectClientManager }) => {
+              ConnectClientManager.getInstance().handleIncomingSession(session);
+            });
+          }
+        })
+        .subscribe(async (status: string) => {
+          if (status === 'SUBSCRIBED') {
+            await this.presenceChannel?.track({
+              device: this.localDevice,
+              onlineAt: Date.now(),
+            }).catch(() => {});
+          }
+        });
+    } catch (e) {
+      console.warn('[ConnectDiscoveryEngine] Supabase presence channel error:', e);
+    }
+  }
+
+  public cleanupPresenceChannel(): void {
+    if (this.presenceChannel) {
+      try {
+        const { supabase } = require('@/lib/supabase');
+        supabase.removeChannel(this.presenceChannel);
+      } catch {}
+      this.presenceChannel = null;
+    }
+    this.subscribedUserId = null;
+    this.localDevice.accountId = undefined;
+  }
+
+  public sendSupabaseBroadcast(event: string, payload: any): void {
+    if (this.presenceChannel) {
+      try {
+        this.presenceChannel.send({
+          type: 'broadcast',
+          event,
+          payload,
+        }).catch(() => {});
+      } catch {}
+    }
   }
 
   public getLocalDevice(): ConnectDevice {
@@ -179,6 +313,14 @@ export class ConnectDiscoveryEngine {
   public broadcastBeacon(): void {
     this.localDevice.lastSeenAt = Date.now();
 
+    // Track active presence on Supabase Realtime channel
+    if (this.presenceChannel) {
+      this.presenceChannel.track({
+        device: this.localDevice,
+        onlineAt: Date.now(),
+      }).catch(() => {});
+    }
+
     // 1. Broadcast via local BroadcastChannel (same browser tab fast path)
     if (this.broadcastChannel) {
       try {
@@ -202,9 +344,14 @@ export class ConnectDiscoveryEngine {
     // 3. HTTP Server Beacon (cross-browser, cross-device, LAN and cloud synchronization)
     if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
       try {
-        const { usePlayerStore } = require('@/context/usePlayerStore');
-        const user = usePlayerStore.getState().user;
-        if (user?.id) this.localDevice.accountId = user.id;
+        const { useAuthStore } = require('@/context/useAuthStore');
+        const user = useAuthStore.getState().user;
+        if (user?.id) {
+          this.localDevice.accountId = user.id;
+          if (!this.presenceChannel) {
+            this.setupPresenceChannel(user.id);
+          }
+        }
         if (user?.email) (this.localDevice as any).email = user.email;
       } catch {}
 
@@ -278,7 +425,8 @@ export class ConnectDiscoveryEngine {
 
     // 2. Fetch from HTTP API for cross-browser / cross-device network peers
     if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
-      fetch(getApiUrl(`/api/connect/devices?excludeId=${encodeURIComponent(this.localDevice.deviceId)}`))
+      const accountParam = this.localDevice.accountId ? `&accountId=${encodeURIComponent(this.localDevice.accountId)}` : '';
+      fetch(getApiUrl(`/api/connect/devices?excludeId=${encodeURIComponent(this.localDevice.deviceId)}${accountParam}`))
         .then((res) => res.json())
         .then((data) => {
           if (data.success && Array.isArray(data.devices)) {

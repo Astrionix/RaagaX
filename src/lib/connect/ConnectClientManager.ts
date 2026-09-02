@@ -524,7 +524,13 @@ export class ConnectClientManager {
       } catch {}
     }
 
-    // 3. HTTP Server Command Queue (cross-browser / cross-device)
+    // 3. Supabase Realtime Broadcast (sub-50ms cloud relay across networks)
+    try {
+      const { ConnectDiscoveryEngine } = require('./ConnectDiscoveryEngine');
+      ConnectDiscoveryEngine.getInstance().sendSupabaseBroadcast('CONNECT_COMMAND', command);
+    } catch {}
+
+    // 4. HTTP Server Command Queue (fallback)
     if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
       fetch(getApiUrl('/api/connect/command'), {
         method: 'POST',
