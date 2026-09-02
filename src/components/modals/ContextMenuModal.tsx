@@ -93,11 +93,11 @@ export function ContextMenuModal() {
           closeContextMenu();
           setCurrentView('main');
         }}
-        className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200 select-none"
+        className="fixed inset-0 z-[150] bg-black/75 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200 select-none"
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-sm bg-[#14151a]/95 border-t sm:border border-white/10 rounded-t-3xl sm:rounded-3xl p-4 sm:p-5 space-y-3 text-white shadow-2xl backdrop-blur-2xl animate-in slide-in-from-bottom duration-300 divide-y divide-white/5"
+          className="w-full max-w-sm bg-[#14151a]/95 border-t sm:border border-white/10 rounded-t-3xl sm:rounded-3xl p-4 pb-[calc(2.5rem+env(safe-area-inset-bottom,0px))] sm:p-5 space-y-3 text-white shadow-2xl backdrop-blur-2xl animate-in slide-in-from-bottom duration-300 divide-y divide-white/5"
         >
           {/* Track Header Header */}
           <div className="flex items-center gap-3 pb-3">

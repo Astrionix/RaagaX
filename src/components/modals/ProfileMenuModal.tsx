@@ -40,7 +40,7 @@ export function ProfileMenuModal({ isOpen, onClose }: ProfileMenuModalProps) {
   const userEmail = user?.email || 'Sign in to sync across devices';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200 select-none">
+    <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200 select-none">
       {/* Backdrop click to close */}
       <div className="absolute inset-0" onClick={onClose} />
 
@@ -80,7 +80,7 @@ export function ProfileMenuModal({ isOpen, onClose }: ProfileMenuModalProps) {
         </div>
 
         {/* Scrollable Action Items */}
-        <div className="overflow-y-auto p-4 space-y-4 no-scrollbar divide-y divide-white/5">
+        <div className="overflow-y-auto p-4 pb-[calc(3rem+env(safe-area-inset-bottom,0px))] sm:pb-6 space-y-4 no-scrollbar divide-y divide-white/5">
           {/* 1. Profile & Account */}
           <div className="space-y-1">
             <button

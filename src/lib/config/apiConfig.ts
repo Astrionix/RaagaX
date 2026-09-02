@@ -6,7 +6,7 @@
  * relative requests in web/dev environments.
  */
 
-export const VERCEL_STATE_COORDINATOR = 'https://raaga-x-chi.vercel.app';
+export const RENDER_COORDINATOR_HTTP = 'https://raagax.onrender.com';
 export const RENDER_COORDINATOR_WS = 'wss://raagax.onrender.com';
 
 export function getSyncWebSocketUrl(): string {
@@ -37,9 +37,9 @@ export function getConnectApiBaseUrl(): string {
     }
   }
 
-  // On Cloudflare Workers (edge with isolated RAM) and Native Android/iOS APK:
-  // Route stateful Connect & Jam rooms through the dedicated long-running Vercel Node.js process
-  return process.env.NEXT_PUBLIC_CONNECT_SERVER_URL || VERCEL_STATE_COORDINATOR;
+  // On Cloudflare Workers and Native Android/iOS APK:
+  // Route stateful Connect & Jam rooms through the dedicated 24/7 Render coordinator
+  return process.env.NEXT_PUBLIC_CONNECT_SERVER_URL || RENDER_COORDINATOR_HTTP;
 }
 
 export function getApiBaseUrl(): string {
@@ -83,12 +83,6 @@ export function getApiUrl(path: string): string {
     return path;
   }
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
-
-  // Route stateful Connect and Jam calls to the shared Node.js state coordinator (Vercel)
-  if (cleanPath.startsWith('/api/connect') || cleanPath.startsWith('/api/jam')) {
-    const connectBase = getConnectApiBaseUrl().replace(/\/+$/, '');
-    return `${connectBase}${cleanPath}`;
-  }
 
   const base = getApiBaseUrl().replace(/\/+$/, '');
   return `${base}${cleanPath}`;

@@ -152,6 +152,7 @@ export class LocalLanTransport implements JamTransport {
       this.ws = new WebSocket(`${wsUrl}/ws?jamId=${jamId}&userId=${auth.userId}`);
 
       this.ws.onmessage = (event) => {
+        if (event.data === 'ping' || event.data === 'pong') return;
         try {
           const data = JSON.parse(event.data);
           if (data?.type === 'JAM_EVENT' && data.payload) {

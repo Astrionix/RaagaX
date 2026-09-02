@@ -167,14 +167,19 @@ export class JamClientManager {
     });
 
     const text = await res.text();
+    if (!res.ok) {
+      console.error(`[JamClientManager] createJam error (${res.status}):`, text);
+      throw new Error(`Jam server returned HTTP ${res.status}`);
+    }
+
     let data: any = {};
     try {
       data = JSON.parse(text);
     } catch {
-      throw new Error('Failed to communicate with Jam server');
+      throw new Error('Failed to parse Jam server response');
     }
 
-    if (!res.ok || !data.session) {
+    if (!data.session) {
       throw new Error(data.error || 'Failed to create Jam session');
     }
 
@@ -224,6 +229,11 @@ export class JamClientManager {
 
     const res = await fetch(getApiUrl(`/api/jam/code/${cleanCode}`));
     const text = await res.text();
+    if (!res.ok) {
+      console.error(`[JamClientManager] joinByCode error (${res.status}):`, text);
+      throw new Error(`Jam server returned HTTP ${res.status}`);
+    }
+
     let data: any = {};
     try {
       data = JSON.parse(text);
@@ -231,7 +241,7 @@ export class JamClientManager {
       throw new Error('Could not reach Jam server. Please check your network connection.');
     }
 
-    if (!res.ok || !data.success || !data.jamId) {
+    if (!data.success || !data.jamId) {
       throw new Error(data.error || 'Invalid or expired Join Code');
     }
 
@@ -260,6 +270,12 @@ export class JamClientManager {
       });
 
       const text = await res.text();
+      if (!res.ok) {
+        this.setParticipantState('FAILED');
+        console.error(`[JamClientManager] joinJam error (${res.status}):`, text);
+        throw new Error(`Jam server returned HTTP ${res.status}`);
+      }
+
       let data: any = {};
       try {
         data = JSON.parse(text);
@@ -268,7 +284,7 @@ export class JamClientManager {
         throw new Error('Could not parse server response');
       }
 
-      if (!res.ok || !data.session) {
+      if (!data.session) {
         this.setParticipantState('FAILED');
         throw new Error(data.error || 'Failed to join Jam');
       }

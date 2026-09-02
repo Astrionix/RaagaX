@@ -193,44 +193,6 @@ export function ListeningOnDeviceBanner() {
           </button>
         </div>
       </div>
-
-      {/* ── MOBILE: Persistent Green Docked Status Banner ── */}
-      <div className="md:hidden fixed bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] left-0 right-0 z-40 bg-[#1db954] text-black px-3.5 py-1.5 flex items-center justify-between shadow-[0_-4px_16px_rgba(0,0,0,0.5)] animate-in slide-in-from-bottom-2">
-        <div
-          onClick={() => toggleConnectModal(true)}
-          className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer"
-        >
-          <div className="w-5 h-5 rounded-full bg-black/15 flex items-center justify-center flex-shrink-0 text-black">
-            {getDeviceIcon()}
-          </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-[10px] font-black uppercase tracking-wider text-black/80">
-              Listening on
-            </span>
-            <span className="text-xs font-bold truncate text-black">
-              {activeSpeakerName}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={takeoverPlayback}
-            disabled={isTakingOver}
-            className="px-2.5 py-1 bg-black text-white text-[11px] font-bold rounded-full transition-transform active:scale-95 disabled:opacity-50 flex items-center gap-1"
-          >
-            {isTakingOver ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : null}
-            <span>Play Here</span>
-          </button>
-          <button
-            onClick={disconnect}
-            className="p-1 text-black/60 active:text-black"
-            title="Disconnect"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
     </>
   );
 }
