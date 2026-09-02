@@ -13,6 +13,7 @@
   "build": {
     "command": "npx @opennextjs/cloudflare build --dangerouslyUseUnsupportedNextVersion"
   },
+  "minify": true,
   "observability": {
     "enabled": true
   }
