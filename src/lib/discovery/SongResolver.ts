@@ -1,6 +1,5 @@
 import { ProviderCandidate } from './ProviderRegistry';
 import { Song } from '@/types/music';
-import { supabase } from '@/lib/supabase'; // Using the client initialized with SERVICE_ROLE
 import { InternetDateScraper } from './InternetDateScraper';
 import { getApiUrl } from '@/lib/config/apiConfig';
 import { isOfflineMode } from '@/context/usePlayerStore';
@@ -136,60 +135,6 @@ export class SongResolver {
       resolved.push(canonicalSong);
     }
 
-    // Attempt to upsert the resolved songs into Supabase cache.
-    // If table doesn't exist, this fails silently, returning the resolved array to memory.
-    try {
-      if (resolved.length > 0) {
-        // Upsert into canonical_songs
-        const { error: songError } = await supabase
-          .from('canonical_songs')
-          .upsert(
-            resolved.map((s: any) => {
-              let audioUrl = '';
-              if (s.downloadUrl && Array.isArray(s.downloadUrl)) {
-                const highest = s.downloadUrl.find((d: any) => d.quality === '320kbps') || s.downloadUrl[s.downloadUrl.length - 1];
-                audioUrl = highest?.url || '';
-              }
-              return {
-                id: s.id,
-                title: s.title,
-                artist: s.artist,
-                album: s.album,
-                language: s.language,
-                cover_url: s.coverUrl,
-                duration: s.duration,
-                playable_url: audioUrl,
-                playable_url_expires_at: audioUrl ? new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString() : null
-              };
-            }),
-            { onConflict: 'id' }
-          );
-
-        if (songError) {
-          // Client anon keys may not have direct write access; fallback cleanly
-          return resolved;
-        }
-
-        // Upsert into charts
-        const { error: chartError } = await supabase
-          .from('charts')
-          .upsert(
-            resolved.map((s, idx) => ({
-              section_name: category,
-              language: language.toLowerCase(),
-              song_id: s.id,
-              rank: idx + 1,
-              discovered_at: new Date().toISOString()
-            })),
-            { onConflict: 'section_name,language,song_id' }
-          );
-
-        if (chartError) throw chartError;
-      }
-    } catch (e) {
-      console.warn('Supabase Cache Error (Table might not exist yet):', e);
-    }
-
     // Map to frontend Song objects before returning
     return resolved.map(s => {
       let audioUrl = '';
@@ -218,7 +163,7 @@ export class SongResolver {
   }
 
   /**
-   * Fetches full Song objects from canonical_songs table or local IndexedDB cache given an array of song IDs.
+   * Fetches full Song objects from local IndexedDB cache (parallel) or directly from /api/songs
    */
   public static async resolveSongs(songIds: string[]): Promise<Song[]> {
     if (!songIds || songIds.length === 0) return [];
@@ -227,17 +172,19 @@ export class SongResolver {
     const resolved: Song[] = [];
     const missingIds: string[] = [];
 
-    // Try to resolve from local IndexedDB cache first
+    // 1. Resolve from local IndexedDB cache in parallel (ultra-fast 5-10ms)
     if (typeof window !== 'undefined') {
       try {
-        for (const id of songIds) {
-          const cachedSong = await db.get<Song>(STORES.SONGS_METADATA, id);
-          if (cachedSong) {
+        const cachedSongs = await Promise.all(
+          songIds.map((id) => db.get<Song>(STORES.SONGS_METADATA, id))
+        );
+        cachedSongs.forEach((cachedSong, idx) => {
+          if (cachedSong && cachedSong.id) {
             resolved.push(cachedSong);
           } else {
-            missingIds.push(id);
+            missingIds.push(songIds[idx]);
           }
-        }
+        });
       } catch (err) {
         console.warn('[SongResolver] IndexedDB cache read failed, falling back:', err);
         resolved.length = 0;
@@ -249,9 +196,9 @@ export class SongResolver {
 
     if (missingIds.length === 0) {
       // Re-order to match input sequence
-      const resolvedMap = new Map(resolved.map(s => [s.id, s]));
+      const resolvedMap = new Map(resolved.map((s) => [s.id, s]));
       return songIds
-        .map(id => resolvedMap.get(id))
+        .map((id) => resolvedMap.get(id))
         .filter((s): s is Song => Boolean(s));
     }
 
@@ -265,125 +212,61 @@ export class SongResolver {
         const pool = [...(store.queue || []), ...(store.likedSongs || [])];
         const idSet = new Set(missingIds);
         for (const s of pool) {
-          if (s?.id && idSet.has(s.id) && !resolved.some(f => f.id === s.id) && !newlyResolved.some(f => f.id === s.id)) {
+          if (s?.id && idSet.has(s.id) && !resolved.some((f) => f.id === s.id) && !newlyResolved.some((f) => f.id === s.id)) {
             newlyResolved.push(s);
           }
         }
       } catch {}
-    } else {
+    } else if (missingIds.length > 0 && typeof window !== 'undefined') {
+      // 2. Directly fetch missing song metadata from JioSaavn API in parallel batches of 50
       try {
-        const dedupeKey = `resolve_db_${[...missingIds].sort().join(',')}`;
-        const data = await RequestDeduplicator.getInstance().dedupe(dedupeKey, async () => {
-          const { data: resData, error: resError } = await supabase
-            .from('canonical_songs')
-            .select('id, title, artist, album, language, cover_url, duration, playable_url, playable_url_expires_at, release_date')
-            .in('id', missingIds);
-          if (resError) throw resError;
-          return resData;
-        });
-          
-        if (data) {
-          data.forEach((s: any) => {
-            let audioUrl = '';
-            const isUrlExpired = s.playable_url_expires_at && new Date(s.playable_url_expires_at).getTime() < Date.now();
-            if (s.playable_url && !isUrlExpired) {
-              audioUrl = s.playable_url;
-            } else if (s.raw_data && Array.isArray(s.raw_data)) {
-              const highest = s.raw_data.find((d: any) => d.quality === '320kbps') || s.raw_data[s.raw_data.length - 1];
-              audioUrl = highest?.url || '';
-            }
-
-            newlyResolved.push({
-              id: s.id,
-              title: s.title,
-              artist: s.artist,
-              artistId: s.artist,
-              album: s.album || '',
-              albumId: s.album || '',
-              coverUrl: s.cover_url || s.coverUrl,
-              audioUrl: audioUrl,
-              duration: Number(s.duration) || 0,
-              genre: 'Telugu',
-              category: 'latest_telugu',
-              releaseYear: s.release_date ? new Date(s.release_date).getFullYear() : 2024,
-              releaseDate: s.release_date || null,
-              plays: 1000,
-              likes: 100,
-            });
-          });
+        const BATCH_SIZE = 50;
+        const batches: string[][] = [];
+        for (let i = 0; i < missingIds.length; i += BATCH_SIZE) {
+          batches.push(missingIds.slice(i, i + BATCH_SIZE));
         }
 
-        // Check which IDs still need full metadata OR have missing artwork
-        const foundSet = new Set(newlyResolved.map(s => s.id));
-        const apiMissingIds: string[] = [];
-        missingIds.forEach(id => {
-          const resolvedLocally = resolved.find(s => s.id === id);
-          const resolvedNew = newlyResolved.find(s => s.id === id);
-          const song = resolvedLocally || resolvedNew;
-          
-          const hasInvalidCover = !song || !song.coverUrl || song.coverUrl.includes('/null/') || song.coverUrl === '/app-icon.png';
-          if (hasInvalidCover) {
-            apiMissingIds.push(id);
-            // If it was already in newlyResolved, remove it so we overwrite it with full provider metadata
-            if (resolvedNew) {
-              const idx = newlyResolved.findIndex(s => s.id === id);
-              if (idx !== -1) newlyResolved.splice(idx, 1);
-              foundSet.delete(id);
+        const fetchPromises = batches.map(async (batch) => {
+          try {
+            const url = getApiUrl(`/api/songs?ids=${encodeURIComponent(batch.join(','))}`);
+            const res = await RequestDeduplicator.getInstance().dedupe(url, () => fetch(url));
+            if (res.ok) {
+              const json = await res.json();
+              return json.data || [];
             }
+          } catch (err) {
+            console.warn('[SongResolver] Batch resolution failed:', err);
           }
+          return [];
         });
 
-        // Query /api/songs for missing IDs (JioSaavn provider) in batches of 50
-        if (apiMissingIds.length > 0 && typeof window !== 'undefined') {
-          const BATCH_SIZE = 50;
-          const batches: string[][] = [];
-          for (let i = 0; i < apiMissingIds.length; i += BATCH_SIZE) {
-            batches.push(apiMissingIds.slice(i, i + BATCH_SIZE));
-          }
+        const results = await Promise.all(fetchPromises);
+        const rawTracks = results.flat();
 
-          const fetchPromises = batches.map(async (batch) => {
-            try {
-              const url = getApiUrl(`/api/songs?ids=${encodeURIComponent(batch.join(','))}`);
-              const res = await RequestDeduplicator.getInstance().dedupe(url, () => fetch(url));
-              if (res.ok) {
-                const json = await res.json();
-                return json.data || [];
-              }
-            } catch (err) {
-              console.warn('[SongResolver] Batch resolution failed:', err);
+        if (rawTracks.length > 0) {
+          const { mapTrackToSong } = await import('@/lib/jioSaavnProvider');
+          const foundSet = new Set<string>();
+          rawTracks.forEach((track, idx) => {
+            const mapped = mapTrackToSong(track, idx);
+            if (mapped?.id && !foundSet.has(mapped.id) && !resolved.some((s) => s.id === mapped.id)) {
+              newlyResolved.push(mapped);
+              foundSet.add(mapped.id);
             }
-            return [];
           });
-
-          const results = await Promise.all(fetchPromises);
-          const rawTracks = results.flat();
-
-          if (rawTracks.length > 0) {
-            const { mapTrackToSong } = await import('@/lib/jioSaavnProvider');
-            rawTracks.forEach((track, idx) => {
-              const mapped = mapTrackToSong(track, idx);
-              if (mapped?.id && !foundSet.has(mapped.id) && !resolved.some(s => s.id === mapped.id)) {
-                newlyResolved.push(mapped);
-                foundSet.add(mapped.id);
-              }
-            });
-          }
         }
       } catch (e) {
         if (!isOfflineMode()) {
-          console.error("Failed to resolve songs from canonical_songs / API:", e);
+          console.error('[SongResolver] Failed to resolve songs from API:', e);
         }
       }
     }
 
-    // Save newly resolved songs to IndexedDB cache
+    // 3. Save newly resolved songs to IndexedDB cache in parallel
     if (newlyResolved.length > 0 && typeof window !== 'undefined') {
       try {
-        for (const song of newlyResolved) {
-          if (song && song.id) {
-            await db.put(STORES.SONGS_METADATA, song);
-          }
-        }
+        await Promise.all(
+          newlyResolved.map((song) => (song?.id ? db.put(STORES.SONGS_METADATA, song) : Promise.resolve()))
+        );
       } catch (err) {
         console.warn('[SongResolver] IndexedDB write failed:', err);
       }
