@@ -409,25 +409,15 @@ export function HomeView() {
 
   const recommendedPlaylistItems = React.useMemo(() => {
     const curated = getCuratedPlaylists(preferredLanguage);
-    return [
-      ...userPlaylists.map((pl, pIdx) => ({
-        id: pl.id || `user-pl-${pIdx}`,
-        title: pl.title,
-        subtitle: `${pl.songs?.length || pl.songIds?.length || 0} tracks • By You`,
-        imageUrl: pl.coverUrl || pl.songs?.[0]?.coverUrl || '/app-icon.png',
-        type: 'playlist' as const,
-        rawItem: pl,
-      })),
-      ...curated.map((pl, cIdx) => ({
-        id: pl.id || `curated-pl-${cIdx}`,
-        title: pl.name,
-        subtitle: `${pl.badge ? pl.badge + ' • ' : ''}${pl.desc}`,
-        imageUrl: pl.coverUrl,
-        type: 'playlist' as const,
-        rawItem: pl,
-      })),
-    ];
-  }, [userPlaylists, preferredLanguage]);
+    return curated.map((pl, cIdx) => ({
+      id: pl.id || `curated-pl-${cIdx}`,
+      title: pl.name,
+      subtitle: `${pl.badge ? pl.badge + ' • ' : ''}${pl.desc}`,
+      imageUrl: pl.coverUrl,
+      type: 'playlist' as const,
+      rawItem: pl,
+    }));
+  }, [preferredLanguage]);
   const displayName = user?.user_metadata?.full_name?.split(' ')[0] || 'Listener';
 
   const coverUrl = currentSong?.coverUrl && !currentSong.coverUrl.includes('/null/')
@@ -712,6 +702,26 @@ export function HomeView() {
           })}
         </div>
       </section>
+
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* 4. YOUR PLAYLISTS — Prominently displayed user-created playlists       */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {userPlaylists.length > 0 && (
+        <CarouselShelf
+          title="Your Playlists"
+          subtitle="Playlists in your library"
+          icon={<ListMusic className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-[#FA233B] flex-shrink-0" />}
+          items={userPlaylists.map((pl, pIdx) => ({
+            id: pl.id || `user-pl-${pIdx}`,
+            title: pl.title || (pl as any).name || 'Untitled Playlist',
+            subtitle: `${pl.songs?.length || pl.songIds?.length || 0} tracks`,
+            imageUrl: pl.coverUrl || pl.songs?.[0]?.coverUrl || '/app-icon.png',
+            type: 'playlist' as const,
+            rawItem: pl,
+          }))}
+          showPlayAll={false}
+        />
+      )}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* 5. BECAUSE YOU LISTENED TO [ARTIST] — artist-based recommendations   */}

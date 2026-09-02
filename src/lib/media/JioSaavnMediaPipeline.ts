@@ -80,7 +80,7 @@ export class JioSaavnMediaPipeline {
    */
   public isDirectSongOrAlbumArtwork(url?: string | null): boolean {
     if (!url || typeof url !== 'string') return false;
-    if (url === '/app-icon.png' || url.includes('/null/') || url.includes('null/null')) return false;
+    if (url === '/app-icon.png' || url.includes('/null/') || url.includes('null/null') || url.endsWith('/null')) return false;
     if (!url.includes('saavncdn.com')) return false;
     if (this.isPlaylistOrDiscoveryArtwork(url)) return false;
 
@@ -94,7 +94,8 @@ export class JioSaavnMediaPipeline {
    * Priority:
    * 1. Actual song-level JioSaavn artwork
    * 2. Actual album artwork associated with the song
-   * 3. Null (Unavailable) — NEVER playlist or editorial artwork
+   * 3. Generic coverUrl if direct song/album artwork
+   * 4. Raw JioSaavn CDN cover as raw fallback
    */
   public resolveSongArtwork(options: {
     songCoverUrl?: string | null;
@@ -111,9 +112,15 @@ export class JioSaavnMediaPipeline {
       return this.getRawJioSaavnCoverUrl(options.albumCoverUrl, '500x500');
     }
 
-    // 3. Fallback to generic coverUrl ONLY if it's direct song/album artwork
+    // 3. Direct coverUrl
     if (options.coverUrl && this.isDirectSongOrAlbumArtwork(options.coverUrl)) {
       return this.getRawJioSaavnCoverUrl(options.coverUrl, '500x500');
+    }
+
+    // 4. Any raw JioSaavn CDN image
+    const rawAny = options.songCoverUrl || options.albumCoverUrl || options.coverUrl;
+    if (rawAny && rawAny.includes('saavncdn.com')) {
+      return this.getRawJioSaavnCoverUrl(rawAny, '500x500');
     }
 
     return null;

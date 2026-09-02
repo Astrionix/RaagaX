@@ -6,6 +6,7 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { getApiUrl } from '@/lib/config/apiConfig';
+import { NavigationStack } from '@/lib/navigation/NavigationStack';
 
 export interface PaginationConfig {
   enabled: boolean;
@@ -144,10 +145,34 @@ export function CarouselShelf({ title, subtitle, items, icon, showPlayAll, pagin
   const handleItemClick = (item: ShelfItem) => {
     if (item.type === 'playlist' || item.type === 'mix') {
       setSelectedPlaylistId(item.id);
+      setActiveTab('playlist');
+      NavigationStack.getInstance().push({
+        activeTab: 'playlist',
+        selectedPlaylistId: item.id,
+        selectedAlbumId: null,
+        selectedArtistId: null,
+        isPlayerExpanded: false,
+      });
     } else if (item.type === 'artist') {
       setSelectedArtistId(item.id);
+      setActiveTab('artist');
+      NavigationStack.getInstance().push({
+        activeTab: 'artist',
+        selectedArtistId: item.id,
+        selectedPlaylistId: null,
+        selectedAlbumId: null,
+        isPlayerExpanded: false,
+      });
     } else if (item.type === 'album') {
       setSelectedAlbumId(item.id);
+      setActiveTab('album');
+      NavigationStack.getInstance().push({
+        activeTab: 'album',
+        selectedAlbumId: item.id,
+        selectedPlaylistId: null,
+        selectedArtistId: null,
+        isPlayerExpanded: false,
+      });
     } else if (item.type === 'song') {
       const rawSongs = shelfItems.map((i) => i.rawItem).filter(Boolean) as Song[];
       const targetSong = (item.rawItem || item) as Song;

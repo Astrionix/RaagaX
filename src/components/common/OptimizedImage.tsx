@@ -32,7 +32,7 @@ export function OptimizedImage({
   style,
   ...props
 }: OptimizedImageProps) {
-  // Normalize and transform artwork resolution based on target size
+  // Normalize and preserve raw high resolution artwork directly from CDN
   const resolveArtworkUrl = (rawUrl?: string | null): string => {
     if (!rawUrl || rawUrl.includes('/null/') || rawUrl.trim() === '') {
       return fallbackSrc;
@@ -40,13 +40,8 @@ export function OptimizedImage({
 
     let url = rawUrl.replace('http://', 'https://');
 
-    if (size === 'thumb') {
-      // 150x150 for track rows, mini player
-      url = url.replace(/500x500|50x50/g, '150x150');
-    } else {
-      // 500x500 high-res for cards, shelves, expanded modal
-      url = url.replace(/50x50|150x150/g, '500x500');
-    }
+    // Always deliver raw 500x500 high-res quality from JioSaavn CDN
+    url = url.replace(/50x50|150x150|300x300/g, '500x500');
 
     return url;
   };
