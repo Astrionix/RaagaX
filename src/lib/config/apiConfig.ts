@@ -6,6 +6,29 @@
  * relative requests in web/dev environments.
  */
 
+export const VERCEL_STATE_COORDINATOR = 'https://raaga-x-chi.vercel.app';
+
+export function getConnectApiBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    try {
+      const custom = localStorage.getItem('rx_custom_api_base') || localStorage.getItem('raagax_connect_server_url');
+      if (custom && custom.trim()) {
+        return custom.trim().replace(/\/+$/, '');
+      }
+    } catch {}
+
+    const origin = window.location.origin || '';
+    // In local development, prefer local server if running on port 3000
+    if (origin.includes('localhost:3000') || origin.includes('127.0.0.1:3000')) {
+      return origin;
+    }
+  }
+
+  // On Cloudflare Workers (edge with isolated RAM) and Native Android/iOS APK:
+  // Route stateful Connect & Jam rooms through the dedicated long-running Vercel Node.js process
+  return process.env.NEXT_PUBLIC_CONNECT_SERVER_URL || VERCEL_STATE_COORDINATOR;
+}
+
 export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
     // 1. Check custom configured server override from user settings or dev tunnel
@@ -46,7 +69,14 @@ export function getApiUrl(path: string): string {
   if (path.startsWith('http://') || path.startsWith('https://')) {
     return path;
   }
-  const base = getApiBaseUrl().replace(/\/+$/, '');
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+  // Route stateful Connect and Jam calls to the shared Node.js state coordinator (Vercel)
+  if (cleanPath.startsWith('/api/connect') || cleanPath.startsWith('/api/jam')) {
+    const connectBase = getConnectApiBaseUrl().replace(/\/+$/, '');
+    return `${connectBase}${cleanPath}`;
+  }
+
+  const base = getApiBaseUrl().replace(/\/+$/, '');
   return `${base}${cleanPath}`;
 }
