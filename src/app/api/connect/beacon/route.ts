@@ -18,7 +18,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing device payload' }, { status: 400 });
     }
 
-    const forwardedFor = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || '';
+    const forwardedFor = request.headers.get('cf-connecting-ip') ||
+                         request.headers.get('x-forwarded-for') ||
+                         request.headers.get('x-real-ip') || '';
     let clientIp = forwardedFor.split(',')[0].trim() || '127.0.0.1';
     if (clientIp.startsWith('::ffff:')) clientIp = clientIp.replace('::ffff:', '');
     if (clientIp === '::1' || clientIp === 'localhost') clientIp = '127.0.0.1';
@@ -31,6 +33,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      clientIp,
+      subnet,
       pendingCommands,
       timestamp: Date.now(),
     });

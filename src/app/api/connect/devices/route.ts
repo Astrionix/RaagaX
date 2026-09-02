@@ -13,7 +13,9 @@ export async function GET(request: NextRequest) {
     const excludeId = searchParams.get('excludeId') || undefined;
     const accountId = searchParams.get('accountId') || undefined;
 
-    const forwardedFor = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || '';
+    const forwardedFor = request.headers.get('cf-connecting-ip') ||
+                         request.headers.get('x-forwarded-for') ||
+                         request.headers.get('x-real-ip') || '';
     let clientIp = forwardedFor.split(',')[0].trim() || '127.0.0.1';
     if (clientIp.startsWith('::ffff:')) clientIp = clientIp.replace('::ffff:', '');
     if (clientIp === '::1' || clientIp === 'localhost') clientIp = '127.0.0.1';

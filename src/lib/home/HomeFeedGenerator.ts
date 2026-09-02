@@ -1,7 +1,9 @@
 import { HomePayload, HomeSection, ShelfItem } from '@/types/home';
 import dynamicPlaylistsData from '@/lib/dynamic_home_playlists.json';
+import cachedArtistsData from '@/lib/cached_artists.json';
 
 const dynamicPlaylists = dynamicPlaylistsData as Record<string, any>;
+const cachedArtists = cachedArtistsData as Record<string, any[]>;
 
 // Top artist seeds for languages where dynamic catalog has artists
 const SEED_ARTISTS_BY_LANG: Record<string, { id: string; name: string; imageUrl: string }[]> = {

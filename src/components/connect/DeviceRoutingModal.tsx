@@ -246,47 +246,55 @@ export function DeviceRoutingModal() {
             )}
 
             {/* Discovered Remote Devices */}
-            {devices.map((device) => {
-              const isCurrentActive = activePlaybackDevice?.deviceId === device.deviceId;
-              if (isCurrentActive) return null;
-
-              return (
-                <button
-                  key={device.deviceId}
-                  onClick={() => handleDeviceSelect(device)}
-                  disabled={switchingDeviceId === device.deviceId}
-                  className="w-full flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-all border border-transparent hover:border-white/10 text-left group disabled:opacity-50"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center text-white/70 group-hover:text-white">
-                      {getDeviceIcon(device.deviceType)}
-                    </div>
-                    <div>
-                      <span className="text-sm font-semibold text-white group-hover:text-[#1db954] transition-colors block">
-                        {device.deviceName}
-                      </span>
-                      <span className="text-[11px] text-white/40 capitalize">{device.deviceType}</span>
-                    </div>
-                  </div>
-                  {switchingDeviceId === device.deviceId ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-[#1db954]" />
-                  ) : (
-                    <span className="text-xs font-bold text-white/60 group-hover:text-[#1db954] transition-colors">
-                      Connect
-                    </span>
-                  )}
-                </button>
+            {(() => {
+              const remoteDevices = devices.filter(
+                (d) =>
+                  d.deviceId !== localDeviceId &&
+                  !d.isCurrentDevice &&
+                  activePlaybackDevice?.deviceId !== d.deviceId
               );
-            })}
 
-            {devices.length === 0 && !isRemoteMode && (
-              <div className="py-6 text-center text-white/40 text-xs">
-                <p>No other active devices found on this account.</p>
-                <p className="mt-1 text-[11px] text-white/30">
-                  Open RaagaX on your phone, laptop, or tablet to stream together.
-                </p>
-              </div>
-            )}
+              if (remoteDevices.length === 0 && !isRemoteMode) {
+                return (
+                  <div className="py-6 text-center text-white/40 text-xs">
+                    <p>No other active devices found.</p>
+                    <p className="mt-1 text-[11px] text-white/30">
+                      Open RaagaX on your phone, laptop, or tablet on the same Wi-Fi or account.
+                    </p>
+                  </div>
+                );
+              }
+
+              return remoteDevices.map((device) => {
+                return (
+                  <button
+                    key={device.deviceId}
+                    onClick={() => handleDeviceSelect(device)}
+                    disabled={switchingDeviceId === device.deviceId}
+                    className="w-full flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-all border border-transparent hover:border-white/10 text-left group disabled:opacity-50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center text-white/70 group-hover:text-white">
+                        {getDeviceIcon(device.deviceType)}
+                      </div>
+                      <div>
+                        <span className="text-sm font-semibold text-white group-hover:text-[#1db954] transition-colors block">
+                          {device.deviceName}
+                        </span>
+                        <span className="text-[11px] text-white/40 capitalize">{device.deviceType}</span>
+                      </div>
+                    </div>
+                    {switchingDeviceId === device.deviceId ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-[#1db954]" />
+                    ) : (
+                      <span className="text-xs font-bold text-white/60 group-hover:text-[#1db954] transition-colors">
+                        Connect
+                      </span>
+                    )}
+                  </button>
+                );
+              });
+            })()}
           </div>
         </div>
 

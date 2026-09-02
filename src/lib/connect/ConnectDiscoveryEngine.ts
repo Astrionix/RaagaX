@@ -26,6 +26,7 @@ export class ConnectDiscoveryEngine {
   private broadcastChannel: BroadcastChannel | null = null;
   private presenceChannel: any = null;
   private subscribedUserId: string | null = null;
+  private localSubnet: string = '127.0.0';
 
   private constructor() {
     this.localDevice = this.initializeLocalDevice();
@@ -151,29 +152,36 @@ export class ConnectDiscoveryEngine {
       if (user?.id) {
         this.localDevice.accountId = user.id;
         if (user.email) (this.localDevice as any).email = user.email;
-        this.setupPresenceChannel(user.id);
       }
-    } catch {}
+      this.setupPresenceChannel(user?.id || null);
+    } catch {
+      this.setupPresenceChannel(null);
+    }
   }
 
-  public setupPresenceChannel(userId: string): void {
-    if (!userId || typeof window === 'undefined') return;
-    if (this.subscribedUserId === userId && this.presenceChannel) return;
-
-    this.subscribedUserId = userId;
-    this.localDevice.accountId = userId;
+  public setupPresenceChannel(userId?: string | null): void {
+    if (typeof window === 'undefined') return;
+    if (userId) {
+      this.localDevice.accountId = userId;
+    }
 
     if (this.presenceChannel) {
+      // Already connected to discovery mesh; update tracked state with current identity & subnet
       try {
-        const { supabase } = require('@/lib/supabase');
-        supabase.removeChannel(this.presenceChannel);
+        this.presenceChannel.track({
+          device: {
+            ...this.localDevice,
+            subnet: this.localSubnet || '127.0.0',
+          },
+          onlineAt: Date.now(),
+        }).catch(() => {});
       } catch {}
-      this.presenceChannel = null;
+      return;
     }
 
     try {
       const { supabase } = require('@/lib/supabase');
-      const channelName = `raaga_connect_presence:${userId}`;
+      const channelName = 'raaga_connect_mesh';
       this.presenceChannel = supabase.channel(channelName, {
         config: {
           presence: { key: this.localDevice.deviceId },
@@ -185,18 +193,38 @@ export class ConnectDiscoveryEngine {
         .on('presence', { event: 'sync' }, () => {
           const state = this.presenceChannel?.presenceState() || {};
           let changed = false;
+
           for (const [key, presences] of Object.entries(state)) {
             if (key === this.localDevice.deviceId) continue;
             if (Array.isArray(presences) && presences.length > 0) {
-              const remote = (presences[0] as any)?.device as ConnectDevice;
-              if (remote && remote.deviceId && remote.deviceId !== this.localDevice.deviceId) {
+              const remote = (presences[0] as any)?.device as ConnectDevice & { subnet?: string };
+              if (!remote || !remote.deviceId || remote.deviceId === this.localDevice.deviceId) continue;
+
+              const myAccount = this.localDevice.accountId;
+              const remoteAccount = remote.accountId;
+              const isSameAccount = Boolean(myAccount && remoteAccount && myAccount === remoteAccount);
+
+              const mySubnet = this.localSubnet;
+              const remoteSubnet = remote.subnet;
+              const isSameSubnet = Boolean(
+                !mySubnet || !remoteSubnet ||
+                mySubnet === remoteSubnet ||
+                mySubnet.includes('127.0.0') || remoteSubnet?.includes('127.0.0') ||
+                mySubnet === 'local' || remoteSubnet === 'local'
+              );
+
+              // Auto-discover if:
+              // 1. Same authenticated user account (anywhere in the world on 5G/4G/Wi-Fi)
+              // 2. Same local subnet / Wi-Fi network (mob to desk, desk to desk on the same network)
+              // 3. Or either device is in guest mode on the same local subnet
+              if (isSameAccount || isSameSubnet || (!myAccount && !remoteAccount)) {
                 this.discoveredDevices.set(remote.deviceId, {
                   ...remote,
                   isCurrentDevice: false,
                   lastSeenAt: Date.now(),
-                  transport: 'CLOUD_RELAY',
+                  transport: isSameSubnet ? 'LOCAL_LAN' : 'CLOUD_RELAY',
                   authStatus: 'AUTO_AUTHORIZED',
-                  isSameAccount: true,
+                  isSameAccount: Boolean(isSameAccount),
                 });
                 changed = true;
               }
@@ -225,7 +253,10 @@ export class ConnectDiscoveryEngine {
         .subscribe(async (status: string) => {
           if (status === 'SUBSCRIBED') {
             await this.presenceChannel?.track({
-              device: this.localDevice,
+              device: {
+                ...this.localDevice,
+                subnet: this.localSubnet || '127.0.0',
+              },
               onlineAt: Date.now(),
             }).catch(() => {});
           }
@@ -236,15 +267,19 @@ export class ConnectDiscoveryEngine {
   }
 
   public cleanupPresenceChannel(): void {
+    this.localDevice.accountId = undefined;
     if (this.presenceChannel) {
       try {
-        const { supabase } = require('@/lib/supabase');
-        supabase.removeChannel(this.presenceChannel);
+        this.presenceChannel.track({
+          device: {
+            ...this.localDevice,
+            accountId: null,
+            subnet: this.localSubnet || '127.0.0',
+          },
+          onlineAt: Date.now(),
+        }).catch(() => {});
       } catch {}
-      this.presenceChannel = null;
     }
-    this.subscribedUserId = null;
-    this.localDevice.accountId = undefined;
   }
 
   public sendSupabaseBroadcast(event: string, payload: any): void {
@@ -366,6 +401,18 @@ export class ConnectDiscoveryEngine {
       })
         .then((res) => res.json())
         .then((data) => {
+          if (data.subnet && data.subnet !== this.localSubnet) {
+            this.localSubnet = data.subnet;
+            if (this.presenceChannel) {
+              this.presenceChannel.track({
+                device: {
+                  ...this.localDevice,
+                  subnet: this.localSubnet,
+                },
+                onlineAt: Date.now(),
+              }).catch(() => {});
+            }
+          }
           if (data.success && Array.isArray(data.pendingCommands) && data.pendingCommands.length > 0) {
             const server = ConnectServerEngine.getInstance();
             for (const cmd of data.pendingCommands) {
