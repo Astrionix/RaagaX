@@ -15,8 +15,6 @@ import {
   Disc3,
   BarChart3,
   Clock,
-  Radio,
-  Download,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
@@ -139,21 +137,6 @@ export function Sidebar() {
             <Flame className={`w-4 h-4 flex-shrink-0 ${activeTab === 'new' ? 'text-[#FA233B]' : 'text-zinc-400'}`} />
             <span>New</span>
           </button>
-
-          <button
-            onClick={() => {
-              import('@/context/useJamStore').then((m) => m.useJamStore.getState().toggleJamModal(true));
-            }}
-            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:bg-[#FA233B]/10 hover:text-[#FA233B] transition-colors cursor-pointer group"
-          >
-            <div className="flex items-center gap-2.5">
-              <Radio className="w-4 h-4 flex-shrink-0 text-zinc-400 group-hover:text-[#FA233B] group-hover:animate-pulse" />
-              <span>Jam Party</span>
-            </div>
-            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-[#FA233B]/15 text-[#FA233B] border border-[#FA233B]/30">
-              Live
-            </span>
-          </button>
         </div>
 
         {/* 2. LIBRARY SECTION */}
@@ -161,23 +144,6 @@ export function Sidebar() {
           <span className="px-2.5 py-1 text-[10px] font-bold text-zinc-500 uppercase tracking-wider block">
             LIBRARY
           </span>
-
-          <button
-            onClick={() => {
-              usePlayerStore.getState().setSelectedAlbumId(null);
-              usePlayerStore.getState().setSelectedArtistId(null);
-              usePlayerStore.getState().setSelectedPlaylistId(null);
-              setActiveTab('library');
-            }}
-            className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer ${
-              activeTab === 'library'
-                ? 'bg-[#FA233B]/15 text-[#FA233B] font-semibold'
-                : 'text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100 font-medium'
-            }`}
-          >
-            <ListMusic className={`w-4 h-4 flex-shrink-0 ${activeTab === 'library' ? 'text-[#FA233B]' : 'text-zinc-400'}`} />
-            <span>Library</span>
-          </button>
 
           <button
             onClick={() => setActiveTab('favorites')}
@@ -189,18 +155,6 @@ export function Sidebar() {
           >
             <Heart className={`w-4 h-4 flex-shrink-0 ${activeTab === 'favorites' ? 'text-[#FA233B]' : 'text-zinc-400'}`} />
             <span>Liked Songs</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('downloads')}
-            className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer ${
-              activeTab === 'downloads'
-                ? 'bg-[#FA233B]/15 text-[#FA233B] font-semibold'
-                : 'text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100 font-medium'
-            }`}
-          >
-            <Download className={`w-4 h-4 flex-shrink-0 ${activeTab === 'downloads' ? 'text-[#FA233B]' : 'text-zinc-400'}`} />
-            <span>Downloads</span>
           </button>
 
           <button
