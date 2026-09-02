@@ -28,6 +28,11 @@ DROP TABLE IF EXISTS public.playback_history CASCADE;
 DROP TABLE IF EXISTS public.processed_commands CASCADE;
 DROP TABLE IF EXISTS public.playback_sessions CASCADE;
 DROP TABLE IF EXISTS public.saved_albums CASCADE;
+
+-- Drop orphaned triggers on auth.users that attempted to insert into dropped profiles
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP TRIGGER IF EXISTS on_user_created ON auth.users;
+DROP FUNCTION IF EXISTS public.handle_new_user();
 DROP TABLE IF EXISTS public.charts CASCADE;
 
 -- 2. CORE TABLE 1: LIKED SONGS (User Favorites Cloud Sync)
