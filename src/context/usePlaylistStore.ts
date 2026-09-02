@@ -568,7 +568,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
       },
 
       generateInviteLink: (playlistId) => {
-        const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://raaga-x-chi.vercel.app';
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://raagax.padalalmnteddy.workers.dev');
         return `${baseUrl}/playlist/${playlistId}`;
       },
 

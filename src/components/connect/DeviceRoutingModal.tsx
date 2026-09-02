@@ -327,7 +327,7 @@ export function DeviceRoutingModal() {
                 </button>
               </div>
               <p className="text-[10px] text-white/30">
-                Leave empty for automatic Cloud Relay (https://raaga-x-chi.vercel.app).
+                Leave empty for automatic Cloud Relay (https://raagax.padalalmnteddy.workers.dev).
               </p>
             </div>
           )}
