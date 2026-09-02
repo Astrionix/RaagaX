@@ -1,84 +1,36 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-  Play, Search, Disc, Bookmark, ArrowUpDown, X, LayoutGrid, Grid2X2,
-  ListFilter, Sparkles, Check, Plus
-} from 'lucide-react';
+import { Play, Search, Disc, Bookmark, ArrowUpDown, X } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { AlbumCatalogEngine, AlbumItem } from '@/lib/albumCatalog';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { haptics } from '@/lib/haptics/HapticEngine';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
 
-type SortOption = 'recent_added' | 'year' | 'az' | 'za' | 'popular';
-type FilterTab = 'all' | 'saved' | 'recent' | 'trending' | 'popular';
-type ViewMode = 'grid' | 'compact';
-
-const ALL_LANGUAGES = [
-  'Telugu', 'Hindi', 'Tamil', 'Kannada', 'Malayalam', 'English',
-  'Punjabi', 'Bhojpuri', 'Marathi', 'Gujarati', 'Bengali', 'Haryanvi'
-];
+type SortOption = 'recent_added' | 'year' | 'az' | 'za';
 
 export function AlbumsView() {
   const {
-    preferredLanguage = 'Telugu',
-    setPreferredLanguage,
     setSelectedAlbumId,
     playSong,
     favoriteAlbumIds = [],
     toggleFavoriteAlbum,
     setRemoteState,
     setToastMessage,
-    currentSong,
-    isPlaying,
   } = usePlayerStore();
-
-  const lang = preferredLanguage || 'Telugu';
 
   // State
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilterTab, setActiveFilterTab] = useState<FilterTab>('all');
   const [sortOption, setSortOption] = useState<SortOption>('recent_added');
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
-
-  // Synchronous cache-first state
-  const [catalogAlbums, setCatalogAlbums] = useState<AlbumItem[]>(() =>
-    AlbumCatalogEngine.getAlbumsForLanguage(lang)
-  );
-  const [isLoading, setIsLoading] = useState<boolean>(() => catalogAlbums.length === 0);
   const [resolvedSavedAlbums, setResolvedSavedAlbums] = useState<AlbumItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  // 1. Load catalog albums for language (Cache-First + Background Revalidation)
-  useEffect(() => {
-    let isMounted = true;
-    const initial = AlbumCatalogEngine.getAlbumsForLanguage(lang);
-    if (initial && initial.length > 0) {
-      setCatalogAlbums(initial);
-      setIsLoading(false);
-    } else {
-      setIsLoading(true);
-    }
-
-    AlbumCatalogEngine.fetchRealAlbumsForLanguage(lang)
-      .then((fetched) => {
-        if (isMounted && fetched && fetched.length > 0) {
-          setCatalogAlbums(fetched);
-        }
-      })
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [lang]);
-
-  // 2. Resolve Saved Albums in Library
+  // Resolve Saved Albums in Library
   useEffect(() => {
     if (favoriteAlbumIds.length === 0) {
       setResolvedSavedAlbums([]);
+      setIsLoading(false);
       return;
     }
 
@@ -87,7 +39,7 @@ export function AlbumsView() {
     const missingIds: string[] = [];
 
     for (const albumId of favoriteAlbumIds) {
-      const known = AlbumCatalogEngine.getAlbumById(albumId, lang);
+      const known = AlbumCatalogEngine.getAlbumById(albumId);
       if (known) {
         resolved.push(known);
       } else {
@@ -97,8 +49,11 @@ export function AlbumsView() {
 
     if (missingIds.length === 0) {
       setResolvedSavedAlbums(resolved);
+      setIsLoading(false);
       return;
     }
+
+    setIsLoading(true);
 
     // Resolve missing saved album metadata asynchronously
     Promise.all(
@@ -117,8 +72,8 @@ export function AlbumsView() {
               releaseYear: 2024,
               trackCount: details.songs?.length || 6,
               durationSec: (details.songs?.length || 6) * 210,
-              language: lang,
-              albumType: 'soundtrack' as const,
+              language: 'Mixed',
+              albumType: 'album' as const,
               freshnessScore: 90,
               trendingScore: 90,
               topScore: 90,
@@ -135,62 +90,27 @@ export function AlbumsView() {
         if (item) valid.push(item);
       }
       setResolvedSavedAlbums([...resolved, ...valid]);
+      setIsLoading(false);
     });
 
     return () => {
       isMounted = false;
     };
-  }, [favoriteAlbumIds, lang]);
+  }, [favoriteAlbumIds]);
 
-  // 3. Categorized Subsets
-  const { recentlyReleased, trending, popular } = useMemo(() => {
-    return AlbumCatalogEngine.getThreeCategorizedShelves(lang);
-  }, [lang, catalogAlbums]);
-
-  // 4. Combined & Canonical Deduplication
-  const combinedAlbums = useMemo(() => {
-    const map = new Map<string, AlbumItem>();
-
-    // Priority to saved albums, then catalog, then shelves
-    resolvedSavedAlbums.forEach((a) => { if (a?.id) map.set(a.id, a); });
-    catalogAlbums.forEach((a) => { if (a?.id && !map.has(a.id)) map.set(a.id, a); });
-    recentlyReleased.forEach((a) => { if (a?.id && !map.has(a.id)) map.set(a.id, a); });
-    trending.forEach((a) => { if (a?.id && !map.has(a.id)) map.set(a.id, a); });
-    popular.forEach((a) => { if (a?.id && !map.has(a.id)) map.set(a.id, a); });
-
-    return Array.from(map.values());
-  }, [resolvedSavedAlbums, catalogAlbums, recentlyReleased, trending, popular]);
-
-  // 5. Filter by Active Tab
-  const tabFilteredAlbums = useMemo(() => {
-    switch (activeFilterTab) {
-      case 'saved':
-        return resolvedSavedAlbums;
-      case 'recent':
-        return recentlyReleased.length > 0 ? recentlyReleased : combinedAlbums.slice(0, 20);
-      case 'trending':
-        return trending.length > 0 ? trending : combinedAlbums;
-      case 'popular':
-        return popular.length > 0 ? popular : combinedAlbums;
-      case 'all':
-      default:
-        return combinedAlbums;
-    }
-  }, [activeFilterTab, resolvedSavedAlbums, recentlyReleased, trending, popular, combinedAlbums]);
-
-  // 6. Search Filter (Debounced In-Memory, zero network overhead)
+  // Search Filter
   const searchFilteredAlbums = useMemo(() => {
-    if (!searchQuery.trim()) return tabFilteredAlbums;
+    if (!searchQuery.trim()) return resolvedSavedAlbums;
     const q = searchQuery.toLowerCase().trim();
-    return tabFilteredAlbums.filter(
+    return resolvedSavedAlbums.filter(
       (a) =>
         (a.title && a.title.toLowerCase().includes(q)) ||
         (a.artist && a.artist.toLowerCase().includes(q)) ||
         (a.releaseYear && a.releaseYear.toString().includes(q))
     );
-  }, [tabFilteredAlbums, searchQuery]);
+  }, [resolvedSavedAlbums, searchQuery]);
 
-  // 7. Deterministic Sorting
+  // Deterministic Sorting
   const displayAlbums = useMemo(() => {
     const list = [...searchFilteredAlbums];
     switch (sortOption) {
@@ -200,13 +120,16 @@ export function AlbumsView() {
         return list.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
       case 'za':
         return list.sort((a, b) => (b.title || '').localeCompare(a.title || ''));
-      case 'popular':
-        return list.sort((a, b) => (b.trendingScore || 0) - (a.trendingScore || 0));
       case 'recent_added':
       default:
-        return list;
+        // Preserves user's saved order (newest first in favoriteAlbumIds)
+        return list.sort((a, b) => {
+          const idxA = favoriteAlbumIds.indexOf(a.id);
+          const idxB = favoriteAlbumIds.indexOf(b.id);
+          return idxB - idxA;
+        });
     }
-  }, [searchFilteredAlbums, sortOption]);
+  }, [searchFilteredAlbums, sortOption, favoriteAlbumIds]);
 
   // Actions
   const handleOpenAlbum = (album: AlbumItem) => {
@@ -253,109 +176,21 @@ export function AlbumsView() {
   };
 
   return (
-    <div className="space-y-6 pb-4 text-white select-none animate-in fade-in duration-200 max-w-7xl mx-auto px-4 sm:px-8 md:px-10 lg:px-12 pt-5 sm:pt-7">
-      {/* ── CONTROLS TOOLBAR: Filter Tabs, Language, Search & Sort ─────────────── */}
-      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3.5">
-        {/* Filter Categories */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
-          <button
-            onClick={() => {
-              haptics.lightImpact();
-              setActiveFilterTab('all');
-            }}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-              activeFilterTab === 'all'
-                ? 'bg-white text-black font-extrabold shadow-sm'
-                : 'bg-white/[0.04] text-slate-400 hover:text-white hover:bg-white/[0.08] border border-white/5'
-            }`}
-          >
-            All
-          </button>
-
-          <button
-            onClick={() => {
-              haptics.lightImpact();
-              setActiveFilterTab('saved');
-            }}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-              activeFilterTab === 'saved'
-                ? 'bg-[#FA233B] text-white font-extrabold shadow-sm shadow-[#FA233B]/20'
-                : 'bg-white/[0.04] text-slate-400 hover:text-white hover:bg-white/[0.08] border border-white/5'
-            }`}
-          >
-            <Bookmark className="w-3.5 h-3.5 fill-current" />
-            <span>Saved ({resolvedSavedAlbums.length})</span>
-          </button>
-
-          <button
-            onClick={() => {
-              haptics.lightImpact();
-              setActiveFilterTab('recent');
-            }}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-              activeFilterTab === 'recent'
-                ? 'bg-white text-black font-extrabold shadow-sm'
-                : 'bg-white/[0.04] text-slate-400 hover:text-white hover:bg-white/[0.08] border border-white/5'
-            }`}
-          >
-            Recent Releases
-          </button>
-
-          <button
-            onClick={() => {
-              haptics.lightImpact();
-              setActiveFilterTab('trending');
-            }}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-              activeFilterTab === 'trending'
-                ? 'bg-white text-black font-extrabold shadow-sm'
-                : 'bg-white/[0.04] text-slate-400 hover:text-white hover:bg-white/[0.08] border border-white/5'
-            }`}
-          >
-            Trending
-          </button>
-
-          <button
-            onClick={() => {
-              haptics.lightImpact();
-              setActiveFilterTab('popular');
-            }}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-              activeFilterTab === 'popular'
-                ? 'bg-white text-black font-extrabold shadow-sm'
-                : 'bg-white/[0.04] text-slate-400 hover:text-white hover:bg-white/[0.08] border border-white/5'
-            }`}
-          >
-            Popular
-          </button>
+    <div className="space-y-6 pb-6 text-white select-none animate-in fade-in duration-200 max-w-7xl mx-auto px-4 sm:px-8 md:px-10 lg:px-12 pt-5 sm:pt-7">
+      {/* ── TOOLBAR: Title & Count, Search & Sort ───────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/[0.06]">
+        {/* Left: Section Title & Count */}
+        <div>
+          <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">Albums</h1>
+          <p className="text-xs text-slate-400 font-medium mt-0.5">
+            {resolvedSavedAlbums.length} {resolvedSavedAlbums.length === 1 ? 'album' : 'albums'} in your library
+          </p>
         </div>
 
-        {/* Language, Search & Sort */}
-        <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
-          {/* User's Preferred Language Selector */}
-          <div className="relative flex-shrink-0">
-            <select
-              value={lang}
-              onChange={(e) => {
-                haptics.lightImpact();
-                setPreferredLanguage(e.target.value);
-              }}
-              className="bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white text-xs font-bold rounded-full px-3.5 py-2 outline-none cursor-pointer transition-colors appearance-none pr-7"
-              aria-label="Language selector"
-            >
-              {ALL_LANGUAGES.map((language) => (
-                <option key={language} value={language} className="bg-[#1c1c1e] text-white">
-                  {language}
-                </option>
-              ))}
-            </select>
-            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-[9px]">
-              ▼
-            </div>
-          </div>
-
+        {/* Right: Search & Sort Controls Only */}
+        <div className="flex items-center gap-2.5">
           {/* Search Input */}
-          <div className="relative flex-1 sm:w-52 md:w-60">
+          <div className="relative flex-1 sm:w-56 md:w-64">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="search"
@@ -364,13 +199,13 @@ export function AlbumsView() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search albums or artists..."
-              className="w-full bg-white/[0.05] border border-white/10 text-xs text-white placeholder-slate-500 rounded-full pl-9 pr-8 py-2 outline-none focus:border-[#FA233B]/60 focus:bg-black/40 transition-all font-medium"
+              className="w-full bg-white/[0.05] hover:bg-white/[0.08] border border-white/10 text-xs text-white placeholder-slate-500 rounded-full pl-9 pr-8 py-2 outline-none focus:border-[#FA233B]/60 focus:bg-black/40 transition-all font-medium"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-white cursor-pointer"
-                title="Clear filter"
+                title="Clear search"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -378,7 +213,7 @@ export function AlbumsView() {
           </div>
 
           {/* Sort Dropdown */}
-          <div className="flex items-center gap-1.5 bg-white/[0.05] border border-white/10 px-3 py-2 rounded-full text-xs shadow-sm flex-shrink-0">
+          <div className="flex items-center gap-1.5 bg-white/[0.05] hover:bg-white/[0.08] border border-white/10 px-3 py-2 rounded-full text-xs shadow-sm flex-shrink-0 transition-colors">
             <ArrowUpDown className="w-3.5 h-3.5 text-[#FA233B]" />
             <select
               value={sortOption}
@@ -393,16 +228,15 @@ export function AlbumsView() {
               <option value="year" className="bg-[#1c1c1e] text-white">Release Year</option>
               <option value="az" className="bg-[#1c1c1e] text-white">Title: A → Z</option>
               <option value="za" className="bg-[#1c1c1e] text-white">Title: Z → A</option>
-              <option value="popular" className="bg-[#1c1c1e] text-white">Most Popular</option>
             </select>
           </div>
         </div>
       </div>
 
-      {/* ── ALBUM GRID (SPACIOUS & UNCONGESTED) ───────────────────────────────── */}
+      {/* ── ALBUM GRID ──────────────────────────────────────────────────────── */}
       {isLoading && displayAlbums.length === 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 sm:gap-6">
-          {Array.from({ length: 10 }).map((_, idx) => (
+          {Array.from({ length: 6 }).map((_, idx) => (
             <div key={`album-skeleton-${idx}`} className="space-y-3">
               <div className="w-full aspect-square rounded-2xl bg-white/[0.03] border border-white/5 animate-pulse" />
               <div className="h-4 w-3/4 rounded-md bg-white/[0.05] animate-pulse" />
@@ -430,21 +264,13 @@ export function AlbumsView() {
         <div className="py-24 text-center text-slate-400 space-y-3 bg-white/[0.02] rounded-3xl border border-white/5 p-8">
           <Disc className="w-12 h-12 text-slate-600 mx-auto" />
           <h4 className="text-base font-bold text-white">
-            {activeFilterTab === 'saved' ? 'No Saved Albums in Library' : 'No Albums Found'}
+            {searchQuery.trim() ? 'No Matching Albums Found' : 'No Saved Albums in Library'}
           </h4>
           <p className="text-xs text-slate-400 max-w-sm mx-auto">
-            {activeFilterTab === 'saved'
-              ? 'Tap the bookmark icon or + Save on any album to add it to your personal library.'
-              : `No albums match "${searchQuery}". Try a different title or artist name.`}
+            {searchQuery.trim()
+              ? `No albums match "${searchQuery}". Try searching for another album or artist.`
+              : 'Save albums while browsing or playing music to access them quickly here in your library.'}
           </p>
-          {activeFilterTab === 'saved' && (
-            <button
-              onClick={() => setActiveFilterTab('all')}
-              className="mt-2 px-5 py-2 rounded-full bg-[#FA233B] hover:bg-[#d91e32] text-white text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-md"
-            >
-              Explore All Albums
-            </button>
-          )}
         </div>
       )}
     </div>
@@ -478,13 +304,6 @@ function AlbumCard({ album, isSaved, onOpen, onPlay, onToggleSave }: AlbumCardPr
         {/* Subtle Edge Vignette */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
 
-        {/* In Library / Saved Badge */}
-        {isSaved && (
-          <span className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full bg-[#FA233B]/90 backdrop-blur-md text-[9px] font-black text-white flex items-center gap-1 shadow-md">
-            <Check className="w-2.5 h-2.5 stroke-[3]" /> Saved
-          </span>
-        )}
-
         {/* Desktop Hover Play Button */}
         <button
           onClick={(e) => {
@@ -499,7 +318,7 @@ function AlbumCard({ album, isSaved, onOpen, onPlay, onToggleSave }: AlbumCardPr
         </button>
       </div>
 
-      {/* 2. Album Information (Spacious & Clean) */}
+      {/* 2. Album Information */}
       <div className="pt-2.5 flex items-start justify-between gap-2 min-w-0">
         <div className="min-w-0 flex-1">
           <h4 className="text-sm font-bold text-white truncate leading-snug group-hover:text-[#FA233B] transition-colors" title={album.title}>
@@ -513,7 +332,7 @@ function AlbumCard({ album, isSaved, onOpen, onPlay, onToggleSave }: AlbumCardPr
           </p>
         </div>
 
-        {/* Save to Library Toggle */}
+        {/* Remove from Library Bookmark Toggle */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -527,11 +346,7 @@ function AlbumCard({ album, isSaved, onOpen, onPlay, onToggleSave }: AlbumCardPr
           title={isSaved ? 'Remove from Library' : 'Save to Library'}
           aria-label={isSaved ? 'Remove from Library' : 'Save to Library'}
         >
-          {isSaved ? (
-            <Bookmark className="w-4 h-4 fill-current" />
-          ) : (
-            <Plus className="w-4 h-4" />
-          )}
+          <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-current' : ''}`} />
         </button>
       </div>
     </div>
