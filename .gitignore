@@ -114,3 +114,8 @@ out
 *.apk
 *.exe
 
+# Cloudflare & OpenNext
+.open-next/
+.wrangler/
+.dev.vars
+
