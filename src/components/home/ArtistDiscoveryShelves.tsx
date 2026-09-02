@@ -57,15 +57,6 @@ function ArtistLanguageShelf({ language }: { language: string }) {
         <h2 className="text-[20px] sm:text-xl font-semibold leading-[26px] text-white tracking-tight truncate whitespace-nowrap">
           {language} Artists You May Like
         </h2>
-        <button 
-          onClick={() => {
-            setSelectedArtistId(null);
-            setActiveTab('artist');
-          }}
-          className="text-[11px] sm:text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1 transition-colors uppercase tracking-wider flex-shrink-0 ml-2 cursor-pointer"
-        >
-          See All <ChevronRight className="w-3.5 h-3.5" />
-        </button>
       </div>
 
       <div className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">

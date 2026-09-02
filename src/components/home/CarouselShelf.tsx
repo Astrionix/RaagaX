@@ -25,9 +25,18 @@ interface CarouselShelfProps {
   icon?: React.ReactNode;
   showPlayAll?: boolean;
   pagination?: PaginationConfig;
+  showSeeAll?: boolean;
 }
 
-export function CarouselShelf({ title, subtitle, items, icon, showPlayAll, pagination }: CarouselShelfProps) {
+export function CarouselShelf({ 
+  title, 
+  subtitle, 
+  items, 
+  icon, 
+  showPlayAll, 
+  pagination,
+  showSeeAll = false 
+}: CarouselShelfProps) {
   const { setActiveTab, setSelectedPlaylistId, setSelectedArtistId, setSelectedAlbumId, playSong, currentSong, isPlaying } = usePlayerStore();
   
   // UI State
@@ -348,7 +357,7 @@ export function CarouselShelf({ title, subtitle, items, icon, showPlayAll, pagin
           )}
         </div>
         
-        {shelfItems.length > 0 && (
+        {showSeeAll && shelfItems.length > 0 && (
           <button 
             onClick={() => setShowAll(true)}
             className="text-[11px] sm:text-xs font-semibold text-slate-400 hover:text-white transition-colors uppercase tracking-wider flex items-center gap-1 cursor-pointer flex-shrink-0 ml-2"
