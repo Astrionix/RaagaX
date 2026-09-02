@@ -16,12 +16,5 @@
   "minify": true,
   "observability": {
     "enabled": true
-  },
-  "vars": {
-    "JIOSAAVN_API_BASE_URL": "https://saavn.sumit.co",
-    "NEXT_PUBLIC_SUPABASE_URL": "https://qbqnlmfdmfayeztagvkj.supabase.co",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFicW5sbWZkbWZheWV6dGFndmtqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyMDAzNDksImV4cCI6MjEwMTc3NjM0OX0.Xjj4PQmu1LLYu7Yk0XiijVEDqzd4PqSsZzACaKkWLXk",
-    "NEXT_PUBLIC_SYNC_WS_URL": "wss://raagax.onrender.com",
-    "NEXT_PUBLIC_CONNECT_SERVER_URL": "https://raagax.onrender.com"
   }
 }
