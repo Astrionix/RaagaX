@@ -42,6 +42,9 @@ export function getConnectApiBaseUrl(): string {
   return process.env.NEXT_PUBLIC_CONNECT_SERVER_URL || RENDER_COORDINATOR_HTTP;
 }
 
+export const PRODUCTION_DOMAIN = 'https://www.raaga.me';
+export const WORKERS_DEV_URL = 'https://raaga.padalalmrreddy.workers.dev';
+
 export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
     // 1. Check custom configured server override from user settings or dev tunnel
@@ -54,7 +57,7 @@ export function getApiBaseUrl(): string {
 
     const origin = window.location.origin || '';
 
-    // If running in any standard web browser (e.g. https://raaga-x-chi.vercel.app, localhost, custom domain):
+    // If running in any standard web browser (e.g. https://raaga.me, localhost, custom domain):
     // Always use same-origin to prevent Mixed Content (HTTPS -> HTTP) and CORS errors
     const isNativeCapacitor = Boolean(
       (window as any).Capacitor?.isNativePlatform?.() ||
@@ -70,11 +73,11 @@ export function getApiBaseUrl(): string {
     }
 
     // In Capacitor Android/iOS Native APK:
-    // Route to hosted HTTPS production backend
-    return process.env.NEXT_PUBLIC_API_BASE_URL || 'https://raagax.padalalmrreddy.workers.dev';
+    // Route to custom domain https://raaga.me (or fallback)
+    return process.env.NEXT_PUBLIC_API_BASE_URL || PRODUCTION_DOMAIN;
   }
 
-  return process.env.NEXT_PUBLIC_API_BASE_URL || 'https://raagax.padalalmrreddy.workers.dev';
+  return process.env.NEXT_PUBLIC_API_BASE_URL || PRODUCTION_DOMAIN;
 }
 
 export function getApiUrl(path: string): string {

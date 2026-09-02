@@ -966,6 +966,13 @@ export const usePlayerStore = create<PlayerState>()(
             const { useConnectStore } = await import('@/context/useConnectStore');
             const connectClient = ConnectClientManager.getInstance();
             if (connectClient.isRemoteMode()) {
+              const now = Date.now();
+              if ((globalThis as any).__lastRemoteTrackId === track.id && now - ((globalThis as any).__lastRemoteTrackTime || 0) < 600) {
+                return true;
+              }
+              (globalThis as any).__lastRemoteTrackId = track.id;
+              (globalThis as any).__lastRemoteTrackTime = now;
+
               console.log(`[CONNECT_CONTROLLER_SWITCH_TRACK] Forwarding "${track.title}" to target playback device`);
               const resolvedCover = JioSaavnMediaPipeline.getInstance().resolveSongArtwork({
                 songCoverUrl: track.songCoverUrl,

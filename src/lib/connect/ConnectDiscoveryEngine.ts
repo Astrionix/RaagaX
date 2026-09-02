@@ -283,7 +283,7 @@ export class ConnectDiscoveryEngine {
   }
 
   public sendSupabaseBroadcast(event: string, payload: any): void {
-    if (this.presenceChannel) {
+    if (this.presenceChannel && (this.presenceChannel as any).state === 'joined') {
       try {
         this.presenceChannel.send({
           type: 'broadcast',
