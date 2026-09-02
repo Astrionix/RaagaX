@@ -402,11 +402,11 @@ describe('RaagaX Cross-Device Library Synchronization Architecture Tests', () =>
   });
 
   // ── SCENARIO 19 & 20: Full Reconcile Consistency ───────────────────────────
+  // ── SCENARIO 19 & 20: Full Reconcile Consistency (Lean Mode) ───────────────────────────
   it('Scenario 19 & 20: Full reconcile maintains integrity of all library tables', async () => {
     const syncEngine = AccountSyncEngine.getInstance();
 
     mockDbState.liked_songs = [{ user_id: testUserId, song_id: mockSongB.id }];
-    mockDbState.user_artists = [{ user_id: testUserId, artist_id: 'artist_thaman' }];
     mockDbState.playlists = [{
       id: 'pl_sync_99',
       name: 'Consistent Playlist',
@@ -420,6 +420,9 @@ describe('RaagaX Cross-Device Library Synchronization Architecture Tests', () =>
       song_id: mockSongB.id,
       position: 1,
     }];
+
+    // Set local favorite artist (persisted on device)
+    usePlayerStore.setState({ favoriteArtistIds: ['artist_thaman'] });
 
     await syncEngine.reconcile(testUserId);
 

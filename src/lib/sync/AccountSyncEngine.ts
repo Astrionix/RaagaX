@@ -413,43 +413,7 @@ export class AccountSyncEngine {
           console.warn('[AccountSyncEngine] Failed to reconcile playlists:', plErr);
         }
 
-        // 3. Reconcile User Favorite Artists & Saved Albums
-        try {
-          const [artistsRes, albumsRes] = await Promise.all([
-            supabase.from('user_artists').select('artist_id').eq('user_id', userId),
-            supabase.from('saved_albums').select('album_id').eq('user_id', userId)
-          ]);
-
-          if (AccountIsolationGuard.getInstance().isCurrentAuthGeneration(startAuthGen, userId)) {
-            const favArtists = artistsRes.data ? artistsRes.data.map((f: any) => f.artist_id) : [];
-            const favAlbums = albumsRes.data ? albumsRes.data.map((f: any) => f.album_id) : [];
-            usePlayerStore.setState({
-              favoriteArtistIds: favArtists,
-              favoriteAlbumIds: favAlbums
-            });
-          }
-        } catch (favErr) {
-          console.warn('[AccountSyncEngine] Failed to reconcile favorites:', favErr);
-        }
-
-        // 4. Reconcile Recently Played (listening_events)
-        try {
-          const { data: historyData, error: historyError } = await supabase
-            .from('listening_events')
-            .select('song_id')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(50);
-
-          if (!historyError && historyData && historyData.length > 0 && AccountIsolationGuard.getInstance().isCurrentAuthGeneration(startAuthGen, userId)) {
-            const cloudHistory = Array.from(new Set(historyData.map((d: any) => d.song_id).filter(Boolean)));
-            const currentHistory = usePlayerStore.getState().historySongIds || [];
-            const mergedHistory = Array.from(new Set([...cloudHistory, ...currentHistory])).slice(0, 100);
-            usePlayerStore.setState({ historySongIds: mergedHistory });
-          }
-        } catch (historyErr) {
-          console.warn('[AccountSyncEngine] Failed to reconcile history:', historyErr);
-        }
+        // 3. User Artists, Albums & History are stored in local device storage
 
         // 4. Reconcile Cloud Download Records (User's Cloud Download List)
         if (this.hasUserDownloadsTable) {
@@ -1025,36 +989,7 @@ export class AccountSyncEngine {
         }
       }
 
-      // 3. Merge Guest Favorites (Artists & Albums)
-      const favArtists = usePlayerStore.getState().favoriteArtistIds || [];
-      const favAlbums = usePlayerStore.getState().favoriteAlbumIds || [];
-      if (favArtists.length > 0) {
-        await supabase.from('user_artists').upsert(
-          favArtists.map((id) => ({ user_id: userId, artist_id: id })),
-          { onConflict: 'user_id,artist_id', ignoreDuplicates: true }
-        );
-      }
-      if (favAlbums.length > 0) {
-        await supabase.from('saved_albums').upsert(
-          favAlbums.map((id) => ({ user_id: userId, album_id: id })),
-          { onConflict: 'user_id,album_id', ignoreDuplicates: true }
-        );
-      }
-
-      // 4. Merge Guest Listening History
-      const guestHistory = usePlayerStore.getState().historySongIds || [];
-      if (guestHistory.length > 0) {
-        const historyRows = guestHistory.slice(0, 100).map((songId) => ({
-          user_id: userId,
-          song_id: songId,
-          event_type: 'play',
-        }));
-        try {
-          await supabase.from('listening_events').insert(historyRows);
-        } catch {}
-      }
-
-      // 5. Reconcile back to ensure local state has full union of cloud + guest
+      // 3. Reconcile back to ensure local state has full union of cloud + guest
       await this.reconcile(userId);
     } catch (err) {
       console.warn('[AccountSyncEngine] One-time guest data migration failed:', err);

@@ -1890,22 +1890,7 @@ export const usePlayerStore = create<PlayerState>()(
           const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
           await AccountSyncEngine.getInstance().reconcile(userId);
 
-          // 1. Fetch User Favorite Artists & Saved Albums directly
-          const [artistsRes, albumsRes, historyRes] = await Promise.all([
-            supabase.from('user_artists').select('artist_id').eq('user_id', userId),
-            supabase.from('saved_albums').select('album_id').eq('user_id', userId),
-            supabase.from('recently_played').select('song_id').eq('user_id', userId).order('played_at', { ascending: false }).limit(30)
-          ]);
-
-          const favoriteArtistIds = artistsRes.data ? artistsRes.data.map(d => d.artist_id) : [];
-          const favoriteAlbumIds = albumsRes.data ? albumsRes.data.map(d => d.album_id) : [];
-          const historySongIds = historyRes.data ? Array.from(new Set(historyRes.data.map(d => d.song_id))) : [];
-
-          set({
-            favoriteArtistIds,
-            favoriteAlbumIds,
-            historySongIds: Array.from(new Set([...historySongIds, ...get().historySongIds])).slice(0, 30)
-          });
+          // Favorite artists, albums & history are managed in local device storage
         } catch (e) {
           console.error("Failed to sync cloud library:", e);
         }
@@ -2128,32 +2113,6 @@ export const usePlayerStore = create<PlayerState>()(
           return { favoriteArtistIds: newFavs };
         });
 
-        try {
-          const { supabase } = await import('@/lib/supabase');
-          const { data: session } = await supabase.auth.getSession();
-          if (session?.session?.user) {
-            if (isFav) {
-              const { error } = await supabase.from('user_artists').delete()
-                .eq('user_id', session.session.user.id)
-                .eq('artist_id', artistId);
-              if (!error) {
-                const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
-                await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.session.user.id).catch(() => { });
-              }
-            } else {
-              const { error } = await supabase.from('user_artists').upsert({
-                user_id: session.session.user.id,
-                artist_id: artistId,
-              }, { onConflict: 'user_id,artist_id' });
-              if (!error) {
-                const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
-                await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.session.user.id).catch(() => { });
-              }
-            }
-          }
-        } catch (e) {
-          console.error("Failed to sync favorite artist:", e);
-        }
       },
 
       toggleFavoriteAlbum: async (albumId) => {
@@ -2165,33 +2124,6 @@ export const usePlayerStore = create<PlayerState>()(
             : [...state.favoriteAlbumIds, albumId];
           return { favoriteAlbumIds: newFavs };
         });
-
-        try {
-          const { supabase } = await import('@/lib/supabase');
-          const { data: session } = await supabase.auth.getSession();
-          if (session?.session?.user) {
-            if (isFav) {
-              const { error } = await supabase.from('saved_albums').delete()
-                .eq('user_id', session.session.user.id)
-                .eq('album_id', albumId);
-              if (!error) {
-                const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
-                await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.session.user.id).catch(() => { });
-              }
-            } else {
-              const { error } = await supabase.from('saved_albums').upsert({
-                user_id: session.session.user.id,
-                album_id: albumId,
-              }, { onConflict: 'user_id,album_id' });
-              if (!error) {
-                const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
-                await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.session.user.id).catch(() => { });
-              }
-            }
-          }
-        } catch (e) {
-          console.error("Failed to sync favorite album:", e);
-        }
       },
 
       setCrossfadeSec: (sec) => set({ crossfadeSec: sec }),

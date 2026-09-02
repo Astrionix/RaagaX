@@ -53,38 +53,13 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Fetch user affinity records
-    const [artistRes, eventsRes] = await Promise.all([
-      supabaseAdmin
-        .from('user_artist_affinity')
-        .select('artist_id, score')
-        .eq('user_id', userId)
-        .order('score', { ascending: false })
-        .limit(10),
-      supabaseAdmin
-        .from('listening_events')
-        .select('event_type')
-        .eq('user_id', userId)
-        .limit(100),
-    ]);
-
-    const topArtists = (artistRes.data || []).map((a: any) => ({
-      artistId: a.artist_id,
-      score: a.score || 0,
-    }));
-
-    const events = eventsRes.data || [];
-    const totalEvents = events.length;
-    const completedCount = events.filter((e: any) => e.event_type === 'COMPLETE').length;
-    const completionRate = totalEvents > 0 ? completedCount / totalEvents : 1.0;
-
     const profileData: PreferenceProfile = {
       topLanguages: [{ language: 'Telugu', score: 90 }],
-      topArtists,
+      topArtists: [],
       topGenres: [{ genre: 'Melodies', score: 75 }],
       stats: {
-        totalEvents,
-        completionRate: parseFloat(completionRate.toFixed(2)),
+        totalEvents: 0,
+        completionRate: 1.0,
       },
     };
 
