@@ -767,6 +767,15 @@ export class ConnectServerEngine {
       } catch { }
     }
 
+    // Broadcast via Render WebSocket Coordinator
+    try {
+      const { LocalLanDiscovery } = require('./discovery/LocalLanDiscovery');
+      LocalLanDiscovery.getInstance().sendWsMessage({
+        type: 'SESSION_UPDATE',
+        session: this.currentSession,
+      });
+    } catch { }
+
     // Broadcast via Supabase Realtime across any network
     try {
       const { ConnectDiscoveryEngine } = require('./ConnectDiscoveryEngine');

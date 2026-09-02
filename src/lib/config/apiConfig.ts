@@ -7,6 +7,7 @@
  */
 
 export const VERCEL_STATE_COORDINATOR = 'https://raaga-x-chi.vercel.app';
+export const RENDER_COORDINATOR_WS = 'wss://raagax.onrender.com';
 
 export function getSyncWebSocketUrl(): string {
   if (typeof window !== 'undefined') {
@@ -17,7 +18,7 @@ export function getSyncWebSocketUrl(): string {
       }
     } catch {}
   }
-  return process.env.NEXT_PUBLIC_SYNC_WS_URL || '';
+  return process.env.NEXT_PUBLIC_SYNC_WS_URL || RENDER_COORDINATOR_WS;
 }
 
 export function getConnectApiBaseUrl(): string {

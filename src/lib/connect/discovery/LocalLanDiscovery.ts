@@ -8,7 +8,7 @@
 import { ConnectDevice } from '@/types/connect';
 import { DeviceIdentity } from '../identity/DeviceIdentity';
 import { DeviceRegistry } from '../identity/DeviceRegistry';
-import { getApiUrl } from '@/lib/config/apiConfig';
+import { getApiUrl, getSyncWebSocketUrl } from '@/lib/config/apiConfig';
 
 export class LocalLanDiscovery {
   private static instance: LocalLanDiscovery;
@@ -16,6 +16,8 @@ export class LocalLanDiscovery {
   private scanTimer: any = null;
   private broadcastChannel: BroadcastChannel | null = null;
   private sseEventSource: EventSource | null = null;
+  private ws: WebSocket | null = null;
+  private wsReconnectTimer: any = null;
 
   private constructor() {
     if (typeof window !== 'undefined') {
@@ -67,9 +69,80 @@ export class LocalLanDiscovery {
     } catch {}
   }
 
+  public connectWebSocket(): void {
+    if (typeof window === 'undefined' || typeof WebSocket === 'undefined') return;
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return;
+
+    const wsUrl = getSyncWebSocketUrl();
+    if (!wsUrl) return;
+
+    try {
+      const ws = new WebSocket(wsUrl);
+      this.ws = ws;
+
+      ws.onopen = () => {
+        const localDevice = DeviceIdentity.getInstance().toConnectDevice();
+        ws.send(JSON.stringify({
+          type: 'REGISTER_DEVICE',
+          device: localDevice,
+        }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'DEVICE_LIST_UPDATED' && Array.isArray(data.devices)) {
+            import('@/lib/connect/ConnectDiscoveryEngine').then(({ ConnectDiscoveryEngine }) => {
+              ConnectDiscoveryEngine.getInstance().handleIncomingDeviceList(data.devices);
+            });
+          } else if (data.type === 'CONNECT_COMMAND' && data.payload) {
+            import('@/lib/connect/ConnectServerEngine').then(({ ConnectServerEngine }) => {
+              ConnectServerEngine.getInstance().handleIncomingCommand(data.payload);
+            });
+          } else if (data.type === 'SESSION_UPDATE' && data.payload) {
+            import('@/lib/connect/ConnectClientManager').then(({ ConnectClientManager }) => {
+              ConnectClientManager.getInstance().handleIncomingSession(data.payload);
+            });
+          }
+        } catch {}
+      };
+
+      ws.onclose = () => {
+        if (this.ws === ws) {
+          this.ws = null;
+        }
+        if (!this.wsReconnectTimer) {
+          this.wsReconnectTimer = setTimeout(() => {
+            this.wsReconnectTimer = null;
+            this.connectWebSocket();
+          }, 3000);
+        }
+      };
+
+      ws.onerror = () => {
+        try { ws.close(); } catch {}
+      };
+    } catch {}
+  }
+
+  public sendWsMessage(msg: any): boolean {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      try {
+        this.ws.send(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        return true;
+      } catch {}
+    }
+    return false;
+  }
+
   public connectStream(): void {
-    if (typeof window === 'undefined' || typeof EventSource === 'undefined') return;
-    if (this.sseEventSource) return;
+    if (typeof window === 'undefined') return;
+
+    // 1. Primary: Dedicated 24/7 Render WebSocket (sub-10ms latency)
+    this.connectWebSocket();
+
+    // 2. Secondary: Fallback SSE Stream
+    if (typeof EventSource === 'undefined' || this.sseEventSource) return;
 
     const localId = DeviceIdentity.getInstance().getDeviceId();
     try {
@@ -148,6 +221,16 @@ export class LocalLanDiscovery {
   public sendBeacon(): void {
     const localDevice = DeviceIdentity.getInstance().toConnectDevice();
     console.log(`[CONNECT_DISCOVERY]\ndeviceId=${localDevice.deviceId}\ndeviceName=${localDevice.deviceName}\ntransport=LOCAL_LAN`);
+
+    // 0. WebSocket Coordinator Beacon (Render)
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      try {
+        this.ws.send(JSON.stringify({
+          type: 'REGISTER_DEVICE',
+          device: localDevice,
+        }));
+      } catch {}
+    }
 
     // 1. BroadcastChannel
     if (this.broadcastChannel) {

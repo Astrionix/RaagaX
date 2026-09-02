@@ -524,6 +524,16 @@ export class ConnectClientManager {
       } catch {}
     }
 
+    // 2.5. Render WebSocket Relay (sub-10ms direct bidirectional pipe)
+    try {
+      const { LocalLanDiscovery } = require('./discovery/LocalLanDiscovery');
+      LocalLanDiscovery.getInstance().sendWsMessage({
+        type: 'CONNECT_COMMAND',
+        targetDeviceId: command.targetDeviceId,
+        command,
+      });
+    } catch {}
+
     // 3. Supabase Realtime Broadcast (sub-50ms cloud relay across networks)
     try {
       const { ConnectDiscoveryEngine } = require('./ConnectDiscoveryEngine');
