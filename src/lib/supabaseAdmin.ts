@@ -24,8 +24,10 @@ function createStubAdminClient(): SupabaseClient {
 export function getSupabaseAdmin(): SupabaseClient {
   if (instance) return instance;
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://qbqnlmfdmfayeztagvkj.supabase.co';
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ||
+              process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+              'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFicW5sbWZkbWZheWV6dGFndmtqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyMDAzNDksImV4cCI6MjEwMTc3NjM0OX0.Xjj4PQmu1LLYu7Yk0XiijVEDqzd4PqSsZzACaKkWLXk';
 
   if (!url || !key || url.includes('dummy') || key === 'dummy') {
     instance = createStubAdminClient();
