@@ -8,6 +8,18 @@
 
 export const VERCEL_STATE_COORDINATOR = 'https://raaga-x-chi.vercel.app';
 
+export function getSyncWebSocketUrl(): string {
+  if (typeof window !== 'undefined') {
+    try {
+      const custom = localStorage.getItem('rx_sync_ws_url');
+      if (custom && custom.trim()) {
+        return custom.trim();
+      }
+    } catch {}
+  }
+  return process.env.NEXT_PUBLIC_SYNC_WS_URL || '';
+}
+
 export function getConnectApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
     try {
