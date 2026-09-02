@@ -1,7 +1,6 @@
 import { JioSaavnProvider } from '@/lib/jioSaavnProvider';
 import { Artist, Song, Album } from '@/types/music';
-import fs from 'fs';
-import path from 'path';
+import cachedArtistsJson from '@/lib/cached_artists.json';
 
 // Seed lists for initial artist discovery
 const TOP_ARTISTS_BY_LANGUAGE: Record<string, string[]> = {
@@ -19,12 +18,17 @@ const TOP_ARTISTS_BY_LANGUAGE: Record<string, string[]> = {
     'Santhosh Narayanan', 'Harris Jayaraj', 'G.V. Prakash Kumar', 'Ilayaraja'
   ],
   Hindi: [
-    'Arijit Singh', 'A.R. Rahman', 'Pritam', 'Vishal-Shekhar',
-    'Mithoon', 'Sachin-Jigar', 'Shreya Ghoshal', 'Amit Trivedi'
+    'Arijit Singh', 'Pritam', 'A.R. Rahman', 'Vishal-Shekhar',
+    'Sachin-Jigar', 'Atif Aslam', 'Shreya Ghoshal', 'Badshah',
+    'Neha Kakkar', 'Diljit Dosanjh', 'Amit Trivedi', 'Anuv Jain'
   ],
   Malayalam: [
-    'Gopi Sundar', 'Shaan Rahman', 'Hesham Abdul Wahab', 'Sushin Shyam',
-    'Deepak Dev', 'Rex Vijayan', 'M. Jayachandran', 'Vidyasagar'
+    'Sushin Shyam', 'Hesham Abdul Wahab', 'Jakes Bejoy', 'Gopi Sunder',
+    'Shaan Rahman', 'Job Kurian', 'Deepak Dev'
+  ],
+  Punjabi: [
+    'Diljit Dosanjh', 'Karan Aujla', 'AP Dhillon', 'Sidhu Moose Wala',
+    'Guru Randhawa', 'B Praak', 'Jassi Gill', 'Harrdy Sandhu'
   ],
   English: [
     'The Weeknd', 'Taylor Swift', 'Ed Sheeran', 'Dua Lipa',
@@ -39,37 +43,26 @@ const artistDetailCache = new Map<string, any>();
 export class ArtistDiscoveryEngine {
   private static instance: ArtistDiscoveryEngine;
   private provider: JioSaavnProvider;
-  private cacheFilePath: string;
 
   private constructor() {
     this.provider = JioSaavnProvider.getInstance();
-    this.cacheFilePath = path.join(process.cwd(), 'src', 'lib', 'cached_artists.json');
     this.loadCacheFromFile();
   }
 
   private loadCacheFromFile() {
     try {
-      if (fs.existsSync(this.cacheFilePath)) {
-        const data = fs.readFileSync(this.cacheFilePath, 'utf-8');
-        const parsed = JSON.parse(data);
-        if (parsed && typeof parsed === 'object') {
-          for (const [key, value] of Object.entries(parsed)) {
-            artistCache.set(key, value as any[]);
-          }
+      if (cachedArtistsJson && typeof cachedArtistsJson === 'object') {
+        for (const [key, value] of Object.entries(cachedArtistsJson)) {
+          artistCache.set(key, value as any[]);
         }
       }
     } catch (e) {
-      console.error('Error loading artist cache from file:', e);
+      console.error('Error loading artist cache:', e);
     }
   }
 
   private saveCacheToFile() {
-    try {
-      const obj = Object.fromEntries(artistCache);
-      fs.writeFileSync(this.cacheFilePath, JSON.stringify(obj, null, 2), 'utf-8');
-    } catch (e) {
-      console.error('Error saving artist cache to file:', e);
-    }
+    // In-memory cache handles runtime updates; avoid filesystem I/O on edge
   }
 
   public static getInstance(): ArtistDiscoveryEngine {

@@ -12,19 +12,10 @@ function getGreeting(): string {
 }
 
 import { getPlaylistId } from '@/lib/homePlaylists';
-import fs from 'fs';
-import path from 'path';
+import dynamicHomePlaylists from '@/lib/dynamic_home_playlists.json';
 
-function getDynamicPlaylists() {
-  try {
-    const cachePath = path.join(process.cwd(), 'src/lib/dynamic_home_playlists.json');
-    if (fs.existsSync(cachePath)) {
-      return JSON.parse(fs.readFileSync(cachePath, 'utf8'));
-    }
-  } catch (e) {
-    console.error('Failed to read dynamic playlists cache');
-  }
-  return null;
+function getDynamicPlaylists(): Record<string, any> | null {
+  return (dynamicHomePlaylists as Record<string, any>) || null;
 }
 
 function normalizeLanguage(lang: string | null | undefined): string {
