@@ -1,5 +1,6 @@
 import { DeviceCapabilities, DiscoveredJam, JamSession } from '@/types/jam';
 import { getApiUrl } from '@/lib/config/apiConfig';
+import { supabase } from '@/lib/supabase';
 
 type DiscoveryListener = (jams: DiscoveredJam[]) => void;
 
@@ -32,22 +33,87 @@ export class JamDiscoveryEngine {
   private scanIntervalTimer: any = null;
   private beaconBroadcastTimer: any = null;
   private broadcastChannel: BroadcastChannel | null = null;
+  private presenceChannel: any = null;
   private activeBroadcastingSession: JamSession | null = null;
 
   private currentTransport: 'lan' | 'cloud' = 'cloud';
   private lanEndpointUrl: string | null = null;
 
   private constructor() {
-    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-      try {
-        this.broadcastChannel = new BroadcastChannel('raaga_jam_nearby_beacon');
-        this.broadcastChannel.onmessage = (event) => {
-          this.handleBeaconMessage(event.data);
-        };
-      } catch (e) {
-        console.warn('[JamDiscoveryEngine] BroadcastChannel unavailable:', e);
+    if (typeof window !== 'undefined') {
+      if ('BroadcastChannel' in window) {
+        try {
+          this.broadcastChannel = new BroadcastChannel('raaga_jam_nearby_beacon');
+          this.broadcastChannel.onmessage = (event) => {
+            this.handleBeaconMessage(event.data);
+          };
+        } catch (e) {
+          console.warn('[JamDiscoveryEngine] BroadcastChannel unavailable:', e);
+        }
+      }
+      this.setupPresenceChannel();
+    }
+  }
+
+  private setupPresenceChannel() {
+    try {
+      this.presenceChannel = supabase.channel('raaga_jam_mesh', {
+        config: { presence: { key: `peer_${Date.now().toString(36)}` } },
+      });
+
+      this.presenceChannel
+        .on('presence', { event: 'sync' }, () => {
+          this.handlePresenceSync();
+        })
+        .subscribe();
+    } catch {}
+  }
+
+  private handlePresenceSync() {
+    if (!this.presenceChannel) return;
+    try {
+      const state = this.presenceChannel.presenceState();
+      const now = Date.now();
+      for (const key of Object.keys(state)) {
+        const presences = state[key];
+        if (Array.isArray(presences)) {
+          for (const p of presences) {
+            if (p.jamId && p.joinCode) {
+              if (this.activeBroadcastingSession?.jamId === p.jamId) continue;
+              this.discoveredJams.set(p.jamId, {
+                jamId: p.jamId,
+                joinCode: p.joinCode,
+                name: p.name || `${p.hostName}'s Jam`,
+                hostName: p.hostName || 'Host',
+                currentSongTitle: p.currentSongTitle,
+                currentSongArtist: p.currentSongArtist,
+                currentSongCover: p.currentSongCover,
+                participantCount: p.participantCount || 1,
+                discoveryMethod: 'wifi',
+                signalStrength: 95,
+                deviceId: p.deviceId || 'host',
+                deviceName: p.deviceName || 'RaagaX Host',
+                platform: p.platform || 'web',
+                protocolVersion: '2.0.0',
+                discoveredAt: now,
+              });
+            }
+          }
+        }
+      }
+      this.notify();
+    } catch {}
+  }
+
+  public findByJoinCode(code: string): DiscoveredJam | null {
+    if (!code) return null;
+    const clean = code.trim().toUpperCase();
+    for (const jam of this.discoveredJams.values()) {
+      if (jam.joinCode && jam.joinCode.toUpperCase() === clean) {
+        return jam;
       }
     }
+    return null;
   }
 
   public static getInstance(): JamDiscoveryEngine {
@@ -125,6 +191,22 @@ export class JamDiscoveryEngine {
     this.activeBroadcastingSession = session;
     this.sendBeacon();
 
+    if (this.presenceChannel && (this.presenceChannel as any).state === 'joined') {
+      try {
+        this.presenceChannel.track({
+          jamId: session.jamId,
+          joinCode: session.joinCode,
+          name: session.name,
+          hostName: session.hostName,
+          currentSongTitle: session.currentSong?.title,
+          currentSongArtist: session.currentSong?.artist,
+          currentSongCover: session.currentSong?.coverUrl,
+          participantCount: Object.keys(session.participants || {}).length,
+          deviceId: session.hostId,
+        });
+      } catch {}
+    }
+
     if (this.beaconBroadcastTimer) {
       clearInterval(this.beaconBroadcastTimer);
     }
@@ -133,11 +215,11 @@ export class JamDiscoveryEngine {
     }, 2500);
   }
 
-  /**
-   * Host stops advertising presence
-   */
   public stopBroadcasting() {
     this.activeBroadcastingSession = null;
+    if (this.presenceChannel) {
+      try { this.presenceChannel.untrack(); } catch {}
+    }
     if (this.beaconBroadcastTimer) {
       clearInterval(this.beaconBroadcastTimer);
       this.beaconBroadcastTimer = null;

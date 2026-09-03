@@ -231,25 +231,34 @@ export class JamClientManager {
     const cleanCode = (code || '').trim().toUpperCase();
     if (!cleanCode) throw new Error('Please enter a valid Join Code');
 
-    const res = await fetch(getApiUrl(`/api/jam/code/${cleanCode}`));
-    const text = await res.text();
-    if (!res.ok) {
-      console.error(`[JamClientManager] joinByCode error (${res.status}):`, text);
-      throw new Error(`Jam server returned HTTP ${res.status}`);
+    // 1. Check local & Supabase Presence discovered Jams first (Zero latency, no HTTP 404!)
+    const discovered = JamDiscoveryEngine.getInstance().findByJoinCode(cleanCode);
+    if (discovered && discovered.jamId) {
+      console.log(`[JamClientManager] Resolved join code "${cleanCode}" via presence mesh -> ${discovered.jamId}`);
+      return this.joinJam(discovered.jamId);
     }
 
-    let data: any = {};
+    // 2. Query HTTP API as fallback
+    let res: Response | null = null;
     try {
-      data = JSON.parse(text);
-    } catch {
-      throw new Error('Could not reach Jam server. Please check your network connection.');
+      res = await fetch(getApiUrl(`/api/jam/code/${cleanCode}`));
+    } catch {}
+
+    if (res && res.ok) {
+      try {
+        const data = await res.json();
+        if (data?.success && data?.jamId) {
+          return this.joinJam(data.jamId);
+        }
+      } catch {}
     }
 
-    if (!data.success || !data.jamId) {
-      throw new Error(data.error || 'Invalid or expired Join Code');
+    // 3. Fallback: If code is directly a Jam ID (e.g. JAM_749201)
+    if (cleanCode.startsWith('JAM_')) {
+      return this.joinJam(cleanCode);
     }
 
-    return this.joinJam(data.jamId);
+    throw new Error('No active Jam session found for this code. Please verify the code or ask the host to invite you.');
   }
 
   /**
@@ -262,38 +271,38 @@ export class JamClientManager {
     try {
       this.setParticipantState('AUTHORIZED');
 
-      const res = await fetch(getApiUrl(`/api/jam/${jamId}/join`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: this.currentUserId || `user_${Date.now().toString(36)}`,
-          displayName: this.currentUserName || 'RaagaX Listener',
-          avatarUrl: this.currentUserAvatar,
-          deviceType: this.detectDeviceType(),
-        }),
-      });
-
-      const text = await res.text();
-      if (!res.ok) {
-        this.setParticipantState('FAILED');
-        console.error(`[JamClientManager] joinJam error (${res.status}):`, text);
-        throw new Error(`Jam server returned HTTP ${res.status}`);
-      }
-
-      let data: any = {};
+      let session: JamSession | null = null;
       try {
-        data = JSON.parse(text);
-      } catch {
-        this.setParticipantState('FAILED');
-        throw new Error('Could not parse server response');
+        const res = await fetch(getApiUrl(`/api/jam/${jamId}/join`), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: this.currentUserId || `user_${Date.now().toString(36)}`,
+            displayName: this.currentUserName || 'RaagaX Listener',
+            avatarUrl: this.currentUserAvatar,
+            deviceType: this.detectDeviceType(),
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.session) {
+            session = data.session;
+          }
+        }
+      } catch {}
+
+      // P2P / Supabase Realtime Handshake Fallback (if serverless HTTP returns 404)
+      if (!session) {
+        console.log(`[JamClientManager] HTTP join returned 404 or failed for ${jamId}. Attempting P2P Cloud join...`);
+        session = await this.performP2PJoin(jamId);
       }
 
-      if (!data.session) {
+      if (!session) {
         this.setParticipantState('FAILED');
-        throw new Error(data.error || 'Failed to join Jam');
+        throw new Error('Could not connect to Jam party. Please ask the host to confirm the Jam is active.');
       }
 
-      const session: JamSession = data.session;
       this.setParticipantState('SNAPSHOT_RECEIVED');
 
       this.activeSession = session;
@@ -346,10 +355,58 @@ export class JamClientManager {
       this.startReconciliationLoop(jamId);
 
       return session;
-    } catch (err) {
+    } catch (err: any) {
       this.setParticipantState('FAILED');
+      console.error('[JamClientManager] Error in joinJam:', err);
       throw err;
     }
+  }
+
+  /**
+   * P2P / Supabase Realtime Fallback for Joining Jam
+   * Allows joining active Jam sessions directly via Supabase Realtime even if serverless edge isolates dropped local memory
+   */
+  private async performP2PJoin(jamId: string): Promise<JamSession | null> {
+    return new Promise<JamSession | null>((resolve) => {
+      const channel = supabase.channel(`jam:${jamId}`);
+      let resolved = false;
+
+      const timer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          resolve(null);
+        }
+      }, 5000);
+
+      channel
+        .on('broadcast', { event: 'JAM_PEER_JOIN_ACCEPTED' }, (msg: any) => {
+          if (resolved) return;
+          const payload = msg?.payload;
+          const currentUserId = this.currentUserId || 'user_guest';
+          if (payload && (payload.targetUserId === currentUserId || !payload.targetUserId) && payload.session) {
+            resolved = true;
+            clearTimeout(timer);
+            console.log(`[JamClientManager] P2P Direct Join accepted by Host! Revision: ${payload.session.revision}`);
+            resolve(payload.session);
+          }
+        })
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            channel.send({
+              type: 'broadcast',
+              event: 'JAM_PEER_JOIN_REQUEST',
+              payload: {
+                user: {
+                  userId: this.currentUserId || `user_${Date.now().toString(36)}`,
+                  displayName: this.currentUserName || 'RaagaX Listener',
+                  avatarUrl: this.currentUserAvatar,
+                  deviceType: this.detectDeviceType(),
+                },
+              },
+            }).catch(() => {});
+          }
+        });
+    });
   }
 
   /**
@@ -529,6 +586,40 @@ export class JamClientManager {
             }
             this.handleIncomingEvent(event);
           }
+        })
+        .on('broadcast', { event: 'JAM_PEER_JOIN_REQUEST' }, (msg: any) => {
+          if (!this.activeSession || this.activeSession.hostId !== this.currentUserId) return;
+          const user = msg?.payload?.user;
+          if (!user || !user.userId) return;
+
+          console.log(`[JamClientManager] Host received P2P join request from: ${user.displayName || user.userId}`);
+          const s = this.activeSession;
+          s.participants[user.userId] = {
+            participantId: `P_${user.userId}_${Date.now().toString(36)}`,
+            userId: user.userId,
+            displayName: user.displayName || 'RaagaX Listener',
+            avatarUrl: user.avatarUrl,
+            role: 'GUEST',
+            isHost: false,
+            status: 'READY',
+            joinedAt: Date.now(),
+            lastSeenAt: Date.now(),
+            clockOffsetMs: 0,
+            rttMs: 30,
+            playbackDriftMs: 0,
+            deviceType: user.deviceType || 'web',
+            isReadyForPlayback: true,
+          };
+          s.revision += 1;
+
+          channel.send({
+            type: 'broadcast',
+            event: 'JAM_PEER_JOIN_ACCEPTED',
+            payload: {
+              targetUserId: user.userId,
+              session: s,
+            },
+          }).catch(() => {});
         })
         .subscribe();
 
