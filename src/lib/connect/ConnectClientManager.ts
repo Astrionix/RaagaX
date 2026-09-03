@@ -35,6 +35,54 @@ export class ConnectClientManager {
   private pendingTrackId: string | null = null;
   private pendingTrackLockUntil: number = 0;
 
+  /**
+   * Clock-Agnostic Timeline Anchor (Clock-Drift Proof)
+   * ─────────────────────────────────────────────────
+   * When a session packet arrives we record the local monotonic clock
+   * (performance.now()) as the arrival anchor. We do NOT rely on wall-clock
+   * Date.now() subtraction because wall clocks across devices can differ by
+   * hundreds of milliseconds (DST, NTP drift, OS sleep). performance.now()
+   * is monotonic and never jumps backwards, even when the device wakes from
+   * suspend.
+   *
+   * interpolatedPosition = positionAnchorAtArrivalMs
+   *                      + (performance.now() - arrivalMonotonicMs)
+   *
+   * FIX 1 — Mobile Suspend Clamp:
+   * If the OS suspends the browser tab (iOS Safari, Android Chrome background)
+   * performance.now() itself pauses or throttles. When the tab wakes, the first
+   * rAF frame fires BEFORE the wakeup snapshot from requestCurrentPlaybackState()
+   * arrives. Without a cap, `elapsed` could be minutes long and the scrubber
+   * would appear to jump to the end of the track.
+   *
+   * We cap elapsed at MAX_STALE_EXTRAPOLATION_MS (10s). If the delta exceeds
+   * this, we freeze the position at positionAnchorAtArrivalMs until the fresh
+   * snapshot re-anchors. The visibilitychange handler in useRemoteSessionHydration
+   * will fire requestCurrentPlaybackState() immediately, so the freeze window is
+   * typically < 200ms on a fast network.
+   */
+  private static readonly MAX_STALE_EXTRAPOLATION_MS = 10_000;
+  private arrivalMonotonicMs: number = typeof performance !== 'undefined' ? performance.now() : 0;
+  private positionAnchorAtArrivalMs: number = 0;
+
+  /**
+   * FIX 3 — Handoff Token: Cross-Speaker Packet Reordering Guard
+   * ─────────────────────────────────────────────────
+   * When HANDOFF_COMMIT runs, the new speaker's session gets a new generation
+   * and timelineId. But a late-arriving stale packet from the OLD speaker (with
+   * its old timelineId) could still be routed here via BroadcastChannel, Supabase,
+   * or the HTTP fallback poll — because HANDOFF_PREPARE/COMMIT bypass stale checks
+   * on the server side.
+   *
+   * We store the timelineId of the committed session. Any incoming session whose
+   * timelineId differs from the committed token AND whose playbackDeviceId does not
+   * match our current activeTargetDevice is rejected during a HANDOFF_GRACE_PERIOD_MS
+   * window after the commit. This closes the race without adding an extra RTT.
+   */
+  private static readonly HANDOFF_GRACE_PERIOD_MS = 5_000;
+  private committedHandoffTimelineId: string | null = null;
+  private handoffCommittedAt: number = 0;
+
   private constructor() {
     if (typeof window !== 'undefined') {
       this.setupBroadcastChannel();
@@ -116,7 +164,20 @@ export class ConnectClientManager {
   }
 
   /**
-   * Smoothly calculates current displayed position from authoritative timeline anchor
+   * Clock-Drift Proof: Smoothly calculates current displayed position using
+   * a monotonic performance.now() arrival anchor instead of wall-clock Date.now().
+   *
+   * This is invariant to:
+   * - NTP jumps / clock adjustments on the controller device
+   * - DST transitions
+   * - OS sleep / wake cycles (performance.now() is monotonic)
+   * - Cross-device wall clock skew (no Date.now() subtraction across devices)
+   *
+   * Mobile Suspend Safety:
+   * Elapsed time is capped at MAX_STALE_EXTRAPOLATION_MS (10s). If the browser
+   * was suspended longer, we return the last-known anchor position and wait for
+   * the wakeup snapshot (fired by visibilitychange in useRemoteSessionHydration)
+   * to re-anchor. This prevents the scrubber from jumping to track end on resume.
    */
   public getInterpolatedPosition(): number {
     if (!this.remoteSession) return 0;
@@ -124,8 +185,14 @@ export class ConnectClientManager {
       return this.remoteSession.positionMs / 1000;
     }
 
-    const elapsedMs = Math.max(0, Date.now() - this.remoteSession.anchorTimeMs);
-    const totalPosMs = this.remoteSession.anchorPositionMs + elapsedMs;
+    const nowMonotonic = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const rawElapsedMs = Math.max(0, nowMonotonic - this.arrivalMonotonicMs);
+
+    // FIX 1: Clamp elapsed time to prevent giant scrubber jumps after mobile suspend.
+    // If elapsed > MAX_STALE_EXTRAPOLATION_MS, freeze at anchor until fresh snapshot arrives.
+    const elapsedMs = Math.min(rawElapsedMs, ConnectClientManager.MAX_STALE_EXTRAPOLATION_MS);
+
+    const totalPosMs = this.positionAnchorAtArrivalMs + elapsedMs;
     const clampedMs = this.remoteSession.durationMs > 0
       ? Math.min(this.remoteSession.durationMs, totalPosMs)
       : totalPosMs;
@@ -154,9 +221,14 @@ export class ConnectClientManager {
 
     if (!targetDevice || !targetDevice.deviceId) return false;
 
-    // Loading lock & double-click debounce (1.5s in browser)
-    if (typeof window !== 'undefined' && this.isTransferring) {
-      console.log('[CONNECT_HANDOFF] Handover already in progress. Debouncing duplicate transfer click.');
+    // FIX: Target-aware debounce (Test 3 — Rapid Handoff Swap).
+    // A repeated transfer to the SAME device within 1.5s is suppressed (prevents
+    // double-click spam from a fast UI). But a transfer to a DIFFERENT device
+    // (A→B then immediately B→A) must always proceed — blocking it would leave
+    // audio on B with no way to reclaim it without a full page reload.
+    const isSameTarget = this.activeTargetDevice?.deviceId === targetDevice.deviceId;
+    if (typeof window !== 'undefined' && this.isTransferring && isSameTarget) {
+      console.log('[CONNECT_HANDOFF] Debouncing duplicate transfer to same device:', targetDevice.deviceId);
       return false;
     }
     if (typeof window !== 'undefined') {
@@ -166,6 +238,11 @@ export class ConnectClientManager {
         this.isTransferring = false;
       }, 1500);
     }
+
+    // Clear the previous handoff token — a new transfer starts a fresh token sequence.
+    // Without this, the grace window from a prior A→B commit would block valid B→A packets.
+    this.committedHandoffTimelineId = null;
+    this.handoffCommittedAt = 0;
 
     const localDevice = ConnectDiscoveryEngine.getInstance().getLocalDevice();
     if (!localDevice || targetDevice.deviceId === localDevice.deviceId || targetDevice.isCurrentDevice || targetDevice.deviceId === 'dev_local') {
@@ -599,6 +676,20 @@ export class ConnectClientManager {
     const localDevice = ConnectDiscoveryEngine.getInstance().getLocalDevice();
     const isLocalPlaybackDevice = session.playbackDeviceId === localDevice.deviceId || session.playbackDeviceId === 'dev_local';
 
+    // ── Arrival-Anchored Monotonic Timeline Anchor ──────────────────────────
+    // FIX 1 (companion): Always update arrival anchor on EVERY incoming packet,
+    // not only when isPlaying. A paused packet still pins the monotonic clock:
+    //  - If the session later resumes, the anchor is recent (< packet RTT stale)
+    //    rather than from minutes ago when the controller first connected.
+    //  - If the OS suspended the tab and then a paused packet arrives on wakeup,
+    //    the anchor resets before the next rAF frame, so the scrubber clamp in
+    //    getInterpolatedPosition() has the correct reference point.
+    const nowMonotonic = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    this.arrivalMonotonicMs = nowMonotonic;
+    this.positionAnchorAtArrivalMs = session.isPlaying
+      ? (session.anchorPositionMs ?? session.positionMs ?? 0)
+      : (session.positionMs ?? 0);
+
     if (isLocalPlaybackDevice) {
       if (this.isRemoteMode()) {
         this.activeTargetDevice = null;
@@ -619,6 +710,34 @@ export class ConnectClientManager {
     );
 
     if (!isTarget && !this.isRemoteMode()) return;
+
+    // ── FIX 3: Handoff Token — Cross-Speaker Packet Reordering Guard ─────────────
+    // Detect HANDOFF_COMMIT by a generation bump AND a new timelineId.
+    // Once committed, store the new token and reject any session from a different
+    // timeline that arrives within HANDOFF_GRACE_PERIOD_MS.
+    if (
+      this.remoteSession &&
+      typeof session.generation === 'number' &&
+      session.generation > this.remoteSession.generation &&
+      session.timelineId && session.timelineId !== this.remoteSession.timelineId
+    ) {
+      // This is a HANDOFF_COMMIT generation bump — commit the token.
+      this.committedHandoffTimelineId = session.timelineId;
+      this.handoffCommittedAt = Date.now();
+      console.log(`[CONNECT_HANDOFF_COMMITTED] timelineId=${session.timelineId} generation=${session.generation}`);
+    }
+
+    // During the grace window, reject any packet that doesn't belong to the
+    // committed timeline AND comes from a different device (old speaker cross-talk).
+    if (
+      this.committedHandoffTimelineId &&
+      Date.now() - this.handoffCommittedAt < ConnectClientManager.HANDOFF_GRACE_PERIOD_MS &&
+      session.timelineId !== this.committedHandoffTimelineId &&
+      session.playbackDeviceId !== this.activeTargetDevice?.deviceId
+    ) {
+      console.log(`[CONNECT_HANDOFF_STALE_REJECTED] Dropping old-speaker packet timelineId=${session.timelineId} (committed=${this.committedHandoffTimelineId})`);
+      return;
+    }
 
     // Optimistic Track Debounce Lock:
     // If the controller recently triggered a new track, ignore incoming updates still reflecting the old track

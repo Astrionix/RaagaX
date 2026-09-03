@@ -21,6 +21,7 @@ export function useMediaSessionSync() {
   const activePlaybackDevice = useConnectStore((s) => s.activePlaybackDevice);
   const remoteSession = useConnectStore((s) => s.remoteSession);
 
+  // Sync metadata and media key handlers on session / mode change
   useEffect(() => {
     if (typeof window === 'undefined' || !('mediaSession' in navigator)) return;
 
@@ -40,22 +41,43 @@ export function useMediaSessionSync() {
       // 3. Update Play/Pause Notification State
       MediaSessionManager.getInstance().setPlaybackState(isPlaying ? 'playing' : 'paused');
 
-      // 4. Update Position State in Notification Scrub Bar
-      const durationSec = (remoteSession.durationMs || (track.duration ? track.duration * 1000 : 0)) / 1000;
-      const posSec = (remoteSession.positionMs || 0) / 1000;
-      if (durationSec > 0) {
-        MediaSessionManager.getInstance().setPositionState({
-          duration: durationSec,
-          playbackRate: isPlaying ? 1.0 : 0.0,
-          position: Math.min(posSec, durationSec),
-        });
-      }
-
-      // 5. Intercept OS / Hardware Action Buttons and forward to Speaker
+      // 4. Intercept OS / Hardware Action Buttons and forward to Speaker
       MediaSessionManager.getInstance().setupRemoteMediaHandlers();
     } else if (!isRemoteMode) {
       // Deactivate silent anchor when not in remote mode
       silentMediaAnchor.deactivate();
     }
   }, [isRemoteMode, remoteSession, activePlaybackDevice]);
+
+  // 5. Drive lock screen scrubber with live monotonic-interpolated position.
+  //    setPositionState is called once per second — OS notification scrubbers
+  //    redraw at ~1 FPS and setPositionState has a built-in 250ms throttle,
+  //    so calling faster has zero UX benefit but meaningful overhead.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('mediaSession' in navigator)) return;
+    if (!isRemoteMode || !remoteSession) return;
+
+    const durationSec = (remoteSession.durationMs || 0) / 1000;
+    if (durationSec <= 0) return;
+
+    const tick = () => {
+      if (!remoteSession.isPlaying) return; // Nothing to advance when paused
+
+      try {
+        // Use arrival-anchored monotonic interpolation — same source as the in-app scrubber
+        const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
+        const livePosSec = ConnectClientManager.getInstance().getInterpolatedPosition();
+        const clampedPos = Math.min(livePosSec, durationSec);
+        MediaSessionManager.getInstance().setPositionState({
+          duration: durationSec,
+          playbackRate: 1.0,
+          position: clampedPos,
+        });
+      } catch { }
+    };
+
+    tick(); // Immediate first update
+    const intervalId = setInterval(tick, 1000);
+    return () => clearInterval(intervalId);
+  }, [isRemoteMode, remoteSession?.isPlaying, remoteSession?.durationMs, remoteSession?.revision]);
 }

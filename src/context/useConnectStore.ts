@@ -157,9 +157,9 @@ export const useConnectStore = create<ConnectStoreState>((set, get) => {
     },
 
     getInterpolatedPosition: () => {
-      const { clockOffsetMs } = get();
-      const basePos = ConnectClientManager.getInstance().getInterpolatedPosition();
-      return Math.max(0, basePos + clockOffsetMs / 1000);
+      // Delegate to ConnectClientManager's monotonic performance.now() interpolation.
+      // This is clock-drift-proof: it never subtracts Date.now() values across devices.
+      return ConnectClientManager.getInstance().getInterpolatedPosition();
     },
 
     toggleConnectModal: (open) => {

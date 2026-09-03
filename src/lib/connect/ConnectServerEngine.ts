@@ -222,6 +222,9 @@ export class ConnectServerEngine {
       command.action === 'ADD_TO_QUEUE' ||
       command.action === 'SET_QUEUE' ||
       command.action === 'REMOVE_FROM_QUEUE' ||
+      command.action === 'HANDOFF_PREPARE' ||
+      command.action === 'HANDOFF_COMMIT' ||
+      command.action === 'HEARTBEAT' ||
       command.action === 'SPEAKER_DETACH_CONTROLLER' ||
       command.action === 'CONTROLLER_DETACH_SELF' ||
       command.action === 'DISCONNECT_CONTROLLER';
@@ -733,6 +736,133 @@ export class ConnectServerEngine {
         }
 
         this.notifyListeners();
+        this.broadcastSessionUpdate();
+        break;
+      }
+
+      case 'SET_QUEUE': {
+        // Controller atomically replaces queue and optionally jumps to a new index.
+        // If positionMs is provided, the current track also seeks.
+        if (Array.isArray(command.payload?.queue) && command.payload.queue.length > 0) {
+          const newQueue: Song[] = command.payload.queue;
+          const newIdx = typeof command.payload.queueIndex === 'number'
+            ? Math.max(0, Math.min(command.payload.queueIndex, newQueue.length - 1))
+            : this.currentSession.queueIndex;
+          const targetSong = newQueue[newIdx];
+
+          this.currentSession.queue = newQueue;
+          this.currentSession.queueIndex = newIdx;
+          this.currentSession.revision += 1;
+          this.currentSession.updatedAt = now;
+
+          if (targetSong && targetSong.id !== this.currentSession.currentTrackId) {
+            // Track changed as part of SET_QUEUE — start playing the new track
+            PlaybackService.getInstance().hardResetAudioPipeline();
+            this.currentSession.currentTrackId = targetSong.id;
+            this.currentSession.currentQueueItemId = `qitem_${targetSong.id}_${now}`;
+            this.currentSession.currentSong = targetSong;
+            this.currentSession.metadata = this.extractMetadata(targetSong);
+            this.currentSession.positionMs = 0;
+            this.currentSession.anchorPositionMs = 0;
+            this.currentSession.anchorTimeMs = now;
+            this.currentSession.durationMs = Math.round((targetSong.duration || 0) * 1000);
+            this.currentSession.isPlaying = true;
+            this.currentSession.playbackState = 'BUFFERING';
+            this.currentSession.generation += 1;
+            this.currentSession.timelineId = `TL_${now.toString(36)}`;
+
+            usePlayerStore.setState({
+              queue: newQueue,
+              queueIndex: newIdx,
+              currentSong: targetSong,
+              currentTime: 0,
+              duration: targetSong.duration || 0,
+              isPlaying: true,
+              playbackIntent: 'PLAYING',
+            });
+            this.broadcastSessionUpdate();
+
+            const pb = PlaybackService.getInstance();
+            const reqId2 = Date.now();
+            pb.setPlaybackRequestId(reqId2);
+            await pb.loadAudioSource(targetSong, reqId2, true, 0);
+            this.currentSession.playbackState = 'PLAYING';
+            this.broadcastSessionUpdate();
+            try { pb.triggerNextPreload(); } catch { }
+          } else {
+            // Same track, just update queue metadata
+            usePlayerStore.setState({ queue: newQueue, queueIndex: newIdx });
+            this.broadcastSessionUpdate();
+          }
+        }
+        break;
+      }
+
+      case 'HANDOFF_PREPARE': {
+        // Zero-Latency Handoff — Phase 1: Pre-buffer the incoming track WITHOUT starting playback.
+        // The controller pre-warms the speaker's audio buffer so that HANDOFF_COMMIT
+        // can start playback with zero buffer startup delay.
+        const hpSong: Song | undefined = command.payload?.song;
+        const hpPositionSec = (command.payload?.positionMs ?? 0) / 1000;
+
+        if (hpSong) {
+          console.log(`[CONNECT_HANDOFF_PREPARE] Pre-buffering trackId=${hpSong.id} at ${hpPositionSec}s`);
+          try {
+            await PlaybackService.getInstance().prepareTrack(hpSong, hpPositionSec);
+          } catch { }
+          // ACK the prepare — do not change revision (no visible state change to controllers)
+          this.broadcastSessionUpdate();
+        }
+        break;
+      }
+
+      case 'HANDOFF_COMMIT': {
+        // Zero-Latency Handoff — Phase 2: Atomically commit position and start audio.
+        // Called immediately after HANDOFF_PREPARE completes on the target speaker.
+        const hcSong: Song | undefined = command.payload?.song;
+        const hcPositionMs = command.payload?.positionMs ?? 0;
+        const hcShouldPlay = command.payload?.isPlaying !== false;
+
+        if (hcSong) {
+          console.log(`[CONNECT_HANDOFF_COMMIT] Committing trackId=${hcSong.id} positionMs=${hcPositionMs} isPlaying=${hcShouldPlay}`);
+
+          this.currentSession.currentTrackId = hcSong.id;
+          this.currentSession.currentQueueItemId = `qitem_${hcSong.id}_${now}`;
+          this.currentSession.currentSong = hcSong;
+          this.currentSession.metadata = this.extractMetadata(hcSong);
+          this.currentSession.positionMs = hcPositionMs;
+          this.currentSession.anchorPositionMs = hcPositionMs;
+          this.currentSession.anchorTimeMs = now;
+          this.currentSession.durationMs = Math.round((hcSong.duration || 0) * 1000);
+          this.currentSession.isPlaying = hcShouldPlay;
+          this.currentSession.playbackState = hcShouldPlay ? 'PLAYING' : 'PAUSED';
+          this.currentSession.generation += 1;
+          this.currentSession.revision += 1;
+          this.currentSession.timelineId = command.payload?.timelineId || `TL_${now.toString(36)}`;
+          this.currentSession.updatedAt = now;
+
+          usePlayerStore.setState({
+            currentSong: hcSong,
+            currentTime: hcPositionMs / 1000,
+            isPlaying: hcShouldPlay,
+            playbackIntent: hcShouldPlay ? 'PLAYING' : 'PAUSED',
+          });
+
+          const hcAudio = PlaybackService.getInstance().getActiveAudio();
+          if (hcShouldPlay && hcAudio) {
+            hcAudio.currentTime = hcPositionMs / 1000;
+            hcAudio.play().catch(() => { });
+          } else if (!hcShouldPlay && hcAudio) {
+            hcAudio.pause();
+          }
+          this.broadcastSessionUpdate();
+        }
+        break;
+      }
+
+      case 'HEARTBEAT': {
+        // Liveness ping from controller — no state change, just ACK via broadcast.
+        // Keeps the controller's connection alive on long-running sessions.
         this.broadcastSessionUpdate();
         break;
       }

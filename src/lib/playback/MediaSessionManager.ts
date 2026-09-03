@@ -82,10 +82,15 @@ export class MediaSessionManager {
   }
 
   /**
-   * Bind OS lockscreen and notification media keys to Remote Controller RPCs
+   * Bind OS lockscreen and notification media keys to Remote Controller RPCs.
+   *
+   * FIX 2: seekforward / seekbackward are the actual events fired by iOS lock screen,
+   * many Android OEM notification widgets, and Bluetooth earbuds (single/double press).
+   * Without handlers here they fall through to the dormant local <audio> element.
+   * We forward them as SEEK RPCs (+/- 10s by default, matching Chrome's default seekOffset).
    */
   public setupRemoteMediaHandlers(): void {
-    if (this.isRemoteBindingActive) return;
+    // Reset guard: allow re-bind after restoreLocalMediaHandlers() clears it
     this.isRemoteBindingActive = true;
 
     this.setActionHandlers({
@@ -112,6 +117,25 @@ export class MediaSessionManager {
       onSeek: (time: number) => {
         import('@/lib/connect/ConnectClientManager').then(({ ConnectClientManager }) => {
           ConnectClientManager.getInstance().sendCommand('SEEK', { positionMs: Math.round(time * 1000) });
+        });
+      },
+      // seekforward / seekbackward: fired by iOS lock screen, earbud hardware buttons, Android OEM widgets
+      onSeekForward: (offsetSec: number = 10) => {
+        import('@/lib/connect/ConnectClientManager').then(({ ConnectClientManager }) => {
+          const client = ConnectClientManager.getInstance();
+          const currentPosSec = client.getInterpolatedPosition();
+          const session = client.getRemoteSession();
+          const durationSec = session ? session.durationMs / 1000 : Infinity;
+          const targetMs = Math.round(Math.min(currentPosSec + offsetSec, durationSec) * 1000);
+          client.sendCommand('SEEK', { positionMs: targetMs });
+        });
+      },
+      onSeekBackward: (offsetSec: number = 10) => {
+        import('@/lib/connect/ConnectClientManager').then(({ ConnectClientManager }) => {
+          const client = ConnectClientManager.getInstance();
+          const currentPosSec = client.getInterpolatedPosition();
+          const targetMs = Math.round(Math.max(0, currentPosSec - offsetSec) * 1000);
+          client.sendCommand('SEEK', { positionMs: targetMs });
         });
       },
     });

@@ -28,7 +28,9 @@ export class SilentMediaAnchor {
       // 1-second base64 encoded silent WAV audio file
       this.silentAudio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
       this.silentAudio.loop = true;
-      this.silentAudio.volume = 0.001; // Avoid hardware mute suppression
+      // FIX: Must be >= 0.01 on iOS. Values below 0.001 are rounded to 0 by AVAudioSession
+      // and trigger hardware mute suppression, which silently kills the media session anchor.
+      this.silentAudio.volume = 0.01;
     }
     return this.silentAudio;
   }
@@ -54,6 +56,27 @@ export class SilentMediaAnchor {
         this.silentAudio.load();
       } catch {}
       this.silentAudio = null;
+    }
+  }
+
+  /**
+   * Resume the silent anchor after iOS/Android background tab suspension.
+   *
+   * On iOS Safari and Android Chrome, HTMLAudioElement.loop is paused automatically
+   * when the page enters background. When visibilitychange fires on resume, the
+   * anchor must be explicitly re-played BEFORE setupRemoteMediaHandlers() rebinds,
+   * otherwise the OS drops the notification card and all media key events go dark.
+   *
+   * Safe to call even if already playing — play() on a running element is a no-op.
+   */
+  public resumeAfterSuspend(): void {
+    if (!this.isActive) return;
+    const audio = this.initAudio();
+    if (audio) {
+      audio.play().catch(() => {
+        // Autoplay blocked post-suspend — will re-activate on next user gesture
+        console.warn('[SILENT_MEDIA_ANCHOR] resumeAfterSuspend blocked — waiting for user interaction');
+      });
     }
   }
 

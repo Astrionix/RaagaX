@@ -14,7 +14,6 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { ConnectClientManager } from '@/lib/connect/ConnectClientManager';
 import { ConnectDiscoveryEngine } from '@/lib/connect/ConnectDiscoveryEngine';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
-import { NtpClockEngine } from '@/lib/connect/protocol/NtpClockEngine';
 
 export type DevicePlaybackStatus = 'AUTHORITATIVE_SPEAKER' | 'REMOTE_CONTROLLER' | 'IDLE';
 
@@ -82,7 +81,7 @@ export function useRemoteSessionHydration(): RemoteSessionHydrationState {
     }
   }, [status, remoteSession?.currentTrackId]);
 
-  // 3. 60fps RequestAnimationFrame Interpolation Loop (No server polling)
+  // 3. 60fps RequestAnimationFrame Interpolation Loop (Monotonic — Clock-Drift Proof)
   useEffect(() => {
     if (status !== 'REMOTE_CONTROLLER' || !remoteSession) {
       if (animFrameRef.current) {
@@ -97,17 +96,15 @@ export function useRemoteSessionHydration(): RemoteSessionHydrationState {
     const updateFrame = () => {
       if (!remoteSession.isPlaying) {
         setInterpolatedPositionMs(Math.min(remoteSession.positionMs || 0, durationMs || Infinity));
+        // Do NOT loop when paused — we only need a single accurate paint
         return;
       }
 
-      const serverAlignedNow = NtpClockEngine.getInstance().getServerAlignedTime(Date.now());
-      const anchorTimeMs = remoteSession.anchorTimeMs || remoteSession.updatedAt || Date.now();
-      const anchorPosMs = remoteSession.anchorPositionMs ?? remoteSession.positionMs ?? 0;
-      const elapsedMs = Math.max(0, serverAlignedNow - anchorTimeMs);
-      const computedPosMs = anchorPosMs + elapsedMs;
-
-      const clampedPosMs = durationMs > 0 ? Math.min(computedPosMs, durationMs) : computedPosMs;
-      setInterpolatedPositionMs(clampedPosMs);
+      // Use the arrival-anchored monotonic interpolation from ConnectClientManager.
+      // This is clock-drift-proof and never uses Date.now() subtraction across devices.
+      const livePosSec = ConnectClientManager.getInstance().getInterpolatedPosition();
+      const livePosMs = Math.min(livePosSec * 1000, durationMs > 0 ? durationMs : Infinity);
+      setInterpolatedPositionMs(livePosMs);
 
       animFrameRef.current = requestAnimationFrame(updateFrame);
     };
@@ -120,7 +117,44 @@ export function useRemoteSessionHydration(): RemoteSessionHydrationState {
         animFrameRef.current = null;
       }
     };
-  }, [status, remoteSession?.anchorTimeMs, remoteSession?.anchorPositionMs, remoteSession?.isPlaying, remoteSession?.durationMs]);
+  }, [status, remoteSession?.anchorPositionMs, remoteSession?.anchorTimeMs, remoteSession?.isPlaying, remoteSession?.durationMs, remoteSession?.revision]);
+
+  // 3b. Wakeup Resiliency: on visibility/focus re-entry, immediately request
+  // a fresh session snapshot so the position re-anchors after mobile suspend.
+  // Resume SilentMediaAnchor first — iOS drops the notification card the moment
+  // the anchor pauses. We must re-play it before rebinding handlers.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const onWakeup = () => {
+      if (status === 'REMOTE_CONTROLLER') {
+        // 1. Resume silent keepalive audio FIRST so iOS notification card stays alive
+        import('@/lib/connect/SilentAudioAnchor').then(({ silentMediaAnchor }) => {
+          silentMediaAnchor.resumeAfterSuspend();
+        }).catch(() => {});
+
+        // 2. Re-bind media key handlers (iOS clears them on background suspend)
+        import('@/lib/playback/MediaSessionManager').then(({ MediaSessionManager }) => {
+          MediaSessionManager.getInstance().setupRemoteMediaHandlers();
+        }).catch(() => {});
+
+        // 3. Request fresh session snapshot to re-anchor the monotonic clock
+        ConnectClientManager.getInstance().requestCurrentPlaybackState().catch?.(() => {});
+      }
+    };
+
+    const visibilityHandler = () => {
+      if (document.visibilityState === 'visible') onWakeup();
+    };
+
+    document.addEventListener('visibilitychange', visibilityHandler);
+    window.addEventListener('focus', onWakeup);
+
+    return () => {
+      document.removeEventListener('visibilitychange', visibilityHandler);
+      window.removeEventListener('focus', onWakeup);
+    };
+  }, [status]);
 
   // 4. One-Click Takeover ("Play on This Device")
   const takeoverPlayback = useCallback(async (): Promise<boolean> => {
