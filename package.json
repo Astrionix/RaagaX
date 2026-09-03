@@ -12,7 +12,7 @@
     "dev": "next dev",
     "clean": "cmd /c \"if exist .next rmdir /s /q .next\"",
     "build:next": "next build",
-    "build": "npm run build:cf",
+    "build": "node scripts/build.js",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
@@ -23,8 +23,8 @@
     "apk:sync": "npx cap copy android && npx cap sync android",
     "apk:build": "node scripts/clean-apks.js && npm run export:app && npm run apk:sync && cd android && build-apk.bat",
     "apk:open": "npx cap open android",
-    "build:cf": "node scripts/clean-build.js && node scripts/patch-next-standalone.js && npx @opennextjs/cloudflare build --dangerouslyUseUnsupportedNextVersion",
-    "deploy:cf": "node scripts/clean-build.js && node scripts/patch-next-standalone.js && npx @opennextjs/cloudflare build --dangerouslyUseUnsupportedNextVersion && npx wrangler deploy",
+    "build:cf": "node scripts/run-opennext.js",
+    "deploy:cf": "node scripts/run-opennext.js && npx wrangler deploy",
     "postinstall": "node scripts/patch-next-standalone.js"
   },
   "build": {
