@@ -193,15 +193,11 @@ export class LocalLanDiscovery {
     if (this.heartbeatTimer) return;
 
     this.sendBeacon();
-    this.scan();
     this.connectStream();
 
+    // Lightweight keep-alive for Render WebSocket & local broadcast
     this.heartbeatTimer = setInterval(() => {
       this.sendBeacon();
-    }, 3000);
-
-    this.scanTimer = setInterval(() => {
-      this.scan();
     }, 15000);
   }
 
@@ -234,7 +230,7 @@ export class LocalLanDiscovery {
       } catch {}
     }
 
-    // 1. BroadcastChannel
+    // 1. BroadcastChannel (fast local tab communication)
     if (this.broadcastChannel) {
       try {
         this.broadcastChannel.postMessage({
@@ -243,49 +239,9 @@ export class LocalLanDiscovery {
         });
       } catch {}
     }
-
-    // 2. HTTP Server Beacon (throttled to 20s to prevent spam)
-    const now = Date.now();
-    if (typeof window !== 'undefined' && typeof fetch !== 'undefined' && now - this.lastHttpBeaconTime >= 20000) {
-      this.lastHttpBeaconTime = now;
-      fetch(getApiUrl('/api/connect/beacon'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device: localDevice }),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success && Array.isArray(data.pendingCommands) && data.pendingCommands.length > 0) {
-            import('@/lib/connect/ConnectServerEngine').then(({ ConnectServerEngine }) => {
-              data.pendingCommands.forEach((cmd: any) => {
-                ConnectServerEngine.getInstance().handleIncomingCommand(cmd);
-              });
-            });
-          }
-        })
-        .catch(() => {});
-    }
   }
 
   public async scan(): Promise<void> {
-    if (typeof window === 'undefined' || typeof fetch === 'undefined') return;
-    const now = Date.now();
-    if (now - this.lastHttpScanTime < 20000) return;
-    this.lastHttpScanTime = now;
-    const localId = DeviceIdentity.getInstance().getDeviceId();
-
-    try {
-      const res = await fetch(getApiUrl(`/api/connect/devices?excludeId=${encodeURIComponent(localId)}`));
-      const data = await res.json();
-      if (data.success && Array.isArray(data.devices)) {
-        data.devices.forEach((dev: ConnectDevice) => {
-          DeviceRegistry.getInstance().registerOrUpdateDevice({
-            ...dev,
-            isCurrentDevice: false,
-            transport: 'LOCAL_LAN',
-          });
-        });
-      }
-    } catch {}
+    // Discovery is driven by Zero-Latency Supabase Presence & WebSocket Coordinator
   }
 }

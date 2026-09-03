@@ -119,14 +119,14 @@ export class JamAudioSync {
 
   /**
    * Schedules synchronized playback across both devices
-   * Host calls this to trigger playback at (performance.now() + 150ms)
+   * Host calls this to trigger playback at (performance.now() + 120ms)
    */
-  public schedulePlay(audioPositionSec: number, leadTimeMs: number = 150) {
+  public schedulePlay(audioPositionSec: number, leadTimeMs: number = 120) {
     const now = performance.now();
     const targetTimestamp = now + leadTimeMs;
 
-    // Send scheduled play message to peer
-    this.transport?.send({
+    // Send scheduled play message to peer via direct DataChannel or WebSocket
+    this.sendSyncPayload({
       type: 'SCHEDULED_PLAY',
       targetTimestamp,
       audioPosition: audioPositionSec,
@@ -140,21 +140,46 @@ export class JamAudioSync {
    * Executes scheduled play at targetTimestamp using background-proof Web Worker timer
    */
   public executeScheduledPlay(targetTimestamp: number, audioPositionSec: number) {
-    const now = performance.now();
-    // For non-host client, convert host targetTimestamp to local time
-    const adjustedTarget = this.isHost
-      ? targetTimestamp
-      : targetTimestamp - this.clockOffsetMs;
+    const audio = PlaybackService.getInstance().getActiveAudio();
+    if (!audio) return;
 
-    const delayMs = Math.max(0, adjustedTarget - now);
+    schedulePlayback(
+      audio,
+      targetTimestamp,
+      audioPositionSec * 1000,
+      this.isHost ? 0 : -this.clockOffsetMs
+    );
+  }
 
-    PreciseWorkerTimer.setTimeout(() => {
-      const audio = PlaybackService.getInstance().getActiveAudio();
-      if (audio) {
-        audio.currentTime = audioPositionSec;
-        PlaybackService.getInstance().play();
+  /**
+   * Send synchronization payload via direct WebRTC DataChannel (<2ms) or Supabase Realtime
+   */
+  public sendSyncPayload(syncPayload: any) {
+    if (this.transport && (this.transport as any).dataChannel?.readyState === 'open') {
+      try {
+        (this.transport as any).dataChannel.send(JSON.stringify(syncPayload));
+        return;
+      } catch {}
+    }
+
+    if (this.transport) {
+      try {
+        this.transport.send(syncPayload);
+        return;
+      } catch {}
+    }
+
+    try {
+      const { supabase } = require('@/lib/supabase');
+      const channel = supabase.channel('raaga_jam_sync');
+      if ((channel as any).state === 'joined') {
+        channel.send({
+          type: 'broadcast',
+          event: 'jam_sync',
+          payload: syncPayload,
+        }).catch(() => {});
       }
-    }, delayMs);
+    } catch {}
   }
 
   /**
@@ -320,5 +345,33 @@ export class JamAudioSync {
     this.pingQueue.clear();
     this.transport = null;
     this.isSynced = false;
+  }
+}
+
+/**
+ * Pre-emptive Future Buffer Execution
+ * Accommodates render/network delays with a 120ms future buffer.
+ * If network delay causes leadTime to pass, applies direct catch-up with compensated position.
+ */
+export function schedulePlayback(
+  audioElement: HTMLAudioElement,
+  targetTimestamp: number,
+  positionMs: number,
+  clockDriftOffset: number = 0
+): void {
+  const now = performance.now() + clockDriftOffset;
+  const leadTime = targetTimestamp - now;
+
+  audioElement.currentTime = positionMs / 1000;
+
+  if (leadTime > 0) {
+    PreciseWorkerTimer.setTimeout(() => {
+      audioElement.play().catch(() => {});
+    }, leadTime);
+  } else {
+    // Direct catch-up with compensated position
+    const catchupSec = (positionMs + Math.abs(leadTime)) / 1000;
+    audioElement.currentTime = catchupSec;
+    audioElement.play().catch(() => {});
   }
 }

@@ -194,13 +194,17 @@ export class ConnectDiscoveryEngine {
       this.presenceChannel
         .on('presence', { event: 'sync' }, () => {
           const state = this.presenceChannel?.presenceState() || {};
+          const currentDeviceId = this.localDevice.deviceId;
+          const activeDeviceIds = new Set<string>();
           let changed = false;
 
           for (const [key, presences] of Object.entries(state)) {
-            if (key === this.localDevice.deviceId) continue;
+            if (key === currentDeviceId) continue;
             if (Array.isArray(presences) && presences.length > 0) {
               const remote = (presences[0] as any)?.device as ConnectDevice & { subnet?: string };
-              if (!remote || !remote.deviceId || remote.deviceId === this.localDevice.deviceId) continue;
+              if (!remote || !remote.deviceId || remote.deviceId === currentDeviceId) continue;
+
+              activeDeviceIds.add(remote.deviceId);
 
               const myAccount = this.localDevice.accountId;
               const remoteAccount = remote.accountId;
@@ -215,10 +219,10 @@ export class ConnectDiscoveryEngine {
                 mySubnet === 'local' || remoteSubnet === 'local'
               );
 
-              // Auto-discover if:
-              // 1. Same authenticated user account (anywhere in the world on 5G/4G/Wi-Fi)
-              // 2. Same local subnet / Wi-Fi network (mob to desk, desk to desk on the same network)
-              // 3. Or either device is in guest mode on the same local subnet
+              // Zero-Latency Auto-discovery:
+              // 1. Same authenticated user account (cross-network 5G/Wi-Fi)
+              // 2. Same local subnet / Wi-Fi network
+              // 3. Unauthenticated guest peers on same network
               if (isSameAccount || isSameSubnet || (!myAccount && !remoteAccount)) {
                 this.discoveredDevices.set(remote.deviceId, {
                   ...remote,
@@ -232,7 +236,24 @@ export class ConnectDiscoveryEngine {
               }
             }
           }
+
+          // Instant Prune: Remove devices that have left presence mesh immediately (<50ms)
+          for (const [id, dev] of this.discoveredDevices.entries()) {
+            if (dev.transport === 'CLOUD_RELAY' || dev.transport === 'LOCAL_LAN') {
+              if (!activeDeviceIds.has(id)) {
+                this.discoveredDevices.delete(id);
+                changed = true;
+              }
+            }
+          }
+
           if (changed) {
+            this.notifyListeners();
+          }
+        })
+        .on('presence', { event: 'leave' }, ({ key }: any) => {
+          if (key && key !== this.localDevice.deviceId) {
+            this.discoveredDevices.delete(key);
             this.notifyListeners();
           }
         })
@@ -377,55 +398,6 @@ export class ConnectDiscoveryEngine {
         );
       } catch {}
     }
-
-    // 3. HTTP Server Beacon (throttled to at most once every 15s to prevent 404 flooding)
-    const now = Date.now();
-    if (typeof window !== 'undefined' && typeof fetch !== 'undefined' && now - this.lastHttpBeaconTime >= 15000) {
-      this.lastHttpBeaconTime = now;
-      try {
-        const { useAuthStore } = require('@/context/useAuthStore');
-        const user = useAuthStore.getState().user;
-        if (user?.id) {
-          this.localDevice.accountId = user.id;
-          if (!this.presenceChannel) {
-            this.setupPresenceChannel(user.id);
-          }
-        }
-        if (user?.email) (this.localDevice as any).email = user.email;
-      } catch {}
-
-      fetch(getApiUrl('/api/connect/beacon'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          device: this.localDevice,
-          accountId: this.localDevice.accountId,
-          email: (this.localDevice as any).email,
-        }),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.subnet && data.subnet !== this.localSubnet) {
-            this.localSubnet = data.subnet;
-            if (this.presenceChannel) {
-              this.presenceChannel.track({
-                device: {
-                  ...this.localDevice,
-                  subnet: this.localSubnet,
-                },
-                onlineAt: Date.now(),
-              }).catch(() => {});
-            }
-          }
-          if (data.success && Array.isArray(data.pendingCommands) && data.pendingCommands.length > 0) {
-            const server = ConnectServerEngine.getInstance();
-            for (const cmd of data.pendingCommands) {
-              server.handleIncomingCommand(cmd).catch(() => {});
-            }
-          }
-        })
-        .catch(() => {});
-    }
   }
 
   private handleIncomingBeacon(device: ConnectDevice): void {
@@ -472,29 +444,6 @@ export class ConnectDiscoveryEngine {
           }
         }
       } catch {}
-    }
-
-    // 2. Fetch from HTTP API for cross-browser peers (throttled to at most once every 15s)
-    if (typeof window !== 'undefined' && typeof fetch !== 'undefined' && now - this.lastHttpScanTime >= 15000) {
-      this.lastHttpScanTime = now;
-      const accountParam = this.localDevice.accountId ? `&accountId=${encodeURIComponent(this.localDevice.accountId)}` : '';
-      fetch(getApiUrl(`/api/connect/devices?excludeId=${encodeURIComponent(this.localDevice.deviceId)}${accountParam}`))
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success && Array.isArray(data.devices)) {
-            let changed = false;
-            for (const dev of data.devices) {
-              if (dev.deviceId !== this.localDevice.deviceId) {
-                this.discoveredDevices.set(dev.deviceId, { ...dev, isCurrentDevice: false });
-                changed = true;
-              }
-            }
-            if (changed) {
-              this.notifyListeners();
-            }
-          }
-        })
-        .catch(() => {});
     }
 
     this.pruneStaleDevices();
