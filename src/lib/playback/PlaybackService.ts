@@ -180,10 +180,10 @@ export class PlaybackService {
               this.isAutoplayRestricted = false;
             })
             .catch((err) => {
-              if (err?.name === 'NotAllowedError') {
-                this.watchdogRetryCount++;
+              if (err?.name === 'NotAllowedError' || err?.name === 'AbortError' || err?.message?.includes('interact') || err?.message?.includes('NotAllowedError')) {
+                this.watchdogRetryCount = 999;
                 this.isAutoplayRestricted = true;
-                console.warn('[PlaybackService Watchdog] Autoplay restricted. Waiting for user interaction.');
+                console.warn('[PlaybackService Watchdog] Autoplay blocked by browser policy. Breaking watchdog retry loop and waiting for user gesture.');
                 try {
                   usePlayerStore.getState().setToastMessage('Click anywhere to enable audio playback');
                 } catch {}
@@ -207,7 +207,9 @@ export class PlaybackService {
       this.isAutoplayRestricted = false;
       this.watchdogRetryCount = 0;
       console.log('[PlaybackService] User interacted with document. Resuming playback...');
-      this.play();
+      try {
+        this.play();
+      } catch {}
     };
     window.addEventListener('pointerdown', unlock, { once: true, passive: true });
     window.addEventListener('keydown', unlock, { once: true, passive: true });

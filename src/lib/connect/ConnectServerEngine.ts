@@ -506,7 +506,7 @@ export class ConnectServerEngine {
           const currentSec = store.currentTime || 0;
           const repeat = (this.currentSession.repeat || 'OFF').toUpperCase();
 
-          // If listened to more than 3 seconds, seek back to 0 of current song
+          // 3-Second Rule: if currentTime > 3s, restart current track; if <= 3s, switch to actual previous track
           if (currentSec > 3) {
             this.currentSession.positionMs = 0;
             this.currentSession.anchorPositionMs = 0;
@@ -514,8 +514,13 @@ export class ConnectServerEngine {
             this.currentSession.revision += 1;
             this.currentSession.updatedAt = now;
             store.setCurrentTime(0);
-            const pb = PlaybackService.getInstance().getActiveAudio();
-            if (pb) pb.currentTime = 0;
+            if (RaagaXNativePlayer.isNative()) {
+              await RaagaXNativePlayer.seekTo(0).catch(() => {});
+            } else {
+              const pb = PlaybackService.getInstance().getActiveAudio();
+              if (pb) pb.currentTime = 0;
+            }
+            this.broadcastSessionUpdate();
             break;
           }
 
@@ -670,18 +675,31 @@ export class ConnectServerEngine {
         break;
       }
 
+      case 'CONTROLLER_EJECTED':
       case 'CONTROLLER_DETACH_SELF':
       case 'DISCONNECT_CONTROLLER': {
         // INVARIANT: DISCONNECT MUST NOT STOP THE MUSIC.
         const controllerId = command.senderDeviceId;
         this.currentSession.controllerIds = this.currentSession.controllerIds.filter((id) => id !== controllerId);
-        if (this.currentSession.controllerDeviceId === controllerId) {
+        if (this.currentSession.controllerDeviceId === controllerId || !controllerId) {
           this.currentSession.controllerDeviceId = null;
           this.currentSession.controllerDeviceName = null;
         }
         this.currentSession.revision += 1;
         this.currentSession.updatedAt = now;
         console.log(`[CONNECT_DISCONNECT]\ncontrollerId=${controllerId}\nplaybackContinues=true`);
+
+        try {
+          const { useConnectStore } = require('@/context/useConnectStore');
+          useConnectStore.setState({
+            isControlledByRemote: false,
+            controllerDeviceId: null,
+            controllerDeviceName: null,
+          });
+        } catch {}
+
+        this.notifyListeners();
+        this.broadcastSessionUpdate();
         break;
       }
 
@@ -695,6 +713,15 @@ export class ConnectServerEngine {
         this.currentSession.updatedAt = now;
         console.log(`[SPEAKER_DETACH_CONTROLLER]\ntargetControllerId=${targetControllerId}\nplaybackContinues=true`);
 
+        try {
+          const { useConnectStore } = require('@/context/useConnectStore');
+          useConnectStore.setState({
+            isControlledByRemote: false,
+            controllerDeviceId: null,
+            controllerDeviceName: null,
+          });
+        } catch {}
+
         if (this.broadcastChannel && targetControllerId) {
           try {
             this.broadcastChannel.postMessage({
@@ -704,6 +731,9 @@ export class ConnectServerEngine {
             });
           } catch { }
         }
+
+        this.notifyListeners();
+        this.broadcastSessionUpdate();
         break;
       }
 

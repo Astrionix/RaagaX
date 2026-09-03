@@ -173,6 +173,10 @@ export class ConnectDiscoveryEngine {
         this.presenceChannel.track({
           device: {
             ...this.localDevice,
+            deviceId: this.localDevice.deviceId,
+            deviceName: this.localDevice.deviceName,
+            deviceType: this.localDevice.deviceType,
+            isSpeakerActive: this.localDevice.state === 'PLAYING',
             subnet: this.localSubnet || '127.0.0',
           },
           onlineAt: Date.now(),
@@ -261,6 +265,10 @@ export class ConnectDiscoveryEngine {
             await this.presenceChannel?.track({
               device: {
                 ...this.localDevice,
+                deviceId: this.localDevice.deviceId,
+                deviceName: this.localDevice.deviceName,
+                deviceType: this.localDevice.deviceType,
+                isSpeakerActive: this.localDevice.state === 'PLAYING',
                 subnet: this.localSubnet || '127.0.0',
               },
               onlineAt: Date.now(),
@@ -357,7 +365,14 @@ export class ConnectDiscoveryEngine {
     // Track active presence on Supabase Realtime channel
     if (this.presenceChannel) {
       this.presenceChannel.track({
-        device: this.localDevice,
+        device: {
+          ...this.localDevice,
+          deviceId: this.localDevice.deviceId,
+          deviceName: this.localDevice.deviceName,
+          deviceType: this.localDevice.deviceType,
+          isSpeakerActive: this.localDevice.state === 'PLAYING',
+          subnet: this.localSubnet || '127.0.0',
+        },
         onlineAt: Date.now(),
       }).catch(() => {});
     }

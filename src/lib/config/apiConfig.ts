@@ -6,19 +6,19 @@
  * relative requests in web/dev environments.
  */
 
-export const RENDER_COORDINATOR_HTTP = 'https://raagax.onrender.com';
-export const RENDER_COORDINATOR_WS = 'wss://raagax.onrender.com';
+export const RENDER_COORDINATOR_HTTP = 'https://raaga.me';
+export const RENDER_COORDINATOR_WS = '';
 
 export function getSyncWebSocketUrl(): string {
   if (typeof window !== 'undefined') {
     try {
       const custom = localStorage.getItem('rx_sync_ws_url');
-      if (custom && custom.trim()) {
+      if (custom && custom.trim() && !custom.includes('onrender.com')) {
         return custom.trim();
       }
     } catch {}
   }
-  return process.env.NEXT_PUBLIC_SYNC_WS_URL || RENDER_COORDINATOR_WS;
+  return process.env.NEXT_PUBLIC_SYNC_WS_URL || '';
 }
 
 export function getConnectApiBaseUrl(): string {

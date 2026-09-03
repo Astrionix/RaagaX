@@ -256,16 +256,15 @@ export const useJamStore = create<JamState>((set, get) => {
       set({ isLoading: true });
       try {
         await JamClientManager.getInstance().leaveJam();
-        set({
-          session: null,
-          isInJam: false,
-          isHost: false,
-          isJamModalOpen: false,
-          isLoading: false,
-        });
-      } catch (err: any) {
-        set({ isLoading: false, error: err?.message || 'Failed to leave Jam' });
-      }
+      } catch {}
+      set({
+        session: null,
+        isInJam: false,
+        isHost: false,
+        isJamModalOpen: false,
+        isLoading: false,
+        error: null,
+      });
     },
 
     sendPlay: async (positionMs) => {
@@ -321,16 +320,17 @@ export const useJamStore = create<JamState>((set, get) => {
     },
 
     sendEndSession: async () => {
-      const ok = await JamClientManager.getInstance().sendEndSession();
-      if (ok) {
-        set({
-          session: null,
-          isInJam: false,
-          isHost: false,
-          isJamModalOpen: false,
-        });
-      }
-      return ok;
+      try {
+        await JamClientManager.getInstance().sendEndSession();
+      } catch {}
+      set({
+        session: null,
+        isInJam: false,
+        isHost: false,
+        isJamModalOpen: false,
+        error: null,
+      });
+      return true;
     },
 
     resyncPlayback: async () => {
