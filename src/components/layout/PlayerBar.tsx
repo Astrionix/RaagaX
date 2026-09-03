@@ -17,6 +17,7 @@ import {
   Disc3,
   Maximize2,
   Radio,
+  Speaker,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useJamStore } from '@/context/useJamStore';
@@ -52,6 +53,7 @@ export function PlayerBar() {
     isLyricsOpen,
     isPlayerExpanded,
     togglePlayerExpanded,
+    isLocalPlayback,
   } = usePlayerStore();
 
   const { isInJam, session, diagnostics, participantState, toggleJamModal } = useJamStore();
@@ -164,13 +166,19 @@ export function PlayerBar() {
   return (
     <aside
       aria-label="Floating Media Player"
-      className={`hidden md:flex fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] z-40 group/player select-none items-center justify-between px-3.5 sm:px-4 py-1.5 bg-[#1c1c1e]/90 hover:bg-[#1c1c1e]/95 backdrop-blur-2xl border border-white/10 hover:border-white/15 rounded-full shadow-[0_12px_36px_rgba(0,0,0,0.65)] ring-1 ring-white/5 transition-all duration-300 max-w-[calc(100vw-18rem)] md:max-w-[760px] lg:max-w-[840px] w-auto h-[54px] gap-2.5 sm:gap-4 -translate-x-1/2 ${
+      className={`hidden md:flex fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] z-40 group/player select-none items-center justify-between px-3.5 sm:px-4 py-1.5 backdrop-blur-2xl rounded-full transition-all duration-300 max-w-[calc(100vw-18rem)] md:max-w-[760px] lg:max-w-[840px] w-auto h-[54px] gap-2.5 sm:gap-4 -translate-x-1/2 ${
+        !isLocalPlayback
+          ? 'bg-[#121214]/95 border border-[#1DB954]/50 hover:border-[#1DB954]/70 ring-1 ring-[#1DB954]/25 shadow-[0_12px_36px_rgba(0,0,0,0.7),0_0_24px_rgba(29,185,84,0.25)]'
+          : 'bg-[#1c1c1e]/90 hover:bg-[#1c1c1e]/95 border border-white/10 hover:border-white/15 ring-1 ring-white/5 shadow-[0_12px_36px_rgba(0,0,0,0.65)]'
+      } ${
         isQueueOpen
           ? 'left-[calc(50%+8rem)] xl:left-[calc(50%+8rem-180px)]'
           : 'left-[calc(50%+8rem)]'
       }`}
       style={{
-        boxShadow: `0 12px 36px rgba(0,0,0,0.7), 0 0 25px ${glowColor}`,
+        boxShadow: !isLocalPlayback
+          ? '0 12px 36px rgba(0,0,0,0.7), 0 0 24px rgba(29,185,84,0.3)'
+          : `0 12px 36px rgba(0,0,0,0.7), 0 0 25px ${glowColor}`,
       }}
     >
         {/* ── 1. LEFT CONTROLS: Shuffle, Prev, Play/Pause, Next, Repeat ── */}
@@ -277,10 +285,22 @@ export function PlayerBar() {
                   className="text-[10px] sm:text-[11px] text-zinc-400 truncate leading-tight mt-0.5 font-normal"
                   title={subtitle}
                 >
-                  {isRemoteMode ? (
-                    <span className="text-emerald-400 font-semibold flex items-center gap-1 truncate">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
-                      <span className="truncate">🔊 {activePlaybackDevice?.deviceName || 'Speaker'}: {subtitle}</span>
+                  {!isLocalPlayback ? (
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        useConnectStore.getState().toggleConnectModal(true);
+                      }}
+                      className="text-[#1DB954] font-semibold flex items-center gap-1.5 truncate cursor-pointer hover:underline"
+                      title="Tap to manage Connect devices"
+                    >
+                      <span className="flex items-end gap-[2px] h-2.5 flex-shrink-0">
+                        <span className="w-[2px] bg-[#1DB954] rounded-full animate-pulse h-2.5" />
+                        <span className="w-[2px] bg-[#1DB954] rounded-full animate-pulse h-1.5" />
+                        <span className="w-[2px] bg-[#1DB954] rounded-full animate-pulse h-2" />
+                      </span>
+                      <Speaker className="w-3 h-3 text-[#1DB954] flex-shrink-0" />
+                      <span className="truncate">Playing on {activePlaybackDevice?.deviceName || 'Remote Speaker'}</span>
                     </span>
                   ) : (
                     <span>{subtitle}</span>
@@ -435,7 +455,7 @@ export function PlayerBar() {
               className="w-full"
               height="h-[2px] group-hover/player:h-[3px] transition-all"
               thumbSize="w-2 h-2 opacity-0 group-hover/player:opacity-100"
-              activeColor="bg-[#FA233B]"
+              activeColor={!isLocalPlayback ? 'bg-[#1DB954]' : 'bg-[#FA233B]'}
             />
           </div>
         )}

@@ -201,31 +201,38 @@ export class ConnectDiscoveryEngine {
         const activeDeviceIds = new Set<string>();
         let changed = false;
 
-        for (const [key, presences] of Object.entries(state)) {
-          if (key === currentDeviceId) continue;
-          if (Array.isArray(presences) && presences.length > 0) {
-            const remote = (presences[0] as any)?.device as ConnectDevice & { subnet?: string };
-            if (!remote || !remote.deviceId || remote.deviceId === currentDeviceId) continue;
+        // Flatten all presences across all presence keys
+        const allPresences = Object.values(state).flat();
 
-            activeDeviceIds.add(remote.deviceId);
+        for (const presence of allPresences) {
+          const raw = presence as any;
+          if (!raw) continue;
+          const remote = (raw.device || raw) as ConnectDevice & { subnet?: string; type?: string };
+          const remoteId = remote?.deviceId || raw?.deviceId;
+          if (!remoteId || remoteId === currentDeviceId || remoteId === 'dev_local') continue;
 
-            const myAccount = this.localDevice.accountId;
-            const remoteAccount = remote.accountId;
-            const isSameAccount = Boolean(myAccount && remoteAccount && myAccount === remoteAccount);
+          activeDeviceIds.add(remoteId);
 
-            this.discoveredDevices.set(remote.deviceId, {
-              ...remote,
-              isCurrentDevice: false,
-              lastSeenAt: Date.now(),
-              transport: 'CLOUD_RELAY',
-              authStatus: 'AUTO_AUTHORIZED',
-              isSameAccount: Boolean(isSameAccount),
-            });
-            changed = true;
-          }
+          const devType = remote.deviceType || remote.type || (raw.type as any) || 'speaker';
+          const myAccount = this.localDevice.accountId;
+          const remoteAccount = remote.accountId || raw.accountId;
+          const isSameAccount = Boolean(myAccount && remoteAccount && myAccount === remoteAccount);
+
+          this.discoveredDevices.set(remoteId, {
+            ...remote,
+            deviceId: remoteId,
+            deviceName: remote.deviceName || raw.deviceName || 'Remote Device',
+            deviceType: devType,
+            isCurrentDevice: false,
+            lastSeenAt: Date.now(),
+            transport: 'CLOUD_RELAY',
+            authStatus: 'AUTO_AUTHORIZED',
+            isSameAccount: Boolean(isSameAccount),
+          });
+          changed = true;
         }
 
-        // Instant Prune: Remove devices that have left presence mesh immediately (<50ms)
+        // Remove devices that are no longer in presence state
         for (const [id, dev] of this.discoveredDevices.entries()) {
           if (dev.transport === 'CLOUD_RELAY' || dev.transport === 'LOCAL_LAN') {
             if (!activeDeviceIds.has(id)) {
@@ -235,6 +242,7 @@ export class ConnectDiscoveryEngine {
           }
         }
 
+        console.log('[DISCOVERY_DEVICES_FOUND]', Array.from(this.discoveredDevices.values()));
         if (changed) {
           this.notifyListeners();
         }
@@ -261,18 +269,30 @@ export class ConnectDiscoveryEngine {
           }
         })
         .subscribe(async (status: string) => {
+          console.log('[DISCOVERY] status:', status);
           if (status === 'SUBSCRIBED') {
-            await this.presenceChannel?.track({
+            const trackPayload = {
+              deviceId: this.localDevice.deviceId,
+              deviceName: this.localDevice.deviceName,
+              deviceType: this.localDevice.deviceType,
+              type: this.localDevice.deviceType,
+              isSpeakerActive: this.localDevice.state === 'PLAYING',
+              subnet: this.localSubnet || '127.0.0',
+              accountId: this.localDevice.accountId,
               device: {
                 ...this.localDevice,
                 deviceId: this.localDevice.deviceId,
                 deviceName: this.localDevice.deviceName,
                 deviceType: this.localDevice.deviceType,
+                type: this.localDevice.deviceType,
                 isSpeakerActive: this.localDevice.state === 'PLAYING',
                 subnet: this.localSubnet || '127.0.0',
               },
               onlineAt: Date.now(),
-            }).catch(() => {});
+            };
+            await this.presenceChannel?.track(trackPayload).catch((e: any) => console.warn('[DISCOVERY] Track error:', e));
+            console.log('[DISCOVERY] Successfully tracked device on presence mesh:', this.localDevice.deviceId);
+            handlePresenceMeshUpdate();
           }
         });
     } catch (e) {
@@ -449,24 +469,30 @@ export class ConnectDiscoveryEngine {
       try {
         const state = this.presenceChannel.presenceState() || {};
         const currentDeviceId = this.localDevice.deviceId;
-        for (const [key, presences] of Object.entries(state)) {
-          if (key === currentDeviceId) continue;
-          if (Array.isArray(presences) && presences.length > 0) {
-            const remote = (presences[0] as any)?.device as ConnectDevice;
-            if (remote && remote.deviceId && remote.deviceId !== currentDeviceId) {
-              const myAccount = this.localDevice.accountId;
-              const remoteAccount = remote.accountId;
-              const isSameAccount = Boolean(myAccount && remoteAccount && myAccount === remoteAccount);
-              this.discoveredDevices.set(remote.deviceId, {
-                ...remote,
-                isCurrentDevice: false,
-                lastSeenAt: now,
-                transport: 'CLOUD_RELAY',
-                authStatus: 'AUTO_AUTHORIZED',
-                isSameAccount: Boolean(isSameAccount),
-              });
-            }
-          }
+        const allPresences = Object.values(state).flat();
+        for (const presence of allPresences) {
+          const raw = presence as any;
+          if (!raw) continue;
+          const remote = (raw.device || raw) as ConnectDevice & { type?: string };
+          const remoteId = remote?.deviceId || raw?.deviceId;
+          if (!remoteId || remoteId === currentDeviceId || remoteId === 'dev_local') continue;
+
+          const devType = remote.deviceType || remote.type || (raw.type as any) || 'speaker';
+          const myAccount = this.localDevice.accountId;
+          const remoteAccount = remote.accountId || raw.accountId;
+          const isSameAccount = Boolean(myAccount && remoteAccount && myAccount === remoteAccount);
+
+          this.discoveredDevices.set(remoteId, {
+            ...remote,
+            deviceId: remoteId,
+            deviceName: remote.deviceName || raw.deviceName || 'Remote Device',
+            deviceType: devType,
+            isCurrentDevice: false,
+            lastSeenAt: now,
+            transport: 'CLOUD_RELAY',
+            authStatus: 'AUTO_AUTHORIZED',
+            isSameAccount: Boolean(isSameAccount),
+          });
         }
       } catch {}
     }

@@ -354,8 +354,6 @@ export default function Page() {
       </ErrorBoundary>
 
       {/* ── RaagaX Connect (Spotify Connect Style Remote Control & Passive Handoff) ── */}
-      <ListeningOnDeviceBanner />
-      <SpeakerControlledBanner />
       <PassiveConnectPromptBanner />
       <SmartDisconnectFallbackModal />
       <ErrorBoundary name="ConnectDeviceModal">

@@ -60,6 +60,10 @@ export class PreloadManager {
    */
   public async prepareNextTrack(song: Song, standbyElement: HTMLAudioElement | null = null, force: boolean = false): Promise<boolean> {
     if (!song || !song.id) return false;
+    try {
+      const { usePlayerStore } = require('@/context/usePlayerStore');
+      if (!usePlayerStore.getState().isLocalPlayback) return false;
+    } catch {}
 
     // Skip if already preloaded and ready
     if (!force && this.status === 'READY' && this.currentPreloadId === song.id && standbyElement?.src) {
@@ -206,6 +210,10 @@ export class PreloadManager {
    * evaluatePreload — Evaluates the queue and triggers preload for upcoming tracks
    */
   public async evaluatePreload(standbyElement: HTMLAudioElement | null) {
+    try {
+      const { usePlayerStore } = require('@/context/usePlayerStore');
+      if (!usePlayerStore.getState().isLocalPlayback) return;
+    } catch {}
     const nextItem = QueueManager.getInstance().peekNext();
     if (!nextItem || !nextItem.song) return;
 

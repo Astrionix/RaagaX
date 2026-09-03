@@ -201,8 +201,12 @@ interface PlayerState {
   networkMode: 'online' | 'offline' | 'offline_forced';
   setNetworkMode: (mode: 'online' | 'offline' | 'offline_forced') => void;
 
-  // Standalone Playback State
+  // Standalone Playback State & Authoritative Device Decoupling (Spotify Connect SSOT)
   deviceId: string;
+  activePlaybackDeviceId: string; // The device ID physically outputting sound
+  currentDeviceId: string;        // ID of the local browser/tab
+  isLocalPlayback: boolean;       // Computed: activePlaybackDeviceId === currentDeviceId
+  setActivePlaybackDeviceId: (deviceId: string) => void;
   activeRenderer: Renderer;
   playbackStatus: 'playing' | 'paused' | 'buffering' | 'transitioning';
   isActiveDevice: boolean;
@@ -722,6 +726,24 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       deviceId: typeof window !== 'undefined' ? (localStorage.getItem('raagax_device_id') || 'local_device') : 'local_device',
+      activePlaybackDeviceId: typeof window !== 'undefined'
+        ? (localStorage.getItem('raagax_active_playback_device_id') || localStorage.getItem('connect_device_id') || 'dev_local')
+        : 'dev_local',
+      currentDeviceId: typeof window !== 'undefined'
+        ? (localStorage.getItem('connect_device_id') || localStorage.getItem('raagax_device_id') || 'dev_local')
+        : 'dev_local',
+      isLocalPlayback: true,
+      setActivePlaybackDeviceId: (devId: string) => {
+        const curId = get().currentDeviceId;
+        const isLocal = !devId || devId === curId || devId === 'dev_local';
+        if (typeof window !== 'undefined' && devId) {
+          try { localStorage.setItem('raagax_active_playback_device_id', devId); } catch {}
+        }
+        set({
+          activePlaybackDeviceId: devId,
+          isLocalPlayback: isLocal,
+        });
+      },
       activeRenderer: 'audio',
       playbackStatus: 'paused',
       isActiveDevice: true,
@@ -1436,6 +1458,19 @@ export const usePlayerStore = create<PlayerState>()(
         MediaSessionManager.getInstance().setPlaybackState(playing ? 'playing' : 'paused');
 
         if (!fromRemote) {
+          // CONTROLLER MODE GUARD: When isLocalPlayback === false, dispatch command and dormant local audio
+          if (!get().isLocalPlayback) {
+            try {
+              const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
+              if (playing) {
+                await ConnectClientManager.getInstance().sendCommand('RESUME');
+              } else {
+                await ConnectClientManager.getInstance().sendCommand('PAUSE');
+              }
+            } catch {}
+            return;
+          }
+
           try {
             const jamManager = JamClientManager.getInstance();
             const jamSession = jamManager.getActiveSession();
@@ -1468,6 +1503,14 @@ export const usePlayerStore = create<PlayerState>()(
 
         set({ currentTime: time });
 
+        if (!fromRemote && !get().isLocalPlayback) {
+          try {
+            const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
+            ConnectClientManager.getInstance().sendCommand('SEEK', { positionMs: Math.round(time * 1000) });
+          } catch {}
+          return;
+        }
+
         const state = get();
         if (state.currentSong) {
           throttlePersistSession(state, fromRemote);
@@ -1482,6 +1525,13 @@ export const usePlayerStore = create<PlayerState>()(
         const safeVol = Math.max(0, Math.min(1, vol));
         set({ volume: safeVol });
         persistSessionHelper(get());
+
+        if (!get().isLocalPlayback) {
+          try {
+            const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
+            ConnectClientManager.getInstance().sendCommand('SET_VOLUME', { volume: safeVol });
+          } catch {}
+        }
       },
       toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 

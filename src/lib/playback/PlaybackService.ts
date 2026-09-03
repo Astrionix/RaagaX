@@ -142,6 +142,9 @@ export class PlaybackService {
         }
 
         // CONNECT SAFETY: Do NOT recover playback if this device is acting as a remote controller
+        if (!store.isLocalPlayback) {
+          return;
+        }
         try {
           const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
           if (ConnectClientManager.getInstance().isRemoteMode()) {
@@ -484,6 +487,7 @@ export class PlaybackService {
    */
   public async prepareTrack(song: Song, positionSec: number = 0): Promise<boolean> {
     if (!song) return false;
+    if (!usePlayerStore.getState().isLocalPlayback) return false;
     try {
       let finalSrc = '';
       try {
@@ -569,6 +573,9 @@ export class PlaybackService {
     if (requestId !== this.playbackRequestId) return false;
 
     // CONNECT SAFETY: Do NOT load or play local audio on a remote controller device
+    if (!usePlayerStore.getState().isLocalPlayback) {
+      return false;
+    }
     try {
       const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
       if (ConnectClientManager.getInstance().isRemoteMode()) {
@@ -986,6 +993,9 @@ export class PlaybackService {
 
   public play() {
     // CONNECT SAFETY: Do NOT play local audio if this device is acting as a remote controller
+    if (!usePlayerStore.getState().isLocalPlayback) {
+      return;
+    }
     try {
       const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
       if (ConnectClientManager.getInstance().isRemoteMode()) {

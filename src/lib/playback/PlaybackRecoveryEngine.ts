@@ -65,7 +65,7 @@ export class PlaybackRecoveryEngine {
       try {
         const { useConnectStore } = require('@/context/useConnectStore');
         const { useJamStore } = require('@/context/useJamStore');
-        if (useConnectStore?.getState()?.isRemoteMode || useJamStore?.getState()?.isInJam) {
+        if (useConnectStore?.getState()?.isRemoteMode || useJamStore?.getState()?.isInJam || !s.isLocalPlayback) {
           return; // Do not persist remote playback sessions as local recovery snapshots
         }
       } catch {}
@@ -105,7 +105,7 @@ export class PlaybackRecoveryEngine {
       try {
         const { useConnectStore } = require('@/context/useConnectStore');
         const { useJamStore } = require('@/context/useJamStore');
-        if (useConnectStore?.getState()?.isRemoteMode || useJamStore?.getState()?.isInJam) {
+        if (useConnectStore?.getState()?.isRemoteMode || useJamStore?.getState()?.isInJam || !usePlayerStore?.getState()?.isLocalPlayback) {
           return null; // Skip restoring local snapshots while in Connect or Jam mode
         }
       } catch {}

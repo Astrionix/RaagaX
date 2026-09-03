@@ -75,11 +75,20 @@ export const useConnectStore = create<ConnectStoreState>((set, get) => {
     });
 
     client.subscribe((session) => {
+      const isRemote = client.isRemoteMode();
+      const targetDev = client.getActiveTargetDevice();
       set({
         remoteSession: session,
-        isRemoteMode: client.isRemoteMode(),
-        activePlaybackDevice: client.getActiveTargetDevice(),
+        isRemoteMode: isRemote,
+        activePlaybackDevice: targetDev,
       });
+
+      try {
+        const { usePlayerStore } = require('@/context/usePlayerStore');
+        const curId = usePlayerStore.getState().currentDeviceId;
+        const activeDevId = (isRemote && targetDev?.deviceId) ? targetDev.deviceId : curId;
+        usePlayerStore.getState().setActivePlaybackDeviceId(activeDevId);
+      } catch {}
     });
 
     server.subscribe((s) => {
@@ -180,10 +189,17 @@ export const useConnectStore = create<ConnectStoreState>((set, get) => {
       const client = ConnectClientManager.getInstance();
       const success = await client.transferPlaybackTo(targetDevice);
       if (success) {
+        const activeDev = client.getActiveTargetDevice();
         set({
-          activePlaybackDevice: client.getActiveTargetDevice(),
+          activePlaybackDevice: activeDev,
           isRemoteMode: client.isRemoteMode(),
         });
+        try {
+          const { usePlayerStore } = require('@/context/usePlayerStore');
+          if (activeDev?.deviceId) {
+            usePlayerStore.getState().setActivePlaybackDeviceId(activeDev.deviceId);
+          }
+        } catch {}
       }
       return success;
     },
@@ -201,6 +217,11 @@ export const useConnectStore = create<ConnectStoreState>((set, get) => {
           isRemoteMode: false,
           remoteSession: null,
         });
+        try {
+          const { usePlayerStore } = require('@/context/usePlayerStore');
+          const curId = usePlayerStore.getState().currentDeviceId;
+          usePlayerStore.getState().setActivePlaybackDeviceId(curId);
+        } catch {}
       }
       return success;
     },
@@ -215,6 +236,11 @@ export const useConnectStore = create<ConnectStoreState>((set, get) => {
           remoteSession: null,
           isConnectModalOpen: false,
         });
+        try {
+          const { usePlayerStore } = require('@/context/usePlayerStore');
+          const curId = usePlayerStore.getState().currentDeviceId;
+          usePlayerStore.getState().setActivePlaybackDeviceId(curId);
+        } catch {}
       }
       return success;
     },
