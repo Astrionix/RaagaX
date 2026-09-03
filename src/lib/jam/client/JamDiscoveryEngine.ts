@@ -315,35 +315,8 @@ export class JamDiscoveryEngine {
    * Queries same Wi-Fi / subnet discoverable Jams from backend
    */
   public async queryNetworkDiscoveredJams(): Promise<void> {
-    try {
-      const res = await fetch(getApiUrl('/api/jam/discover'), {
-        method: 'GET',
-        headers: { 'Cache-Control': 'no-cache' },
-      });
-
-      if (!res.ok) return;
-      const data = await res.json();
-
-      if (data.success && Array.isArray(data.jams)) {
-        const now = Date.now();
-        for (const jam of data.jams) {
-          const existing = this.discoveredJams.get(jam.jamId);
-          this.discoveredJams.set(jam.jamId, {
-            ...jam,
-            lanEndpoint: jam.lanEndpoint || existing?.lanEndpoint,
-            deviceId: jam.deviceId || existing?.deviceId,
-            deviceName: jam.deviceName || existing?.deviceName,
-            platform: jam.platform || existing?.platform,
-            protocolVersion: jam.protocolVersion || existing?.protocolVersion || '2.0.0',
-            capabilities: jam.capabilities || existing?.capabilities,
-            discoveredAt: now,
-          });
-        }
-        this.notify();
-      }
-    } catch (e) {
-      // Network hiccup - ignore and retry next cycle
-    }
+    // Discovery is driven by Zero-Latency Supabase Presence mesh ('raaga_jam_mesh') & LAN BroadcastChannel
+    this.notify();
   }
 
   /**

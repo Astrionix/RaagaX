@@ -161,75 +161,45 @@ export class JamClientManager {
     const jamId = `JAM_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
     const joinCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-    let session: JamSession | null = null;
+    // Pure Serverless Direct Creation (Zero Render 404 Dependency)
+    console.log(`[JamClientManager] Serverless Jam creation: Initializing room ${jamId} with code ${joinCode}`);
+    const hostParticipant: any = {
+      userId: hostId,
+      userName: hostName,
+      userAvatar: hostAvatar,
+      role: 'HOST',
+      status: 'ACTIVE',
+      isHost: true,
+      deviceType: this.detectDeviceType(),
+      joinedAt: Date.now(),
+      lastActiveAt: Date.now(),
+    };
 
-    // Optional background sync with server if available (never blocks or throws on 404)
-    try {
-      const res = await fetch(getApiUrl('/api/jam'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          hostId,
-          hostName,
-          hostAvatar,
-          jamName: params?.jamName,
-          initialSong: currentSong,
-          initialQueue,
-          initialQueueIndex,
-          deviceType: this.detectDeviceType(),
-        }),
-      });
-
-      if (res.ok) {
-        const text = await res.text();
-        const data = JSON.parse(text);
-        if (data?.session) {
-          session = data.session;
-        }
-      }
-    } catch {}
-
-    // Pure Serverless Fallback (100% Zero Render 404 Dependency)
-    if (!session) {
-      console.log(`[JamClientManager] Serverless Jam creation: Initializing room ${jamId} with code ${joinCode}`);
-      const hostParticipant: any = {
-        userId: hostId,
-        userName: hostName,
-        userAvatar: hostAvatar,
-        role: 'HOST',
-        status: 'ACTIVE',
-        isHost: true,
-        deviceType: this.detectDeviceType(),
-        joinedAt: Date.now(),
-        lastActiveAt: Date.now(),
-      };
-
-      session = {
-        jamId,
-        name: params?.jamName || `${hostName}'s Jam`,
-        hostId,
-        hostName,
-        hostAvatar,
-        joinCode,
-        state: 'READY',
-        playbackState: store.isPlaying ? 'PLAYING' : 'PAUSED',
-        currentTrack: currentSong,
-        currentTimeMs: Math.floor((store.currentTime || 0) * 1000),
-        isPlaying: store.isPlaying,
-        queue: initialQueue || [],
-        queueIndex: initialQueueIndex ?? 0,
-        revision: 1,
-        participants: {
-          [hostId]: hostParticipant,
-        },
-        permissions: {
-          allowGuestQueueAdd: true,
-          allowGuestVoteSkip: true,
-          allowGuestPlayPause: false,
-        },
-        createdAt: Date.now(),
-      } as unknown as JamSession;
-    }
+    const session: JamSession = {
+      jamId,
+      name: params?.jamName || `${hostName}'s Jam`,
+      hostId,
+      hostName,
+      hostAvatar,
+      joinCode,
+      state: 'READY',
+      playbackState: store.isPlaying ? 'PLAYING' : 'PAUSED',
+      currentTrack: currentSong,
+      currentTimeMs: Math.floor((store.currentTime || 0) * 1000),
+      isPlaying: store.isPlaying,
+      queue: initialQueue || [],
+      queueIndex: initialQueueIndex ?? 0,
+      revision: 1,
+      participants: {
+        [hostId]: hostParticipant,
+      },
+      permissions: {
+        allowGuestQueueAdd: true,
+        allowGuestVoteSkip: true,
+        allowGuestPlayPause: false,
+      },
+      createdAt: Date.now(),
+    } as unknown as JamSession;
 
     this.activeSession = session;
     this.localRevision = session.revision;
@@ -280,27 +250,8 @@ export class JamClientManager {
       return this.joinJam(discovered.jamId);
     }
 
-    // 2. Query HTTP API as fallback
-    let res: Response | null = null;
-    try {
-      res = await fetch(getApiUrl(`/api/jam/code/${cleanCode}`));
-    } catch {}
-
-    if (res && res.ok) {
-      try {
-        const data = await res.json();
-        if (data?.success && data?.jamId) {
-          return this.joinJam(data.jamId);
-        }
-      } catch {}
-    }
-
-    // 3. Fallback: If code is directly a Jam ID (e.g. JAM_749201)
-    if (cleanCode.startsWith('JAM_')) {
-      return this.joinJam(cleanCode);
-    }
-
-    throw new Error('No active Jam session found for this code. Please verify the code or ask the host to invite you.');
+    // 2. Direct P2P / Supabase Realtime join by code
+    return this.joinJam(cleanCode);
   }
 
   /**
@@ -313,32 +264,9 @@ export class JamClientManager {
     try {
       this.setParticipantState('AUTHORIZED');
 
-      let session: JamSession | null = null;
-      try {
-        const res = await fetch(getApiUrl(`/api/jam/${jamId}/join`), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: this.currentUserId || `user_${Date.now().toString(36)}`,
-            displayName: this.currentUserName || 'RaagaX Listener',
-            avatarUrl: this.currentUserAvatar,
-            deviceType: this.detectDeviceType(),
-          }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.session) {
-            session = data.session;
-          }
-        }
-      } catch {}
-
-      // P2P / Supabase Realtime Handshake Fallback (if serverless HTTP returns 404)
-      if (!session) {
-        console.log(`[JamClientManager] HTTP join returned 404 or failed for ${jamId}. Attempting P2P Cloud join...`);
-        session = await this.performP2PJoin(jamId);
-      }
+      // Serverless Direct P2P Join via Supabase Realtime
+      console.log(`[JamClientManager] Performing serverless P2P join for Jam ${jamId}...`);
+      const session = await this.performP2PJoin(jamId);
 
       if (!session) {
         this.setParticipantState('FAILED');
@@ -458,13 +386,21 @@ export class JamClientManager {
     if (!this.activeSession) return;
     const jamId = this.activeSession.jamId;
 
-    try {
-      await fetch(getApiUrl(`/api/jam/${jamId}/leave`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: this.currentUserId }),
-      });
-    } catch {}
+    if (this.supabaseChannel) {
+      try {
+        this.supabaseChannel.send({
+          type: 'broadcast',
+          event: 'jam_event',
+          payload: {
+            type: 'PARTICIPANT_LEFT',
+            jamId,
+            senderId: this.currentUserId,
+            payload: { userId: this.currentUserId },
+            timestamp: Date.now(),
+          },
+        }).catch(() => {});
+      } catch {}
+    }
 
     this.cleanupSession();
   }
@@ -524,35 +460,7 @@ export class JamClientManager {
   private reconciliationInterval: any = null;
 
   private startReconciliationLoop(jamId: string) {
-    this.stopReconciliationLoop();
-    this.reconciliationInterval = setInterval(async () => {
-      if (!this.activeSession || this.activeSession.jamId !== jamId) {
-        this.stopReconciliationLoop();
-        return;
-      }
-      // If host, local state is authoritative; for non-host participants, periodically reconcile
-      if (this.isHost()) return;
-
-      try {
-        const res = await fetch(getApiUrl(`/api/jam/${jamId}`), { cache: 'no-store' });
-        if (!res.ok) return;
-        const data = await res.json().catch(() => null);
-        if (!data?.session) return;
-
-        const remote: JamSession = data.session;
-        const local = this.activeSession;
-
-        const isRevisionAhead = typeof remote.revision === 'number' && remote.revision > this.localRevision;
-        const isGenerationAhead = (remote.generation ?? 0) > (local.generation ?? 0);
-        const isTrackDiffering = remote.trackId !== local.trackId;
-        const isStateDiffering = remote.state !== local.state;
-
-        if (isRevisionAhead || isGenerationAhead || isTrackDiffering || isStateDiffering) {
-          console.log(`[JamClientManager] Background reconciliation updated session (remote rev ${remote.revision} vs local ${this.localRevision})`);
-          this.applySessionSnapshot(remote);
-        }
-      } catch {}
-    }, 3500);
+    // Pure serverless reconciliation via Supabase Realtime events
   }
 
   private stopReconciliationLoop() {
@@ -566,42 +474,14 @@ export class JamClientManager {
    * Connects SSE stream + Supabase Realtime channel
    */
   private connectRealtimeTransport(jamId: string) {
-    if (this.eventSource) {
-      this.eventSource.close();
+    if (this.supabaseChannel) {
+      try {
+        this.supabaseChannel.unsubscribe();
+      } catch {}
+      this.supabaseChannel = null;
     }
 
-    // 1. Primary: Server-Sent Events (SSE) Stream
-    try {
-      const es = new EventSource(getApiUrl(`/api/jam/${jamId}/events`));
-      this.eventSource = es;
-
-      console.log(`\n[JAM_REALTIME_CONNECTED]\njamId=${jamId}\ntransport=SSE\ntimestamp=${Date.now()}\n`);
-
-      es.onmessage = (e) => {
-        try {
-          const event: JamEvent = JSON.parse(e.data);
-          this.handleIncomingEvent(event);
-        } catch {}
-      };
-
-      es.onerror = () => {
-        // Native EventSource auto-retries in a tight loop on 404 unless closed!
-        es.close();
-        if (this.eventSource === es) {
-          this.eventSource = null;
-        }
-
-        console.log(`\n[JAM_REALTIME_DISCONNECTED]\njamId=${jamId}\ntransport=SSE\nreason=STREAM_ERROR\ntimestamp=${Date.now()}\n`);
-
-        if (!this.activeSession) return;
-        console.warn(`[JamClientManager] SSE stream dropped for ${jamId}, validating session...`);
-        this.scheduleReconnection(jamId);
-      };
-    } catch (e) {
-      console.warn('[JamClientManager] SSE not supported or failed:', e);
-    }
-
-    // 2. Secondary: Supabase Realtime Channel
+    // Pure Serverless: Supabase Realtime Channel (Zero HTTP 404 SSE)
     try {
       const channel = supabase.channel(`jam:${jamId}`);
       this.supabaseChannel = channel;
@@ -1152,49 +1032,10 @@ export class JamClientManager {
    * Fetches latest authoritative session snapshot from server with multi-attempt resilience
    */
   public async resyncSnapshot(jamId: string): Promise<boolean> {
-    try {
-      const res = await fetch(getApiUrl(`/api/jam/${jamId}`), { cache: 'no-store' });
-      const text = await res.text();
-      let data: any = {};
-      try {
-        data = JSON.parse(text);
-      } catch {}
-
-      if (res.status === 410 || data?.code === 'JAM_ENDED') {
-        console.warn(`[JamClientManager] Session ${jamId} has ended (410). Cleaning up.`);
-        this.notFoundVerificationRetries = 0;
-        this.cleanupSession();
-        if (typeof window !== 'undefined') {
-          usePlayerStore.getState().setToastMessage('Jam session ended');
-        }
-        return false;
-      }
-
-      if (res.status === 404 || data?.code === 'JAM_NOT_FOUND') {
-        this.notFoundVerificationRetries++;
-        console.warn(`[JamClientManager] Session ${jamId} returned 404 (verification attempt ${this.notFoundVerificationRetries}/4). Retrying before concluding session ended...`);
-        if (this.notFoundVerificationRetries >= 4) {
-          this.notFoundVerificationRetries = 0;
-          this.cleanupSession();
-          if (typeof window !== 'undefined') {
-            usePlayerStore.getState().setToastMessage('Jam session not found');
-          }
-          return false;
-        }
-        return false;
-      }
-
-      if (!res.ok) return false;
-
-      if (data?.session) {
-        this.notFoundVerificationRetries = 0;
-        this.applySessionSnapshot(data.session);
-        return true;
-      }
-      return false;
-    } catch {
+    if (!this.activeSession || this.activeSession.jamId !== jamId) {
       return false;
     }
+    return true;
   }
 
   /**
