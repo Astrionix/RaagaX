@@ -231,7 +231,7 @@ export default function Page() {
       {/* App Layout (Grid after Sidebar) */}
       <div className="flex-1 ml-0 md:ml-64 flex flex-col min-w-0 md:h-screen md:overflow-hidden">
         <div className={`grid flex-1 min-h-0 md:h-full transition-all duration-300 ${
-          isQueueOpen && !(activeTab === 'album' || activeTab === 'playlist' || (activeTab === 'artist' && selectedArtistId))
+          isQueueOpen
             ? 'grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px]'
             : 'grid-cols-1'
         }`}>
