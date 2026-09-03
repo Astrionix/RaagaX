@@ -3,7 +3,6 @@
 import React, { useRef, useState } from 'react';
 import { Play, Pause, SkipForward, SkipBack, Heart, MoreVertical, Disc3, Headphones, MonitorSmartphone, Radio, Speaker } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
-import { useJamStore } from '@/context/useJamStore';
 import { useConnectStore } from '@/context/useConnectStore';
 import { SeekBar } from '@/components/player/SeekBar';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
@@ -69,19 +68,14 @@ export function MobileMiniPlayer() {
     isLocalPlayback,
   } = usePlayerStore();
 
-  const { session, isInJam } = useJamStore();
   const { isRemoteMode, activePlaybackDevice, remoteSession, sendPlay, sendPause, sendNext, sendPrev } = useConnectStore();
 
   const currentSong = (isRemoteMode && remoteSession?.currentSong)
     ? remoteSession.currentSong
-    : (isInJam && session?.currentSong)
-    ? session.currentSong
     : localCurrentSong;
 
   const isPlaying = (isRemoteMode && remoteSession)
     ? remoteSession.isPlaying
-    : (isInJam && session)
-    ? session.state === 'PLAYING'
     : localIsPlaying;
 
   if (!mounted || !currentSong) return null;
@@ -256,32 +250,13 @@ export function MobileMiniPlayer() {
             </div>
           </div>
 
-          {/* Right: Controls (Jam, Like, Play/Pause, Next) */}
+            {/* Right: Controls (Like, Play/Pause, Next) */}
           <div className="flex items-center gap-1 flex-shrink-0">
             {/* RaagaX Connect: Remote Device Control & Cast button */}
             {!isScrolled && (
               <div onClick={(e) => e.stopPropagation()} className="flex items-center">
                 <ConnectButton className="p-2" />
               </div>
-            )}
-
-            {/* Remote Jam Party button */}
-            {!isScrolled && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  useJamStore.getState().toggleJamModal(true);
-                }}
-                aria-label="Jam Party"
-                className="w-11 h-11 flex items-center justify-center text-[#94A3B8] hover:text-[#FA233B] active:scale-90 transition-transform cursor-pointer rounded-full"
-              >
-                <Radio
-                  className={`w-4 h-4 transition-colors ${
-                    useJamStore.getState().isInJam ? 'text-[#FA233B] animate-pulse' : ''
-                  }`}
-                  strokeWidth={2.2}
-                />
-              </button>
             )}
 
             {/* Favorite button (visible in Normal state) */}

@@ -5,7 +5,7 @@
  * on the very first user interaction anywhere in the document (pointerdown, keydown, touchstart, click).
  * 
  * Directly primes both HTMLAudioElements (audioA, audioB) so remote Spotify Connect
- * and Jam commands can trigger audio.play() seamlessly without NotAllowedError.
+ * commands can trigger audio.play() seamlessly without NotAllowedError.
  */
 
 const SILENT_WAV = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';

@@ -25,8 +25,6 @@ import { PreloadManager } from '@/lib/playback/PreloadManager';
 import { initAudioUnlocker } from '@/lib/playback/AudioUnlocker';
 import { getApiUrl } from '@/lib/config/apiConfig';
 import { ArtworkColorExtractor } from '@/lib/theme/ArtworkColorExtractor';
-import { useJamStore } from '@/context/useJamStore';
-import { JamClientManager } from '@/lib/jam/client/JamClientManager';
 
 export function AudioPlayerController() {
   const audioRefA = useRef<HTMLAudioElement | null>(null);
@@ -63,14 +61,48 @@ export function AudioPlayerController() {
     loudnessNormalizationEnabled,
   } = usePlayerStore();
 
-  // Register Audio Elements with PlaybackService (web only)
+  // Register Audio Elements with PlaybackService & Hook directly into native HTML5 audio events
   useEffect(() => {
     if (RaagaXNativePlayer.isNative()) return; // native path
+
+    const attachAudioListeners = (audio: HTMLAudioElement) => {
+      const handlePlay = () => {
+        usePlayerStore.getState().setIsPlaying(true, true);
+      };
+      const handlePlaying = () => {
+        usePlayerStore.getState().setIsPlaying(true, true);
+      };
+      const handlePause = () => {
+        usePlayerStore.getState().setIsPlaying(false, true);
+      };
+      const handleEnded = () => {
+        usePlayerStore.getState().setIsPlaying(false, true);
+      };
+
+      audio.addEventListener('play', handlePlay);
+      audio.addEventListener('playing', handlePlaying);
+      audio.addEventListener('pause', handlePause);
+      audio.addEventListener('ended', handleEnded);
+
+      return () => {
+        audio.removeEventListener('play', handlePlay);
+        audio.removeEventListener('playing', handlePlaying);
+        audio.removeEventListener('pause', handlePause);
+        audio.removeEventListener('ended', handleEnded);
+      };
+    };
+
+    let cleanupA: (() => void) | undefined;
+    let cleanupB: (() => void) | undefined;
+
     if (audioRefA.current && audioRefB.current) {
       PlaybackService.getInstance().registerElements(audioRefA.current, audioRefB.current);
       PlaybackService.getInstance().setupMediaSessionHandlers();
       WebAudioGraph.getInstance().init(audioRefA.current, audioRefB.current);
       PlaybackService.getInstance().syncLivePlayingState();
+
+      cleanupA = attachAudioListeners(audioRefA.current);
+      cleanupB = attachAudioListeners(audioRefB.current);
     }
 
     // Browser Audio Autoplay Policy Unlocker (Chrome / Brave):
@@ -80,13 +112,18 @@ export function AudioPlayerController() {
     } else {
       initAudioUnlocker();
     }
+
+    return () => {
+      if (cleanupA) cleanupA();
+      if (cleanupB) cleanupB();
+    };
   }, []);
 
   // On cold startup: restore crash-safe playback snapshot
   useEffect(() => {
     try {
       const snapshot = PlaybackRecoveryEngine.getInstance().restoreSnapshot();
-      if (snapshot && !usePlayerStore.getState().currentSong && !useJamStore.getState().isInJam) {
+      if (snapshot && !usePlayerStore.getState().currentSong) {
         usePlayerStore.setState({
           currentSong: snapshot.song,
           currentTime: snapshot.positionMs / 1000,
@@ -107,11 +144,6 @@ export function AudioPlayerController() {
     //   App returns from background -> query native -> update UI state -> NO playback restart.
     const syncNativeStateToUI = async (reason: string) => {
       try {
-        const jamManager = JamClientManager.getInstance();
-        if (jamManager.getActiveSession()) {
-          console.log(`[AudioPlayerController] Skipping native state overwrite in Jam mode (${reason})`);
-          return;
-        }
         const state = await RaagaXNativePlayer.getPlaybackState();
         if (!state) return;
         console.log(`[AudioPlayerController] Native state re-sync (${reason}): isPlaying=${state.isPlaying} pos=${state.positionMs}ms dur=${state.durationMs}ms title="${state.title ?? ''}"`);
@@ -173,19 +205,6 @@ export function AudioPlayerController() {
     const unsubPlaybackState = RaagaXNativePlayer.addPlaybackStateListener((data) => {
       console.log('[AudioPlayerController] Native playbackStateChanged — isPlaying:', data.isPlaying, 'durationMs:', data.durationMs, 'positionMs:', data.positionMs);
       const store = usePlayerStore.getState();
-      const jamManager = JamClientManager.getInstance();
-      const jamSession = jamManager.getActiveSession();
-
-      if (jamSession) {
-        // In Jam session: update position/duration without overriding Jam playback state or currentSong
-        if (typeof data.durationMs === 'number' && data.durationMs > 0) {
-          store.setDuration(data.durationMs / 1000);
-        }
-        if (typeof data.positionMs === 'number' && data.positionMs >= 0) {
-          store.setCurrentTime(data.positionMs / 1000, true);
-        }
-        return;
-      }
 
       // If store is in the middle of a track transition with PLAYING intent, ignore transient false from buffer init
       if (!data.isPlaying && store.playbackIntent === 'PLAYING') {
@@ -206,19 +225,7 @@ export function AudioPlayerController() {
       }
     });
 
-    // queueEnded fires when the current track finishes playing in ExoPlayer.
-    // In Jam mode: only the host fires SKIP_NEXT. Guests silently wait for TRACK_CHANGED.
     const unsubQueueEnded = RaagaXNativePlayer.addQueueEndedListener(() => {
-      const jamManager = JamClientManager.getInstance();
-      if (jamManager.getActiveSession()) {
-        if (jamManager.isHost()) {
-          console.log('[AudioPlayerController] Native queueEnded in Jam (host) — sending SKIP_NEXT to server');
-          jamManager.sendSkipNext().catch(() => {});
-        } else {
-          console.log('[AudioPlayerController] Native queueEnded in Jam (guest) — waiting for TRACK_CHANGED broadcast');
-        }
-        return;
-      }
 
       if (Date.now() - lastSeekTimeRef.current < 1500) {
         console.log('[AudioPlayerController] Ignoring native queueEnded during seek settle lock');
@@ -240,12 +247,6 @@ export function AudioPlayerController() {
 
     const unsubChanged = RaagaXNativePlayer.addTrackChangedListener((data) => {
       lastTrackChangeTimeRef.current = Date.now();
-      const jamManager = JamClientManager.getInstance();
-      const jamSession = jamManager.getActiveSession();
-      if (jamSession) {
-        console.log(`[AudioPlayerController] Native trackChanged in Jam session (${data.title}) — keeping Jam authoritative track`);
-        return;
-      }
 
       const currentStoreTrack = usePlayerStore.getState().currentSong;
       const oldTrackId = data.oldTrackId || currentStoreTrack?.id || '';
@@ -489,20 +490,15 @@ export function AudioPlayerController() {
       console.log('[SEEK] Store target:', targetSec, 'seconds (', Math.round(targetSec * 1000), 'ms)');
       lastSeekTimeRef.current = Date.now();
       
-      const jamState = useJamStore.getState();
-      if (jamState.isInJam && jamState.session) {
-        JamClientManager.getInstance().sendSeek(Math.round(targetSec * 1000));
-      } else {
-        try {
-          const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
-          if (ConnectClientManager.getInstance().isRemoteMode()) {
-            ConnectClientManager.getInstance().sendCommand('SEEK', { positionMs: Math.round(targetSec * 1000) });
-          } else {
-            PlaybackService.getInstance().seek(targetSec);
-          }
-        } catch {
+      try {
+        const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
+        if (ConnectClientManager.getInstance().isRemoteMode()) {
+          ConnectClientManager.getInstance().sendCommand('SEEK', { positionMs: Math.round(targetSec * 1000) });
+        } else {
           PlaybackService.getInstance().seek(targetSec);
         }
+      } catch {
+        PlaybackService.getInstance().seek(targetSec);
       }
 
       LyricsEngine.getInstance().seek(targetSec * 1000);
@@ -519,7 +515,7 @@ export function AudioPlayerController() {
 
     isRefilling.current = true;
 
-    const existingIds = queue.map(s => s.id);
+    const existingIds = (queue || []).filter((s): s is Song => Boolean(s && s.id)).map(s => s.id);
     const genre = currentSong.genre || 'TELUGU HITS';
     const language = genre.split(' ')[0] || 'Telugu';
     const validLangs = ['Telugu', 'Kannada', 'Tamil', 'Hindi', 'Malayalam', 'English'];
@@ -541,10 +537,10 @@ export function AudioPlayerController() {
       return;
     }
 
-    const lastArtists = queue
+    const lastArtists = (queue || [])
       .slice(Math.max(0, queueIndex - 5), queueIndex)
-      .map(s => s.artist)
-      .filter(Boolean) as string[];
+      .filter((s): s is Song => Boolean(s && s.artist))
+      .map(s => s.artist);
 
     fetch(getApiUrl('/api/queue-refill'), {
       method: 'POST',

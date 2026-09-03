@@ -1,9 +1,8 @@
 'use client';
 
 import React from 'react';
-import { Trash2, Heart, X, ListMusic, Music2, Radio, Plus, Users } from 'lucide-react';
+import { Trash2, Heart, X, ListMusic, Music2 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
-import { useJamStore } from '@/context/useJamStore';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { SongFormatter } from '@/lib/music/SongFormatter';
 
@@ -28,19 +27,7 @@ export function RightQueuePanel() {
     toggleQueue
   } = usePlayerStore();
 
-  const {
-    session: jamSession,
-    isInJam,
-    toggleJamModal,
-    toggleAddToJamModal,
-    sendRemoveTrack,
-  } = useJamStore();
-
-  const upNextQueue = mounted
-    ? isInJam && jamSession
-      ? jamSession.queue
-      : queue.slice(queueIndex + 1)
-    : [];
+  const upNextQueue = mounted ? queue.slice(queueIndex + 1) : [];
 
   const handleClearQueue = () => {
     if (currentSong) {
@@ -55,15 +42,11 @@ export function RightQueuePanel() {
       {/* Header with Up Next, Autoplay Toggle, Clear and Close */}
       <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-white/[0.08] flex-shrink-0">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className={`p-1.5 rounded-lg border flex-shrink-0 ${
-            isInJam ? 'bg-[#FA233B]/20 text-[#FA233B] border-[#FA233B]/40' : 'bg-[#fa233b]/15 text-[#fa233b] border-[#fa233b]/25'
-          }`}>
-            {isInJam ? <Radio className="w-4 h-4 animate-pulse" /> : <ListMusic className="w-4 h-4" />}
+          <div className="p-1.5 rounded-lg border flex-shrink-0 bg-[#fa233b]/15 text-[#fa233b] border-[#fa233b]/25">
+            <ListMusic className="w-4 h-4" />
           </div>
           <div className="flex items-center gap-2 min-w-0">
-            <h3 className="font-black text-sm text-white tracking-tight">
-              {isInJam ? 'Jam Queue' : 'Queue'}
-            </h3>
+            <h3 className="font-black text-sm text-white tracking-tight">Queue</h3>
             {upNextQueue.length > 0 && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-slate-300 font-mono">
                 {upNextQueue.length}
@@ -71,17 +54,8 @@ export function RightQueuePanel() {
             )}
           </div>
           
-          {isInJam ? (
-            <button
-              onClick={() => toggleJamModal(true)}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FA233B]/15 text-[#FA233B] border border-[#FA233B]/30 text-[10px] font-bold hover:bg-[#FA233B]/25 transition-colors cursor-pointer"
-            >
-              <Users className="w-3 h-3" />
-              <span>{Object.keys(jamSession?.participants || {}).length}</span>
-            </button>
-          ) : (
-            <div className="flex items-center gap-1.5 pl-2.5 border-l border-white/10">
-              <span className="text-[10px] font-bold text-slate-400">Autoplay</span>
+          <div className="flex items-center gap-1.5 pl-2.5 border-l border-white/10">
+            <span className="text-[10px] font-bold text-slate-400">Autoplay</span>
               <button
                 onClick={() => toggleAutoplay()}
                 className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${
@@ -96,7 +70,6 @@ export function RightQueuePanel() {
                 />
               </button>
             </div>
-          )}
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -208,13 +181,7 @@ export function RightQueuePanel() {
                     {song.duration ? `${Math.floor(Number(song.duration) / 60)}:${Math.floor(Number(song.duration) % 60).toString().padStart(2, '0')}` : '3:45'}
                   </span>
                   <button
-                    onClick={() => {
-                      if (isInJam && queueItemId) {
-                        sendRemoveTrack(queueItemId);
-                      } else {
-                        removeFromQueue(song.id);
-                      }
-                    }}
+                    onClick={() => removeFromQueue(song.id)}
                     className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-400 transition-opacity cursor-pointer"
                     title="Remove from queue"
                   >

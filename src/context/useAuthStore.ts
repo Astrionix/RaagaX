@@ -40,13 +40,7 @@ export async function purgeAllUserScopedState(source: string = 'PURGE') {
     usePlaylistStore.getState().resetPlaylistState();
   } catch {}
 
-  // 4. Leave and cleanup Jam session if active
-  try {
-    const { JamClientManager } = await import('@/lib/jam/client/JamClientManager');
-    JamClientManager.getInstance().leaveJam().catch(() => {});
-  } catch {}
-
-  // 5. Cleanup sync engines and unsubscribe realtime channels
+  // 4. Cleanup sync engines and unsubscribe realtime channels
   try {
     const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
     AccountSyncEngine.getInstance().unsubscribe();

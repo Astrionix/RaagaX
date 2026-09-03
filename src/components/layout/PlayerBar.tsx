@@ -20,7 +20,6 @@ import {
   Speaker,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
-import { useJamStore } from '@/context/useJamStore';
 import { useConnectStore } from '@/context/useConnectStore';
 import { ConnectButton } from '@/components/connect/ConnectButton';
 import { SeekBar } from '@/components/player/SeekBar';
@@ -56,7 +55,6 @@ export function PlayerBar() {
     isLocalPlayback,
   } = usePlayerStore();
 
-  const { isInJam, session, diagnostics, participantState, toggleJamModal } = useJamStore();
   const { isRemoteMode, activePlaybackDevice, remoteSession, sendPlay, sendPause, sendNext, sendPrev, sendVolume } = useConnectStore();
 
   useEffect(() => {
@@ -68,14 +66,10 @@ export function PlayerBar() {
 
   const activeSong = (isRemoteMode && remoteSession?.currentSong)
     ? remoteSession.currentSong
-    : (isInJam && session?.currentSong)
-    ? session.currentSong
     : currentSong;
 
   const isPlayingActive = (isRemoteMode && remoteSession)
     ? remoteSession.isPlaying
-    : (isInJam && session)
-    ? session.state === 'PLAYING'
     : isPlaying;
 
   const handleTogglePlayPause = () => {
@@ -148,7 +142,9 @@ export function PlayerBar() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  if (!mounted || !activeSong || isPlayerExpanded) return null;
+  if (!mounted || isPlayerExpanded) return null;
+
+  if (!activeSong) return null;
 
   const themeColor = palette?.primary || '#FA233B';
   const glowColor = palette?.glow || 'rgba(250, 35, 59, 0.2)';
@@ -320,35 +316,8 @@ export function PlayerBar() {
           )}
         </div>
 
-        {/* ── 3. RIGHT CONTROLS: Jam, Lyrics, Queue, Volume ── */}
+        {/* ── 3. RIGHT CONTROLS: Lyrics, Queue, Volume ── */}
         <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
-          <button
-            onClick={() => toggleJamModal(true)}
-            aria-label="Remote Jam Party"
-            title={
-              isInJam
-                ? `Jam Party (${diagnostics.syncState === 'SYNCHRONIZED' ? 'Synced' : diagnostics.syncState || 'Active'})`
-                : 'Remote Jam Party'
-            }
-            className={`relative p-1.5 rounded-full transition-all cursor-pointer ${
-              isInJam
-                ? 'text-[#FA233B] bg-[#FA233B]/15 hover:bg-[#FA233B]/25'
-                : 'text-zinc-400 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            <Radio className={`w-3.5 h-3.5 ${isInJam ? 'animate-pulse' : ''}`} />
-            {isInJam && (
-              <span
-                className={`absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full border border-black/80 ${
-                  diagnostics.syncState === 'SYNCHRONIZED'
-                    ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)] animate-pulse'
-                    : diagnostics.syncState === 'SYNCHRONIZING' || participantState === 'SYNCING'
-                    ? 'bg-amber-400 animate-bounce'
-                    : 'bg-rose-500 animate-ping'
-                }`}
-              />
-            )}
-          </button>
 
           {/* RaagaX Connect: Remote Device Control & Playback Switcher */}
           <ConnectButton />

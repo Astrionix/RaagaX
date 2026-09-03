@@ -477,17 +477,6 @@ export function ConnectDeviceModal() {
               <Radio className="w-3 h-3 text-[#1db954]" />
               <span>RaagaX Connect</span>
             </div>
-            <button
-              onClick={() => {
-                toggleConnectModal(false);
-                import('@/context/useJamStore').then((m) =>
-                  m.useJamStore.getState().toggleJamModal(true)
-                );
-              }}
-              className="text-[11px] text-zinc-400 hover:text-white font-medium underline underline-offset-2 transition-colors cursor-pointer"
-            >
-              Multi-Speaker Jam
-            </button>
           </div>
         </div>
       </div>

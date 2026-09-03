@@ -78,7 +78,7 @@ export class PlaybackWatchdog {
           activeAudio.load();
           activeAudio.play().catch((err: any) => {
             if (err?.name === 'NotAllowedError') {
-              console.warn('[Jam] Audio locked pending user gesture.');
+              console.warn('[PlaybackWatchdog] Audio locked pending user gesture.');
             }
           });
         }

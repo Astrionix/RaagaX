@@ -10,6 +10,7 @@ import { ConnectServerEngine } from './ConnectServerEngine';
 import { DeviceIdentity } from './identity/DeviceIdentity';
 import { LocalLanDiscovery } from './discovery/LocalLanDiscovery';
 import { getApiUrl } from '@/lib/config/apiConfig';
+import { supabase } from '@/lib/supabase';
 
 type DeviceListListener = (devices: ConnectDevice[]) => void;
 
@@ -186,7 +187,6 @@ export class ConnectDiscoveryEngine {
     }
 
     try {
-      const { supabase } = require('@/lib/supabase');
       const channelName = 'raaga_connect_mesh';
       this.presenceChannel = supabase.channel(channelName, {
         config: {
@@ -298,7 +298,7 @@ export class ConnectDiscoveryEngine {
   }
 
   public sendSupabaseBroadcast(event: string, payload: any): void {
-    if (this.presenceChannel) {
+    if (this.presenceChannel && (this.presenceChannel as any).state === 'joined') {
       try {
         this.presenceChannel.send({
           type: 'broadcast',
@@ -310,7 +310,7 @@ export class ConnectDiscoveryEngine {
   }
 
   public announcePresence(): void {
-    if (!this.presenceChannel) return;
+    if (!this.presenceChannel || (this.presenceChannel as any).state !== 'joined') return;
     try {
       this.presenceChannel.send({
         type: 'broadcast',
@@ -331,7 +331,7 @@ export class ConnectDiscoveryEngine {
   }
 
   public sendDeviceProbe(): void {
-    if (!this.presenceChannel) return;
+    if (!this.presenceChannel || (this.presenceChannel as any).state !== 'joined') return;
     try {
       this.presenceChannel.send({
         type: 'broadcast',
@@ -455,6 +455,19 @@ export class ConnectDiscoveryEngine {
         );
       } catch {}
     }
+
+    // 3. Same-origin HTTP beacon (bridges across different browsers like Brave and Edge, immune to adblockers)
+    if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+      const now = Date.now();
+      if (now - this.lastHttpBeaconTime >= 4000) {
+        this.lastHttpBeaconTime = now;
+        fetch(getApiUrl('/api/connect/beacon'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ device: this.localDevice }),
+        }).catch(() => {});
+      }
+    }
   }
 
   private handleIncomingBeacon(device: ConnectDevice): void {
@@ -524,6 +537,18 @@ export class ConnectDiscoveryEngine {
           this.handleIncomingPeerDevice(remote);
         }
       } catch {}
+    }
+
+    // 3. Scan same-origin HTTP API (bridges across different browsers, Brave Shields, or local network)
+    if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+      fetch(getApiUrl('/api/connect/devices'))
+        .then(res => res.json())
+        .then(data => {
+          if (data?.devices && Array.isArray(data.devices)) {
+            this.handleIncomingDeviceList(data.devices);
+          }
+        })
+        .catch(() => {});
     }
 
     this.pruneStaleDevices();

@@ -42,7 +42,6 @@ import {
   Plus,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
-import { useJamStore } from '@/context/useJamStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { useLyricsStore } from '@/context/useLyricsStore';
@@ -59,7 +58,6 @@ import { ConnectButton } from '@/components/connect/ConnectButton';
 import { useConnectStore } from '@/context/useConnectStore';
 import { VolumeControl } from '@/components/player/VolumeControl';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
-import { JamClientManager } from '@/lib/jam/client/JamClientManager';
 import { ConnectClientManager } from '@/lib/connect/ConnectClientManager';
 
 export function ExpandedPlayerModal() {
@@ -129,20 +127,15 @@ export function ExpandedPlayerModal() {
     sleepTimerMode,
   } = usePlayerStore();
 
-  const { session, isInJam } = useJamStore();
   const { isRemoteMode, remoteSession, sendPlay, sendPause, sendNext, sendPrev } = useConnectStore();
 
   const currentSong = (isRemoteMode && remoteSession?.currentSong)
     ? remoteSession.currentSong
-    : (isInJam && session?.currentSong)
-      ? session.currentSong
-      : localCurrentSong;
+    : localCurrentSong;
 
   const isPlaying = (isRemoteMode && remoteSession)
     ? remoteSession.isPlaying
-    : (isInJam && session)
-      ? session.state === 'PLAYING'
-      : localIsPlaying;
+    : localIsPlaying;
 
   // Gesture handling for swipe-down to minimize on touch devices
   const touchStartY = useRef<number | null>(null);
@@ -259,14 +252,17 @@ export function ExpandedPlayerModal() {
 
   // Instantly reset displayed seconds when track changes
   useEffect(() => {
+    const storeTime = usePlayerStore.getState().currentTime || 0;
     const initialPos = (isRemoteMode && remoteSession?.currentSong?.id === currentSong?.id && typeof remoteSession?.positionMs === 'number')
       ? remoteSession.positionMs / 1000
-      : (isInJam && session?.currentSong?.id === currentSong?.id && typeof session?.positionMs === 'number')
-      ? session.positionMs / 1000
+      : storeTime > 0
+      ? storeTime
       : 0;
     lastGoodSecRef.current = initialPos;
     setDisplaySec(initialPos);
-    usePlayerStore.setState({ currentTime: initialPos });
+    if (initialPos > 0 && storeTime === 0) {
+      usePlayerStore.setState({ currentTime: initialPos });
+    }
   }, [currentSong?.id]);
 
   useEffect(() => {
@@ -277,28 +273,23 @@ export function ExpandedPlayerModal() {
     const tick = () => {
       if (cancelled) return;
       let liveSec = lastGoodSecRef.current;
-      if (isRemoteMode || remoteSession) {
+      let activeAudio: HTMLAudioElement | null = null;
+      try {
+        activeAudio = PlaybackService.getInstance().getActiveAudio();
+      } catch {}
+
+      if (isRemoteMode || !usePlayerStore.getState().isLocalPlayback) {
         try {
           liveSec = ConnectClientManager.getInstance().getInterpolatedPosition();
           lastGoodSecRef.current = liveSec;
         } catch { }
-      } else if (isInJam && session) {
-        try {
-          liveSec = JamClientManager.getInstance().getInterpolatedPosition();
-          lastGoodSecRef.current = liveSec;
-        } catch { }
+      } else if (activeAudio && !activeAudio.paused && !activeAudio.seeking && !isNaN(activeAudio.currentTime) && activeAudio.currentTime >= 0) {
+        liveSec = activeAudio.currentTime;
+        lastGoodSecRef.current = liveSec;
       } else {
-        try {
-          const activeAudio = PlaybackService.getInstance().getActiveAudio();
-          if (activeAudio && !activeAudio.paused && !activeAudio.seeking && !isNaN(activeAudio.currentTime) && activeAudio.currentTime >= 0) {
-            liveSec = activeAudio.currentTime;
-            lastGoodSecRef.current = liveSec;
-          } else {
-            const store = usePlayerStore.getState();
-            liveSec = store.currentTime || 0;
-            lastGoodSecRef.current = liveSec;
-          }
-        } catch { }
+        const store = usePlayerStore.getState();
+        liveSec = store.currentTime || 0;
+        lastGoodSecRef.current = liveSec;
       }
 
       const secFloor = Math.floor(liveSec);
@@ -316,25 +307,27 @@ export function ExpandedPlayerModal() {
       cancelled = true;
       cancelAnimationFrame(animFrame);
     };
-  }, [isRemoteMode, remoteSession, isInJam, session, currentSong?.id]);
+  }, [isRemoteMode, remoteSession, currentSong?.id]);
 
   const exactDuration = useMemo(() => {
     if (isRemoteMode && remoteSession) {
       if (remoteSession.durationMs > 0) return remoteSession.durationMs / 1000;
       if (remoteSession.currentSong?.duration) return remoteSession.currentSong.duration;
     }
-    if (isInJam && session) {
-      if (session.durationMs && session.durationMs > 0) return session.durationMs / 1000;
-      if (session.currentSong?.duration) return session.currentSong.duration;
-    }
     if (currentSong?.duration && currentSong.duration > 0) {
       return currentSong.duration;
     }
+    try {
+      const active = PlaybackService.getInstance().getActiveAudio();
+      if (active && !isNaN(active.duration) && Number.isFinite(active.duration) && active.duration > 0) {
+        return active.duration;
+      }
+    } catch {}
     if (Number.isFinite(duration) && duration > 0) {
       return duration;
     }
     return 0;
-  }, [isRemoteMode, remoteSession?.durationMs, remoteSession?.currentSong?.duration, isInJam, session?.durationMs, session?.currentSong?.duration, currentSong?.duration, duration]);
+  }, [isRemoteMode, remoteSession?.durationMs, remoteSession?.currentSong?.duration, currentSong?.duration, duration]);
 
   const songDuration = exactDuration;
   const remainingTime = Math.max(0, songDuration - displaySec);
@@ -833,7 +826,7 @@ export function ExpandedPlayerModal() {
               {/* Volume Slider (Desktop only) */}
               <VolumeControl className="hidden md:flex w-full max-w-md px-3" />
 
-              {/* Bottom Utilities Pills [ Connect | Jam | Lyrics | Queue | Sleep Timer ] */}
+              {/* Bottom Utilities Pills [ Connect | Lyrics | Queue | Sleep Timer ] */}
               <div className="flex items-center justify-center gap-2 sm:gap-3 pt-1 flex-wrap">
                 {/* Connect to Device Button */}
                 <button
@@ -846,19 +839,6 @@ export function ExpandedPlayerModal() {
                 >
                   <Cast className="w-3.5 h-3.5 text-emerald-400" />
                   <span>Connect</span>
-                </button>
-
-                {/* Jam / Listening Party Button */}
-                <button
-                  onClick={() => {
-                    haptics.lightImpact();
-                    import('@/context/useJamStore').then((m) => m.useJamStore.getState().toggleJamModal(true));
-                  }}
-                  className="px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-[#FA233B]/10 hover:bg-[#FA233B]/20 text-[#FA233B] border-[#FA233B]/30"
-                  title="Start Jam Listening Party"
-                >
-                  <Radio className="w-3.5 h-3.5 animate-pulse" />
-                  <span>Jam</span>
                 </button>
 
                 {/* Lyrics Button */}
@@ -1843,24 +1823,7 @@ export function ExpandedPlayerModal() {
               )}
             </button>
 
-            {/* Jam Party Button */}
-            <button
-              onClick={() => {
-                haptics.lightImpact();
-                useJamStore.getState().toggleJamModal(true);
-              }}
-              className={`px-3 sm:px-3.5 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${useJamStore.getState().isInJam
-                  ? 'bg-[#FA233B]/25 text-[#FA233B] border-[#FA233B]/40 shadow-sm'
-                  : 'bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10'
-                }`}
-              title="Remote Jam Party"
-            >
-              <Radio className={`w-3.5 h-3.5 ${useJamStore.getState().isInJam ? 'animate-pulse' : ''}`} />
-              <span>Jam</span>
-              {useJamStore.getState().isInJam && (
-                <span className="w-1.5 h-1.5 rounded-full bg-[#FA233B] animate-ping" />
-              )}
-            </button>
+
 
             {/* Sleep Timer Button (Mobile) */}
             <button

@@ -29,18 +29,8 @@ export interface SplashScreenProps {
 let hasShownSplashInProcess = false;
 
 export function SplashScreen({ onComplete, enableAudio = true }: SplashScreenProps) {
-  const [isVisible, setIsVisible] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    if (
-      hasShownSplashInProcess ||
-      localStorage.getItem('raagax_splash_completed') === 'true' ||
-      sessionStorage.getItem('raagax_splash_completed') === 'true' ||
-      usePlayerStore.getState().isPlaying
-    ) {
-      return false;
-    }
-    return true;
-  });
+  const [mounted, setMounted] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
   const [phase, setPhase] = useState<
     'black' | 'sound' | 'morph' | 'playback' | 'lock' | 'wordmark' | 'tagline' | 'hold' | 'transitioning'
   >('black');
@@ -51,6 +41,7 @@ export function SplashScreen({ onComplete, enableAudio = true }: SplashScreenPro
   const soundEngineRef = useRef(splashSoundEngine);
 
   useEffect(() => {
+    setMounted(true);
     // 0. Fast-path: Check if already shown in this session, or if audio is actively playing / warm resume
     if (typeof window !== 'undefined') {
       const alreadyShown =
@@ -65,6 +56,8 @@ export function SplashScreen({ onComplete, enableAudio = true }: SplashScreenPro
         if (onComplete) onComplete();
         return;
       }
+
+      setIsVisible(true);
 
       // Check native background service if available
       import('@/lib/playback/native/RaagaXNativePlayer').then(({ RaagaXNativePlayer }) => {
@@ -182,7 +175,7 @@ export function SplashScreen({ onComplete, enableAudio = true }: SplashScreenPro
     };
   }, [enableAudio, onComplete]);
 
-  if (!isVisible) return null;
+  if (!mounted || !isVisible) return null;
 
   const isTransitioning = phase === 'transitioning';
   const showWaveform = phase === 'sound';

@@ -153,28 +153,6 @@ export class PlaybackService {
         } catch { }
 
         if (active.readyState >= 2) {
-          // WATCHDOG JAM SAFETY (Phase 4):
-          try {
-            const { JamClientManager } = require('@/lib/jam/client/JamClientManager');
-            const jamManager = JamClientManager.getInstance();
-            const activeJam = jamManager.getActiveSession();
-            if (activeJam) {
-              if (activeJam.state !== 'PLAYING') {
-                return;
-              }
-              const jamState = jamManager.getParticipantState();
-              const JAM_TRANSIENT_STATES = new Set([
-                'JOINING', 'JOIN_REQUESTED', 'AUTHORIZED', 'SNAPSHOT_RECEIVED',
-                'CLOCK_SYNCING', 'PREPARING', 'SCHEDULED', 'RECONNECTING',
-              ]);
-              if (JAM_TRANSIENT_STATES.has(jamState)) {
-                console.log(`[WATCHDOG_SKIPPED] reason=JAM_LIFECYCLE_STATE state=${jamState} trackId=${active.dataset?.trackId || 'unknown'}`);
-                return;
-              }
-            }
-          } catch {
-            // If JamClientManager is not available, proceed with normal watchdog
-          }
 
           console.warn('[PlaybackService Watchdog] Active audio paused unexpectedly while isPlaying=true. Recovering play()...');
           active.play()
@@ -568,9 +546,15 @@ export class PlaybackService {
    * loadAudioSource — Atomically loads and starts audio for a requested track.
    * Uses requestId stale-check to guarantee older async loads NEVER overwrite newer requests.
    */
-  public async loadAudioSource(song: Song, requestId: number, autoPlay: boolean = true, initialPositionSec: number = 0): Promise<boolean> {
+  public async loadAudioSource(song: Song, requestId?: number, autoPlay: boolean = true, initialPositionSec: number = 0): Promise<boolean> {
     if (!song) return false;
-    if (requestId !== this.playbackRequestId) return false;
+    if (requestId === undefined || this.playbackRequestId === 0 || requestId <= 1) {
+      this.playbackRequestId = ++this.playbackRequestId;
+      this.playbackGeneration = this.playbackRequestId;
+      requestId = this.playbackRequestId;
+    } else if (requestId !== this.playbackRequestId) {
+      return false;
+    }
 
     // CONNECT SAFETY: Do NOT load or play local audio on a remote controller device
     if (!usePlayerStore.getState().isLocalPlayback) {
@@ -862,6 +846,15 @@ export class PlaybackService {
           if (e?.name === 'AbortError' || requestId !== this.playbackRequestId) {
             return false;
           }
+          if (e?.name === 'NotAllowedError') {
+            this.isAutoplayRestricted = true;
+            console.warn('[PlaybackService] Autoplay restricted by browser policy. Audio loaded and ready for user interaction.');
+            store.setIsPlaying(false);
+            store.setPlaybackIntent('PAUSED');
+            this.emitPlaybackReady(song.id, activeAudio.duration || song.duration || 0, requestId);
+            this.attachAutoplayUnlockHandler();
+            return true;
+          }
           console.warn('[PlaybackService] Direct play failed:', e);
 
           // ── DIRECT CANONICAL FALLBACK ON CACHE/SOURCE REJECTION ───────────
@@ -963,10 +956,8 @@ export class PlaybackService {
       if (isNaturalEnd || store.isPlaying || store.playbackIntent === 'PLAYING') {
         usePlayerStore.setState({ isPlaying: true, playbackIntent: 'PLAYING' });
       }
-      // AUTO_NEXT SINGLE OWNER (Phase 6):
       // Pass isNaturalEnd=true so usePlayerStore.playNext knows this is an automatic
-      // end-of-track advance (not a user gesture). In Jam mode, only the host may
-      // send SKIP_NEXT for auto-next; participants wait for TRACK_CHANGED from server.
+      // end-of-track advance (not a user gesture).
       await usePlayerStore.getState().playNext(isNaturalEnd);
       return true;
     } catch {
@@ -1011,6 +1002,22 @@ export class PlaybackService {
 
     const active = this.getActiveAudio();
     if (active) {
+      const currentSong = usePlayerStore.getState().currentSong;
+      const isInvalidSrc = typeof window !== 'undefined' && (
+        !active.src || 
+        active.src === 'about:blank' || 
+        active.src === window.location.href || 
+        active.src.startsWith('data:') ||
+        active.src.endsWith('/null')
+      );
+
+      if (isInvalidSrc && currentSong) {
+        console.log('[PlaybackService] Active audio had invalid/dummy src. Auto-loading audio source for currentSong:', currentSong.title);
+        const curTime = usePlayerStore.getState().currentTime || 0;
+        this.loadAudioSource(currentSong, undefined, true, curTime);
+        return;
+      }
+
       if (typeof active.play === 'function') {
         const p = active.play();
         if (p && typeof p.then === 'function') {
@@ -1228,8 +1235,7 @@ export class PlaybackService {
     } catch { }
 
     console.log(`[PLAYBACK_ENDED] trackId=${endedTrackId} generation=${generation} tag=${tag}`);
-    console.log(`[PlaybackService] Track ended naturally on audio ${tag} (gen ${generation}). Advancing queue...`);
-    // Pass isNaturalEnd=true so Jam-aware playNext suppresses auto-next for non-host participants
+    // Pass isNaturalEnd=true so playNext preserves continuous auto-advance
     this.playNextTrack(true);
   }
 

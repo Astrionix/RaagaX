@@ -1,10 +1,8 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useConnectStore } from '@/context/useConnectStore';
-import { useJamStore } from '@/context/useJamStore';
 import { PlaybackEngine } from '@/lib/playback/PlaybackEngine';
 import { SeekLock } from '@/lib/playback/SeekLock';
-import { JamClientManager } from '@/lib/jam/client/JamClientManager';
 import { ConnectClientManager } from '@/lib/connect/ConnectClientManager';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
 
@@ -30,7 +28,6 @@ export function SeekBar({
   const setCurrentTime = usePlayerStore((s) => s.setCurrentTime);
   const setSeekTarget = usePlayerStore((s) => s.setSeekTarget);
   const { isRemoteMode, remoteSession } = useConnectStore();
-  const { session: jamSession, isInJam } = useJamStore();
   const trackRef = useRef<HTMLDivElement>(null);
   
   const [isSeeking, setIsSeeking] = useState(false);
@@ -40,18 +37,12 @@ export function SeekBar({
 
   const activeSong = (isRemoteMode && remoteSession?.currentSong)
     ? remoteSession.currentSong
-    : (isInJam && jamSession?.currentSong)
-    ? jamSession.currentSong
     : storeSong;
 
   const effectiveDuration = useMemo(() => {
     if (isRemoteMode && remoteSession) {
       if (remoteSession.durationMs > 0) return remoteSession.durationMs / 1000;
       if (remoteSession.currentSong?.duration) return remoteSession.currentSong.duration;
-    }
-    if (isInJam && jamSession) {
-      if (jamSession.durationMs && jamSession.durationMs > 0) return jamSession.durationMs / 1000;
-      if (jamSession.currentSong?.duration) return jamSession.currentSong.duration;
     }
     if (activeSong?.duration && activeSong.duration > 0) {
       return activeSong.duration;
@@ -60,7 +51,7 @@ export function SeekBar({
       return storeDuration;
     }
     return 0;
-  }, [isRemoteMode, remoteSession?.durationMs, remoteSession?.currentSong?.duration, isInJam, jamSession?.durationMs, jamSession?.currentSong?.duration, activeSong?.duration, storeDuration]);
+  }, [isRemoteMode, remoteSession?.durationMs, remoteSession?.currentSong?.duration, activeSong?.duration, storeDuration]);
 
   const prevProgressRef = useRef(0);
 
@@ -69,14 +60,12 @@ export function SeekBar({
     prevProgressRef.current = 0;
     const initialPos = (isRemoteMode && remoteSession?.currentSong?.id === activeSong?.id && typeof remoteSession?.positionMs === 'number')
       ? remoteSession.positionMs / 1000
-      : (isInJam && jamSession?.currentSong?.id === activeSong?.id && typeof jamSession?.positionMs === 'number')
-      ? jamSession.positionMs / 1000
       : 0;
     const p = effectiveDuration > 0 ? Math.min(1, Math.max(0, initialPos / effectiveDuration)) : 0;
     setLocalProgress(p);
   }, [activeSong?.id, effectiveDuration]);
 
-  // 60 FPS ultra-smooth local progress prediction driven by Connect/Jam coordinator or direct audio clock
+  // 60 FPS ultra-smooth local progress prediction driven by Connect coordinator or direct audio clock
   useEffect(() => {
     let animFrame: number;
     let cancelled = false;
@@ -85,26 +74,20 @@ export function SeekBar({
       if (cancelled) return;
       if (!isSeeking && !isSeekSettling && effectiveDuration > 0) {
         const connectClient = ConnectClientManager.getInstance();
-        const jamManager = JamClientManager.getInstance();
-        const activeJam = jamManager.getActiveSession();
         let liveSec: number;
 
-        if (connectClient.isRemoteMode() || remoteSession) {
-          liveSec = connectClient.getInterpolatedPosition();
-        } else if (activeJam) {
-          liveSec = jamManager.getInterpolatedPosition();
-        } else {
-          let activeAudio: HTMLAudioElement | null = null;
-          try {
-            activeAudio = PlaybackService.getInstance().getActiveAudio();
-          } catch {}
+        let activeAudio: HTMLAudioElement | null = null;
+        try {
+          activeAudio = PlaybackService.getInstance().getActiveAudio();
+        } catch {}
 
-          if (activeAudio && !activeAudio.paused && !activeAudio.seeking && !isNaN(activeAudio.currentTime) && activeAudio.currentTime >= 0) {
-            liveSec = activeAudio.currentTime;
-          } else {
-            const store = usePlayerStore.getState();
-            liveSec = store.currentTime || 0;
-          }
+        if (connectClient.isRemoteMode() || !usePlayerStore.getState().isLocalPlayback) {
+          liveSec = connectClient.getInterpolatedPosition();
+        } else if (activeAudio && !activeAudio.paused && !activeAudio.seeking && !isNaN(activeAudio.currentTime) && activeAudio.currentTime >= 0) {
+          liveSec = activeAudio.currentTime;
+        } else {
+          const store = usePlayerStore.getState();
+          liveSec = store.currentTime || 0;
         }
 
         const validSec = Number.isFinite(liveSec) && !isNaN(liveSec) && liveSec >= 0 ? liveSec : 0;
@@ -202,16 +185,14 @@ export function SeekBar({
       SeekLock.endSeeking(800);
 
       const connectClient = ConnectClientManager.getInstance();
-      const jamManager = JamClientManager.getInstance();
-      const jamSession = jamManager.getActiveSession();
+
+      // Execute local seek immediately so UI and sound respond with zero lag
+      setCurrentTime(newTime);
+      setSeekTarget(newTime);
+      PlaybackService.getInstance().seek(newTime);
 
       if (connectClient.isRemoteMode()) {
         connectClient.sendCommand('SEEK', { positionMs: Math.round(newTime * 1000) });
-      } else if (jamSession) {
-        jamManager.sendSeek(Math.round(newTime * 1000));
-      } else {
-        setCurrentTime(newTime);
-        setSeekTarget(newTime);
       }
 
       setTimeout(() => {

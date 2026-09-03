@@ -64,8 +64,6 @@ import { JioSaavnMediaPipeline } from '@/lib/media/JioSaavnMediaPipeline';
 import { SongUniquenessEngine } from '@/lib/music/SongUniquenessEngine';
 import { SongFormatter } from '@/lib/music/SongFormatter';
 import { MediaSessionManager } from '@/lib/playback/MediaSessionManager';
-import { JamClientManager } from '@/lib/jam/client/JamClientManager';
-import { DriftCorrectionEngine } from '@/lib/jam/client/DriftCorrectionEngine';
 
 import { AudioQuality, AudioQualityState } from '@/lib/playback/types';
 import { DownloadStorage } from '@/lib/offline/DownloadStorage';
@@ -238,6 +236,7 @@ interface PlayerState {
   shufflePlay: (songs: Song[], context?: import('@/lib/queue/types').PlaybackContext) => Promise<void>;
   commitPlaybackTransition: (song: Song, queueIndex?: number, updatedQueue?: Song[]) => void;
   togglePlayPause: () => void;
+  seek: (time: number) => void;
   setIsPlaying: (playing: boolean, fromRemote?: boolean) => void;
   setCurrentTime: (time: number, isManualSeek?: boolean) => void;
   seekTarget: number | null;
@@ -451,47 +450,59 @@ export const isTrackDownloaded = (trackId: string): boolean => {
 const getNextQueueIndex = (queue: Song[], currentIndex: number, repeatMode: string): number => {
   if (!queue || queue.length === 0) return -1;
   const norm = (repeatMode || 'off').toUpperCase();
-  if (norm === 'ONE' || norm === 'TRACK') return currentIndex;
+  if (norm === 'ONE' || norm === 'TRACK') return (currentIndex >= 0 && currentIndex < queue.length && queue[currentIndex]?.id) ? currentIndex : -1;
 
   if (isOfflineMode()) {
     // Scan forward from currentIndex + 1 to find the next available offline downloaded track
     for (let i = currentIndex + 1; i < queue.length; i++) {
-      if (isTrackDownloaded(queue[i].id)) return i;
+      if (queue[i]?.id && isTrackDownloaded(queue[i].id)) return i;
     }
     // If repeat ALL is active, wrap around to the start
     if (norm === 'ALL' || norm === 'CONTEXT') {
       for (let i = 0; i <= currentIndex; i++) {
-        if (isTrackDownloaded(queue[i].id)) return i;
+        if (queue[i]?.id && isTrackDownloaded(queue[i].id)) return i;
       }
     }
     return -1;
   }
 
-  if (currentIndex + 1 < queue.length) return currentIndex + 1;
-  if (norm === 'ALL' || norm === 'CONTEXT') return 0;
+  for (let i = currentIndex + 1; i < queue.length; i++) {
+    if (queue[i] && queue[i].id) return i;
+  }
+  if (norm === 'ALL' || norm === 'CONTEXT') {
+    for (let i = 0; i <= currentIndex; i++) {
+      if (queue[i] && queue[i].id) return i;
+    }
+  }
   return -1;
 };
 
 const getPreviousQueueIndex = (queue: Song[], currentIndex: number, repeatMode: string): number => {
   if (!queue || queue.length === 0) return -1;
   const norm = (repeatMode || 'off').toUpperCase();
-  if (norm === 'ONE' || norm === 'TRACK') return currentIndex;
+  if (norm === 'ONE' || norm === 'TRACK') return (currentIndex >= 0 && currentIndex < queue.length && queue[currentIndex]?.id) ? currentIndex : -1;
 
   if (isOfflineMode()) {
     // Scan backward from currentIndex - 1 to find the previous downloaded track
     for (let i = currentIndex - 1; i >= 0; i--) {
-      if (isTrackDownloaded(queue[i].id)) return i;
+      if (queue[i]?.id && isTrackDownloaded(queue[i].id)) return i;
     }
     if (norm === 'ALL' || norm === 'CONTEXT') {
       for (let i = queue.length - 1; i >= currentIndex; i--) {
-        if (isTrackDownloaded(queue[i].id)) return i;
+        if (queue[i]?.id && isTrackDownloaded(queue[i].id)) return i;
       }
     }
     return -1;
   }
 
-  if (currentIndex - 1 >= 0) return currentIndex - 1;
-  if (norm === 'ALL' || norm === 'CONTEXT') return queue.length - 1;
+  for (let i = currentIndex - 1; i >= 0; i--) {
+    if (queue[i] && queue[i].id) return i;
+  }
+  if (norm === 'ALL' || norm === 'CONTEXT') {
+    for (let i = queue.length - 1; i >= currentIndex; i--) {
+      if (queue[i] && queue[i].id) return i;
+    }
+  }
   return -1;
 };
 
@@ -1214,23 +1225,7 @@ export const usePlayerStore = create<PlayerState>()(
           coverUrl: resolvedCover,
         });
 
-        // If currently inside a shared Jam Party, route track change/addition through Jam server
-        try {
-          const jamManager = JamClientManager.getInstance();
-          const jamSession = jamManager.getActiveSession();
-          if (jamSession) {
-            if (newQueue && Array.isArray(newQueue) && newQueue.length > 1) {
-              const startIdx = newQueue.findIndex((s) => s.id === activePlaySong.id);
-              const effectiveIdx = startIdx >= 0 ? startIdx : 0;
-              jamManager.sendAddTracks(newQueue, true, effectiveIdx);
-              get().setToastMessage(`Playing "${activePlaySong.title}" & ${newQueue.length - 1} upcoming tracks in Jam`);
-            } else {
-              jamManager.sendAddTrack(activePlaySong, true);
-              get().setToastMessage(`Playing "${activePlaySong.title}" in Jam Party`);
-            }
-            return;
-          }
-        } catch { }
+        // 3. RaagaX Connect: If currently acting as a Remote Controller in browser
 
         // RaagaX Connect: If acting as Remote Controller, forward song selection to authoritative Speaker
         try {
@@ -1405,24 +1400,6 @@ export const usePlayerStore = create<PlayerState>()(
           }
         }
 
-        // 2. If in Jam, dispatch authoritative Jam play/pause command
-        try {
-          const jamManager = JamClientManager.getInstance();
-          const jamSession = jamManager.getActiveSession();
-          if (jamSession) {
-            if (currentLivePlaying) {
-              set({ isPlaying: false, playbackIntent: 'PAUSED' });
-              PlaybackService.getInstance().pause();
-              await jamManager.sendPause();
-            } else {
-              set({ isPlaying: true, playbackIntent: 'PLAYING' });
-              const currentPosMs = Math.round((get().currentTime || 0) * 1000);
-              await jamManager.sendPlay(currentPosMs > 0 ? currentPosMs : undefined);
-            }
-            return;
-          }
-        } catch { }
-
         const isNowPlaying = !currentLivePlaying;
 
         if (!isNowPlaying) {
@@ -1471,18 +1448,6 @@ export const usePlayerStore = create<PlayerState>()(
             return;
           }
 
-          try {
-            const jamManager = JamClientManager.getInstance();
-            const jamSession = jamManager.getActiveSession();
-            if (jamSession && (jamManager.isHost() || jamSession.permissions?.canControlPlayback)) {
-              if (playing && jamSession.state !== 'PLAYING') {
-                jamManager.sendPlay(Math.round((get().currentTime || 0) * 1000)).catch(() => { });
-              } else if (!playing && jamSession.state === 'PLAYING') {
-                jamManager.sendPause().catch(() => { });
-              }
-            }
-          } catch { }
-
           if (RaagaXNativePlayer.isNative()) {
             if (!playing) {
               await RaagaXNativePlayer.pause();
@@ -1516,6 +1481,11 @@ export const usePlayerStore = create<PlayerState>()(
           throttlePersistSession(state, fromRemote);
         }
       },
+      seek: (time: number) => {
+        get().setCurrentTime(time, true);
+        get().setSeekTarget(time);
+        PlaybackService.getInstance().seek(time);
+      },
       setDuration: (dur) => {
         if (typeof dur === 'number' && Number.isFinite(dur) && !isNaN(dur) && dur > 0) {
           set({ duration: dur });
@@ -1528,20 +1498,15 @@ export const usePlayerStore = create<PlayerState>()(
 
         if (!get().isLocalPlayback) {
           try {
-            const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
-            ConnectClientManager.getInstance().sendCommand('SET_VOLUME', { volume: safeVol });
+            import('@/lib/connect/ConnectClientManager').then(({ ConnectClientManager }) => {
+              ConnectClientManager.getInstance().sendCommand('SET_VOLUME', { volume: safeVol });
+            }).catch(() => {});
           } catch {}
         }
       },
       toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 
       playNext: async (isNaturalAutoEnd: boolean = false) => {
-        // If in Jam: authorize who may advance the queue.
-        // - Host: always authorized for both user-gesture NEXT and auto-next (track ended naturally).
-        // - Participant with canSkip: authorized ONLY for user-gesture NEXT (not auto-next).
-        //   If auto-next on a non-host participant, we MUST wait for the host's authoritative
-        //   TRACK_CHANGED broadcast — otherwise both host and participant fire SKIP_NEXT simultaneously.
-        // This is the AUTO_NEXT SINGLE OWNER guarantee (Phase 6).
         // RaagaX Connect: If in Remote Controller mode in browser, dispatch target track with pre-resolved audioUrl
         if (typeof window !== 'undefined') {
           try {
@@ -1558,25 +1523,6 @@ export const usePlayerStore = create<PlayerState>()(
             }
           } catch { }
         }
-
-        try {
-          const jamManager = JamClientManager.getInstance();
-          const jamSession = jamManager.getActiveSession();
-          if (jamSession) {
-            if (jamManager.isHost()) {
-              // Host always authoritative — send SKIP_NEXT for both manual and auto-next
-              await jamManager.sendSkipNext();
-            } else if (jamSession.permissions?.canSkip && !isNaturalAutoEnd) {
-              // canSkip participant: only for explicit user gesture, not for audio ended event
-              await jamManager.sendSkipNext();
-            } else {
-              // Non-host participant in auto-next: wait for server TRACK_CHANGED
-              const reason = isNaturalAutoEnd ? 'AUTO_NEXT_HOST_ONLY' : 'INSUFFICIENT_PERMISSION';
-              console.log(`[playNext] In Jam — skipped sendSkipNext: reason=${reason} isHost=${jamManager.isHost()} canSkip=${jamSession.permissions?.canSkip} isNaturalAutoEnd=${isNaturalAutoEnd}`);
-            }
-            return;
-          }
-        } catch { }
 
         const { duration, currentTime, isPlaying, playbackIntent } = get();
         const isComplete = duration > 0 && currentTime >= duration - 5;
@@ -1597,8 +1543,9 @@ export const usePlayerStore = create<PlayerState>()(
         const shouldPlay = isNaturalAutoEnd ? true : (isPlaying || playbackIntent === 'PLAYING');
 
         const nextIndex = getNextQueueIndex(queue, queueIndex, repeatMode);
-        if (nextIndex >= 0 && nextIndex < queue.length) {
-          const nextTrack = queue[nextIndex];
+        const nextTrack = (nextIndex >= 0 && nextIndex < queue.length) ? queue[nextIndex] : null;
+
+        if (nextTrack && nextTrack.id) {
           const oldTrackId = get().currentSong?.id || '';
 
           console.log(`[NEXT_QUEUE]\noldTrackId=${oldTrackId}\nnewTrackId=${nextTrack.id}\noldQueueIndex=${queueIndex}\nnewQueueIndex=${nextIndex}`);
@@ -1638,23 +1585,6 @@ export const usePlayerStore = create<PlayerState>()(
           } catch { }
         }
 
-        // If in Jam: host or participants with canSkip permission are authorized to issue SKIP_PREV.
-        try {
-          const jamManager = JamClientManager.getInstance();
-          const jamSession = jamManager.getActiveSession();
-          if (jamSession) {
-            if (jamManager.isHost() || jamSession.permissions?.canSkip) {
-              if (currentTime > 3) {
-                await jamManager.sendSeek(0);
-              } else {
-                await jamManager.sendSkipPrev();
-              }
-            } else {
-              console.log('[playPrev] In Jam as guest without skip permission — waiting for authoritative TRACK_CHANGED from server.');
-            }
-            return;
-          }
-        } catch { }
 
         // RaagaX Connect: If in Remote Controller mode, dispatch target track or seek(0) to Speaker
         if (typeof window !== 'undefined') {
@@ -1696,8 +1626,8 @@ export const usePlayerStore = create<PlayerState>()(
 
         const shouldPlay = isPlaying || playbackIntent === 'PLAYING';
         const prevIndex = getPreviousQueueIndex(queue, queueIndex, repeatMode);
-        if (prevIndex >= 0 && prevIndex < queue.length) {
-          const prevTrack = queue[prevIndex];
+        const prevTrack = (prevIndex >= 0 && prevIndex < queue.length) ? queue[prevIndex] : null;
+        if (prevTrack && prevTrack.id) {
           console.log(`[PREVIOUS] ${queueIndex} → ${prevIndex} (Track: "${prevTrack.title}")`);
           await get().switchTrack(prevTrack, prevIndex, shouldPlay);
         } else {
@@ -1780,12 +1710,14 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       addToQueue: async (song) => {
+        if (!song || !song.id) return;
+
         if (typeof window !== 'undefined') {
           try {
             const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
             const connectClient = ConnectClientManager.getInstance();
             if (connectClient.isRemoteMode()) {
-              const curQ = get().queue || [];
+              const curQ = (get().queue || []).filter(Boolean);
               set({ queue: [...curQ, song] });
               await connectClient.sendCommand('ADD_TO_QUEUE', { song });
               return;
@@ -1796,21 +1728,23 @@ export const usePlayerStore = create<PlayerState>()(
         const manager = QueueManager.getInstance();
         manager.addToQueue(song);
         const snapshot = manager.getSnapshot();
-        const syncedQueue = snapshot.items.map((i: any) => i.song);
+        const syncedQueue = snapshot.items.map((i: any) => i.song).filter(Boolean);
         const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
         set({ queue: syncedQueue, queueIndex: syncedIndex });
         PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
       },
       playNextInQueue: (song) => {
+        if (!song || !song.id) return;
         const manager = QueueManager.getInstance();
         manager.playNext(song);
         const snapshot = manager.getSnapshot();
-        const syncedQueue = snapshot.items.map((i: any) => i.song);
+        const syncedQueue = snapshot.items.map((i: any) => i.song).filter(Boolean);
         const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
         set({ queue: syncedQueue, queueIndex: syncedIndex });
         PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
       },
       playLastInQueue: (song) => {
+        if (!song || !song.id) return;
         get().addToQueue(song);
       },
       removeFromQueue: async (songId) => {

@@ -22,7 +22,7 @@ export function getSyncWebSocketUrl(): string {
 }
 
 export function getConnectApiBaseUrl(): string {
-  // Connect and Jam REST endpoints (/api/connect/*, /api/jam/*) are hosted
+  // Connect REST endpoints (/api/connect/*) are hosted
   // in Next.js, NOT on the Render raw WebSocket server. Always route them
   // to the Next.js API base.
   return getApiBaseUrl();

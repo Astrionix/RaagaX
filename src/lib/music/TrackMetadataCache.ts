@@ -1,5 +1,18 @@
 import { Song } from '@/types/music';
-import { TrackMetadata } from '@/types/jam';
+
+export interface TrackMetadata {
+  trackId: string;
+  title: string;
+  artist: string;
+  album?: string;
+  albumId?: string;
+  artwork?: string;
+  durationMs: number;
+  sourceUrl?: string;
+  language?: string;
+  genre?: string;
+  generation?: number;
+}
 
 /**
  * TrackMetadataCache
@@ -8,7 +21,7 @@ import { TrackMetadata } from '@/types/jam';
  * Answers the question: "What song is this?"
  * 
  * Features:
- * - Decoupled from physical audio playback and Jam synchronization.
+ * - Decoupled from physical audio playback.
  * - Generation-tagged resolution: prevents stale metadata/artwork callbacks from
  *   overwriting newer tracks during fast skips.
  * - Parallel non-blocking resolution: audio playback is never stalled waiting for

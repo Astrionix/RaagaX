@@ -12,7 +12,6 @@ import {
   Library,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
-import { useJamStore } from '@/context/useJamStore';
 import { useConnectStore } from '@/context/useConnectStore';
 import { ActiveTab } from '@/types/music';
 import { SeekBar } from '@/components/player/SeekBar';
@@ -37,19 +36,14 @@ export function MobileBottomController() {
     isPlayerExpanded,
   } = usePlayerStore();
 
-  const { session, isInJam } = useJamStore();
   const { isRemoteMode, activePlaybackDevice, remoteSession, sendPlay, sendPause, sendNext, sendPrev } = useConnectStore();
 
   const currentSong = (isRemoteMode && remoteSession?.currentSong)
     ? remoteSession.currentSong
-    : (isInJam && session?.currentSong)
-    ? session.currentSong
     : localCurrentSong;
 
   const isPlaying = (isRemoteMode && remoteSession)
     ? remoteSession.isPlaying
-    : (isInJam && session)
-    ? session.state === 'PLAYING'
     : localIsPlaying;
 
   useEffect(() => {
@@ -219,6 +213,8 @@ export function MobileBottomController() {
           </div>
         </div>
       )}
+
+
 
       {/* ── 2. BOTTOM NAVIGATION BAR (GLASS FLOATING BAR) ──────────────── */}
       <div className="w-full px-3 flex justify-center pointer-events-auto">
