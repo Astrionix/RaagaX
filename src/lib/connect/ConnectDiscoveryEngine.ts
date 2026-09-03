@@ -198,8 +198,6 @@ export class ConnectDiscoveryEngine {
       const handlePresenceMeshUpdate = () => {
         const state = this.presenceChannel?.presenceState() || {};
         const currentDeviceId = this.localDevice.deviceId;
-        const activeDeviceIds = new Set<string>();
-        let changed = false;
 
         // Flatten all presences across all presence keys
         const allPresences = Object.values(state).flat();
@@ -211,47 +209,26 @@ export class ConnectDiscoveryEngine {
           const remoteId = remote?.deviceId || raw?.deviceId;
           if (!remoteId || remoteId === currentDeviceId || remoteId === 'dev_local') continue;
 
-          activeDeviceIds.add(remoteId);
-
-          const devType = remote.deviceType || remote.type || (raw.type as any) || 'speaker';
-          const myAccount = this.localDevice.accountId;
-          const remoteAccount = remote.accountId || raw.accountId;
-          const isSameAccount = Boolean(myAccount && remoteAccount && myAccount === remoteAccount);
-
-          this.discoveredDevices.set(remoteId, {
-            ...remote,
-            deviceId: remoteId,
-            deviceName: remote.deviceName || raw.deviceName || 'Remote Device',
-            deviceType: devType,
-            isCurrentDevice: false,
-            lastSeenAt: Date.now(),
-            transport: 'CLOUD_RELAY',
-            authStatus: 'AUTO_AUTHORIZED',
-            isSameAccount: Boolean(isSameAccount),
-          });
-          changed = true;
-        }
-
-        // Remove devices that are no longer in presence state
-        for (const [id, dev] of this.discoveredDevices.entries()) {
-          if (dev.transport === 'CLOUD_RELAY' || dev.transport === 'LOCAL_LAN') {
-            if (!activeDeviceIds.has(id)) {
-              this.discoveredDevices.delete(id);
-              changed = true;
-            }
-          }
+          this.handleIncomingPeerDevice(remote);
         }
 
         console.log('[DISCOVERY_DEVICES_FOUND]', Array.from(this.discoveredDevices.values()));
-        if (changed) {
-          this.notifyListeners();
-        }
       };
 
       this.presenceChannel
         .on('presence', { event: 'sync' }, handlePresenceMeshUpdate)
         .on('presence', { event: 'join' }, handlePresenceMeshUpdate)
         .on('presence', { event: 'leave' }, handlePresenceMeshUpdate)
+        .on('broadcast', { event: 'DEVICE_PROBE' }, (_msg: any) => {
+          // A peer device is probing for active devices — respond immediately
+          this.announcePresence();
+        })
+        .on('broadcast', { event: 'DEVICE_ANNOUNCE' }, (msg: any) => {
+          const remote = msg?.payload?.device || msg?.device;
+          if (remote && remote.deviceId && remote.deviceId !== this.localDevice.deviceId) {
+            this.handleIncomingPeerDevice(remote);
+          }
+        })
         .on('broadcast', { event: 'CONNECT_COMMAND' }, (msg: any) => {
           const cmd = msg?.payload || msg;
           if (cmd && cmd.targetDeviceId === this.localDevice.deviceId) {
@@ -292,7 +269,11 @@ export class ConnectDiscoveryEngine {
             };
             await this.presenceChannel?.track(trackPayload).catch((e: any) => console.warn('[DISCOVERY] Track error:', e));
             console.log('[DISCOVERY] Successfully tracked device on presence mesh:', this.localDevice.deviceId);
+            this.announcePresence();
+            this.sendDeviceProbe();
             handlePresenceMeshUpdate();
+          } else if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+            console.warn('[DISCOVERY] Supabase channel status error:', status);
           }
         });
     } catch (e) {
@@ -317,7 +298,7 @@ export class ConnectDiscoveryEngine {
   }
 
   public sendSupabaseBroadcast(event: string, payload: any): void {
-    if (this.presenceChannel && (this.presenceChannel as any).state === 'joined') {
+    if (this.presenceChannel) {
       try {
         this.presenceChannel.send({
           type: 'broadcast',
@@ -326,6 +307,63 @@ export class ConnectDiscoveryEngine {
         }).catch(() => {});
       } catch {}
     }
+  }
+
+  public announcePresence(): void {
+    if (!this.presenceChannel) return;
+    try {
+      this.presenceChannel.send({
+        type: 'broadcast',
+        event: 'DEVICE_ANNOUNCE',
+        payload: {
+          device: {
+            ...this.localDevice,
+            deviceId: this.localDevice.deviceId,
+            deviceName: this.localDevice.deviceName,
+            deviceType: this.localDevice.deviceType,
+            type: this.localDevice.deviceType,
+            isSpeakerActive: this.localDevice.state === 'PLAYING',
+            lastSeenAt: Date.now(),
+          }
+        }
+      }).catch(() => {});
+    } catch {}
+  }
+
+  public sendDeviceProbe(): void {
+    if (!this.presenceChannel) return;
+    try {
+      this.presenceChannel.send({
+        type: 'broadcast',
+        event: 'DEVICE_PROBE',
+        payload: {
+          senderDeviceId: this.localDevice.deviceId,
+        }
+      }).catch(() => {});
+    } catch {}
+  }
+
+  public handleIncomingPeerDevice(remote: ConnectDevice): void {
+    if (!remote || !remote.deviceId || remote.deviceId === this.localDevice.deviceId || remote.deviceId === 'dev_local') return;
+
+    const devType = remote.deviceType || (remote as any).type || 'speaker';
+    const myAccount = this.localDevice.accountId;
+    const remoteAccount = remote.accountId || (remote as any).accountId;
+    const isSameAccount = Boolean(myAccount && remoteAccount && myAccount === remoteAccount);
+
+    this.discoveredDevices.set(remote.deviceId, {
+      ...remote,
+      deviceId: remote.deviceId,
+      deviceName: remote.deviceName || 'Remote Device',
+      deviceType: devType,
+      isCurrentDevice: false,
+      lastSeenAt: Date.now(),
+      transport: 'CLOUD_RELAY',
+      authStatus: 'AUTO_AUTHORIZED',
+      isSameAccount: Boolean(isSameAccount),
+    });
+
+    this.notifyListeners();
   }
 
   public getLocalDevice(): ConnectDevice {
@@ -395,6 +433,7 @@ export class ConnectDiscoveryEngine {
         },
         onlineAt: Date.now(),
       }).catch(() => {});
+      this.announcePresence();
     }
 
     // 1. Broadcast via local BroadcastChannel (same browser tab fast path)
@@ -446,6 +485,11 @@ export class ConnectDiscoveryEngine {
 
   public scanNow(): ConnectDevice[] {
     const now = Date.now();
+
+    // Active instant discovery: send broadcast probe and announce
+    this.sendDeviceProbe();
+    this.announcePresence();
+
     // 1. Scan LocalStorage for active local beacons
     if (typeof window !== 'undefined') {
       try {
@@ -477,28 +521,15 @@ export class ConnectDiscoveryEngine {
           const remoteId = remote?.deviceId || raw?.deviceId;
           if (!remoteId || remoteId === currentDeviceId || remoteId === 'dev_local') continue;
 
-          const devType = remote.deviceType || remote.type || (raw.type as any) || 'speaker';
-          const myAccount = this.localDevice.accountId;
-          const remoteAccount = remote.accountId || raw.accountId;
-          const isSameAccount = Boolean(myAccount && remoteAccount && myAccount === remoteAccount);
-
-          this.discoveredDevices.set(remoteId, {
-            ...remote,
-            deviceId: remoteId,
-            deviceName: remote.deviceName || raw.deviceName || 'Remote Device',
-            deviceType: devType,
-            isCurrentDevice: false,
-            lastSeenAt: now,
-            transport: 'CLOUD_RELAY',
-            authStatus: 'AUTO_AUTHORIZED',
-            isSameAccount: Boolean(isSameAccount),
-          });
+          this.handleIncomingPeerDevice(remote);
         }
       } catch {}
     }
 
     this.pruneStaleDevices();
-    return this.getAvailableDevices();
+    const result = this.getAvailableDevices();
+    this.notifyListeners();
+    return result;
   }
 
   private pruneStaleDevices(): void {

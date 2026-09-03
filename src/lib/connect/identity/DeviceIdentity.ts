@@ -41,17 +41,28 @@ export class DeviceIdentity {
 
     if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
       try {
-        deviceId = localStorage.getItem('rx_connect_device_id') || '';
+        let baseId = localStorage.getItem('rx_connect_device_id') || '';
         installationId = localStorage.getItem('rx_connect_install_id') || '';
-        if (!deviceId) {
+        if (!baseId) {
           const prefix = deviceType === 'mobile' || deviceType === 'tablet' ? 'mob' : 'desk';
-          deviceId = `rx_dev_${prefix}_${Math.random().toString(36).substring(2, 8)}_${Date.now().toString(36)}`;
-          localStorage.setItem('rx_connect_device_id', deviceId);
+          baseId = `rx_dev_${prefix}_${Math.random().toString(36).substring(2, 8)}_${Date.now().toString(36)}`;
+          localStorage.setItem('rx_connect_device_id', baseId);
         }
         if (!installationId) {
           installationId = `inst_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
           localStorage.setItem('rx_connect_install_id', installationId);
         }
+
+        // Tab-isolated suffix so multiple browser tabs on the same machine discover each other cleanly
+        let tabSuffix = '';
+        if (typeof sessionStorage !== 'undefined') {
+          tabSuffix = sessionStorage.getItem('rx_connect_tab_id') || '';
+          if (!tabSuffix) {
+            tabSuffix = Math.random().toString(36).substring(2, 6);
+            try { sessionStorage.setItem('rx_connect_tab_id', tabSuffix); } catch {}
+          }
+        }
+        deviceId = tabSuffix ? `${baseId}_${tabSuffix}` : baseId;
       } catch {
         deviceId = `rx_dev_fallback_${Date.now().toString(36)}`;
         installationId = `inst_fallback_${Date.now().toString(36)}`;

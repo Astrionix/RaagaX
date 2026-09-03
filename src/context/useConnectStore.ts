@@ -108,17 +108,14 @@ export const useConnectStore = create<ConnectStoreState>((set, get) => {
     });
   }
 
-  // Load or generate initial persistent local device identity
-  const initialLocalId =
+  // Authoritative persistent local device identity from ConnectDiscoveryEngine
+  const initialLocalDevice =
     typeof window !== 'undefined'
-      ? localStorage.getItem('connect_device_id') ||
-        ConnectDiscoveryEngine.getInstance().getLocalDevice().deviceId
-      : 'dev_local';
+      ? ConnectDiscoveryEngine.getInstance().getLocalDevice()
+      : { deviceId: 'dev_local', deviceName: 'RaagaX Device' };
 
-  const initialLocalName =
-    typeof window !== 'undefined'
-      ? ConnectDiscoveryEngine.getInstance().getLocalDevice().deviceName
-      : 'RaagaX Device';
+  const initialLocalId = initialLocalDevice.deviceId;
+  const initialLocalName = initialLocalDevice.deviceName || 'RaagaX Device';
 
   return {
     localDeviceId: initialLocalId,
@@ -141,14 +138,10 @@ export const useConnectStore = create<ConnectStoreState>((set, get) => {
     dismissFallbackPrompt: () => set({ fallbackPromptSession: null, isFallbackPromptOpen: false }),
 
     initDevice: (userId: string, name: string, _type?: DeviceNode['type']) => {
-      let storedId = typeof window !== 'undefined' ? localStorage.getItem('connect_device_id') : null;
-      if (!storedId) {
-        storedId = `dev_${Math.random().toString(36).substring(2, 9)}_${Date.now().toString(36)}`;
-        if (typeof window !== 'undefined') localStorage.setItem('connect_device_id', storedId);
-      }
+      const localDev = ConnectDiscoveryEngine.getInstance().getLocalDevice();
       set({
-        localDeviceId: storedId,
-        localDeviceName: name || get().localDeviceName,
+        localDeviceId: localDev.deviceId,
+        localDeviceName: name || localDev.deviceName,
         userId,
       });
     },
