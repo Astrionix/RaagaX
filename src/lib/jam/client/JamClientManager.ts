@@ -821,17 +821,6 @@ export class JamClientManager {
         break;
       }
 
-      case 'HOST_TRANSFERRED': {
-        if (event.payload.newHostId) {
-          s.hostId = event.payload.newHostId;
-          s.hostName = event.payload.newHostName;
-          for (const p of Object.values(s.participants)) {
-            p.isHost = p.userId === s.hostId;
-            if (p.isHost) p.role = 'HOST';
-          }
-        }
-        break;
-      }
 
       case 'PERMISSIONS_UPDATED': {
         if (event.payload.permissions) {
