@@ -40,7 +40,17 @@ export class CommandValidator {
     }
 
     // Revision check: reject commands targeted for older revisions
-    if (typeof command.expectedRevision === 'number' && command.expectedRevision < currentRevision) {
+    // Bypass for queue mutations and playback transfer where user intent is cumulative/authoritative
+    const bypassRevisionCheck =
+      command.action === 'ADD_TO_QUEUE' ||
+      command.action === 'SET_QUEUE' ||
+      command.action === 'REMOVE_FROM_QUEUE' ||
+      command.action === 'PLAY_SONG' ||
+      command.action === 'TRANSFER_PLAYBACK' ||
+      command.action === 'DISCONNECT_CONTROLLER' ||
+      command.action === 'CONTROLLER_DETACH_SELF';
+
+    if (!bypassRevisionCheck && typeof command.expectedRevision === 'number' && command.expectedRevision < currentRevision) {
       return {
         valid: false,
         reason: `Stale revision (expected ${command.expectedRevision} < current ${currentRevision})`,

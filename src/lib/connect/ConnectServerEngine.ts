@@ -214,10 +214,13 @@ export class ConnectServerEngine {
       }
     }
 
-    // 3. Stale revision protection: skip for authoritative user actions
+    // 3. Stale revision protection: skip for authoritative user actions and queue mutations
     const bypassStaleCheck =
       command.action === 'TRANSFER_PLAYBACK' ||
       command.action === 'PLAY_SONG' ||
+      command.action === 'ADD_TO_QUEUE' ||
+      command.action === 'SET_QUEUE' ||
+      command.action === 'REMOVE_FROM_QUEUE' ||
       command.action === 'SPEAKER_DETACH_CONTROLLER' ||
       command.action === 'CONTROLLER_DETACH_SELF' ||
       command.action === 'DISCONNECT_CONTROLLER';

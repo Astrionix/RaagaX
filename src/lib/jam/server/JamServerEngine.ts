@@ -2063,10 +2063,6 @@ export class JamServerEngine {
             const payload = { type: 'broadcast' as const, event: eventName, payload: event };
             if ((chan as any).state === 'joined') {
               chan.send(payload).catch(() => {});
-            } else if (typeof (chan as any).httpSend === 'function') {
-              (chan as any).httpSend(eventName, payload).catch(() => {});
-            } else {
-              chan.send(payload).catch(() => {});
             }
           };
           sendPayload('jam_event');

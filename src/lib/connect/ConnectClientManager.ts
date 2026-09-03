@@ -32,6 +32,8 @@ export class ConnectClientManager {
   private sessionPollTimer: any = null;
   private isTransferring: boolean = false;
   private transferLockTimer: any = null;
+  private pendingTrackId: string | null = null;
+  private pendingTrackLockUntil: number = 0;
 
   private constructor() {
     if (typeof window !== 'undefined') {
@@ -102,6 +104,11 @@ export class ConnectClientManager {
 
   public getRemoteSession(): ConnectPlaybackSession | null {
     return this.remoteSession;
+  }
+
+  public setOptimisticTrackLock(trackId: string, durationMs: number = 1000): void {
+    this.pendingTrackId = trackId;
+    this.pendingTrackLockUntil = Date.now() + durationMs;
   }
 
   public getLastAppliedRevision(): number {
@@ -491,6 +498,7 @@ export class ConnectClientManager {
     if (!target || !target.deviceId) return false;
 
     const localDevice = ConnectDiscoveryEngine.getInstance().getLocalDevice();
+    const currentRev = this.remoteSession?.revision;
     const command: ConnectCommand = {
       commandId: `cmd_${Date.now().toString(36)}`,
       requestId: `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`,
@@ -498,10 +506,15 @@ export class ConnectClientManager {
       senderName: localDevice?.deviceName || 'RaagaX Device',
       targetDeviceId: target.deviceId,
       action,
-      expectedRevision: this.remoteSession?.revision,
+      expectedRevision: currentRev,
       payload,
       timestamp: Date.now(),
     };
+
+    // Optimistically advance expected revision for rapid consecutive commands (e.g. rapid queue adds)
+    if (this.remoteSession && typeof currentRev === 'number') {
+      this.remoteSession.revision = currentRev + 1;
+    }
 
     return this.dispatchCommand(command);
   }
@@ -611,6 +624,17 @@ export class ConnectClientManager {
     );
 
     if (!isTarget && !this.isRemoteMode()) return;
+
+    // Optimistic Track Debounce Lock:
+    // If the controller recently triggered a new track, ignore incoming updates still reflecting the old track
+    if (this.pendingTrackId && Date.now() < this.pendingTrackLockUntil) {
+      if (session.currentSong?.id !== this.pendingTrackId) {
+        return; // Reject stale state from speaker
+      } else {
+        this.pendingTrackId = null;
+        this.pendingTrackLockUntil = 0;
+      }
+    }
 
     const isDifferentSession = !this.remoteSession || session.sessionId !== this.remoteSession.sessionId;
     const isNewerGeneration = this.remoteSession && typeof session.generation === 'number' && typeof this.remoteSession.generation === 'number' && session.generation > this.remoteSession.generation;

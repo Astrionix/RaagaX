@@ -62,6 +62,14 @@ export class PlaybackRecoveryEngine {
       const s = state || usePlayerStore.getState();
       if (!s.currentSong || !s.currentSong.id) return;
 
+      try {
+        const { useConnectStore } = require('@/context/useConnectStore');
+        const { useJamStore } = require('@/context/useJamStore');
+        if (useConnectStore?.getState()?.isRemoteMode || useJamStore?.getState()?.isInJam) {
+          return; // Do not persist remote playback sessions as local recovery snapshots
+        }
+      } catch {}
+
       const snapshot: PlaybackSnapshot = {
         trackId: s.currentSong.id,
         song: s.currentSong,
@@ -94,6 +102,14 @@ export class PlaybackRecoveryEngine {
   public restoreSnapshot(): PlaybackSnapshot | null {
     if (typeof window === 'undefined') return null;
     try {
+      try {
+        const { useConnectStore } = require('@/context/useConnectStore');
+        const { useJamStore } = require('@/context/useJamStore');
+        if (useConnectStore?.getState()?.isRemoteMode || useJamStore?.getState()?.isInJam) {
+          return null; // Skip restoring local snapshots while in Connect or Jam mode
+        }
+      } catch {}
+
       const raw = localStorage.getItem(SNAPSHOT_KEY);
       if (!raw) return null;
 

@@ -14,8 +14,8 @@ import { getApiUrl } from '@/lib/config/apiConfig';
 type DeviceListListener = (devices: ConnectDevice[]) => void;
 
 const CONNECT_STORAGE_PREFIX = 'raagax_connect_dev_';
-const HEARTBEAT_INTERVAL_MS = 3000;
-const DEVICE_EXPIRY_MS = 15000;
+const HEARTBEAT_INTERVAL_MS = 15000;
+const DEVICE_EXPIRY_MS = 45000;
 
 export class ConnectDiscoveryEngine {
   private static instance: ConnectDiscoveryEngine;
@@ -27,6 +27,8 @@ export class ConnectDiscoveryEngine {
   private presenceChannel: any = null;
   private subscribedUserId: string | null = null;
   private localSubnet: string = '127.0.0';
+  private lastHttpBeaconTime: number = 0;
+  private lastHttpScanTime: number = 0;
 
   private constructor() {
     this.localDevice = this.initializeLocalDevice();
@@ -376,8 +378,10 @@ export class ConnectDiscoveryEngine {
       } catch {}
     }
 
-    // 3. HTTP Server Beacon (cross-browser, cross-device, LAN and cloud synchronization)
-    if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+    // 3. HTTP Server Beacon (throttled to at most once every 15s to prevent 404 flooding)
+    const now = Date.now();
+    if (typeof window !== 'undefined' && typeof fetch !== 'undefined' && now - this.lastHttpBeaconTime >= 15000) {
+      this.lastHttpBeaconTime = now;
       try {
         const { useAuthStore } = require('@/context/useAuthStore');
         const user = useAuthStore.getState().user;
@@ -451,10 +455,10 @@ export class ConnectDiscoveryEngine {
   }
 
   public scanNow(): ConnectDevice[] {
+    const now = Date.now();
     // 1. Scan LocalStorage for active local beacons
     if (typeof window !== 'undefined') {
       try {
-        const now = Date.now();
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
           if (key && key.startsWith(CONNECT_STORAGE_PREFIX)) {
@@ -470,8 +474,9 @@ export class ConnectDiscoveryEngine {
       } catch {}
     }
 
-    // 2. Fetch from HTTP API for cross-browser / cross-device network peers
-    if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+    // 2. Fetch from HTTP API for cross-browser peers (throttled to at most once every 15s)
+    if (typeof window !== 'undefined' && typeof fetch !== 'undefined' && now - this.lastHttpScanTime >= 15000) {
+      this.lastHttpScanTime = now;
       const accountParam = this.localDevice.accountId ? `&accountId=${encodeURIComponent(this.localDevice.accountId)}` : '';
       fetch(getApiUrl(`/api/connect/devices?excludeId=${encodeURIComponent(this.localDevice.deviceId)}${accountParam}`))
         .then((res) => res.json())

@@ -22,24 +22,10 @@ export function getSyncWebSocketUrl(): string {
 }
 
 export function getConnectApiBaseUrl(): string {
-  if (typeof window !== 'undefined') {
-    try {
-      const custom = localStorage.getItem('rx_custom_api_base') || localStorage.getItem('raagax_connect_server_url');
-      if (custom && custom.trim()) {
-        return custom.trim().replace(/\/+$/, '');
-      }
-    } catch {}
-
-    const origin = window.location.origin || '';
-    // In local development, prefer local server if running on port 3000
-    if (origin.includes('localhost:3000') || origin.includes('127.0.0.1:3000')) {
-      return origin;
-    }
-  }
-
-  // On Cloudflare Workers and Native Android/iOS APK:
-  // Route stateful Connect & Jam rooms through the dedicated 24/7 Render coordinator
-  return process.env.NEXT_PUBLIC_CONNECT_SERVER_URL || RENDER_COORDINATOR_HTTP;
+  // Connect and Jam REST endpoints (/api/connect/*, /api/jam/*) are hosted
+  // in Next.js, NOT on the Render raw WebSocket server. Always route them
+  // to the Next.js API base.
+  return getApiBaseUrl();
 }
 
 export const PRODUCTION_DOMAIN = 'https://raaga.me';
@@ -48,9 +34,10 @@ export const WORKERS_DEV_URL = 'https://raaga.me';
 export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
     // 1. Check custom configured server override from user settings or dev tunnel
+    // Note: Never use *.onrender.com for HTTP API requests since Render only hosts the WebSocket coordinator
     try {
       const custom = localStorage.getItem('rx_custom_api_base') || localStorage.getItem('raagax_connect_server_url');
-      if (custom && custom.trim()) {
+      if (custom && custom.trim() && !custom.includes('onrender.com')) {
         return custom.trim().replace(/\/+$/, '');
       }
     } catch {}

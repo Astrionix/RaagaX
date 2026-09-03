@@ -18,6 +18,8 @@ export class LocalLanDiscovery {
   private sseEventSource: EventSource | null = null;
   private ws: WebSocket | null = null;
   private wsReconnectTimer: any = null;
+  private lastHttpBeaconTime: number = 0;
+  private lastHttpScanTime: number = 0;
 
   private constructor() {
     if (typeof window !== 'undefined') {
@@ -200,7 +202,7 @@ export class LocalLanDiscovery {
 
     this.scanTimer = setInterval(() => {
       this.scan();
-    }, 3000);
+    }, 15000);
   }
 
   public stop(): void {
@@ -242,8 +244,10 @@ export class LocalLanDiscovery {
       } catch {}
     }
 
-    // 2. HTTP Server Beacon
-    if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+    // 2. HTTP Server Beacon (throttled to 20s to prevent spam)
+    const now = Date.now();
+    if (typeof window !== 'undefined' && typeof fetch !== 'undefined' && now - this.lastHttpBeaconTime >= 20000) {
+      this.lastHttpBeaconTime = now;
       fetch(getApiUrl('/api/connect/beacon'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -265,6 +269,9 @@ export class LocalLanDiscovery {
 
   public async scan(): Promise<void> {
     if (typeof window === 'undefined' || typeof fetch === 'undefined') return;
+    const now = Date.now();
+    if (now - this.lastHttpScanTime < 20000) return;
+    this.lastHttpScanTime = now;
     const localId = DeviceIdentity.getInstance().getDeviceId();
 
     try {

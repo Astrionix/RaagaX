@@ -52,11 +52,7 @@ export class WebRtcLanTransport {
 
     this.pc.onicecandidate = (event) => {
       if (event.candidate) {
-        this.signalingChannel.send({
-          type: 'broadcast',
-          event: 'WEBRTC_ICE',
-          payload: { candidate: event.candidate, isHost: this.isHost },
-        });
+        this.sendSignaling('WEBRTC_ICE', { candidate: event.candidate, isHost: this.isHost });
       }
     };
 
@@ -112,11 +108,7 @@ export class WebRtcLanTransport {
         const answer = await this.pc.createAnswer();
         await this.pc.setLocalDescription(answer);
 
-        this.signalingChannel.send({
-          type: 'broadcast',
-          event: 'WEBRTC_ANSWER',
-          payload: { sdp: answer },
-        });
+        this.sendSignaling('WEBRTC_ANSWER', { sdp: answer });
       } catch (err) {
         console.error('[LAN WebRTC] Offer handling error:', err);
       }
@@ -148,11 +140,7 @@ export class WebRtcLanTransport {
       const offer = await this.pc.createOffer();
       await this.pc.setLocalDescription(offer);
 
-      this.signalingChannel.send({
-        type: 'broadcast',
-        event: 'WEBRTC_OFFER',
-        payload: { sdp: offer },
-      });
+      this.sendSignaling('WEBRTC_OFFER', { sdp: offer });
     } catch (err) {
       console.error('[LAN WebRTC] Failed to create host offer:', err);
     }
@@ -163,11 +151,23 @@ export class WebRtcLanTransport {
       try {
         this.dataChannel.send(JSON.stringify(message));
         return true;
-      } catch {
+      } catch (err) {
         return false;
       }
     }
     return false;
+  }
+
+  private sendSignaling(event: string, payload: any) {
+    if (this.signalingChannel && (this.signalingChannel as any).state === 'joined') {
+      try {
+        this.signalingChannel.send({
+          type: 'broadcast',
+          event,
+          payload,
+        });
+      } catch {}
+    }
   }
 
   public close() {

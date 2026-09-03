@@ -1028,6 +1028,9 @@ export const usePlayerStore = create<PlayerState>()(
                 duration: trackWithUrl.duration || 0,
               });
 
+              // Lock remote updates to this track for 1200ms to eliminate track bounce/flicker
+              connectClient.setOptimisticTrackLock(trackWithUrl.id, 1200);
+
               // PLAY_SONG: instructs speaker to load and play this specific song immediately
               await connectClient.sendCommand('PLAY_SONG', {
                 song: trackWithUrl,

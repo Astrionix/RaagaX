@@ -583,12 +583,14 @@ export class JamClientManager {
    */
   public broadcastJamEvent(msg: JamMessage): boolean {
     const sentOverLan = this.lanTransport?.send(msg);
-    if (!sentOverLan && this.supabaseChannel) {
-      this.supabaseChannel.send({
-        type: 'broadcast',
-        event: 'JAM_CLOUD_FALLBACK',
-        payload: msg,
-      });
+    if (!sentOverLan && this.supabaseChannel && (this.supabaseChannel as any).state === 'joined') {
+      try {
+        this.supabaseChannel.send({
+          type: 'broadcast',
+          event: 'JAM_CLOUD_FALLBACK',
+          payload: msg,
+        });
+      } catch {}
       return false;
     }
     return true;
