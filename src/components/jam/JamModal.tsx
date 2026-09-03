@@ -291,8 +291,8 @@ export function JamModal() {
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className="relative w-12 h-12 rounded-xl overflow-hidden shadow-md flex-shrink-0 border border-white/15">
                         <OptimizedImage
-                          src={activeTrack.coverUrl}
-                          alt={activeTrack.title}
+                          src={activeTrack?.coverUrl || '/app-icon.png'}
+                          alt={activeTrack?.title || 'Track'}
                           className="w-full h-full object-cover"
                           fallbackSrc="/app-icon.png"
                         />
@@ -313,10 +313,10 @@ export function JamModal() {
                           </span>
                         </div>
                         <h4 className="font-bold text-xs text-white truncate mt-0.5">
-                          {SongFormatter.cleanSongTitle(activeTrack.title)}
+                          {SongFormatter.cleanSongTitle(activeTrack?.title || 'Unknown Track')}
                         </h4>
                         <p className="text-[10px] text-slate-400 truncate">
-                          {SongFormatter.decodeHtml(activeTrack.artist) || activeTrack.artist}
+                          {SongFormatter.decodeHtml(activeTrack?.artist || '') || activeTrack?.artist || 'Unknown Artist'}
                         </p>
                       </div>
                     </div>
@@ -366,37 +366,40 @@ export function JamModal() {
                 {/* Queue Items List */}
                 <div className="flex-1 overflow-y-auto space-y-1.5 mt-3 pr-1 custom-scrollbar">
                   {session.queue.length > 0 ? (
-                    session.queue.map((item, idx) => (
-                      <div
-                        key={item.queueItemId}
-                        className="p-2.5 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 flex items-center justify-between gap-3 group transition-all"
-                      >
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <span className="text-[11px] font-mono font-bold text-slate-500 w-4 text-center">
-                            {idx + 1}
-                          </span>
-                          <div className="relative w-10 h-10 rounded-xl overflow-hidden shadow-sm flex-shrink-0 border border-white/10">
-                            <OptimizedImage
-                              src={item.song.coverUrl}
-                              alt={item.song.title}
-                              className="w-full h-full object-cover"
-                              fallbackSrc="/app-icon.png"
-                            />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <h4 className="font-bold text-xs text-white truncate">
-                              {SongFormatter.cleanSongTitle(item.song.title)}
-                            </h4>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-[10px] text-slate-400 truncate max-w-[120px]">
-                                {SongFormatter.decodeHtml(item.song.artist) || item.song.artist}
-                              </span>
-                              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-[#FA233B]/10 text-[#FA233B] border border-[#FA233B]/20 truncate">
-                                Added by {item.addedByName}
-                              </span>
+                    session.queue.map((item, idx) => {
+                      const song = item?.song || (item as any);
+                      if (!song) return null;
+                      return (
+                        <div
+                          key={item.queueItemId || idx}
+                          className="p-2.5 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 flex items-center justify-between gap-3 group transition-all"
+                        >
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <span className="text-[11px] font-mono font-bold text-slate-500 w-4 text-center">
+                              {idx + 1}
+                            </span>
+                            <div className="relative w-10 h-10 rounded-xl overflow-hidden shadow-sm flex-shrink-0 border border-white/10">
+                              <OptimizedImage
+                                src={song?.coverUrl || '/app-icon.png'}
+                                alt={song?.title || 'Track'}
+                                className="w-full h-full object-cover"
+                                fallbackSrc="/app-icon.png"
+                              />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h4 className="font-bold text-xs text-white truncate">
+                                {SongFormatter.cleanSongTitle(song?.title || 'Unknown Track')}
+                              </h4>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[10px] text-slate-400 truncate max-w-[120px]">
+                                  {SongFormatter.decodeHtml(song?.artist || '') || song?.artist || 'Unknown Artist'}
+                                </span>
+                                <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-[#FA233B]/10 text-[#FA233B] border border-[#FA233B]/20 truncate">
+                                  Added by {item.addedByName || 'Host'}
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
 
                         <div className="flex items-center gap-1 flex-shrink-0">
                           {(isHost || permissions?.canReorderQueue) && (
@@ -431,7 +434,8 @@ export function JamModal() {
                           )}
                         </div>
                       </div>
-                    ))
+                    );
+                  })
                   ) : (
                     <div className="h-full flex flex-col items-center justify-center text-slate-500 text-xs gap-2.5 text-center py-12">
                       <div className="w-12 h-12 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-center text-slate-500">

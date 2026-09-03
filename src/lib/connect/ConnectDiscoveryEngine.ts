@@ -14,8 +14,8 @@ import { getApiUrl } from '@/lib/config/apiConfig';
 type DeviceListListener = (devices: ConnectDevice[]) => void;
 
 const CONNECT_STORAGE_PREFIX = 'raagax_connect_dev_';
-const HEARTBEAT_INTERVAL_MS = 15000;
-const DEVICE_EXPIRY_MS = 45000;
+const HEARTBEAT_INTERVAL_MS = 3000;
+const DEVICE_EXPIRY_MS = 30000;
 
 export class ConnectDiscoveryEngine {
   private static instance: ConnectDiscoveryEngine;
@@ -191,72 +191,55 @@ export class ConnectDiscoveryEngine {
         },
       });
 
+      const handlePresenceMeshUpdate = () => {
+        const state = this.presenceChannel?.presenceState() || {};
+        const currentDeviceId = this.localDevice.deviceId;
+        const activeDeviceIds = new Set<string>();
+        let changed = false;
+
+        for (const [key, presences] of Object.entries(state)) {
+          if (key === currentDeviceId) continue;
+          if (Array.isArray(presences) && presences.length > 0) {
+            const remote = (presences[0] as any)?.device as ConnectDevice & { subnet?: string };
+            if (!remote || !remote.deviceId || remote.deviceId === currentDeviceId) continue;
+
+            activeDeviceIds.add(remote.deviceId);
+
+            const myAccount = this.localDevice.accountId;
+            const remoteAccount = remote.accountId;
+            const isSameAccount = Boolean(myAccount && remoteAccount && myAccount === remoteAccount);
+
+            this.discoveredDevices.set(remote.deviceId, {
+              ...remote,
+              isCurrentDevice: false,
+              lastSeenAt: Date.now(),
+              transport: 'CLOUD_RELAY',
+              authStatus: 'AUTO_AUTHORIZED',
+              isSameAccount: Boolean(isSameAccount),
+            });
+            changed = true;
+          }
+        }
+
+        // Instant Prune: Remove devices that have left presence mesh immediately (<50ms)
+        for (const [id, dev] of this.discoveredDevices.entries()) {
+          if (dev.transport === 'CLOUD_RELAY' || dev.transport === 'LOCAL_LAN') {
+            if (!activeDeviceIds.has(id)) {
+              this.discoveredDevices.delete(id);
+              changed = true;
+            }
+          }
+        }
+
+        if (changed) {
+          this.notifyListeners();
+        }
+      };
+
       this.presenceChannel
-        .on('presence', { event: 'sync' }, () => {
-          const state = this.presenceChannel?.presenceState() || {};
-          const currentDeviceId = this.localDevice.deviceId;
-          const activeDeviceIds = new Set<string>();
-          let changed = false;
-
-          for (const [key, presences] of Object.entries(state)) {
-            if (key === currentDeviceId) continue;
-            if (Array.isArray(presences) && presences.length > 0) {
-              const remote = (presences[0] as any)?.device as ConnectDevice & { subnet?: string };
-              if (!remote || !remote.deviceId || remote.deviceId === currentDeviceId) continue;
-
-              activeDeviceIds.add(remote.deviceId);
-
-              const myAccount = this.localDevice.accountId;
-              const remoteAccount = remote.accountId;
-              const isSameAccount = Boolean(myAccount && remoteAccount && myAccount === remoteAccount);
-
-              const mySubnet = this.localSubnet;
-              const remoteSubnet = remote.subnet;
-              const isSameSubnet = Boolean(
-                !mySubnet || !remoteSubnet ||
-                mySubnet === remoteSubnet ||
-                mySubnet.includes('127.0.0') || remoteSubnet?.includes('127.0.0') ||
-                mySubnet === 'local' || remoteSubnet === 'local'
-              );
-
-              // Zero-Latency Auto-discovery:
-              // 1. Same authenticated user account (cross-network 5G/Wi-Fi)
-              // 2. Same local subnet / Wi-Fi network
-              // 3. Unauthenticated guest peers on same network
-              if (isSameAccount || isSameSubnet || (!myAccount && !remoteAccount)) {
-                this.discoveredDevices.set(remote.deviceId, {
-                  ...remote,
-                  isCurrentDevice: false,
-                  lastSeenAt: Date.now(),
-                  transport: isSameSubnet ? 'LOCAL_LAN' : 'CLOUD_RELAY',
-                  authStatus: 'AUTO_AUTHORIZED',
-                  isSameAccount: Boolean(isSameAccount),
-                });
-                changed = true;
-              }
-            }
-          }
-
-          // Instant Prune: Remove devices that have left presence mesh immediately (<50ms)
-          for (const [id, dev] of this.discoveredDevices.entries()) {
-            if (dev.transport === 'CLOUD_RELAY' || dev.transport === 'LOCAL_LAN') {
-              if (!activeDeviceIds.has(id)) {
-                this.discoveredDevices.delete(id);
-                changed = true;
-              }
-            }
-          }
-
-          if (changed) {
-            this.notifyListeners();
-          }
-        })
-        .on('presence', { event: 'leave' }, ({ key }: any) => {
-          if (key && key !== this.localDevice.deviceId) {
-            this.discoveredDevices.delete(key);
-            this.notifyListeners();
-          }
-        })
+        .on('presence', { event: 'sync' }, handlePresenceMeshUpdate)
+        .on('presence', { event: 'join' }, handlePresenceMeshUpdate)
+        .on('presence', { event: 'leave' }, handlePresenceMeshUpdate)
         .on('broadcast', { event: 'CONNECT_COMMAND' }, (msg: any) => {
           const cmd = msg?.payload || msg;
           if (cmd && cmd.targetDeviceId === this.localDevice.deviceId) {
@@ -440,6 +423,33 @@ export class ConnectDiscoveryEngine {
               if (dev.deviceId !== this.localDevice.deviceId && now - dev.lastSeenAt < DEVICE_EXPIRY_MS) {
                 this.discoveredDevices.set(dev.deviceId, { ...dev, isCurrentDevice: false });
               }
+            }
+          }
+        }
+      } catch {}
+    }
+
+    // 2. Scan Supabase Realtime presence mesh for instant zero-latency discovery
+    if (this.presenceChannel) {
+      try {
+        const state = this.presenceChannel.presenceState() || {};
+        const currentDeviceId = this.localDevice.deviceId;
+        for (const [key, presences] of Object.entries(state)) {
+          if (key === currentDeviceId) continue;
+          if (Array.isArray(presences) && presences.length > 0) {
+            const remote = (presences[0] as any)?.device as ConnectDevice;
+            if (remote && remote.deviceId && remote.deviceId !== currentDeviceId) {
+              const myAccount = this.localDevice.accountId;
+              const remoteAccount = remote.accountId;
+              const isSameAccount = Boolean(myAccount && remoteAccount && myAccount === remoteAccount);
+              this.discoveredDevices.set(remote.deviceId, {
+                ...remote,
+                isCurrentDevice: false,
+                lastSeenAt: now,
+                transport: 'CLOUD_RELAY',
+                authStatus: 'AUTO_AUTHORIZED',
+                isSameAccount: Boolean(isSameAccount),
+              });
             }
           }
         }

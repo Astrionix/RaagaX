@@ -40,7 +40,7 @@ export class LocalLanTransport implements JamTransport {
     this.auth = auth;
     this.endpointUrl = endpoint || null;
 
-    if (!this.endpointUrl) {
+    if (!this.endpointUrl || !this.isPrivateLanUrl(this.endpointUrl)) {
       this._isConnected = false;
       this.state = 'DISCONNECTED';
       return false;
