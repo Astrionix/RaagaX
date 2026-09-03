@@ -26,9 +26,11 @@ export async function GET(request: NextRequest) {
 
     let clientIp = forwardedFor.split(',')[0].trim() || '127.0.0.1';
     if (clientIp.startsWith('::ffff:')) clientIp = clientIp.replace('::ffff:', '');
-    if (clientIp === '::1' || clientIp === 'localhost') clientIp = '127.0.0.1';
+    const { searchParams } = new URL(request.url);
+    const localSubnetParam = searchParams.get('localSubnet') || '';
 
-    const networkHash = simpleHash(clientIp);
+    const rawToHash = localSubnetParam ? `${clientIp}_${localSubnetParam}` : clientIp;
+    const networkHash = simpleHash(rawToHash);
     const subnet = clientIp.includes('.') ? clientIp.split('.').slice(0, 3).join('.') : '127.0.0';
 
     return NextResponse.json({

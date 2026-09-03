@@ -172,8 +172,25 @@ export class ConnectDiscoveryEngine {
 
   public async setupLanPresenceChannel(): Promise<void> {
     if (typeof window === 'undefined') return;
+
+    // 1. Guard against Carrier-Grade NAT (CGNAT) on Mobile 5G / Cellular:
+    // Cellular users share public IPs across entire cities. Cellular devices
+    // must strictly rely on Track 1 (Account Channel) to prevent accidental device clashing.
     try {
-      const hash = await this.resolveNetworkHash();
+      const conn = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+      if (conn && (conn.type === 'cellular' || (conn.type && conn.type !== 'wifi' && conn.type !== 'ethernet'))) {
+        console.log('[DISCOVERY] Cellular network detected. Skipping LAN mesh channel to prevent CGNAT IP clashing.');
+        if (this.lanChannel) {
+          try { supabase.removeChannel(this.lanChannel); } catch {}
+          this.lanChannel = null;
+        }
+        return;
+      }
+    } catch {}
+
+    try {
+      const localSubnet = await this.detectLocalPrivateSubnet();
+      const hash = await this.resolveNetworkHash(localSubnet);
       if (!hash) return;
       if (this.currentNetworkHash === hash && this.lanChannel) return;
 
@@ -406,9 +423,54 @@ export class ConnectDiscoveryEngine {
     this.notifyListeners();
   }
 
-  private async resolveNetworkHash(): Promise<string> {
+  private async detectLocalPrivateSubnet(): Promise<string | null> {
+    return new Promise((resolve) => {
+      if (typeof window === 'undefined' || typeof RTCPeerConnection === 'undefined') {
+        return resolve(null);
+      }
+      try {
+        const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+        let resolved = false;
+        const timer = setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            try { pc.close(); } catch {}
+            resolve(null);
+          }
+        }, 1200);
+
+        pc.onicecandidate = (e) => {
+          if (!e.candidate || resolved) return;
+          const candidateStr = e.candidate.candidate;
+          const parts = candidateStr.split(' ');
+          const ip = parts[4];
+          if (ip && (ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.'))) {
+            resolved = true;
+            clearTimeout(timer);
+            try { pc.close(); } catch {}
+            const subnetPrefix = ip.split('.').slice(0, 3).join('.');
+            resolve(subnetPrefix);
+          }
+        };
+
+        pc.createDataChannel('');
+        pc.createOffer().then((offer) => pc.setLocalDescription(offer)).catch(() => {
+          if (!resolved) {
+            resolved = true;
+            clearTimeout(timer);
+            resolve(null);
+          }
+        });
+      } catch {
+        resolve(null);
+      }
+    });
+  }
+
+  private async resolveNetworkHash(localSubnet?: string | null): Promise<string> {
     try {
-      const res = await fetch(getApiUrl('/api/connect/network-hash'));
+      const query = localSubnet ? `?localSubnet=${encodeURIComponent(localSubnet)}` : '';
+      const res = await fetch(getApiUrl(`/api/connect/network-hash${query}`));
       const data = await res.json();
       if (data?.networkHash) {
         if (data.subnet) this.localSubnet = data.subnet;
