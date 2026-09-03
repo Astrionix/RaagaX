@@ -1606,6 +1606,28 @@ export const usePlayerStore = create<PlayerState>()(
           }
         } catch { }
 
+        // RaagaX Connect: If in Remote Controller mode, dispatch target track or seek(0) to Speaker
+        if (typeof window !== 'undefined') {
+          try {
+            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
+            const connectClient = ConnectClientManager.getInstance();
+            if (connectClient.isRemoteMode()) {
+              if (currentTime > 3) {
+                set({ currentTime: 0 });
+                await connectClient.sendCommand('SEEK', { positionMs: 0 });
+                return;
+              }
+              const { queue, queueIndex, repeatMode } = get();
+              const prevIndex = getPreviousQueueIndex(queue, queueIndex, repeatMode);
+              if (prevIndex >= 0 && prevIndex < queue.length) {
+                const prevTrack = queue[prevIndex];
+                await get().switchTrack(prevTrack, prevIndex, true);
+              }
+              return;
+            }
+          } catch { }
+        }
+
         // If track played more than 3 seconds, restart current track at 0:00 and keep current playing state
         if (currentTime > 3) {
           console.log(`[RESTART] ${currentSong?.id || 'unknown'} (pos: ${currentTime.toFixed(1)}s > 3s)`);

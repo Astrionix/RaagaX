@@ -498,7 +498,6 @@ export class ConnectClientManager {
     if (!target || !target.deviceId) return false;
 
     const localDevice = ConnectDiscoveryEngine.getInstance().getLocalDevice();
-    const currentRev = this.remoteSession?.revision;
     const command: ConnectCommand = {
       commandId: `cmd_${Date.now().toString(36)}`,
       requestId: `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`,
@@ -506,15 +505,11 @@ export class ConnectClientManager {
       senderName: localDevice?.deviceName || 'RaagaX Device',
       targetDeviceId: target.deviceId,
       action,
-      expectedRevision: currentRev,
+      // Spotify Connect SSOT: Thin controller sends pure intention without stale revision constraints
+      expectedRevision: undefined,
       payload,
       timestamp: Date.now(),
     };
-
-    // Optimistically advance expected revision for rapid consecutive commands (e.g. rapid queue adds)
-    if (this.remoteSession && typeof currentRev === 'number') {
-      this.remoteSession.revision = currentRev + 1;
-    }
 
     return this.dispatchCommand(command);
   }

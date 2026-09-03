@@ -214,7 +214,8 @@ export class ConnectServerEngine {
       }
     }
 
-    // 3. Stale revision protection: skip for authoritative user actions and queue mutations
+    // 3. Stale revision protection: When expectedRevision is explicitly passed,
+    // verify it is not stale. Pure intentions (expectedRevision undefined) are always executed.
     const bypassStaleCheck =
       command.action === 'TRANSFER_PLAYBACK' ||
       command.action === 'PLAY_SONG' ||

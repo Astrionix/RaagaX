@@ -39,8 +39,7 @@ export class CommandValidator {
       return { valid: false, reason: 'Controller lacks permission' };
     }
 
-    // Revision check: reject commands targeted for older revisions
-    // Bypass for queue mutations and playback transfer where user intent is cumulative/authoritative
+    // Revision check: reject commands targeted for older revisions when explicitly specified
     const bypassRevisionCheck =
       command.action === 'ADD_TO_QUEUE' ||
       command.action === 'SET_QUEUE' ||
