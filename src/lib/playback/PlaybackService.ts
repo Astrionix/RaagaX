@@ -28,6 +28,8 @@ export class PlaybackService {
 
   private isInitializing = false;
   private isTransitioning = false;
+  private isAutoplayRestricted = false;
+  private watchdogRetryCount = 0;
   private lastPositionReportTime = 0;
   private playbackGeneration = 0;
   private playbackRequestId = 0;
@@ -84,6 +86,10 @@ export class PlaybackService {
     this.audioA.preload = 'auto';
     this.audioB.preload = 'auto';
 
+    import('./AudioUnlocker').then(({ initAudioUnlocker }) => {
+      initAudioUnlocker([this.audioA!, this.audioB!]);
+    });
+
     this.attachListeners();
 
     const active = this.getActiveAudio();
@@ -130,6 +136,11 @@ export class PlaybackService {
       const store = usePlayerStore.getState();
 
       if (store.isPlaying && store.playbackIntent === 'PLAYING' && active.paused && !active.ended && !this.isTransitioning) {
+        // AUTOPLAY SAFETY: Do NOT hammer play() if browser autoplay policy is restricting audio
+        if (this.isAutoplayRestricted || this.watchdogRetryCount >= 2) {
+          return;
+        }
+
         // CONNECT SAFETY: Do NOT recover playback if this device is acting as a remote controller
         try {
           const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
@@ -140,11 +151,6 @@ export class PlaybackService {
 
         if (active.readyState >= 2) {
           // WATCHDOG JAM SAFETY (Phase 4):
-          // Do NOT recover playback if the Jam session is in a transient lifecycle state.
-          // During JOINING, PREPARING, SCHEDULED, CLOCK_SYNCING, SNAPSHOT_RECEIVED, or RECONNECTING
-          // the DriftCorrectionEngine / ScheduledStart is in control of play() timing.
-          // Triggering play() here would interfere with the scheduled start and cause a premature
-          // audio start before the correct timeline position has been seeked.
           try {
             const { JamClientManager } = require('@/lib/jam/client/JamClientManager');
             const jamManager = JamClientManager.getInstance();
@@ -168,12 +174,58 @@ export class PlaybackService {
           }
 
           console.warn('[PlaybackService Watchdog] Active audio paused unexpectedly while isPlaying=true. Recovering play()...');
-          active.play().catch((err) => {
-            console.warn('[PlaybackService Watchdog] Auto-resume recovery failed:', err);
-          });
+          active.play()
+            .then(() => {
+              this.watchdogRetryCount = 0;
+              this.isAutoplayRestricted = false;
+            })
+            .catch((err) => {
+              if (err?.name === 'NotAllowedError') {
+                this.watchdogRetryCount++;
+                this.isAutoplayRestricted = true;
+                console.warn('[PlaybackService Watchdog] Autoplay restricted. Waiting for user interaction.');
+                try {
+                  usePlayerStore.getState().setToastMessage('Click anywhere to enable audio playback');
+                } catch {}
+                this.attachAutoplayUnlockHandler();
+              } else {
+                console.warn('[PlaybackService Watchdog] Auto-resume recovery failed:', err);
+              }
+            });
         }
       }
     }, 3000);
+  }
+
+  private attachAutoplayUnlockHandler() {
+    if (typeof window === 'undefined') return;
+    const unlock = () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+      window.removeEventListener('touchstart', unlock);
+      window.removeEventListener('click', unlock);
+      this.isAutoplayRestricted = false;
+      this.watchdogRetryCount = 0;
+      console.log('[PlaybackService] User interacted with document. Resuming playback...');
+      this.play();
+    };
+    window.addEventListener('pointerdown', unlock, { once: true, passive: true });
+    window.addEventListener('keydown', unlock, { once: true, passive: true });
+    window.addEventListener('touchstart', unlock, { once: true, passive: true });
+    window.addEventListener('click', unlock, { once: true, passive: true });
+  }
+
+  public onAudioUnlocked() {
+    this.isAutoplayRestricted = false;
+    this.watchdogRetryCount = 0;
+    const store = usePlayerStore.getState();
+    if (store.isPlaying && store.playbackIntent === 'PLAYING') {
+      const active = this.getActiveAudio();
+      if (active && active.paused) {
+        console.log('[PlaybackService] Audio globally unlocked. Resuming active playback...');
+        this.play();
+      }
+    }
   }
 
 
@@ -951,6 +1003,8 @@ export class PlaybackService {
         const p = active.play();
         if (p && typeof p.then === 'function') {
           p.then(() => {
+            this.isAutoplayRestricted = false;
+            this.watchdogRetryCount = 0;
             this.notifyStorePlaying(true);
             MediaSessionManager.getInstance().setPlaybackState('playing');
             AudioFocusManager.getInstance().requestFocus();
@@ -958,15 +1012,12 @@ export class PlaybackService {
           }).catch((err) => {
             if (err?.name === 'NotAllowedError') {
               console.warn('[PlaybackService] Autoplay blocked by browser policy. Attaching user gesture unlocker.');
-              const unlock = () => {
-                window.removeEventListener('pointerdown', unlock);
-                window.removeEventListener('keydown', unlock);
-                window.removeEventListener('touchstart', unlock);
-                active.play().catch(() => { });
-              };
-              window.addEventListener('pointerdown', unlock, { once: true });
-              window.addEventListener('keydown', unlock, { once: true });
-              window.addEventListener('touchstart', unlock, { once: true });
+              this.isAutoplayRestricted = true;
+              this.watchdogRetryCount = 2;
+              try {
+                usePlayerStore.getState().setToastMessage('Click anywhere to enable audio playback');
+              } catch {}
+              this.attachAutoplayUnlockHandler();
             } else if (err?.name !== 'AbortError') {
               console.warn('[PlaybackService] play() error:', err);
             }

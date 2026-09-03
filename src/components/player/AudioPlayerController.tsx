@@ -22,6 +22,7 @@ import { PlaybackService } from '@/lib/playback/PlaybackService';
 import { AdaptiveQueueController } from '@/lib/queue/AdaptiveQueueController';
 import { PlaybackSourceResolver } from '@/lib/playbackSourceResolver';
 import { PreloadManager } from '@/lib/playback/PreloadManager';
+import { initAudioUnlocker } from '@/lib/playback/AudioUnlocker';
 import { getApiUrl } from '@/lib/config/apiConfig';
 import { ArtworkColorExtractor } from '@/lib/theme/ArtworkColorExtractor';
 import { useJamStore } from '@/context/useJamStore';
@@ -74,17 +75,10 @@ export function AudioPlayerController() {
 
     // Browser Audio Autoplay Policy Unlocker (Chrome / Brave):
     // Unlocks browser audio playback capability on first user interaction anywhere
-    const unlockAutoplay = () => {
-      try {
-        const dummyAudio = new Audio();
-        dummyAudio.volume = 0;
-        dummyAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
-        dummyAudio.play().then(() => dummyAudio.pause()).catch(() => {});
-      } catch {}
-    };
-    if (typeof window !== 'undefined') {
-      window.addEventListener('pointerdown', unlockAutoplay, { once: true });
-      window.addEventListener('keydown', unlockAutoplay, { once: true });
+    if (audioRefA.current && audioRefB.current) {
+      initAudioUnlocker([audioRefA.current, audioRefB.current]);
+    } else {
+      initAudioUnlocker();
     }
   }, []);
 
