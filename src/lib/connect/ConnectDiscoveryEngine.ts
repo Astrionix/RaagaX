@@ -218,7 +218,10 @@ export class ConnectDiscoveryEngine {
       return;
     }
 
+    console.log('[PRESENCE ACCOUNT] User ID:', userId);
     const channelName = `devices_user_${userId}`;
+    console.log('[PRESENCE ACCOUNT] Joining Channel:', channelName);
+
     if (this.userChannel) {
       if (this.subscribedUserId === userId) {
         this.trackOnChannel(this.userChannel);
@@ -256,9 +259,18 @@ export class ConnectDiscoveryEngine {
       });
 
       channel
-        .on('presence', { event: 'sync' }, () => this.handleAggregatePresenceSync())
-        .on('presence', { event: 'join' }, () => this.handleAggregatePresenceSync())
-        .on('presence', { event: 'leave' }, () => this.handleAggregatePresenceSync())
+        .on('presence', { event: 'sync' }, () => {
+          console.log(`[PRESENCE SYNC] Channel: ${channelName}`, channel.presenceState());
+          this.handleAggregatePresenceSync();
+        })
+        .on('presence', { event: 'join' }, ({ key, newPresences }: any) => {
+          console.log(`[PRESENCE JOIN] Channel: ${channelName} Key: ${key}`, newPresences);
+          this.handleAggregatePresenceSync();
+        })
+        .on('presence', { event: 'leave' }, ({ key, leftPresences }: any) => {
+          console.log(`[PRESENCE LEAVE] Channel: ${channelName} Key: ${key}`, leftPresences);
+          this.handleAggregatePresenceSync();
+        })
         .on('broadcast', { event: 'DEVICE_PROBE' }, () => {
           this.announcePresence();
         })
@@ -285,7 +297,7 @@ export class ConnectDiscoveryEngine {
           }
         })
         .subscribe(async (status: string) => {
-          console.log(`[DISCOVERY] ${channelName} status:`, status);
+          console.log(`[PRESENCE STATUS] Channel: ${channelName} Status:`, status);
           if (status === 'SUBSCRIBED') {
             await this.trackOnChannel(channel);
             this.announcePresence();
@@ -302,7 +314,7 @@ export class ConnectDiscoveryEngine {
   }
 
   private async trackOnChannel(channel: any): Promise<void> {
-    if (!channel || (channel as any).state !== 'joined') return;
+    if (!channel) return;
     try {
       const trackPayload = {
         deviceId: this.localDevice.deviceId,
@@ -318,14 +330,16 @@ export class ConnectDiscoveryEngine {
           deviceName: this.localDevice.deviceName,
           deviceType: this.localDevice.deviceType,
           type: this.localDevice.deviceType,
-          isSpeakerActive: this.localDevice.state === 'PLAYING',
-          subnet: this.localSubnet || '127.0.0',
-          accountId: this.localDevice.accountId,
         },
         onlineAt: Date.now(),
       };
-      await channel.track(trackPayload).catch((e: any) => console.warn('[DISCOVERY] Track error:', e));
-    } catch {}
+
+      console.log(`[PRESENCE TRACK] Tracking on ${channel.topic} Device: ${this.localDevice.deviceName} (${this.localDevice.deviceId})`);
+      const result = await channel.track(trackPayload);
+      console.log(`[PRESENCE TRACK RESULT] Channel: ${channel.topic} Result:`, result);
+    } catch (e) {
+      console.warn(`[PRESENCE TRACK ERROR] Channel: ${channel.topic} Error:`, e);
+    }
   }
 
   private extractPresencesFromChannel(channel: any, currentDeviceId: string): ConnectDevice[] {
