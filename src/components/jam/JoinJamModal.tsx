@@ -46,9 +46,9 @@ export function JoinJamModal() {
   if (!isJoinModalOpen) return null;
 
   const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Restricted alphabet: 23456789ABCDEFGHJKMNPQRSTUVWXYZ
+    // Allow all alphanumeric characters 0-9 and A-Z without stripping 0 or 1
     const raw = e.target.value.toUpperCase();
-    const filtered = raw.replace(/[^23456789ABCDEFGHJKMNPQRSTUVWXYZ]/g, '').slice(0, 6);
+    const filtered = raw.replace(/[^0-9A-Z_]/g, '').slice(0, 10);
     setInputCode(filtered);
     setLocalError(null);
   };

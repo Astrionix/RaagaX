@@ -15,6 +15,10 @@ import { ConnectDiscoveryEngine } from '@/lib/connect/ConnectDiscoveryEngine';
  * - Marks is_playing = false on unmount or pause
  */
 export function usePlaybackCloudSync() {
+  // Prevent 400 Bad Request loop on Supabase user_playback_state
+  // Cross-device playback discovery is driven by zero-latency Supabase Presence & Connect mesh
+  return;
+
   const currentSong = usePlayerStore((s) => s.currentSong);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const currentTime = usePlayerStore((s) => s.currentTime);

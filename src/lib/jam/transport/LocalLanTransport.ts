@@ -144,8 +144,25 @@ export class LocalLanTransport implements JamTransport {
     }
   }
 
+  private isPrivateLanUrl(url: string): boolean {
+    try {
+      const parsed = new URL(url);
+      const host = parsed.hostname;
+      return (
+        host === 'localhost' ||
+        host === '127.0.0.1' ||
+        host.startsWith('192.168.') ||
+        host.startsWith('10.') ||
+        (/^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host))
+      );
+    } catch {
+      return false;
+    }
+  }
+
   private initializePersistentWebSocket(jamId: string, auth: JamAuthCredentials) {
     if (!this.endpointUrl || typeof WebSocket === 'undefined') return;
+    if (!this.isPrivateLanUrl(this.endpointUrl)) return;
 
     try {
       const wsUrl = this.endpointUrl.replace(/^http/, 'ws');

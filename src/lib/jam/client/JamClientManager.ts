@@ -45,6 +45,7 @@ export class JamClientManager {
 
   private eventSource: EventSource | null = null;
   private supabaseChannel: any = null;
+  private codeSupabaseChannel: any = null;
   private reconnectAttempts = 0;
   private reconnectTimer: any = null;
   private metricsReportTimer: any = null;
@@ -226,7 +227,7 @@ export class JamClientManager {
     this.transportRouter.subscribe((event) => this.handleIncomingEvent(event));
 
     // Connect real-time fallback channels
-    this.connectRealtimeTransport(session.jamId);
+    this.connectRealtimeTransport(session.jamId, session.joinCode);
     this.startMetricsReporting(session.jamId);
 
     // Start nearby discovery beacon advertising
@@ -426,8 +427,17 @@ export class JamClientManager {
     }
 
     if (this.supabaseChannel) {
-      this.supabaseChannel.unsubscribe();
+      try {
+        this.supabaseChannel.unsubscribe();
+      } catch {}
       this.supabaseChannel = null;
+    }
+
+    if (this.codeSupabaseChannel) {
+      try {
+        this.codeSupabaseChannel.unsubscribe();
+      } catch {}
+      this.codeSupabaseChannel = null;
     }
 
     if (this.lanTransport) {
@@ -473,12 +483,18 @@ export class JamClientManager {
   /**
    * Connects SSE stream + Supabase Realtime channel
    */
-  private connectRealtimeTransport(jamId: string) {
+  private connectRealtimeTransport(jamId: string, joinCode?: string) {
     if (this.supabaseChannel) {
       try {
         this.supabaseChannel.unsubscribe();
       } catch {}
       this.supabaseChannel = null;
+    }
+    if (this.codeSupabaseChannel) {
+      try {
+        this.codeSupabaseChannel.unsubscribe();
+      } catch {}
+      this.codeSupabaseChannel = null;
     }
 
     // Pure Serverless: Supabase Realtime Channel (Zero HTTP 404 SSE)
@@ -486,64 +502,76 @@ export class JamClientManager {
       const channel = supabase.channel(`jam:${jamId}`);
       this.supabaseChannel = channel;
 
-      channel
-        .on('broadcast', { event: 'jam_event' }, (payload: any) => {
-          if (payload?.payload) {
-            const event: JamEvent = payload.payload;
-            // SUPABASE DEDUPLICATION (Phase 5):
-            // Supabase events may duplicate SSE events for the same action.
-            // Use eventId if present. Otherwise fall back to a composite key: type_revision.
-            // This prevents the same command response arriving twice from SSE + Supabase.
-            if (event.eventId) {
-              if (this.processedEventIds.has(event.eventId)) {
-                return; // Already processed via SSE
+      const attachChannelListeners = (ch: any) => {
+        ch
+          .on('broadcast', { event: 'jam_event' }, (payload: any) => {
+            if (payload?.payload) {
+              const event: JamEvent = payload.payload;
+              // SUPABASE DEDUPLICATION (Phase 5):
+              // Supabase events may duplicate SSE events for the same action.
+              // Use eventId if present. Otherwise fall back to a composite key: type_revision.
+              // This prevents the same command response arriving twice from SSE + Supabase.
+              if (event.eventId) {
+                if (this.processedEventIds.has(event.eventId)) {
+                  return; // Already processed via SSE
+                }
+                // Don't add to processedEventIds here — handleIncomingEvent will do it
+              } else if (event.type && typeof event.revision === 'number') {
+                const fallbackKey = `${event.jamId}_${event.type}_${event.revision}`;
+                if (this.processedEventIds.has(fallbackKey)) {
+                  return; // Already processed
+                }
+                this.processedEventIds.add(fallbackKey);
               }
-              // Don't add to processedEventIds here — handleIncomingEvent will do it
-            } else if (event.type && typeof event.revision === 'number') {
-              const fallbackKey = `${event.jamId}_${event.type}_${event.revision}`;
-              if (this.processedEventIds.has(fallbackKey)) {
-                return; // Already processed
-              }
-              this.processedEventIds.add(fallbackKey);
+              this.handleIncomingEvent(event);
             }
-            this.handleIncomingEvent(event);
-          }
-        })
-        .on('broadcast', { event: 'JAM_PEER_JOIN_REQUEST' }, (msg: any) => {
-          if (!this.activeSession || this.activeSession.hostId !== this.currentUserId) return;
-          const user = msg?.payload?.user;
-          if (!user || !user.userId) return;
+          })
+          .on('broadcast', { event: 'JAM_PEER_JOIN_REQUEST' }, (msg: any) => {
+            if (!this.activeSession || this.activeSession.hostId !== this.currentUserId) return;
+            const user = msg?.payload?.user;
+            if (!user || !user.userId) return;
 
-          console.log(`[JamClientManager] Host received P2P join request from: ${user.displayName || user.userId}`);
-          const s = this.activeSession;
-          s.participants[user.userId] = {
-            participantId: `P_${user.userId}_${Date.now().toString(36)}`,
-            userId: user.userId,
-            displayName: user.displayName || 'RaagaX Listener',
-            avatarUrl: user.avatarUrl,
-            role: 'GUEST',
-            isHost: false,
-            status: 'READY',
-            joinedAt: Date.now(),
-            lastSeenAt: Date.now(),
-            clockOffsetMs: 0,
-            rttMs: 30,
-            playbackDriftMs: 0,
-            deviceType: user.deviceType || 'web',
-            isReadyForPlayback: true,
-          };
-          s.revision += 1;
+            console.log(`[JamClientManager] Host received P2P join request from: ${user.displayName || user.userId}`);
+            const s = this.activeSession;
+            s.participants[user.userId] = {
+              participantId: `P_${user.userId}_${Date.now().toString(36)}`,
+              userId: user.userId,
+              displayName: user.displayName || 'RaagaX Listener',
+              avatarUrl: user.avatarUrl,
+              role: 'GUEST',
+              isHost: false,
+              status: 'READY',
+              joinedAt: Date.now(),
+              lastSeenAt: Date.now(),
+              clockOffsetMs: 0,
+              rttMs: 30,
+              playbackDriftMs: 0,
+              deviceType: user.deviceType || 'web',
+              isReadyForPlayback: true,
+            };
+            s.revision += 1;
 
-          channel.send({
-            type: 'broadcast',
-            event: 'JAM_PEER_JOIN_ACCEPTED',
-            payload: {
-              targetUserId: user.userId,
-              session: s,
-            },
-          }).catch(() => {});
-        })
-        .subscribe();
+            ch.send({
+              type: 'broadcast',
+              event: 'JAM_PEER_JOIN_ACCEPTED',
+              payload: {
+                targetUserId: user.userId,
+                session: s,
+              },
+            }).catch(() => {});
+          });
+      };
+
+      attachChannelListeners(channel);
+      channel.subscribe();
+
+      // If this host has a joinCode, also listen on jam:${joinCode} alias channel
+      if (joinCode && joinCode !== jamId) {
+        const codeCh = supabase.channel(`jam:${joinCode}`);
+        this.codeSupabaseChannel = codeCh;
+        attachChannelListeners(codeCh);
+        codeCh.subscribe();
+      }
 
       // 3. Hybrid WebRTC LAN Transport (<2ms) + Cloud Fallback
       if (typeof window !== 'undefined' && typeof RTCPeerConnection !== 'undefined') {

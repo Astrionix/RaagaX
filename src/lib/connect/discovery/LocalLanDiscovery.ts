@@ -76,7 +76,7 @@ export class LocalLanDiscovery {
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return;
 
     const wsUrl = getSyncWebSocketUrl();
-    if (!wsUrl) return;
+    if (!wsUrl || wsUrl.includes('onrender.com')) return;
 
     try {
       const ws = new WebSocket(wsUrl);

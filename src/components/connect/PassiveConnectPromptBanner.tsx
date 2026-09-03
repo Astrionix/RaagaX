@@ -92,83 +92,9 @@ export function PassiveConnectPromptBanner() {
 
   // 1. Check active remote playback on mount & on auth changes
   useEffect(() => {
-    if (!user?.id) {
-      setRemoteState(null);
-      return;
-    }
-
-    let isMounted = true;
-
-    async function checkRemoteState() {
-      try {
-        const { data, error } = await supabase
-          .from('user_playback_state')
-          .select('*')
-          .eq('user_id', user!.id)
-          .maybeSingle();
-
-        if (error || !data || !isMounted) return;
-
-        const normalized = normalizePlaybackState(data);
-        if (!normalized) return;
-
-        const ageMs = Date.now() - new Date(normalized.updated_at).getTime();
-        // Valid if playing, on a different device, active within the last 10 minutes, and not dismissed
-        if (
-          normalized.is_playing &&
-          normalized.device_id !== localDeviceId &&
-          ageMs < 10 * 60 * 1000 &&
-          normalized.current_track_id !== dismissedTrackId &&
-          !localIsPlaying
-        ) {
-          setRemoteState(normalized);
-        }
-      } catch {}
-    }
-
-    checkRemoteState();
-
-    // 2. Realtime listener for cross-device playback state changes
-    const channelName = `playback_sync_${user.id}`;
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'user_playback_state',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload: any) => {
-          if (!isMounted) return;
-          const normalized = normalizePlaybackState(payload.new);
-          if (!normalized) {
-            setRemoteState(null);
-            return;
-          }
-
-          if (
-            normalized.is_playing &&
-            normalized.device_id !== localDeviceId &&
-            normalized.current_track_id !== dismissedTrackId &&
-            !usePlayerStore.getState().isPlaying
-          ) {
-            setRemoteState(normalized);
-          } else if (!normalized.is_playing || normalized.device_id === localDeviceId) {
-            setRemoteState(null);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      isMounted = false;
-      try {
-        supabase.removeChannel(channel);
-      } catch {}
-    };
-  }, [user?.id, localDeviceId, dismissedTrackId, localIsPlaying]);
+    // Disabled while user_playback_state is unmigrated to prevent 400 Bad Request calls
+    setRemoteState(null);
+  }, []);
 
   // Hide if this device is already active or in explicit remote mode
   if (!remoteState || isRemoteMode || isControlledByRemote || localIsPlaying) {
@@ -265,25 +191,6 @@ export function PassiveConnectPromptBanner() {
         setTimeout(() => {
           setSeekTarget(remoteState.progress_ms / 1000);
         }, 300);
-      }
-
-      // 4. Update cloud record with local device as active player
-      if (user?.id) {
-        await supabase.from('user_playback_state').upsert({
-          user_id: user.id,
-          device_id: localDeviceId,
-          device_name: localDevice?.deviceName || 'This Computer',
-          device_type: localDevice?.deviceType || 'desktop',
-          current_track_id: remoteState.current_track_id,
-          track_title: remoteState.track_title,
-          artist_name: remoteState.artist_name,
-          cover_url: remoteState.cover_url,
-          audio_url: songToPlay.audioUrl || remoteState.audio_url || null,
-          progress_ms: remoteState.progress_ms,
-          duration_ms: remoteState.duration_ms,
-          is_playing: true,
-          updated_at: new Date().toISOString(),
-        });
       }
 
       setRemoteState(null);

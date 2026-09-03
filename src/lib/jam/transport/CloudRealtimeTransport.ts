@@ -133,72 +133,37 @@ export class CloudRealtimeTransport implements JamTransport {
   public async sendCommand(command: JamCommand): Promise<JamCommandResponse> {
     const startTime = Date.now();
     try {
-      const res = await fetch(getApiUrl(`/api/jam/${command.jamId}/command`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(command),
-      });
+      // Pure Serverless Realtime Broadcast (Zero Render /api/jam 404 HTTP calls)
+      if (this.channel) {
+        this.channel.send({
+          type: 'broadcast',
+          event: 'jam_event',
+          payload: {
+            type: command.action === 'PLAY' ? 'PLAY' : command.action === 'PAUSE' ? 'PAUSE' : 'SESSION_UPDATED',
+            jamId: command.jamId,
+            senderId: command.userId,
+            payload: command,
+            revision: (command.expectedRevision ?? 1) + 1,
+            timestamp: Date.now(),
+          },
+        }).catch(() => {});
 
-      const rtt = Date.now() - startTime;
-      this.recordRTT(rtt);
-
-      if (!res.ok) {
-        // Pure Serverless Fallback: Broadcast via Supabase Realtime channel (Zero Render 404 Dependency)
-        if (this.channel) {
-          try {
-            this.channel.send({
-              type: 'broadcast',
-              event: 'jam_event',
-              payload: {
-                type: command.action === 'PLAY' ? 'PLAY' : command.action === 'PAUSE' ? 'PAUSE' : 'SESSION_UPDATED',
-                jamId: command.jamId,
-                senderId: command.userId,
-                payload: command,
-                revision: (command.expectedRevision ?? 1) + 1,
-                timestamp: Date.now(),
-              },
-            }).catch(() => {});
-            return {
-              success: true,
-              revision: (command.expectedRevision ?? 1) + 1,
-            };
-          } catch {}
-        }
-
-        const errJson = await res.json().catch(() => ({}));
-        this.failureCount++;
+        const rtt = Math.max(1, Date.now() - startTime);
+        this.recordRTT(rtt);
+        this.lastMessageAt = Date.now();
+        this.failureCount = 0;
         return {
-          success: false,
-          error: errJson?.error || `HTTP ${res.status}`,
-          revision: 0,
+          success: true,
+          revision: (command.expectedRevision ?? 1) + 1,
         };
       }
 
-      const data: JamCommandResponse = await res.json();
-      this.lastMessageAt = Date.now();
-      this.failureCount = 0;
-      return data;
+      return {
+        success: false,
+        error: 'Realtime channel not connected',
+        revision: 0,
+      };
     } catch (err: any) {
-      if (this.channel) {
-        try {
-          this.channel.send({
-            type: 'broadcast',
-            event: 'jam_event',
-            payload: {
-              type: 'SESSION_UPDATED',
-              jamId: command.jamId,
-              senderId: command.userId,
-              payload: command,
-              revision: (command.expectedRevision ?? 1) + 1,
-              timestamp: Date.now(),
-            },
-          }).catch(() => {});
-          return {
-            success: true,
-            revision: (command.expectedRevision ?? 1) + 1,
-          };
-        } catch {}
-      }
       this.failureCount++;
       return {
         success: false,

@@ -117,15 +117,19 @@ export class SongCoverEngine {
       return formatted;
     }
 
+    const isBrowser = typeof window !== 'undefined';
+
     // 3. Direct Song Details API by stable PID (Extracts true song/album artwork)
     if (song.id && !song.id.startsWith('local-') && !song.id.startsWith('offline-') && !song.id.startsWith('saavn-')) {
       try {
-        const url = `https://www.jiosaavn.com/api.php?__call=song.getDetails&pids=${encodeURIComponent(song.id)}&_format=json&_marker=0&ctx=web6dot0`;
+        const url = isBrowser
+          ? `/api/songs/${encodeURIComponent(song.id)}`
+          : `https://www.jiosaavn.com/api.php?__call=song.getDetails&pids=${encodeURIComponent(song.id)}&_format=json&_marker=0&ctx=web6dot0`;
         const res = await fetch(url, { signal: AbortSignal.timeout(3500) });
         if (res.ok) {
           const data = await res.json();
-          const targetSong = data?.songs?.[0] || data?.[song.id];
-          const rawImg = targetSong?.image || targetSong?.images || targetSong?.artwork || targetSong?.more_info?.album_url;
+          const targetSong = data?.data?.[0] || data?.songs?.[0] || data?.[song.id] || data;
+          const rawImg = targetSong?.image || targetSong?.images || targetSong?.coverUrl || targetSong?.artwork || targetSong?.more_info?.album_url;
           if (rawImg) {
             const rawUrl = typeof rawImg === 'string' ? rawImg : (rawImg[rawImg.length - 1]?.url || rawImg[0]?.url);
             if (rawUrl && pipeline.isDirectSongOrAlbumArtwork(rawUrl)) {
@@ -143,11 +147,14 @@ export class SongCoverEngine {
     // 4. Official Album Details API by Album ID
     if (song.albumId && !song.albumId.startsWith('alb-') && !song.albumId.startsWith('local-')) {
       try {
-        const url = `https://www.jiosaavn.com/api.php?__call=content.getAlbumDetails&albumid=${encodeURIComponent(song.albumId)}&_format=json&_marker=0&ctx=web6dot0`;
+        const url = isBrowser
+          ? `/api/albums/${encodeURIComponent(song.albumId)}`
+          : `https://www.jiosaavn.com/api.php?__call=content.getAlbumDetails&albumid=${encodeURIComponent(song.albumId)}&_format=json&_marker=0&ctx=web6dot0`;
         const res = await fetch(url, { signal: AbortSignal.timeout(3500) });
         if (res.ok) {
           const data = await res.json();
-          const rawImg = data?.image || data?.images;
+          const albumObj = data?.data || data;
+          const rawImg = albumObj?.image || albumObj?.images || albumObj?.coverUrl;
           if (rawImg) {
             const rawUrl = typeof rawImg === 'string' ? rawImg : (rawImg[rawImg.length - 1]?.url || rawImg[0]?.url);
             if (rawUrl && pipeline.isDirectSongOrAlbumArtwork(rawUrl)) {
@@ -169,18 +176,21 @@ export class SongCoverEngine {
     if (song.album && song.album !== 'Unknown Album') {
       try {
         const albumQuery = encodeURIComponent(song.album);
-        const searchUrl = `https://www.jiosaavn.com/api.php?__call=autocomplete.get&query=${albumQuery}&_format=json&_marker=0&ctx=web6dot0`;
+        const searchUrl = isBrowser
+          ? `/api/search/albums?q=${albumQuery}`
+          : `https://www.jiosaavn.com/api.php?__call=autocomplete.get&query=${albumQuery}&_format=json&_marker=0&ctx=web6dot0`;
         const res = await fetch(searchUrl, { signal: AbortSignal.timeout(3500) });
         if (res.ok) {
           const data = await res.json();
-          const albums = data?.albums?.data || [];
+          const albums = data?.data?.results || data?.albums?.data || [];
           const matchedAlbum = albums.find((a: any) => {
             const cleanA = sanitize(a.title || a.name || '');
             const cleanTarget = sanitize(song.album || '');
             return cleanA && cleanTarget && (cleanA === cleanTarget || cleanA.includes(cleanTarget) || cleanTarget.includes(cleanA));
           });
-          if (matchedAlbum?.image && pipeline.isDirectSongOrAlbumArtwork(matchedAlbum.image)) {
-            const formatted = this.formatRawCoverUrl(matchedAlbum.image);
+          const albumCover = matchedAlbum?.image || matchedAlbum?.coverUrl;
+          if (albumCover && pipeline.isDirectSongOrAlbumArtwork(albumCover)) {
+            const formatted = this.formatRawCoverUrl(albumCover);
             if (songKey) this.memoryCoverCache.set(songKey, formatted);
             if (albumKey) this.memoryCoverCache.set(albumKey, formatted);
             return formatted;
@@ -195,18 +205,21 @@ export class SongCoverEngine {
     if (song.title) {
       try {
         const query = `${song.title} ${song.artist || ''}`.trim();
-        const searchUrl = `https://www.jiosaavn.com/api.php?__call=autocomplete.get&query=${encodeURIComponent(query)}&_format=json&_marker=0&ctx=web6dot0`;
+        const searchUrl = isBrowser
+          ? `/api/search/songs?q=${encodeURIComponent(query)}`
+          : `https://www.jiosaavn.com/api.php?__call=autocomplete.get&query=${encodeURIComponent(query)}&_format=json&_marker=0&ctx=web6dot0`;
         const res = await fetch(searchUrl, { signal: AbortSignal.timeout(3500) });
         if (res.ok) {
           const data = await res.json();
-          const songResults = data?.songs?.data || [];
+          const songResults = data?.data?.results || data?.songs?.data || [];
           const matchedSong = songResults.find((s: any) => {
             const cleanS = sanitize(s.title || s.name || '');
             const cleanTarget = sanitize(song.title || '');
             return cleanS && cleanTarget && (cleanS === cleanTarget || cleanS.includes(cleanTarget) || cleanTarget.includes(cleanS));
           });
-          if (matchedSong?.image && pipeline.isDirectSongOrAlbumArtwork(matchedSong.image)) {
-            const formatted = this.formatRawCoverUrl(matchedSong.image);
+          const songCover = matchedSong?.image || matchedSong?.coverUrl;
+          if (songCover && pipeline.isDirectSongOrAlbumArtwork(songCover)) {
+            const formatted = this.formatRawCoverUrl(songCover);
             if (songKey) this.memoryCoverCache.set(songKey, formatted);
             this.memoryCoverCache.set(titleKey, formatted);
             return formatted;
