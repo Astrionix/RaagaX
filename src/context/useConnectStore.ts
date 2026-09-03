@@ -28,6 +28,9 @@ interface ConnectStoreState {
   controllerDeviceId: string | null;
   controllerDeviceName: string | null;
   isScanning: boolean;
+  fallbackPromptSession: ConnectPlaybackSession | null;
+  isFallbackPromptOpen: boolean;
+  dismissFallbackPrompt: () => void;
 
   // Computed state helpers
   isSpeaker: () => boolean;
@@ -124,6 +127,9 @@ export const useConnectStore = create<ConnectStoreState>((set, get) => {
     controllerDeviceId: null,
     controllerDeviceName: null,
     isScanning: false,
+    fallbackPromptSession: null,
+    isFallbackPromptOpen: false,
+    dismissFallbackPrompt: () => set({ fallbackPromptSession: null, isFallbackPromptOpen: false }),
 
     initDevice: (userId: string, name: string, _type?: DeviceNode['type']) => {
       let storedId = typeof window !== 'undefined' ? localStorage.getItem('connect_device_id') : null;

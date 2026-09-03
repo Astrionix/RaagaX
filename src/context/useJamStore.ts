@@ -22,6 +22,7 @@ interface JamState {
   participantState: JamParticipantState;
   isInJam: boolean;
   isHost: boolean;
+  isLanMode: boolean;
   isJamModalOpen: boolean;
   isShareModalOpen: boolean;
   isAddToJamModalOpen: boolean;
@@ -32,6 +33,7 @@ interface JamState {
   isLoading: boolean;
   error: string | null;
   diagnostics: JamSyncDiagnostics;
+  skipVotes: string[];
 
   // Actions
   toggleJamModal: (open?: boolean) => void;
@@ -63,6 +65,7 @@ interface JamState {
   sendRequestHandoff: (targetUserId: string, targetDeviceId?: string) => Promise<boolean>;
   sendEndSession: () => Promise<boolean>;
   resyncPlayback: () => Promise<boolean>;
+  sendVoteToSkip: () => Promise<boolean>;
 
   updateDiagnostics: () => void;
 }
@@ -73,11 +76,17 @@ export const useJamStore = create<JamState>((set, get) => {
     queueMicrotask(() => {
       const manager = JamClientManager.getInstance();
       manager.subscribe((session, state) => {
+        const prevTrackId = get().session?.trackId;
+        const newTrackId = session?.trackId;
+        const resetVotes = prevTrackId !== newTrackId;
+
         set({
           session,
           participantState: state,
           isInJam: Boolean(session),
           isHost: manager.isHost(),
+          isLanMode: manager.isLanSyncActive(),
+          ...(resetVotes ? { skipVotes: [] } : {}),
         });
         if (typeof get().updateDiagnostics === 'function') {
           get().updateDiagnostics();
@@ -103,6 +112,7 @@ export const useJamStore = create<JamState>((set, get) => {
     participantState: 'READY',
     isInJam: false,
     isHost: false,
+    isLanMode: false,
     isJamModalOpen: false,
     isShareModalOpen: false,
     isAddToJamModalOpen: false,
@@ -112,6 +122,7 @@ export const useJamStore = create<JamState>((set, get) => {
     isScanningNearby: false,
     isLoading: false,
     error: null,
+    skipVotes: [],
     diagnostics: {
       clockOffsetMs: 0,
       rttMs: 0,
@@ -334,6 +345,28 @@ export const useJamStore = create<JamState>((set, get) => {
       } catch {
         return false;
       }
+    },
+
+    sendVoteToSkip: async () => {
+      const state = get();
+      const myId = JamClientManager.getInstance().getCurrentUserId() || 'me';
+      const existing = new Set(state.skipVotes);
+      if (existing.has(myId)) {
+        existing.delete(myId);
+      } else {
+        existing.add(myId);
+      }
+      const updated = Array.from(existing);
+      set({ skipVotes: updated });
+
+      const totalParticipants = Object.keys(state.session?.participants || {}).length || 1;
+      const neededVotes = Math.max(1, Math.ceil(totalParticipants / 2));
+
+      if (updated.length >= neededVotes) {
+        set({ skipVotes: [] });
+        return get().sendSkipNext();
+      }
+      return true;
     },
 
     updateDiagnostics: () => {

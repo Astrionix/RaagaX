@@ -7,6 +7,7 @@ import { useJamStore } from '@/context/useJamStore';
 import { useConnectStore } from '@/context/useConnectStore';
 import { SeekBar } from '@/components/player/SeekBar';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
+import { ConnectButton } from '@/components/connect/ConnectButton';
 
 /**
  * RaagaX Floating Liquid Glass Mini-Player (Tier 02 Deep Glass)
@@ -240,6 +241,13 @@ export function MobileMiniPlayer() {
 
           {/* Right: Controls (Jam, Like, Play/Pause, Next) */}
           <div className="flex items-center gap-1 flex-shrink-0">
+            {/* RaagaX Connect: Remote Device Control & Cast button */}
+            {!isScrolled && (
+              <div onClick={(e) => e.stopPropagation()} className="flex items-center">
+                <ConnectButton className="p-2" />
+              </div>
+            )}
+
             {/* Remote Jam Party button */}
             {!isScrolled && (
               <button

@@ -42,8 +42,8 @@ export function getConnectApiBaseUrl(): string {
   return process.env.NEXT_PUBLIC_CONNECT_SERVER_URL || RENDER_COORDINATOR_HTTP;
 }
 
-export const PRODUCTION_DOMAIN = 'https://www.raaga.me';
-export const WORKERS_DEV_URL = 'https://raaga.padalalmrreddy.workers.dev';
+export const PRODUCTION_DOMAIN = 'https://raaga.me';
+export const WORKERS_DEV_URL = 'https://raaga.me';
 
 export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {

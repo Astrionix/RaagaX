@@ -177,4 +177,35 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'playlists') THEN
         ALTER PUBLICATION supabase_realtime ADD TABLE public.playlists;
     END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'user_playback_state') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.user_playback_state;
+    END IF;
 END $$;
+
+-- ============================================================================
+-- 5. SPOTIFY CONNECT ACTIVE PLAYBACK STATE TABLE (Cross-Device Passive Sync)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.user_playback_state (
+    user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    device_id TEXT NOT NULL,
+    device_name TEXT NOT NULL,
+    device_type TEXT DEFAULT 'mobile',
+    current_track_id TEXT,
+    track_title TEXT,
+    artist_name TEXT,
+    cover_url TEXT,
+    audio_url TEXT,
+    progress_ms BIGINT DEFAULT 0,
+    duration_ms BIGINT DEFAULT 0,
+    is_playing BOOLEAN DEFAULT false,
+    updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+ALTER TABLE public.user_playback_state ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can sync own playback state" ON public.user_playback_state;
+CREATE POLICY "Users can sync own playback state"
+    ON public.user_playback_state FOR ALL
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+

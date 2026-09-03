@@ -57,10 +57,17 @@ export class ConnectClientManager {
           const local = ConnectDiscoveryEngine.getInstance().getLocalDevice();
           if (event.data.controllerId === local.deviceId || event.data.controllerId === 'dev_local') {
             console.log(`[CONNECT_DETACHED_BY_SPEAKER] Controller disconnected by speaker: ${event.data.speakerId}`);
+            const lastSession = this.remoteSession;
             this.activeTargetDevice = null;
             this.remoteSession = null;
             this.stopSessionPolling();
-            useConnectStore.setState({ isRemoteMode: false, activePlaybackDevice: null, remoteSession: null });
+            useConnectStore.setState({
+              isRemoteMode: false,
+              activePlaybackDevice: null,
+              remoteSession: null,
+              fallbackPromptSession: lastSession?.currentSong ? lastSession : null,
+              isFallbackPromptOpen: Boolean(lastSession?.currentSong),
+            });
             try {
               const { PlaybackService } = require('@/lib/playback/PlaybackService');
               PlaybackService.getInstance().pauseAudioElementOnly();
@@ -69,9 +76,6 @@ export class ConnectClientManager {
             try {
               const { MediaSessionManager } = require('@/lib/playback/MediaSessionManager');
               MediaSessionManager.getInstance().restoreLocalMediaHandlers();
-            } catch {}
-            try {
-              usePlayerStore.getState().setToastMessage('Disconnected from speaker');
             } catch {}
           }
         }

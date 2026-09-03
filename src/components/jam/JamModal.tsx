@@ -25,6 +25,7 @@ import {
   Activity,
   Music2,
   Sliders,
+  FastForward,
 } from 'lucide-react';
 import { useJamStore } from '@/context/useJamStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
@@ -32,6 +33,7 @@ import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { SongFormatter } from '@/lib/music/SongFormatter';
 import { JamSyncBadge } from './JamSyncBadge';
 import { JamCameraScanner } from './JamCameraScanner';
+import { JamClientManager } from '@/lib/jam/client/JamClientManager';
 
 export function JamModal() {
   const {
@@ -52,6 +54,8 @@ export function JamModal() {
     sendKickParticipant,
     sendRequestHandoff,
     sendEndSession,
+    sendVoteToSkip,
+    skipVotes,
     isLoading,
   } = useJamStore();
 
@@ -316,6 +320,20 @@ export function JamModal() {
                         </p>
                       </div>
                     </div>
+
+                    {/* Collaborative Vote to Skip Button */}
+                    <button
+                      onClick={() => sendVoteToSkip()}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex-shrink-0 ${
+                        skipVotes?.includes(JamClientManager.getInstance().getCurrentUserId() || '')
+                          ? 'bg-[#FA233B]/20 text-[#FA233B] border border-[#FA233B]/40 shadow-sm'
+                          : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10'
+                      }`}
+                      title="Vote to skip current track (50% majority)"
+                    >
+                      <FastForward className="w-3.5 h-3.5" />
+                      <span>Skip ({skipVotes?.length || 0}/{Math.max(1, Math.ceil((participantsList.length || 1) / 2))})</span>
+                    </button>
                   </div>
                 ) : (
                   <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center gap-3 mb-3 flex-shrink-0">

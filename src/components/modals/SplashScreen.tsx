@@ -26,8 +26,21 @@ export interface SplashScreenProps {
  * - 1.95–2.10s: Final Brand Hold
  * - 2.10s+: Cinematic transition into application (scale down, smooth translate to header)
  */
+let hasShownSplashInProcess = false;
+
 export function SplashScreen({ onComplete, enableAudio = true }: SplashScreenProps) {
-  const [isVisible, setIsVisible] = useState(true);
+  const [isVisible, setIsVisible] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    if (
+      hasShownSplashInProcess ||
+      localStorage.getItem('raagax_splash_completed') === 'true' ||
+      sessionStorage.getItem('raagax_splash_completed') === 'true' ||
+      usePlayerStore.getState().isPlaying
+    ) {
+      return false;
+    }
+    return true;
+  });
   const [phase, setPhase] = useState<
     'black' | 'sound' | 'morph' | 'playback' | 'lock' | 'wordmark' | 'tagline' | 'hold' | 'transitioning'
   >('black');
@@ -40,10 +53,14 @@ export function SplashScreen({ onComplete, enableAudio = true }: SplashScreenPro
   useEffect(() => {
     // 0. Fast-path: Check if already shown in this session, or if audio is actively playing / warm resume
     if (typeof window !== 'undefined') {
-      const alreadyShown = sessionStorage.getItem('raagax_splash_completed') === 'true';
+      const alreadyShown =
+        hasShownSplashInProcess ||
+        localStorage.getItem('raagax_splash_completed') === 'true' ||
+        sessionStorage.getItem('raagax_splash_completed') === 'true';
       const isPlayerActive = usePlayerStore.getState().isPlaying;
       
       if (alreadyShown || isPlayerActive) {
+        hasShownSplashInProcess = true;
         setIsVisible(false);
         if (onComplete) onComplete();
         return;
@@ -54,6 +71,7 @@ export function SplashScreen({ onComplete, enableAudio = true }: SplashScreenPro
         if (RaagaXNativePlayer.isNative()) {
           RaagaXNativePlayer.getPlaybackState().then(state => {
             if (state && state.isPlaying) {
+              hasShownSplashInProcess = true;
               setIsVisible(false);
               if (onComplete) onComplete();
             }
@@ -62,6 +80,17 @@ export function SplashScreen({ onComplete, enableAudio = true }: SplashScreenPro
       }).catch(() => {});
     }
 
+    // Unconditional safety failsafe: Guarantee splash dismounts within 1200ms under all conditions
+    const safetyTimer = setTimeout(() => {
+      hasShownSplashInProcess = true;
+      setIsVisible(false);
+      try {
+        localStorage.setItem('raagax_splash_completed', 'true');
+        sessionStorage.setItem('raagax_splash_completed', 'true');
+      } catch {}
+      if (onComplete) onComplete();
+    }, 1200);
+
     // 1. Accessibility: Detect Reduced Motion
     const prefersReducedMotion = typeof window !== 'undefined' 
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -69,75 +98,84 @@ export function SplashScreen({ onComplete, enableAudio = true }: SplashScreenPro
     setReducedMotion(prefersReducedMotion);
 
     if (prefersReducedMotion) {
-      // Streamlined 450ms accessible sequence
-      const t1 = setTimeout(() => setPhase('lock'), 100);
-      const t2 = setTimeout(() => setPhase('wordmark'), 250);
-      const t3 = setTimeout(() => setPhase('tagline'), 350);
-      const t4 = setTimeout(() => setPhase('transitioning'), 500);
+      // Streamlined accessible sequence
+      const t1 = setTimeout(() => setPhase('lock'), 80);
+      const t2 = setTimeout(() => setPhase('wordmark'), 180);
+      const t3 = setTimeout(() => setPhase('tagline'), 280);
+      const t4 = setTimeout(() => setPhase('transitioning'), 380);
       const t5 = setTimeout(() => {
+        hasShownSplashInProcess = true;
         setIsVisible(false);
-        if (typeof window !== 'undefined') sessionStorage.setItem('raagax_splash_completed', 'true');
+        try {
+          localStorage.setItem('raagax_splash_completed', 'true');
+          sessionStorage.setItem('raagax_splash_completed', 'true');
+        } catch {}
         if (onComplete) onComplete();
-      }, 700);
+      }, 500);
 
       return () => {
+        clearTimeout(safetyTimer);
         [t1, t2, t3, t4, t5].forEach(clearTimeout);
       };
     }
 
-    // 2. Fast 1.2s - 1.4s Cinematic Timeline
-    const timers: NodeJS.Timeout[] = [];
+    // 2. Cinematic Timeline
+    const timers: NodeJS.Timeout[] = [safetyTimer];
 
-    // Phase 1: 0.15s - Sound Awakens
+    // Phase 1: 0.12s - Sound Awakens
     timers.push(setTimeout(() => {
       setPhase('sound');
       if (enableAudio) soundEngineRef.current.playSubPulse();
-    }, 150));
+    }, 120));
 
-    // Phase 2: 0.35s - Waveform Morphing into R
+    // Phase 2: 0.28s - Waveform Morphing into R
     timers.push(setTimeout(() => {
       setPhase('morph');
       if (enableAudio) soundEngineRef.current.playRisingTone();
-    }, 350));
+    }, 280));
 
-    // Phase 3: 0.60s - Playback Identity Emerges
+    // Phase 3: 0.48s - Playback Identity Emerges
     timers.push(setTimeout(() => {
       setPhase('playback');
       if (enableAudio) soundEngineRef.current.playClick();
-    }, 600));
+    }, 480));
 
-    // Phase 4: 0.80s - Signature Momentum Lock
+    // Phase 4: 0.65s - Signature Momentum Lock
     timers.push(setTimeout(() => {
       setPhase('lock');
-    }, 800));
+    }, 650));
 
-    // Phase 5: 0.95s - Wordmark Reveal (RaagaX)
+    // Phase 5: 0.78s - Wordmark Reveal (RaagaX)
     timers.push(setTimeout(() => {
       setPhase('wordmark');
       if (enableAudio) soundEngineRef.current.playResolutionChord();
-    }, 950));
+    }, 780));
 
-    // Phase 6: 1.10s - Tagline Reveal (Music that follows you)
+    // Phase 6: 0.90s - Tagline Reveal (Music that follows you)
     timers.push(setTimeout(() => {
       setPhase('tagline');
-    }, 1100));
+    }, 900));
 
-    // Phase 7: 1.25s - Final Brand Hold
+    // Phase 7: 1.00s - Final Brand Hold
     timers.push(setTimeout(() => {
       setPhase('hold');
-    }, 1250));
+    }, 1000));
 
-    // Phase 8: 1.35s - Cinematic Transition to App Header
+    // Phase 8: 1.08s - Cinematic Transition to App Header
     timers.push(setTimeout(() => {
       setPhase('transitioning');
-    }, 1350));
+    }, 1080));
 
-    // Phase 9: 1.50s - Complete & Dismount
+    // Phase 9: 1.18s - Complete & Dismount
     timers.push(setTimeout(() => {
+      hasShownSplashInProcess = true;
       setIsVisible(false);
-      if (typeof window !== 'undefined') sessionStorage.setItem('raagax_splash_completed', 'true');
+      try {
+        localStorage.setItem('raagax_splash_completed', 'true');
+        sessionStorage.setItem('raagax_splash_completed', 'true');
+      } catch {}
       if (onComplete) onComplete();
-    }, 1500));
+    }, 1180));
 
     return () => {
       timers.forEach(clearTimeout);

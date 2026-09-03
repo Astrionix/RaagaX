@@ -71,6 +71,21 @@ export function AudioPlayerController() {
       WebAudioGraph.getInstance().init(audioRefA.current, audioRefB.current);
       PlaybackService.getInstance().syncLivePlayingState();
     }
+
+    // Browser Audio Autoplay Policy Unlocker (Chrome / Brave):
+    // Unlocks browser audio playback capability on first user interaction anywhere
+    const unlockAutoplay = () => {
+      try {
+        const dummyAudio = new Audio();
+        dummyAudio.volume = 0;
+        dummyAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+        dummyAudio.play().then(() => dummyAudio.pause()).catch(() => {});
+      } catch {}
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pointerdown', unlockAutoplay, { once: true });
+      window.addEventListener('keydown', unlockAutoplay, { once: true });
+    }
   }, []);
 
   // On cold startup: restore crash-safe playback snapshot

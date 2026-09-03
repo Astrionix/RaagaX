@@ -27,6 +27,7 @@ public class RaagaXCapacitorPlugin extends Plugin {
 
     private static final String TAG = "RaagaXCapacitorPlugin";
     private boolean serviceStarted = false;
+    private volatile boolean isAppForeground = true;
 
     // ── Broadcast Receiver ────────────────────────────────────────────────────
     private final BroadcastReceiver playbackReceiver = new BroadcastReceiver() {
@@ -58,6 +59,10 @@ public class RaagaXCapacitorPlugin extends Plugin {
                 notifyListeners("queueEnded", new JSObject());
 
             } else if ("com.raagax.music.PLAYBACK_STATE".equals(action)) {
+                // Skip spamming paused WebView message queue with 500ms ticks while backgrounded
+                if (!isAppForeground) {
+                    return;
+                }
                 JSObject data = new JSObject();
                 data.put("isPlaying", intent.getBooleanExtra("isPlaying", false));
                 data.put("positionMs", intent.getLongExtra("positionMs", 0L));
@@ -393,6 +398,18 @@ public class RaagaXCapacitorPlugin extends Plugin {
                 call.reject("Service not available: " + e.getMessage());
             }
         }
+    }
+
+    @Override
+    protected void handleOnResume() {
+        super.handleOnResume();
+        isAppForeground = true;
+    }
+
+    @Override
+    protected void handleOnPause() {
+        super.handleOnPause();
+        isAppForeground = false;
     }
 
     @Override

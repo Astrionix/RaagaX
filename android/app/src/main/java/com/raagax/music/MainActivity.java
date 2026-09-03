@@ -24,11 +24,83 @@ public class MainActivity extends BridgeActivity {
             }
         } catch (Exception ignored) {}
 
+        bridgeBuilder.addWebViewListener(new com.getcapacitor.WebViewListener() {
+            @Override
+            public boolean onRenderProcessGone(android.webkit.WebView view, android.webkit.RenderProcessGoneDetail detail) {
+                boolean crashed = detail != null && detail.didCrash();
+                Log.e("RaagaX", "WebView renderer process gone (crashed=" + crashed + "). Auto-recreating activity to recover...");
+                runOnUiThread(() -> {
+                    try {
+                        recreate();
+                    } catch (Exception e) {
+                        Log.e("RaagaX", "Failed to recreate activity after onRenderProcessGone", e);
+                    }
+                });
+                return true;
+            }
+        });
+
         registerPlugin(RaagaXCapacitorPlugin.class);
         registerPlugin(RaagaXPermissionsPlugin.class);
         registerPlugin(RaagaXDownloadPlugin.class);
         registerPlugin(RaagaXUpdaterPlugin.class);
         super.onCreate(savedInstanceState);
+    }
+
+    @Override
+    protected void onNewIntent(android.content.Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        wakeAndRedrawWebView();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        wakeAndRedrawWebView();
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, android.view.KeyEvent event) {
+        if (keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP || keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN) {
+            if (bridge != null && bridge.getWebView() != null) {
+                final String direction = keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP ? "UP" : "DOWN";
+                bridge.getWebView().post(() -> {
+                    try {
+                        bridge.getWebView().evaluateJavascript(
+                            "window.dispatchEvent(new CustomEvent('hardwareVolumeChange', { detail: { direction: '" + direction + "' } }));",
+                            null
+                        );
+                    } catch (Exception ignored) {}
+                });
+            }
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
+    private void wakeAndRedrawWebView() {
+        if (bridge != null && bridge.getWebView() != null) {
+            android.webkit.WebView wv = bridge.getWebView();
+            wv.post(() -> {
+                try {
+                    wv.onResume();
+                    wv.resumeTimers();
+                    wv.postInvalidate();
+                    wv.requestLayout();
+
+                    String currentUrl = wv.getUrl();
+                    if (currentUrl == null || currentUrl.isEmpty() || "about:blank".equals(currentUrl)) {
+                        String appUrl = bridge.getAppUrl();
+                        if (appUrl != null && !appUrl.isEmpty()) {
+                            Log.w("RaagaX", "WebView current URL is blank on resume, restoring: " + appUrl);
+                            wv.loadUrl(appUrl);
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.w("RaagaX", "wakeAndRedrawWebView error: " + e.getMessage());
+                }
+            });
+        }
     }
 
     private void setupCrashHandler() {

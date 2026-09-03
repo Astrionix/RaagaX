@@ -664,6 +664,16 @@ export class JamServerEngine {
     return this.joinSession(jamId, user);
   }
 
+  public async leaveSessionAsync(
+    jamId: string,
+    userId: string
+  ): Promise<{ success: boolean; sessionEnded?: boolean; error?: string }> {
+    if (!this.sessions.has(jamId)) {
+      await this.hydrateSessionFromDb(jamId);
+    }
+    return this.leaveSession(jamId, userId);
+  }
+
   /**
    * Updates participant presence and telemetry state without altering playback or queue
    */
@@ -1648,21 +1658,32 @@ export class JamServerEngine {
       }
 
       case 'TRANSFER_HOST': {
-        if (session.hostId !== command.userId) {
+        const isCurrentHost = session.hostId === command.userId;
+        const isEmergencyElection = Boolean(command.payload?.isEmergencyElection);
+
+        if (!isCurrentHost && !isEmergencyElection) {
           return { success: false, error: 'Only the current host can transfer host status' };
         }
-        const newHostId = command.payload?.newHostId;
+        const newHostId = command.payload?.newHostId || command.userId;
         if (!newHostId || !session.participants[newHostId]) {
           return { success: false, error: 'Target user is not in this Jam session' };
         }
 
-        session.participants[session.hostId].isHost = false;
+        if (session.participants[session.hostId]) {
+          session.participants[session.hostId].isHost = false;
+        }
         session.hostId = newHostId;
         session.hostName = session.participants[newHostId].displayName;
         session.participants[newHostId].isHost = true;
+        session.participants[newHostId].role = 'HOST';
 
-        eventType = 'HOST_TRANSFERRED';
-        payload = { newHostId, newHostName: session.hostName };
+        eventType = 'HOST_MIGRATED';
+        payload = {
+          previousHostId: command.userId,
+          newHostId,
+          newHostName: session.hostName,
+          reason: isEmergencyElection ? 'EMERGENCY_FAILOVER' : 'MANUAL_TRANSFER',
+        };
         break;
       }
 
@@ -2038,16 +2059,18 @@ export class JamServerEngine {
         const admin = getSupabaseAdmin();
         if (admin) {
           const chan = admin.channel(`jam:${jamId}`);
-          chan.send({
-            type: 'broadcast',
-            event: 'jam_event',
-            payload: event,
-          }).catch((err) => console.warn('[JamServerEngine] Realtime broadcast error:', err));
-          chan.send({
-            type: 'broadcast',
-            event: 'JAM_EVENT',
-            payload: event,
-          }).catch(() => {});
+          const sendPayload = (eventName: string) => {
+            const payload = { type: 'broadcast' as const, event: eventName, payload: event };
+            if ((chan as any).state === 'joined') {
+              chan.send(payload).catch(() => {});
+            } else if (typeof (chan as any).httpSend === 'function') {
+              (chan as any).httpSend(eventName, payload).catch(() => {});
+            } else {
+              chan.send(payload).catch(() => {});
+            }
+          };
+          sendPayload('jam_event');
+          sendPayload('JAM_EVENT');
         }
       }).catch(() => {});
     } catch {}

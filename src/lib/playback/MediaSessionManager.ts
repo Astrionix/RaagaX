@@ -117,6 +117,43 @@ export class MediaSessionManager {
     });
   }
 
+  /**
+   * Bind OS lockscreen and notification media keys to Jam Party sync dispatches
+   */
+  public setupJamMediaHandlers(): void {
+    this.setActionHandlers({
+      onPlay: () => {
+        import('@/lib/jam/client/JamClientManager').then(({ JamClientManager }) => {
+          JamClientManager.getInstance().broadcastJamEvent({
+            type: 'SCHEDULED_PLAY',
+            targetTimestamp: performance.now() + 150,
+            audioPosition: 0,
+          });
+        });
+      },
+      onPause: () => {
+        import('@/lib/jam/client/JamClientManager').then(({ JamClientManager }) => {
+          JamClientManager.getInstance().broadcastJamEvent({ type: 'INSTANT_PAUSE' });
+        });
+      },
+      onNext: () => {
+        import('@/context/useJamStore').then(({ useJamStore }) => {
+          useJamStore.getState().sendSkipNext();
+        });
+      },
+      onPrev: () => {
+        import('@/context/useJamStore').then(({ useJamStore }) => {
+          useJamStore.getState().sendSkipPrev();
+        });
+      },
+      onSeek: (time: number) => {
+        import('@/lib/jam/client/JamClientManager').then(({ JamClientManager }) => {
+          JamClientManager.getInstance().broadcastJamEvent({ type: 'SEEK', position: time });
+        });
+      },
+    });
+  }
+
   public restoreLocalMediaHandlers(): void {
     this.isRemoteBindingActive = false;
     import('./PlaybackService').then(({ PlaybackService }) => {

@@ -12,7 +12,6 @@ import {
   TrendingUp,
   User,
   ChevronRight,
-  RefreshCw,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
@@ -154,18 +153,7 @@ export function NewView() {
   const lang = preferredLanguage || 'Telugu';
 
   // ── Unified Single Source of Truth (Cache-First + Background Revalidation)
-  const { songs: allSongs, isLoading, isRevalidating, refresh } = useNewReleases(lang, 50);
-  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
-
-  const handleRefresh = async () => {
-    haptics.mediumImpact();
-    setIsManualRefreshing(true);
-    try {
-      await refresh();
-    } finally {
-      setTimeout(() => setIsManualRefreshing(false), 500);
-    }
-  };
+  const { songs: allSongs, isLoading, isRevalidating } = useNewReleases(lang, 50);
 
   const isDataLoading = isLoading && allSongs.length === 0;
 
@@ -217,12 +205,12 @@ export function NewView() {
   );
 
   return (
-    <div className={`w-full space-y-6 pb-4 text-white select-none transition-opacity duration-300 ${isManualRefreshing ? 'opacity-70 pointer-events-none' : 'opacity-100'} animate-in fade-in duration-200 pt-5 sm:pt-7`}>
+    <div className="w-full space-y-6 pb-4 text-white select-none animate-in fade-in duration-200 pt-5 sm:pt-7">
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 1. LANGUAGE FILTER + REFRESH TOOLBAR                                   */}
+      {/* 1. LANGUAGE FILTER TOOLBAR                                              */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-3">
         {/* Strict Language Filter Pills */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
           {ALL_LANGUAGES.map((l) => {
@@ -242,17 +230,6 @@ export function NewView() {
             );
           })}
         </div>
-
-        {/* Smooth Refresh Button */}
-        <button
-          onClick={handleRefresh}
-          disabled={isManualRefreshing}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/80 hover:text-white text-xs font-semibold transition-all cursor-pointer hover:scale-105 active:scale-95 disabled:opacity-50 flex-shrink-0"
-          title="Refresh New Releases"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isManualRefreshing ? 'animate-spin text-[#FA233B]' : ''}`} />
-          <span className="hidden sm:inline">{isManualRefreshing ? 'Refreshing...' : 'Refresh'}</span>
-        </button>
       </div>
 
       {/* Loading Skeleton State */}

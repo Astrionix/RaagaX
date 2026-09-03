@@ -38,8 +38,11 @@ import { JamDevSyncPanel } from '@/components/jam/JamDevSyncPanel';
 import { ConnectDeviceModal } from '@/components/connect/ConnectDeviceModal';
 import { ListeningOnDeviceBanner } from '@/components/connect/ListeningOnDeviceBanner';
 import { SpeakerControlledBanner } from '@/components/connect/SpeakerControlledBanner';
+import { PassiveConnectPromptBanner } from '@/components/connect/PassiveConnectPromptBanner';
+import { SmartDisconnectFallbackModal } from '@/components/connect/SmartDisconnectFallbackModal';
 import { useConnectAudioGuard } from '@/hooks/useConnectAudioGuard';
 import { useMediaSessionSync } from '@/hooks/useMediaSessionSync';
+import { usePlaybackCloudSync } from '@/hooks/usePlaybackCloudSync';
 
 import { Toast } from '@/components/ui/Toast';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
@@ -120,6 +123,9 @@ export default function Page() {
 
   // ── Spotify Connect Media Session Sync (Silent Anchor + Notification Widget for Remote Controllers)
   useMediaSessionSync();
+
+  // ── Spotify Connect Active Playback Cloud Sync (Persists state for cross-device passive handoff)
+  usePlaybackCloudSync();
 
   // Android Predictive Back Gesture & Navigation Hierarchy
   React.useEffect(() => {
@@ -347,7 +353,11 @@ export default function Page() {
         <UpdateModal />
       </ErrorBoundary>
 
-      {/* ── RaagaX Connect (Spotify Connect Style Remote Control & Device Switcher) ── */}
+      {/* ── RaagaX Connect (Spotify Connect Style Remote Control & Passive Handoff) ── */}
+      <ListeningOnDeviceBanner />
+      <SpeakerControlledBanner />
+      <PassiveConnectPromptBanner />
+      <SmartDisconnectFallbackModal />
       <ErrorBoundary name="ConnectDeviceModal">
         <ConnectDeviceModal />
       </ErrorBoundary>

@@ -96,9 +96,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { data: { session }, error } = await supabase.auth.getSession();
 
       if (error) {
-        console.warn('Session refresh error (clearing stale session):', error.message);
-        if (error.message?.includes('Refresh Token') || error.message?.includes('invalid_grant')) {
-          await supabase.auth.signOut().catch(() => { });
+        console.warn('Session refresh notice (clearing stale auth token):', error.message);
+        if (
+          error.message?.includes('Refresh Token') ||
+          error.message?.includes('invalid_grant') ||
+          (error as any).status === 400
+        ) {
+          if (typeof window !== 'undefined') {
+            try {
+              for (let i = window.localStorage.length - 1; i >= 0; i--) {
+                const k = window.localStorage.key(i);
+                if (k && k.includes('-auth-token')) {
+                  window.localStorage.removeItem(k);
+                }
+              }
+              for (let i = window.sessionStorage.length - 1; i >= 0; i--) {
+                const k = window.sessionStorage.key(i);
+                if (k && k.includes('-auth-token')) {
+                  window.sessionStorage.removeItem(k);
+                }
+              }
+            } catch {}
+          }
+          await supabase.auth.signOut({ scope: 'local' }).catch(() => { });
         }
       }
 

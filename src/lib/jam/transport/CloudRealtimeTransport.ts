@@ -32,6 +32,10 @@ export class CloudRealtimeTransport implements JamTransport {
     return this._isConnected;
   }
 
+  public getChannel(): RealtimeChannel | null {
+    return this.channel;
+  }
+
   public async connect(jamId: string, auth: JamAuthCredentials): Promise<boolean> {
     this.jamId = jamId;
     this.auth = auth;
@@ -52,37 +56,57 @@ export class CloudRealtimeTransport implements JamTransport {
       }
 
       this.channel = supabase.channel(channelName, {
-        config: { broadcast: { self: true } },
+        config: { broadcast: { ack: true, self: true } },
       });
 
-      this.channel
-        .on('broadcast', { event: 'jam_event' }, (payload: any) => {
-          if (payload?.payload) {
-            this.handleIncomingEvent(payload.payload);
-          }
-        })
-        .on('broadcast', { event: 'JAM_EVENT' }, (payload: any) => {
-          if (payload?.payload) {
-            this.handleIncomingEvent(payload.payload);
-          }
-        })
-        .subscribe((status: string) => {
-          if (status === 'SUBSCRIBED') {
+      return await new Promise<boolean>((resolve) => {
+        let settled = false;
+        const timer = setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            console.warn('[CloudRealtimeTransport] Realtime subscription timeout (5s) — enabling fallback');
             this._isConnected = true;
             this.state = 'CONNECTED';
-            this.failureCount = 0;
-            this.lastMessageAt = Date.now();
-          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            this._isConnected = false;
-            this.state = status === 'CLOSED' ? 'DISCONNECTED' : 'DEGRADED';
-            this.failureCount++;
+            this.startHeartbeat();
+            resolve(true);
           }
-        });
+        }, 5000);
 
-      this.startHeartbeat();
-      this._isConnected = true;
-      this.state = 'CONNECTED';
-      return true;
+        this.channel!
+          .on('broadcast', { event: 'jam_event' }, (payload: any) => {
+            if (payload?.payload) {
+              this.handleIncomingEvent(payload.payload);
+            }
+          })
+          .on('broadcast', { event: 'JAM_EVENT' }, (payload: any) => {
+            if (payload?.payload) {
+              this.handleIncomingEvent(payload.payload);
+            }
+          })
+          .subscribe((status: string) => {
+            if (status === 'SUBSCRIBED') {
+              this._isConnected = true;
+              this.state = 'CONNECTED';
+              this.failureCount = 0;
+              this.lastMessageAt = Date.now();
+              this.startHeartbeat();
+              if (!settled) {
+                settled = true;
+                clearTimeout(timer);
+                resolve(true);
+              }
+            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+              this._isConnected = false;
+              this.state = status === 'CLOSED' ? 'DISCONNECTED' : 'DEGRADED';
+              this.failureCount++;
+              if (!settled && (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT')) {
+                settled = true;
+                clearTimeout(timer);
+                resolve(false);
+              }
+            }
+          });
+      });
     } catch (err) {
       console.warn('[CloudRealtimeTransport] Connection error:', err);
       this._isConnected = false;

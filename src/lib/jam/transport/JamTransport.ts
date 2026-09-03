@@ -1,6 +1,6 @@
 import { JamCommand, JamCommandResponse, JamEvent } from '@/types/jam';
 
-export type JamTransportType = 'LOCAL_LAN' | 'CLOUD_REALTIME';
+export type JamTransportType = 'LOCAL_LAN' | 'CLOUD_REALTIME' | 'WEBRTC_P2P';
 
 export type TransportState =
   | 'DISCONNECTED'

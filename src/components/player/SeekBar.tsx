@@ -6,6 +6,7 @@ import { PlaybackEngine } from '@/lib/playback/PlaybackEngine';
 import { SeekLock } from '@/lib/playback/SeekLock';
 import { JamClientManager } from '@/lib/jam/client/JamClientManager';
 import { ConnectClientManager } from '@/lib/connect/ConnectClientManager';
+import { PlaybackService } from '@/lib/playback/PlaybackService';
 
 export function SeekBar({
   className = '',
@@ -78,8 +79,10 @@ export function SeekBar({
   // 60 FPS ultra-smooth local progress prediction driven by Connect/Jam coordinator or direct audio clock
   useEffect(() => {
     let animFrame: number;
+    let cancelled = false;
 
     const tick = () => {
+      if (cancelled) return;
       if (!isSeeking && !isSeekSettling && effectiveDuration > 0) {
         const connectClient = ConnectClientManager.getInstance();
         const jamManager = JamClientManager.getInstance();
@@ -93,7 +96,6 @@ export function SeekBar({
         } else {
           let activeAudio: HTMLAudioElement | null = null;
           try {
-            const { PlaybackService } = require('@/lib/playback/PlaybackService');
             activeAudio = PlaybackService.getInstance().getActiveAudio();
           } catch {}
 
@@ -112,12 +114,17 @@ export function SeekBar({
           setLocalProgress(newProgress);
         }
       }
-      animFrame = requestAnimationFrame(tick);
+      if (!cancelled) {
+        animFrame = requestAnimationFrame(tick);
+      }
     };
 
     animFrame = requestAnimationFrame(tick);
 
-    return () => cancelAnimationFrame(animFrame);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(animFrame);
+    };
   }, [effectiveDuration, isSeeking, isSeekSettling]);
 
   const calculateProgressFromEvent = (e: React.PointerEvent) => {

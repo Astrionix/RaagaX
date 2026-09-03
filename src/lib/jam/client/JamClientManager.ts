@@ -20,6 +20,8 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { supabase } from '@/lib/supabase';
 import { getApiUrl } from '@/lib/config/apiConfig';
 import { TransportRouter } from '@/lib/jam/transport/TransportRouter';
+import { WebRtcLanTransport, JamMessage } from '@/lib/jam/transport/WebRtcLanTransport';
+import { JamAudioSync } from './JamAudioSync';
 
 export type JamStateListener = (session: JamSession | null, state: JamParticipantState) => void;
 
@@ -54,6 +56,8 @@ export class JamClientManager {
   private stateMachine: JamPlaybackStateMachine;
   private transportRouter: TransportRouter;
   private stateListeners: Set<JamStateListener> = new Set();
+  private lanTransport: WebRtcLanTransport | null = null;
+  private isLanMode: boolean = false;
 
   private constructor() {
     this.clockSync = ClockSyncEngine.getInstance();
@@ -391,6 +395,18 @@ export class JamClientManager {
       this.supabaseChannel = null;
     }
 
+    if (this.lanTransport) {
+      this.lanTransport.close();
+      this.lanTransport = null;
+    }
+    this.isLanMode = false;
+    JamAudioSync.getInstance().cleanup();
+    try {
+      import('@/context/useJamStore').then(({ useJamStore }) => {
+        useJamStore.setState({ isLanMode: false });
+      }).catch(() => {});
+    } catch {}
+
     if (this.metricsReportTimer) {
       clearInterval(this.metricsReportTimer);
       this.metricsReportTimer = null;
@@ -515,7 +531,114 @@ export class JamClientManager {
           }
         })
         .subscribe();
+
+      // 3. Hybrid WebRTC LAN Transport (<2ms) + Cloud Fallback
+      if (typeof window !== 'undefined' && typeof RTCPeerConnection !== 'undefined') {
+        try {
+          if (this.lanTransport) {
+            this.lanTransport.close();
+            this.lanTransport = null;
+          }
+
+          const isHost = this.isHost();
+          this.lanTransport = new WebRtcLanTransport({
+            sessionId: jamId,
+            isHost,
+            signalingChannel: channel,
+            onStateChange: (connected) => {
+              this.isLanMode = connected;
+              console.log(connected ? '⚡ 0ms LAN Sync Active' : '☁️ Cloud Fallback Active');
+              if (connected && this.lanTransport) {
+                JamAudioSync.getInstance().init(this.lanTransport, this.isHost());
+              }
+              try {
+                import('@/context/useJamStore').then(({ useJamStore }) => {
+                  useJamStore.setState({ isLanMode: connected });
+                }).catch(() => {});
+              } catch {}
+            },
+            onMessage: (msg: JamMessage) => {
+              this.handleJamAudioMessage(msg);
+            },
+          });
+
+          if (isHost) {
+            this.lanTransport.startHostSession();
+          }
+
+          channel.on('broadcast', { event: 'JAM_CLOUD_FALLBACK' }, ({ payload }: any) => {
+            if (payload) {
+              this.handleJamAudioMessage(payload as JamMessage);
+            }
+          });
+        } catch (e) {
+          console.warn('[JamClientManager] Hybrid LAN WebRTC init warning:', e);
+        }
+      }
     } catch {}
+  }
+
+  /**
+   * Universal Send function (Direct LAN <2ms first, auto-fallback to Cloud)
+   */
+  public broadcastJamEvent(msg: JamMessage): boolean {
+    const sentOverLan = this.lanTransport?.send(msg);
+    if (!sentOverLan && this.supabaseChannel) {
+      this.supabaseChannel.send({
+        type: 'broadcast',
+        event: 'JAM_CLOUD_FALLBACK',
+        payload: msg,
+      });
+      return false;
+    }
+    return true;
+  }
+
+  public isLanSyncActive(): boolean {
+    return this.isLanMode;
+  }
+
+  public getCurrentUserId(): string {
+    return this.currentUserId;
+  }
+
+  private handleJamAudioMessage(msg: JamMessage) {
+    if (!msg) return;
+    switch (msg.type) {
+      case 'PING': {
+        JamAudioSync.getInstance().handlePing(msg.clientTime);
+        break;
+      }
+      case 'PONG': {
+        JamAudioSync.getInstance().handlePong(msg.clientTime, msg.hostTime);
+        break;
+      }
+      case 'SCHEDULED_PLAY': {
+        JamAudioSync.getInstance().executeScheduledPlay(msg.targetTimestamp, msg.audioPosition);
+        break;
+      }
+      case 'INSTANT_PAUSE': {
+        JamAudioSync.getInstance().instantPause();
+        break;
+      }
+      case 'SET_VOLUME': {
+        usePlayerStore.getState().setVolume(msg.volume);
+        break;
+      }
+      case 'SEEK': {
+        PlaybackService.getInstance().seek(msg.position);
+        break;
+      }
+      case 'PRELOAD_TRACK': {
+        JamAudioSync.getInstance().handlePreloadTrack(msg.url, msg.trackId);
+        break;
+      }
+      case 'BUFFER_READY': {
+        console.log(`[JamAudioSync] Peer buffered track ${msg.trackId} ready for scheduled trigger`);
+        JamAudioSync.getInstance().handlePeerBufferReady(msg.trackId);
+        break;
+      }
+    }
   }
 
   /**
@@ -784,6 +907,37 @@ export class JamClientManager {
         if (event.payload.handoff) {
           s.activeHandoff = event.payload.handoff;
         }
+        break;
+      }
+
+      case 'HOST_MIGRATED':
+      case 'HOST_TRANSFERRED': {
+        const newHostId = event.payload.newHostId;
+        const newHostName = event.payload.newHostName || 'Host';
+        s.hostId = newHostId;
+        s.hostName = newHostName;
+
+        if (s.participants[newHostId]) {
+          s.participants[newHostId].isHost = true;
+          s.participants[newHostId].role = 'HOST';
+        }
+        if (event.payload.previousHostId && s.participants[event.payload.previousHostId]) {
+          s.participants[event.payload.previousHostId].isHost = false;
+        }
+
+        const isMe = newHostId === this.currentUserId;
+        console.log(isMe
+          ? `👑 [HOST_MIGRATION] You are now the authoritative Jam Host!`
+          : `🔄 [HOST_MIGRATION] Host migrated to ${newHostName}`
+        );
+
+        if (this.lanTransport) {
+          JamAudioSync.getInstance().init(this.lanTransport, isMe);
+        }
+
+        import('@/context/useJamStore').then(({ useJamStore }) => {
+          useJamStore.setState({ isHost: isMe, session: { ...s } });
+        }).catch(() => {});
         break;
       }
 

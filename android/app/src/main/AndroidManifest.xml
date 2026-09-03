@@ -47,10 +47,10 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
-    <!-- ── STORAGE PERMISSIONS (For local MP3 playback & downloads) ───── -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <!-- ── BATTERY OPTIMIZATIONS (Keep-Alive for background playback) ───── -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- ── INSTALL PACKAGES (For In-App APK Updates) ──────────────── -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- ── CAMERA (For Jam QR Code scanning) ───────────────────────── -->
@@ -74,6 +74,7 @@
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
+            android:hardwareAccelerated="true"
             android:exported="true">
 
             <intent-filter>

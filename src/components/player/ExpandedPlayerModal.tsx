@@ -58,6 +58,9 @@ import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { ConnectButton } from '@/components/connect/ConnectButton';
 import { useConnectStore } from '@/context/useConnectStore';
 import { VolumeControl } from '@/components/player/VolumeControl';
+import { PlaybackService } from '@/lib/playback/PlaybackService';
+import { JamClientManager } from '@/lib/jam/client/JamClientManager';
+import { ConnectClientManager } from '@/lib/connect/ConnectClientManager';
 
 export function ExpandedPlayerModal() {
   const { playlists, addSongToPlaylist } = usePlaylistStore();
@@ -268,25 +271,24 @@ export function ExpandedPlayerModal() {
 
   useEffect(() => {
     let animFrame: number;
+    let cancelled = false;
     let lastSecFloor = -1;
 
     const tick = () => {
+      if (cancelled) return;
       let liveSec = lastGoodSecRef.current;
       if (isRemoteMode || remoteSession) {
         try {
-          const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
           liveSec = ConnectClientManager.getInstance().getInterpolatedPosition();
           lastGoodSecRef.current = liveSec;
         } catch { }
       } else if (isInJam && session) {
         try {
-          const { JamClientManager } = require('@/lib/jam/client/JamClientManager');
           liveSec = JamClientManager.getInstance().getInterpolatedPosition();
           lastGoodSecRef.current = liveSec;
         } catch { }
       } else {
         try {
-          const { PlaybackService } = require('@/lib/playback/PlaybackService');
           const activeAudio = PlaybackService.getInstance().getActiveAudio();
           if (activeAudio && !activeAudio.paused && !activeAudio.seeking && !isNaN(activeAudio.currentTime) && activeAudio.currentTime >= 0) {
             liveSec = activeAudio.currentTime;
@@ -304,11 +306,16 @@ export function ExpandedPlayerModal() {
         lastSecFloor = secFloor;
         setDisplaySec(liveSec);
       }
-      animFrame = requestAnimationFrame(tick);
+      if (!cancelled) {
+        animFrame = requestAnimationFrame(tick);
+      }
     };
 
     animFrame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(animFrame);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(animFrame);
+    };
   }, [isRemoteMode, remoteSession, isInJam, session, currentSong?.id]);
 
   const exactDuration = useMemo(() => {
