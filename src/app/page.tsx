@@ -30,15 +30,6 @@ import { CreatePlaylistModal } from '@/components/modals/CreatePlaylistModal';
 import { NotificationCenterModal } from '@/components/modals/NotificationCenterModal';
 import { WrappedModal } from '@/components/modals/WrappedModal';
 import { CarModeModal } from '@/components/modals/CarModeModal';
-import { ConnectDeviceModal } from '@/components/connect/ConnectDeviceModal';
-import { ListeningOnDeviceBanner } from '@/components/connect/ListeningOnDeviceBanner';
-import { SpeakerControlledBanner } from '@/components/connect/SpeakerControlledBanner';
-import { PassiveConnectPromptBanner } from '@/components/connect/PassiveConnectPromptBanner';
-import { SmartDisconnectFallbackModal } from '@/components/connect/SmartDisconnectFallbackModal';
-import { useConnectAudioGuard } from '@/hooks/useConnectAudioGuard';
-import { useMediaSessionSync } from '@/hooks/useMediaSessionSync';
-import { usePlaybackCloudSync } from '@/hooks/usePlaybackCloudSync';
-
 import { Toast } from '@/components/ui/Toast';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
 
@@ -97,15 +88,6 @@ export default function Page() {
   // ── Global keyboard shortcuts (Space = play/pause, arrows = seek/volume, etc.)
   // Registered exactly once at the app root via AbortController — never duplicated.
   useGlobalKeyboardShortcuts();
-
-  // ── Spotify Connect Strict Audio Hardware Gating (Silences controllers to prevent double-sound)
-  useConnectAudioGuard();
-
-  // ── Spotify Connect Media Session Sync (Silent Anchor + Notification Widget for Remote Controllers)
-  useMediaSessionSync();
-
-  // ── Spotify Connect Active Playback Cloud Sync (Persists state for cross-device passive handoff)
-  usePlaybackCloudSync();
 
   // Android Predictive Back Gesture & Navigation Hierarchy
   React.useEffect(() => {
@@ -276,10 +258,6 @@ export default function Page() {
         </div>
       </div>
 
-      {/* Spotify Connect Style Persistent Remote Banner (Controller Mode) & Speaker Controlled Banner (Speaker Mode) */}
-      <ListeningOnDeviceBanner />
-      <SpeakerControlledBanner />
-
       {/* Desktop Persistent Bottom Audio Player Bar */}
       <PlayerBar />
 
@@ -332,15 +310,6 @@ export default function Page() {
       <ErrorBoundary name="UpdateModal">
         <UpdateModal />
       </ErrorBoundary>
-
-      {/* ── RaagaX Connect (Spotify Connect Style Remote Control & Passive Handoff) ── */}
-      <PassiveConnectPromptBanner />
-      <SmartDisconnectFallbackModal />
-      <ErrorBoundary name="ConnectDeviceModal">
-        <ConnectDeviceModal />
-      </ErrorBoundary>
-
-
 
       {/* ── Native Android Connected Surfaces ── */}
       <LockScreenPlayerModal

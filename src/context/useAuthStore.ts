@@ -126,9 +126,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         import('@/context/usePlaylistStore').then(({ usePlaylistStore }) => {
           usePlaylistStore.getState().fetchPlaylists(true);
         }).catch(() => {});
-        import('@/lib/connect/ConnectDiscoveryEngine').then(({ ConnectDiscoveryEngine }) => {
-          ConnectDiscoveryEngine.getInstance().setupPresenceChannel(initialUser.id);
-        }).catch(() => {});
       } else {
         AccountIsolationGuard.getInstance().clearAuthenticatedUser('INITIAL_GUEST');
       }
@@ -174,14 +171,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             import('@/lib/sync/AccountSyncEngine').then(({ AccountSyncEngine }) => {
               AccountSyncEngine.getInstance().reconcile(newUserId);
             }).catch(() => {});
-            import('@/lib/connect/ConnectDiscoveryEngine').then(({ ConnectDiscoveryEngine }) => {
-              ConnectDiscoveryEngine.getInstance().setupPresenceChannel(newUserId);
-            }).catch(() => {});
           }
         } else if (event === 'SIGNED_OUT') {
-          import('@/lib/connect/ConnectDiscoveryEngine').then(({ ConnectDiscoveryEngine }) => {
-            ConnectDiscoveryEngine.getInstance().cleanupPresenceChannel();
-          }).catch(() => {});
           await purgeAllUserScopedState('AUTH_EVENT_SIGNED_OUT');
           set({ session: null, user: null });
         }

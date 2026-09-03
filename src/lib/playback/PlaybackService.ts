@@ -141,16 +141,7 @@ export class PlaybackService {
           return;
         }
 
-        // CONNECT SAFETY: Do NOT recover playback if this device is acting as a remote controller
-        if (!store.isLocalPlayback) {
-          return;
-        }
-        try {
-          const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
-          if (ConnectClientManager.getInstance().isRemoteMode()) {
-            return;
-          }
-        } catch { }
+
 
         if (active.readyState >= 2) {
 
@@ -557,15 +548,7 @@ export class PlaybackService {
     }
 
     // CONNECT SAFETY: Do NOT load or play local audio on a remote controller device
-    if (!usePlayerStore.getState().isLocalPlayback) {
-      return false;
-    }
-    try {
-      const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
-      if (ConnectClientManager.getInstance().isRemoteMode()) {
-        return false;
-      }
-    } catch { }
+
 
     const store = usePlayerStore.getState();
     this.isTransitioning = true;
@@ -984,16 +967,7 @@ export class PlaybackService {
   }
 
   public play() {
-    // CONNECT SAFETY: Do NOT play local audio if this device is acting as a remote controller
-    if (!usePlayerStore.getState().isLocalPlayback) {
-      return;
-    }
-    try {
-      const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
-      if (ConnectClientManager.getInstance().isRemoteMode()) {
-        return;
-      }
-    } catch { }
+
 
     if (RaagaXNativePlayer.isNative()) {
       RaagaXNativePlayer.resume();
@@ -1227,14 +1201,7 @@ export class PlaybackService {
     // Check if crossfade/gapless is actively committing
     if (TransitionManager.getInstance().getState() !== 'IDLE') return;
 
-    // In Connect Remote Controller mode: Authoritative Speaker owns the queue progression
-    try {
-      const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
-      if (ConnectClientManager.getInstance().isRemoteMode()) {
-        console.log('[PlaybackService] In Connect remote controller mode — skipping auto-next trigger (Speaker owns transition)');
-        return;
-      }
-    } catch { }
+
 
     console.log(`[PLAYBACK_ENDED] trackId=${endedTrackId} generation=${generation} tag=${tag}`);
     // Pass isNaturalEnd=true so playNext preserves continuous auto-advance

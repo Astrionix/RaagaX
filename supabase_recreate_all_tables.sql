@@ -20,13 +20,14 @@ DROP TABLE IF EXISTS public.profiles CASCADE;
 DROP TABLE IF EXISTS public.recently_played CASCADE;
 DROP TABLE IF EXISTS public.user_downloads CASCADE;
 DROP TABLE IF EXISTS public.user_favorites CASCADE;
-DROP TABLE IF EXISTS public.user_library_state CASCADE;
+DROP TABLE IF EXISTS public.jam_sessions CASCADE;
 DROP TABLE IF EXISTS public.device_leases CASCADE;
 DROP TABLE IF EXISTS public.devices CASCADE;
 DROP TABLE IF EXISTS public.playback_state CASCADE;
 DROP TABLE IF EXISTS public.playback_history CASCADE;
 DROP TABLE IF EXISTS public.processed_commands CASCADE;
 DROP TABLE IF EXISTS public.playback_sessions CASCADE;
+DROP TABLE IF EXISTS public.user_playback_state CASCADE;
 DROP TABLE IF EXISTS public.saved_albums CASCADE;
 DROP TABLE IF EXISTS public.charts CASCADE;
 
@@ -101,32 +102,7 @@ CREATE POLICY "Users can manage songs in their playlists"
 
 CREATE INDEX IF NOT EXISTS idx_playlist_songs_order ON public.playlist_songs(playlist_id, position ASC);
 
--- 5. CORE TABLE 4: JAM SESSIONS (Live Group Listening Sync)
-CREATE TABLE IF NOT EXISTS public.jam_sessions (
-    id TEXT PRIMARY KEY,
-    room_code TEXT UNIQUE NOT NULL,
-    host_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    host_device_id TEXT,
-    active_track_id TEXT,
-    position_ms BIGINT NOT NULL DEFAULT 0,
-    is_playing BOOLEAN NOT NULL DEFAULT FALSE,
-    revision BIGINT NOT NULL DEFAULT 1,
-    participants JSONB NOT NULL DEFAULT '[]'::jsonb,
-    queue JSONB NOT NULL DEFAULT '[]'::jsonb,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-ALTER TABLE public.jam_sessions ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Authenticated users can access jam sessions" ON public.jam_sessions;
-CREATE POLICY "Authenticated users can access jam sessions"
-    ON public.jam_sessions
-    FOR ALL
-    USING (auth.role() = 'authenticated')
-    WITH CHECK (auth.role() = 'authenticated');
-
--- 6. CONFIGURE REALTIME (KEEP ONLY JAM & LIKED SONGS)
+-- 5. CONFIGURE REALTIME (KEEP ONLY LIKED SONGS & PLAYLISTS)
 -- First remove any old publication tables
 DO $$
 DECLARE
@@ -151,8 +127,13 @@ DECLARE
         'user_library_state',
         'saved_albums',
         'devices',
+        'device_leases',
+        'processed_commands',
+        'playback_history',
         'playback_sessions',
-        'playback_state'
+        'playback_state',
+        'user_playback_state',
+        'jam_sessions'
     ];
 BEGIN
     FOREACH tbl IN ARRAY tables_to_remove LOOP
@@ -165,47 +146,14 @@ BEGIN
     END LOOP;
 END $$;
 
--- Enable Realtime ONLY for jam_sessions and liked_songs
+-- Enable Realtime ONLY for liked_songs and playlists
 DO $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'jam_sessions') THEN
-        ALTER PUBLICATION supabase_realtime ADD TABLE public.jam_sessions;
-    END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'liked_songs') THEN
         ALTER PUBLICATION supabase_realtime ADD TABLE public.liked_songs;
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'playlists') THEN
         ALTER PUBLICATION supabase_realtime ADD TABLE public.playlists;
     END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'user_playback_state') THEN
-        ALTER PUBLICATION supabase_realtime ADD TABLE public.user_playback_state;
-    END IF;
 END $$;
-
--- ============================================================================
--- 5. SPOTIFY CONNECT ACTIVE PLAYBACK STATE TABLE (Cross-Device Passive Sync)
--- ============================================================================
-CREATE TABLE IF NOT EXISTS public.user_playback_state (
-    user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    device_id TEXT NOT NULL,
-    device_name TEXT NOT NULL,
-    device_type TEXT DEFAULT 'mobile',
-    current_track_id TEXT,
-    track_title TEXT,
-    artist_name TEXT,
-    cover_url TEXT,
-    audio_url TEXT,
-    progress_ms BIGINT DEFAULT 0,
-    duration_ms BIGINT DEFAULT 0,
-    is_playing BOOLEAN DEFAULT false,
-    updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
-);
-
-ALTER TABLE public.user_playback_state ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Users can sync own playback state" ON public.user_playback_state;
-CREATE POLICY "Users can sync own playback state"
-    ON public.user_playback_state FOR ALL
-    USING (auth.uid() = user_id)
-    WITH CHECK (auth.uid() = user_id);
 

@@ -1,9 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { usePlayerStore } from '@/context/usePlayerStore';
-import { useConnectStore } from '@/context/useConnectStore';
 import { PlaybackEngine } from '@/lib/playback/PlaybackEngine';
 import { SeekLock } from '@/lib/playback/SeekLock';
-import { ConnectClientManager } from '@/lib/connect/ConnectClientManager';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
 
 export function SeekBar({
@@ -27,7 +25,6 @@ export function SeekBar({
   const storeDuration = usePlayerStore((s) => s.duration);
   const setCurrentTime = usePlayerStore((s) => s.setCurrentTime);
   const setSeekTarget = usePlayerStore((s) => s.setSeekTarget);
-  const { isRemoteMode, remoteSession } = useConnectStore();
   const trackRef = useRef<HTMLDivElement>(null);
   const progressFillRef = useRef<HTMLDivElement>(null);
   const thumbRef = useRef<HTMLDivElement>(null);
@@ -37,15 +34,9 @@ export function SeekBar({
   const [localProgress, setLocalProgress] = useState(0); // 0 to 1
   const [hoverProgress, setHoverProgress] = useState<number | null>(null);
 
-  const activeSong = (isRemoteMode && remoteSession?.currentSong)
-    ? remoteSession.currentSong
-    : storeSong;
+  const activeSong = storeSong;
 
   const effectiveDuration = useMemo(() => {
-    if (isRemoteMode && remoteSession) {
-      if (remoteSession.durationMs > 0) return remoteSession.durationMs / 1000;
-      if (remoteSession.currentSong?.duration) return remoteSession.currentSong.duration;
-    }
     if (activeSong?.duration && activeSong.duration > 0) {
       return activeSong.duration;
     }
@@ -53,7 +44,7 @@ export function SeekBar({
       return storeDuration;
     }
     return 0;
-  }, [isRemoteMode, remoteSession?.durationMs, remoteSession?.currentSong?.duration, activeSong?.duration, storeDuration]);
+  }, [activeSong?.duration, storeDuration]);
 
   const prevProgressRef = useRef(0);
   const lastStateUpdateTimeRef = useRef<number>(0);
@@ -62,14 +53,9 @@ export function SeekBar({
   // Instantly reset seek progress when track switches
   useEffect(() => {
     prevProgressRef.current = 0;
-    const initialPos = (isRemoteMode && remoteSession?.currentSong?.id === activeSong?.id && typeof remoteSession?.positionMs === 'number')
-      ? remoteSession.positionMs / 1000
-      : 0;
-    const p = effectiveDuration > 0 ? Math.min(1, Math.max(0, initialPos / effectiveDuration)) : 0;
-    const pct = p * 100;
-    if (progressFillRef.current) progressFillRef.current.style.width = `${pct}%`;
-    if (thumbRef.current) thumbRef.current.style.left = `${pct}%`;
-    setLocalProgress(p);
+    if (progressFillRef.current) progressFillRef.current.style.width = '0%';
+    if (thumbRef.current) thumbRef.current.style.left = '0%';
+    setLocalProgress(0);
   }, [activeSong?.id, effectiveDuration]);
 
   // Zero-Re-render 60 FPS local progress prediction: direct DOM mutations + throttled state
@@ -89,17 +75,13 @@ export function SeekBar({
       lastRenderTimeRef.current = now;
 
       if (!isSeeking && !isSeekSettling && effectiveDuration > 0) {
-        const connectClient = ConnectClientManager.getInstance();
         let liveSec: number;
-
         let activeAudio: HTMLAudioElement | null = null;
         try {
           activeAudio = PlaybackService.getInstance().getActiveAudio();
         } catch {}
 
-        if (connectClient.isRemoteMode() || !usePlayerStore.getState().isLocalPlayback) {
-          liveSec = connectClient.getInterpolatedPosition();
-        } else if (activeAudio && !activeAudio.paused && !activeAudio.seeking && !isNaN(activeAudio.currentTime) && activeAudio.currentTime >= 0) {
+        if (activeAudio && !activeAudio.paused && !activeAudio.seeking && !isNaN(activeAudio.currentTime) && activeAudio.currentTime >= 0) {
           liveSec = activeAudio.currentTime;
         } else {
           const store = usePlayerStore.getState();
@@ -223,18 +205,10 @@ export function SeekBar({
       
       // End SeekLock with a settling window — blocks stale remote position
       // updates for 800ms after release so ExoPlayer can confirm the seek
-      SeekLock.endSeeking(800);
-
-      const connectClient = ConnectClientManager.getInstance();
-
       // Execute local seek immediately so UI and sound respond with zero lag
       setCurrentTime(newTime);
       setSeekTarget(newTime);
       PlaybackService.getInstance().seek(newTime);
-
-      if (connectClient.isRemoteMode()) {
-        connectClient.sendCommand('SEEK', { positionMs: Math.round(newTime * 1000) });
-      }
 
       setTimeout(() => {
         setIsSeekSettling(false);

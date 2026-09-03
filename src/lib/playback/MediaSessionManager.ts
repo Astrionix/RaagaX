@@ -15,7 +15,6 @@ export class MediaSessionManager {
   private static instance: MediaSessionManager;
   private lastPositionUpdate = 0;
   private lastPositionValue = -1;
-  private isRemoteBindingActive = false;
 
   private constructor() {}
 
@@ -51,14 +50,12 @@ export class MediaSessionManager {
   /**
    * Formats and publishes authoritative track metadata to Android MediaSession.
    */
-  public updateSongMetadata(song: Song, options?: { isOffline?: boolean; downloadText?: string; remoteSpeakerName?: string }): void {
+  public updateSongMetadata(song: Song, options?: { isOffline?: boolean; downloadText?: string }): void {
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
 
     try {
       let displayTitle = song.title || 'Unknown Title';
-      if (options?.remoteSpeakerName) {
-        displayTitle = `🔊 ${options.remoteSpeakerName}: ${displayTitle}`;
-      } else if (options?.isOffline) {
+      if (options?.isOffline) {
         displayTitle = `✓ ${displayTitle}`;
       } else if (options?.downloadText) {
         displayTitle = `${displayTitle} (${options.downloadText})`;
@@ -79,75 +76,6 @@ export class MediaSessionManager {
     } catch (e) {
       console.warn('[MediaSessionManager] Failed to update track metadata:', e);
     }
-  }
-
-  /**
-   * Bind OS lockscreen and notification media keys to Remote Controller RPCs.
-   *
-   * FIX 2: seekforward / seekbackward are the actual events fired by iOS lock screen,
-   * many Android OEM notification widgets, and Bluetooth earbuds (single/double press).
-   * Without handlers here they fall through to the dormant local <audio> element.
-   * We forward them as SEEK RPCs (+/- 10s by default, matching Chrome's default seekOffset).
-   */
-  public setupRemoteMediaHandlers(): void {
-    // Reset guard: allow re-bind after restoreLocalMediaHandlers() clears it
-    this.isRemoteBindingActive = true;
-
-    this.setActionHandlers({
-      onPlay: () => {
-        import('@/lib/connect/ConnectClientManager').then(({ ConnectClientManager }) => {
-          ConnectClientManager.getInstance().sendCommand('RESUME');
-        });
-      },
-      onPause: () => {
-        import('@/lib/connect/ConnectClientManager').then(({ ConnectClientManager }) => {
-          ConnectClientManager.getInstance().sendCommand('PAUSE');
-        });
-      },
-      onNext: () => {
-        import('@/lib/connect/ConnectClientManager').then(({ ConnectClientManager }) => {
-          ConnectClientManager.getInstance().sendCommand('SKIP_NEXT');
-        });
-      },
-      onPrev: () => {
-        import('@/lib/connect/ConnectClientManager').then(({ ConnectClientManager }) => {
-          ConnectClientManager.getInstance().sendCommand('SKIP_PREV');
-        });
-      },
-      onSeek: (time: number) => {
-        import('@/lib/connect/ConnectClientManager').then(({ ConnectClientManager }) => {
-          ConnectClientManager.getInstance().sendCommand('SEEK', { positionMs: Math.round(time * 1000) });
-        });
-      },
-      // seekforward / seekbackward: fired by iOS lock screen, earbud hardware buttons, Android OEM widgets
-      onSeekForward: (offsetSec: number = 10) => {
-        import('@/lib/connect/ConnectClientManager').then(({ ConnectClientManager }) => {
-          const client = ConnectClientManager.getInstance();
-          const currentPosSec = client.getInterpolatedPosition();
-          const session = client.getRemoteSession();
-          const durationSec = session ? session.durationMs / 1000 : Infinity;
-          const targetMs = Math.round(Math.min(currentPosSec + offsetSec, durationSec) * 1000);
-          client.sendCommand('SEEK', { positionMs: targetMs });
-        });
-      },
-      onSeekBackward: (offsetSec: number = 10) => {
-        import('@/lib/connect/ConnectClientManager').then(({ ConnectClientManager }) => {
-          const client = ConnectClientManager.getInstance();
-          const currentPosSec = client.getInterpolatedPosition();
-          const targetMs = Math.round(Math.max(0, currentPosSec - offsetSec) * 1000);
-          client.sendCommand('SEEK', { positionMs: targetMs });
-        });
-      },
-    });
-  }
-
-
-
-  public restoreLocalMediaHandlers(): void {
-    this.isRemoteBindingActive = false;
-    import('./PlaybackService').then(({ PlaybackService }) => {
-      PlaybackService.getInstance().setupMediaSessionHandlers();
-    });
   }
 
   public updateMetadata(metadata: MediaMetadataInit): void {

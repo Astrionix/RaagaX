@@ -17,11 +17,8 @@ import {
   Disc3,
   Maximize2,
   Radio,
-  Speaker,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
-import { useConnectStore } from '@/context/useConnectStore';
-import { ConnectButton } from '@/components/connect/ConnectButton';
 import { SeekBar } from '@/components/player/SeekBar';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
@@ -52,10 +49,7 @@ export function PlayerBar() {
     isLyricsOpen,
     isPlayerExpanded,
     togglePlayerExpanded,
-    isLocalPlayback,
   } = usePlayerStore();
-
-  const { isRemoteMode, activePlaybackDevice, remoteSession, sendPlay, sendPause, sendNext, sendPrev, sendVolume } = useConnectStore();
 
   useEffect(() => {
     setMounted(true);
@@ -64,39 +58,18 @@ export function PlayerBar() {
     }).catch(() => {});
   }, []);
 
-  const activeSong = (isRemoteMode && remoteSession?.currentSong)
-    ? remoteSession.currentSong
-    : currentSong;
-
-  const isPlayingActive = (isRemoteMode && remoteSession)
-    ? remoteSession.isPlaying
-    : isPlaying;
+  const activeSong = currentSong;
+  const isPlayingActive = isPlaying;
 
   const handleTogglePlayPause = () => {
-    if (isRemoteMode) {
-      if (isPlayingActive) {
-        sendPause();
-      } else {
-        sendPlay();
-      }
-      return;
-    }
     togglePlayPause();
   };
 
   const handlePlayNext = () => {
-    if (isRemoteMode) {
-      sendNext();
-      return;
-    }
     playNext();
   };
 
   const handlePlayPrev = () => {
-    if (isRemoteMode) {
-      sendPrev();
-      return;
-    }
     playPrev();
   };
 
@@ -162,19 +135,13 @@ export function PlayerBar() {
   return (
     <aside
       aria-label="Floating Media Player"
-      className={`hidden md:flex fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] z-40 group/player select-none items-center justify-between px-3.5 sm:px-4 py-1.5 backdrop-blur-2xl rounded-full transition-all duration-300 max-w-[calc(100vw-18rem)] md:max-w-[760px] lg:max-w-[840px] w-auto h-[54px] gap-2.5 sm:gap-4 -translate-x-1/2 ${
-        !isLocalPlayback
-          ? 'bg-[#121214]/95 border border-[#1DB954]/50 hover:border-[#1DB954]/70 ring-1 ring-[#1DB954]/25 shadow-[0_12px_36px_rgba(0,0,0,0.7),0_0_24px_rgba(29,185,84,0.25)]'
-          : 'bg-[#1c1c1e]/90 hover:bg-[#1c1c1e]/95 border border-white/10 hover:border-white/15 ring-1 ring-white/5 shadow-[0_12px_36px_rgba(0,0,0,0.65)]'
-      } ${
+      className={`hidden md:flex fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] z-40 group/player select-none items-center justify-between px-3.5 sm:px-4 py-1.5 backdrop-blur-2xl rounded-full transition-all duration-300 max-w-[calc(100vw-18rem)] md:max-w-[760px] lg:max-w-[840px] w-auto h-[54px] gap-2.5 sm:gap-4 -translate-x-1/2 bg-[#1c1c1e]/90 hover:bg-[#1c1c1e]/95 border border-white/10 hover:border-white/15 ring-1 ring-white/5 shadow-[0_12px_36px_rgba(0,0,0,0.65)] ${
         isQueueOpen
           ? 'left-[calc(50%+8rem)] xl:left-[calc(50%+8rem-180px)]'
           : 'left-[calc(50%+8rem)]'
       }`}
       style={{
-        boxShadow: !isLocalPlayback
-          ? '0 12px 36px rgba(0,0,0,0.7), 0 0 24px rgba(29,185,84,0.3)'
-          : `0 12px 36px rgba(0,0,0,0.7), 0 0 25px ${glowColor}`,
+        boxShadow: `0 12px 36px rgba(0,0,0,0.7), 0 0 25px ${glowColor}`,
       }}
     >
         {/* ── 1. LEFT CONTROLS: Shuffle, Prev, Play/Pause, Next, Repeat ── */}
@@ -281,26 +248,7 @@ export function PlayerBar() {
                   className="text-[10px] sm:text-[11px] text-zinc-400 truncate leading-tight mt-0.5 font-normal"
                   title={subtitle}
                 >
-                  {!isLocalPlayback ? (
-                    <span
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        useConnectStore.getState().toggleConnectModal(true);
-                      }}
-                      className="text-[#1DB954] font-semibold flex items-center gap-1.5 truncate cursor-pointer hover:underline"
-                      title="Tap to manage Connect devices"
-                    >
-                      <span className="flex items-end gap-[2px] h-2.5 flex-shrink-0">
-                        <span className="w-[2px] bg-[#1DB954] rounded-full animate-pulse h-2.5" />
-                        <span className="w-[2px] bg-[#1DB954] rounded-full animate-pulse h-1.5" />
-                        <span className="w-[2px] bg-[#1DB954] rounded-full animate-pulse h-2" />
-                      </span>
-                      <Speaker className="w-3 h-3 text-[#1DB954] flex-shrink-0" />
-                      <span className="truncate">Playing on {activePlaybackDevice?.deviceName || 'Remote Speaker'}</span>
-                    </span>
-                  ) : (
-                    <span>{subtitle}</span>
-                  )}
+                  <span>{subtitle}</span>
                 </p>
               </div>
 
@@ -318,10 +266,6 @@ export function PlayerBar() {
 
         {/* ── 3. RIGHT CONTROLS: Lyrics, Queue, Volume ── */}
         <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
-
-          {/* RaagaX Connect: Remote Device Control & Playback Switcher */}
-          <ConnectButton />
-
           <button
             onClick={toggleLyrics}
             aria-label="Open lyrics"
@@ -351,39 +295,24 @@ export function PlayerBar() {
           {/* Volume Control */}
           <div className="flex items-center gap-1 pl-1">
             <button
-              onClick={() => {
-                if (isRemoteMode) {
-                  const currentV = remoteSession?.volume ?? 0.8;
-                  sendVolume(currentV > 0 ? 0 : 0.8);
-                } else {
-                  toggleMute();
-                }
-              }}
+              onClick={() => toggleMute()}
               aria-label="Volume"
-              title={
-                isRemoteMode
-                  ? `Speaker Volume: ${Math.round((remoteSession?.volume ?? 0.8) * 100)}%`
-                  : isMuted || volume === 0
-                  ? 'Unmute'
-                  : 'Mute'
-              }
+              title={isMuted || volume === 0 ? 'Unmute' : 'Mute'}
               className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer flex-shrink-0"
             >
-              {(isRemoteMode ? (remoteSession?.volume ?? 0.8) === 0 : isMuted || volume === 0) ? (
-                <VolumeX className={`w-3.5 h-3.5 ${isRemoteMode ? 'text-emerald-400' : 'text-[#FA233B]'}`} />
+              {isMuted || volume === 0 ? (
+                <VolumeX className="w-3.5 h-3.5 text-[#FA233B]" />
               ) : (
-                <Volume2 className={`w-3.5 h-3.5 ${isRemoteMode ? 'text-emerald-400' : ''}`} />
+                <Volume2 className="w-3.5 h-3.5" />
               )}
             </button>
 
             <div className="relative w-16 sm:w-20 h-4 flex items-center group/vol cursor-pointer">
               <div className="absolute left-0 right-0 h-1 rounded-full bg-white/20 group-hover/vol:h-1.5 transition-all" />
               <div
-                className={`absolute left-0 h-1 group-hover/vol:h-1.5 rounded-full pointer-events-none transition-all ${
-                  isRemoteMode ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]' : 'bg-[#FA233B]'
-                }`}
+                className="absolute left-0 h-1 group-hover/vol:h-1.5 rounded-full pointer-events-none transition-all bg-[#FA233B]"
                 style={{
-                  width: `${(isRemoteMode ? (remoteSession?.volume ?? 0.8) : isMuted ? 0 : volume) * 100}%`,
+                  width: `${(isMuted ? 0 : volume) * 100}%`,
                 }}
               />
               <input
@@ -391,27 +320,17 @@ export function PlayerBar() {
                 min={0}
                 max={1}
                 step={0.01}
-                value={isRemoteMode ? (remoteSession?.volume ?? 0.8) : isMuted ? 0 : volume}
+                value={isMuted ? 0 : volume}
                 onChange={(e) => {
                   const val = parseFloat(e.target.value);
-                  if (isRemoteMode) {
-                    sendVolume(val);
-                  } else {
-                    setVolume(val);
-                    if (isMuted && val > 0) {
-                      toggleMute();
-                    }
+                  setVolume(val);
+                  if (isMuted && val > 0) {
+                    toggleMute();
                   }
                 }}
                 aria-label="Volume slider"
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                title={
-                  isRemoteMode
-                    ? `Speaker Volume (${activePlaybackDevice?.deviceName || 'Remote'}): ${Math.round(
-                        (remoteSession?.volume ?? 0.8) * 100
-                      )}%`
-                    : `Volume: ${Math.round((isMuted ? 0 : volume) * 100)}%`
-                }
+                title={`Volume: ${Math.round((isMuted ? 0 : volume) * 100)}%`}
               />
             </div>
           </div>
@@ -424,7 +343,7 @@ export function PlayerBar() {
               className="w-full"
               height="h-[2px] group-hover/player:h-[3px] transition-all"
               thumbSize="w-2 h-2 opacity-0 group-hover/player:opacity-100"
-              activeColor={!isLocalPlayback ? 'bg-[#1DB954]' : 'bg-[#FA233B]'}
+              activeColor="bg-[#FA233B]"
             />
           </div>
         )}

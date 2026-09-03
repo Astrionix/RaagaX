@@ -1,12 +1,10 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { Play, Pause, SkipForward, SkipBack, Heart, MoreVertical, Disc3, Headphones, MonitorSmartphone, Radio, Speaker } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, Heart, MoreVertical, Disc3, Headphones, Radio } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
-import { useConnectStore } from '@/context/useConnectStore';
 import { SeekBar } from '@/components/player/SeekBar';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
-import { ConnectButton } from '@/components/connect/ConnectButton';
 
 /**
  * RaagaX Floating Liquid Glass Mini-Player (Tier 02 Deep Glass)
@@ -57,26 +55,15 @@ export function MobileMiniPlayer() {
   }, []);
 
   const {
-    currentSong: localCurrentSong,
-    isPlaying: localIsPlaying,
+    currentSong,
+    isPlaying,
     togglePlayPause,
     playNext,
     playPrev,
     togglePlayerExpanded,
     likedSongIds,
     toggleLikeSong,
-    isLocalPlayback,
   } = usePlayerStore();
-
-  const { isRemoteMode, activePlaybackDevice, remoteSession, sendPlay, sendPause, sendNext, sendPrev } = useConnectStore();
-
-  const currentSong = (isRemoteMode && remoteSession?.currentSong)
-    ? remoteSession.currentSong
-    : localCurrentSong;
-
-  const isPlaying = (isRemoteMode && remoteSession)
-    ? remoteSession.isPlaying
-    : localIsPlaying;
 
   if (!mounted || !currentSong) return null;
 
@@ -168,11 +155,7 @@ export function MobileMiniPlayer() {
 
       {/* Main 3D Floating Liquid Lens Panel (80dp Normal -> 52dp Collapsed) */}
       <div 
-        className={`pointer-events-auto relative lens-floating flex flex-col justify-center overflow-hidden backdrop-blur-2xl transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-          !isLocalPlayback
-            ? 'border border-[#1DB954]/50 shadow-[0_12px_32px_rgba(0,0,0,0.7),0_0_20px_rgba(29,185,84,0.25)]'
-            : 'border border-white/12 shadow-[0_12px_32px_rgba(0,0,0,0.65)]'
-        } ${
+        className={`pointer-events-auto relative lens-floating flex flex-col justify-center overflow-hidden backdrop-blur-2xl transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] border border-white/12 shadow-[0_12px_32px_rgba(0,0,0,0.65)] ${
           isScrolled 
             ? 'h-[52px] rounded-[18px] px-3 py-1.5' 
             : 'h-[78px] rounded-[22px] px-3.5 py-2.5'
@@ -187,7 +170,7 @@ export function MobileMiniPlayer() {
             className="w-full h-full"
             height="h-[2px]"
             thumbSize="w-0 h-0"
-            activeColor={!isLocalPlayback ? 'bg-[#1DB954]' : 'bg-[#FA233B]'}
+            activeColor="bg-[#FA233B]"
           />
         </div>
 
@@ -226,25 +209,7 @@ export function MobileMiniPlayer() {
               </h4>
               {!isScrolled && (
                 <p className="text-[11px] text-[var(--text-secondary)] truncate leading-tight flex items-center gap-1 mt-0.5 animate-in fade-in duration-200">
-                  {!isLocalPlayback ? (
-                    <span
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        useConnectStore.getState().toggleConnectModal(true);
-                      }}
-                      className="text-[#1DB954] font-semibold flex items-center gap-1.5 truncate cursor-pointer hover:underline"
-                    >
-                      <span className="flex items-end gap-[2px] h-2.5 flex-shrink-0">
-                        <span className="w-[2px] bg-[#1DB954] rounded-full animate-pulse h-2.5" />
-                        <span className="w-[2px] bg-[#1DB954] rounded-full animate-pulse h-1.5" />
-                        <span className="w-[2px] bg-[#1DB954] rounded-full animate-pulse h-2" />
-                      </span>
-                      <Speaker className="w-3 h-3 text-[#1DB954] flex-shrink-0" />
-                      <span className="truncate">Playing on {activePlaybackDevice?.deviceName || 'Remote Speaker'}</span>
-                    </span>
-                  ) : (
-                    <span>{currentSong.artist}</span>
-                  )}
+                  <span>{currentSong.artist}</span>
                 </p>
               )}
             </div>
@@ -252,13 +217,6 @@ export function MobileMiniPlayer() {
 
             {/* Right: Controls (Like, Play/Pause, Next) */}
           <div className="flex items-center gap-1 flex-shrink-0">
-            {/* RaagaX Connect: Remote Device Control & Cast button */}
-            {!isScrolled && (
-              <div onClick={(e) => e.stopPropagation()} className="flex items-center">
-                <ConnectButton className="p-2" />
-              </div>
-            )}
-
             {/* Favorite button (visible in Normal state) */}
             {!isScrolled && (
               <button
@@ -282,14 +240,6 @@ export function MobileMiniPlayer() {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (isRemoteMode) {
-                  if (isPlaying) {
-                    sendPause();
-                  } else {
-                    sendPlay();
-                  }
-                  return;
-                }
                 togglePlayPause();
               }}
               aria-label={isPlaying ? 'Pause' : 'Play'}
@@ -307,10 +257,6 @@ export function MobileMiniPlayer() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (isRemoteMode) {
-                    sendNext();
-                    return;
-                  }
                   playNext();
                 }}
                 aria-label="Next track"

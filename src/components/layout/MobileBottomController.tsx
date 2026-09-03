@@ -12,12 +12,10 @@ import {
   Library,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
-import { useConnectStore } from '@/context/useConnectStore';
 import { ActiveTab } from '@/types/music';
 import { SeekBar } from '@/components/player/SeekBar';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { haptics } from '@/lib/haptics/HapticEngine';
-import { ConnectButton } from '@/components/connect/ConnectButton';
 
 export function MobileBottomController() {
   const [mounted, setMounted] = useState(false);
@@ -27,24 +25,14 @@ export function MobileBottomController() {
   const {
     activeTab,
     setActiveTab,
-    currentSong: localCurrentSong,
-    isPlaying: localIsPlaying,
+    currentSong,
+    isPlaying,
     togglePlayPause,
     playNext,
     playPrev,
     togglePlayerExpanded,
     isPlayerExpanded,
   } = usePlayerStore();
-
-  const { isRemoteMode, activePlaybackDevice, remoteSession, sendPlay, sendPause, sendNext, sendPrev } = useConnectStore();
-
-  const currentSong = (isRemoteMode && remoteSession?.currentSong)
-    ? remoteSession.currentSong
-    : localCurrentSong;
-
-  const isPlaying = (isRemoteMode && remoteSession)
-    ? remoteSession.isPlaying
-    : localIsPlaying;
 
   useEffect(() => {
     setMounted(true);
@@ -84,18 +72,10 @@ export function MobileBottomController() {
       togglePlayerExpanded();
     } else if (diffX < -45 && Math.abs(diffX) > Math.abs(diffY)) {
       haptics.lightImpact();
-      if (isRemoteMode) {
-        sendNext();
-      } else {
-        playNext();
-      }
+      playNext();
     } else if (diffX > 45 && Math.abs(diffX) > Math.abs(diffY)) {
       haptics.lightImpact();
-      if (isRemoteMode) {
-        sendPrev();
-      } else {
-        playPrev();
-      }
+      playPrev();
     }
 
     touchStartX.current = null;
@@ -155,14 +135,7 @@ export function MobileBottomController() {
                   {currentSong.title}
                 </h4>
                 <p className="text-[11px] font-medium text-white/60 truncate flex items-center gap-1.5">
-                  {isRemoteMode ? (
-                    <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
-                      <span className="truncate">🔊 {activePlaybackDevice?.deviceName || 'Speaker'}</span>
-                    </span>
-                  ) : (
-                    <span className="truncate">{currentSong.artist || 'RaagaX Music'}</span>
-                  )}
+                  <span className="truncate">{currentSong.artist || 'RaagaX Music'}</span>
                 </p>
               </div>
             </div>
@@ -172,18 +145,11 @@ export function MobileBottomController() {
               className="flex items-center gap-2.5 flex-shrink-0 pr-1 z-10"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Connect to Device Button */}
-              <ConnectButton className="p-1.5" />
-
               {/* Play / Pause Liquid Glass Button */}
               <button
                 onClick={() => {
                   haptics.mediumImpact();
-                  if (isRemoteMode) {
-                    isPlaying ? sendPause() : sendPlay();
-                  } else {
-                    togglePlayPause();
-                  }
+                  togglePlayPause();
                 }}
                 aria-label={isPlaying ? 'Pause' : 'Play'}
                 className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center shadow-lg active:scale-90 transition-all cursor-pointer hover:scale-105"
@@ -198,11 +164,7 @@ export function MobileBottomController() {
               <button
                 onClick={() => {
                   haptics.lightImpact();
-                  if (isRemoteMode) {
-                    sendNext();
-                  } else {
-                    playNext();
-                  }
+                  playNext();
                 }}
                 aria-label="Next track"
                 className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white active:scale-90 transition-transform cursor-pointer"

@@ -131,18 +131,6 @@ export function useGlobalKeyboardShortcuts() {
         e.preventDefault();
         const delta = e.code === 'ArrowUp' ? 0.05 : -0.05;
 
-        // Remote Controller Mode: Dispatch volume change directly to remote speaker
-        try {
-          const { useConnectStore } = require('@/context/useConnectStore');
-          const connectState = useConnectStore.getState();
-          if (connectState.isRemoteMode) {
-            const currentVol = connectState.remoteSession?.volume ?? 0.8;
-            const newVol = parseFloat(Math.max(0, Math.min(1, currentVol + delta)).toFixed(2));
-            connectState.sendVolume(newVol);
-            return;
-          }
-        } catch {}
-
         const store = usePlayerStore.getState();
         const newVol = parseFloat(
           Math.max(0, Math.min(1, (store.volume ?? 1) + delta)).toFixed(2)
@@ -183,19 +171,15 @@ export function useGlobalKeyboardShortcuts() {
       capture: false,
     });
 
-    // ── Android Hardware Volume Rockers (Remote Controller Key Sync) ──────────
+    // ── Android Hardware Volume Rockers ──────────────────────────────────────
     const handleHardwareVolume = (event: any) => {
       const direction = event.detail?.direction;
       const delta = direction === 'UP' ? 0.05 : -0.05;
-      try {
-        const { useConnectStore } = require('@/context/useConnectStore');
-        const connectState = useConnectStore.getState();
-        if (connectState.isRemoteMode) {
-          const currentVol = connectState.remoteSession?.volume ?? 0.8;
-          const newVol = parseFloat(Math.max(0, Math.min(1, currentVol + delta)).toFixed(2));
-          connectState.sendVolume(newVol);
-        }
-      } catch {}
+      const store = usePlayerStore.getState();
+      const newVol = parseFloat(
+        Math.max(0, Math.min(1, (store.volume ?? 1) + delta)).toFixed(2)
+      );
+      store.setVolume(newVol);
     };
 
     window.addEventListener('hardwareVolumeChange', handleHardwareVolume, {

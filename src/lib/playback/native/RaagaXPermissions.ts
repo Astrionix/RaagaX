@@ -142,42 +142,7 @@ export const RaagaXPermissions = {
     return result;
   },
 
-  /**
-   * Request Bluetooth permissions — ONLY from Connect Device screen.
-   * Never called during launch or onboarding.
-   *
-   * Rules:
-   *   - If already "granted": returns immediately
-   *   - If "denied": returns "denied", no popup (user must go to Settings)
-   *   - If "not_requested": shows OS dialog once
-   */
-  async requestBluetoothForConnect(): Promise<PermissionState> {
-    const store = loadStore();
 
-    // Already resolved
-    if (store.bluetooth !== 'not_requested') {
-      return store.bluetooth;
-    }
-
-    const plugin = getPermPlugin();
-    if (!plugin) {
-      // Bluetooth is native-only; on web return not applicable
-      return 'not_requested';
-    }
-
-    let result: PermissionState = 'denied';
-    try {
-      await plugin.requestBluetooth();
-      const status = await plugin.getStatus();
-      result = (status?.bluetoothConnect && status?.bluetoothScan) ? 'granted' : 'denied';
-    } catch {
-      result = 'denied';
-    }
-
-    store.bluetooth = result;
-    saveStore(store);
-    return result;
-  },
 
   /**
    * Request Camera permission — ONLY when user opens QR code scanner.

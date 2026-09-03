@@ -20,7 +20,6 @@ import {
   Moon,
   Volume2,
   VolumeX,
-  Cast,
   User,
   Disc,
   Info,
@@ -54,11 +53,8 @@ import { LiquidGlass } from '@/components/common/LiquidGlass';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 import { AlbumCatalogEngine } from '@/lib/albumCatalog';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
-import { ConnectButton } from '@/components/connect/ConnectButton';
-import { useConnectStore } from '@/context/useConnectStore';
 import { VolumeControl } from '@/components/player/VolumeControl';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
-import { ConnectClientManager } from '@/lib/connect/ConnectClientManager';
 
 export function ExpandedPlayerModal() {
   const { playlists, addSongToPlaylist } = usePlaylistStore();
@@ -127,15 +123,8 @@ export function ExpandedPlayerModal() {
     sleepTimerMode,
   } = usePlayerStore();
 
-  const { isRemoteMode, remoteSession, sendPlay, sendPause, sendNext, sendPrev } = useConnectStore();
-
-  const currentSong = (isRemoteMode && remoteSession?.currentSong)
-    ? remoteSession.currentSong
-    : localCurrentSong;
-
-  const isPlaying = (isRemoteMode && remoteSession)
-    ? remoteSession.isPlaying
-    : localIsPlaying;
+  const currentSong = localCurrentSong;
+  const isPlaying = localIsPlaying;
 
   // Gesture handling for swipe-down to minimize on touch devices
   const touchStartY = useRef<number | null>(null);
@@ -163,30 +152,14 @@ export function ExpandedPlayerModal() {
   };
 
   const handleTogglePlay = () => {
-    if (isRemoteMode) {
-      if (isPlaying) {
-        sendPause();
-      } else {
-        sendPlay();
-      }
-      return;
-    }
     togglePlayPause();
   };
 
   const handlePlayNext = () => {
-    if (isRemoteMode) {
-      sendNext();
-      return;
-    }
     playNext();
   };
 
   const handlePlayPrev = () => {
-    if (isRemoteMode) {
-      sendPrev();
-      return;
-    }
     playPrev();
   };
 
@@ -253,11 +226,7 @@ export function ExpandedPlayerModal() {
   // Instantly reset displayed seconds when track changes
   useEffect(() => {
     const storeTime = usePlayerStore.getState().currentTime || 0;
-    const initialPos = (isRemoteMode && remoteSession?.currentSong?.id === currentSong?.id && typeof remoteSession?.positionMs === 'number')
-      ? remoteSession.positionMs / 1000
-      : storeTime > 0
-      ? storeTime
-      : 0;
+    const initialPos = storeTime > 0 ? storeTime : 0;
     lastGoodSecRef.current = initialPos;
     setDisplaySec(initialPos);
     if (initialPos > 0 && storeTime === 0) {
@@ -278,12 +247,7 @@ export function ExpandedPlayerModal() {
         activeAudio = PlaybackService.getInstance().getActiveAudio();
       } catch {}
 
-      if (isRemoteMode || !usePlayerStore.getState().isLocalPlayback) {
-        try {
-          liveSec = ConnectClientManager.getInstance().getInterpolatedPosition();
-          lastGoodSecRef.current = liveSec;
-        } catch { }
-      } else if (activeAudio && !activeAudio.paused && !activeAudio.seeking && !isNaN(activeAudio.currentTime) && activeAudio.currentTime >= 0) {
+      if (activeAudio && !activeAudio.paused && !activeAudio.seeking && !isNaN(activeAudio.currentTime) && activeAudio.currentTime >= 0) {
         liveSec = activeAudio.currentTime;
         lastGoodSecRef.current = liveSec;
       } else {
@@ -307,13 +271,9 @@ export function ExpandedPlayerModal() {
       cancelled = true;
       cancelAnimationFrame(animFrame);
     };
-  }, [isRemoteMode, remoteSession, currentSong?.id]);
+  }, [currentSong?.id]);
 
   const exactDuration = useMemo(() => {
-    if (isRemoteMode && remoteSession) {
-      if (remoteSession.durationMs > 0) return remoteSession.durationMs / 1000;
-      if (remoteSession.currentSong?.duration) return remoteSession.currentSong.duration;
-    }
     if (currentSong?.duration && currentSong.duration > 0) {
       return currentSong.duration;
     }
@@ -327,7 +287,7 @@ export function ExpandedPlayerModal() {
       return duration;
     }
     return 0;
-  }, [isRemoteMode, remoteSession?.durationMs, remoteSession?.currentSong?.duration, currentSong?.duration, duration]);
+  }, [currentSong?.duration, duration]);
 
   const songDuration = exactDuration;
   const remainingTime = Math.max(0, songDuration - displaySec);
@@ -826,20 +786,8 @@ export function ExpandedPlayerModal() {
               {/* Volume Slider (Desktop only) */}
               <VolumeControl className="hidden md:flex w-full max-w-md px-3" />
 
-              {/* Bottom Utilities Pills [ Connect | Lyrics | Queue | Sleep Timer ] */}
+              {/* Bottom Utilities Pills [ Lyrics | Queue | Sleep Timer ] */}
               <div className="flex items-center justify-center gap-2 sm:gap-3 pt-1 flex-wrap">
-                {/* Connect to Device Button */}
-                <button
-                  onClick={() => {
-                    haptics.lightImpact();
-                    useConnectStore.getState().toggleConnectModal(true);
-                  }}
-                  className="px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-                  title="Connect to Device"
-                >
-                  <Cast className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Connect</span>
-                </button>
 
                 {/* Lyrics Button */}
                 <button
@@ -1097,12 +1045,6 @@ export function ExpandedPlayerModal() {
                     <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping" />
                   )}
                 </button>
-
-                {/* RaagaX Connect: Remote Device Control & Switcher */}
-                <ConnectButton
-                  showLabel={true}
-                  className="px-3.5 sm:px-4 py-1.5 border border-white/10 bg-white/[0.06] hover:bg-white/[0.12] text-xs font-semibold"
-                />
               </div>
             </div>
 

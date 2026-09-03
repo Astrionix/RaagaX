@@ -1,21 +1,12 @@
 'use client';
 
 /**
- * VolumeControl — Spotify-style volume slider + mute toggle
- *
- * Works in both modes automatically:
- *  • Local speaker mode  → smooth ramp via SpeakerVolumeGainManager
- *  • Remote controller   → throttled SET_VOLUME dispatch, optimistic UI
- *
- * Props:
- *  className  — optional extra wrapper class
- *  compact    — if true, renders a slimmer horizontal bar (for bottom bar / footer)
+ * VolumeControl — Spotify-style local volume slider + mute toggle
  */
 
-import React from 'react';
+import React, { useCallback, useRef } from 'react';
 import { Volume1, Volume2, VolumeX } from 'lucide-react';
-import { useRemoteVolume } from '@/hooks/useRemoteVolume';
-import { useConnectStore } from '@/context/useConnectStore';
+import { usePlayerStore } from '@/context/usePlayerStore';
 
 const SLIDER_CSS = `
   .rxv-track {
@@ -72,12 +63,12 @@ interface VolumeControlProps {
 }
 
 export function VolumeControl({ className = '', compact = false }: VolumeControlProps) {
-  const { displayVolume, isMuted, isRemoteMode, handleVolumeChange, handleMuteToggle } =
-    useRemoteVolume();
+  const volume = usePlayerStore((s) => s.volume);
+  const isMuted = usePlayerStore((s) => s.isMuted);
+  const setVolume = usePlayerStore((s) => s.setVolume);
+  const toggleMute = usePlayerStore((s) => s.toggleMute);
 
-  const activeDevice = useConnectStore((s) => s.activePlaybackDevice);
-
-  const effectiveVol = isMuted ? 0 : displayVolume;
+  const effectiveVol = isMuted ? 0 : volume;
   const pct = Math.round(effectiveVol * 100);
 
   const Icon =
@@ -88,18 +79,25 @@ export function VolumeControl({ className = '', compact = false }: VolumeControl
       : Volume2;
 
   const iconColor = isMuted || effectiveVol === 0 ? '#F0444F' : 'rgba(255,255,255,0.5)';
-  const fillColor = isRemoteMode ? '#1db954' : '#fff';
+
+  const handleVolumeChange = useCallback((newVol: number) => {
+    const clamped = Math.max(0, Math.min(1, newVol));
+    setVolume(clamped);
+    import('@/lib/playback/SpeakerVolumeGainManager').then(({ SpeakerVolumeGainManager }) => {
+      SpeakerVolumeGainManager.getInstance().setSmoothVolume(clamped);
+    }).catch(() => {});
+  }, [setVolume]);
+
+  const handleMuteToggle = useCallback(() => {
+    toggleMute();
+  }, [toggleMute]);
 
   return (
     <>
       <StyleOnce />
       <div
         className={`rxv-wrap flex items-center gap-2.5 ${className}`}
-        title={
-          isRemoteMode
-            ? `Remote volume on ${activeDevice?.deviceName || 'speaker'}: ${pct}%`
-            : `Volume: ${pct}%`
-        }
+        title={`Volume: ${pct}%`}
       >
         {/* Mute toggle */}
         <button
@@ -122,8 +120,8 @@ export function VolumeControl({ className = '', compact = false }: VolumeControl
             className="absolute inset-y-0 left-0 rounded-full pointer-events-none transition-none"
             style={{
               width: `${pct}%`,
-              background: fillColor,
-              opacity: isRemoteMode ? 0.9 : 0.7,
+              background: '#fff',
+              opacity: 0.7,
             }}
           />
           {/* Slider input */}
@@ -149,24 +147,6 @@ export function VolumeControl({ className = '', compact = false }: VolumeControl
             flexShrink: 0,
           }}
         />
-
-        {/* Remote badge (only in controller mode) */}
-        {isRemoteMode && activeDevice && !compact && (
-          <span
-            className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
-            style={{
-              background: 'rgba(29,185,84,0.15)',
-              color: '#1db954',
-              border: '1px solid rgba(29,185,84,0.25)',
-              maxWidth: 80,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {activeDevice.deviceName}
-          </span>
-        )}
       </div>
     </>
   );

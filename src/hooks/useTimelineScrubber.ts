@@ -11,7 +11,11 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { TimelineAnchor } from './usePlaybackSync';
+
+export interface TimelineAnchor {
+  positionMs: number;
+  timestamp: number;
+}
 
 export interface UseTimelineScrubberProps {
   isPlaying: boolean;

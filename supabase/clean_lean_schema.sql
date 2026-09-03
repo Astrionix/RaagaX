@@ -27,6 +27,8 @@ DROP TABLE IF EXISTS public.playback_state CASCADE;
 DROP TABLE IF EXISTS public.playback_history CASCADE;
 DROP TABLE IF EXISTS public.processed_commands CASCADE;
 DROP TABLE IF EXISTS public.playback_sessions CASCADE;
+DROP TABLE IF EXISTS public.user_playback_state CASCADE;
+DROP TABLE IF EXISTS public.jam_sessions CASCADE;
 DROP TABLE IF EXISTS public.saved_albums CASCADE;
 
 -- Drop orphaned triggers on auth.users that attempted to insert into dropped profiles
@@ -106,32 +108,7 @@ CREATE POLICY "Users can manage songs in their playlists"
 
 CREATE INDEX IF NOT EXISTS idx_playlist_songs_order ON public.playlist_songs(playlist_id, position ASC);
 
--- 5. CORE TABLE 4: JAM SESSIONS (Live Group Listening Sync)
-CREATE TABLE IF NOT EXISTS public.jam_sessions (
-    id TEXT PRIMARY KEY,
-    room_code TEXT UNIQUE NOT NULL,
-    host_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    host_device_id TEXT,
-    active_track_id TEXT,
-    position_ms BIGINT NOT NULL DEFAULT 0,
-    is_playing BOOLEAN NOT NULL DEFAULT FALSE,
-    revision BIGINT NOT NULL DEFAULT 1,
-    participants JSONB NOT NULL DEFAULT '[]'::jsonb,
-    queue JSONB NOT NULL DEFAULT '[]'::jsonb,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-ALTER TABLE public.jam_sessions ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Authenticated users can access jam sessions" ON public.jam_sessions;
-CREATE POLICY "Authenticated users can access jam sessions"
-    ON public.jam_sessions
-    FOR ALL
-    USING (auth.role() = 'authenticated')
-    WITH CHECK (auth.role() = 'authenticated');
-
--- 6. CONFIGURE REALTIME (KEEP ONLY JAM & LIKED SONGS)
+-- 5. CONFIGURE REALTIME (KEEP ONLY LIKED SONGS & PLAYLISTS)
 -- First remove any old publication tables
 DO $$
 DECLARE
@@ -156,8 +133,13 @@ DECLARE
         'user_library_state',
         'saved_albums',
         'devices',
+        'device_leases',
+        'processed_commands',
+        'playback_history',
         'playback_sessions',
-        'playback_state'
+        'playback_state',
+        'user_playback_state',
+        'jam_sessions'
     ];
 BEGIN
     FOREACH tbl IN ARRAY tables_to_remove LOOP
@@ -170,12 +152,9 @@ BEGIN
     END LOOP;
 END $$;
 
--- Enable Realtime ONLY for jam_sessions and liked_songs
+-- Enable Realtime ONLY for liked_songs and playlists
 DO $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'jam_sessions') THEN
-        ALTER PUBLICATION supabase_realtime ADD TABLE public.jam_sessions;
-    END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'liked_songs') THEN
         ALTER PUBLICATION supabase_realtime ADD TABLE public.liked_songs;
     END IF;

@@ -490,17 +490,7 @@ export function AudioPlayerController() {
       console.log('[SEEK] Store target:', targetSec, 'seconds (', Math.round(targetSec * 1000), 'ms)');
       lastSeekTimeRef.current = Date.now();
       
-      try {
-        const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
-        if (ConnectClientManager.getInstance().isRemoteMode()) {
-          ConnectClientManager.getInstance().sendCommand('SEEK', { positionMs: Math.round(targetSec * 1000) });
-        } else {
-          PlaybackService.getInstance().seek(targetSec);
-        }
-      } catch {
-        PlaybackService.getInstance().seek(targetSec);
-      }
-
+      PlaybackService.getInstance().seek(targetSec);
       LyricsEngine.getInstance().seek(targetSec * 1000);
       usePlayerStore.setState({ seekTarget: null });
     }

@@ -992,90 +992,7 @@ export const usePlayerStore = create<PlayerState>()(
       switchTrack: async (track: Song, index: number, autoPlay: boolean = true) => {
         if (!track) return false;
 
-        // RaagaX Connect: If in Remote Controller mode in browser, dispatch PLAY_SONG to the speaker
-        if (typeof window !== 'undefined') {
-          try {
-            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
-            const { useConnectStore } = await import('@/context/useConnectStore');
-            const connectClient = ConnectClientManager.getInstance();
-            if (connectClient.isRemoteMode()) {
-              const now = Date.now();
-              if ((globalThis as any).__lastRemoteTrackId === track.id && now - ((globalThis as any).__lastRemoteTrackTime || 0) < 600) {
-                return true;
-              }
-              (globalThis as any).__lastRemoteTrackId = track.id;
-              (globalThis as any).__lastRemoteTrackTime = now;
 
-              console.log(`[CONNECT_CONTROLLER_SWITCH_TRACK] Forwarding "${track.title}" to target playback device`);
-              const resolvedCover = JioSaavnMediaPipeline.getInstance().resolveSongArtwork({
-                songCoverUrl: track.songCoverUrl,
-                albumCoverUrl: track.albumCoverUrl,
-                coverUrl: track.coverUrl,
-              }) || (JioSaavnMediaPipeline.getInstance().isDirectSongOrAlbumArtwork(track.coverUrl) ? SongCoverEngine.getInstance().formatRawCoverUrl(track.coverUrl) : '/app-icon.png');
-
-              const formattedTrack = SongFormatter.formatSong({
-                ...track,
-                coverUrl: resolvedCover,
-              });
-
-              // Pre-resolve direct stream URL if possible to eliminate speaker fetch latency
-              let directAudioUrl = formattedTrack.audioUrl;
-              if (!directAudioUrl || directAudioUrl.includes('pixabay.com')) {
-                try {
-                  const { PlaybackSourceResolver } = await import('@/lib/playbackSourceResolver');
-                  const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(formattedTrack);
-                  if (source?.url) {
-                    directAudioUrl = source.url;
-                  }
-                } catch {}
-              }
-
-              const trackWithUrl: Song = {
-                ...formattedTrack,
-                audioUrl: directAudioUrl || formattedTrack.audioUrl,
-              };
-
-              const currentQueue = get().queue.length > 0 ? get().queue : [trackWithUrl];
-
-              // Optimistic UI update — mirror what the speaker will reflect
-              useConnectStore.setState((prev) => ({
-                remoteSession: prev.remoteSession ? {
-                  ...prev.remoteSession,
-                  currentTrackId: trackWithUrl.id,
-                  currentSong: trackWithUrl,
-                  queue: currentQueue,
-                  queueIndex: index,
-                  isPlaying: autoPlay,
-                  positionMs: 0,
-                  anchorPositionMs: 0,
-                  anchorTimeMs: Date.now(),
-                } : null,
-              }));
-
-              set({
-                currentSong: trackWithUrl,
-                queueIndex: index,
-                isPlaying: autoPlay,
-                playbackIntent: autoPlay ? 'PLAYING' : 'PAUSED',
-                currentTime: 0,
-                duration: trackWithUrl.duration || 0,
-              });
-
-              // Lock remote updates to this track for 1200ms to eliminate track bounce/flicker
-              connectClient.setOptimisticTrackLock(trackWithUrl.id, 1200);
-
-              // PLAY_SONG: instructs speaker to load and play this specific song immediately
-              await connectClient.sendCommand('PLAY_SONG', {
-                song: trackWithUrl,
-                queue: currentQueue,
-                queueIndex: index,
-                isPlaying: autoPlay,
-                positionMs: 0,
-              });
-              return true;
-            }
-          } catch { }
-        }
 
         const oldSong = get().currentSong;
         const oldIndex = get().queueIndex;
@@ -1225,23 +1142,7 @@ export const usePlayerStore = create<PlayerState>()(
           coverUrl: resolvedCover,
         });
 
-        // 3. RaagaX Connect: If currently acting as a Remote Controller in browser
 
-        // RaagaX Connect: If acting as Remote Controller, forward song selection to authoritative Speaker
-        try {
-          const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
-          const connectClient = ConnectClientManager.getInstance();
-          if (connectClient.isRemoteMode()) {
-            console.log(`[CONNECT_CONTROLLER_PLAY_SONG] Routing "${activePlaySong.title}" to authoritative Speaker`);
-            const dedupedQueue = newQueue && newQueue.length > 0 ? newQueue : [activePlaySong];
-            const startIdx = dedupedQueue.findIndex((s: Song) => s.id === activePlaySong.id);
-            const effectiveIdx = startIdx >= 0 ? startIdx : 0;
-
-            set({ queue: dedupedQueue, queueIndex: effectiveIdx, currentSong: activePlaySong });
-            await get().switchTrack(activePlaySong, effectiveIdx, true);
-            return;
-          }
-        } catch { }
 
         // NOTE: navigator.onLine is intentionally NOT used here.
         // On Android/Capacitor WebView it can return false even with a live network
@@ -1372,24 +1273,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       togglePlayPause: async () => {
-        // 0. RaagaX Connect: If in Remote Controller mode in browser, dispatch command to the playback device
-        if (typeof window !== 'undefined') {
-          try {
-            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
-            const connectClient = ConnectClientManager.getInstance();
-            if (connectClient.isRemoteMode()) {
-              const isPlayingNow = get().isPlaying;
-              if (isPlayingNow) {
-                set({ isPlaying: false, playbackIntent: 'PAUSED' });
-                await connectClient.sendCommand('PAUSE');
-              } else {
-                set({ isPlaying: true, playbackIntent: 'PLAYING' });
-                await connectClient.sendCommand('RESUME');
-              }
-              return;
-            }
-          } catch { }
-        }
+
 
         // 1. Single Source of Truth: derive true playing state directly from store or active engine
         let currentLivePlaying = get().isPlaying;
@@ -1435,18 +1319,7 @@ export const usePlayerStore = create<PlayerState>()(
         MediaSessionManager.getInstance().setPlaybackState(playing ? 'playing' : 'paused');
 
         if (!fromRemote) {
-          // CONTROLLER MODE GUARD: When isLocalPlayback === false, dispatch command and dormant local audio
-          if (!get().isLocalPlayback) {
-            try {
-              const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
-              if (playing) {
-                await ConnectClientManager.getInstance().sendCommand('RESUME');
-              } else {
-                await ConnectClientManager.getInstance().sendCommand('PAUSE');
-              }
-            } catch {}
-            return;
-          }
+
 
           if (RaagaXNativePlayer.isNative()) {
             if (!playing) {
@@ -1468,13 +1341,7 @@ export const usePlayerStore = create<PlayerState>()(
 
         set({ currentTime: time });
 
-        if (!fromRemote && !get().isLocalPlayback) {
-          try {
-            const { ConnectClientManager } = require('@/lib/connect/ConnectClientManager');
-            ConnectClientManager.getInstance().sendCommand('SEEK', { positionMs: Math.round(time * 1000) });
-          } catch {}
-          return;
-        }
+
 
         const state = get();
         if (state.currentSong) {
@@ -1496,33 +1363,12 @@ export const usePlayerStore = create<PlayerState>()(
         set({ volume: safeVol });
         persistSessionHelper(get());
 
-        if (!get().isLocalPlayback) {
-          try {
-            import('@/lib/connect/ConnectClientManager').then(({ ConnectClientManager }) => {
-              ConnectClientManager.getInstance().sendCommand('SET_VOLUME', { volume: safeVol });
-            }).catch(() => {});
-          } catch {}
-        }
+
       },
       toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 
       playNext: async (isNaturalAutoEnd: boolean = false) => {
-        // RaagaX Connect: If in Remote Controller mode in browser, dispatch target track with pre-resolved audioUrl
-        if (typeof window !== 'undefined') {
-          try {
-            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
-            const connectClient = ConnectClientManager.getInstance();
-            if (connectClient.isRemoteMode()) {
-              const { queue, queueIndex, repeatMode } = get();
-              const nextIndex = getNextQueueIndex(queue, queueIndex, repeatMode);
-              if (nextIndex >= 0 && nextIndex < queue.length) {
-                const nextTrack = queue[nextIndex];
-                await get().switchTrack(nextTrack, nextIndex, true);
-              }
-              return;
-            }
-          } catch { }
-        }
+
 
         const { duration, currentTime, isPlaying, playbackIntent } = get();
         const isComplete = duration > 0 && currentTime >= duration - 5;
@@ -1565,48 +1411,7 @@ export const usePlayerStore = create<PlayerState>()(
       playPrev: async () => {
         const { queue, queueIndex, currentTime, currentSong, repeatMode, isPlaying, playbackIntent } = get();
 
-        // RaagaX Connect: If in Remote Controller mode in browser
-        if (typeof window !== 'undefined') {
-          try {
-            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
-            const connectClient = ConnectClientManager.getInstance();
-            if (connectClient.isRemoteMode()) {
-              if (currentTime > 3) {
-                await connectClient.sendCommand('SEEK', { positionMs: 0 });
-              } else {
-                const prevIndex = getPreviousQueueIndex(queue, queueIndex, repeatMode);
-                if (prevIndex >= 0 && prevIndex < queue.length) {
-                  const prevTrack = queue[prevIndex];
-                  await get().switchTrack(prevTrack, prevIndex, true);
-                }
-              }
-              return;
-            }
-          } catch { }
-        }
 
-
-        // RaagaX Connect: If in Remote Controller mode, dispatch target track or seek(0) to Speaker
-        if (typeof window !== 'undefined') {
-          try {
-            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
-            const connectClient = ConnectClientManager.getInstance();
-            if (connectClient.isRemoteMode()) {
-              if (currentTime > 3) {
-                set({ currentTime: 0 });
-                await connectClient.sendCommand('SEEK', { positionMs: 0 });
-                return;
-              }
-              const { queue, queueIndex, repeatMode } = get();
-              const prevIndex = getPreviousQueueIndex(queue, queueIndex, repeatMode);
-              if (prevIndex >= 0 && prevIndex < queue.length) {
-                const prevTrack = queue[prevIndex];
-                await get().switchTrack(prevTrack, prevIndex, true);
-              }
-              return;
-            }
-          } catch { }
-        }
 
         // If track played more than 3 seconds, restart current track at 0:00 and keep current playing state
         if (currentTime > 3) {
@@ -1643,19 +1448,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       toggleShuffle: async () => {
-        if (typeof window !== 'undefined') {
-          try {
-            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
-            const connectClient = ConnectClientManager.getInstance();
-            if (connectClient.isRemoteMode()) {
-              const curShuffle = get().shuffleMode !== 'OFF';
-              const nextShuffle = !curShuffle;
-              set({ shuffleMode: nextShuffle ? 'STANDARD' : 'OFF' });
-              await connectClient.sendCommand('SET_SHUFFLE', { shuffle: nextShuffle });
-              return;
-            }
-          } catch { }
-        }
+
 
         const manager = QueueManager.getInstance();
         manager.toggleShuffle();
@@ -1680,17 +1473,7 @@ export const usePlayerStore = create<PlayerState>()(
         const normalized: 'OFF' | 'ALL' | 'ONE' = (raw === 'ONE' || raw === 'TRACK') ? 'ONE' : (raw === 'ALL' || raw === 'CONTEXT') ? 'ALL' : 'OFF';
         console.log(`[REPEAT] ${normalized}`);
 
-        if (typeof window !== 'undefined') {
-          try {
-            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
-            const connectClient = ConnectClientManager.getInstance();
-            if (connectClient.isRemoteMode()) {
-              set({ repeatMode: normalized as any });
-              await connectClient.sendCommand('SET_REPEAT', { repeat: normalized });
-              return;
-            }
-          } catch { }
-        }
+
 
         QueueManager.getInstance().setRepeatMode(normalized as any);
         set({ repeatMode: normalized as any });
@@ -1712,18 +1495,7 @@ export const usePlayerStore = create<PlayerState>()(
       addToQueue: async (song) => {
         if (!song || !song.id) return;
 
-        if (typeof window !== 'undefined') {
-          try {
-            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
-            const connectClient = ConnectClientManager.getInstance();
-            if (connectClient.isRemoteMode()) {
-              const curQ = (get().queue || []).filter(Boolean);
-              set({ queue: [...curQ, song] });
-              await connectClient.sendCommand('ADD_TO_QUEUE', { song });
-              return;
-            }
-          } catch { }
-        }
+
 
         const manager = QueueManager.getInstance();
         manager.addToQueue(song);
@@ -1748,18 +1520,7 @@ export const usePlayerStore = create<PlayerState>()(
         get().addToQueue(song);
       },
       removeFromQueue: async (songId) => {
-        if (typeof window !== 'undefined') {
-          try {
-            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
-            const connectClient = ConnectClientManager.getInstance();
-            if (connectClient.isRemoteMode()) {
-              const curQ = (get().queue || []).filter((s) => s.id !== songId);
-              set({ queue: curQ });
-              await connectClient.sendCommand('REMOVE_FROM_QUEUE', { trackId: songId });
-              return;
-            }
-          } catch { }
-        }
+
 
         const manager = QueueManager.getInstance();
         const items = manager.getAllItems();
@@ -1774,17 +1535,7 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
       reorderQueue: async (newQueue) => {
-        if (typeof window !== 'undefined') {
-          try {
-            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
-            const connectClient = ConnectClientManager.getInstance();
-            if (connectClient.isRemoteMode()) {
-              set({ queue: newQueue });
-              await connectClient.sendCommand('REORDER_QUEUE', { queue: newQueue, queueIndex: get().queueIndex });
-              return;
-            }
-          } catch { }
-        }
+
 
         const manager = QueueManager.getInstance();
         manager.replaceQueue(newQueue, get().queueIndex, 'USER');
@@ -1797,16 +1548,7 @@ export const usePlayerStore = create<PlayerState>()(
         const activeSong = queue[queueIndex];
         const trimmedQueue = activeSong ? [activeSong] : [];
 
-        if (typeof window !== 'undefined') {
-          try {
-            const { ConnectClientManager } = await import('@/lib/connect/ConnectClientManager');
-            const connectClient = ConnectClientManager.getInstance();
-            if (connectClient.isRemoteMode()) {
-              set({ queue: trimmedQueue, queueIndex: 0 });
-              return;
-            }
-          } catch { }
-        }
+
         const remainingQueue = queue.slice(0, queueIndex + 1);
         const manager = QueueManager.getInstance();
         manager.replaceQueue(remainingQueue, queueIndex, 'USER');

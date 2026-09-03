@@ -96,13 +96,6 @@ export class PlaybackRecoveryEngine {
   public restoreSnapshot(): PlaybackSnapshot | null {
     if (typeof window === 'undefined') return null;
     try {
-      try {
-        const { useConnectStore } = require('@/context/useConnectStore');
-        if (useConnectStore?.getState()?.isRemoteMode || !usePlayerStore?.getState()?.isLocalPlayback) {
-          return null; // Skip restoring local snapshots while in Connect remote mode
-        }
-      } catch {}
-
       const raw = localStorage.getItem(SNAPSHOT_KEY);
       if (!raw) return null;
 
