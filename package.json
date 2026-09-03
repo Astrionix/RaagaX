@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "description": "RaagaX - Futuristic Music Streaming Platform & High Performance Music API Engine",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "main": "electron/main.js",
   "scripts": {
     "predev": "node scripts/clean-dev.js",
