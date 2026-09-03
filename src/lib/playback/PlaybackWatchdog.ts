@@ -76,7 +76,11 @@ export class PlaybackWatchdog {
           
           // Graceful recovery of current song source — NEVER auto-skip!
           activeAudio.load();
-          activeAudio.play().catch(() => {});
+          activeAudio.play().catch((err: any) => {
+            if (err?.name === 'NotAllowedError') {
+              console.warn('[Jam] Audio locked pending user gesture.');
+            }
+          });
         }
       } else {
         this.lastPositionMs = currentPosMs;
