@@ -686,9 +686,18 @@ export class ConnectClientManager {
     //    getInterpolatedPosition() has the correct reference point.
     const nowMonotonic = typeof performance !== 'undefined' ? performance.now() : Date.now();
     this.arrivalMonotonicMs = nowMonotonic;
-    this.positionAnchorAtArrivalMs = session.isPlaying
+
+    // Account for elapsed time between speaker's anchor timestamp and packet arrival
+    const anchorLagMs = session.isPlaying && session.anchorTimeMs && session.anchorTimeMs > 0
+      ? Math.max(0, Date.now() - session.anchorTimeMs)
+      : 0;
+
+    const basePos = session.isPlaying
       ? (session.anchorPositionMs ?? session.positionMs ?? 0)
       : (session.positionMs ?? 0);
+
+    const dur = session.durationMs > 0 ? session.durationMs : Infinity;
+    this.positionAnchorAtArrivalMs = Math.min(dur, basePos + anchorLagMs);
 
     if (isLocalPlaybackDevice) {
       if (this.isRemoteMode()) {
