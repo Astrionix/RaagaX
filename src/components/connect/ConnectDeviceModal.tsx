@@ -279,7 +279,15 @@ export function ConnectDeviceModal() {
               </span>
             ) : (
               <span className="text-zinc-400">
-                {device.transport === 'CLOUD_RELAY' ? 'Cloud' : 'Local Wi-Fi'}
+                {device.discoverySource === 'LOCAL_WIFI' && !device.isSameAccount
+                  ? 'Local Wi-Fi • Guest Session'
+                  : device.discoverySource === 'ACCOUNT'
+                  ? 'Spotify / RaagaX Connect'
+                  : device.discoverySource === 'LOCAL_WIFI'
+                  ? 'Local Wi-Fi • Guest Session'
+                  : device.transport === 'CLOUD_RELAY'
+                  ? 'Spotify / RaagaX Connect'
+                  : 'Local Wi-Fi'}
               </span>
             )}
           </div>

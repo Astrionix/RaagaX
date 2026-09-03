@@ -256,7 +256,13 @@ export function DevicePickerModal() {
                               ? '▶ Connected • Playing here'
                               : (dev.state === 'PLAYING' && dev.currentSong
                                 ? `Listening to: ${dev.currentSong.title}`
-                                : 'RaagaX Connect')}
+                                : dev.discoverySource === 'LOCAL_WIFI' && !dev.isSameAccount
+                                ? 'Local Wi-Fi • Guest Session'
+                                : dev.discoverySource === 'ACCOUNT'
+                                ? 'Spotify / RaagaX Connect'
+                                : dev.discoverySource === 'LOCAL_WIFI'
+                                ? 'Local Wi-Fi • Guest Session'
+                                : 'Spotify / RaagaX Connect')}
                           </p>
                         </div>
                       </div>

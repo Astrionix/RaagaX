@@ -25,7 +25,9 @@ export class ConnectDiscoveryEngine {
   private listeners: Set<DeviceListListener> = new Set();
   private heartbeatTimer: any = null;
   private broadcastChannel: BroadcastChannel | null = null;
-  private presenceChannel: any = null;
+  private userChannel: any = null;
+  private lanChannel: any = null;
+  private currentNetworkHash: string | null = null;
   private subscribedUserId: string | null = null;
   private localSubnet: string = '127.0.0';
   private lastHttpBeaconTime: number = 0;
@@ -37,6 +39,7 @@ export class ConnectDiscoveryEngine {
       this.setupBroadcastChannel();
       this.setupLifecycleListeners();
       this.startAdvertising();
+      this.setupLanPresenceChannel();
       this.setupPresenceFromCurrentAuth();
       try {
         LocalLanDiscovery.getInstance().connectStream();
@@ -129,7 +132,10 @@ export class ConnectDiscoveryEngine {
       });
     }
     window.addEventListener('focus', onWakeOrReconnect);
-    window.addEventListener('online', onWakeOrReconnect);
+    window.addEventListener('online', () => {
+      this.setupLanPresenceChannel();
+      onWakeOrReconnect();
+    });
 
     // Automatically sync presence channel when user logs in or out
     try {
@@ -155,10 +161,34 @@ export class ConnectDiscoveryEngine {
       if (user?.id) {
         this.localDevice.accountId = user.id;
         if (user.email) (this.localDevice as any).email = user.email;
+        this.setupPresenceChannel(user.id);
+      } else {
+        this.cleanupPresenceChannel();
       }
-      this.setupPresenceChannel(user?.id || null);
     } catch {
-      this.setupPresenceChannel(null);
+      this.cleanupPresenceChannel();
+    }
+  }
+
+  public async setupLanPresenceChannel(): Promise<void> {
+    if (typeof window === 'undefined') return;
+    try {
+      const hash = await this.resolveNetworkHash();
+      if (!hash) return;
+      if (this.currentNetworkHash === hash && this.lanChannel) return;
+
+      if (this.lanChannel) {
+        try {
+          supabase.removeChannel(this.lanChannel);
+        } catch {}
+        this.lanChannel = null;
+      }
+
+      this.currentNetworkHash = hash;
+      const channelName = `devices_lan_${hash}`;
+      this.lanChannel = this.createConfiguredChannel(channelName, 'LOCAL_WIFI');
+    } catch (err) {
+      console.warn('[ConnectDiscoveryEngine] Failed to setup LAN presence channel:', err);
     }
   }
 
@@ -166,61 +196,53 @@ export class ConnectDiscoveryEngine {
     if (typeof window === 'undefined') return;
     if (userId) {
       this.localDevice.accountId = userId;
-    }
-
-    if (this.presenceChannel) {
-      // Already connected to discovery mesh; update tracked state with current identity & subnet
-      try {
-        this.presenceChannel.track({
-          device: {
-            ...this.localDevice,
-            deviceId: this.localDevice.deviceId,
-            deviceName: this.localDevice.deviceName,
-            deviceType: this.localDevice.deviceType,
-            isSpeakerActive: this.localDevice.state === 'PLAYING',
-            subnet: this.localSubnet || '127.0.0',
-          },
-          onlineAt: Date.now(),
-        }).catch(() => {});
-      } catch {}
+    } else {
+      this.cleanupPresenceChannel();
       return;
     }
 
+    const channelName = `devices_user_${userId}`;
+    if (this.userChannel) {
+      if (this.subscribedUserId === userId) {
+        this.trackOnChannel(this.userChannel);
+        return;
+      }
+      try {
+        supabase.removeChannel(this.userChannel);
+      } catch {}
+      this.userChannel = null;
+    }
+
+    this.subscribedUserId = userId;
+    this.userChannel = this.createConfiguredChannel(channelName, 'ACCOUNT');
+  }
+
+  public cleanupPresenceChannel(): void {
+    this.localDevice.accountId = undefined;
+    this.subscribedUserId = null;
+    if (this.userChannel) {
+      try {
+        supabase.removeChannel(this.userChannel);
+      } catch {}
+      this.userChannel = null;
+    }
+    this.handleAggregatePresenceSync();
+  }
+
+  private createConfiguredChannel(channelName: string, _channelType: 'ACCOUNT' | 'LOCAL_WIFI'): any {
     try {
-      const channelName = 'raaga_connect_mesh';
-      this.presenceChannel = supabase.channel(channelName, {
+      const channel = supabase.channel(channelName, {
         config: {
           presence: { key: this.localDevice.deviceId },
           broadcast: { self: false },
         },
       });
 
-      const handlePresenceMeshUpdate = () => {
-        const state = this.presenceChannel?.presenceState() || {};
-        const currentDeviceId = this.localDevice.deviceId;
-
-        // Flatten all presences across all presence keys
-        const allPresences = Object.values(state).flat();
-
-        for (const presence of allPresences) {
-          const raw = presence as any;
-          if (!raw) continue;
-          const remote = (raw.device || raw) as ConnectDevice & { subnet?: string; type?: string };
-          const remoteId = remote?.deviceId || raw?.deviceId;
-          if (!remoteId || remoteId === currentDeviceId || remoteId === 'dev_local') continue;
-
-          this.handleIncomingPeerDevice(remote);
-        }
-
-        console.log('[DISCOVERY_DEVICES_FOUND]', Array.from(this.discoveredDevices.values()));
-      };
-
-      this.presenceChannel
-        .on('presence', { event: 'sync' }, handlePresenceMeshUpdate)
-        .on('presence', { event: 'join' }, handlePresenceMeshUpdate)
-        .on('presence', { event: 'leave' }, handlePresenceMeshUpdate)
-        .on('broadcast', { event: 'DEVICE_PROBE' }, (_msg: any) => {
-          // A peer device is probing for active devices — respond immediately
+      channel
+        .on('presence', { event: 'sync' }, () => this.handleAggregatePresenceSync())
+        .on('presence', { event: 'join' }, () => this.handleAggregatePresenceSync())
+        .on('presence', { event: 'leave' }, () => this.handleAggregatePresenceSync())
+        .on('broadcast', { event: 'DEVICE_PROBE' }, () => {
           this.announcePresence();
         })
         .on('broadcast', { event: 'DEVICE_ANNOUNCE' }, (msg: any) => {
@@ -246,61 +268,218 @@ export class ConnectDiscoveryEngine {
           }
         })
         .subscribe(async (status: string) => {
-          console.log('[DISCOVERY] status:', status);
+          console.log(`[DISCOVERY] ${channelName} status:`, status);
           if (status === 'SUBSCRIBED') {
-            const trackPayload = {
-              deviceId: this.localDevice.deviceId,
-              deviceName: this.localDevice.deviceName,
-              deviceType: this.localDevice.deviceType,
-              type: this.localDevice.deviceType,
-              isSpeakerActive: this.localDevice.state === 'PLAYING',
-              subnet: this.localSubnet || '127.0.0',
-              accountId: this.localDevice.accountId,
-              device: {
-                ...this.localDevice,
-                deviceId: this.localDevice.deviceId,
-                deviceName: this.localDevice.deviceName,
-                deviceType: this.localDevice.deviceType,
-                type: this.localDevice.deviceType,
-                isSpeakerActive: this.localDevice.state === 'PLAYING',
-                subnet: this.localSubnet || '127.0.0',
-              },
-              onlineAt: Date.now(),
-            };
-            await this.presenceChannel?.track(trackPayload).catch((e: any) => console.warn('[DISCOVERY] Track error:', e));
-            console.log('[DISCOVERY] Successfully tracked device on presence mesh:', this.localDevice.deviceId);
+            await this.trackOnChannel(channel);
             this.announcePresence();
             this.sendDeviceProbe();
-            handlePresenceMeshUpdate();
-          } else if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
-            console.warn('[DISCOVERY] Supabase channel status error:', status);
+            this.handleAggregatePresenceSync();
           }
         });
+
+      return channel;
     } catch (e) {
-      console.warn('[ConnectDiscoveryEngine] Supabase presence channel error:', e);
+      console.warn(`[ConnectDiscoveryEngine] Channel ${channelName} error:`, e);
+      return null;
     }
   }
 
-  public cleanupPresenceChannel(): void {
-    this.localDevice.accountId = undefined;
-    if (this.presenceChannel) {
-      try {
-        this.presenceChannel.track({
-          device: {
-            ...this.localDevice,
-            accountId: null,
-            subnet: this.localSubnet || '127.0.0',
-          },
-          onlineAt: Date.now(),
-        }).catch(() => {});
-      } catch {}
+  private async trackOnChannel(channel: any): Promise<void> {
+    if (!channel || (channel as any).state !== 'joined') return;
+    try {
+      const trackPayload = {
+        deviceId: this.localDevice.deviceId,
+        deviceName: this.localDevice.deviceName,
+        deviceType: this.localDevice.deviceType,
+        type: this.localDevice.deviceType,
+        isSpeakerActive: this.localDevice.state === 'PLAYING',
+        subnet: this.localSubnet || '127.0.0',
+        accountId: this.localDevice.accountId,
+        device: {
+          ...this.localDevice,
+          deviceId: this.localDevice.deviceId,
+          deviceName: this.localDevice.deviceName,
+          deviceType: this.localDevice.deviceType,
+          type: this.localDevice.deviceType,
+          isSpeakerActive: this.localDevice.state === 'PLAYING',
+          subnet: this.localSubnet || '127.0.0',
+          accountId: this.localDevice.accountId,
+        },
+        onlineAt: Date.now(),
+      };
+      await channel.track(trackPayload).catch((e: any) => console.warn('[DISCOVERY] Track error:', e));
+    } catch {}
+  }
+
+  private extractPresencesFromChannel(channel: any, currentDeviceId: string): ConnectDevice[] {
+    if (!channel) return [];
+    try {
+      const state = channel.presenceState?.() || {};
+      const allPresences = Object.values(state).flat();
+      const list: ConnectDevice[] = [];
+
+      for (const presence of allPresences) {
+        const raw = presence as any;
+        if (!raw) continue;
+        const remote = (raw.device || raw) as ConnectDevice & { subnet?: string; type?: string };
+        const remoteId = remote?.deviceId || raw?.deviceId;
+        if (!remoteId || remoteId === currentDeviceId || remoteId === 'dev_local') continue;
+
+        list.push({
+          ...remote,
+          deviceId: remoteId,
+          deviceName: remote.deviceName || raw.deviceName || 'Remote Device',
+          deviceType: remote.deviceType || raw.deviceType || (remote as any).type || 'speaker',
+          state: remote.state || (raw.isSpeakerActive ? 'PLAYING' : 'IDLE'),
+          accountId: remote.accountId || raw.accountId,
+          subnet: remote.subnet || raw.subnet,
+        });
+      }
+      return list;
+    } catch {
+      return [];
     }
+  }
+
+  public handleAggregatePresenceSync(): void {
+    const currentDeviceId = this.localDevice.deviceId;
+    const myAccountId = this.localDevice.accountId;
+
+    // 1. Extract presences from Account Channel
+    const userPresences: ConnectDevice[] = this.extractPresencesFromChannel(this.userChannel, currentDeviceId);
+
+    // 2. Extract presences from LAN Channel
+    const lanPresences: ConnectDevice[] = this.extractPresencesFromChannel(this.lanChannel, currentDeviceId);
+
+    // 3. Deduplicated aggregate device store
+    const deviceMap = new Map<string, ConnectDevice>();
+
+    // Add Account Presences
+    userPresences.forEach((dev) => {
+      const isSameAccount = Boolean(myAccountId && dev.accountId && myAccountId === dev.accountId);
+      deviceMap.set(dev.deviceId, {
+        ...dev,
+        isCurrentDevice: false,
+        lastSeenAt: Date.now(),
+        transport: 'CLOUD_RELAY',
+        authStatus: 'AUTO_AUTHORIZED',
+        isSameAccount: Boolean(isSameAccount),
+        discoverySource: 'ACCOUNT',
+      });
+    });
+
+    // Merge LAN Presences (if not already present, mark as LOCAL_WIFI)
+    lanPresences.forEach((dev) => {
+      const isSameAccount = Boolean(myAccountId && dev.accountId && myAccountId === dev.accountId);
+      if (!deviceMap.has(dev.deviceId)) {
+        deviceMap.set(dev.deviceId, {
+          ...dev,
+          isCurrentDevice: false,
+          lastSeenAt: Date.now(),
+          transport: 'LOCAL_LAN',
+          authStatus: isSameAccount ? 'AUTO_AUTHORIZED' : 'REQUIRES_PAIRING',
+          isSameAccount: Boolean(isSameAccount),
+          discoverySource: 'LOCAL_WIFI',
+        });
+      } else {
+        const existing = deviceMap.get(dev.deviceId)!;
+        existing.isSameSubnet = true;
+        if (dev.subnet) existing.subnet = dev.subnet;
+      }
+    });
+
+    // Merge any existing local browser beacons
+    this.discoveredDevices.forEach((dev, id) => {
+      if (id !== currentDeviceId && !deviceMap.has(id)) {
+        deviceMap.set(id, dev);
+      }
+    });
+
+    this.discoveredDevices = deviceMap;
+    const aggregatedDevices = Array.from(deviceMap.values());
+
+    try {
+      const { useConnectStore } = require('@/context/useConnectStore');
+      useConnectStore.getState().setDiscoveredDevices(aggregatedDevices);
+    } catch {}
+
+    this.notifyListeners();
+  }
+
+  private async resolveNetworkHash(): Promise<string> {
+    try {
+      const res = await fetch(getApiUrl('/api/connect/network-hash'));
+      const data = await res.json();
+      if (data?.networkHash) {
+        if (data.subnet) this.localSubnet = data.subnet;
+        return data.networkHash;
+      }
+    } catch {}
+
+    try {
+      const webrtcHash = await this.getWebRTCNetworkHash();
+      if (webrtcHash) return webrtcHash;
+    } catch {}
+
+    return 'local_mesh';
+  }
+
+  private getWebRTCNetworkHash(): Promise<string | null> {
+    return new Promise((resolve) => {
+      if (typeof window === 'undefined' || typeof RTCPeerConnection === 'undefined') {
+        return resolve(null);
+      }
+      try {
+        const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+        let resolved = false;
+        const timer = setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            try { pc.close(); } catch {}
+            resolve(null);
+          }
+        }, 1500);
+
+        pc.onicecandidate = (e) => {
+          if (!e.candidate || resolved) return;
+          const candidateStr = e.candidate.candidate;
+          const parts = candidateStr.split(' ');
+          const ip = parts[4];
+          if (ip) {
+            resolved = true;
+            clearTimeout(timer);
+            try { pc.close(); } catch {}
+            let hash = 0;
+            for (let i = 0; i < ip.length; i++) {
+              hash = (hash << 5) - hash + ip.charCodeAt(i);
+              hash |= 0;
+            }
+            resolve(Math.abs(hash).toString(16).padStart(8, '0'));
+          }
+        };
+
+        pc.createDataChannel('');
+        pc.createOffer().then((offer) => pc.setLocalDescription(offer)).catch(() => {
+          if (!resolved) {
+            resolved = true;
+            clearTimeout(timer);
+            resolve(null);
+          }
+        });
+      } catch {
+        resolve(null);
+      }
+    });
   }
 
   public sendSupabaseBroadcast(event: string, payload: any): void {
-    if (this.presenceChannel && (this.presenceChannel as any).state === 'joined') {
+    const channels = [this.userChannel, this.lanChannel].filter(
+      (ch): ch is any => Boolean(ch && (ch as any).state === 'joined')
+    );
+
+    for (const ch of channels) {
       try {
-        this.presenceChannel.send({
+        ch.send({
           type: 'broadcast',
           event,
           payload,
@@ -310,46 +489,38 @@ export class ConnectDiscoveryEngine {
   }
 
   public announcePresence(): void {
-    if (!this.presenceChannel || (this.presenceChannel as any).state !== 'joined') return;
-    try {
-      this.presenceChannel.send({
-        type: 'broadcast',
-        event: 'DEVICE_ANNOUNCE',
-        payload: {
-          device: {
-            ...this.localDevice,
-            deviceId: this.localDevice.deviceId,
-            deviceName: this.localDevice.deviceName,
-            deviceType: this.localDevice.deviceType,
-            type: this.localDevice.deviceType,
-            isSpeakerActive: this.localDevice.state === 'PLAYING',
-            lastSeenAt: Date.now(),
-          }
-        }
-      }).catch(() => {});
-    } catch {}
+    this.sendSupabaseBroadcast('DEVICE_ANNOUNCE', {
+      device: {
+        ...this.localDevice,
+        deviceId: this.localDevice.deviceId,
+        deviceName: this.localDevice.deviceName,
+        deviceType: this.localDevice.deviceType,
+        type: this.localDevice.deviceType,
+        isSpeakerActive: this.localDevice.state === 'PLAYING',
+        lastSeenAt: Date.now(),
+        accountId: this.localDevice.accountId,
+        subnet: this.localSubnet,
+      },
+    });
   }
 
   public sendDeviceProbe(): void {
-    if (!this.presenceChannel || (this.presenceChannel as any).state !== 'joined') return;
-    try {
-      this.presenceChannel.send({
-        type: 'broadcast',
-        event: 'DEVICE_PROBE',
-        payload: {
-          senderDeviceId: this.localDevice.deviceId,
-        }
-      }).catch(() => {});
-    } catch {}
+    this.sendSupabaseBroadcast('DEVICE_PROBE', {
+      senderDeviceId: this.localDevice.deviceId,
+    });
   }
 
-  public handleIncomingPeerDevice(remote: ConnectDevice): void {
+  public handleIncomingPeerDevice(remote: ConnectDevice, source?: 'ACCOUNT' | 'LOCAL_WIFI'): void {
     if (!remote || !remote.deviceId || remote.deviceId === this.localDevice.deviceId || remote.deviceId === 'dev_local') return;
 
     const devType = remote.deviceType || (remote as any).type || 'speaker';
     const myAccount = this.localDevice.accountId;
     const remoteAccount = remote.accountId || (remote as any).accountId;
     const isSameAccount = Boolean(myAccount && remoteAccount && myAccount === remoteAccount);
+    const resolvedSource = source || (isSameAccount ? 'ACCOUNT' : 'LOCAL_WIFI');
+
+    const existing = this.discoveredDevices.get(remote.deviceId);
+    const finalSource = (existing?.discoverySource === 'ACCOUNT' || resolvedSource === 'ACCOUNT') ? 'ACCOUNT' : 'LOCAL_WIFI';
 
     this.discoveredDevices.set(remote.deviceId, {
       ...remote,
@@ -358,10 +529,16 @@ export class ConnectDiscoveryEngine {
       deviceType: devType,
       isCurrentDevice: false,
       lastSeenAt: Date.now(),
-      transport: 'CLOUD_RELAY',
-      authStatus: 'AUTO_AUTHORIZED',
+      transport: finalSource === 'LOCAL_WIFI' ? 'LOCAL_LAN' : 'CLOUD_RELAY',
+      authStatus: isSameAccount ? 'AUTO_AUTHORIZED' : 'REQUIRES_PAIRING',
       isSameAccount: Boolean(isSameAccount),
+      discoverySource: finalSource,
     });
+
+    try {
+      const { useConnectStore } = require('@/context/useConnectStore');
+      useConnectStore.getState().setDiscoveredDevices(Array.from(this.discoveredDevices.values()));
+    } catch {}
 
     this.notifyListeners();
   }
@@ -420,21 +597,14 @@ export class ConnectDiscoveryEngine {
   public broadcastBeacon(): void {
     this.localDevice.lastSeenAt = Date.now();
 
-    // Track active presence on Supabase Realtime channel
-    if (this.presenceChannel) {
-      this.presenceChannel.track({
-        device: {
-          ...this.localDevice,
-          deviceId: this.localDevice.deviceId,
-          deviceName: this.localDevice.deviceName,
-          deviceType: this.localDevice.deviceType,
-          isSpeakerActive: this.localDevice.state === 'PLAYING',
-          subnet: this.localSubnet || '127.0.0',
-        },
-        onlineAt: Date.now(),
-      }).catch(() => {});
-      this.announcePresence();
+    // Track active presence on both Supabase Realtime channels
+    if (this.userChannel) {
+      this.trackOnChannel(this.userChannel);
     }
+    if (this.lanChannel) {
+      this.trackOnChannel(this.lanChannel);
+    }
+    this.announcePresence();
 
     // 1. Broadcast via local BroadcastChannel (same browser tab fast path)
     if (this.broadcastChannel) {
@@ -521,23 +691,8 @@ export class ConnectDiscoveryEngine {
       } catch {}
     }
 
-    // 2. Scan Supabase Realtime presence mesh for instant zero-latency discovery
-    if (this.presenceChannel) {
-      try {
-        const state = this.presenceChannel.presenceState() || {};
-        const currentDeviceId = this.localDevice.deviceId;
-        const allPresences = Object.values(state).flat();
-        for (const presence of allPresences) {
-          const raw = presence as any;
-          if (!raw) continue;
-          const remote = (raw.device || raw) as ConnectDevice & { type?: string };
-          const remoteId = remote?.deviceId || raw?.deviceId;
-          if (!remoteId || remoteId === currentDeviceId || remoteId === 'dev_local') continue;
-
-          this.handleIncomingPeerDevice(remote);
-        }
-      } catch {}
-    }
+    // 2. Scan Supabase Realtime presence mesh for dual-track discovery
+    this.handleAggregatePresenceSync();
 
     // 3. Scan same-origin HTTP API (bridges across different browsers, Brave Shields, or local network)
     if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {

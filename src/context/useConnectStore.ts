@@ -46,6 +46,7 @@ interface ConnectStoreState {
 
   // Actions
   scanDevices: () => void;
+  setDiscoveredDevices: (devices: ConnectDevice[]) => void;
   transferPlayback: (targetDevice: ConnectDevice) => Promise<boolean>;
   /** Detach this controller — the speaker KEEPS PLAYING, local enters idle/silent mode */
   disconnect: () => Promise<boolean>;
@@ -175,6 +176,18 @@ export const useConnectStore = create<ConnectStoreState>((set, get) => {
       const discovery = ConnectDiscoveryEngine.getInstance();
       const freshDevices = discovery.scanNow();
       set({ devices: freshDevices, isScanning: false });
+    },
+
+    setDiscoveredDevices: (discovered: ConnectDevice[]) => {
+      const localDevice = ConnectDiscoveryEngine.getInstance().getLocalDevice();
+      const currentLocal = {
+        ...localDevice,
+        isCurrentDevice: true,
+      };
+      const filtered = discovered.filter(
+        (d) => d.deviceId !== localDevice.deviceId && !d.isCurrentDevice
+      );
+      set({ devices: [currentLocal, ...filtered] });
     },
 
     transferPlayback: async (targetDevice: ConnectDevice) => {

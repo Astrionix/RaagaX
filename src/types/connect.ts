@@ -42,6 +42,7 @@ export interface ConnectDevice {
   subnet?: string;
   isSameAccount?: boolean;
   isSameSubnet?: boolean;
+  discoverySource?: 'ACCOUNT' | 'LOCAL_WIFI';
   capabilities?: {
     canPlayAudio: boolean;
     supportsVolume: boolean;
