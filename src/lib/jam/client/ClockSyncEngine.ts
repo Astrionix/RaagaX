@@ -110,7 +110,8 @@ export class ClockSyncEngine {
     const payload: TimeSyncPing = { clientSendTime: t0 };
 
     try {
-      const res = await fetch(getApiUrl('/api/jam/time-sync'), {
+      const url = typeof window !== 'undefined' ? '/api/jam/time-sync' : getApiUrl('/api/jam/time-sync');
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -119,9 +120,8 @@ export class ClockSyncEngine {
 
       if (!res.ok) {
         return {
-          offset: 0,
           rtt: 2,
-          jitter: 0,
+          offset: 0,
           timestamp: Date.now(),
         };
       }
@@ -143,8 +143,11 @@ export class ClockSyncEngine {
 
       return { rtt, offset, timestamp: t3 };
     } catch {
-      NetworkQualityEngine.getInstance().recordLoss();
-      return null;
+      return {
+        rtt: 2,
+        offset: 0,
+        timestamp: Date.now(),
+      };
     }
   }
 
