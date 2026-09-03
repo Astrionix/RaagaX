@@ -81,7 +81,7 @@ export function useRemoteSessionHydration(): RemoteSessionHydrationState {
     }
   }, [status, remoteSession?.currentTrackId]);
 
-  // 3. 60fps RequestAnimationFrame Interpolation Loop (Monotonic — Clock-Drift Proof)
+  // 3. Battery-Optimized 60fps Monotonic Interpolation Loop
   useEffect(() => {
     if (status !== 'REMOTE_CONTROLLER' || !remoteSession) {
       if (animFrameRef.current) {
@@ -93,12 +93,26 @@ export function useRemoteSessionHydration(): RemoteSessionHydrationState {
 
     const durationMs = remoteSession.durationMs || (remoteSession.currentSong?.duration ? remoteSession.currentSong.duration * 1000 : 0);
 
+    // 1. Pause-State Loop Halting: If paused, cancel any loop, draw static state once, and halt
+    if (!remoteSession.isPlaying) {
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
+      setInterpolatedPositionMs(Math.min(remoteSession.positionMs || 0, durationMs || Infinity));
+      return; // Do NOT schedule requestAnimationFrame while paused — stops mobile battery drain
+    }
+
+    // 2. 120Hz / 144Hz Frame Throttling: Cap updates to ~60 FPS (~16ms delta) to save GPU/CPU cycles
+    let lastRenderTime = 0;
+
     const updateFrame = () => {
-      if (!remoteSession.isPlaying) {
-        setInterpolatedPositionMs(Math.min(remoteSession.positionMs || 0, durationMs || Infinity));
-        // Do NOT loop when paused — we only need a single accurate paint
+      const now = performance.now();
+      if (now - lastRenderTime < 16) {
+        animFrameRef.current = requestAnimationFrame(updateFrame);
         return;
       }
+      lastRenderTime = now;
 
       // Use the arrival-anchored monotonic interpolation from ConnectClientManager.
       // This is clock-drift-proof and never uses Date.now() subtraction across devices.

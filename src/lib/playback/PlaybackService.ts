@@ -823,6 +823,7 @@ export class PlaybackService {
       if (autoPlay) {
         try {
           await activeAudio.play();
+          RendererManager.getInstance().acquireLease('audio');
           if (requestId !== this.playbackRequestId) {
             console.log(`[PlaybackService] Discarding stale play completion for req #${requestId}`);
             activeAudio.pause();
@@ -1022,6 +1023,7 @@ export class PlaybackService {
         const p = active.play();
         if (p && typeof p.then === 'function') {
           p.then(() => {
+            RendererManager.getInstance().acquireLease('audio');
             this.isAutoplayRestricted = false;
             this.watchdogRetryCount = 0;
             this.notifyStorePlaying(true);

@@ -29,6 +29,8 @@ export function SeekBar({
   const setSeekTarget = usePlayerStore((s) => s.setSeekTarget);
   const { isRemoteMode, remoteSession } = useConnectStore();
   const trackRef = useRef<HTMLDivElement>(null);
+  const progressFillRef = useRef<HTMLDivElement>(null);
+  const thumbRef = useRef<HTMLDivElement>(null);
   
   const [isSeeking, setIsSeeking] = useState(false);
   const [isSeekSettling, setIsSeekSettling] = useState(false);
@@ -54,6 +56,8 @@ export function SeekBar({
   }, [isRemoteMode, remoteSession?.durationMs, remoteSession?.currentSong?.duration, activeSong?.duration, storeDuration]);
 
   const prevProgressRef = useRef(0);
+  const lastStateUpdateTimeRef = useRef<number>(0);
+  const lastRenderTimeRef = useRef<number>(0);
 
   // Instantly reset seek progress when track switches
   useEffect(() => {
@@ -62,16 +66,28 @@ export function SeekBar({
       ? remoteSession.positionMs / 1000
       : 0;
     const p = effectiveDuration > 0 ? Math.min(1, Math.max(0, initialPos / effectiveDuration)) : 0;
+    const pct = p * 100;
+    if (progressFillRef.current) progressFillRef.current.style.width = `${pct}%`;
+    if (thumbRef.current) thumbRef.current.style.left = `${pct}%`;
     setLocalProgress(p);
   }, [activeSong?.id, effectiveDuration]);
 
-  // 60 FPS ultra-smooth local progress prediction driven by Connect coordinator or direct audio clock
+  // Zero-Re-render 60 FPS local progress prediction: direct DOM mutations + throttled state
   useEffect(() => {
     let animFrame: number;
     let cancelled = false;
 
     const tick = () => {
       if (cancelled) return;
+
+      const now = performance.now();
+      // 120Hz / 144Hz Frame Throttling: Cap updates to ~60 FPS (~16ms delta)
+      if (now - lastRenderTimeRef.current < 16) {
+        animFrame = requestAnimationFrame(tick);
+        return;
+      }
+      lastRenderTimeRef.current = now;
+
       if (!isSeeking && !isSeekSettling && effectiveDuration > 0) {
         const connectClient = ConnectClientManager.getInstance();
         let liveSec: number;
@@ -92,11 +108,26 @@ export function SeekBar({
 
         const validSec = Number.isFinite(liveSec) && !isNaN(liveSec) && liveSec >= 0 ? liveSec : 0;
         const newProgress = Math.min(1, Math.max(0, validSec / effectiveDuration));
-        if (Math.abs(newProgress - prevProgressRef.current) >= 0.0005) {
-          prevProgressRef.current = newProgress;
-          setLocalProgress(newProgress);
+        const pct = newProgress * 100;
+
+        // 1. DIRECT DOM MUTATION: Update width and thumb left with zero React Virtual DOM churn
+        if (progressFillRef.current) {
+          progressFillRef.current.style.width = `${pct}%`;
+        }
+        if (thumbRef.current) {
+          thumbRef.current.style.left = `${pct}%`;
+        }
+
+        // 2. THROTTLED REACT STATE: Dispatch setState at >= 250ms intervals for parent components
+        if (now - lastStateUpdateTimeRef.current >= 250) {
+          lastStateUpdateTimeRef.current = now;
+          if (Math.abs(newProgress - prevProgressRef.current) >= 0.0005) {
+            prevProgressRef.current = newProgress;
+            setLocalProgress(newProgress);
+          }
         }
       }
+
       if (!cancelled) {
         animFrame = requestAnimationFrame(tick);
       }
@@ -135,6 +166,9 @@ export function SeekBar({
     if (effectiveDuration <= 0) return;
     
     const p = calculateProgressFromEvent(e);
+    const pct = p * 100;
+    if (progressFillRef.current) progressFillRef.current.style.width = `${pct}%`;
+    if (thumbRef.current) thumbRef.current.style.left = `${pct}%`;
     setLocalProgress(p);
   };
 
@@ -149,6 +183,9 @@ export function SeekBar({
     if (isSeeking) {
       if (effectiveDuration <= 0) return;
       const p = calculateProgressFromEvent(e);
+      const pct = p * 100;
+      if (progressFillRef.current) progressFillRef.current.style.width = `${pct}%`;
+      if (thumbRef.current) thumbRef.current.style.left = `${pct}%`;
       setLocalProgress(p);
     }
   };
@@ -167,6 +204,10 @@ export function SeekBar({
       }
       
       const p = calculateProgressFromEvent(e);
+      const pct = p * 100;
+      if (progressFillRef.current) progressFillRef.current.style.width = `${pct}%`;
+      if (thumbRef.current) thumbRef.current.style.left = `${pct}%`;
+      setLocalProgress(p);
       const newTime = Math.min(effectiveDuration, Math.max(0, p * effectiveDuration));
       
       console.log('[SEEKBAR RELEASE]', {
@@ -210,7 +251,11 @@ export function SeekBar({
     SeekLock.endSeeking(0); // cancel drag — no settle window needed
     setIsSeeking(false);
     const currentSec = usePlayerStore.getState().currentTime;
-    setLocalProgress(effectiveDuration > 0 ? Math.min(1, Math.max(0, currentSec / effectiveDuration)) : 0);
+    const p = effectiveDuration > 0 ? Math.min(1, Math.max(0, currentSec / effectiveDuration)) : 0;
+    const pct = p * 100;
+    if (progressFillRef.current) progressFillRef.current.style.width = `${pct}%`;
+    if (thumbRef.current) thumbRef.current.style.left = `${pct}%`;
+    setLocalProgress(p);
   };
 
   const handlePointerLeave = (e: React.PointerEvent) => {
@@ -249,6 +294,7 @@ export function SeekBar({
 
       {/* ── 2. Progress Fill (RaagaX Red or Artwork Gradient) ─── */}
       <div
+        ref={progressFillRef}
         className={`absolute left-0 ${height} rounded-full pointer-events-none transition-all duration-75`}
         style={{
           width: `${currentPercent}%`,
@@ -259,6 +305,7 @@ export function SeekBar({
 
       {/* ── 3. Water-Drop Sphere Thumb ─── */}
       <div
+        ref={thumbRef}
         className={`absolute ${thumbSize} rounded-full pointer-events-none ${
           isSeeking ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
         }`}
