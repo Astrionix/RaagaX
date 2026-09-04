@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { WebAudioHardwareSync } from '@/lib/jam/WebAudioHardwareSync';
 import { JamMeshTransport } from '@/lib/jam/JamMeshTransport';
 import { JamSessionManager } from '@/lib/jam/JamSessionManager';
+import { syncEngine, PrecisionSyncEngine } from '@/services/PrecisionSyncEngine';
 
 describe('WebAudioHardwareSync (Hardware-Level DAC Phase Lock)', () => {
   beforeEach(() => {
@@ -125,3 +126,44 @@ describe('Multi-Speaker Party Mode Coordination in JamSessionManager', () => {
     expect(stopSpy).toHaveBeenCalled();
   });
 });
+
+describe('PrecisionSyncEngine (20-30 Mobiles Zero-Echo Hardware Scheduler)', () => {
+  beforeEach(() => {
+    syncEngine.stop();
+  });
+
+  it('calculates NTP clock offset accurately with server time supplier', async () => {
+    const engine = new PrecisionSyncEngine();
+    const mockDateNow = vi.spyOn(Date, 'now').mockReturnValue(5000);
+    const mockPerf = vi.spyOn(performance, 'now');
+    mockPerf.mockReturnValueOnce(100).mockReturnValueOnce(110); // RTT = 10ms
+
+    // Server says epoch is 5050
+    const offset = await engine.syncClock(async () => 5050);
+    // rtt = 10ms, clientTime = 5000, transit = 5ms -> clientTime + 5 = 5005
+    // offset = 5050 - 5005 = +45ms
+    expect(offset).toBe(45);
+    expect(engine.getClockOffset()).toBe(45);
+
+    mockDateNow.mockRestore();
+    mockPerf.mockRestore();
+  });
+
+  it('safely handles preload with empty or invalid URL', async () => {
+    const ok = await syncEngine.preload('');
+    expect(ok).toBe(false);
+    expect(syncEngine.hasBuffer()).toBe(false);
+  });
+
+  it('handles schedulePlay gracefully when buffer is not yet decoded', () => {
+    const ok = syncEngine.schedulePlay(Date.now() + 2500, 0);
+    expect(ok).toBe(false);
+    expect(syncEngine.isPlaying()).toBe(false);
+  });
+
+  it('cleans up drift guards and source nodes on stop()', () => {
+    syncEngine.stop();
+    expect(syncEngine.isPlaying()).toBe(false);
+  });
+});
+

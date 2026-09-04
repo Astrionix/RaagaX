@@ -25,6 +25,7 @@ import { RealtimeChannel } from '@supabase/supabase-js';
 import { PlayableUrlCache } from '@/lib/playback/PlayableUrlCache';
 import { JamMeshTransport } from './JamMeshTransport';
 import { WebAudioHardwareSync } from './WebAudioHardwareSync';
+import { syncEngine } from '@/services/PrecisionSyncEngine';
 
 export function getJamInviteUrl(pin: string): string {
   if (!pin) return 'https://raaga.me';
@@ -401,6 +402,16 @@ export class JamSessionManager {
         .on('broadcast', { event: 'JAM_MESH_SIGNAL' }, ({ payload }) => {
           JamMeshTransport.getInstance().handleSignaling(payload);
         })
+        .on('broadcast', { event: 'JAM_PRELOAD' }, async ({ payload }) => {
+          if (payload?.trackUrl) {
+            await syncEngine.preload(payload.trackUrl);
+          }
+        })
+        .on('broadcast', { event: 'JAM_SYNC_START' }, ({ payload }) => {
+          if (payload?.targetServerEpoch && (this.currentState.isLocalAudioOutput || this.currentState.audioMode === 'MULTI_SPEAKER')) {
+            syncEngine.schedulePlay(payload.targetServerEpoch, payload.startOffsetSec || 0);
+          }
+        })
         .subscribe(async (status) => {
           if (status === 'SUBSCRIBED') {
             try {
@@ -472,6 +483,7 @@ export class JamSessionManager {
     DriftCorrectionEngine.getInstance().stop();
     JamMeshTransport.getInstance().destroy();
     WebAudioHardwareSync.getInstance().stop();
+    syncEngine.stop();
 
     const self = DeviceIdentityManager.getInstance().getDevice();
     usePlayerStore.setState({
@@ -549,12 +561,56 @@ export class JamSessionManager {
       timestamp: Date.now(),
     };
 
-    if (isMultiSpeaker && currentTrackId && directAudioUrl && store.isPlaying && targetHostPerfTime) {
-      WebAudioHardwareSync.getInstance().prepareAudioBuffer(currentTrackId, directAudioUrl).then((ready) => {
-        if (ready && usePlayerStore.getState().isPlaying) {
-          WebAudioHardwareSync.getInstance().playAtExactHardwareTime(targetHostPerfTime, posSec);
+    if (isMultiSpeaker && currentTrackId && directAudioUrl && store.isPlaying) {
+      // Step A: Send JAM_PRELOAD so all 20-30 devices buffer into RAM
+      this.sendToRoom({
+        type: 'JAM_PRELOAD',
+        trackUrl: directAudioUrl,
+        trackId: currentTrackId,
+      });
+      if (this.supabaseChannel) {
+        try {
+          this.supabaseChannel.send({
+            type: 'broadcast',
+            event: 'JAM_PRELOAD',
+            payload: { trackUrl: directAudioUrl, trackId: currentTrackId },
+          });
+        } catch {}
+      }
+
+      // Step B: Preload on Host and schedule with 2.5s future epoch for 20-30 phones
+      syncEngine.preload(directAudioUrl).then(() => {
+        if (usePlayerStore.getState().isPlaying && this.currentState.audioMode === 'MULTI_SPEAKER') {
+          const targetServerEpoch = Date.now() + 2500;
+          this.sendToRoom({
+            type: 'JAM_SYNC_START',
+            targetServerEpoch,
+            startOffsetSec: posSec,
+            trackId: currentTrackId,
+          });
+          if (this.supabaseChannel) {
+            try {
+              this.supabaseChannel.send({
+                type: 'broadcast',
+                event: 'JAM_SYNC_START',
+                payload: { targetServerEpoch, startOffsetSec: posSec, trackId: currentTrackId },
+              });
+            } catch {}
+          }
+          syncEngine.schedulePlay(targetServerEpoch, posSec);
         }
       });
+
+      if (targetHostPerfTime) {
+        WebAudioHardwareSync.getInstance().prepareAudioBuffer(currentTrackId, directAudioUrl).then((ready) => {
+          if (ready && usePlayerStore.getState().isPlaying) {
+            WebAudioHardwareSync.getInstance().playAtExactHardwareTime(targetHostPerfTime, posSec);
+          }
+        });
+      }
+    } else if (!store.isPlaying) {
+      syncEngine.stop();
+      WebAudioHardwareSync.getInstance().stop();
     }
 
     this.sendToRoom({
@@ -609,6 +665,7 @@ export class JamSessionManager {
     this.currentState.audioMode = mode;
     if (mode !== 'MULTI_SPEAKER') {
       WebAudioHardwareSync.getInstance().stop();
+      syncEngine.stop();
     }
     if (this.currentState.isHost) {
       this.sendToRoom({
@@ -764,6 +821,18 @@ export class JamSessionManager {
     }
 
     switch (msg.type) {
+      case 'JAM_PRELOAD':
+        if (msg.trackUrl) {
+          syncEngine.preload(msg.trackUrl);
+        }
+        break;
+
+      case 'JAM_SYNC_START':
+        if (msg.targetServerEpoch && (this.currentState.isLocalAudioOutput || this.currentState.audioMode === 'MULTI_SPEAKER')) {
+          syncEngine.schedulePlay(msg.targetServerEpoch, msg.startOffsetSec || 0);
+        }
+        break;
+
       case 'REQUEST_ROOM_STATE':
         if (this.currentState.isHost) {
           const guestDeviceId = msg.senderDeviceId || msg.guestDeviceId;
@@ -816,6 +885,8 @@ export class JamSessionManager {
           const now = Date.now();
           const rtt = Math.max(1, now - msg.clientSendTime);
           DriftCorrectionEngine.getInstance().recordRttSample(rtt, msg.hostReceiveTime, msg.clientSendTime);
+          const calculatedOffset = Math.round(msg.hostReceiveTime - (msg.clientSendTime + rtt / 2));
+          syncEngine.setClockOffset(calculatedOffset);
           if (typeof msg.hostPerfTime === 'number' && typeof msg.clientPerfTime === 'number') {
             WebAudioHardwareSync.getInstance().calculateLocalOffset(msg.hostPerfTime, msg.clientPerfTime);
           }

@@ -16,6 +16,7 @@ import {
 import { getJamInviteUrl, JamAudioMode } from "@/lib/jam/JamSessionManager";
 import { usePlayerStore } from "@/context/usePlayerStore";
 import { useJam } from "@/hooks/useJam";
+import { syncEngine } from "@/services/PrecisionSyncEngine";
 
 interface JamInviteModalProps {
   isOpen: boolean;
@@ -58,7 +59,8 @@ export const JamInviteModal: React.FC<JamInviteModalProps> = ({
   const activeMode: JamAudioMode = propAudioMode || jam.audioMode || "IN_PERSON";
   const isLocalOutput = propIsLocalOutput !== undefined ? propIsLocalOutput : jam.isLocalAudioOutput;
 
-  const handleModeSelect = (mode: JamAudioMode) => {
+  const handleModeSelect = async (mode: JamAudioMode) => {
+    await syncEngine.unlockAudio();
     if (onSetAudioMode) {
       onSetAudioMode(mode);
     } else {
@@ -66,7 +68,8 @@ export const JamInviteModal: React.FC<JamInviteModalProps> = ({
     }
   };
 
-  const handleToggleLocalOutput = (enabled: boolean) => {
+  const handleToggleLocalOutput = async (enabled: boolean) => {
+    await syncEngine.unlockAudio();
     if (onSetLocalAudioOutput) {
       onSetLocalAudioOutput(enabled);
     } else {
@@ -259,6 +262,30 @@ export const JamInviteModal: React.FC<JamInviteModalProps> = ({
               {!isLocalOutput
                 ? "📻 Silent remote controller (zero acoustic echo)."
                 : "🎧 Playing audio through this device's speakers / headphones."}
+            </p>
+          </div>
+        )}
+
+        {/* ── SYNC SPEAKERS (JOIN PARTY) BUTTON FOR 20-30 MOBILES ── */}
+        {activeMode === "MULTI_SPEAKER" && (
+          <div className="mb-3">
+            <button
+              type="button"
+              onClick={async () => {
+                await syncEngine.unlockAudio();
+                await syncEngine.syncClock(async () => Date.now());
+                if (!isHost) {
+                  handleToggleLocalOutput(true);
+                }
+                usePlayerStore.getState().setToastMessage("Speakers synced! Ready for 0ms party audio 🔊");
+              }}
+              className="w-full py-2.5 px-3 bg-[#1ed760] hover:bg-[#1fdf64] active:scale-[0.98] text-black font-extrabold rounded-xl shadow-lg shadow-[#1ed760]/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Volume2 size={16} className="animate-pulse" />
+              <span className="text-xs uppercase tracking-wider">Sync Speakers (Join Party)</span>
+            </button>
+            <p className="text-[10px] text-[#1ed760]/80 text-center mt-1 font-medium">
+              ⚡ 20–30 phones synchronized with zero echo
             </p>
           </div>
         )}
