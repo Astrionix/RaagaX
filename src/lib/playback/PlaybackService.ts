@@ -555,13 +555,7 @@ export class PlaybackService {
    * loadAudioSource — Atomically loads and starts audio for a requested track.
    * Uses requestId stale-check to guarantee older async loads NEVER overwrite newer requests.
    */
-  public async loadAudioSource(
-    song: Song,
-    requestId?: number,
-    autoPlay: boolean = true,
-    initialPositionSec: number = 0,
-    scheduledStartTime?: number
-  ): Promise<boolean> {
+  public async loadAudioSource(song: Song, requestId?: number, autoPlay: boolean = true, initialPositionSec: number = 0): Promise<boolean> {
     if (!song) return false;
     if (requestId === undefined || this.playbackRequestId === 0 || requestId <= 1) {
       this.playbackRequestId = ++this.playbackRequestId;
@@ -578,19 +572,6 @@ export class PlaybackService {
       return true;
     }
     const store = usePlayerStore.getState();
-
-    // Jam Session Synchronized Start: Host coordinates 650ms lead-time start window across Wi-Fi devices
-    if (autoPlay && !scheduledStartTime && store.isInJam && store.isLocalPlayback) {
-      try {
-        const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
-        const jam = JamSessionManager.getInstance();
-        if (jam.getState().isInJam) {
-          scheduledStartTime = Date.now() + 650;
-          jam.broadcastCurrentPlaybackState(scheduledStartTime);
-        }
-      } catch {}
-    }
-
     this.isTransitioning = true;
     const playRequestedAt = performance.now();
     let resolvedSourceType: PlaybackSourceType = 'NETWORK_STREAM';
@@ -676,19 +657,6 @@ export class PlaybackService {
         if (!finalSrc) {
           console.warn(`[PlaybackService] No playable source for native playback: "${song.title}"`);
           return false;
-        }
-
-        // Wait for scheduled start timestamp across Jam room on Wi-Fi
-        if (autoPlay && scheduledStartTime && scheduledStartTime > 0) {
-          try {
-            const { DriftCorrectionEngine } = await import('@/lib/jam/DriftCorrectionEngine');
-            const clockOffset = DriftCorrectionEngine.getInstance().getMetrics().clockOffsetMs || 0;
-            const targetLocalTime = scheduledStartTime - clockOffset;
-            const delayMs = targetLocalTime - Date.now();
-            if (delayMs > 15 && delayMs < 3000) {
-              await new Promise((resolve) => setTimeout(resolve, delayMs));
-            }
-          } catch {}
         }
 
         await RaagaXNativePlayer.play({
@@ -858,18 +826,6 @@ export class PlaybackService {
 
       if (autoPlay) {
         try {
-          // Wait for scheduled start timestamp across Jam room on Wi-Fi
-          if (scheduledStartTime && scheduledStartTime > 0) {
-            try {
-              const { DriftCorrectionEngine } = await import('@/lib/jam/DriftCorrectionEngine');
-              const clockOffset = DriftCorrectionEngine.getInstance().getMetrics().clockOffsetMs || 0;
-              const targetLocalTime = scheduledStartTime - clockOffset;
-              const delayMs = targetLocalTime - Date.now();
-              if (delayMs > 15 && delayMs < 3000) {
-                await new Promise((resolve) => setTimeout(resolve, delayMs));
-              }
-            } catch {}
-          }
           await activeAudio.play();
           RendererManager.getInstance().acquireLease('audio');
           if (requestId !== this.playbackRequestId) {
@@ -973,12 +929,7 @@ export class PlaybackService {
     }
   }
 
-  public async playTrack(
-    song: Song,
-    forceResume: boolean = true,
-    initialPositionSec: number = 0,
-    scheduledStartTime?: number
-  ): Promise<boolean> {
+  public async playTrack(song: Song, forceResume: boolean = true, initialPositionSec: number = 0): Promise<boolean> {
     if (!song) return false;
     if (!usePlayerStore.getState().isLocalPlayback) {
       console.log('[PlaybackService] playTrack suppressed: this device is a remote controller');
@@ -986,7 +937,7 @@ export class PlaybackService {
     }
     const reqId = this.playbackRequestId || ++this.playbackGeneration;
     this.playbackRequestId = reqId;
-    return this.loadAudioSource(song, reqId, forceResume, initialPositionSec, scheduledStartTime);
+    return this.loadAudioSource(song, reqId, forceResume, initialPositionSec);
   }
 
   public triggerNextPreload() {
