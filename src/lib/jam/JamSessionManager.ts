@@ -22,6 +22,9 @@ import { Song } from '@/types/music';
 import { DriftCorrectionEngine } from './DriftCorrectionEngine';
 import { supabase } from '@/lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { PlayableUrlCache } from '@/lib/playback/PlayableUrlCache';
+import { JamMeshTransport } from './JamMeshTransport';
+import { WebAudioHardwareSync } from './WebAudioHardwareSync';
 
 export function getJamInviteUrl(pin: string): string {
   if (!pin) return 'https://raaga.me';
@@ -165,6 +168,9 @@ export class JamSessionManager {
       clientSendTime: Date.now(),
     };
 
+    // 0. Fast-Path: Local Wi-Fi WebRTC DataChannel Mesh (1ms–3ms UDP latency!)
+    JamMeshTransport.getInstance().broadcast(enriched);
+
     // 1. Local Bus: BroadcastChannel (0ms for same-origin tabs / WebViews)
     if (this.broadcastChannel) {
       try {
@@ -241,8 +247,20 @@ export class JamSessionManager {
     });
     this.notify();
 
+    // Unlock AudioContext hardware clock on user gesture
+    WebAudioHardwareSync.getInstance().unlockAudioContext();
+
     // Mount Local Multi-path channels
     this.setupMultiPathTransports(roomId, pin);
+
+    // Initialize WebRTC Local Wi-Fi Mesh Transport as Host
+    JamMeshTransport.getInstance().init(
+      roomId,
+      true,
+      self.deviceId,
+      this.supabaseChannel,
+      (msg) => this.handleIncomingMessage(msg)
+    );
 
     // Connect WebSocket relay
     await this.connectWebSocket(roomId, true);
@@ -257,10 +275,10 @@ export class JamSessionManager {
 
   // ── 2. Join an Existing Jam Session (Guest) ────────────────────────────────
   public async joinJam(pinOrRoomId: string): Promise<boolean> {
+    const self = DeviceIdentityManager.getInstance().getDevice();
     try {
       const { connectEngine } = await import('@/lib/connect/ConnectEngine');
       connectEngine.handleRemoteDisconnect();
-      const self = DeviceIdentityManager.getInstance().getDevice();
       usePlayerStore.setState({
         isInJam: true,
         isLocalPlayback: false, // Spotify In-Person Default: Guest phone acts as remote controller
@@ -291,6 +309,9 @@ export class JamSessionManager {
     };
     this.notify();
 
+    // Unlock AudioContext hardware clock on user gesture
+    WebAudioHardwareSync.getInstance().unlockAudioContext();
+
     // In In-Person mode: silence local audio element so sound strictly comes from Host speaker
     try {
       const playback = PlaybackService.getInstance();
@@ -299,6 +320,15 @@ export class JamSessionManager {
 
     // Mount Local Multi-path channels
     this.setupMultiPathTransports(roomId, clean);
+
+    // Initialize WebRTC Local Wi-Fi Mesh Transport as Guest
+    JamMeshTransport.getInstance().init(
+      roomId,
+      false,
+      self.deviceId,
+      this.supabaseChannel,
+      (msg) => this.handleIncomingMessage(msg)
+    );
 
     // Start precision NTP ping measurements on Wi-Fi
     this.startWifiNtpCalibration();
@@ -340,6 +370,8 @@ export class JamSessionManager {
       this.supabaseChannel = supabase.channel(channelTopic, {
         config: { presence: { key: self.deviceId } },
       });
+      JamMeshTransport.getInstance().setSupabaseChannel(this.supabaseChannel);
+
       this.supabaseChannel
         .on('presence', { event: 'sync' }, () => {
           const presences = this.supabaseChannel?.presenceState() || {};
@@ -349,8 +381,15 @@ export class JamSessionManager {
             this.notify();
           }
         })
-        .on('presence', { event: 'join' }, () => {
+        .on('presence', { event: 'join' }, ({ newPresences }: any) => {
           if (this.currentState.isHost) {
+            if (Array.isArray(newPresences)) {
+              for (const p of newPresences) {
+                if (p.deviceId && p.deviceId !== self.deviceId) {
+                  JamMeshTransport.getInstance().connectToGuest(p.deviceId);
+                }
+              }
+            }
             this.broadcastCurrentPlaybackState();
           }
         })
@@ -358,6 +397,9 @@ export class JamSessionManager {
           if (payload && payload.senderDeviceId !== self.deviceId) {
             this.handleIncomingMessage(payload);
           }
+        })
+        .on('broadcast', { event: 'JAM_MESH_SIGNAL' }, ({ payload }) => {
+          JamMeshTransport.getInstance().handleSignaling(payload);
         })
         .subscribe(async (status) => {
           if (status === 'SUBSCRIBED') {
@@ -428,6 +470,8 @@ export class JamSessionManager {
     }
 
     DriftCorrectionEngine.getInstance().stop();
+    JamMeshTransport.getInstance().destroy();
+    WebAudioHardwareSync.getInstance().stop();
 
     const self = DeviceIdentityManager.getInstance().getDevice();
     usePlayerStore.setState({
@@ -480,16 +524,38 @@ export class JamSessionManager {
       } catch {}
     }
 
+    // Direct CDN stream URL sharing so guests avoid slow resolver network hops
+    let directAudioUrl: string | null = currentTrack?.audioUrl || null;
+    if (currentTrackId) {
+      try {
+        const cached = PlayableUrlCache.getInstance().get(currentTrackId);
+        if (cached?.url) directAudioUrl = cached.url;
+      } catch {}
+    }
+
+    const isMultiSpeaker = this.currentState.audioMode === 'MULTI_SPEAKER';
+    const targetHostPerfTime = isMultiSpeaker ? performance.now() + 350 : undefined;
+
     const payload = {
-      track: currentTrack,
+      track: currentTrack ? { ...currentTrack, audioUrl: directAudioUrl || currentTrack.audioUrl } : null,
+      directAudioUrl,
       isPlaying: store.isPlaying,
       positionMs: isTrackTransition ? 0 : Math.round(posSec * 1000),
       isTrackTransition,
+      targetHostPerfTime,
       queue: store.queue || [],
       queueIndex: store.queueIndex || 0,
       allowGuestControl: this.currentState.allowGuestControl,
       timestamp: Date.now(),
     };
+
+    if (isMultiSpeaker && currentTrackId && directAudioUrl && store.isPlaying && targetHostPerfTime) {
+      WebAudioHardwareSync.getInstance().prepareAudioBuffer(currentTrackId, directAudioUrl).then((ready) => {
+        if (ready && usePlayerStore.getState().isPlaying) {
+          WebAudioHardwareSync.getInstance().playAtExactHardwareTime(targetHostPerfTime, posSec);
+        }
+      });
+    }
 
     this.sendToRoom({
       type: 'BROADCAST_STATE',
@@ -541,6 +607,9 @@ export class JamSessionManager {
   // ── 8. Set Room Audio Mode (Host Only) ────────────────────────────────────
   public setAudioMode(mode: JamAudioMode): void {
     this.currentState.audioMode = mode;
+    if (mode !== 'MULTI_SPEAKER') {
+      WebAudioHardwareSync.getInstance().stop();
+    }
     if (this.currentState.isHost) {
       this.sendToRoom({
         type: 'JAM_MODE_UPDATE',
@@ -577,7 +646,8 @@ export class JamSessionManager {
     } else {
       store.setToastMessage("Listening on this phone 🎧");
       if (store.currentSong && store.isPlaying) {
-        playback.playTrack(store.currentSong, true, store.currentTime || 0);
+        const targetSec = DriftCorrectionEngine.getInstance().computeTargetPositionSec();
+        playback.playTrack(store.currentSong, true, targetSec > 0 ? targetSec : (store.currentTime || 0));
       }
     }
     this.notify();
@@ -696,6 +766,10 @@ export class JamSessionManager {
     switch (msg.type) {
       case 'REQUEST_ROOM_STATE':
         if (this.currentState.isHost) {
+          const guestDeviceId = msg.senderDeviceId || msg.guestDeviceId;
+          if (guestDeviceId && guestDeviceId !== self.deviceId) {
+            JamMeshTransport.getInstance().connectToGuest(guestDeviceId);
+          }
           this.broadcastCurrentPlaybackState();
         }
         break;
@@ -728,7 +802,9 @@ export class JamSessionManager {
           this.sendToRoom({
             type: 'JAM_PONG',
             clientSendTime: msg.clientSendTime,
+            clientPerfTime: msg.clientPerfTime,
             hostReceiveTime: Date.now(),
+            hostPerfTime: performance.now(),
             targetDeviceId: msg.senderDeviceId,
           });
         }
@@ -740,6 +816,9 @@ export class JamSessionManager {
           const now = Date.now();
           const rtt = Math.max(1, now - msg.clientSendTime);
           DriftCorrectionEngine.getInstance().recordRttSample(rtt, msg.hostReceiveTime, msg.clientSendTime);
+          if (typeof msg.hostPerfTime === 'number' && typeof msg.clientPerfTime === 'number') {
+            WebAudioHardwareSync.getInstance().calculateLocalOffset(msg.hostPerfTime, msg.clientPerfTime);
+          }
         }
         break;
 
@@ -767,6 +846,9 @@ export class JamSessionManager {
 
       case 'STATE_UPDATED':
       case 'BROADCAST_STATE':
+        if (!this.currentState.isHost && msg.senderDeviceId && !JamMeshTransport.getInstance().hasActiveDirectChannel()) {
+          JamMeshTransport.getInstance().initiateConnectionToHost(msg.senderDeviceId);
+        }
         const payload = msg.payload || msg.state || msg;
         if (payload?.type === 'JAM_SETTINGS_UPDATE') {
           this.currentState.allowGuestControl = Boolean(payload.allowGuestControl);
@@ -819,18 +901,46 @@ export class JamSessionManager {
 
       // 3. Playback Synchronization
       if (payload.track) {
+        // Direct stream URL injection into cache for 0ms resolution
+        if (payload.directAudioUrl && payload.track.id) {
+          try {
+            PlayableUrlCache.getInstance().set(payload.track.id, payload.directAudioUrl);
+          } catch {}
+        }
+
         const isDifferentTrack = !store.currentSong || store.currentSong.id !== payload.track.id;
+        const clockOffset = DriftCorrectionEngine.getInstance().getMetrics().clockOffsetMs || 0;
+        const now = Date.now();
+
         let targetPosSec = (payload.positionMs || 0) / 1000;
 
-        // CRITICAL BUG FIX: If track transition or early start, position MUST strictly be 0:00 (0ms)!
-        if (isDifferentTrack && (payload.isTrackTransition || targetPosSec < 3.0)) {
+        // 0ms Wi-Fi Precision Playhead Alignment:
+        // Calculate the exact elapsed time between when the host broadcast the packet and now
+        if (payload.isPlaying && payload.timestamp) {
+          const currentHostTime = now + clockOffset;
+          const hostElapsedSec = Math.max(0, (currentHostTime - payload.timestamp) / 1000);
+
+          if (payload.isTrackTransition) {
+            // Track transition: align guest playhead with any small initialization offset
+            if (hostElapsedSec > 0 && hostElapsedSec < 5.0) {
+              targetPosSec = hostElapsedSec;
+            } else {
+              targetPosSec = 0;
+            }
+          } else {
+            // Mid-song sync / continuous beacon: compensate network transit delay
+            if (hostElapsedSec > 0.015 && hostElapsedSec < 30.0) {
+              targetPosSec += hostElapsedSec;
+            }
+          }
+        } else if (isDifferentTrack) {
           targetPosSec = 0;
         }
 
         // Calibrate DriftCorrectionEngine with host beacon
         if (payload.timestamp && this.currentState.isLocalAudioOutput) {
           DriftCorrectionEngine.getInstance().recordHostBeacon(
-            targetPosSec * 1000,
+            payload.positionMs || 0,
             payload.timestamp,
             payload.track.id,
             Boolean(payload.isPlaying)
@@ -850,6 +960,22 @@ export class JamSessionManager {
 
         // ONLY play local audio if THIS device is configured as an audio output!
         if (this.currentState.isLocalAudioOutput) {
+          // In Multi-Speaker Party Mode: schedule sample-accurate playback via WebAudioHardwareSync
+          if (this.currentState.audioMode === 'MULTI_SPEAKER') {
+            const audioUrl = payload.directAudioUrl || payload.track.audioUrl;
+            if (audioUrl && payload.targetHostPerfTime && payload.isPlaying) {
+              WebAudioHardwareSync.getInstance().prepareAudioBuffer(payload.track.id, audioUrl).then((ready) => {
+                if (ready && usePlayerStore.getState().isPlaying) {
+                  WebAudioHardwareSync.getInstance().playAtExactHardwareTime(payload.targetHostPerfTime, targetPosSec);
+                }
+              });
+            } else if (!payload.isPlaying) {
+              WebAudioHardwareSync.getInstance().stop();
+            }
+          } else {
+            WebAudioHardwareSync.getInstance().stop();
+          }
+
           const playback = PlaybackService.getInstance();
           let isAudioPlaying = false;
           try {
@@ -893,15 +1019,34 @@ export class JamSessionManager {
   // ── High-Precision Wi-Fi NTP Calibration Loop ─────────────────────────────
   private startWifiNtpCalibration(): void {
     if (this.pingInterval) clearInterval(this.pingInterval);
-    // Send ping every 2 seconds to keep clock offset calibrated to sub-5ms
+    // Quick burst: 5 pings every 100ms on join to lock clock offset immediately (< 500ms)
+    let burstCount = 0;
+    const burstTimer = setInterval(() => {
+      if (!this.currentState.isHost && this.currentState.isInJam) {
+        this.sendToRoom({
+          type: 'JAM_PING',
+          clientSendTime: Date.now(),
+          clientPerfTime: performance.now(),
+        });
+        burstCount++;
+        if (burstCount >= 5) {
+          clearInterval(burstTimer);
+        }
+      } else {
+        clearInterval(burstTimer);
+      }
+    }, 100);
+
+    // Steady state: ping every 1 second to keep clock offset calibrated to sub-3ms
     this.pingInterval = setInterval(() => {
       if (!this.currentState.isHost && this.currentState.isInJam) {
         this.sendToRoom({
           type: 'JAM_PING',
           clientSendTime: Date.now(),
+          clientPerfTime: performance.now(),
         });
       }
-    }, 2000);
+    }, 1000);
   }
 
   private startHeartbeat(): void {
@@ -924,6 +1069,6 @@ export class JamSessionManager {
           this.broadcastCurrentPlaybackState();
         }
       }
-    }, 1200);
+    }, 800);
   }
 }

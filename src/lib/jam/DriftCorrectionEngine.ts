@@ -133,8 +133,9 @@ export class DriftCorrectionEngine {
           estimatedOffset = Math.round((hostServerTimeMs + estimatedTransit) - now);
         }
 
-        // Exponential moving average for clock offset (smoothes out jitter)
-        this.clockOffsetMs = this.clockOffsetMs === 0 ? estimatedOffset : Math.round(this.clockOffsetMs * 0.75 + estimatedOffset * 0.25);
+        // Exponential moving average for clock offset: Rapid convergence on first 5 samples (< 500ms)
+        const weight = this.rttSamples.length <= 5 ? 0.7 : 0.25;
+        this.clockOffsetMs = this.clockOffsetMs === 0 ? estimatedOffset : Math.round(this.clockOffsetMs * (1 - weight) + estimatedOffset * weight);
         this.currentMetrics.clockOffsetMs = this.clockOffsetMs;
         this.currentMetrics.averageRttMs = Math.round(this.averageRttMs);
       }
@@ -194,10 +195,10 @@ export class DriftCorrectionEngine {
     if (this.isRunning) return;
     this.isRunning = true;
 
-    // Check drift every 150ms for ultra-responsive phase alignment
+    // Check drift every 100ms for ultra-responsive phase alignment
     this.checkInterval = setInterval(() => {
       this.performDriftCorrectionStep();
-    }, 150);
+    }, 100);
   }
 
   public stop(): void {
@@ -270,8 +271,8 @@ export class DriftCorrectionEngine {
 
     const absDriftMs = Math.abs(driftMs);
 
-    // ── CASE 1: Hard Resync (Severe desynchronization > 350ms) ───────────────
-    if (absDriftMs > 350) {
+    // ── CASE 1: Hard Resync (Severe desynchronization > 400ms) ───────────────
+    if (absDriftMs > 400) {
       this.applySeek(targetSec);
       this.applyPlaybackRate(1.0);
       this.currentMetrics.isLocked = true;
@@ -290,32 +291,32 @@ export class DriftCorrectionEngine {
 
     // ── CASE 3: Inaudible Micro-Nudge (5ms - 25ms) ──────────────────────────
     // Within Haas psychoacoustic effect (< 25ms). Ear perceives as single speaker.
-    // Micro-adjust speed by +/- 0.5% (imperceptible pitch change).
+    // Micro-adjust speed by +/- 0.8% (imperceptible pitch change).
     if (absDriftMs <= 25) {
       this.currentMetrics.isLocked = true;
-      const targetRate = driftMs < 0 ? 1.005 : 0.995;
+      const targetRate = driftMs < 0 ? 1.008 : 0.992;
       this.applyPlaybackRate(targetRate);
       this.notify();
       return;
     }
 
-    // ── CASE 4: Proportional PLL Micro-Adjustment (25ms - 350ms) ────────────
+    // ── CASE 4: Proportional PLL Micro-Adjustment (25ms - 400ms) ────────────
     this.currentMetrics.isLocked = false;
     let targetRate = 1.0;
 
     if (driftMs < 0) {
       // Local is lagging behind -> Speed up smoothly
       if (absDriftMs < 100) {
-        targetRate = 1.02;  // +2.0% speed: catches up 20ms/sec
+        targetRate = 1.025;  // +2.5% speed: catches up 25ms/sec
       } else {
-        targetRate = 1.045; // +4.5% speed: catches up 45ms/sec
+        targetRate = 1.05; // +5.0% speed: catches up 50ms/sec
       }
     } else {
       // Local is running ahead -> Slow down smoothly
       if (absDriftMs < 100) {
-        targetRate = 0.98;  // -2.0% speed
+        targetRate = 0.975;  // -2.5% speed
       } else {
-        targetRate = 0.955; // -4.5% speed
+        targetRate = 0.95; // -5.0% speed
       }
     }
 
