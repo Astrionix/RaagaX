@@ -18,7 +18,6 @@ import {
   ListPlus,
   Mic2,
   Moon,
-  Speaker,
   Volume2,
   VolumeX,
   User,
@@ -122,7 +121,6 @@ export function ExpandedPlayerModal() {
     sleepTimerMinutes,
     sleepTimerEndsAt,
     sleepTimerMode,
-    toggleConnectModal,
   } = usePlayerStore();
 
   const currentSong = localCurrentSong;
@@ -810,18 +808,6 @@ export function ExpandedPlayerModal() {
                   <span>Lyrics</span>
                 </button>
 
-                {/* Connect to Device Button */}
-                <button
-                  onClick={() => {
-                    haptics.lightImpact();
-                    toggleConnectModal(true);
-                  }}
-                  className="px-3.5 sm:px-4 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white border-white/10"
-                  title="Connect to Device"
-                >
-                  <Speaker className="w-3.5 h-3.5" />
-                  <span>Devices</span>
-                </button>
 
                 {/* Queue Button */}
                 <button
