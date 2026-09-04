@@ -169,6 +169,21 @@ wss.on('connection', (ws, req) => {
         return;
       }
 
+      if (data.type === 'JAM_PING' || data.type === 'JAM_PONG' || data.type === 'REQUEST_ROOM_STATE') {
+        const roomId = meta.roomId || data.roomId;
+        if (!roomId || !rooms.has(roomId)) return;
+
+        const room = rooms.get(roomId);
+        const msgStr = JSON.stringify(data);
+
+        for (const client of room.clients) {
+          if (client !== ws && client.readyState === WebSocket.OPEN) {
+            client.send(msgStr);
+          }
+        }
+        return;
+      }
+
       if (data.type === 'LEAVE_ROOM') {
         const roomId = meta.roomId || data.roomId;
         if (roomId && rooms.has(roomId)) {

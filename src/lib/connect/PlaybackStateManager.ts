@@ -89,7 +89,7 @@ export class PlaybackStateManager {
       inJam = JamSessionManager.getInstance().getState().isInJam;
     } catch {}
 
-    if (inJam) {
+    if (inJam || store.isInJam) {
       return;
     }
 
@@ -139,7 +139,7 @@ export class PlaybackStateManager {
       inJam = JamSessionManager.getInstance().getState().isInJam;
     } catch {}
 
-    if (inJam) {
+    if (inJam || store.isInJam) {
       return;
     }
 
@@ -165,6 +165,16 @@ export class PlaybackStateManager {
     const self = DeviceIdentityManager.getInstance().getDevice();
     // Do not process our own broadcast
     if (remoteState.playerDeviceId === self.deviceId) {
+      return;
+    }
+
+    const store = usePlayerStore.getState();
+    let inJam = false;
+    try {
+      const { JamSessionManager } = require('@/lib/jam/JamSessionManager');
+      inJam = JamSessionManager.getInstance().getState().isInJam;
+    } catch {}
+    if (inJam || store.isInJam) {
       return;
     }
 

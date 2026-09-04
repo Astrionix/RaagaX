@@ -68,6 +68,10 @@ export class CommandManager {
   private async handleIncomingCommand(command: ConnectCommand): Promise<void> {
     if (command.controllerDeviceId) {
       TransportManager.getInstance().setTargetDeviceId(command.controllerDeviceId);
+      try {
+        const { connectEngine } = require('./ConnectEngine');
+        connectEngine.setActiveControllerDeviceId(command.controllerDeviceId);
+      } catch {}
     }
 
     // Deduplication check: ignore if already executed

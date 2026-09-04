@@ -268,7 +268,12 @@ export class TransportManager {
       } catch {}
     }
 
-    // Priority 2: Relay Channel (if mounted and joined)
+    // Always send via Discovery Mesh (universally reachable by all devices on LAN/Account)
+    if (effectiveTarget) {
+      DiscoveryEngine.getInstance().sendDirectMessage(effectiveTarget, event, data);
+    }
+
+    // Also send via Relay Channel if active
     if (this.isChannelJoined(this.cloudChannel)) {
       try {
         this.cloudChannel!.send({
@@ -282,13 +287,7 @@ export class TransportManager {
             timestamp: Date.now(),
           },
         });
-        return; // Dedicated session relay channel delivered the message. Avoid multi-casting over discovery channels.
       } catch {}
-    }
-
-    // Priority 3: Discovery Mesh Broadcast (fallback when no dedicated transport is established)
-    if (effectiveTarget) {
-      DiscoveryEngine.getInstance().sendDirectMessage(effectiveTarget, event, data);
     }
   }
 

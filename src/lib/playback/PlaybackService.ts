@@ -519,6 +519,11 @@ export class PlaybackService {
           a.pause();
           a.removeAttribute('src');
           a.currentTime = 0;
+          if (a.dataset) {
+            delete a.dataset.trackId;
+            delete a.dataset.playbackRequestId;
+            delete a.dataset.playbackGeneration;
+          }
           if (typeof a.load === 'function') {
             a.load();
           }
@@ -528,6 +533,7 @@ export class PlaybackService {
     if (RaagaXNativePlayer.isNative()) {
       try {
         RaagaXNativePlayer.pause();
+        RaagaXNativePlayer.seekTo(0);
       } catch { }
     }
     PreloadManager.getInstance().reset();

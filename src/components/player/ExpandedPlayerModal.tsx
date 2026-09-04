@@ -247,7 +247,8 @@ export function ExpandedPlayerModal() {
         activeAudio = PlaybackService.getInstance().getActiveAudio();
       } catch {}
 
-      if (activeAudio && !activeAudio.paused && !activeAudio.seeking && !isNaN(activeAudio.currentTime) && activeAudio.currentTime >= 0) {
+      const isMatchingTrack = activeAudio && (!activeAudio.dataset?.trackId || !currentSong?.id || activeAudio.dataset.trackId === currentSong.id);
+      if (isMatchingTrack && activeAudio && !activeAudio.paused && !activeAudio.seeking && !isNaN(activeAudio.currentTime) && activeAudio.currentTime >= 0) {
         liveSec = activeAudio.currentTime;
         lastGoodSecRef.current = liveSec;
       } else {

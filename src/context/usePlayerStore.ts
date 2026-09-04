@@ -1102,6 +1102,8 @@ export const usePlayerStore = create<PlayerState>()(
           currentSong: formattedTrack,
           queueIndex: index,
           currentTime: 0,
+          seekTarget: null,
+          lastPositionTimestamp: autoPlay ? performance.now() : null,
           duration: formattedTrack.duration || 0,
           isPlaying: autoPlay,
           playbackIntent: autoPlay ? 'PLAYING' : 'PAUSED',

@@ -82,7 +82,8 @@ export function SeekBar({
         } catch {}
 
         const store = usePlayerStore.getState();
-        if (activeAudio && !activeAudio.paused && !activeAudio.seeking && !isNaN(activeAudio.currentTime) && activeAudio.currentTime >= 0) {
+        const isMatchingTrack = activeAudio && (!activeAudio.dataset?.trackId || !activeSong?.id || activeAudio.dataset.trackId === activeSong.id);
+        if (isMatchingTrack && activeAudio && !activeAudio.paused && !activeAudio.seeking && !isNaN(activeAudio.currentTime) && activeAudio.currentTime >= 0) {
           liveSec = activeAudio.currentTime;
         } else if (!store.isLocalPlayback && store.isPlaying && store.lastPositionTimestamp) {
           const elapsed = (now - store.lastPositionTimestamp) / 1000;

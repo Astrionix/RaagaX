@@ -44,6 +44,8 @@ export interface NativePlaybackState {
   artist?: string;
 }
 
+let lastCachedNativeState: NativePlaybackState = { isPlaying: false, positionMs: 0, durationMs: 0 };
+
 export const RaagaXNativePlayer = {
   isNative(): boolean {
     return IS_CAPACITOR_NATIVE && getPlugin() !== null;
@@ -91,12 +93,14 @@ export const RaagaXNativePlayer = {
   async pause(): Promise<void> {
     const plugin = getPlugin();
     if (!plugin) return;
+    lastCachedNativeState.isPlaying = false;
     await plugin.pause();
   },
 
   async resume(): Promise<void> {
     const plugin = getPlugin();
     if (!plugin) return;
+    lastCachedNativeState.isPlaying = true;
     await plugin.resume();
   },
 
@@ -119,6 +123,7 @@ export const RaagaXNativePlayer = {
   async seekTo(positionMs: number): Promise<void> {
     const plugin = getPlugin();
     if (!plugin) return;
+    lastCachedNativeState.positionMs = positionMs;
     console.log('[SEEK] RaagaXNativePlayer plugin.seekTo:', positionMs);
     await plugin.seekTo({ positionMs });
   },
@@ -155,13 +160,20 @@ export const RaagaXNativePlayer = {
 
   async getPlaybackState(): Promise<NativePlaybackState> {
     const plugin = getPlugin();
-    if (!plugin) return { isPlaying: false, positionMs: 0, durationMs: 0 };
+    if (!plugin) return lastCachedNativeState;
     try {
-      const res = await plugin.getPlaybackState();
-      return res as NativePlaybackState;
+      const res = (await plugin.getPlaybackState()) as NativePlaybackState;
+      if (res && typeof res.positionMs === 'number') {
+        lastCachedNativeState = res;
+      }
+      return res;
     } catch {
-      return { isPlaying: false, positionMs: 0, durationMs: 0 };
+      return lastCachedNativeState;
     }
+  },
+
+  getCachedPlaybackState(): NativePlaybackState {
+    return lastCachedNativeState;
   },
 
   async updateRemotePlayback(data: {

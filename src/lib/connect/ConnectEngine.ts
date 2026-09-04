@@ -61,17 +61,22 @@ export class ConnectEngine {
           inJam = JamSessionManager.getInstance().getState().isInJam;
         } catch {}
 
-        if (inJam) {
+        if (inJam || store.isInJam) {
           return;
         }
 
         const isExplicitlyControlling =
           !store.isLocalPlayback &&
-          (this.activePlayerDeviceId === remoteState.playerDeviceId || store.activePlaybackDeviceId === remoteState.playerDeviceId) &&
-          (this.activeConnectionId !== null || this.connectionState === 'CONNECTED');
+          (this.activePlayerDeviceId === remoteState.playerDeviceId || store.activePlaybackDeviceId === remoteState.playerDeviceId);
 
         if (!isExplicitlyControlling) {
           return;
+        }
+
+        // Auto-heal connectionId and state so this controller remains actively connected
+        if (!this.activeConnectionId) {
+          this.activeConnectionId = [self.deviceId, remoteState.playerDeviceId].sort().join('_');
+          this.setConnectionState('CONNECTED');
         }
 
         // When acting as remote controller, silence local audio
@@ -325,16 +330,34 @@ export class ConnectEngine {
       const store = usePlayerStore.getState();
       const playback = PlaybackService.getInstance();
       let posMs = (store.currentTime || 0) * 1000;
+      let isPlaying = Boolean(store.isPlaying);
+
       try {
         const active = playback.getActiveAudio();
         if (active && !isNaN(active.currentTime)) {
           posMs = active.currentTime * 1000;
+          isPlaying = !active.paused;
+        }
+      } catch {}
+
+      try {
+        const { RaagaXNativePlayer } = require('@/lib/playback/native/RaagaXNativePlayer');
+        if (RaagaXNativePlayer.isNative()) {
+          const cached = RaagaXNativePlayer.getCachedPlaybackState();
+          if (cached) {
+            if (typeof cached.positionMs === 'number' && cached.positionMs >= 0) {
+              posMs = cached.positionMs;
+            }
+            if (typeof cached.isPlaying === 'boolean') {
+              isPlaying = cached.isPlaying;
+            }
+          }
         }
       } catch {}
 
       return {
         track: store.currentSong,
-        isPlaying: store.isPlaying,
+        isPlaying,
         positionMs: posMs,
         durationMs: (store.duration || 0) * 1000,
         volume: Math.round((store.volume || 1) * 100),
@@ -859,8 +882,11 @@ export class ConnectEngine {
   }
 
   public isLocalSpeaker(): boolean {
-    const self = DeviceIdentityManager.getInstance().getDevice();
     const store = usePlayerStore.getState();
+    if (store.isInJam) {
+      return true;
+    }
+    const self = DeviceIdentityManager.getInstance().getDevice();
     const activeId = (this.activePlayerDeviceId && this.activePlayerDeviceId !== self.deviceId)
       ? this.activePlayerDeviceId
       : store.activePlaybackDeviceId;
@@ -868,13 +894,19 @@ export class ConnectEngine {
   }
 
   public hasActiveRemoteSession(): boolean {
+    const self = DeviceIdentityManager.getInstance().getDevice();
+    const otherDevices = DeviceRegistry.getInstance().getAllDevices(self.deviceId);
+    // If another device is online on the network/account, broadcast ticks so it stays in sync
+    if (otherDevices.length > 0) {
+      return true;
+    }
+
     if (this.isLocalSpeaker()) {
       return Boolean(
         this.activeControllerDeviceId !== null ||
         (this.activeConnectionId !== null && this.connectionState === 'CONNECTED')
       );
     }
-    const self = DeviceIdentityManager.getInstance().getDevice();
     const store = usePlayerStore.getState();
     return Boolean(
       !store.isLocalPlayback &&
