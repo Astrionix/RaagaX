@@ -749,13 +749,19 @@ export const usePlayerStore = create<PlayerState>()(
         : 'dev_local',
       isLocalPlayback: true,
       setActivePlaybackDeviceId: (devId: string) => {
+        let inJam = false;
+        try {
+          const { JamSessionManager } = require('@/lib/jam/JamSessionManager');
+          inJam = JamSessionManager.getInstance().getState().isInJam;
+        } catch {}
+
         let selfId: string | null = null;
         try {
           const { DeviceIdentityManager } = require('@/lib/connect/DeviceIdentityManager');
           selfId = DeviceIdentityManager.getInstance().getDevice()?.deviceId;
         } catch {}
         const curId = selfId || get().currentDeviceId || (typeof window !== 'undefined' ? localStorage.getItem('raaga_device_id') : null) || 'dev_local';
-        const isLocal = !devId || devId === curId || devId === selfId || devId === 'dev_local' || devId === 'local_device';
+        const isLocal = inJam || !devId || devId === curId || devId === selfId || devId === 'dev_local' || devId === 'local_device';
         if (typeof window !== 'undefined') {
           try {
             if (isLocal) {
@@ -1023,7 +1029,13 @@ export const usePlayerStore = create<PlayerState>()(
         if (!track) return false;
 
         const { isLocalPlayback, activePlaybackDeviceId } = get();
-        let effectiveIsLocal = isLocalPlayback;
+        let inJam = false;
+        try {
+          const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
+          inJam = JamSessionManager.getInstance().getState().isInJam;
+        } catch {}
+
+        let effectiveIsLocal = inJam || isLocalPlayback;
         if (!effectiveIsLocal) {
           let hasValidRemote = false;
           try {
@@ -1338,7 +1350,13 @@ export const usePlayerStore = create<PlayerState>()(
         });
 
         const { isLocalPlayback, queue, activePlaybackDeviceId } = get();
-        let effectiveIsLocal = isLocalPlayback;
+        let inJam = false;
+        try {
+          const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
+          inJam = JamSessionManager.getInstance().getState().isInJam;
+        } catch {}
+
+        let effectiveIsLocal = inJam || isLocalPlayback;
         if (!effectiveIsLocal) {
           let hasValidRemote = false;
           try {
@@ -1346,7 +1364,7 @@ export const usePlayerStore = create<PlayerState>()(
             const { DeviceIdentityManager } = await import('@/lib/connect/DeviceIdentityManager');
             const selfId = DeviceIdentityManager.getInstance().getDevice().deviceId;
             const dev = DeviceRegistry.getInstance().getDevice(activePlaybackDeviceId);
-            hasValidRemote = Boolean(dev && dev.isOnline !== false && dev.deviceId !== selfId);
+            hasValidRemote = Boolean(dev && dev.isOnline !== false && dev.deviceId !== selfId && dev.deviceId !== 'dev_local');
           } catch {}
 
           if (!hasValidRemote) {
@@ -1445,7 +1463,13 @@ export const usePlayerStore = create<PlayerState>()(
 
       togglePlayPause: async () => {
         const { isLocalPlayback, isPlaying, activePlaybackDeviceId } = get();
-        let effectiveIsLocal = isLocalPlayback;
+        let inJam = false;
+        try {
+          const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
+          inJam = JamSessionManager.getInstance().getState().isInJam;
+        } catch {}
+
+        let effectiveIsLocal = inJam || isLocalPlayback;
         if (!effectiveIsLocal) {
           let hasValidRemote = false;
           try {
@@ -1453,7 +1477,7 @@ export const usePlayerStore = create<PlayerState>()(
             const { DeviceIdentityManager } = await import('@/lib/connect/DeviceIdentityManager');
             const selfId = DeviceIdentityManager.getInstance().getDevice().deviceId;
             const dev = DeviceRegistry.getInstance().getDevice(activePlaybackDeviceId);
-            hasValidRemote = Boolean(dev && dev.isOnline !== false && dev.deviceId !== selfId);
+            hasValidRemote = Boolean(dev && dev.isOnline !== false && dev.deviceId !== selfId && dev.deviceId !== 'dev_local');
           } catch {}
 
           if (!hasValidRemote) {
@@ -1534,7 +1558,13 @@ export const usePlayerStore = create<PlayerState>()(
         }).catch(() => {});
 
         if (!fromRemote) {
-          if (!get().isLocalPlayback) {
+          let inJam = false;
+          try {
+            const { JamSessionManager } = require('@/lib/jam/JamSessionManager');
+            inJam = JamSessionManager.getInstance().getState().isInJam;
+          } catch {}
+
+          if (!inJam && !get().isLocalPlayback) {
             PlaybackService.getInstance().pauseAudioElementOnly();
             import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
               PlaybackStateManager.getInstance().updateLocalSnapshot({ isPlaying: playing });
@@ -1616,7 +1646,13 @@ export const usePlayerStore = create<PlayerState>()(
 
       playNext: async (isNaturalAutoEnd: boolean = false) => {
         const { isLocalPlayback } = get();
-        if (!isLocalPlayback) {
+        let inJam = false;
+        try {
+          const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
+          inJam = JamSessionManager.getInstance().getState().isInJam;
+        } catch {}
+
+        if (!inJam && !isLocalPlayback) {
           const { connectEngine } = await import('@/lib/connect/ConnectEngine');
           await connectEngine.sendRemoteCommand('NEXT');
           return;
@@ -1663,7 +1699,13 @@ export const usePlayerStore = create<PlayerState>()(
 
       playPrev: async () => {
         const { isLocalPlayback } = get();
-        if (!isLocalPlayback) {
+        let inJam = false;
+        try {
+          const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
+          inJam = JamSessionManager.getInstance().getState().isInJam;
+        } catch {}
+
+        if (!inJam && !isLocalPlayback) {
           const { connectEngine } = await import('@/lib/connect/ConnectEngine');
           await connectEngine.sendRemoteCommand('PREVIOUS');
           return;

@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { JamSessionManager, JamState } from "@/lib/jam/JamSessionManager";
+import { JamSessionManager, JamState, getJamInviteUrl } from "@/lib/jam/JamSessionManager";
 import { Song } from "@/types/music";
 
 export function useJam() {
   const [jamState, setJamState] = useState<JamState>(JamSessionManager.getInstance().getState());
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
-  const [inviteUrl, setInviteUrl] = useState<string>("");
+  const [inviteUrl, setInviteUrl] = useState<string>(
+    jamState.roomPin ? getJamInviteUrl(jamState.roomPin) : (jamState.inviteUrl || "")
+  );
 
   useEffect(() => {
     const unsub = JamSessionManager.getInstance().subscribe((state) => {
@@ -43,7 +45,7 @@ export function useJam() {
 
   return {
     ...jamState,
-    inviteUrl,
+    inviteUrl: inviteUrl || (jamState.roomPin ? getJamInviteUrl(jamState.roomPin) : (jamState.inviteUrl || "")),
     isInviteModalOpen,
     setIsInviteModalOpen,
     startJam,

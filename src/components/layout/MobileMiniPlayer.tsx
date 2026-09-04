@@ -92,14 +92,17 @@ export function MobileMiniPlayer() {
     ]).then(([{ DeviceRegistry }, { DeviceIdentityManager }]) => {
       const update = () => {
         const selfDev = DeviceIdentityManager.getInstance().getDevice();
-        const otherDevs = DeviceRegistry.getInstance().getAllDevices(selfDev.deviceId);
+        const isLocal = usePlayerStore.getState().isLocalPlayback;
         const devId = usePlayerStore.getState().activePlaybackDeviceId;
+
+        if (isLocal || !devId || devId === selfDev.deviceId || devId === 'dev_local' || devId === 'local_device') {
+          setHasRemoteSpeaker(false);
+          return;
+        }
+
         const dev = DeviceRegistry.getInstance().getDevice(devId);
         if (dev?.deviceName && dev.deviceId !== selfDev.deviceId) {
           setSpeakerDeviceName(dev.deviceName);
-          setHasRemoteSpeaker(true);
-        } else if (otherDevs.length > 0 && otherDevs[0]?.deviceName) {
-          setSpeakerDeviceName(otherDevs[0].deviceName);
           setHasRemoteSpeaker(true);
         } else {
           setHasRemoteSpeaker(false);

@@ -45,9 +45,6 @@ export class ConnectEngine {
       const self = DeviceIdentityManager.getInstance().getDevice();
       const store = usePlayerStore.getState();
 
-      const localAudio = PlaybackService.getInstance().getActiveAudio();
-      const isActuallyPlayingLocally = Boolean(localAudio && !localAudio.paused && store.isLocalPlayback);
-
       if (remoteState.playerDeviceId && remoteState.playerDeviceId !== self.deviceId) {
         // ONLY accept remote player state if that device is actually known and online in DeviceRegistry!
         const remoteDev = DeviceRegistry.getInstance().getDevice(remoteState.playerDeviceId);
@@ -55,9 +52,25 @@ export class ConnectEngine {
           return;
         }
 
-        // CRITICAL GUARD: If this device is the authoritative local speaker,
-        // NEVER surrender speaker status to a remote device's state packet!
-        if (store.isLocalPlayback && this.activePlayerDeviceId === self.deviceId) {
+        // JAM SESSION MUTUAL EXCLUSION:
+        // When in a Jam session, all participants play audio locally and sync via Jam room.
+        // Connect playback packets must NEVER be processed during a Jam!
+        let inJam = false;
+        try {
+          const { JamSessionManager } = require('@/lib/jam/JamSessionManager');
+          inJam = JamSessionManager.getInstance().getState().isInJam;
+        } catch {}
+
+        if (inJam) {
+          return;
+        }
+
+        const isExplicitlyControlling =
+          !store.isLocalPlayback &&
+          (this.activePlayerDeviceId === remoteState.playerDeviceId || store.activePlaybackDeviceId === remoteState.playerDeviceId) &&
+          (this.activeConnectionId !== null || this.connectionState === 'CONNECTED');
+
+        if (!isExplicitlyControlling) {
           return;
         }
 
@@ -68,6 +81,8 @@ export class ConnectEngine {
 
         this.activePlayerDeviceId = remoteState.playerDeviceId;
         store.setActivePlaybackDeviceId(remoteState.playerDeviceId);
+
+        const devName = remoteDev?.deviceName || 'Connected Device';
 
         if (remoteState.track) {
           usePlayerStore.setState({
@@ -84,6 +99,21 @@ export class ConnectEngine {
 
           MediaSessionManager.getInstance().updateSongMetadata(remoteState.track);
           MediaSessionManager.getInstance().setPlaybackState(remoteState.isPlaying ? 'playing' : 'paused');
+
+          // Native Android APK Foreground Notification Bridge
+          import('@/lib/playback/native/RaagaXNativePlayer').then(({ RaagaXNativePlayer }) => {
+            if (RaagaXNativePlayer.isNative()) {
+              RaagaXNativePlayer.updateRemotePlayback({
+                trackId: remoteState.track!.id,
+                title: remoteState.track!.title,
+                artist: remoteState.track!.artist,
+                artworkUrl: remoteState.track!.coverUrl,
+                isPlaying: Boolean(remoteState.isPlaying),
+                deviceName: devName,
+              }).catch(() => {});
+            }
+          }).catch(() => {});
+
           import('@/lib/sync/TabSyncCoordinator').then(({ TabSyncCoordinator }) => {
             TabSyncCoordinator.getInstance().broadcastTrackChange(
               remoteState.track!,
@@ -100,6 +130,23 @@ export class ConnectEngine {
             playbackIntent: remoteState.isPlaying ? 'PLAYING' : 'PAUSED',
             lastPositionTimestamp: null,
           });
+
+          // Native Android APK Foreground Notification Bridge (State update without track swap)
+          import('@/lib/playback/native/RaagaXNativePlayer').then(({ RaagaXNativePlayer }) => {
+            if (RaagaXNativePlayer.isNative()) {
+              const curSong = usePlayerStore.getState().currentSong;
+              if (curSong) {
+                RaagaXNativePlayer.updateRemotePlayback({
+                  trackId: curSong.id,
+                  title: curSong.title,
+                  artist: curSong.artist,
+                  artworkUrl: curSong.coverUrl,
+                  isPlaying: Boolean(remoteState.isPlaying),
+                  deviceName: devName,
+                }).catch(() => {});
+              }
+            }
+          }).catch(() => {});
         }
 
         // Spotify Jam: Synchronize shared queue on remote controllers
@@ -182,6 +229,12 @@ export class ConnectEngine {
     try {
       localStorage.setItem('raagax_active_playback_device_id', self.deviceId);
     } catch {}
+
+    import('@/lib/playback/native/RaagaXNativePlayer').then(({ RaagaXNativePlayer }) => {
+      if (RaagaXNativePlayer.isNative()) {
+        RaagaXNativePlayer.clearRemotePlayback().catch(() => {});
+      }
+    }).catch(() => {});
   }
 
   public static getInstance(): ConnectEngine {
@@ -200,8 +253,21 @@ export class ConnectEngine {
     await DiscoveryEngine.getInstance().startDiscovery(this.currentUserId);
 
     const self = DeviceIdentityManager.getInstance().getDevice();
+    if (!this.activePlayerDeviceId || this.activePlayerDeviceId === 'dev_local') {
+      this.activePlayerDeviceId = self.deviceId;
+    }
     try {
-      usePlayerStore.setState({ currentDeviceId: self.deviceId });
+      const curActive = usePlayerStore.getState().activePlaybackDeviceId;
+      if (!curActive || curActive === 'dev_local' || curActive === 'local_device') {
+        usePlayerStore.setState({
+          currentDeviceId: self.deviceId,
+          activePlaybackDeviceId: self.deviceId,
+          isLocalPlayback: true,
+        });
+        localStorage.setItem('raagax_active_playback_device_id', self.deviceId);
+      } else {
+        usePlayerStore.setState({ currentDeviceId: self.deviceId });
+      }
     } catch {}
 
     // Auto-heal local speaker if no other remote devices remain online (with 6s grace period)
@@ -277,6 +343,16 @@ export class ConnectEngine {
     CommandManager.getInstance().setCommandExecutionHandler(async (cmd: ConnectCommand): Promise<CommandAck> => {
       const playback = PlaybackService.getInstance();
       const self = DeviceIdentityManager.getInstance().getDevice();
+
+      // JAM SESSION MUTUAL EXCLUSION:
+      // Jam participants must NEVER be hijacked or controlled via Connect commands
+      try {
+        const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
+        if (JamSessionManager.getInstance().getState().isInJam) {
+          console.log(`[ConnectEngine] Command ${cmd.commandType} rejected: Device is currently in an active Jam session`);
+          return { commandId: cmd.commandId, status: 'rejected', reason: 'Device is in a Jam session' };
+        }
+      } catch {}
 
       if (cmd.controllerDeviceId) {
         TransportManager.getInstance().setTargetDeviceId(cmd.controllerDeviceId);
@@ -650,17 +726,15 @@ export class ConnectEngine {
   public async switchPlaybackTo(targetDeviceId: string): Promise<boolean> {
     const self = DeviceIdentityManager.getInstance().getDevice();
 
-    // Mutual Exclusion: Cannot switch to a remote device while in a Jam session
-    if (targetDeviceId !== self.deviceId) {
-      try {
-        const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
-        if (JamSessionManager.getInstance().getState().isInJam) {
-          console.warn('[ConnectEngine] Blocked: Cannot switch to remote device while in Jam');
-          usePlayerStore.getState().setToastMessage('RaagaX Connect is unavailable during Spotify Jam. Leave Jam first.');
-          return false;
-        }
-      } catch {}
-    }
+    // Mutual Exclusion: Cannot switch playback while in a Jam session
+    try {
+      const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
+      if (JamSessionManager.getInstance().getState().isInJam) {
+        console.warn('[ConnectEngine] Blocked: Cannot switch device while in Jam');
+        usePlayerStore.getState().setToastMessage('Connect is unavailable during a Jam session. Leave Jam first.');
+        return false;
+      }
+    } catch {}
 
     if (targetDeviceId === self.deviceId) {
       // User tapped 'This Device' (Play Here):

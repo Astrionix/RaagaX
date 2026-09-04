@@ -26,6 +26,7 @@ export interface DeviceInfo {
   source?: 'LAN' | 'CLOUD' | 'BOTH';
   isSameWifi?: boolean;
   isAuthorized?: boolean;
+  activeJamPin?: string | null;
 }
 
 export type ConnectCommandType =

@@ -80,6 +80,17 @@ export class PlaybackStateManager {
       return;
     }
 
+    // Jam session mutual exclusion: Jam audio synchronization occurs over Jam WebSocket room
+    let inJam = false;
+    try {
+      const { JamSessionManager } = require('@/lib/jam/JamSessionManager');
+      inJam = JamSessionManager.getInstance().getState().isInJam;
+    } catch {}
+
+    if (inJam) {
+      return;
+    }
+
     // Do not emit if no song has ever been loaded
     if (!store.currentSong && !partial.track && !this.currentState.track) {
       return;
@@ -103,6 +114,17 @@ export class PlaybackStateManager {
     if (!store.isLocalPlayback) {
       return;
     }
+
+    let inJam = false;
+    try {
+      const { JamSessionManager } = require('@/lib/jam/JamSessionManager');
+      inJam = JamSessionManager.getInstance().getState().isInJam;
+    } catch {}
+
+    if (inJam) {
+      return;
+    }
+
     if (this.lastGetStateCallback) {
       const live = this.lastGetStateCallback();
       this.emitLocalPlaybackState(live);

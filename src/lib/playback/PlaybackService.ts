@@ -374,6 +374,7 @@ export class PlaybackService {
     if (requestId !== undefined && requestId !== this.playbackRequestId) return;
 
     const store = usePlayerStore.getState();
+    if (!store.isLocalPlayback) return;
 
     const isActuallyOffline =
       store.networkMode === 'offline' ||

@@ -164,6 +164,25 @@ export const RaagaXNativePlayer = {
     }
   },
 
+  async updateRemotePlayback(data: {
+    trackId?: string;
+    title: string;
+    artist: string;
+    artworkUrl?: string;
+    isPlaying: boolean;
+    deviceName?: string;
+  }): Promise<void> {
+    const plugin = getPlugin();
+    if (!plugin) return;
+    await plugin.updateRemotePlayback(data);
+  },
+
+  async clearRemotePlayback(): Promise<void> {
+    const plugin = getPlugin();
+    if (!plugin) return;
+    await plugin.clearRemotePlayback();
+  },
+
   // ── Event listeners ───────────────────────────────────────────────────────
 
   /** Fires when the native queue is completely exhausted (not per-track) */
@@ -224,6 +243,13 @@ export const RaagaXNativePlayer = {
     if (!plugin) return () => {};
     plugin.addListener('actionPrev', callback);
     return () => plugin.removeAllListeners('actionPrev');
+  },
+
+  addActionTogglePlayListener(callback: () => void): () => void {
+    const plugin = getPlugin();
+    if (!plugin) return () => {};
+    plugin.addListener('actionTogglePlay', callback);
+    return () => plugin.removeAllListeners('actionTogglePlay');
   },
 
   /**

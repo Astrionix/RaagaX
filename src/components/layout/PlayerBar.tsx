@@ -93,15 +93,17 @@ export function PlayerBar() {
         if (selfDev?.deviceName) {
           setThisDeviceName(selfDev.deviceName);
         }
+        const isLocal = usePlayerStore.getState().isLocalPlayback;
         const activeDevId = usePlayerStore.getState().activePlaybackDeviceId;
-        const otherDevs = DeviceRegistry.getInstance().getAllDevices(selfDev.deviceId);
-        const dev = DeviceRegistry.getInstance().getDevice(activeDevId);
 
+        if (isLocal || !activeDevId || activeDevId === selfDev.deviceId || activeDevId === 'dev_local' || activeDevId === 'local_device') {
+          setHasRemoteSpeaker(false);
+          return;
+        }
+
+        const dev = DeviceRegistry.getInstance().getDevice(activeDevId);
         if (dev?.deviceName && dev.deviceId !== selfDev.deviceId) {
           setSpeakerDeviceName(dev.deviceName);
-          setHasRemoteSpeaker(true);
-        } else if (otherDevs.length > 0 && otherDevs[0]?.deviceName) {
-          setSpeakerDeviceName(otherDevs[0].deviceName);
           setHasRemoteSpeaker(true);
         } else {
           setHasRemoteSpeaker(false);
@@ -234,7 +236,7 @@ export function PlayerBar() {
   return (
     <>
       {/* ── Spotify Connect Full-width Green Bottom Bar (Matches Spotify Desktop) ── */}
-      {!isLocalPlayback && hasRemoteSpeaker && (
+      {!isInJam && !isLocalPlayback && hasRemoteSpeaker && (
         <div
           onClick={handleToggleConnect}
           className="hidden md:flex fixed bottom-0 left-0 right-0 z-30 h-6 sm:h-6.5 bg-[#1ed760] text-black text-xs font-bold px-4 sm:px-6 items-center justify-end gap-2 cursor-pointer select-none hover:bg-[#1fdf64] transition-colors shadow-lg"
@@ -248,7 +250,7 @@ export function PlayerBar() {
       <aside
         aria-label="Floating Media Player"
         className={`hidden md:flex fixed ${
-          !isLocalPlayback && hasRemoteSpeaker
+          !isInJam && !isLocalPlayback && hasRemoteSpeaker
             ? 'bottom-[calc(2.25rem+env(safe-area-inset-bottom,0px))]'
             : 'bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))]'
         } z-40 group/player select-none items-center justify-between px-3.5 sm:px-4 py-1.5 backdrop-blur-2xl rounded-full transition-all duration-300 max-w-[calc(100vw-18rem)] md:max-w-[760px] lg:max-w-[840px] w-auto h-[54px] gap-2.5 sm:gap-4 -translate-x-1/2 bg-[#1c1c1e]/90 hover:bg-[#1c1c1e]/95 border border-white/10 hover:border-white/15 ring-1 ring-white/5 shadow-[0_12px_36px_rgba(0,0,0,0.65)] ${

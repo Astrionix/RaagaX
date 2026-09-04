@@ -46,16 +46,16 @@ export const RightConnectPanel: React.FC<Props> = ({
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
 
   const otherDevices = availableDevices.filter((d) => d.deviceId !== thisDevice.deviceId);
+  const nearbyJamDevice = otherDevices.find((d) => Boolean(d.activeJamPin));
 
   // If there are NO other devices found on the network, this local device is definitively the active player!
-  const isLocalActive = otherDevices.length === 0 || (isLocalPlayback && (!storeActivePlayerId || storeActivePlayerId === thisDevice.deviceId));
+  const isLocalActive = otherDevices.length === 0 || isLocalPlayback || !storeActivePlayerId || storeActivePlayerId === thisDevice.deviceId || storeActivePlayerId === 'dev_local' || storeActivePlayerId === 'local_device';
   const activeRemoteId = !isLocalActive && storeActivePlayerId ? storeActivePlayerId : propActivePlayerId;
 
   // Find active remote device if remote is playing
-  const activeRemoteDevice = !isLocalActive
+  const activeRemoteDevice = !isLocalActive && activeRemoteId && activeRemoteId !== thisDevice.deviceId && activeRemoteId !== 'dev_local'
     ? otherDevices.find((d) => d.deviceId === activeRemoteId) ||
-      (activeRemoteId ? DeviceRegistry.getInstance().getDevice(activeRemoteId) : null) ||
-      (otherDevices.length > 0 ? otherDevices[0] : null)
+      (activeRemoteId ? DeviceRegistry.getInstance().getDevice(activeRemoteId) : null)
     : null;
 
   return (
@@ -72,6 +72,29 @@ export const RightConnectPanel: React.FC<Props> = ({
           <X size={18} />
         </button>
       </div>
+
+      {/* Nearby Jam on Local Wi-Fi Banner */}
+      {!isInJam && nearbyJamDevice && nearbyJamDevice.activeJamPin && (
+        <div className="mb-3 p-3 rounded-xl bg-gradient-to-r from-[#1ed760]/20 via-purple-600/20 to-blue-600/20 border border-[#1ed760]/40 flex items-center justify-between flex-shrink-0 animate-in fade-in">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-[#1ed760]/20 flex items-center justify-center flex-shrink-0">
+              <Radio size={16} className="text-[#1ed760] animate-pulse" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-white leading-tight">Nearby Jam on your Wi-Fi</p>
+              <p className="text-[10px] text-zinc-300 truncate">
+                {nearbyJamDevice.deviceName} is Jamming (Code: {nearbyJamDevice.activeJamPin})
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => joinJam(nearbyJamDevice.activeJamPin!)}
+            className="px-3 py-1.5 rounded-full bg-[#1ed760] hover:bg-[#1fdf64] active:scale-95 text-black font-bold text-[11px] flex-shrink-0 transition-transform cursor-pointer ml-2"
+          >
+            Join
+          </button>
+        </div>
+      )}
 
       {/* Spotify Jam Interactive Section */}
       {isInJam ? (

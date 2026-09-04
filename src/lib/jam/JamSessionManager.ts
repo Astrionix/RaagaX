@@ -18,6 +18,29 @@ import { PlaybackService } from '@/lib/playback/PlaybackService';
 import { Song } from '@/types/music';
 import { DriftCorrectionEngine } from './DriftCorrectionEngine';
 
+export function getJamInviteUrl(pin: string): string {
+  if (!pin) return 'https://raaga.me';
+  if (typeof window === 'undefined') return `https://raaga.me?jam=${pin}`;
+
+  try {
+    const hostname = window.location.hostname || '';
+    const protocol = window.location.protocol || '';
+    const isLocal =
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname.startsWith('192.168.') ||
+      hostname.startsWith('10.') ||
+      hostname.endsWith('.local') ||
+      protocol === 'capacitor:' ||
+      protocol === 'file:';
+
+    const origin = isLocal ? 'https://raaga.me' : window.location.origin;
+    return `${origin}?jam=${pin}`;
+  } catch {
+    return `https://raaga.me?jam=${pin}`;
+  }
+}
+
 export interface JamState {
   isInJam: boolean;
   isHost: boolean;
@@ -27,6 +50,7 @@ export interface JamState {
   hostDeviceId: string | null;
   syncLatencyMs: number;
   allowGuestControl: boolean;
+  inviteUrl: string;
 }
 
 export class JamSessionManager {
@@ -46,6 +70,7 @@ export class JamSessionManager {
     hostDeviceId: null,
     syncLatencyMs: 0,
     allowGuestControl: true,
+    inviteUrl: '',
   };
 
   private isHandlingRemoteUpdate = false;
@@ -107,19 +132,32 @@ export class JamSessionManager {
 
   // ── 1. Start a New Jam Session (Host) ──────────────────────────────────────
   public async startJam(): Promise<{ roomId: string; roomPin: string; inviteUrl: string }> {
-    // Mutual Exclusion: Cannot run Jam while connected to a remote Connect speaker
+    // Mutual Exclusion: Disconnect any active Connect session cleanly without relinquishing speaker
     try {
       const { connectEngine } = await import('@/lib/connect/ConnectEngine');
-      if (!connectEngine.isLocalSpeaker() || connectEngine.getActiveControllerDeviceId() !== null) {
-        const self = DeviceIdentityManager.getInstance().getDevice();
-        await connectEngine.switchPlaybackTo(self.deviceId);
-        usePlayerStore.getState().setToastMessage('Switched playback to This Device for Jam 🎧');
-      }
+      connectEngine.handleRemoteDisconnect();
+      const self = DeviceIdentityManager.getInstance().getDevice();
+      usePlayerStore.setState({
+        isLocalPlayback: true,
+        activePlaybackDeviceId: self.deviceId,
+      });
+      try {
+        localStorage.setItem('raagax_active_playback_device_id', self.deviceId);
+      } catch {}
     } catch {}
 
     const pin = Math.floor(100000 + Math.random() * 900000).toString();
     const roomId = `jam_${pin}`;
     const self = DeviceIdentityManager.getInstance().getDevice();
+    const inviteUrl = getJamInviteUrl(pin);
+
+    // Broadcast Wi-Fi presence that this device is hosting a Jam on local network
+    DeviceIdentityManager.getInstance().setActiveJamPin(pin);
+    try {
+      import('@/lib/connect/DiscoveryEngine').then(({ DiscoveryEngine }) => {
+        DiscoveryEngine.getInstance().retrackPresence();
+      });
+    } catch {}
 
     this.currentState = {
       isInJam: true,
@@ -130,6 +168,7 @@ export class JamSessionManager {
       hostDeviceId: self.deviceId,
       syncLatencyMs: 0,
       allowGuestControl: true,
+      inviteUrl,
     };
     this.notify();
 
@@ -139,25 +178,28 @@ export class JamSessionManager {
     this.broadcastCurrentPlaybackState();
     this.startDriftSyncBeacon();
 
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://raaga.me';
-    const inviteUrl = `${origin}?jam=${pin}`;
     return { roomId, roomPin: pin, inviteUrl };
   }
 
   // ── 2. Join an Existing Jam Session (Guest) ────────────────────────────────
   public async joinJam(pinOrRoomId: string): Promise<boolean> {
-    // Mutual Exclusion: Cannot run Jam while connected to a remote Connect speaker
+    // Mutual Exclusion: Disconnect any active Connect session cleanly without relinquishing speaker
     try {
       const { connectEngine } = await import('@/lib/connect/ConnectEngine');
-      if (!connectEngine.isLocalSpeaker() || connectEngine.getActiveControllerDeviceId() !== null) {
-        const self = DeviceIdentityManager.getInstance().getDevice();
-        await connectEngine.switchPlaybackTo(self.deviceId);
-        usePlayerStore.getState().setToastMessage('Switched playback to This Device for Jam 🎧');
-      }
+      connectEngine.handleRemoteDisconnect();
+      const self = DeviceIdentityManager.getInstance().getDevice();
+      usePlayerStore.setState({
+        isLocalPlayback: true,
+        activePlaybackDeviceId: self.deviceId,
+      });
+      try {
+        localStorage.setItem('raagax_active_playback_device_id', self.deviceId);
+      } catch {}
     } catch {}
 
     const clean = pinOrRoomId.trim().replace(/^jam_/i, '');
     const roomId = `jam_${clean}`;
+    const inviteUrl = getJamInviteUrl(clean);
 
     this.currentState = {
       isInJam: true,
@@ -168,6 +210,7 @@ export class JamSessionManager {
       hostDeviceId: null,
       syncLatencyMs: 0,
       allowGuestControl: true,
+      inviteUrl,
     };
     this.notify();
 
@@ -176,6 +219,14 @@ export class JamSessionManager {
 
   // ── 3. Leave Current Jam ───────────────────────────────────────────────────
   public leaveJam(): void {
+    // Clear Wi-Fi presence for Jam
+    DeviceIdentityManager.getInstance().setActiveJamPin(null);
+    try {
+      import('@/lib/connect/DiscoveryEngine').then(({ DiscoveryEngine }) => {
+        DiscoveryEngine.getInstance().retrackPresence();
+      });
+    } catch {}
+
     if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentState.roomId) {
       try {
         const self = DeviceIdentityManager.getInstance().getDevice();
@@ -204,6 +255,12 @@ export class JamSessionManager {
 
     DriftCorrectionEngine.getInstance().stop();
 
+    const self = DeviceIdentityManager.getInstance().getDevice();
+    usePlayerStore.setState({
+      isLocalPlayback: true,
+      activePlaybackDeviceId: self.deviceId,
+    });
+
     this.currentState = {
       isInJam: false,
       isHost: false,
@@ -213,6 +270,7 @@ export class JamSessionManager {
       hostDeviceId: null,
       syncLatencyMs: 0,
       allowGuestControl: true,
+      inviteUrl: '',
     };
     this.notify();
   }
@@ -414,8 +472,16 @@ export class JamSessionManager {
 
     this.isHandlingRemoteUpdate = true;
     try {
-      // 1. Shared Queue Sync: If incoming payload includes updated queue, update store
+      // 1. Shared Queue Sync: If incoming payload includes updated queue, update store & QueueManager
       if (payload.queue && Array.isArray(payload.queue) && payload.queue.length > 0) {
+        try {
+          const { QueueManager } = await import('@/lib/queue/QueueManager');
+          QueueManager.getInstance().replaceQueue(
+            payload.queue,
+            typeof payload.queueIndex === 'number' ? payload.queueIndex : store.queueIndex
+          );
+        } catch {}
+
         usePlayerStore.setState({
           queue: payload.queue,
           queueIndex: typeof payload.queueIndex === 'number' ? payload.queueIndex : store.queueIndex,
@@ -445,6 +511,7 @@ export class JamSessionManager {
             currentSong: payload.track,
             isPlaying: Boolean(payload.isPlaying),
             currentTime: targetPosSec,
+            isLocalPlayback: true,
           });
           if (payload.isPlaying) {
             await PlaybackService.getInstance().playTrack(payload.track, true, targetPosSec);
@@ -452,6 +519,7 @@ export class JamSessionManager {
         } else {
           // Same track: align playing/paused state
           if (store.isPlaying !== Boolean(payload.isPlaying)) {
+            usePlayerStore.setState({ isLocalPlayback: true });
             if (payload.isPlaying) {
               PlaybackService.getInstance().resume();
             } else {

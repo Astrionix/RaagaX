@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, Copy, Check, Users, Radio, Share2, Lock } from "lucide-react";
+import { X, Copy, Check, Users, Radio, Share2, Lock, Smartphone } from "lucide-react";
+import { getJamInviteUrl } from "@/lib/jam/JamSessionManager";
+import { usePlayerStore } from "@/context/usePlayerStore";
 
 interface JamInviteModalProps {
   isOpen: boolean;
@@ -26,20 +28,63 @@ export const JamInviteModal: React.FC<JamInviteModalProps> = ({
   allowGuestControl = true,
   onToggleGuestControl,
 }) => {
-  const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [shared, setShared] = useState(false);
 
   if (!isOpen || !roomPin) return null;
 
-  const handleCopy = () => {
-    if (typeof navigator !== "undefined" && navigator.clipboard) {
-      navigator.clipboard.writeText(inviteUrl || window.location.href);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2200);
-    }
-  };
+  // Always derive official, non-localhost production URL
+  const effectiveInviteUrl = roomPin ? getJamInviteUrl(roomPin) : (inviteUrl || "https://raaga.me");
 
   // Format PIN as "123 456" for instant readability
   const formattedPin = roomPin.length === 6 ? `${roomPin.slice(0, 3)} ${roomPin.slice(3)}` : roomPin;
+
+  const fullShareText = `Join my Jam on RaagaX! 🎧\nListen together and queue tracks in real-time.\n\n🔑 Jam Code: ${formattedPin}\n🔗 Link: ${effectiveInviteUrl}`;
+
+  // Native share sheet (WhatsApp, Telegram, etc.) with clipboard fallback
+  const handleShare = async () => {
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share({
+          title: "Join my Jam on RaagaX 🎧",
+          text: fullShareText,
+          url: effectiveInviteUrl,
+        });
+        setShared(true);
+        setTimeout(() => setShared(false), 2200);
+        return;
+      } catch (err: any) {
+        if (err?.name === "AbortError") return; // User closed native share sheet
+      }
+    }
+
+    // Fallback: Copy full formatted invite to clipboard
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(fullShareText);
+      setShared(true);
+      usePlayerStore.getState().setToastMessage("Jam invite link & code copied! 📋");
+      setTimeout(() => setShared(false), 2200);
+    }
+  };
+
+  const handleCopyLink = () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(effectiveInviteUrl);
+      setCopiedLink(true);
+      usePlayerStore.getState().setToastMessage("Invite link copied to clipboard! 🔗");
+      setTimeout(() => setCopiedLink(false), 2200);
+    }
+  };
+
+  const handleCopyCode = () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(roomPin);
+      setCopiedCode(true);
+      usePlayerStore.getState().setToastMessage(`Jam code ${formattedPin} copied! 🔑`);
+      setTimeout(() => setCopiedCode(false), 2200);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-200">
@@ -68,11 +113,21 @@ export const JamInviteModal: React.FC<JamInviteModalProps> = ({
           Share this PIN or link with friends to listen together and control the queue in real-time.
         </p>
 
-        {/* PIN Code Display */}
-        <div className="bg-[#121212] border border-white/10 rounded-xl py-3 px-4 mb-4">
-          <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">
-            Jam Room Code
-          </p>
+        {/* PIN Code Display (Click to Copy) */}
+        <div 
+          onClick={handleCopyCode}
+          className="bg-[#121212] border border-white/10 hover:border-[#1ed760]/50 rounded-xl py-3 px-4 mb-4 cursor-pointer transition-all group relative"
+          title="Click to copy code"
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
+              Jam Room Code
+            </span>
+            <span className="text-[10px] text-zinc-500 group-hover:text-[#1ed760] transition-colors flex items-center gap-1 font-medium">
+              {copiedCode ? <Check size={11} className="text-[#1ed760]" /> : <Copy size={11} />}
+              {copiedCode ? "Copied!" : "Copy code"}
+            </span>
+          </div>
           <div className="text-3xl font-extrabold tracking-widest text-[#1ed760] font-mono">
             {formattedPin}
           </div>
@@ -127,23 +182,44 @@ export const JamInviteModal: React.FC<JamInviteModalProps> = ({
           </div>
         )}
 
-        {/* Copy Invite Link Button */}
-        <button
-          onClick={handleCopy}
-          className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-full bg-[#1ed760] hover:bg-[#1fdf64] active:scale-[0.98] text-black font-bold text-sm transition-all shadow-lg shadow-[#1ed760]/20 mb-3 cursor-pointer"
-        >
-          {copied ? (
-            <>
-              <Check size={16} />
-              <span>Invite Link Copied!</span>
-            </>
-          ) : (
-            <>
-              <Share2 size={16} />
-              <span>Share Invite Link</span>
-            </>
-          )}
-        </button>
+        {/* Share Action Buttons */}
+        <div className="flex flex-col gap-2 mb-3">
+          {/* Primary: Share via Native Share Sheet (WhatsApp, Telegram, etc.) */}
+          <button
+            onClick={handleShare}
+            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-full bg-[#1ed760] hover:bg-[#1fdf64] active:scale-[0.98] text-black font-bold text-sm transition-all shadow-lg shadow-[#1ed760]/20 cursor-pointer"
+          >
+            {shared ? (
+              <>
+                <Check size={16} />
+                <span>Invite Shared / Copied!</span>
+              </>
+            ) : (
+              <>
+                <Share2 size={16} />
+                <span>Share via Apps (WhatsApp/Telegram)</span>
+              </>
+            )}
+          </button>
+
+          {/* Secondary: Copy Link Only */}
+          <button
+            onClick={handleCopyLink}
+            className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-full bg-white/10 hover:bg-white/15 active:scale-[0.98] text-zinc-200 hover:text-white font-semibold text-xs transition-colors cursor-pointer"
+          >
+            {copiedLink ? (
+              <>
+                <Check size={14} className="text-[#1ed760]" />
+                <span className="text-[#1ed760]">Link Copied: {effectiveInviteUrl}</span>
+              </>
+            ) : (
+              <>
+                <Copy size={14} />
+                <span className="truncate">Copy Link: {effectiveInviteUrl}</span>
+              </>
+            )}
+          </button>
+        </div>
 
         {/* Leave Jam Button */}
         <button

@@ -16,7 +16,7 @@
     "lint": "next lint",
     "test": "vitest run",
     "electron:dev": "concurrently \"next dev\" \"wait-on tcp:3000 && electron .\"",
-    "electron:build": "npm run build && electron-builder --win",
+    "electron:build": "npm run export:app && electron-builder --win",
     "doctor": "node scripts/doctor.js",
     "export:app": "node scripts/export-app.js",
     "apk:sync": "npx cap copy android && npx cap sync android",
@@ -33,10 +33,32 @@
     "directories": {
       "output": "dist"
     },
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "files": [
+      "out/**/*",
+      "electron/**/*",
+      "package.json",
+      "!**/node_modules/**"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "compression": "maximum",
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "public/app-icon.png"
     },
@@ -44,7 +66,14 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "shortcutName": "RaagaX Lossless Pro",
+      "uninstallDisplayName": "RaagaX Lossless Pro",
+      "deleteAppDataOnUninstall": false,
+      "differentialPackage": false
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}.${ext}"
     }
   },
   "dependencies": {

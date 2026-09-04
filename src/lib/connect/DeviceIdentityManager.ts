@@ -113,6 +113,10 @@ export class DeviceIdentityManager {
     }
   }
 
+  public setActiveJamPin(pin: string | null): void {
+    this.currentDevice.activeJamPin = pin || null;
+  }
+
   public setUserId(userId?: string | null): void {
     this.currentDevice.userId = userId || null;
     if (typeof window !== 'undefined') {
