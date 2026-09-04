@@ -74,33 +74,7 @@ export const RightConnectPanel: React.FC<Props> = ({
       </div>
 
       {/* Spotify Jam Interactive Section */}
-      {!isInJam ? (
-        <div className="mb-3 p-3 rounded-xl bg-gradient-to-r from-[#1ed760]/15 to-white/5 border border-[#1ed760]/30 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-[#1ed760]/20 flex items-center justify-center flex-shrink-0">
-              <Radio size={16} className="text-[#1ed760]" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-white leading-tight">Start a Jam</p>
-              <p className="text-[10px] text-zinc-400">Listen together in real time</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => startJam()}
-              className="px-3 py-1.5 rounded-full bg-[#1ed760] hover:bg-[#1fdf64] active:scale-95 text-black font-bold text-[11px] transition-transform cursor-pointer"
-            >
-              Start
-            </button>
-            <button
-              onClick={() => setIsJoinModalOpen(true)}
-              className="px-2.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 text-white font-semibold text-[11px] transition-transform cursor-pointer"
-            >
-              Join
-            </button>
-          </div>
-        </div>
-      ) : (
+      {isInJam ? (
         <div className="mb-3 p-3 rounded-xl bg-[#1ed760]/10 border border-[#1ed760]/30 flex flex-col gap-2 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -126,6 +100,71 @@ export const RightConnectPanel: React.FC<Props> = ({
             </button>
           </div>
         </div>
+      ) : !isLocalActive ? (
+        <div className="mb-3 p-3 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center flex-shrink-0">
+              <Radio size={16} className="text-zinc-500" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-zinc-300 leading-tight">Jam Unavailable</p>
+              <p className="text-[10px] text-zinc-500 truncate">Playing on {activeRemoteDevice?.deviceName || 'remote device'}</p>
+            </div>
+          </div>
+          <button
+            onClick={async () => {
+              await onSwitchPlayback(thisDevice.deviceId);
+              usePlayerStore.getState().setToastMessage('Switched to this device. You can now start or join a Jam! 🎧');
+            }}
+            className="px-2.5 py-1.5 rounded-full bg-white/10 hover:bg-[#1ed760] hover:text-black active:scale-95 text-zinc-200 font-bold text-[11px] transition-all flex-shrink-0 cursor-pointer"
+          >
+            Switch & Jam
+          </button>
+        </div>
+      ) : (
+        <div className="mb-3 p-3 rounded-xl bg-gradient-to-r from-[#1ed760]/15 to-white/5 border border-[#1ed760]/30 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-[#1ed760]/20 flex items-center justify-center flex-shrink-0">
+              <Radio size={16} className="text-[#1ed760]" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-white leading-tight">Start a Jam</p>
+              <p className="text-[10px] text-zinc-400">Listen together in real time</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => startJam()}
+              className="px-3 py-1.5 rounded-full bg-[#1ed760] hover:bg-[#1fdf64] active:scale-95 text-black font-bold text-[11px] transition-transform cursor-pointer"
+            >
+              Start
+            </button>
+            <button
+              onClick={() => setIsJoinModalOpen(true)}
+              className="px-2.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 text-white font-semibold text-[11px] transition-transform cursor-pointer"
+            >
+              Join
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Mutual Exclusion Alert: Jam is Active */}
+      {isInJam && (
+        <div className="mb-3 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <Radio size={13} className="text-amber-400 flex-shrink-0" />
+            <p className="text-[11px] text-amber-200 font-medium leading-tight">
+              Connect disabled while in Jam
+            </p>
+          </div>
+          <button
+            onClick={leaveJam}
+            className="text-[10px] font-bold text-amber-400 hover:text-amber-300 underline cursor-pointer"
+          >
+            Leave Jam
+          </button>
+        </div>
       )}
 
       {/* Main Content Area */}
@@ -147,6 +186,8 @@ export const RightConnectPanel: React.FC<Props> = ({
                   device={dev}
                   isSelf={false}
                   isActivePlayer={false}
+                  disabled={isInJam}
+                  disabledTooltip="RaagaX Connect is unavailable during a Jam session. Please leave Jam first."
                   onSwitchPlayback={(id) => onSwitchPlayback(id)}
                 />
               ))}
@@ -178,6 +219,8 @@ export const RightConnectPanel: React.FC<Props> = ({
                     device={dev}
                     isSelf={false}
                     isActivePlayer={false}
+                    disabled={isInJam}
+                    disabledTooltip="RaagaX Connect is unavailable during a Jam session. Please leave Jam first."
                     onSwitchPlayback={(id) => onSwitchPlayback(id)}
                   />
                 ))}

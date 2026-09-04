@@ -107,6 +107,16 @@ export class JamSessionManager {
 
   // ── 1. Start a New Jam Session (Host) ──────────────────────────────────────
   public async startJam(): Promise<{ roomId: string; roomPin: string; inviteUrl: string }> {
+    // Mutual Exclusion: Cannot run Jam while connected to a remote Connect speaker
+    try {
+      const { connectEngine } = await import('@/lib/connect/ConnectEngine');
+      if (!connectEngine.isLocalSpeaker() || connectEngine.getActiveControllerDeviceId() !== null) {
+        const self = DeviceIdentityManager.getInstance().getDevice();
+        await connectEngine.switchPlaybackTo(self.deviceId);
+        usePlayerStore.getState().setToastMessage('Switched playback to This Device for Jam 🎧');
+      }
+    } catch {}
+
     const pin = Math.floor(100000 + Math.random() * 900000).toString();
     const roomId = `jam_${pin}`;
     const self = DeviceIdentityManager.getInstance().getDevice();
@@ -136,6 +146,16 @@ export class JamSessionManager {
 
   // ── 2. Join an Existing Jam Session (Guest) ────────────────────────────────
   public async joinJam(pinOrRoomId: string): Promise<boolean> {
+    // Mutual Exclusion: Cannot run Jam while connected to a remote Connect speaker
+    try {
+      const { connectEngine } = await import('@/lib/connect/ConnectEngine');
+      if (!connectEngine.isLocalSpeaker() || connectEngine.getActiveControllerDeviceId() !== null) {
+        const self = DeviceIdentityManager.getInstance().getDevice();
+        await connectEngine.switchPlaybackTo(self.deviceId);
+        usePlayerStore.getState().setToastMessage('Switched playback to This Device for Jam 🎧');
+      }
+    } catch {}
+
     const clean = pinOrRoomId.trim().replace(/^jam_/i, '');
     const roomId = `jam_${clean}`;
 

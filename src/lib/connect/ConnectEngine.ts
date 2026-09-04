@@ -121,12 +121,32 @@ export class ConnectEngine {
       (connId, controllerDeviceId) => this.handleIncomingConnection(connId, controllerDeviceId),
       () => this.handleRemoteDisconnect()
     );
+    DiscoveryEngine.getInstance().setDirectMessageCallback((event, data) => {
+      if (event === 'CONNECT_REJECTED' && data?.reason === 'JAM_ACTIVE') {
+        usePlayerStore.getState().setToastMessage(`${data.deviceName || 'Remote device'} is currently in a Jam session and cannot be connected.`);
+      }
+    });
   }
 
   public async handleIncomingConnection(connectionId: string, controllerDeviceId: string): Promise<void> {
+    const self = DeviceIdentityManager.getInstance().getDevice();
+
+    // Mutual Exclusion: If local device is currently active in a Jam, reject incoming connect
+    try {
+      const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
+      if (JamSessionManager.getInstance().getState().isInJam) {
+        console.warn('[Connect] Rejecting incoming connect: local device is in Jam session');
+        DiscoveryEngine.getInstance().sendDirectMessage(controllerDeviceId, 'CONNECT_REJECTED', {
+          reason: 'JAM_ACTIVE',
+          deviceName: self.deviceName,
+        });
+        usePlayerStore.getState().setToastMessage('Blocked remote connection: this device is currently in a Jam session.');
+        return;
+      }
+    } catch {}
+
     this.activeConnectionId = connectionId;
     this.setActiveControllerDeviceId(controllerDeviceId);
-    const self = DeviceIdentityManager.getInstance().getDevice();
     // This device remains the player being controlled
     this.setActivePlayerDeviceId(self.deviceId);
 
@@ -481,6 +501,16 @@ export class ConnectEngine {
       return true;
     }
 
+    // Mutual Exclusion: Cannot connect to remote device while in a Jam session
+    try {
+      const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
+      if (JamSessionManager.getInstance().getState().isInJam) {
+        console.warn('[ConnectEngine] Blocked: Cannot connect to remote device while in Jam');
+        usePlayerStore.getState().setToastMessage('RaagaX Connect is unavailable during Spotify Jam. Leave Jam first.');
+        return false;
+      }
+    } catch {}
+
     const registry = DeviceRegistry.getInstance();
     const target = registry.getDevice(targetDeviceId);
     if (!target) {
@@ -619,6 +649,19 @@ export class ConnectEngine {
   // 6. Transactional Switch Playback (Handoff)
   public async switchPlaybackTo(targetDeviceId: string): Promise<boolean> {
     const self = DeviceIdentityManager.getInstance().getDevice();
+
+    // Mutual Exclusion: Cannot switch to a remote device while in a Jam session
+    if (targetDeviceId !== self.deviceId) {
+      try {
+        const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
+        if (JamSessionManager.getInstance().getState().isInJam) {
+          console.warn('[ConnectEngine] Blocked: Cannot switch to remote device while in Jam');
+          usePlayerStore.getState().setToastMessage('RaagaX Connect is unavailable during Spotify Jam. Leave Jam first.');
+          return false;
+        }
+      } catch {}
+    }
+
     if (targetDeviceId === self.deviceId) {
       // User tapped 'This Device' (Play Here):
       const state = PlaybackStateManager.getInstance().getCurrentState();

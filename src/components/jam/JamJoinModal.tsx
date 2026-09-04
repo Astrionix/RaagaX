@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { X, Radio, ArrowRight, AlertCircle } from "lucide-react";
+import { usePlayerStore } from "@/context/usePlayerStore";
 
 interface JamJoinModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ export const JamJoinModal: React.FC<JamJoinModalProps> = ({
   onClose,
   onJoin,
 }) => {
+  const { isLocalPlayback } = usePlayerStore();
   const [pin, setPin] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +83,13 @@ export const JamJoinModal: React.FC<JamJoinModalProps> = ({
         <p className="text-xs text-zinc-400 mb-5">
           Enter the 6-digit code shared by your friend to join the session.
         </p>
+
+        {!isLocalPlayback && (
+          <div className="mb-4 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200 flex items-center gap-2 text-left">
+            <AlertCircle size={14} className="text-amber-400 flex-shrink-0" />
+            <span>Currently playing on a remote device. Joining will switch playback back to this device.</span>
+          </div>
+        )}
 
         <form onSubmit={handleJoin} className="space-y-4">
           <div>

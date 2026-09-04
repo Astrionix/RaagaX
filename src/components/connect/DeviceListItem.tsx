@@ -4,12 +4,16 @@ import React, { useState } from "react";
 import { Laptop, Smartphone, Tablet, Speaker, Loader2, Pencil, Check, X, Volume2 } from "lucide-react";
 import { DeviceInfo } from "@/lib/connect/types";
 
+import { usePlayerStore } from "@/context/usePlayerStore";
+
 interface Props {
   device: DeviceInfo;
   isSelf: boolean;
   isActivePlayer: boolean;
   onSwitchPlayback: (deviceId: string) => void | Promise<any>;
   onRename?: (newName: string) => void | Promise<any>;
+  disabled?: boolean;
+  disabledTooltip?: string;
 }
 
 export const DeviceListItem: React.FC<Props> = ({
@@ -18,6 +22,8 @@ export const DeviceListItem: React.FC<Props> = ({
   isActivePlayer,
   onSwitchPlayback,
   onRename,
+  disabled = false,
+  disabledTooltip,
 }) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -43,6 +49,12 @@ export const DeviceListItem: React.FC<Props> = ({
   const displayName = device.deviceName || (isSelf ? "This web browser" : "Remote Device");
 
   const handleClick = async () => {
+    if (disabled) {
+      if (disabledTooltip) {
+        usePlayerStore.getState().setToastMessage(disabledTooltip);
+      }
+      return;
+    }
     if (isEditing || isActivePlayer || isConnecting) return;
     setIsConnecting(true);
     try {
@@ -86,7 +98,9 @@ export const DeviceListItem: React.FC<Props> = ({
       role="button"
       tabIndex={0}
       className={`w-full group text-left flex items-center justify-between px-3 py-3 rounded-lg transition-colors select-none ${
-        isActivePlayer
+        disabled
+          ? "opacity-40 cursor-not-allowed hover:bg-transparent"
+          : isActivePlayer
           ? "cursor-default"
           : "hover:bg-white/10 active:bg-white/15 cursor-pointer"
       }`}
