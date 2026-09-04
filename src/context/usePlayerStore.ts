@@ -206,6 +206,8 @@ interface PlayerState {
   activePlaybackDeviceId: string; // The device ID physically outputting sound
   currentDeviceId: string;        // ID of the local browser/tab
   isLocalPlayback: boolean;       // Computed: activePlaybackDeviceId === currentDeviceId
+  isInJam: boolean;               // True when actively participating in a Jam session
+  setIsInJam: (inJam: boolean) => void;
   setActivePlaybackDeviceId: (deviceId: string) => void;
   activeRenderer: Renderer;
   playbackStatus: 'playing' | 'paused' | 'buffering' | 'transitioning';
@@ -748,12 +750,10 @@ export const usePlayerStore = create<PlayerState>()(
         ? (localStorage.getItem('raaga_device_id') || localStorage.getItem('connect_device_id') || localStorage.getItem('raagax_device_id') || 'dev_local')
         : 'dev_local',
       isLocalPlayback: true,
+      isInJam: false,
+      setIsInJam: (inJam: boolean) => set({ isInJam: inJam }),
       setActivePlaybackDeviceId: (devId: string) => {
-        let inJam = false;
-        try {
-          const { JamSessionManager } = require('@/lib/jam/JamSessionManager');
-          inJam = JamSessionManager.getInstance().getState().isInJam;
-        } catch {}
+        const inJam = get().isInJam;
 
         let selfId: string | null = null;
         try {
@@ -1028,14 +1028,8 @@ export const usePlayerStore = create<PlayerState>()(
       switchTrack: async (track: Song, index: number, autoPlay: boolean = true) => {
         if (!track) return false;
 
-        const { isLocalPlayback, activePlaybackDeviceId } = get();
-        let inJam = false;
-        try {
-          const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
-          inJam = JamSessionManager.getInstance().getState().isInJam;
-        } catch {}
-
-        let effectiveIsLocal = inJam || isLocalPlayback;
+        const { isLocalPlayback, activePlaybackDeviceId, isInJam } = get();
+        let effectiveIsLocal = isInJam || isLocalPlayback;
         if (!effectiveIsLocal) {
           let hasValidRemote = false;
           try {
@@ -1344,19 +1338,15 @@ export const usePlayerStore = create<PlayerState>()(
         });
 
         set({
+          currentSong: activePlaySong,
           sessionLanguage: songLang,
           playbackContext: effectiveContext as any,
           playbackContextData: effectiveContext as any,
         });
+        persistSessionHelper(get());
 
-        const { isLocalPlayback, queue, activePlaybackDeviceId } = get();
-        let inJam = false;
-        try {
-          const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
-          inJam = JamSessionManager.getInstance().getState().isInJam;
-        } catch {}
-
-        let effectiveIsLocal = inJam || isLocalPlayback;
+        const { isLocalPlayback, queue, activePlaybackDeviceId, isInJam } = get();
+        let effectiveIsLocal = isInJam || isLocalPlayback;
         if (!effectiveIsLocal) {
           let hasValidRemote = false;
           try {
@@ -1462,14 +1452,8 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       togglePlayPause: async () => {
-        const { isLocalPlayback, isPlaying, activePlaybackDeviceId } = get();
-        let inJam = false;
-        try {
-          const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
-          inJam = JamSessionManager.getInstance().getState().isInJam;
-        } catch {}
-
-        let effectiveIsLocal = inJam || isLocalPlayback;
+        const { isLocalPlayback, isPlaying, activePlaybackDeviceId, isInJam } = get();
+        let effectiveIsLocal = isInJam || isLocalPlayback;
         if (!effectiveIsLocal) {
           let hasValidRemote = false;
           try {
@@ -1558,12 +1542,7 @@ export const usePlayerStore = create<PlayerState>()(
         }).catch(() => {});
 
         if (!fromRemote) {
-          let inJam = false;
-          try {
-            const { JamSessionManager } = require('@/lib/jam/JamSessionManager');
-            inJam = JamSessionManager.getInstance().getState().isInJam;
-          } catch {}
-
+          const inJam = get().isInJam;
           if (!inJam && !get().isLocalPlayback) {
             PlaybackService.getInstance().pauseAudioElementOnly();
             import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
@@ -1645,14 +1624,8 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       playNext: async (isNaturalAutoEnd: boolean = false) => {
-        const { isLocalPlayback } = get();
-        let inJam = false;
-        try {
-          const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
-          inJam = JamSessionManager.getInstance().getState().isInJam;
-        } catch {}
-
-        if (!inJam && !isLocalPlayback) {
+        const { isLocalPlayback, isInJam } = get();
+        if (!isInJam && !isLocalPlayback) {
           const { connectEngine } = await import('@/lib/connect/ConnectEngine');
           await connectEngine.sendRemoteCommand('NEXT');
           return;
@@ -1698,14 +1671,8 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       playPrev: async () => {
-        const { isLocalPlayback } = get();
-        let inJam = false;
-        try {
-          const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
-          inJam = JamSessionManager.getInstance().getState().isInJam;
-        } catch {}
-
-        if (!inJam && !isLocalPlayback) {
+        const { isLocalPlayback, isInJam } = get();
+        if (!isInJam && !isLocalPlayback) {
           const { connectEngine } = await import('@/lib/connect/ConnectEngine');
           await connectEngine.sendRemoteCommand('PREVIOUS');
           return;
