@@ -88,8 +88,11 @@ export class DriftCorrectionEngine {
   /**
    * Reset engine state cleanly on song change so new tracks begin at 0:00
    */
+  private trackStartedAt = 0;
+
   public resetTrack(trackId?: string): void {
     this.currentTrackId = trackId || null;
+    this.trackStartedAt = Date.now();
     this.lastHostPositionMs = 0;
     this.lastHostTimestamp = 0;
     this.lastReceiveLocalTime = 0;
@@ -133,8 +136,9 @@ export class DriftCorrectionEngine {
           estimatedOffset = Math.round((hostServerTimeMs + estimatedTransit) - now);
         }
 
-        // Exponential moving average for clock offset (smoothes out jitter)
-        this.clockOffsetMs = this.clockOffsetMs === 0 ? estimatedOffset : Math.round(this.clockOffsetMs * 0.75 + estimatedOffset * 0.25);
+        // Exponential moving average for clock offset: Rapid convergence on first 5 samples (< 750ms)
+        const weight = this.rttSamples.length <= 5 ? 0.7 : 0.25;
+        this.clockOffsetMs = this.clockOffsetMs === 0 ? estimatedOffset : Math.round(this.clockOffsetMs * (1 - weight) + estimatedOffset * weight);
         this.currentMetrics.clockOffsetMs = this.clockOffsetMs;
         this.currentMetrics.averageRttMs = Math.round(this.averageRttMs);
       }
@@ -271,12 +275,16 @@ export class DriftCorrectionEngine {
     const absDriftMs = Math.abs(driftMs);
 
     // ── CASE 1: Hard Resync (Severe desynchronization > 350ms) ───────────────
+    // Allow a 1200ms grace period on track start so buffer priming isn't interrupted by eager seeks
+    const isWithinTrackGracePeriod = (Date.now() - this.trackStartedAt) < 1200;
     if (absDriftMs > 350) {
-      this.applySeek(targetSec);
-      this.applyPlaybackRate(1.0);
-      this.currentMetrics.isLocked = true;
-      this.notify();
-      return;
+      if (!isWithinTrackGracePeriod) {
+        this.applySeek(targetSec);
+        this.applyPlaybackRate(1.0);
+        this.currentMetrics.isLocked = true;
+        this.notify();
+        return;
+      }
     }
 
     // ── CASE 2: Near Zero Drift (<= 5ms) ────────────────────────────────────

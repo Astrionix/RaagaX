@@ -18,6 +18,7 @@ import { getSyncWebSocketUrl } from '@/lib/config/apiConfig';
 import { DeviceIdentityManager } from '@/lib/connect/DeviceIdentityManager';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
+import { PlayableUrlCache } from '@/lib/playback/PlayableUrlCache';
 import { Song } from '@/types/music';
 import { DriftCorrectionEngine } from './DriftCorrectionEngine';
 import { supabase } from '@/lib/supabase';
@@ -446,7 +447,7 @@ export class JamSessionManager {
   }
 
   // ── 4. Broadcast Host Playback Changes to Room ─────────────────────────────
-  public broadcastCurrentPlaybackState(): void {
+  public broadcastCurrentPlaybackState(customScheduledStartTime?: number): void {
     if (!this.currentState.isInJam) {
       return;
     }
@@ -472,11 +473,40 @@ export class JamSessionManager {
       } catch {}
     }
 
+    // Direct CDN Stream URL Sharing: Attach direct playable URL so guests bypass resolution APIs
+    let broadcastTrack = currentTrack;
+    if (currentTrack) {
+      let directUrl = currentTrack.audioUrl;
+      if (!directUrl || directUrl.includes('pixabay.com')) {
+        try {
+          const cached = PlayableUrlCache.getInstance().get(currentTrack.id);
+          if (cached?.url) directUrl = cached.url;
+        } catch {}
+      }
+      if (!directUrl || directUrl.includes('pixabay.com')) {
+        try {
+          const active = PlaybackService.getInstance().getActiveAudio();
+          if (active?.src && (active.src.startsWith('http://') || active.src.startsWith('https://'))) {
+            directUrl = active.src;
+          }
+        } catch {}
+      }
+      if (directUrl && (!currentTrack.audioUrl || currentTrack.audioUrl !== directUrl)) {
+        broadcastTrack = { ...currentTrack, audioUrl: directUrl };
+      }
+    }
+
+    // Coordinated Scheduled Start: Establish a 650ms prep window for simultaneous playback start
+    const scheduledStartTime = customScheduledStartTime !== undefined
+      ? customScheduledStartTime
+      : (isTrackTransition && store.isPlaying ? Date.now() + 650 : undefined);
+
     const payload = {
-      track: currentTrack,
+      track: broadcastTrack,
       isPlaying: store.isPlaying,
       positionMs: isTrackTransition ? 0 : Math.round(posSec * 1000),
       isTrackTransition,
+      scheduledStartTime,
       queue: store.queue || [],
       queueIndex: store.queueIndex || 0,
       allowGuestControl: this.currentState.allowGuestControl,
@@ -699,8 +729,27 @@ export class JamSessionManager {
         const isDifferentTrack = !store.currentSong || store.currentSong.id !== payload.track.id;
         let targetPosSec = (payload.positionMs || 0) / 1000;
 
-        // CRITICAL BUG FIX: If track transition or early start, position MUST strictly be 0:00 (0ms)!
-        if (isDifferentTrack && (payload.isTrackTransition || targetPosSec < 3.0)) {
+        const clockOffset = DriftCorrectionEngine.getInstance().getMetrics().clockOffsetMs || 0;
+        const now = Date.now();
+
+        // High-Precision Scheduled Start or Dynamic Buffer Compensation
+        let scheduledStartTime = payload.scheduledStartTime;
+        if (scheduledStartTime) {
+          const localScheduledTarget = scheduledStartTime - clockOffset;
+          const waitMs = localScheduledTarget - now;
+          if (waitMs <= 0) {
+            // Buffer took longer than scheduled window, compensate playhead!
+            const elapsedSinceScheduledSec = Math.abs(waitMs) / 1000;
+            targetPosSec += elapsedSinceScheduledSec;
+            scheduledStartTime = undefined;
+          }
+        } else if (payload.isPlaying && payload.timestamp && !payload.isTrackTransition) {
+          // Dynamic buffer compensation for mid-song joins
+          const hostElapsedSec = Math.max(0, (now + clockOffset - payload.timestamp) / 1000);
+          if (hostElapsedSec > 0.05 && hostElapsedSec < 15) {
+            targetPosSec += hostElapsedSec;
+          }
+        } else if (isDifferentTrack && (payload.isTrackTransition || targetPosSec < 3.0)) {
           targetPosSec = 0;
         }
 
@@ -722,7 +771,7 @@ export class JamSessionManager {
         } catch {}
 
         if (isDifferentTrack || !isAudioPlaying) {
-          // Reset DriftCorrectionEngine target and playhead to 0:00
+          // Reset DriftCorrectionEngine target and playhead cleanly
           DriftCorrectionEngine.getInstance().resetTrack(payload.track.id);
 
           usePlayerStore.setState({
@@ -736,7 +785,7 @@ export class JamSessionManager {
           });
 
           if (payload.isPlaying) {
-            await playback.playTrack(payload.track, true, targetPosSec);
+            await playback.playTrack(payload.track, true, targetPosSec, scheduledStartTime);
           }
         } else {
           // Same track and element is already active: sync play/pause
@@ -765,7 +814,24 @@ export class JamSessionManager {
   // ── High-Precision Wi-Fi NTP Calibration Loop ─────────────────────────────
   private startWifiNtpCalibration(): void {
     if (this.pingInterval) clearInterval(this.pingInterval);
-    // Send ping every 2 seconds to keep clock offset calibrated to sub-5ms
+    // Quick burst: 5 pings every 150ms on join to lock clock offset immediately (< 750ms)
+    let burstCount = 0;
+    const burstTimer = setInterval(() => {
+      if (!this.currentState.isHost && this.currentState.isInJam) {
+        this.sendToRoom({
+          type: 'JAM_PING',
+          clientSendTime: Date.now(),
+        });
+        burstCount++;
+        if (burstCount >= 5) {
+          clearInterval(burstTimer);
+        }
+      } else {
+        clearInterval(burstTimer);
+      }
+    }, 150);
+
+    // Steady state: ping every 2 seconds to keep clock offset calibrated to sub-5ms
     this.pingInterval = setInterval(() => {
       if (!this.currentState.isHost && this.currentState.isInJam) {
         this.sendToRoom({
