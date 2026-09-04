@@ -108,51 +108,65 @@ CREATE POLICY "Users can manage songs in their playlists"
 
 CREATE INDEX IF NOT EXISTS idx_playlist_songs_order ON public.playlist_songs(playlist_id, position ASC);
 
--- 5. CONFIGURE REALTIME (KEEP ONLY LIKED SONGS & PLAYLISTS)
--- First remove any old publication tables
-DO $$
-DECLARE
-    tbl text;
-    tables_to_remove text[] := ARRAY[
-        'listening_events',
-        'user_events',
-        'canonical_songs',
-        'dynamic_home_playlists',
-        'recommendation_snapshots',
-        'ai_recommendations',
-        'user_artist_affinity',
-        'user_genre_affinity',
-        'user_language_affinity',
-        'user_languages',
-        'user_artists',
-        'user_preferences',
-        'profiles',
-        'recently_played',
-        'user_downloads',
-        'user_favorites',
-        'user_library_state',
-        'saved_albums',
-        'devices',
-        'device_leases',
-        'processed_commands',
-        'playback_history',
-        'playback_sessions',
-        'playback_state',
-        'user_playback_state',
-        'jam_sessions'
-    ];
-BEGIN
-    FOREACH tbl IN ARRAY tables_to_remove LOOP
-        IF EXISTS (
-            SELECT 1 FROM pg_publication_tables 
-            WHERE pubname = 'supabase_realtime' AND tablename = tbl
-        ) THEN
-            EXECUTE format('ALTER PUBLICATION supabase_realtime DROP TABLE public.%I', tbl);
-        END IF;
-    END LOOP;
-END $$;
+-- 4. CONNECT TO DEVICE REGISTRY
+CREATE TABLE IF NOT EXISTS public.connect_devices (
+    device_id TEXT PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    device_name TEXT NOT NULL,
+    device_type TEXT NOT NULL DEFAULT 'desktop',
+    platform TEXT DEFAULT 'web',
+    capabilities JSONB DEFAULT '{"play":true,"pause":true,"seek":true,"volume":true,"shuffle":true,"repeat":true,"queue_control":true,"handoff":true}'::jsonb,
+    is_online BOOLEAN DEFAULT TRUE,
+    last_seen TIMESTAMPTZ DEFAULT NOW(),
+    app_version TEXT DEFAULT '1.0.0',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
--- Enable Realtime ONLY for liked_songs and playlists
+ALTER TABLE public.connect_devices ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can view and manage connect devices" ON public.connect_devices;
+CREATE POLICY "Users can view and manage connect devices"
+    ON public.connect_devices FOR ALL
+    USING (auth.uid() = user_id OR auth.role() = 'authenticated')
+    WITH CHECK (auth.uid() = user_id);
+
+-- 5. CONNECT PAIRINGS (Different Account PIN Handshake)
+CREATE TABLE IF NOT EXISTS public.connect_pairings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    pin_code TEXT NOT NULL,
+    host_device_id TEXT NOT NULL,
+    host_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    guest_device_id TEXT,
+    guest_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'PENDING',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '5 minutes')
+);
+
+ALTER TABLE public.connect_pairings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Authenticated users can manage pairings" ON public.connect_pairings;
+CREATE POLICY "Authenticated users can manage pairings"
+    ON public.connect_pairings FOR ALL
+    USING (auth.role() = 'authenticated')
+    WITH CHECK (auth.role() = 'authenticated');
+
+-- 6. CONNECT AUTHORIZATIONS (Trusted Cross-Device Control)
+CREATE TABLE IF NOT EXISTS public.connect_authorizations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    controller_device_id TEXT NOT NULL,
+    player_device_id TEXT NOT NULL,
+    granted_by_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(controller_device_id, player_device_id)
+);
+
+ALTER TABLE public.connect_authorizations ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage connect authorizations" ON public.connect_authorizations;
+CREATE POLICY "Users can manage connect authorizations"
+    ON public.connect_authorizations FOR ALL
+    USING (auth.uid() = granted_by_user_id OR auth.role() = 'authenticated')
+    WITH CHECK (auth.uid() = granted_by_user_id);
+
+-- 7. CONFIGURE REALTIME
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'liked_songs') THEN
@@ -160,5 +174,14 @@ BEGIN
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'playlists') THEN
         ALTER PUBLICATION supabase_realtime ADD TABLE public.playlists;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'connect_devices') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.connect_devices;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'connect_pairings') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.connect_pairings;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'connect_authorizations') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.connect_authorizations;
     END IF;
 END $$;

@@ -209,11 +209,8 @@ export class PreloadManager {
   /**
    * evaluatePreload — Evaluates the queue and triggers preload for upcoming tracks
    */
-  public async evaluatePreload(standbyElement: HTMLAudioElement | null) {
-    try {
-      const { usePlayerStore } = require('@/context/usePlayerStore');
-      if (!usePlayerStore.getState().isLocalPlayback) return;
-    } catch {}
+  public async evaluatePreload(standbyElement: HTMLAudioElement | null, isLocalPlayback: boolean = true) {
+    if (!isLocalPlayback) return;
     const nextItem = QueueManager.getInstance().peekNext();
     if (!nextItem || !nextItem.song) return;
 

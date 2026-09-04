@@ -1,5 +1,6 @@
 import { QueueItem, QueueSnapshot, RepeatMode, ShuffleMode, PlaybackContext, ContextType } from './types';
 import { QueuePersistence } from './QueuePersistence';
+import { safeRandomUUID } from '@/lib/utils/uuid';
 
 export class QueueEngine {
   private queueId: string;
@@ -16,7 +17,7 @@ export class QueueEngine {
   private originalItems: QueueItem[] = []; // For unshuffling
 
   constructor() {
-    this.queueId = crypto.randomUUID();
+    this.queueId = safeRandomUUID();
   }
 
   public async loadFromSnapshot(snapshot: QueueSnapshot) {
@@ -118,7 +119,7 @@ export class QueueEngine {
     }
     
     if (this.shuffleMode === 'STANDARD') {
-      this.shuffleSeed = crypto.randomUUID();
+      this.shuffleSeed = safeRandomUUID();
       this.originalItems = [...this.items];
       
       if (this.currentIndex >= 0 && this.currentIndex < this.items.length) {
@@ -135,7 +136,7 @@ export class QueueEngine {
         this.currentIndex = 0;
       }
     } else if (this.shuffleMode === 'SMART') {
-      this.shuffleSeed = crypto.randomUUID();
+      this.shuffleSeed = safeRandomUUID();
       if (this.originalItems.length === 0) {
         this.originalItems = [...this.items];
       }
@@ -172,7 +173,7 @@ export class QueueEngine {
     if (this.shuffleMode === mode) return;
     this.shuffleMode = mode;
     if (this.shuffleMode === 'STANDARD') {
-      this.shuffleSeed = crypto.randomUUID();
+      this.shuffleSeed = safeRandomUUID();
       this.originalItems = [...this.items];
       
       if (this.currentIndex >= 0 && this.currentIndex < this.items.length) {
@@ -189,7 +190,7 @@ export class QueueEngine {
         this.currentIndex = 0;
       }
     } else if (this.shuffleMode === 'SMART') {
-      this.shuffleSeed = crypto.randomUUID();
+      this.shuffleSeed = safeRandomUUID();
       if (this.originalItems.length === 0) {
         this.originalItems = [...this.items];
       }

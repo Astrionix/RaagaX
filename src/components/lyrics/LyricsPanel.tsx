@@ -141,8 +141,7 @@ export function LyricsPanel() {
                 onClick={() => {
                   if (line.startMs !== undefined && line.startMs >= 0) {
                     const targetSeconds = line.startMs / 1000;
-                    usePlayerStore.getState().setCurrentTime(targetSeconds, true);
-                    usePlayerStore.getState().setSeekTarget(targetSeconds);
+                    usePlayerStore.getState().seek(targetSeconds);
                     import('@/lib/lyrics/LyricsEngine').then(({ LyricsEngine }) => {
                       LyricsEngine.getInstance().seek(line.startMs);
                     }).catch(() => {});

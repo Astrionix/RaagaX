@@ -5,6 +5,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { PlayerBar } from '@/components/layout/Navbar';
 import { RightQueuePanel } from '@/components/layout/RightQueuePanel';
+import { RightConnectPanel } from '@/components/connect/RightConnectPanel';
 import { MobileBottomController } from '@/components/layout/MobileBottomController';
 import { AudioPlayerController } from '@/components/player/AudioPlayerController';
 import { LyricsPanel } from '@/components/lyrics/LyricsPanel';
@@ -25,6 +26,7 @@ import { OfflineStorageSetupModal } from '@/components/modals/OfflineStorageSetu
 import { PermissionOnboardingModal } from '@/components/onboarding/PermissionOnboardingModal';
 import { LanguageOnboardingModal } from '@/components/onboarding/LanguageOnboardingModal';
 import { UpdateModal } from '@/components/modals/UpdateModal';
+import { ConnectModal } from '@/components/connect/ConnectModal';
 
 import { CreatePlaylistModal } from '@/components/modals/CreatePlaylistModal';
 import { NotificationCenterModal } from '@/components/modals/NotificationCenterModal';
@@ -58,6 +60,7 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
 
 import { useGlobalKeyboardShortcuts } from '@/hooks/useGlobalKeyboardShortcuts';
+import { useConnect } from '@/hooks/useConnect';
 
 export default function Page() {
   const {
@@ -66,6 +69,7 @@ export default function Page() {
     selectedAlbumId,
     rightPanelMode,
     isQueueOpen,
+    toggleQueue,
     isWrappedModalOpen,
     toggleWrappedModal,
     isEqualizerOpen,
@@ -77,9 +81,14 @@ export default function Page() {
     isNotificationShadeOpen,
     toggleNotificationShade,
     isSystemSurfacesOpen,
-    toggleSystemSurfaces
+    toggleSystemSurfaces,
+    isConnectModalOpen,
+    toggleConnectModal,
+    isLocalPlayback,
   } = usePlayerStore();
   const { isSetupModalOpen, setSetupModalOpen } = useDownloadStore();
+  const { user } = useAuthStore();
+  const connect = useConnect(user?.id);
 
   React.useEffect(() => {
     useAuthStore.getState().initializeAuth();
@@ -96,7 +105,11 @@ export default function Page() {
     const handleBackNavigation = () => {
       const store = usePlayerStore.getState();
 
-      // 1. If Settings modal is open, close it
+      // 1. If Connect or Settings modal is open, close it
+      if (store.isConnectModalOpen) {
+        store.toggleConnectModal(false);
+        return true;
+      }
       if (store.isSettingsModalOpen) {
         store.toggleSettingsModal();
         return true;
@@ -223,7 +236,9 @@ export default function Page() {
             <Header />
 
             {/* View Switcher Container */}
-            <main className={`flex-1 pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] md:pb-[5.5rem] ${
+            <main className={`flex-1 pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] ${
+              !isLocalPlayback ? 'md:pb-[6.5rem]' : 'md:pb-[5.5rem]'
+            } ${
               activeTab === 'album' || activeTab === 'playlist' || (activeTab === 'artist' && selectedArtistId)
                 ? 'pt-0 px-0'
                 : 'pt-14 md:pt-6 px-3.5 sm:px-8'
@@ -249,10 +264,34 @@ export default function Page() {
             <MobileBottomController />
           </div>
 
-          {/* Right Queue Column (Toggled on desktop when isQueueOpen is true) */}
+          {/* Right Column (Toggled on desktop when isQueueOpen is true) */}
           {isQueueOpen && (
-            <div className="queue-panel hidden xl:block w-[360px] min-w-[360px] h-full pt-6 pb-8 overflow-y-auto overflow-x-hidden border-l border-white/[0.04] bg-[var(--bg-secondary)] animate-in slide-in-from-right-4 duration-200">
-              <RightQueuePanel />
+            <div className={`queue-panel hidden xl:block w-[360px] min-w-[360px] h-full pt-6 ${
+              !isLocalPlayback ? 'pb-14' : 'pb-8'
+            } overflow-y-auto overflow-x-hidden border-l border-white/[0.04] bg-[var(--bg-secondary)] animate-in slide-in-from-right-4 duration-200`}>
+              {rightPanelMode === 'connect' ? (
+                <RightConnectPanel
+                  thisDevice={connect.thisDevice}
+                  availableDevices={connect.availableDevices}
+                  activePlayerDeviceId={connect.activePlayerDeviceId}
+                  isLocalSpeaker={connect.isLocalSpeaker}
+                  connectionState={connect.connectionState}
+                  activePairingPin={connect.activePairingPin}
+                  incomingPairingRequest={connect.incomingPairingRequest}
+                  diagnosticReport={connect.diagnosticReport}
+                  onConnectToDevice={connect.connectToDevice}
+                  onDisconnect={connect.disconnect}
+                  onSwitchPlayback={connect.switchPlaybackTo}
+                  onGeneratePin={connect.generatePairingPin}
+                  onSubmitPin={connect.submitPairingPin}
+                  onApprovePairing={connect.approvePairing}
+                  onRejectPairing={connect.rejectPairing}
+                  onRename={connect.renameDevice}
+                  onClose={() => toggleQueue()}
+                />
+              ) : (
+                <RightQueuePanel />
+              )}
             </div>
           )}
         </div>
@@ -325,6 +364,28 @@ export default function Page() {
         onClose={() => toggleSystemSurfaces(false)}
         onOpenLockScreen={() => toggleLockScreen(true)}
         onOpenNotificationShade={() => toggleNotificationShade(true)}
+      />
+
+      {/* ── Connect to Device Modal ── */}
+      <ConnectModal
+        isOpen={isConnectModalOpen}
+        onClose={() => toggleConnectModal(false)}
+        thisDevice={connect.thisDevice}
+        availableDevices={connect.availableDevices}
+        activePlayerDeviceId={connect.activePlayerDeviceId}
+        isLocalSpeaker={connect.isLocalSpeaker}
+        connectionState={connect.connectionState}
+        activePairingPin={connect.activePairingPin}
+        incomingPairingRequest={connect.incomingPairingRequest}
+        diagnosticReport={connect.diagnosticReport}
+        onConnectToDevice={connect.connectToDevice}
+        onDisconnect={connect.disconnect}
+        onSwitchPlayback={connect.switchPlaybackTo}
+        onGeneratePin={connect.generatePairingPin}
+        onSubmitPin={connect.submitPairingPin}
+        onApprovePairing={connect.approvePairing}
+        onRejectPairing={connect.rejectPairing}
+        onRename={connect.renameDevice}
       />
     </div>
   );

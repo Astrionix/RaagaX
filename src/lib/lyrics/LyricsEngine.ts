@@ -37,14 +37,30 @@ export class LyricsEngine {
       }
       
       // 2. Continuous time sync fallback (crucial for Native Android & Remote Connect)
-      if (state.currentTime !== prevState.currentTime && this.activeLines.length > 0) {
-        this.evaluatePosition(state.currentTime * 1000);
+      if (
+        (state.currentTime !== prevState.currentTime || state.lastPositionTimestamp !== prevState.lastPositionTimestamp) &&
+        this.activeLines.length > 0
+      ) {
+        this.evaluatePosition(this.getEffectivePositionMs());
       }
     });
   }
 
   public getEffectivePositionMs(): number {
     const store = usePlayerStore.getState();
+
+    // 1. High-precision remote controller extrapolation (Spotify Connect mode)
+    // On a remote controller (!isLocalPlayback), local audio is muted/paused.
+    // Predict live millisecond position smoothly using store.currentTime + elapsed since lastPositionTimestamp.
+    if (!store.isLocalPlayback) {
+      let posSec = store.currentTime || 0;
+      if (store.isPlaying && store.lastPositionTimestamp) {
+        const elapsedSec = (performance.now() - store.lastPositionTimestamp) / 1000;
+        const durSec = store.duration || 300;
+        posSec = Math.min(durSec, posSec + elapsedSec);
+      }
+      return Math.max(0, posSec * 1000);
+    }
 
     // Tier 1: Web audio element direct time from PlaybackService / PlaybackEngine
     try {

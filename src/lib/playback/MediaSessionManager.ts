@@ -1,4 +1,5 @@
 import { Song } from '@/types/music';
+import { SongFormatter } from '@/lib/music/SongFormatter';
 
 export interface MediaActionHandlers {
   onPlay?: () => void;
@@ -73,6 +74,15 @@ export class MediaSessionManager {
       } else {
         navigator.mediaSession.metadata = metadataInit as any;
       }
+
+      if (typeof document !== 'undefined') {
+        const cleanTitle = SongFormatter.cleanSongTitle(displayTitle);
+        const cleanArtist = SongFormatter.decodeHtml(song.artist) || song.artist || '';
+        const artistPart = cleanArtist ? ` • ${cleanArtist}` : '';
+        const isPlaying = navigator.mediaSession?.playbackState === 'playing';
+        const prefix = isPlaying ? '🎵 ' : '⏸️ ';
+        document.title = `${prefix}${cleanTitle}${artistPart} | RaagaX`;
+      }
     } catch (e) {
       console.warn('[MediaSessionManager] Failed to update track metadata:', e);
     }
@@ -98,6 +108,21 @@ export class MediaSessionManager {
         navigator.mediaSession.playbackState = state;
       } catch (e) {
         console.warn('[MediaSessionManager] setPlaybackState error:', e);
+      }
+    }
+
+    if (typeof document !== 'undefined') {
+      const curTitle = document.title || '';
+      if (state === 'playing') {
+        if (!curTitle.startsWith('🎵 ') && curTitle.includes('| RaagaX')) {
+          document.title = '🎵 ' + curTitle.replace(/^⏸️ /, '');
+        }
+      } else if (state === 'paused') {
+        if (curTitle.startsWith('🎵 ')) {
+          document.title = '⏸️ ' + curTitle.replace(/^🎵 /, '');
+        }
+      } else if (state === 'none') {
+        document.title = 'RaagaX - Futuristic Music Streaming Platform';
       }
     }
   }

@@ -25,6 +25,7 @@ import { PreloadManager } from '@/lib/playback/PreloadManager';
 import { initAudioUnlocker } from '@/lib/playback/AudioUnlocker';
 import { getApiUrl } from '@/lib/config/apiConfig';
 import { ArtworkColorExtractor } from '@/lib/theme/ArtworkColorExtractor';
+import { LocalDatabase } from '@/lib/localDatabase';
 
 export function AudioPlayerController() {
   const audioRefA = useRef<HTMLAudioElement | null>(null);
@@ -59,6 +60,7 @@ export function AudioPlayerController() {
     restoreLocalSession,
     isAutoplayEnabled,
     loudnessNormalizationEnabled,
+    isLocalPlayback,
   } = usePlayerStore();
 
   // Register Audio Elements with PlaybackService & Hook directly into native HTML5 audio events
@@ -67,15 +69,19 @@ export function AudioPlayerController() {
 
     const attachAudioListeners = (audio: HTMLAudioElement) => {
       const handlePlay = () => {
+        if (!usePlayerStore.getState().isLocalPlayback) return;
         usePlayerStore.getState().setIsPlaying(true, true);
       };
       const handlePlaying = () => {
+        if (!usePlayerStore.getState().isLocalPlayback) return;
         usePlayerStore.getState().setIsPlaying(true, true);
       };
       const handlePause = () => {
+        if (!usePlayerStore.getState().isLocalPlayback) return;
         usePlayerStore.getState().setIsPlaying(false, true);
       };
       const handleEnded = () => {
+        if (!usePlayerStore.getState().isLocalPlayback) return;
         usePlayerStore.getState().setIsPlaying(false, true);
       };
 
@@ -112,6 +118,11 @@ export function AudioPlayerController() {
     } else {
       initAudioUnlocker();
     }
+
+    // Initialize Cross-Tab State & Metadata Coordinator
+    import('@/lib/sync/TabSyncCoordinator').then(({ TabSyncCoordinator }) => {
+      TabSyncCoordinator.getInstance().init();
+    }).catch(() => {});
 
     return () => {
       if (cleanupA) cleanupA();
@@ -223,6 +234,16 @@ export function AudioPlayerController() {
       if (typeof data.positionMs === 'number' && data.positionMs >= 0) {
         store.setCurrentTime(data.positionMs / 1000, true);
       }
+
+      if (store.isLocalPlayback) {
+        import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
+          PlaybackStateManager.getInstance().emitLocalPlaybackState({
+            isPlaying: data.isPlaying,
+            positionMs: typeof data.positionMs === 'number' ? data.positionMs : Math.round(store.currentTime * 1000),
+            durationMs: typeof data.durationMs === 'number' ? data.durationMs : Math.round(store.duration * 1000),
+          });
+        }).catch(() => {});
+      }
     });
 
     const unsubQueueEnded = RaagaXNativePlayer.addQueueEndedListener(() => {
@@ -319,6 +340,29 @@ export function AudioPlayerController() {
         import('@/lib/playback/MediaSessionManager').then(({ MediaSessionManager }) => {
           MediaSessionManager.getInstance().updateSongMetadata(validTrack);
         });
+
+        import('@/lib/sync/TabSyncCoordinator').then(({ TabSyncCoordinator }) => {
+          TabSyncCoordinator.getInstance().broadcastTrackChange(
+            validTrack,
+            data.isPlaying !== undefined ? data.isPlaying : true,
+            matchIdx !== -1 ? matchIdx : store.queueIndex,
+            data.positionMs ? (data.positionMs / 1000) : 0,
+            durationSec,
+            store.queue
+          );
+        }).catch(() => {});
+
+        if (store.isLocalPlayback) {
+          import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
+            PlaybackStateManager.getInstance().emitLocalPlaybackState({
+              track: validTrack,
+              isPlaying: data.isPlaying !== undefined ? data.isPlaying : true,
+              positionMs: data.positionMs || 0,
+              durationMs: durationSec * 1000,
+              queueIndex: matchIdx !== -1 ? matchIdx : store.queueIndex,
+            });
+          }).catch(() => {});
+        }
 
         import('@/lib/playback/PlaybackSession').then(({ SessionManager }) => {
           SessionManager.getInstance().updateSession({
@@ -434,6 +478,25 @@ export function AudioPlayerController() {
     return () => clearInterval(interval);
   }, [isPlaying]);
 
+  // Spotify Connect Controller Watchdog:
+  // When this device is acting as a remote controller (e.g. desktop monitoring phone speaker in background):
+  // Periodically check in with the speaker so track advances are reflected immediately on the controller
+  // without needing the user to wake the phone screen!
+  useEffect(() => {
+    if (isLocalPlayback || !isPlaying) return;
+
+    const interval = setInterval(() => {
+      const store = usePlayerStore.getState();
+      if (store.isLocalPlayback || !store.isPlaying) return;
+
+      import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
+        PlaybackStateManager.getInstance().requestPlaybackSync();
+      }).catch(() => {});
+    }, 3500);
+
+    return () => clearInterval(interval);
+  }, [isLocalPlayback, isPlaying]);
+
   // Restore Instant Playback Session
   useEffect(() => {
     restoreLocalSession();
@@ -446,7 +509,7 @@ export function AudioPlayerController() {
     const flushPersist = () => {
       const state = usePlayerStore.getState();
       if (state.currentSong) {
-        import('@/lib/localDatabase').then(({ LocalDatabase }) => {
+        try {
           LocalDatabase.getInstance().savePlaybackSession({
             currentSong: state.currentSong,
             currentTime: state.currentTime,
@@ -462,13 +525,51 @@ export function AudioPlayerController() {
             deviceState: 'TASK_REMOVED',
             timestamp: Date.now(),
           });
-        });
+        } catch {}
       }
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         flushPersist();
+      } else if (document.visibilityState === 'visible') {
+        // Tab foreground re-entry:
+        // 1. Sync live audio element state to store if track changed during background playback
+        const activeAudio = PlaybackService.getInstance().getActiveAudio();
+        const store = usePlayerStore.getState();
+        if (activeAudio && activeAudio.dataset?.trackId) {
+          const liveTrackId = activeAudio.dataset.trackId;
+          if (store.currentSong && store.currentSong.id !== liveTrackId) {
+            const matchedSong = store.queue.find((s) => s.id === liveTrackId);
+            if (matchedSong) {
+              const matchedIdx = store.queue.findIndex((s) => s.id === liveTrackId);
+              usePlayerStore.setState({
+                currentSong: matchedSong,
+                queueIndex: matchedIdx !== -1 ? matchedIdx : store.queueIndex,
+                currentTime: activeAudio.currentTime || 0,
+                duration: activeAudio.duration || matchedSong.duration || 0,
+                isPlaying: !activeAudio.paused,
+              });
+              MediaSessionManager.getInstance().updateSongMetadata(matchedSong);
+            }
+          }
+        }
+
+        // 2. Reconcile cross-tab & background state instantaneously
+        import('@/lib/sync/TabSyncCoordinator').then(({ TabSyncCoordinator }) => {
+          TabSyncCoordinator.getInstance().reconcileOnForeground();
+        }).catch(() => {});
+
+        // 3. Request connect sync if acting as remote controller
+        if (!store.isLocalPlayback) {
+          import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
+            PlaybackStateManager.getInstance().requestPlaybackSync();
+          }).catch(() => {});
+        } else {
+          import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
+            PlaybackStateManager.getInstance().syncNow();
+          }).catch(() => {});
+        }
       }
     };
 

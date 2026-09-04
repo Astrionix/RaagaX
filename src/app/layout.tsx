@@ -2,6 +2,8 @@ import React from 'react';
 import './globals.css';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
 
+import '@/lib/utils/uuid';
+
 export const viewport = {
   themeColor: '#EF233C',
 };
@@ -48,6 +50,21 @@ export default function RootLayout({
                   document.documentElement.classList.add(theme);
                   document.documentElement.setAttribute('data-theme', theme);
                   document.documentElement.style.colorScheme = theme;
+
+                  if (typeof window !== 'undefined') {
+                    if (!window.crypto) {
+                      window.crypto = {};
+                    }
+                    if (typeof window.crypto.randomUUID !== 'function') {
+                      window.crypto.randomUUID = function() {
+                        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                          var r = Math.random() * 16 | 0;
+                          var v = c === 'x' ? r : (r & 0x3 | 0x8);
+                          return v.toString(16);
+                        });
+                      };
+                    }
+                  }
                 } catch(e) {}
               })();
             `,

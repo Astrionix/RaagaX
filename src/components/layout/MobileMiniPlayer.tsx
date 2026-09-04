@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { Play, Pause, SkipForward, SkipBack, Heart, MoreVertical, Disc3, Headphones, Radio } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, Heart, MoreVertical, Disc3, Headphones, Radio, Speaker } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SeekBar } from '@/components/player/SeekBar';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
@@ -63,7 +63,52 @@ export function MobileMiniPlayer() {
     togglePlayerExpanded,
     likedSongIds,
     toggleLikeSong,
+    isLocalPlayback,
+    activePlaybackDeviceId,
+    toggleConnectModal,
   } = usePlayerStore();
+
+  React.useEffect(() => {
+    import('@/lib/sync/TabSyncCoordinator').then(({ TabSyncCoordinator }) => {
+      TabSyncCoordinator.getInstance().updateDocumentTitle(currentSong, isPlaying);
+    }).catch(() => {});
+  }, [currentSong?.id, isPlaying]);
+
+  const [speakerDeviceName, setSpeakerDeviceName] = useState<string>('Remote Speaker');
+  const [hasRemoteSpeaker, setHasRemoteSpeaker] = useState<boolean>(false);
+
+  React.useEffect(() => {
+    if (isLocalPlayback) {
+      setHasRemoteSpeaker(false);
+      return;
+    }
+    let unsub: (() => void) | undefined;
+    Promise.all([
+      import('@/lib/connect/DeviceRegistry'),
+      import('@/lib/connect/DeviceIdentityManager'),
+    ]).then(([{ DeviceRegistry }, { DeviceIdentityManager }]) => {
+      const update = () => {
+        const selfDev = DeviceIdentityManager.getInstance().getDevice();
+        const otherDevs = DeviceRegistry.getInstance().getAllDevices(selfDev.deviceId);
+        const devId = usePlayerStore.getState().activePlaybackDeviceId;
+        const dev = DeviceRegistry.getInstance().getDevice(devId);
+        if (dev?.deviceName && dev.deviceId !== selfDev.deviceId) {
+          setSpeakerDeviceName(dev.deviceName);
+          setHasRemoteSpeaker(true);
+        } else if (otherDevs.length > 0 && otherDevs[0]?.deviceName) {
+          setSpeakerDeviceName(otherDevs[0].deviceName);
+          setHasRemoteSpeaker(true);
+        } else {
+          setHasRemoteSpeaker(false);
+        }
+      };
+      update();
+      unsub = DeviceRegistry.getInstance().subscribe(update);
+    }).catch(() => {});
+    return () => {
+      if (unsub) unsub();
+    };
+  }, [isLocalPlayback, activePlaybackDeviceId]);
 
   if (!mounted || !currentSong) return null;
 
@@ -211,6 +256,24 @@ export function MobileMiniPlayer() {
                 <p className="text-[11px] text-[var(--text-secondary)] truncate leading-tight flex items-center gap-1 mt-0.5 animate-in fade-in duration-200">
                   <span>{currentSong.artist}</span>
                 </p>
+              )}
+              {!isLocalPlayback && hasRemoteSpeaker && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleConnectModal(true);
+                  }}
+                  className="text-[10px] font-semibold text-[#1ed760] truncate flex items-center gap-1 mt-0.5"
+                >
+                  <span className="flex items-end gap-[1px] h-2 flex-shrink-0">
+                    <span className="w-[1.5px] bg-[#1ed760] h-full animate-[pulse_0.7s_infinite]" />
+                    <span className="w-[1.5px] bg-[#1ed760] h-2/3 animate-[pulse_0.5s_infinite_0.15s]" />
+                    <span className="w-[1.5px] bg-[#1ed760] h-4/5 animate-[pulse_0.8s_infinite_0.3s]" />
+                  </span>
+                  <Speaker size={10} className="text-[#1ed760] flex-shrink-0" />
+                  <span className="truncate">Playing on {speakerDeviceName}</span>
+                </button>
               )}
             </div>
           </div>

@@ -275,18 +275,24 @@ wss.on('connection', (ws, req) => {
 // ============================================================================
 // 4. Render Sleep Prevention (Keeps Free Tier Alive 24/7)
 // ============================================================================
+const https = require('https');
 const APP_URL = process.env.RENDER_EXTERNAL_URL;
 if (APP_URL) {
   console.log(`[Keep-Alive] Configured for Render at: ${APP_URL}`);
   setInterval(() => {
-    const pingUrl = APP_URL.startsWith('http') ? `${APP_URL}/health` : `https://${APP_URL}/health`;
-    http.get(pingUrl, (res) => {
-      // Consume response to free socket
-      res.resume();
-    }).on('error', (e) => {
-      console.warn('[Keep-Alive] Ping failed:', e.message);
-    });
-  }, 13 * 60 * 1000); // Self-ping every 13 minutes
+    try {
+      const pingUrl = APP_URL.startsWith('http') ? `${APP_URL}/health` : `https://${APP_URL}/health`;
+      const client = pingUrl.startsWith('https') ? https : http;
+      client.get(pingUrl, (res) => {
+        res.resume();
+        console.log(`[Keep-Alive] Pinged ${pingUrl} - Status: ${res.statusCode}`);
+      }).on('error', (e) => {
+        console.warn('[Keep-Alive] Ping failed:', e.message);
+      });
+    } catch (err) {
+      console.warn('[Keep-Alive] Exception during ping:', err.message);
+    }
+  }, 10 * 60 * 1000); // Self-ping every 10 minutes (Render sleeps after 15 mins)
 }
 
 server.listen(PORT, () => {

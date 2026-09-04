@@ -38,6 +38,7 @@ export class PlaybackService {
   private lastReportedStartedGen = -1;
   private lastReadyTrackKey = '';
   private lastStartedTrackKey = '';
+  private lastConnectSyncTime = 0;
 
   private emitPlaybackReady(trackId: string, duration: number, generation: number) {
     const key = `${trackId}_${generation}`;
@@ -117,6 +118,10 @@ export class PlaybackService {
       return usePlayerStore.getState().isPlaying;
     }
     const store = usePlayerStore.getState();
+    // CONNECT RULE: Controllers must never overwrite store.isPlaying based on local audio tag
+    if (!store.isLocalPlayback) {
+      return store.isPlaying;
+    }
     const active = this.getActiveAudio();
     if (!active) return false;
     const isActuallyPlaying = !active.paused && !active.ended;
@@ -131,9 +136,14 @@ export class PlaybackService {
   public startWatchdog() {
     if (typeof window === 'undefined' || this.watchdogInterval) return;
     this.watchdogInterval = setInterval(() => {
+      const store = usePlayerStore.getState();
+      // CONNECT RULE: Controllers must never resume local audio in the watchdog!
+      if (!store.isLocalPlayback) {
+        return;
+      }
+
       const active = this.getActiveAudio();
       if (!active) return;
-      const store = usePlayerStore.getState();
 
       if (store.isPlaying && store.playbackIntent === 'PLAYING' && active.paused && !active.ended && !this.isTransitioning) {
         // AUTOPLAY SAFETY: Do NOT hammer play() if browser autoplay policy is restricting audio
@@ -141,10 +151,7 @@ export class PlaybackService {
           return;
         }
 
-
-
         if (active.readyState >= 2) {
-
           console.warn('[PlaybackService Watchdog] Active audio paused unexpectedly while isPlaying=true. Recovering play()...');
           active.play()
             .then(() => {
@@ -157,7 +164,7 @@ export class PlaybackService {
                 this.isAutoplayRestricted = true;
                 console.warn('[PlaybackService Watchdog] Autoplay blocked by browser policy. Breaking watchdog retry loop and waiting for user gesture.');
                 try {
-                  usePlayerStore.getState().setToastMessage('Click anywhere to enable audio playback');
+                  usePlayerStore.getState().setToastMessage('Tap anywhere to play on this device');
                 } catch {}
                 this.attachAutoplayUnlockHandler();
               } else {
@@ -180,7 +187,11 @@ export class PlaybackService {
       this.watchdogRetryCount = 0;
       console.log('[PlaybackService] User interacted with document. Resuming playback...');
       try {
-        this.play();
+        const store = usePlayerStore.getState();
+        if (store.isLocalPlayback) {
+          this.play();
+          store.setIsPlaying(true);
+        }
       } catch {}
     };
     window.addEventListener('pointerdown', unlock, { once: true, passive: true });
@@ -193,9 +204,9 @@ export class PlaybackService {
     this.isAutoplayRestricted = false;
     this.watchdogRetryCount = 0;
     const store = usePlayerStore.getState();
-    if (store.isPlaying && store.playbackIntent === 'PLAYING') {
+    if (store.isLocalPlayback && (store.isPlaying || store.playbackIntent === 'PLAYING')) {
       const active = this.getActiveAudio();
-      if (active && active.paused) {
+      if (active && active.paused && active.src) {
         console.log('[PlaybackService] Audio globally unlocked. Resuming active playback...');
         this.play();
       }
@@ -548,8 +559,11 @@ export class PlaybackService {
     }
 
     // CONNECT SAFETY: Do NOT load or play local audio on a remote controller device
-
-
+    if (!usePlayerStore.getState().isLocalPlayback) {
+      console.log('[PlaybackService] loadAudioSource suppressed: this device is a remote controller');
+      this.pauseAudioElementOnly();
+      return true;
+    }
     const store = usePlayerStore.getState();
     this.isTransitioning = true;
     const playRequestedAt = performance.now();
@@ -832,9 +846,12 @@ export class PlaybackService {
           }
           if (e?.name === 'NotAllowedError') {
             this.isAutoplayRestricted = true;
-            console.warn('[PlaybackService] Autoplay restricted by browser policy. Audio loaded and ready for user interaction.');
+            console.warn('[PlaybackService] Autoplay restricted by browser policy. Audio loaded and waiting for user gesture.');
             store.setIsPlaying(false);
-            store.setPlaybackIntent('PAUSED');
+            store.setPlaybackIntent('PLAYING');
+            try {
+              store.setToastMessage('Tap anywhere to play on this device');
+            } catch {}
             this.emitPlaybackReady(song.id, activeAudio.duration || song.duration || 0, requestId);
             this.attachAutoplayUnlockHandler();
             return true;
@@ -905,11 +922,15 @@ export class PlaybackService {
     }
   }
 
-  public async playTrack(song: Song, forceResume: boolean = true): Promise<boolean> {
+  public async playTrack(song: Song, forceResume: boolean = true, initialPositionSec: number = 0): Promise<boolean> {
     if (!song) return false;
+    if (!usePlayerStore.getState().isLocalPlayback) {
+      console.log('[PlaybackService] playTrack suppressed: this device is a remote controller');
+      return false;
+    }
     const reqId = this.playbackRequestId || ++this.playbackGeneration;
     this.playbackRequestId = reqId;
-    return this.loadAudioSource(song, reqId, forceResume);
+    return this.loadAudioSource(song, reqId, forceResume, initialPositionSec);
   }
 
   public triggerNextPreload() {
@@ -938,12 +959,10 @@ export class PlaybackService {
     try {
       const store = usePlayerStore.getState();
       if (isNaturalEnd || store.isPlaying || store.playbackIntent === 'PLAYING') {
-        usePlayerStore.setState({ isPlaying: true, playbackIntent: 'PLAYING' });
+        await store.playNext(isNaturalEnd);
+        return true;
       }
-      // Pass isNaturalEnd=true so usePlayerStore.playNext knows this is an automatic
-      // end-of-track advance (not a user gesture).
-      await usePlayerStore.getState().playNext(isNaturalEnd);
-      return true;
+      return false;
     } catch {
       return false;
     }
@@ -967,7 +986,10 @@ export class PlaybackService {
   }
 
   public play() {
-
+    if (!usePlayerStore.getState().isLocalPlayback) {
+      console.log('[PlaybackService] play() suppressed: this device is a remote controller');
+      return;
+    }
 
     if (RaagaXNativePlayer.isNative()) {
       RaagaXNativePlayer.resume();
@@ -1061,6 +1083,10 @@ export class PlaybackService {
   }
 
   public async resume(): Promise<boolean> {
+    if (!usePlayerStore.getState().isLocalPlayback) {
+      console.log('[PlaybackService] resume() suppressed: this device is a remote controller');
+      return false;
+    }
     WakeLockManager.getInstance().acquireWakeLock();
     if (RaagaXNativePlayer.isNative()) {
       RaagaXNativePlayer.resume();
@@ -1206,6 +1232,12 @@ export class PlaybackService {
     console.log(`[PLAYBACK_ENDED] trackId=${endedTrackId} generation=${generation} tag=${tag}`);
     // Pass isNaturalEnd=true so playNext preserves continuous auto-advance
     this.playNextTrack(true);
+
+    if (store.isLocalPlayback) {
+      import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
+        PlaybackStateManager.getInstance().syncNow();
+      }).catch(() => {});
+    }
   }
 
   private handleNativeTimeUpdate(tag: 'A' | 'B') {
@@ -1216,6 +1248,21 @@ export class PlaybackService {
     if (!active || !standby) return;
 
     const store = usePlayerStore.getState();
+
+    // Background Spotify Connect Keep-Alive & Auto-Sync
+    // On mobile devices, setInterval is throttled by the OS when the screen is locked,
+    // but native audio timeupdate events fire continuously!
+    // Every 3 seconds during active playback, ensure channels are alive and pump syncNow()
+    const now = Date.now();
+    if (store.isLocalPlayback && store.isPlaying && now - this.lastConnectSyncTime > 3000) {
+      this.lastConnectSyncTime = now;
+      import('@/lib/connect/DiscoveryEngine').then(({ DiscoveryEngine }) => {
+        DiscoveryEngine.getInstance().ensureChannelsConnected();
+      }).catch(() => {});
+      import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
+        PlaybackStateManager.getInstance().syncNow();
+      }).catch(() => {});
+    }
 
     // Anchor PlaybackEngine clock for smooth 60fps rAF predictions
     PlaybackEngine.getInstance().anchor();
@@ -1232,7 +1279,9 @@ export class PlaybackService {
     }
 
     // Continuously evaluate and pre-resolve next track into standby audio element for mobile background playback
-    PreloadManager.getInstance().evaluatePreload(standby);
+    if (store.isLocalPlayback) {
+      PreloadManager.getInstance().evaluatePreload(standby, true);
+    }
 
     // Boundary check for Crossfade (only if crossfade is explicitly enabled and tab is active)
     if (store.crossfadeSec > 0 && typeof document !== 'undefined' && document.visibilityState === 'visible') {

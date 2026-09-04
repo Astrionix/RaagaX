@@ -81,10 +81,13 @@ export function SeekBar({
           activeAudio = PlaybackService.getInstance().getActiveAudio();
         } catch {}
 
+        const store = usePlayerStore.getState();
         if (activeAudio && !activeAudio.paused && !activeAudio.seeking && !isNaN(activeAudio.currentTime) && activeAudio.currentTime >= 0) {
           liveSec = activeAudio.currentTime;
+        } else if (!store.isLocalPlayback && store.isPlaying && store.lastPositionTimestamp) {
+          const elapsed = (now - store.lastPositionTimestamp) / 1000;
+          liveSec = Math.min(effectiveDuration, (store.currentTime || 0) + elapsed);
         } else {
-          const store = usePlayerStore.getState();
           liveSec = store.currentTime || 0;
         }
 
@@ -205,10 +208,10 @@ export function SeekBar({
       
       // End SeekLock with a settling window — blocks stale remote position
       // updates for 800ms after release so ExoPlayer can confirm the seek
-      // Execute local seek immediately so UI and sound respond with zero lag
+      // Execute seek via store (handles remote SEEK command if controller, or local audio if speaker)
       setCurrentTime(newTime);
       setSeekTarget(newTime);
-      PlaybackService.getInstance().seek(newTime);
+      usePlayerStore.getState().seek(newTime);
 
       setTimeout(() => {
         setIsSeekSettling(false);

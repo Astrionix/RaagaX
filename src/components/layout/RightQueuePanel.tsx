@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Trash2, Heart, X, ListMusic, Music2 } from 'lucide-react';
+import { Trash2, Heart, X, ListMusic, Music2, Cast } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { SongFormatter } from '@/lib/music/SongFormatter';
@@ -24,7 +24,8 @@ export function RightQueuePanel() {
     isAutoplayEnabled,
     toggleAutoplay,
     reorderQueue,
-    toggleQueue
+    toggleQueue,
+    setRightPanelMode,
   } = usePlayerStore();
 
   const upNextQueue = mounted ? queue.slice(queueIndex + 1) : [];
@@ -90,6 +91,22 @@ export function RightQueuePanel() {
             <X className="w-4 h-4" />
           </button>
         </div>
+      </div>
+
+      {/* Mode Switcher Pill (Queue vs Devices) */}
+      <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl mb-3 flex-shrink-0 border border-white/5">
+        <button
+          onClick={() => setRightPanelMode("queue")}
+          className="flex-1 py-1.5 px-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 bg-[#fa233b] text-white shadow-sm cursor-default"
+        >
+          <ListMusic size={13} /> Queue
+        </button>
+        <button
+          onClick={() => setRightPanelMode("connect")}
+          className="flex-1 py-1.5 px-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 text-zinc-400 hover:text-white cursor-pointer"
+        >
+          <Cast size={13} /> Devices
+        </button>
       </div>
 
       {/* Currently Playing Card */}

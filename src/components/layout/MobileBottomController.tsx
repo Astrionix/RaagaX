@@ -10,6 +10,8 @@ import {
   LayoutGrid,
   Radio,
   Library,
+  Volume2,
+  Speaker,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { ActiveTab } from '@/types/music';
@@ -32,11 +34,33 @@ export function MobileBottomController() {
     playPrev,
     togglePlayerExpanded,
     isPlayerExpanded,
+    isLocalPlayback,
+    activePlaybackDeviceId,
+    toggleConnectModal,
   } = usePlayerStore();
+
+  const [speakerDeviceName, setSpeakerDeviceName] = useState<string>('Remote Device');
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (isLocalPlayback) return;
+    let unsub: (() => void) | undefined;
+    import('@/lib/connect/DeviceRegistry').then(({ DeviceRegistry }) => {
+      const update = () => {
+        const devId = usePlayerStore.getState().activePlaybackDeviceId;
+        const dev = DeviceRegistry.getInstance().getDevice(devId);
+        if (dev?.deviceName) setSpeakerDeviceName(dev.deviceName);
+      };
+      update();
+      unsub = DeviceRegistry.getInstance().subscribe(update);
+    }).catch(() => {});
+    return () => {
+      if (unsub) unsub();
+    };
+  }, [isLocalPlayback, activePlaybackDeviceId]);
 
   // ── BOTTOM NAVIGATION (HOME | NEW | LIBRARY | SEARCH) ──
   const navItems = [
@@ -104,10 +128,18 @@ export function MobileBottomController() {
             }}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
-            className="w-full max-w-[440px] h-[54px] rounded-[20px] bg-[#161619]/85 backdrop-blur-3xl border border-white/15 shadow-[0_16px_40px_rgba(0,0,0,0.85),0_2px_12px_rgba(255,255,255,0.08)] flex items-center justify-between px-3 cursor-pointer active:scale-[0.985] transition-all overflow-hidden relative group"
+            className={`w-full max-w-[440px] h-[54px] rounded-[20px] backdrop-blur-3xl border flex items-center justify-between px-3 cursor-pointer active:scale-[0.985] transition-all overflow-hidden relative group ${
+              !isLocalPlayback
+                ? 'bg-[#121214]/90 border-[#1ed760]/35 shadow-[0_16px_40px_rgba(0,0,0,0.85),0_0_20px_rgba(30,215,96,0.18)]'
+                : 'bg-[#161619]/85 border-white/15 shadow-[0_16px_40px_rgba(0,0,0,0.85),0_2px_12px_rgba(255,255,255,0.08)]'
+            }`}
           >
             {/* Top Specular Liquid Edge Highlight */}
-            <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none" />
+            <div className={`absolute top-0 left-0 right-0 h-[1px] pointer-events-none ${
+              !isLocalPlayback
+                ? 'bg-gradient-to-r from-transparent via-[#1ed760]/50 to-transparent'
+                : 'bg-gradient-to-r from-transparent via-white/30 to-transparent'
+            }`} />
 
             {/* Ambient Dynamic Background Glow matching album cover */}
             <div
@@ -134,17 +166,54 @@ export function MobileBottomController() {
                 <h4 className="text-[13px] font-bold text-white truncate leading-snug tracking-tight">
                   {currentSong.title}
                 </h4>
-                <p className="text-[11px] font-medium text-white/60 truncate flex items-center gap-1.5">
-                  <span className="truncate">{currentSong.artist || 'RaagaX Music'}</span>
-                </p>
+                {!isLocalPlayback ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      haptics.lightImpact();
+                      toggleConnectModal(true);
+                    }}
+                    className="text-[11px] font-bold text-[#1ed760] truncate flex items-center gap-1 mt-0.5"
+                  >
+                    <span className="flex items-end gap-[1px] h-2 flex-shrink-0">
+                      <span className="w-[1.5px] bg-[#1ed760] h-full animate-[pulse_0.7s_infinite]" />
+                      <span className="w-[1.5px] bg-[#1ed760] h-2/3 animate-[pulse_0.5s_infinite_0.15s]" />
+                      <span className="w-[1.5px] bg-[#1ed760] h-4/5 animate-[pulse_0.8s_infinite_0.3s]" />
+                    </span>
+                    <Volume2 size={10} className="text-[#1ed760] flex-shrink-0" />
+                    <span className="truncate">{speakerDeviceName}</span>
+                  </button>
+                ) : (
+                  <p className="text-[11px] font-medium text-white/60 truncate flex items-center gap-1.5">
+                    <span className="truncate">{currentSong.artist || 'RaagaX Music'}</span>
+                  </p>
+                )}
               </div>
             </div>
 
-            {/* Right: Direct Action Icons (Connect to Device + Play/Pause ▶ + FastForward ⏩) */}
+            {/* Right: Direct Action Icons (Connect Devices + Play/Pause ▶ + FastForward ⏩) */}
             <div
-              className="flex items-center gap-2.5 flex-shrink-0 pr-1 z-10"
+              className="flex items-center gap-2 flex-shrink-0 pr-1 z-10"
               onClick={(e) => e.stopPropagation()}
             >
+              {/* Devices Button */}
+              <button
+                onClick={() => {
+                  haptics.lightImpact();
+                  toggleConnectModal(true);
+                }}
+                aria-label="Connect to a device"
+                title={!isLocalPlayback ? `Playing on ${speakerDeviceName}` : 'Connect to a device'}
+                className={`p-1.5 rounded-full transition-all active:scale-90 cursor-pointer ${
+                  !isLocalPlayback
+                    ? 'text-[#1ed760] hover:bg-[#1ed760]/15'
+                    : 'text-white/60 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <Volume2 className="w-4 h-4" />
+              </button>
+
               {/* Play / Pause Liquid Glass Button */}
               <button
                 onClick={() => {

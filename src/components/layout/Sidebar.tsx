@@ -36,6 +36,7 @@ export function Sidebar() {
     setSelectedPlaylistId,
     selectedPlaylistId,
     setCreatePlaylistModalOpen,
+    isLocalPlayback,
   } = usePlayerStore();
 
   const { user, signOut, setAuthModalOpen } = useAuthStore();
@@ -50,7 +51,9 @@ export function Sidebar() {
   return (
     <aside
       aria-label="Sidebar Navigation"
-      className="hidden md:flex fixed left-3 top-3 bottom-3 z-30 w-[240px] select-none flex-col justify-between rounded-2xl bg-[#121316]/90 backdrop-blur-2xl border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden transition-all duration-200 text-zinc-300"
+      className={`hidden md:flex fixed left-3 top-3 ${
+        !isLocalPlayback ? 'bottom-8 sm:bottom-9.5' : 'bottom-3'
+      } z-30 w-[240px] select-none flex-col justify-between rounded-2xl bg-[#121316]/90 backdrop-blur-2xl border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden transition-all duration-200 text-zinc-300`}
     >
       {/* ── TOP HEADER & BRAND ────────────────────────────────────────────── */}
       <div className="p-3 pb-2 flex-shrink-0 border-b border-white/[0.04]">
