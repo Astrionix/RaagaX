@@ -80,8 +80,16 @@ export class DeviceIdentityManager {
       try { localStorage.setItem('raaga_device_name', deviceName); } catch {}
     }
 
+    let savedUserId: string | null = null;
+    if (typeof window !== 'undefined') {
+      try {
+        savedUserId = localStorage.getItem('raaga_user_id') || null;
+      } catch {}
+    }
+
     return {
       deviceId,
+      userId: savedUserId,
       deviceName,
       deviceType,
       platform,
@@ -107,6 +115,15 @@ export class DeviceIdentityManager {
 
   public setUserId(userId?: string | null): void {
     this.currentDevice.userId = userId || null;
+    if (typeof window !== 'undefined') {
+      try {
+        if (userId) {
+          localStorage.setItem('raaga_user_id', userId);
+        } else {
+          localStorage.removeItem('raaga_user_id');
+        }
+      } catch {}
+    }
   }
 
   public getDefaultCapabilities(): DeviceCapabilities {

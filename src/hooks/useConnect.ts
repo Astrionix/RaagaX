@@ -25,12 +25,18 @@ export function useConnect(userId?: string | null) {
   const effectiveActivePlayerDeviceId = !isLocalPlayback && storeActivePlayerId ? storeActivePlayerId : activePlayerDeviceId;
   const isLocalSpeaker = otherDevices.length === 0 || (isLocalPlayback && (!storeActivePlayerId || storeActivePlayerId === thisDevice.deviceId));
 
-  // Auto-heal local playback if no other remote devices exist on the network
+  // Auto-heal local playback if no other remote devices exist on the network (with 6s grace period)
   useEffect(() => {
     if (otherDevices.length === 0 && !isLocalPlayback) {
-      const self = connectEngine.getThisDevice();
-      usePlayerStore.getState().setActivePlaybackDeviceId(self.deviceId);
-      usePlayerStore.setState({ isLocalPlayback: true, activePlaybackDeviceId: self.deviceId });
+      const timer = setTimeout(() => {
+        const liveOther = DeviceRegistry.getInstance().getAllDevices(connectEngine.getThisDevice().deviceId);
+        if (liveOther.length === 0 && !usePlayerStore.getState().isLocalPlayback) {
+          const self = connectEngine.getThisDevice();
+          usePlayerStore.getState().setActivePlaybackDeviceId(self.deviceId);
+          usePlayerStore.setState({ isLocalPlayback: true, activePlaybackDeviceId: self.deviceId });
+        }
+      }, 6000);
+      return () => clearTimeout(timer);
     }
   }, [otherDevices.length, isLocalPlayback]);
 

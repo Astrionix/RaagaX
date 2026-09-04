@@ -4,6 +4,7 @@ import { DeviceIdentityManager } from './DeviceIdentityManager';
 import { DeviceRegistry } from './DeviceRegistry';
 import { DeviceInfo } from './types';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { getApiBaseUrl } from '@/lib/config/apiConfig';
 
 function getCleanChannel(topic: string, config?: any): RealtimeChannel {
   const fullTopic = topic.startsWith('realtime:') ? topic : `realtime:${topic}`;
@@ -29,7 +30,11 @@ export class DiscoveryEngine {
   private boundOnlineHandler: (() => void) | null = null;
   private boundUnloadHandler: (() => void) | null = null;
   private beaconRetryTimer: any = null;
+  private presenceHeartbeatTimer: any = null;
+  private pendingLeaveTimers: Map<string, any> = new Map();
+
   private onInviteReceivedCallback: ((connId: string, controllerDeviceId: string) => void) | null = null;
+  private onInviteAcceptedCallback: ((connId: string, playerDeviceId: string) => void) | null = null;
   private onDisconnectReceivedCallback: (() => void) | null = null;
   private onDirectMessageCallback: ((event: string, data: any) => void) | null = null;
 
@@ -44,10 +49,18 @@ export class DiscoveryEngine {
 
   public setConnectionCallbacks(
     onInvite: (connId: string, controllerDeviceId: string) => void,
-    onDisconnect: () => void
+    onDisconnect: () => void,
+    onInviteAccepted?: (connId: string, playerDeviceId: string) => void
   ): void {
     this.onInviteReceivedCallback = onInvite;
     this.onDisconnectReceivedCallback = onDisconnect;
+    if (onInviteAccepted) {
+      this.onInviteAcceptedCallback = onInviteAccepted;
+    }
+  }
+
+  public setInviteAcceptedCallback(cb: (connId: string, playerDeviceId: string) => void): void {
+    this.onInviteAcceptedCallback = cb;
   }
 
   public setDirectMessageCallback(cb: (event: string, data: any) => void): void {
@@ -83,8 +96,31 @@ export class DiscoveryEngine {
       senderDeviceId: self.deviceId,
       timestamp: Date.now(),
     };
+    // Send immediate packet + burst retries for resilience over cellular / packet jitter
     this.safeBroadcast(this.lanChannel, 'DEVICE_CONNECT_INVITE', payload);
     this.safeBroadcast(this.cloudChannel, 'DEVICE_CONNECT_INVITE', payload);
+
+    setTimeout(() => {
+      this.safeBroadcast(this.lanChannel, 'DEVICE_CONNECT_INVITE', payload);
+      this.safeBroadcast(this.cloudChannel, 'DEVICE_CONNECT_INVITE', payload);
+    }, 450);
+
+    setTimeout(() => {
+      this.safeBroadcast(this.lanChannel, 'DEVICE_CONNECT_INVITE', payload);
+      this.safeBroadcast(this.cloudChannel, 'DEVICE_CONNECT_INVITE', payload);
+    }, 1100);
+  }
+
+  public broadcastInviteAccepted(connectionId: string, controllerDeviceId: string): void {
+    const self = DeviceIdentityManager.getInstance().getDevice();
+    const payload = {
+      connectionId,
+      targetDeviceId: controllerDeviceId,
+      senderDeviceId: self.deviceId,
+      timestamp: Date.now(),
+    };
+    this.safeBroadcast(this.lanChannel, 'DEVICE_INVITE_ACCEPTED', payload);
+    this.safeBroadcast(this.cloudChannel, 'DEVICE_INVITE_ACCEPTED', payload);
   }
 
   public broadcastDisconnect(connectionId: string, targetDeviceId: string): void {
@@ -102,6 +138,15 @@ export class DiscoveryEngine {
   private getCachedWifiHash(): string | null {
     if (typeof window === 'undefined') return null;
     try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('sim') === 'diff_wifi' || urlParams.get('diff_wifi') === '1') {
+        let simHash = sessionStorage.getItem('raaga_sim_wifi_hash');
+        if (!simHash) {
+          simHash = 'sim_net_' + Math.random().toString(36).slice(2, 8);
+          sessionStorage.setItem('raaga_sim_wifi_hash', simHash);
+        }
+        return simHash;
+      }
       return sessionStorage.getItem('raaga_wifi_hash') || localStorage.getItem('raaga_wifi_hash');
     } catch {
       return null;
@@ -111,13 +156,17 @@ export class DiscoveryEngine {
   private setCachedWifiHash(hash: string): void {
     if (typeof window === 'undefined') return;
     try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('sim') === 'diff_wifi' || urlParams.get('diff_wifi') === '1') {
+        return;
+      }
       sessionStorage.setItem('raaga_wifi_hash', hash);
       localStorage.setItem('raaga_wifi_hash', hash);
     } catch {}
   }
 
   public async startDiscovery(userId?: string | null): Promise<void> {
-    const targetUserId = userId || null;
+    const targetUserId = userId || DeviceIdentityManager.getInstance().getDevice().userId || null;
     if (this.isRunning && this.currentUserId === targetUserId) {
       return;
     }
@@ -131,12 +180,9 @@ export class DiscoveryEngine {
     const self = identityMgr.getDevice();
 
     // ── Track A: Local LAN Subnet Discovery ──
-    // 1. Instantly use cached subnet hash to avoid blocking on Render free tier cold-starts (50s delay)
     const initialHash = this.getCachedWifiHash() || 'local_subnet_mesh';
     this.currentWifiHash = initialHash;
     this.mountLanChannel(initialHash, self);
-
-    // 2. Fetch fresh beacon with 3.5s timeout (non-blocking if Render is asleep)
     this.fetchWifiBeaconNonBlocking(self);
 
     // ── Track B: Cloud Account Presence Discovery ──
@@ -150,12 +196,28 @@ export class DiscoveryEngine {
         .on('presence', { event: 'sync' }, () => {
           this.handlePresenceSync(this.cloudChannel, 'CLOUD', self.deviceId);
         })
+        .on('presence', { event: 'join' }, ({ newPresences }) => {
+          (newPresences || []).forEach((dev: any) => {
+            if (dev && dev.deviceId && dev.deviceId !== self.deviceId) {
+              if (this.pendingLeaveTimers.has(dev.deviceId)) {
+                clearTimeout(this.pendingLeaveTimers.get(dev.deviceId));
+                this.pendingLeaveTimers.delete(dev.deviceId);
+              }
+              DeviceRegistry.getInstance().upsertDevice(dev, 'CLOUD');
+            }
+          });
+        })
         .on('presence', { event: 'leave' }, ({ leftPresences }) => {
           this.handlePresenceLeave(leftPresences);
         })
         .on('broadcast', { event: 'DEVICE_CONNECT_INVITE' }, ({ payload }) => {
           if (payload?.targetDeviceId === self.deviceId && payload?.senderDeviceId !== self.deviceId) {
             this.onInviteReceivedCallback?.(payload.connectionId, payload.senderDeviceId);
+          }
+        })
+        .on('broadcast', { event: 'DEVICE_INVITE_ACCEPTED' }, ({ payload }) => {
+          if (payload?.targetDeviceId === self.deviceId && payload?.senderDeviceId !== self.deviceId) {
+            this.onInviteAcceptedCallback?.(payload.connectionId, payload.senderDeviceId);
           }
         })
         .on('broadcast', { event: 'DEVICE_DISCONNECT_NOTICE' }, ({ payload }) => {
@@ -192,6 +254,14 @@ export class DiscoveryEngine {
 
     // ── Track C: Device Lifecycle Wakeup & Reconnection ──
     this.setupLifecycleListeners();
+
+    // ── Track D: Periodic Cloud Presence Heartbeat (keeps devices online on Account) ──
+    if (this.presenceHeartbeatTimer) clearInterval(this.presenceHeartbeatTimer);
+    this.presenceHeartbeatTimer = setInterval(() => {
+      if (this.isRunning) {
+        this.retrackPresence();
+      }
+    }, 20000);
   }
 
   private mountLanChannel(wifiHash: string, self: DeviceInfo): void {
@@ -209,12 +279,28 @@ export class DiscoveryEngine {
       .on('presence', { event: 'sync' }, () => {
         this.handlePresenceSync(this.lanChannel, 'LAN', self.deviceId);
       })
+      .on('presence', { event: 'join' }, ({ newPresences }) => {
+        (newPresences || []).forEach((dev: any) => {
+          if (dev && dev.deviceId && dev.deviceId !== self.deviceId) {
+            if (this.pendingLeaveTimers.has(dev.deviceId)) {
+              clearTimeout(this.pendingLeaveTimers.get(dev.deviceId));
+              this.pendingLeaveTimers.delete(dev.deviceId);
+            }
+            DeviceRegistry.getInstance().upsertDevice(dev, 'LAN');
+          }
+        });
+      })
       .on('presence', { event: 'leave' }, ({ leftPresences }) => {
         this.handlePresenceLeave(leftPresences);
       })
       .on('broadcast', { event: 'DEVICE_CONNECT_INVITE' }, ({ payload }) => {
         if (payload?.targetDeviceId === self.deviceId && payload?.senderDeviceId !== self.deviceId) {
           this.onInviteReceivedCallback?.(payload.connectionId, payload.senderDeviceId);
+        }
+      })
+      .on('broadcast', { event: 'DEVICE_INVITE_ACCEPTED' }, ({ payload }) => {
+        if (payload?.targetDeviceId === self.deviceId && payload?.senderDeviceId !== self.deviceId) {
+          this.onInviteAcceptedCallback?.(payload.connectionId, payload.senderDeviceId);
         }
       })
       .on('broadcast', { event: 'DEVICE_DISCONNECT_NOTICE' }, ({ payload }) => {
@@ -250,11 +336,18 @@ export class DiscoveryEngine {
   }
 
   private async fetchWifiBeaconNonBlocking(self: DeviceInfo, retriesLeft = 2): Promise<void> {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('sim') === 'diff_wifi' || urlParams.get('diff_wifi') === '1') {
+        return;
+      }
+    }
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3500);
 
-      const res = await fetch('/api/connect/wifi-beacon', {
+      const beaconUrl = `${getApiBaseUrl()}/api/connect/wifi-beacon`;
+      const res = await fetch(beaconUrl, {
         signal: controller.signal,
         headers: { 'Cache-Control': 'no-cache' },
       });
@@ -355,6 +448,10 @@ export class DiscoveryEngine {
       if (key !== selfId) {
         const payload = state[key]?.[0] as DeviceInfo | undefined;
         if (payload && payload.deviceId) {
+          if (this.pendingLeaveTimers.has(payload.deviceId)) {
+            clearTimeout(this.pendingLeaveTimers.get(payload.deviceId));
+            this.pendingLeaveTimers.delete(payload.deviceId);
+          }
           registry.upsertDevice(payload, source);
         }
       }
@@ -362,42 +459,62 @@ export class DiscoveryEngine {
   }
 
   private handlePresenceLeave(leftPresences: any[]): void {
-    const registry = DeviceRegistry.getInstance();
     const store = usePlayerStore.getState();
     const self = DeviceIdentityManager.getInstance().getDevice();
 
-    let activeSpeakerLeft = false;
     (leftPresences || []).forEach((p) => {
-      if (p && p.deviceId) {
-        registry.removeDevice(p.deviceId);
-        if (p.deviceId === store.activePlaybackDeviceId) {
-          activeSpeakerLeft = true;
-        }
-      }
-    });
+      if (!p || !p.deviceId || p.deviceId === self.deviceId) return;
+      const deviceId = p.deviceId;
 
-    const remainingOtherDevices = registry.getAllDevices(self.deviceId);
-    if (activeSpeakerLeft || remainingOtherDevices.length === 0) {
-      if (!store.isLocalPlayback || store.activePlaybackDeviceId !== self.deviceId) {
-        console.log('[DiscoveryEngine] Remote speaker left/disconnected. Auto-restoring local playback on this device.');
-        usePlayerStore.getState().setActivePlaybackDeviceId(self.deviceId);
-        usePlayerStore.setState({
-          isLocalPlayback: true,
-          activePlaybackDeviceId: self.deviceId,
-        });
-        try {
-          localStorage.setItem('raagax_active_playback_device_id', self.deviceId);
-        } catch {}
-        import('@/lib/connect/ConnectEngine').then(({ connectEngine }) => {
-          connectEngine.handleRemoteDisconnect();
-        }).catch(() => {});
+      // Clear any existing timer for this device
+      if (this.pendingLeaveTimers.has(deviceId)) {
+        clearTimeout(this.pendingLeaveTimers.get(deviceId));
       }
-    }
+
+      // 8-second grace period for cellular network switches & screen lock/unlock blips
+      const timer = setTimeout(() => {
+        this.pendingLeaveTimers.delete(deviceId);
+        const registry = DeviceRegistry.getInstance();
+        registry.removeDevice(deviceId);
+
+        const isCurrentSpeaker = deviceId === store.activePlaybackDeviceId;
+        const remainingOtherDevices = registry.getAllDevices(self.deviceId);
+
+        if (isCurrentSpeaker || remainingOtherDevices.length === 0) {
+          if (!store.isLocalPlayback || store.activePlaybackDeviceId !== self.deviceId) {
+            console.log(`[DiscoveryEngine] Remote speaker ${deviceId} confirmed offline after 8s grace period. Auto-restoring local playback.`);
+            usePlayerStore.getState().setActivePlaybackDeviceId(self.deviceId);
+            usePlayerStore.setState({
+              isLocalPlayback: true,
+              activePlaybackDeviceId: self.deviceId,
+            });
+            try {
+              localStorage.setItem('raagax_active_playback_device_id', self.deviceId);
+            } catch {}
+            import('@/lib/connect/ConnectEngine').then(({ connectEngine }) => {
+              connectEngine.handleRemoteDisconnect();
+            }).catch(() => {});
+          }
+        }
+      }, 8000);
+
+      this.pendingLeaveTimers.set(deviceId, timer);
+    });
   }
 
   public stopDiscovery(): void {
     this.isRunning = false;
     this.currentUserId = null;
+
+    if (this.presenceHeartbeatTimer) {
+      clearInterval(this.presenceHeartbeatTimer);
+      this.presenceHeartbeatTimer = null;
+    }
+
+    for (const timer of this.pendingLeaveTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.pendingLeaveTimers.clear();
 
     if (this.beaconRetryTimer) {
       clearTimeout(this.beaconRetryTimer);
@@ -438,4 +555,3 @@ export class DiscoveryEngine {
     return this.currentWifiHash;
   }
 }
-

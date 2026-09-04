@@ -25,6 +25,7 @@ export class ConnectEngine {
   private activeControllerDeviceId: string | null = null;
   private activeControllerSubscribers: Set<(controllerId: string | null) => void> = new Set();
   private remotePlaybackUnsub: (() => void) | null = null;
+  private isAutoHealSubscribed = false;
 
   private constructor() {
     this.activePlayerDeviceId = DeviceIdentityManager.getInstance().getDevice().deviceId;
@@ -133,6 +134,10 @@ export class ConnectEngine {
       // Connect to relay channel as receiver (non-initiator)
       await TransportManager.getInstance().establishTransport(connectionId, controllerDeviceId, false);
       this.setConnectionState('CONNECTED');
+
+      // Immediate affirmative handshake back to controller
+      DiscoveryEngine.getInstance().broadcastInviteAccepted(connectionId, controllerDeviceId);
+
       // Only push current playing song if this device is already actively playing audio
       const store = usePlayerStore.getState();
       if (store.isPlaying && store.currentSong) {
@@ -179,22 +184,42 @@ export class ConnectEngine {
       usePlayerStore.setState({ currentDeviceId: self.deviceId });
     } catch {}
 
-    // Auto-heal local speaker if no other remote devices remain online
-    DeviceRegistry.getInstance().subscribe((devices) => {
-      const currentSelf = DeviceIdentityManager.getInstance().getDevice();
-      const otherOnline = devices.filter((d) => d.deviceId !== currentSelf.deviceId && d.isOnline !== false);
-      const store = usePlayerStore.getState();
+    // Auto-heal local speaker if no other remote devices remain online (with 6s grace period)
+    if (!this.isAutoHealSubscribed) {
+      this.isAutoHealSubscribed = true;
+      let disconnectGraceTimer: any = null;
 
-      if (!store.isLocalPlayback) {
-        const isTargetOnline = otherOnline.some((d) => d.deviceId === store.activePlaybackDeviceId);
-        if (otherOnline.length === 0 || !isTargetOnline) {
-          console.log('[ConnectEngine] No remote device available. Auto-reverting to local playback on this device.');
-          this.handleRemoteDisconnect();
-          usePlayerStore.getState().setActivePlaybackDeviceId(currentSelf.deviceId);
-          usePlayerStore.setState({ isLocalPlayback: true, activePlaybackDeviceId: currentSelf.deviceId });
+      DeviceRegistry.getInstance().subscribe((devices) => {
+        const currentSelf = DeviceIdentityManager.getInstance().getDevice();
+        const otherOnline = devices.filter((d) => d.deviceId !== currentSelf.deviceId && d.isOnline !== false);
+        const store = usePlayerStore.getState();
+
+        if (!store.isLocalPlayback) {
+          const isTargetOnline = otherOnline.some((d) => d.deviceId === store.activePlaybackDeviceId);
+          if (otherOnline.length === 0 || !isTargetOnline) {
+            if (!disconnectGraceTimer) {
+              disconnectGraceTimer = setTimeout(() => {
+                disconnectGraceTimer = null;
+                const liveStore = usePlayerStore.getState();
+                if (!liveStore.isLocalPlayback) {
+                  const liveDevs = DeviceRegistry.getInstance().getAllDevices(currentSelf.deviceId);
+                  const stillTargetOnline = liveDevs.some((d) => d.deviceId === liveStore.activePlaybackDeviceId);
+                  if (liveDevs.length === 0 || !stillTargetOnline) {
+                    console.log('[ConnectEngine] Remote device confirmed unavailable after 6s grace period. Auto-reverting.');
+                    this.handleRemoteDisconnect();
+                    usePlayerStore.getState().setActivePlaybackDeviceId(currentSelf.deviceId);
+                    usePlayerStore.setState({ isLocalPlayback: true, activePlaybackDeviceId: currentSelf.deviceId });
+                  }
+                }
+              }, 6000);
+            }
+          } else if (disconnectGraceTimer) {
+            clearTimeout(disconnectGraceTimer);
+            disconnectGraceTimer = null;
+          }
         }
-      }
-    });
+      });
+    }
 
     // When booting, immediately ask if an active speaker already exists on the network
     setTimeout(() => {
@@ -478,13 +503,33 @@ export class ConnectEngine {
     try {
       // 1. Establish transport as initiator
       await TransportManager.getInstance().establishTransport(connId, targetDeviceId, true);
+
+      // 2. Broadcast connect invite with burst retries to target device
+      DiscoveryEngine.getInstance().broadcastInvite(connId, targetDeviceId);
+
+      // 3. Wait up to 1800ms for positive acknowledgment from target device
+      await new Promise<void>((resolve) => {
+        let resolved = false;
+        const timer = setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            resolve();
+          }
+        }, 1800);
+
+        DiscoveryEngine.getInstance().setInviteAcceptedCallback((acceptedConnId, fromDevId) => {
+          if (!resolved && (acceptedConnId === connId || fromDevId === targetDeviceId)) {
+            resolved = true;
+            clearTimeout(timer);
+            resolve();
+          }
+        });
+      });
+
       this.setActivePlayerDeviceId(targetDeviceId);
       this.setConnectionState('CONNECTED');
 
-      // 2. Broadcast connect invite to target device so it joins the relay transport as player
-      DiscoveryEngine.getInstance().broadcastInvite(connId, targetDeviceId);
-
-      // 3. Request instantaneous playback state so remote seekbar and track details show immediately
+      // 4. Request instantaneous playback state so remote seekbar and track details show immediately
       PlaybackStateManager.getInstance().requestPlaybackSync();
 
       ConnectDiagnostics.getInstance().updateDiagnostics({
@@ -658,7 +703,15 @@ export class ConnectEngine {
     const candidateTrack = store.currentSong || (store.queue && store.queue.length > 0 ? store.queue[0] : null);
     if (candidateTrack) {
       const connId = this.activeConnectionId || [self.deviceId, targetDeviceId].sort().join('_');
-      await HandoffManager.getInstance().switchPlaybackTo(connId, targetDeviceId);
+      const handoffResult = await HandoffManager.getInstance().switchPlaybackTo(connId, targetDeviceId);
+      if (!handoffResult.success) {
+        console.warn('[ConnectEngine] Handoff failed, retaining local playback:', handoffResult.reason);
+        this.setActivePlayerDeviceId(self.deviceId);
+        usePlayerStore.getState().setActivePlaybackDeviceId(self.deviceId);
+        usePlayerStore.setState({ isLocalPlayback: true });
+        usePlayerStore.getState().setToastMessage(`Failed to switch to remote device: ${handoffResult.reason || 'Device not ready'}`);
+        return false;
+      }
     } else {
       PlaybackStateManager.getInstance().requestPlaybackSync();
     }

@@ -55,9 +55,9 @@ export class CommandManager {
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
         this.pendingCommands.delete(commandId);
-        // Optimistically resolve if ACK was delayed on local Wi-Fi mesh
+        // Optimistically resolve if ACK was delayed on mesh / cloud relay
         resolve({ commandId, status: 'accepted' });
-      }, 3000);
+      }, timeoutMs || 6000);
 
       this.pendingCommands.set(commandId, { resolve, reject: () => {}, timer });
       TransportManager.getInstance().sendMessage('CONNECT_COMMAND', command, playerDeviceId);

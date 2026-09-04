@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Laptop, Smartphone, Tablet, Speaker, Loader2, Pencil, Check, X } from "lucide-react";
+import { Laptop, Smartphone, Tablet, Speaker, Loader2, Pencil, Check, X, Volume2 } from "lucide-react";
 import { DeviceInfo } from "@/lib/connect/types";
 
 interface Props {
@@ -138,35 +138,54 @@ export const DeviceListItem: React.FC<Props> = ({
             </button>
           </form>
         ) : (
-          <div className="flex items-center gap-1.5 truncate flex-1 min-w-0">
-            <span
-              className={`text-sm font-semibold truncate transition-colors ${
-                isActivePlayer ? "text-[#1ed760]" : "text-white"
-              }`}
-            >
-              {displayName}
-            </span>
-
-            {isSelf && (
-              <span className="text-[10px] font-medium text-zinc-400 bg-white/10 px-1.5 py-0.5 rounded flex-shrink-0">
-                This Device
-              </span>
-            )}
-
-            {isSelf && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setEditName(device.deviceName || "This web browser");
-                  setIsEditing(true);
-                }}
-                className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-white transition-opacity rounded"
-                title="Rename device"
+          <div className="flex flex-col min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 truncate">
+              <span
+                className={`text-sm font-semibold truncate transition-colors ${
+                  isActivePlayer ? "text-[#1ed760]" : "text-white"
+                }`}
               >
-                <Pencil size={12} />
-              </button>
-            )}
+                {displayName}
+              </span>
+
+              {isSelf && (
+                <span className="text-[10px] font-medium text-zinc-400 bg-white/10 px-1.5 py-0.5 rounded flex-shrink-0">
+                  This Device
+                </span>
+              )}
+
+              {isSelf && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditName(device.deviceName || "This web browser");
+                    setIsEditing(true);
+                  }}
+                  className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-white transition-opacity rounded"
+                  title="Rename device"
+                >
+                  <Pencil size={12} />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1.5 text-[11px] font-medium leading-none pt-0.5">
+              {isActivePlayer ? (
+                <span className="text-[#1ed760] flex items-center gap-1">
+                  <Volume2 size={11} className="flex-shrink-0" />
+                  <span>{isSelf ? "Listening on this device" : "Playing on this device"}</span>
+                </span>
+              ) : (
+                <span className="text-zinc-400">
+                  {device.source === 'CLOUD'
+                    ? 'RaagaX Connect • Cloud (Account)'
+                    : device.source === 'BOTH'
+                    ? 'RaagaX Connect • Wi-Fi & Account'
+                    : 'RaagaX Connect • Local Wi-Fi'}
+                </span>
+              )}
+            </div>
           </div>
         )}
       </div>
