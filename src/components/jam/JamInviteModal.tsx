@@ -8,12 +8,10 @@ import {
   Users,
   Radio,
   Share2,
-  Lock,
-  Smartphone,
-  Headphones,
   Speaker,
+  Headphones,
   Volume2,
-  Sparkles,
+  LogOut,
 } from "lucide-react";
 import { getJamInviteUrl, JamAudioMode } from "@/lib/jam/JamSessionManager";
 import { usePlayerStore } from "@/context/usePlayerStore";
@@ -57,7 +55,6 @@ export const JamInviteModal: React.FC<JamInviteModalProps> = ({
 
   if (!isOpen || !roomPin) return null;
 
-  // Active audio mode & local output flag (prop or hook fallback)
   const activeMode: JamAudioMode = propAudioMode || jam.audioMode || "IN_PERSON";
   const isLocalOutput = propIsLocalOutput !== undefined ? propIsLocalOutput : jam.isLocalAudioOutput;
 
@@ -77,15 +74,10 @@ export const JamInviteModal: React.FC<JamInviteModalProps> = ({
     }
   };
 
-  // Always derive official, non-localhost production URL
   const effectiveInviteUrl = roomPin ? getJamInviteUrl(roomPin) : inviteUrl || "https://raaga.me";
-
-  // Format PIN as "123 456" for instant readability
   const formattedPin = roomPin.length === 6 ? `${roomPin.slice(0, 3)} ${roomPin.slice(3)}` : roomPin;
-
   const fullShareText = `Join my Jam on RaagaX! 🎧\nListen together and queue tracks in real-time.\n\n🔑 Jam Code: ${formattedPin}\n🔗 Link: ${effectiveInviteUrl}`;
 
-  // Native share sheet (WhatsApp, Telegram, etc.) with clipboard fallback
   const handleShare = async () => {
     if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       try {
@@ -95,19 +87,18 @@ export const JamInviteModal: React.FC<JamInviteModalProps> = ({
           url: effectiveInviteUrl,
         });
         setShared(true);
-        setTimeout(() => setShared(false), 2200);
+        setTimeout(() => setShared(false), 2000);
         return;
       } catch (err: any) {
-        if (err?.name === "AbortError") return; // User closed native share sheet
+        if (err?.name === "AbortError") return;
       }
     }
 
-    // Fallback: Copy full formatted invite to clipboard
     if (typeof navigator !== "undefined" && navigator.clipboard) {
       navigator.clipboard.writeText(fullShareText);
       setShared(true);
       usePlayerStore.getState().setToastMessage("Jam invite link & code copied! 📋");
-      setTimeout(() => setShared(false), 2200);
+      setTimeout(() => setShared(false), 2000);
     }
   };
 
@@ -115,8 +106,8 @@ export const JamInviteModal: React.FC<JamInviteModalProps> = ({
     if (typeof navigator !== "undefined" && navigator.clipboard) {
       navigator.clipboard.writeText(effectiveInviteUrl);
       setCopiedLink(true);
-      usePlayerStore.getState().setToastMessage("Invite link copied to clipboard! 🔗");
-      setTimeout(() => setCopiedLink(false), 2200);
+      usePlayerStore.getState().setToastMessage("Link copied! 🔗");
+      setTimeout(() => setCopiedLink(false), 2000);
     }
   };
 
@@ -124,233 +115,158 @@ export const JamInviteModal: React.FC<JamInviteModalProps> = ({
     if (typeof navigator !== "undefined" && navigator.clipboard) {
       navigator.clipboard.writeText(roomPin);
       setCopiedCode(true);
-      usePlayerStore.getState().setToastMessage(`Jam code ${formattedPin} copied! 🔑`);
-      setTimeout(() => setCopiedCode(false), 2200);
+      usePlayerStore.getState().setToastMessage(`Code ${formattedPin} copied! 🔑`);
+      setTimeout(() => setCopiedCode(false), 2000);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200">
+    <div 
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-150"
+      onClick={onClose}
+    >
       <div
-        className="relative w-full max-w-md rounded-2xl bg-[#181818] border border-white/10 shadow-2xl p-5 sm:p-6 text-white text-center select-none max-h-[90vh] overflow-y-auto"
+        className="relative w-full max-w-sm rounded-2xl bg-[#181818] border border-white/10 shadow-2xl p-5 text-white select-none"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Close Button */}
+        {/* Top Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 rounded-full text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          className="absolute top-3.5 right-3.5 p-1 rounded-full text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           aria-label="Close"
         >
-          <X size={18} />
+          <X size={16} />
         </button>
 
-        {/* Pulse Jam Icon */}
-        <div className="mx-auto w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#1ed760]/15 border border-[#1ed760]/30 flex items-center justify-center mb-3">
-          <Radio size={26} className="text-[#1ed760] animate-pulse" />
-        </div>
-
-        <h3 className="text-lg sm:text-xl font-bold tracking-tight mb-1">
-          {isHost ? "You're Hosting a Jam" : "Listening in Jam"}
-        </h3>
-        <p className="text-xs text-zinc-400 mb-4">
-          Control the shared queue, play together, and choose how you listen.
-        </p>
-
-        {/* PIN Code Display (Click to Copy) */}
-        <div
-          onClick={handleCopyCode}
-          className="bg-[#121212] border border-white/10 hover:border-[#1ed760]/50 rounded-xl py-2.5 px-4 mb-3.5 cursor-pointer transition-all group relative"
-          title="Click to copy code"
-        >
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
-              Jam Room Code
-            </span>
-            <span className="text-[10px] text-zinc-500 group-hover:text-[#1ed760] transition-colors flex items-center gap-1 font-medium">
-              {copiedCode ? <Check size={11} className="text-[#1ed760]" /> : <Copy size={11} />}
-              {copiedCode ? "Copied!" : "Copy code"}
+        {/* Compact Header Pill */}
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#1ed760]/15 border border-[#1ed760]/30 text-[#1ed760] text-[11px] font-bold">
+            <Radio size={12} className="animate-pulse" />
+            <span>{isHost ? "Hosting Jam" : "In Jam"}</span>
+            <span className="text-white/60 font-normal">•</span>
+            <span className="flex items-center gap-1 text-white/90">
+              <Users size={11} /> {participantCount}
             </span>
           </div>
-          <div className="text-2xl sm:text-3xl font-extrabold tracking-widest text-[#1ed760] font-mono">
+        </div>
+
+        {/* PIN Code Box (Tap to Copy) */}
+        <div
+          onClick={handleCopyCode}
+          className="bg-black/40 hover:bg-black/60 border border-white/10 hover:border-[#1ed760]/50 rounded-xl py-2 px-3 text-center cursor-pointer transition-all mb-3 group"
+          title="Click to copy room code"
+        >
+          <div className="text-[10px] text-zinc-400 flex items-center justify-center gap-1">
+            <span>JAM CODE</span>
+            <span className="text-zinc-500 group-hover:text-[#1ed760] font-medium flex items-center gap-0.5 ml-1">
+              {copiedCode ? <Check size={10} className="text-[#1ed760]" /> : <Copy size={10} />}
+              {copiedCode ? "Copied" : "Copy"}
+            </span>
+          </div>
+          <div className="text-2xl font-extrabold tracking-widest text-[#1ed760] font-mono leading-tight">
             {formattedPin}
           </div>
         </div>
 
-        {/* Live Participant Count */}
-        <div className="flex items-center justify-center gap-2 text-xs text-zinc-300 mb-4">
-          <Users size={14} className="text-[#1ed760]" />
-          <span>
-            <strong>{participantCount}</strong> {participantCount === 1 ? "person" : "people"} listening together
-          </span>
-        </div>
-
-        {/* ── 3-MODE SPOTIFY JAM SELECTOR ─────────────────────────────────── */}
-        <div className="bg-[#121212] border border-white/10 rounded-xl p-3 mb-3 text-left">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-              <Sparkles size={12} className="text-[#1ed760]" />
+        {/* ── SIMPLE 3-MODE SEGMENTED TABS (HOST) ────────────────────────── */}
+        {isHost ? (
+          <div className="mb-3">
+            <div className="text-[10px] uppercase font-semibold text-zinc-400 tracking-wider mb-1.5 px-0.5">
               Listening Mode
-            </span>
-            <span className="text-[10px] text-zinc-400">
-              {isHost ? "Host Controls Mode" : "Host Selected"}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 gap-2">
-            {/* Mode 1: In-Person (Shared Speaker) */}
-            <button
-              type="button"
-              disabled={!isHost}
-              onClick={() => handleModeSelect("IN_PERSON")}
-              className={`p-2.5 rounded-lg border text-left transition-all flex items-start gap-2.5 ${
-                activeMode === "IN_PERSON"
-                  ? "bg-[#1ed760]/10 border-[#1ed760] text-white ring-1 ring-[#1ed760]/30"
-                  : "bg-white/[0.03] border-white/5 text-zinc-300 hover:bg-white/[0.06]"
-              } ${isHost ? "cursor-pointer" : "cursor-default"}`}
-            >
-              <div
-                className={`p-1.5 rounded-md mt-0.5 flex-shrink-0 ${
-                  activeMode === "IN_PERSON" ? "bg-[#1ed760] text-black" : "bg-white/10 text-zinc-400"
+            </div>
+            <div className="grid grid-cols-3 gap-1 p-1 bg-black/40 rounded-xl border border-white/5">
+              <button
+                type="button"
+                onClick={() => handleModeSelect("IN_PERSON")}
+                className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg transition-all cursor-pointer ${
+                  activeMode === "IN_PERSON"
+                    ? "bg-[#1ed760] text-black font-bold shadow-md"
+                    : "text-zinc-300 hover:text-white hover:bg-white/5"
                 }`}
               >
-                <Speaker size={14} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold">1. In-Person (Shared Speaker)</span>
-                  {activeMode === "IN_PERSON" && (
-                    <span className="text-[9px] font-extrabold bg-[#1ed760] text-black px-1.5 py-0.2 rounded-full uppercase">
-                      Default
-                    </span>
-                  )}
-                </div>
-                <p className="text-[10px] text-zinc-400 leading-tight mt-0.5">
-                  Audio plays on Host's speaker only. Guest phones are silent controllers with 0ms echo.
-                </p>
-              </div>
-            </button>
+                <Speaker size={16} />
+                <span className="text-[11px] mt-1 leading-none">Speaker</span>
+              </button>
 
-            {/* Mode 2: Cloud Remote Listen */}
-            <button
-              type="button"
-              disabled={!isHost}
-              onClick={() => handleModeSelect("REMOTE_LISTEN")}
-              className={`p-2.5 rounded-lg border text-left transition-all flex items-start gap-2.5 ${
-                activeMode === "REMOTE_LISTEN"
-                  ? "bg-[#1ed760]/10 border-[#1ed760] text-white ring-1 ring-[#1ed760]/30"
-                  : "bg-white/[0.03] border-white/5 text-zinc-300 hover:bg-white/[0.06]"
-              } ${isHost ? "cursor-pointer" : "cursor-default"}`}
-            >
-              <div
-                className={`p-1.5 rounded-md mt-0.5 flex-shrink-0 ${
-                  activeMode === "REMOTE_LISTEN" ? "bg-[#1ed760] text-black" : "bg-white/10 text-zinc-400"
+              <button
+                type="button"
+                onClick={() => handleModeSelect("REMOTE_LISTEN")}
+                className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg transition-all cursor-pointer ${
+                  activeMode === "REMOTE_LISTEN"
+                    ? "bg-[#1ed760] text-black font-bold shadow-md"
+                    : "text-zinc-300 hover:text-white hover:bg-white/5"
                 }`}
               >
-                <Headphones size={14} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold">2. Cloud Remote Listen</span>
-                  {activeMode === "REMOTE_LISTEN" && (
-                    <span className="text-[9px] font-extrabold bg-[#1ed760] text-black px-1.5 py-0.2 rounded-full uppercase">
-                      Active
-                    </span>
-                  )}
-                </div>
-                <p className="text-[10px] text-zinc-400 leading-tight mt-0.5">
-                  Friends in different locations listen via headphones, synced over the internet.
-                </p>
-              </div>
-            </button>
+                <Headphones size={16} />
+                <span className="text-[11px] mt-1 leading-none">Remote</span>
+              </button>
 
-            {/* Mode 3: Party Multi-Speaker */}
-            <button
-              type="button"
-              disabled={!isHost}
-              onClick={() => handleModeSelect("MULTI_SPEAKER")}
-              className={`p-2.5 rounded-lg border text-left transition-all flex items-start gap-2.5 ${
-                activeMode === "MULTI_SPEAKER"
-                  ? "bg-[#1ed760]/10 border-[#1ed760] text-white ring-1 ring-[#1ed760]/30"
-                  : "bg-white/[0.03] border-white/5 text-zinc-300 hover:bg-white/[0.06]"
-              } ${isHost ? "cursor-pointer" : "cursor-default"}`}
-            >
-              <div
-                className={`p-1.5 rounded-md mt-0.5 flex-shrink-0 ${
-                  activeMode === "MULTI_SPEAKER" ? "bg-[#1ed760] text-black" : "bg-white/10 text-zinc-400"
+              <button
+                type="button"
+                onClick={() => handleModeSelect("MULTI_SPEAKER")}
+                className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg transition-all cursor-pointer ${
+                  activeMode === "MULTI_SPEAKER"
+                    ? "bg-[#1ed760] text-black font-bold shadow-md"
+                    : "text-zinc-300 hover:text-white hover:bg-white/5"
                 }`}
               >
-                <Volume2 size={14} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold">3. Multi-Speaker Party Mode</span>
-                  {activeMode === "MULTI_SPEAKER" && (
-                    <span className="text-[9px] font-extrabold bg-[#1ed760] text-black px-1.5 py-0.2 rounded-full uppercase">
-                      Active
-                    </span>
-                  )}
-                </div>
-                <p className="text-[10px] text-zinc-400 leading-tight mt-0.5">
-                  All phone speakers blast music simultaneously with phase-locked drift correction.
-                </p>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        {/* ── GUEST AUDIO OUTPUT SWITCHER (Listen on Host Speaker vs This Phone) ── */}
-        {!isHost && (
-          <div className="bg-[#121212] border border-white/10 rounded-xl p-3 mb-3 text-left">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-bold text-white uppercase tracking-wider">
-                Sound Output on This Phone
-              </span>
-              <span className="text-[10px] text-[#1ed760] font-semibold">
-                {isLocalOutput ? "Local Audio On" : "Connected to Host"}
-              </span>
+                <Volume2 size={16} />
+                <span className="text-[11px] mt-1 leading-none">Party</span>
+              </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            {/* 1-Line Dynamic Caption */}
+            <p className="text-[10px] text-zinc-400 text-center mt-1.5 leading-tight px-1">
+              {activeMode === "IN_PERSON" && "📻 Sound plays on Host speaker only. Guests control queue."}
+              {activeMode === "REMOTE_LISTEN" && "🎧 Friends listen in headphones over the cloud."}
+              {activeMode === "MULTI_SPEAKER" && "🔊 All phone speakers blast simultaneously in sync."}
+            </p>
+          </div>
+        ) : (
+          /* ── SIMPLE GUEST SOUND OUTPUT SWITCHER ────────────────────────── */
+          <div className="mb-3">
+            <div className="text-[10px] uppercase font-semibold text-zinc-400 tracking-wider mb-1.5 px-0.5">
+              Audio Destination
+            </div>
+            <div className="grid grid-cols-2 gap-1 p-1 bg-black/40 rounded-xl border border-white/5">
               <button
                 type="button"
                 onClick={() => handleToggleLocalOutput(false)}
-                className={`py-2 px-3 rounded-lg border text-center transition-all flex flex-col items-center gap-1 cursor-pointer ${
+                className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg transition-all cursor-pointer ${
                   !isLocalOutput
-                    ? "bg-[#1ed760]/15 border-[#1ed760] text-white ring-1 ring-[#1ed760]/40"
-                    : "bg-white/[0.03] border-white/10 text-zinc-400 hover:text-white"
+                    ? "bg-[#1ed760] text-black font-bold shadow-md"
+                    : "text-zinc-300 hover:text-white hover:bg-white/5"
                 }`}
               >
-                <Speaker size={16} className={!isLocalOutput ? "text-[#1ed760]" : "text-zinc-400"} />
-                <span className="text-xs font-bold leading-tight">Host's Speaker</span>
-                <span className="text-[9px] text-zinc-400 leading-tight">Silent controller (0 echo)</span>
+                <Speaker size={14} />
+                <span className="text-xs">Host's Speaker</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleToggleLocalOutput(true)}
-                className={`py-2 px-3 rounded-lg border text-center transition-all flex flex-col items-center gap-1 cursor-pointer ${
+                className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg transition-all cursor-pointer ${
                   isLocalOutput
-                    ? "bg-[#1ed760]/15 border-[#1ed760] text-white ring-1 ring-[#1ed760]/40"
-                    : "bg-white/[0.03] border-white/10 text-zinc-400 hover:text-white"
+                    ? "bg-[#1ed760] text-black font-bold shadow-md"
+                    : "text-zinc-300 hover:text-white hover:bg-white/5"
                 }`}
               >
-                <Headphones size={16} className={isLocalOutput ? "text-[#1ed760]" : "text-zinc-400"} />
-                <span className="text-xs font-bold leading-tight">This Phone</span>
-                <span className="text-[9px] text-zinc-400 leading-tight">Headphones / speaker</span>
+                <Headphones size={14} />
+                <span className="text-xs">This Phone</span>
               </button>
             </div>
+            <p className="text-[10px] text-zinc-400 text-center mt-1.5 leading-tight px-1">
+              {!isLocalOutput
+                ? "📻 Silent remote controller (zero acoustic echo)."
+                : "🎧 Playing audio through this device's speakers / headphones."}
+            </p>
           </div>
         )}
 
-        {/* Playback Control Permission Mode (Spotify Jam Style) */}
-        {isHost ? (
-          <div className="bg-[#121212] border border-white/10 rounded-xl p-3 mb-3 text-left flex items-center justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-white">Let others control what's playing</p>
-              <p className="text-[10px] text-zinc-400 leading-tight mt-0.5">
-                When off, only you can play, pause, or skip tracks.
-              </p>
-            </div>
+        {/* Let Others Control Toggle (Host Only) */}
+        {isHost && (
+          <div className="flex items-center justify-between py-1.5 px-2.5 rounded-xl bg-black/30 border border-white/5 mb-3">
+            <span className="text-xs text-zinc-200">Guest playback control</span>
             <button
               type="button"
               onClick={() => {
@@ -360,86 +276,49 @@ export const JamInviteModal: React.FC<JamInviteModalProps> = ({
                   jam.setAllowGuestControl(!allowGuestControl);
                 }
               }}
-              className={`w-10 h-5 rounded-full p-0.5 transition-colors cursor-pointer flex-shrink-0 ${
+              className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer flex-shrink-0 ${
                 allowGuestControl ? "bg-[#1ed760]" : "bg-zinc-700"
               }`}
-              title="Toggle group playback control"
             >
               <div
                 className={`w-4 h-4 rounded-full bg-white transition-transform ${
-                  allowGuestControl ? "translate-x-5" : "translate-x-0"
+                  allowGuestControl ? "translate-x-4" : "translate-x-0"
                 }`}
               />
             </button>
           </div>
-        ) : (
-          <div className="bg-[#121212] border border-white/10 rounded-xl py-2 px-3 mb-3 flex items-center justify-between text-left">
-            <div className="flex items-center gap-1.5">
-              {allowGuestControl ? (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-[#1ed760] animate-pulse" />
-                  <span className="text-[11px] font-semibold text-[#1ed760]">Group Playback Control</span>
-                </>
-              ) : (
-                <>
-                  <Lock size={12} className="text-zinc-400" />
-                  <span className="text-[11px] font-semibold text-zinc-400">Host-Only Playback Control</span>
-                </>
-              )}
-            </div>
-            <span className="text-[10px] text-zinc-500 font-medium">Shared Queue Active</span>
-          </div>
         )}
 
-        {/* Share Action Buttons */}
-        <div className="flex flex-col gap-2 mb-3">
-          {/* Primary: Share via Native Share Sheet (WhatsApp, Telegram, etc.) */}
-          <button
-            onClick={handleShare}
-            className="w-full flex items-center justify-center gap-2 py-2.5 sm:py-3 px-4 rounded-full bg-[#1ed760] hover:bg-[#1fdf64] active:scale-[0.98] text-black font-bold text-sm transition-all shadow-lg shadow-[#1ed760]/20 cursor-pointer"
-          >
-            {shared ? (
-              <>
-                <Check size={16} />
-                <span>Invite Shared / Copied!</span>
-              </>
-            ) : (
-              <>
-                <Share2 size={16} />
-                <span>Share via Apps (WhatsApp/Telegram)</span>
-              </>
-            )}
-          </button>
+        {/* Primary Share Button */}
+        <button
+          onClick={handleShare}
+          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-full bg-[#1ed760] hover:bg-[#1fdf64] active:scale-[0.98] text-black font-bold text-xs transition-all shadow-md cursor-pointer mb-2"
+        >
+          {shared ? <Check size={14} /> : <Share2 size={14} />}
+          <span>{shared ? "Invite Shared / Copied!" : "Share Jam Invite"}</span>
+        </button>
 
-          {/* Secondary: Copy Link Only */}
+        {/* Secondary Action Row: Copy Link & Leave */}
+        <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/5">
           <button
             onClick={handleCopyLink}
-            className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-full bg-white/10 hover:bg-white/15 active:scale-[0.98] text-zinc-200 hover:text-white font-semibold text-xs transition-colors cursor-pointer"
+            className="flex-1 py-1.5 px-2 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-[11px] font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
           >
-            {copiedLink ? (
-              <>
-                <Check size={14} className="text-[#1ed760]" />
-                <span className="text-[#1ed760]">Link Copied: {effectiveInviteUrl}</span>
-              </>
-            ) : (
-              <>
-                <Copy size={14} />
-                <span className="truncate">Copy Link: {effectiveInviteUrl}</span>
-              </>
-            )}
+            {copiedLink ? <Check size={12} className="text-[#1ed760]" /> : <Copy size={12} />}
+            <span>{copiedLink ? "Link Copied" : "Copy Link"}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              onLeaveJam();
+              onClose();
+            }}
+            className="py-1.5 px-3 rounded-lg bg-white/5 hover:bg-red-500/20 text-zinc-400 hover:text-red-400 text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer"
+          >
+            <LogOut size={12} />
+            <span>{isHost ? "End" : "Leave"}</span>
           </button>
         </div>
-
-        {/* Leave Jam Button */}
-        <button
-          onClick={() => {
-            onLeaveJam();
-            onClose();
-          }}
-          className="w-full py-2.5 px-4 rounded-full bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-red-400 text-xs font-semibold transition-colors cursor-pointer"
-        >
-          {isHost ? "End Jam Session" : "Leave Jam"}
-        </button>
       </div>
     </div>
   );
