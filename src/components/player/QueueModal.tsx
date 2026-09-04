@@ -9,6 +9,8 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { Song } from '@/types/music';
 import { SongFormatter } from '@/lib/music/SongFormatter';
+import { useJam } from '@/hooks/useJam';
+import { JamInviteModal } from '@/components/jam/JamInviteModal';
 
 export function QueueModal() {
   const { 
@@ -33,6 +35,8 @@ export function QueueModal() {
     setCreatePlaylistModalOpen,
     setToastMessage
   } = usePlayerStore();
+
+  const { isInJam, isHost, roomPin, participantCount, inviteUrl, isInviteModalOpen, setIsInviteModalOpen, leaveJam, allowGuestControl, setAllowGuestControl } = useJam();
 
   const { playlists, addSongToPlaylist } = usePlaylistStore();
   const [activeMenuSongId, setActiveMenuSongId] = useState<string | null>(null);
@@ -166,6 +170,30 @@ export function QueueModal() {
         {/* Scrollable Queue Content */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 scrollbar-thin scrollbar-thumb-white/15 scrollbar-track-transparent">
           
+          {/* Jam Collaborative Queue Header */}
+          {isInJam && (
+            <div className="p-3 rounded-2xl bg-[#1ed760]/10 border border-[#1ed760]/30 flex items-center justify-between flex-shrink-0 animate-in fade-in">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-[#1ed760]/20 flex items-center justify-center flex-shrink-0">
+                  <Radio size={16} className="text-[#1ed760] animate-pulse" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-[#1ed760] truncate leading-tight">Jam Shared Queue • #{roomPin}</p>
+                  <p className="text-[11px] text-zinc-400 truncate leading-tight">{participantCount} listening together</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={() => setIsInviteModalOpen(true)}
+                  className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-colors cursor-pointer"
+                  title="Invite Friends"
+                >
+                  Invite
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* NOW PLAYING HERO SECTION */}
           {currentSong && (
             <div className="space-y-1.5">
@@ -441,6 +469,19 @@ export function QueueModal() {
           </div>
         </div>
       </div>
+
+      {/* Jam Invite Modal */}
+      <JamInviteModal
+        isOpen={isInviteModalOpen}
+        onClose={() => setIsInviteModalOpen(false)}
+        roomPin={roomPin}
+        inviteUrl={inviteUrl}
+        participantCount={participantCount}
+        onLeaveJam={leaveJam}
+        isHost={isHost}
+        allowGuestControl={allowGuestControl}
+        onToggleGuestControl={setAllowGuestControl}
+      />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { Play, Pause, SkipForward, SkipBack, Heart, MoreVertical, Disc3, Headpho
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SeekBar } from '@/components/player/SeekBar';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
+import { useJam } from '@/hooks/useJam';
 
 /**
  * RaagaX Floating Liquid Glass Mini-Player (Tier 02 Deep Glass)
@@ -67,6 +68,8 @@ export function MobileMiniPlayer() {
     activePlaybackDeviceId,
     toggleConnectModal,
   } = usePlayerStore();
+
+  const { isInJam, roomPin } = useJam();
 
   React.useEffect(() => {
     import('@/lib/sync/TabSyncCoordinator').then(({ TabSyncCoordinator }) => {
@@ -257,7 +260,20 @@ export function MobileMiniPlayer() {
                   <span>{currentSong.artist}</span>
                 </p>
               )}
-              {!isLocalPlayback && hasRemoteSpeaker && (
+              {isInJam ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleConnectModal(true);
+                  }}
+                  className="text-[10px] font-bold text-[#1ed760] truncate flex items-center gap-1.5 mt-0.5"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#1ed760] animate-ping flex-shrink-0" />
+                  <Radio size={10} className="text-[#1ed760] flex-shrink-0" />
+                  <span className="truncate">Jam Active • #{roomPin}</span>
+                </button>
+              ) : !isLocalPlayback && hasRemoteSpeaker ? (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -274,7 +290,7 @@ export function MobileMiniPlayer() {
                   <Speaker size={10} className="text-[#1ed760] flex-shrink-0" />
                   <span className="truncate">Playing on {speakerDeviceName}</span>
                 </button>
-              )}
+              ) : null}
             </div>
           </div>
 

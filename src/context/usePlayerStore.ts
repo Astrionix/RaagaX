@@ -1793,6 +1793,13 @@ export const usePlayerStore = create<PlayerState>()(
             }).catch(() => {});
           } catch {}
         }
+
+        // Spotify Jam: Broadcast new queue to all active listeners in room
+        try {
+          import('@/lib/jam/JamSessionManager').then(({ JamSessionManager }) => {
+            JamSessionManager.getInstance().broadcastQueueChange(syncedQueue, syncedIndex, song);
+          }).catch(() => {});
+        } catch {}
       },
       playNextInQueue: (song) => {
         if (!song || !song.id) return;
@@ -1823,6 +1830,13 @@ export const usePlayerStore = create<PlayerState>()(
             }).catch(() => {});
           } catch {}
         }
+
+        // Spotify Jam: Broadcast updated queue to all active listeners in room
+        try {
+          import('@/lib/jam/JamSessionManager').then(({ JamSessionManager }) => {
+            JamSessionManager.getInstance().broadcastQueueChange(syncedQueue, syncedIndex, song);
+          }).catch(() => {});
+        } catch {}
       },
       playLastInQueue: (song) => {
         if (!song || !song.id) return;

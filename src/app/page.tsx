@@ -94,6 +94,21 @@ export default function Page() {
     useAuthStore.getState().initializeAuth();
   }, []);
 
+  // Spotify Jam: Auto-join room if opened with ?jam=PIN invite link
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const jamCode = params.get('jam');
+      if (jamCode) {
+        import('@/lib/jam/JamSessionManager').then(({ JamSessionManager }) => {
+          JamSessionManager.getInstance().joinJam(jamCode);
+          usePlayerStore.getState().setToastMessage(`Joining Jam room #${jamCode}...`);
+        });
+      }
+    } catch {}
+  }, []);
+
   // ── Global keyboard shortcuts (Space = play/pause, arrows = seek/volume, etc.)
   // Registered exactly once at the app root via AbortController — never duplicated.
   useGlobalKeyboardShortcuts();

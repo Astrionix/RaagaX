@@ -26,6 +26,7 @@ import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { SongFormatter } from '@/lib/music/SongFormatter';
 import { ArtworkColorExtractor, ChameleonPalette } from '@/lib/theme/ArtworkColorExtractor';
 import { DeviceIdentityManager } from '@/lib/connect/DeviceIdentityManager';
+import { useJam } from '@/hooks/useJam';
 
 export function PlayerBar() {
   const [mounted, setMounted] = useState(false);
@@ -62,6 +63,7 @@ export function PlayerBar() {
   const [thisDeviceName, setThisDeviceName] = useState<string>('This Device');
   const [activeControllerName, setActiveControllerName] = useState<string | null>(null);
   const [hasRemoteSpeaker, setHasRemoteSpeaker] = useState<boolean>(false);
+  const { isInJam, roomPin, participantCount } = useJam();
 
   useEffect(() => {
     setMounted(true);
@@ -407,22 +409,39 @@ export function PlayerBar() {
             <ListMusic className="w-3.5 h-3.5" />
           </button>
 
-          {/* Connect to Device Button (Spotify Clean Design) */}
+          {/* Connect to Device Button (Spotify Clean Design with Jam indicator) */}
           <button
             onClick={handleToggleConnect}
-            aria-label="Connect to a device"
-            title={!isLocalPlayback && hasRemoteSpeaker ? `Playing on ${speakerDeviceName || 'Remote Device'}. Tap to switch.` : "Connect to a device"}
+            aria-label={isInJam ? `Jam Session Active (#${roomPin})` : "Connect to a device"}
+            title={
+              isInJam
+                ? `Jam Active (#${roomPin}) • ${participantCount} listening. Tap to manage.`
+                : !isLocalPlayback && hasRemoteSpeaker
+                ? `Playing on ${speakerDeviceName || 'Remote Device'}. Tap to switch.`
+                : "Connect to a device"
+            }
             className={`p-1.5 rounded-full transition-colors cursor-pointer relative group ${
-              isQueueOpen && rightPanelMode === 'connect'
+              isInJam
+                ? 'text-[#1ed760] bg-[#1ed760]/20 ring-1 ring-[#1ed760]/50'
+                : isQueueOpen && rightPanelMode === 'connect'
                 ? 'text-[#1ed760] bg-[#1ed760]/25 ring-1 ring-[#1ed760]/40'
                 : !isLocalPlayback && hasRemoteSpeaker
                 ? 'text-[#1ed760] hover:bg-white/10'
                 : 'text-zinc-400 hover:text-[#1ed760] hover:bg-[#1ed760]/10'
             }`}
           >
-            <Speaker className="w-3.5 h-3.5" />
-            {!isLocalPlayback && hasRemoteSpeaker && (
-              <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-[#1ed760] animate-pulse" />
+            {isInJam ? (
+              <>
+                <Radio className="w-3.5 h-3.5 text-[#1ed760] animate-pulse" />
+                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-[#1ed760] animate-ping opacity-75" />
+              </>
+            ) : (
+              <>
+                <Speaker className="w-3.5 h-3.5" />
+                {!isLocalPlayback && hasRemoteSpeaker && (
+                  <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-[#1ed760] animate-pulse" />
+                )}
+              </>
             )}
           </button>
 

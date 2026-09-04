@@ -1,10 +1,12 @@
 'use client';
 
 import React from 'react';
-import { Trash2, Heart, X, ListMusic, Music2, Cast } from 'lucide-react';
+import { Trash2, Heart, X, ListMusic, Music2, Cast, Radio, Share2 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { SongFormatter } from '@/lib/music/SongFormatter';
+import { useJam } from '@/hooks/useJam';
+import { JamInviteModal } from '@/components/jam/JamInviteModal';
 
 export function RightQueuePanel() {
   const [mounted, setMounted] = React.useState(false);
@@ -27,6 +29,8 @@ export function RightQueuePanel() {
     toggleQueue,
     setRightPanelMode,
   } = usePlayerStore();
+
+  const { isInJam, isHost, roomPin, participantCount, inviteUrl, isInviteModalOpen, setIsInviteModalOpen, leaveJam, allowGuestControl, setAllowGuestControl } = useJam();
 
   const upNextQueue = mounted ? queue.slice(queueIndex + 1) : [];
 
@@ -108,6 +112,30 @@ export function RightQueuePanel() {
           <Cast size={13} /> Devices
         </button>
       </div>
+
+      {/* Jam Collaborative Queue Header */}
+      {mounted && isInJam && (
+        <div className="mb-3 p-2.5 rounded-xl bg-[#1ed760]/10 border border-[#1ed760]/30 flex items-center justify-between flex-shrink-0 animate-in fade-in">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-full bg-[#1ed760]/20 flex items-center justify-center flex-shrink-0">
+              <Radio size={14} className="text-[#1ed760] animate-pulse" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold text-[#1ed760] truncate leading-tight">Jam Shared Queue • #{roomPin}</p>
+              <p className="text-[10px] text-zinc-400 truncate leading-tight">{participantCount} listening together</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <button
+              onClick={() => setIsInviteModalOpen(true)}
+              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+              title="Invite Friends"
+            >
+              <Share2 size={13} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Currently Playing Card */}
       {mounted && currentSong && (
@@ -216,6 +244,19 @@ export function RightQueuePanel() {
           </div>
         )}
       </div>
+
+      {/* Jam Invite Modal */}
+      <JamInviteModal
+        isOpen={isInviteModalOpen}
+        onClose={() => setIsInviteModalOpen(false)}
+        roomPin={roomPin}
+        inviteUrl={inviteUrl}
+        participantCount={participantCount}
+        onLeaveJam={leaveJam}
+        isHost={isHost}
+        allowGuestControl={allowGuestControl}
+        onToggleGuestControl={setAllowGuestControl}
+      />
     </aside>
   );
 }
