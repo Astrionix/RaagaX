@@ -54,11 +54,9 @@ export class ConnectEngine {
           return;
         }
 
-        // CRITICAL GUARD: If this device is the authoritative local speaker actively playing audio,
-        // NEVER surrender speaker status or silence audio for an unprompted remote packet!
-        // Instead, reply with our authoritative state so the connecting device syncs to us.
-        if (isActuallyPlayingLocally && this.isLocalSpeaker()) {
-          PlaybackStateManager.getInstance().syncNow();
+        // CRITICAL GUARD: If this device is the authoritative local speaker,
+        // NEVER surrender speaker status to a remote device's state packet!
+        if (store.isLocalPlayback && this.activePlayerDeviceId === self.deviceId) {
           return;
         }
 
@@ -242,7 +240,30 @@ export class ConnectEngine {
         }
       }
 
-      // Ensure this device acts as the authoritative speaker executing remote commands
+      if (cmd.commandType === 'RELINQUISH_SPEAKER') {
+        playback.pause();
+        playback.pauseAudioElementOnly();
+        try {
+          const { RaagaXNativePlayer } = await import('@/lib/playback/native/RaagaXNativePlayer');
+          if (RaagaXNativePlayer.isNative()) {
+            await RaagaXNativePlayer.pause();
+          }
+        } catch {}
+        const newPlayerId = cmd.payload?.newPlayerDeviceId;
+        if (newPlayerId) {
+          this.setActivePlayerDeviceId(newPlayerId);
+          usePlayerStore.getState().setActivePlaybackDeviceId(newPlayerId);
+          usePlayerStore.setState({
+            isLocalPlayback: false,
+            activePlaybackDeviceId: newPlayerId,
+            isPlaying: Boolean(cmd.payload?.isPlaying),
+            playbackIntent: cmd.payload?.isPlaying ? 'PLAYING' : 'PAUSED',
+          });
+        }
+        return { commandId: cmd.commandId, status: 'accepted' };
+      }
+
+      // Ensure this device acts as the authoritative speaker executing remote playback commands
       this.setActivePlayerDeviceId(self.deviceId);
       usePlayerStore.getState().setActivePlaybackDeviceId(self.deviceId);
       usePlayerStore.setState({ isLocalPlayback: true });
@@ -252,15 +273,20 @@ export class ConnectEngine {
           usePlayerStore.setState({ isPlaying: true, playbackIntent: 'PLAYING', isLocalPlayback: true });
           playback.play();
           PlaybackStateManager.getInstance().emitLocalPlaybackState({ isPlaying: true });
-          setTimeout(() => PlaybackStateManager.getInstance().syncNow(), 100);
           return { commandId: cmd.commandId, status: 'accepted' };
 
         case 'PAUSE':
         case 'PAUSED':
           usePlayerStore.setState({ isPlaying: false, playbackIntent: 'PAUSED', lastPositionTimestamp: null });
           playback.pause();
+          playback.pauseAudioElementOnly();
+          try {
+            const { RaagaXNativePlayer } = await import('@/lib/playback/native/RaagaXNativePlayer');
+            if (RaagaXNativePlayer.isNative()) {
+              await RaagaXNativePlayer.pause();
+            }
+          } catch {}
           PlaybackStateManager.getInstance().emitLocalPlaybackState({ isPlaying: false });
-          setTimeout(() => PlaybackStateManager.getInstance().syncNow(), 100);
           return { commandId: cmd.commandId, status: 'accepted' };
 
         case 'NEXT':
@@ -552,10 +578,28 @@ export class ConnectEngine {
       // User tapped 'This Device' (Play Here):
       const state = PlaybackStateManager.getInstance().getCurrentState();
 
-      // 1. Send pause command to current remote speaker before claiming
-      try {
-        await this.sendRemoteCommand('PAUSE');
-      } catch {}
+      const storeState = usePlayerStore.getState();
+      const previousPlayerId = (this.activePlayerDeviceId && this.activePlayerDeviceId !== self.deviceId)
+        ? this.activePlayerDeviceId
+        : (storeState.activePlaybackDeviceId && storeState.activePlaybackDeviceId !== self.deviceId)
+          ? storeState.activePlaybackDeviceId
+          : null;
+
+      // 1. Explicitly notify previous remote speaker to relinquish speaker status and pause audio
+      if (previousPlayerId) {
+        try {
+          const connId = this.activeConnectionId || [self.deviceId, previousPlayerId].sort().join('_');
+          await CommandManager.getInstance().sendCommand(
+            connId,
+            previousPlayerId,
+            'RELINQUISH_SPEAKER',
+            { newPlayerDeviceId: self.deviceId, isPlaying: true },
+            4000
+          );
+        } catch (err) {
+          console.warn('[ConnectEngine] Failed to notify remote speaker to relinquish:', err);
+        }
+      }
 
       // 2. Update engine & store: this device is now authoritative local speaker
       this.activeConnectionId = null;
@@ -563,12 +607,12 @@ export class ConnectEngine {
       usePlayerStore.getState().setActivePlaybackDeviceId(self.deviceId);
       usePlayerStore.setState({ isLocalPlayback: true });
 
-      const storeState = usePlayerStore.getState();
-      const candidateTrack = state.track || storeState.currentSong;
-      let posSec = (state.positionMs || 0) / 1000 || storeState.currentTime || 0;
-      if (storeState.lastPositionTimestamp && storeState.isPlaying) {
-        const elapsedSec = (performance.now() - storeState.lastPositionTimestamp) / 1000;
-        posSec = Math.max(0, (storeState.currentTime || 0) + elapsedSec);
+      const liveStore = usePlayerStore.getState();
+      const candidateTrack = state.track || liveStore.currentSong;
+      let posSec = (state.positionMs || 0) / 1000 || liveStore.currentTime || 0;
+      if (liveStore.lastPositionTimestamp && liveStore.isPlaying) {
+        const elapsedSec = (performance.now() - liveStore.lastPositionTimestamp) / 1000;
+        posSec = Math.max(0, (liveStore.currentTime || 0) + elapsedSec);
       }
 
       // 3. Broadcast to all devices on the network that this device is now playing

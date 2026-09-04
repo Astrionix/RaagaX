@@ -40,6 +40,7 @@ export type ConnectCommandType =
   | 'SET_SHUFFLE'
   | 'SET_REPEAT'
   | 'TRANSFER_PLAYBACK'
+  | 'RELINQUISH_SPEAKER'
   | 'SYNC_QUEUE'
   | 'ADD_TO_QUEUE';
 

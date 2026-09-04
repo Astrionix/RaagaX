@@ -1057,6 +1057,9 @@ export class PlaybackService {
   }
 
   public pauseAudioElementOnly() {
+    if (RaagaXNativePlayer.isNative()) {
+      try { RaagaXNativePlayer.pause(); } catch { }
+    }
     [this.audioA, this.audioB].forEach(audio => {
       if (audio && !audio.paused) {
         try { audio.pause(); } catch { }
