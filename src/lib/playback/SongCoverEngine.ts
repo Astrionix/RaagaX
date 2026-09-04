@@ -177,7 +177,7 @@ export class SongCoverEngine {
       try {
         const albumQuery = encodeURIComponent(song.album);
         const searchUrl = isBrowser
-          ? `/api/search/albums?q=${albumQuery}`
+          ? `/api/search/albums?query=${albumQuery}`
           : `https://www.jiosaavn.com/api.php?__call=autocomplete.get&query=${albumQuery}&_format=json&_marker=0&ctx=web6dot0`;
         const res = await fetch(searchUrl, { signal: AbortSignal.timeout(3500) });
         if (res.ok) {
@@ -206,7 +206,7 @@ export class SongCoverEngine {
       try {
         const query = `${song.title} ${song.artist || ''}`.trim();
         const searchUrl = isBrowser
-          ? `/api/search/songs?q=${encodeURIComponent(query)}`
+          ? `/api/search/songs?query=${encodeURIComponent(query)}`
           : `https://www.jiosaavn.com/api.php?__call=autocomplete.get&query=${encodeURIComponent(query)}&_format=json&_marker=0&ctx=web6dot0`;
         const res = await fetch(searchUrl, { signal: AbortSignal.timeout(3500) });
         if (res.ok) {
