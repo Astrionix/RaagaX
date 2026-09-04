@@ -43,6 +43,18 @@ export function useJam() {
     JamSessionManager.getInstance().setAllowGuestControl(allow);
   }, []);
 
+  const setAudioMode = useCallback((mode: import('@/lib/jam/JamSessionManager').JamAudioMode) => {
+    JamSessionManager.getInstance().setAudioMode(mode);
+  }, []);
+
+  const setLocalAudioOutput = useCallback((enabled: boolean) => {
+    JamSessionManager.getInstance().setLocalAudioOutput(enabled);
+  }, []);
+
+  const sendRemoteAction = useCallback((action: string, data?: any) => {
+    JamSessionManager.getInstance().sendRemoteAction(action, data);
+  }, []);
+
   return {
     ...jamState,
     inviteUrl: inviteUrl || (jamState.roomPin ? getJamInviteUrl(jamState.roomPin) : (jamState.inviteUrl || "")),
@@ -53,5 +65,8 @@ export function useJam() {
     leaveJam,
     addTrackToJam,
     setAllowGuestControl,
+    setAudioMode,
+    setLocalAudioOutput,
+    sendRemoteAction,
   };
 }

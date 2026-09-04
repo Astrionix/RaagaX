@@ -1455,6 +1455,21 @@ export const usePlayerStore = create<PlayerState>()(
 
       togglePlayPause: async () => {
         const { isLocalPlayback, isPlaying, activePlaybackDeviceId, isInJam } = get();
+
+        // In Jam Session: If guest in In-Person mode, delegate Play/Pause remotely to Host
+        if (isInJam) {
+          try {
+            const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
+            const jam = JamSessionManager.getInstance().getState();
+            if (!jam.isLocalAudioOutput && !jam.isHost) {
+              const nextAction = isPlaying ? 'PAUSE' : 'PLAY';
+              JamSessionManager.getInstance().sendRemoteAction(nextAction);
+              set({ isPlaying: !isPlaying });
+              return;
+            }
+          } catch {}
+        }
+
         let effectiveIsLocal = isInJam || isLocalPlayback;
         if (!effectiveIsLocal) {
           let hasValidRemote = false;
@@ -1591,7 +1606,17 @@ export const usePlayerStore = create<PlayerState>()(
       seek: async (time: number) => {
         get().setCurrentTime(time, true);
         get().setSeekTarget(time);
-        const { isLocalPlayback } = get();
+        const { isLocalPlayback, isInJam } = get();
+        if (isInJam) {
+          try {
+            const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
+            const jam = JamSessionManager.getInstance().getState();
+            if (!jam.isLocalAudioOutput && !jam.isHost) {
+              JamSessionManager.getInstance().sendRemoteAction('SEEK', { positionSec: time });
+              return;
+            }
+          } catch {}
+        }
         if (!isLocalPlayback) {
           const { connectEngine } = await import('@/lib/connect/ConnectEngine');
           await connectEngine.sendRemoteCommand('SEEK', { positionMs: time * 1000 });
@@ -1627,6 +1652,16 @@ export const usePlayerStore = create<PlayerState>()(
 
       playNext: async (isNaturalAutoEnd: boolean = false) => {
         const { isLocalPlayback, isInJam } = get();
+        if (isInJam) {
+          try {
+            const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
+            const jam = JamSessionManager.getInstance().getState();
+            if (!jam.isLocalAudioOutput && !jam.isHost) {
+              JamSessionManager.getInstance().sendRemoteAction('NEXT');
+              return;
+            }
+          } catch {}
+        }
         if (!isInJam && !isLocalPlayback) {
           const { connectEngine } = await import('@/lib/connect/ConnectEngine');
           await connectEngine.sendRemoteCommand('NEXT');
@@ -1674,6 +1709,16 @@ export const usePlayerStore = create<PlayerState>()(
 
       playPrev: async () => {
         const { isLocalPlayback, isInJam } = get();
+        if (isInJam) {
+          try {
+            const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
+            const jam = JamSessionManager.getInstance().getState();
+            if (!jam.isLocalAudioOutput && !jam.isHost) {
+              JamSessionManager.getInstance().sendRemoteAction('PREV');
+              return;
+            }
+          } catch {}
+        }
         if (!isInJam && !isLocalPlayback) {
           const { connectEngine } = await import('@/lib/connect/ConnectEngine');
           await connectEngine.sendRemoteCommand('PREVIOUS');

@@ -46,6 +46,8 @@ export function getJamInviteUrl(pin: string): string {
   }
 }
 
+export type JamAudioMode = 'IN_PERSON' | 'REMOTE_LISTEN' | 'MULTI_SPEAKER';
+
 export interface JamState {
   isInJam: boolean;
   isHost: boolean;
@@ -56,6 +58,8 @@ export interface JamState {
   syncLatencyMs: number;
   allowGuestControl: boolean;
   inviteUrl: string;
+  audioMode: JamAudioMode;
+  isLocalAudioOutput: boolean;
 }
 
 export class JamSessionManager {
@@ -84,6 +88,8 @@ export class JamSessionManager {
     syncLatencyMs: 0,
     allowGuestControl: true,
     inviteUrl: '',
+    audioMode: 'IN_PERSON',
+    isLocalAudioOutput: true,
   };
 
   private isHandlingRemoteUpdate = false;
@@ -100,6 +106,9 @@ export class JamSessionManager {
       usePlayerStore.subscribe((state, prevState) => {
         if (!this.currentState.isInJam) return;
         if (this.isHandlingRemoteUpdate) return; // Prevent echo loop
+
+        // Remote Controller in In-Person mode does not broadcast master audio state
+        if (!this.currentState.isHost && !this.currentState.isLocalAudioOutput) return;
 
         const isSongChanged = state.currentSong?.id !== prevState.currentSong?.id;
         const isPlayStateChanged = state.isPlaying !== prevState.isPlaying;
@@ -221,6 +230,8 @@ export class JamSessionManager {
       syncLatencyMs: 0,
       allowGuestControl: true,
       inviteUrl,
+      audioMode: 'IN_PERSON',
+      isLocalAudioOutput: true,
     };
     usePlayerStore.setState({
       isInJam: true,
@@ -252,7 +263,7 @@ export class JamSessionManager {
       const self = DeviceIdentityManager.getInstance().getDevice();
       usePlayerStore.setState({
         isInJam: true,
-        isLocalPlayback: true,
+        isLocalPlayback: false, // Spotify In-Person Default: Guest phone acts as remote controller
         activePlaybackDeviceId: self.deviceId,
         isMuted: false,
       });
@@ -275,20 +286,15 @@ export class JamSessionManager {
       syncLatencyMs: 0,
       allowGuestControl: true,
       inviteUrl,
+      audioMode: 'IN_PERSON',
+      isLocalAudioOutput: false, // Spotify Default: In-person guest phone is a controller (no local sound to prevent echo)
     };
     this.notify();
 
-    // Ensure local volume is unmuted and audible
-    const store = usePlayerStore.getState();
-    if (typeof store.volume !== 'number' || store.volume <= 0.05) {
-      store.setVolume(1.0);
-    }
+    // In In-Person mode: silence local audio element so sound strictly comes from Host speaker
     try {
       const playback = PlaybackService.getInstance();
-      const active = playback.getActiveAudio();
-      if (active) {
-        active.play().then(() => {}).catch(() => {});
-      }
+      playback.pauseAudioElementOnly();
     } catch {}
 
     // Mount Local Multi-path channels
@@ -441,6 +447,8 @@ export class JamSessionManager {
       syncLatencyMs: 0,
       allowGuestControl: true,
       inviteUrl: '',
+      audioMode: 'IN_PERSON',
+      isLocalAudioOutput: true,
     };
     this.notify();
   }
@@ -530,6 +538,99 @@ export class JamSessionManager {
     });
   }
 
+  // ── 8. Set Room Audio Mode (Host Only) ────────────────────────────────────
+  public setAudioMode(mode: JamAudioMode): void {
+    this.currentState.audioMode = mode;
+    if (this.currentState.isHost) {
+      this.sendToRoom({
+        type: 'JAM_MODE_UPDATE',
+        audioMode: mode,
+      });
+      usePlayerStore.getState().setToastMessage(
+        mode === 'IN_PERSON'
+          ? 'In-Person Jam (Host Speaker only) 📻'
+          : mode === 'MULTI_SPEAKER'
+          ? 'Multi-Speaker Party Mode Active 🔊'
+          : 'Cloud Remote Listen Active 🎧'
+      );
+    } else {
+      // If guest changes mode, adjust local audio output accordingly
+      if (mode === 'IN_PERSON') {
+        this.setLocalAudioOutput(false);
+      } else {
+        this.setLocalAudioOutput(true);
+      }
+    }
+    this.notify();
+  }
+
+  // ── 9. Toggle Local Audio Output on THIS device ───────────────────────────
+  public setLocalAudioOutput(enabled: boolean): void {
+    this.currentState.isLocalAudioOutput = enabled;
+    usePlayerStore.setState({ isLocalPlayback: enabled });
+    const playback = PlaybackService.getInstance();
+    const store = usePlayerStore.getState();
+
+    if (!enabled) {
+      playback.pauseAudioElementOnly();
+      store.setToastMessage("Connected to Host's Speaker 📻 (Phone audio off)");
+    } else {
+      store.setToastMessage("Listening on this phone 🎧");
+      if (store.currentSong && store.isPlaying) {
+        playback.playTrack(store.currentSong, true, store.currentTime || 0);
+      }
+    }
+    this.notify();
+  }
+
+  // ── 10. Send Remote Playback Command to Host ───────────────────────────────
+  public sendRemoteAction(action: string, data?: any): void {
+    if (this.currentState.isHost) {
+      this.handleHostRemoteAction(action, data);
+      return;
+    }
+    this.sendToRoom({
+      type: 'JAM_REMOTE_ACTION',
+      action,
+      data,
+    });
+  }
+
+  // ── 11. Execute Remote Playback Action on Host ─────────────────────────────
+  public async handleHostRemoteAction(action: string, data?: any): Promise<void> {
+    if (!this.currentState.isHost) return;
+    const store = usePlayerStore.getState();
+    const playback = PlaybackService.getInstance();
+
+    switch (action) {
+      case 'PLAY':
+        store.setIsPlaying(true);
+        playback.resume();
+        break;
+      case 'PAUSE':
+        store.setIsPlaying(false);
+        playback.pause();
+        break;
+      case 'NEXT':
+        await store.playNext();
+        break;
+      case 'PREV':
+        await store.playPrev();
+        break;
+      case 'SEEK':
+        if (typeof data?.positionSec === 'number') {
+          playback.seek(data.positionSec);
+          store.setCurrentTime(data.positionSec);
+        }
+        break;
+      case 'PLAY_TRACK':
+        if (data?.track) {
+          await store.playSong(data.track);
+        }
+        break;
+    }
+  }
+
   // ── Internal WebSocket Connection ──────────────────────────────────────────
   private async connectWebSocket(roomId: string, isHost: boolean): Promise<boolean> {
     return new Promise((resolve) => {
@@ -596,6 +697,28 @@ export class JamSessionManager {
       case 'REQUEST_ROOM_STATE':
         if (this.currentState.isHost) {
           this.broadcastCurrentPlaybackState();
+        }
+        break;
+
+      case 'JAM_REMOTE_ACTION':
+        // Host executes remote control command sent by guest (Play, Pause, Skip, Seek)
+        if (this.currentState.isHost) {
+          this.handleHostRemoteAction(msg.action, msg.data);
+        }
+        break;
+
+      case 'JAM_MODE_UPDATE':
+        if (msg.audioMode) {
+          this.currentState.audioMode = msg.audioMode;
+          if (!this.currentState.isHost) {
+            if (msg.audioMode === 'IN_PERSON') {
+              this.currentState.isLocalAudioOutput = false;
+              try { PlaybackService.getInstance().pauseAudioElementOnly(); } catch {}
+            } else if (msg.audioMode === 'MULTI_SPEAKER') {
+              this.currentState.isLocalAudioOutput = true;
+            }
+          }
+          this.notify();
         }
         break;
 
@@ -705,7 +828,7 @@ export class JamSessionManager {
         }
 
         // Calibrate DriftCorrectionEngine with host beacon
-        if (payload.timestamp) {
+        if (payload.timestamp && this.currentState.isLocalAudioOutput) {
           DriftCorrectionEngine.getInstance().recordHostBeacon(
             targetPosSec * 1000,
             payload.timestamp,
@@ -714,45 +837,50 @@ export class JamSessionManager {
           );
         }
 
-        const playback = PlaybackService.getInstance();
-        let isAudioPlaying = false;
-        try {
-          const activeAudio = playback.getActiveAudio();
-          isAudioPlaying = Boolean(activeAudio && !activeAudio.paused && !isNaN(activeAudio.currentTime) && activeAudio.currentTime > 0);
-        } catch {}
+        // Update player store state for UI on all devices (seekbar, current song, playing state)
+        usePlayerStore.setState({
+          isInJam: true,
+          isLocalPlayback: this.currentState.isLocalAudioOutput,
+          currentSong: payload.track,
+          isPlaying: Boolean(payload.isPlaying),
+          currentTime: targetPosSec,
+          seekTarget: null,
+          lastPositionTimestamp: payload.isPlaying ? performance.now() : null,
+        });
 
-        if (isDifferentTrack || !isAudioPlaying) {
-          // Reset DriftCorrectionEngine target and playhead to 0:00
-          DriftCorrectionEngine.getInstance().resetTrack(payload.track.id);
+        // ONLY play local audio if THIS device is configured as an audio output!
+        if (this.currentState.isLocalAudioOutput) {
+          const playback = PlaybackService.getInstance();
+          let isAudioPlaying = false;
+          try {
+            const activeAudio = playback.getActiveAudio();
+            isAudioPlaying = Boolean(activeAudio && !activeAudio.paused && !isNaN(activeAudio.currentTime) && activeAudio.currentTime > 0);
+          } catch {}
 
-          usePlayerStore.setState({
-            isInJam: true,
-            isLocalPlayback: true,
-            currentSong: payload.track,
-            isPlaying: Boolean(payload.isPlaying),
-            currentTime: targetPosSec,
-            seekTarget: null,
-            lastPositionTimestamp: payload.isPlaying ? performance.now() : null,
-          });
+          if (isDifferentTrack || !isAudioPlaying) {
+            // Reset DriftCorrectionEngine target and playhead cleanly
+            DriftCorrectionEngine.getInstance().resetTrack(payload.track.id);
 
-          if (payload.isPlaying) {
-            await playback.playTrack(payload.track, true, targetPosSec);
-          }
-        } else {
-          // Same track and element is already active: sync play/pause
-          if (store.isPlaying !== Boolean(payload.isPlaying)) {
-            usePlayerStore.setState({
-              isInJam: true,
-              isLocalPlayback: true,
-              isPlaying: Boolean(payload.isPlaying),
-              lastPositionTimestamp: payload.isPlaying ? performance.now() : null,
-            });
             if (payload.isPlaying) {
-              playback.resume();
-            } else {
-              playback.pause();
+              await playback.playTrack(payload.track, true, targetPosSec);
+            }
+          } else {
+            // Same track and element is already active: sync play/pause
+            if (store.isPlaying !== Boolean(payload.isPlaying)) {
+              if (payload.isPlaying) {
+                playback.resume();
+              } else {
+                playback.pause();
+              }
             }
           }
+        } else {
+          // Device is in Remote Controller mode (In-Person Jam):
+          // Silence local audio so sound strictly comes from Host's speaker!
+          try {
+            const playback = PlaybackService.getInstance();
+            playback.pauseAudioElementOnly();
+          } catch {}
         }
       }
     } finally {

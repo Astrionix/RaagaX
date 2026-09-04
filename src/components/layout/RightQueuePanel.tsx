@@ -30,7 +30,7 @@ export function RightQueuePanel() {
     setRightPanelMode,
   } = usePlayerStore();
 
-  const { isInJam, isHost, roomPin, participantCount, inviteUrl, isInviteModalOpen, setIsInviteModalOpen, leaveJam, allowGuestControl, setAllowGuestControl } = useJam();
+  const { isInJam, isHost, roomPin, participantCount, inviteUrl, isInviteModalOpen, setIsInviteModalOpen, leaveJam, allowGuestControl, setAllowGuestControl, audioMode, setAudioMode, isLocalAudioOutput, setLocalAudioOutput } = useJam();
 
   const upNextQueue = mounted ? queue.slice(queueIndex + 1) : [];
 
@@ -256,6 +256,10 @@ export function RightQueuePanel() {
         isHost={isHost}
         allowGuestControl={allowGuestControl}
         onToggleGuestControl={setAllowGuestControl}
+        audioMode={audioMode}
+        onSetAudioMode={setAudioMode}
+        isLocalAudioOutput={isLocalAudioOutput}
+        onSetLocalAudioOutput={setLocalAudioOutput}
       />
     </aside>
   );

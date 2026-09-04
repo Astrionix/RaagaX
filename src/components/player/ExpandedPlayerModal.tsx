@@ -55,6 +55,7 @@ import { AlbumCatalogEngine } from '@/lib/albumCatalog';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { VolumeControl } from '@/components/player/VolumeControl';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
+import { useJam } from '@/hooks/useJam';
 
 export function ExpandedPlayerModal() {
   const { playlists, addSongToPlaylist } = usePlaylistStore();
@@ -116,12 +117,15 @@ export function ExpandedPlayerModal() {
     setSelectedPlaylistId,
     toggleQueue,
     toggleSleepTimerModal,
+    toggleConnectModal,
     setSleepTimer,
     cancelSleepTimer,
     sleepTimerMinutes,
     sleepTimerEndsAt,
     sleepTimerMode,
   } = usePlayerStore();
+
+  const { isInJam, roomPin, participantCount, isLocalAudioOutput } = useJam();
 
   const currentSong = localCurrentSong;
   const isPlaying = localIsPlaying;
@@ -548,8 +552,23 @@ export function ExpandedPlayerModal() {
           </span>
         </div>
 
-        {/* Right placeholder to balance header symmetry */}
-        <div className="w-9 h-9 sm:w-10 sm:h-10 pointer-events-none" />
+        {/* Right: Jam Session Indicator or Balance Placeholder */}
+        {isInJam ? (
+          <button
+            onClick={() => {
+              haptics.lightImpact();
+              toggleConnectModal(true);
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#1ed760]/20 border border-[#1ed760]/40 text-[#1ed760] hover:bg-[#1ed760]/30 transition-all cursor-pointer text-[10px] font-bold select-none"
+            title="Manage Jam Session"
+          >
+            <Radio size={12} className="text-[#1ed760] animate-pulse" />
+            <span className="hidden sm:inline">Jam #{roomPin}</span>
+            <span className="text-[9px] opacity-80">({participantCount})</span>
+          </button>
+        ) : (
+          <div className="w-9 h-9 sm:w-10 sm:h-10 pointer-events-none" />
+        )}
       </div>
 
       {/* ── 3. MAIN WORKSPACE (CENTRAL UNBOXED STAGE + OPTIONAL DESKTOP QUEUE) ─ */}

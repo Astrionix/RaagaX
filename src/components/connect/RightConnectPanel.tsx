@@ -41,7 +41,7 @@ export const RightConnectPanel: React.FC<Props> = ({
   onRename,
 }) => {
   const { isLocalPlayback, activePlaybackDeviceId: storeActivePlayerId, volume, isMuted } = usePlayerStore();
-  const { isInJam, isHost, roomPin, participantCount, inviteUrl, isInviteModalOpen, setIsInviteModalOpen, startJam, joinJam, leaveJam, allowGuestControl, setAllowGuestControl } = useJam();
+  const { isInJam, isHost, roomPin, participantCount, inviteUrl, isInviteModalOpen, setIsInviteModalOpen, startJam, joinJam, leaveJam, allowGuestControl, setAllowGuestControl, audioMode, setAudioMode, isLocalAudioOutput, setLocalAudioOutput } = useJam();
   const [isBluetoothModalOpen, setIsBluetoothModalOpen] = useState(false);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
 
@@ -73,15 +73,18 @@ export const RightConnectPanel: React.FC<Props> = ({
         </button>
       </div>
 
-      {/* Nearby Jam on Local Wi-Fi Banner */}
+      {/* Nearby Active Jam Discovery Banner */}
       {!isInJam && nearbyJamDevice && nearbyJamDevice.activeJamPin && (
-        <div className="mb-3 p-3 rounded-xl bg-gradient-to-r from-[#1ed760]/20 via-purple-600/20 to-blue-600/20 border border-[#1ed760]/40 flex items-center justify-between flex-shrink-0 animate-in fade-in">
+        <div className="mb-3 p-3 rounded-xl bg-gradient-to-r from-[#1ed760]/20 to-[#1ed760]/5 border border-[#1ed760]/40 flex items-center justify-between flex-shrink-0 animate-in fade-in">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-full bg-[#1ed760]/20 flex items-center justify-center flex-shrink-0">
               <Radio size={16} className="text-[#1ed760] animate-pulse" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-bold text-white leading-tight">Nearby Jam on your Wi-Fi</p>
+              <p className="text-xs font-bold text-[#1ed760] leading-tight flex items-center gap-1">
+                <span>Nearby Jam Available</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-[#1ed760] animate-ping" />
+              </p>
               <p className="text-[10px] text-zinc-300 truncate">
                 {nearbyJamDevice.deviceName} is Jamming (Code: {nearbyJamDevice.activeJamPin})
               </p>
@@ -102,9 +105,13 @@ export const RightConnectPanel: React.FC<Props> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-[#1ed760] animate-pulse" />
-              <span className="text-[11px] font-bold text-[#1ed760]">Jam Active • {roomPin}</span>
+              <span className="text-[11px] font-bold text-[#1ed760]">Jam Active • #{roomPin}</span>
             </div>
             <span className="text-[10px] text-zinc-400 font-medium">{participantCount} listening</span>
+          </div>
+          <div className="text-[10px] text-zinc-300 font-medium flex items-center justify-between bg-black/30 rounded-lg px-2.5 py-1.5">
+            <span>{audioMode === 'IN_PERSON' ? 'In-Person (Host Speaker)' : audioMode === 'MULTI_SPEAKER' ? 'Party Multi-Speaker' : 'Cloud Remote'}</span>
+            <span className="font-semibold text-[#1ed760]">{isLocalAudioOutput ? '🎧 Phone Audio' : '📻 Host Speaker'}</span>
           </div>
           <div className="flex items-center gap-2 pt-0.5">
             <button
@@ -112,7 +119,7 @@ export const RightConnectPanel: React.FC<Props> = ({
               className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white text-[11px] font-semibold transition-colors cursor-pointer"
             >
               <Share2 size={12} />
-              <span>Invite Friends</span>
+              <span>Jam Settings & Share</span>
             </button>
             <button
               onClick={leaveJam}
@@ -334,6 +341,10 @@ export const RightConnectPanel: React.FC<Props> = ({
         isHost={isHost}
         allowGuestControl={allowGuestControl}
         onToggleGuestControl={setAllowGuestControl}
+        audioMode={audioMode}
+        onSetAudioMode={setAudioMode}
+        isLocalAudioOutput={isLocalAudioOutput}
+        onSetLocalAudioOutput={setLocalAudioOutput}
       />
 
       {/* Jam Join Modal */}

@@ -69,7 +69,7 @@ export function MobileMiniPlayer() {
     toggleConnectModal,
   } = usePlayerStore();
 
-  const { isInJam, roomPin } = useJam();
+  const { isInJam, roomPin, isLocalAudioOutput } = useJam();
 
   React.useEffect(() => {
     import('@/lib/sync/TabSyncCoordinator').then(({ TabSyncCoordinator }) => {
@@ -274,7 +274,9 @@ export function MobileMiniPlayer() {
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-[#1ed760] animate-ping flex-shrink-0" />
                   <Radio size={10} className="text-[#1ed760] flex-shrink-0" />
-                  <span className="truncate">Jam Active • #{roomPin}</span>
+                  <span className="truncate">
+                    Jam #{roomPin} • {isLocalAudioOutput ? "🎧 This Phone" : "📻 Host's Speaker"}
+                  </span>
                 </button>
               ) : !isLocalPlayback && hasRemoteSpeaker ? (
                 <button
