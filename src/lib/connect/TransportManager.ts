@@ -258,7 +258,7 @@ export class TransportManager {
 
   public sendMessage(event: string, data: any, targetOverride?: string): void {
     const self = DeviceIdentityManager.getInstance().getDevice();
-    const effectiveTarget = targetOverride || (event === 'PLAYBACK_STATE_UPDATE' ? '*' : this.targetDeviceId);
+    const effectiveTarget = targetOverride || this.targetDeviceId || '*';
 
     // Priority 1: Direct WebRTC DataChannel (if open)
     if (this.dataChannel && this.dataChannel.readyState === 'open') {
@@ -268,12 +268,7 @@ export class TransportManager {
       } catch {}
     }
 
-    // Priority 2: Direct Active Discovery Mesh Broadcast (Zero latency, immediate delivery)
-    if (effectiveTarget) {
-      DiscoveryEngine.getInstance().sendDirectMessage(effectiveTarget, event, data);
-    }
-
-    // Priority 3: Relay Channel Fallback (if mounted and joined)
+    // Priority 2: Relay Channel (if mounted and joined)
     if (this.isChannelJoined(this.cloudChannel)) {
       try {
         this.cloudChannel!.send({
@@ -287,7 +282,13 @@ export class TransportManager {
             timestamp: Date.now(),
           },
         });
+        return; // Dedicated session relay channel delivered the message. Avoid multi-casting over discovery channels.
       } catch {}
+    }
+
+    // Priority 3: Discovery Mesh Broadcast (fallback when no dedicated transport is established)
+    if (effectiveTarget) {
+      DiscoveryEngine.getInstance().sendDirectMessage(effectiveTarget, event, data);
     }
   }
 

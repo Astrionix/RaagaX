@@ -443,14 +443,9 @@ export function HomeView() {
   if (isInitialLoading) {
     return (
       <div className="space-y-6 pb-8 select-none animate-in fade-in duration-300 max-w-7xl mx-auto">
-        {/* Header with SEO H1 (Always rendered for search crawlers & initial paint) */}
+        {/* Header Skeleton */}
         <div className="pt-1">
-          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            RaagaX — Music Streaming Platform
-          </h1>
-          <p className="text-sm font-semibold text-zinc-400 mt-1">
-            Loading your personalized music feed...
-          </p>
+          <div className="h-8 w-56 bg-white/10 rounded-lg animate-pulse" />
         </div>
 
         {/* 4 Made For You Mix Cards Skeleton */}
@@ -501,16 +496,13 @@ export function HomeView() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 1. HEADER — Brand Heading & Greeting                                  */}
+      {/* 1. HEADER — Greeting                                                  */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       <section className="pt-0 flex flex-col gap-1">
         <div className="pt-1">
-          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            RaagaX — Music Streaming Platform
-          </h1>
-          <p suppressHydrationWarning className="text-sm font-semibold text-zinc-400 mt-1">
+          <h1 suppressHydrationWarning className="text-2xl sm:text-3xl font-black text-white tracking-tight">
             {feed?.greeting || greeting}, {displayName}
-          </p>
+          </h1>
         </div>
       </section>
 

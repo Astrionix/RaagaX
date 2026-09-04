@@ -56,7 +56,7 @@ export class PlaybackStateManager {
         // If this device is the active local speaker, answer the request immediately
         const self = DeviceIdentityManager.getInstance().getDevice();
         if (this.currentState.playerDeviceId === self.deviceId && usePlayerStore.getState().isLocalPlayback) {
-          this.syncNow();
+          this.syncNow(true);
         }
       }
     });
@@ -70,7 +70,9 @@ export class PlaybackStateManager {
   }
 
   // 1. Authoritative Player emits state change
-  public emitLocalPlaybackState(partial: Partial<PlaybackState>): void {
+  public emitLocalPlaybackState(
+    partial: Partial<PlaybackState> & { forceBroadcast?: boolean; targetDeviceId?: string }
+  ): void {
     const store = usePlayerStore.getState();
     const self = DeviceIdentityManager.getInstance().getDevice();
 
@@ -96,20 +98,36 @@ export class PlaybackStateManager {
       return;
     }
 
+    const { forceBroadcast, targetDeviceId, ...stateData } = partial;
+
     this.currentState = {
       ...this.currentState,
-      ...partial,
+      ...stateData,
       playerDeviceId: self.deviceId,
       stateVersion: this.currentState.stateVersion + 1,
       updatedAt: Date.now(),
     };
 
-    TransportManager.getInstance().sendMessage('PLAYBACK_STATE_UPDATE', this.currentState, '*');
+    // EGRESS OPTIMIZATION:
+    // Standalone playback does not need to blast playback position ticks over Supabase Realtime!
+    // Only broadcast over network if:
+    // 1. A remote controller is actively connected, OR
+    // 2. An explicit sync was requested (forceBroadcast = true)
+    let hasRemoteSession = false;
+    try {
+      const { connectEngine } = require('./ConnectEngine');
+      hasRemoteSession = connectEngine.hasActiveRemoteSession();
+    } catch {}
+
+    if (hasRemoteSession || forceBroadcast) {
+      TransportManager.getInstance().sendMessage('PLAYBACK_STATE_UPDATE', this.currentState, targetDeviceId);
+    }
+
     this.notify();
   }
 
   // Trigger instantaneous sync using the active state callback
-  public syncNow(): void {
+  public syncNow(forceBroadcast = false, targetDeviceId?: string): void {
     const store = usePlayerStore.getState();
     if (!store.isLocalPlayback) {
       return;
@@ -127,9 +145,9 @@ export class PlaybackStateManager {
 
     if (this.lastGetStateCallback) {
       const live = this.lastGetStateCallback();
-      this.emitLocalPlaybackState(live);
+      this.emitLocalPlaybackState({ ...live, forceBroadcast, targetDeviceId });
     } else {
-      this.emitLocalPlaybackState({});
+      this.emitLocalPlaybackState({ forceBroadcast, targetDeviceId });
     }
   }
 
@@ -192,7 +210,7 @@ export class PlaybackStateManager {
 
       const live = getStateCallback();
       this.emitLocalPlaybackState(live);
-    }, 3000);
+    }, 6000);
   }
 
   public stopHeartbeat(): void {

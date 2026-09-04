@@ -261,7 +261,7 @@ export class DiscoveryEngine {
       if (this.isRunning) {
         this.retrackPresence();
       }
-    }, 20000);
+    }, 60000);
   }
 
   private mountLanChannel(wifiHash: string, self: DeviceInfo): void {

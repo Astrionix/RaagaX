@@ -208,7 +208,15 @@ export class ConnectEngine {
       // Only push current playing song if this device is already actively playing audio
       const store = usePlayerStore.getState();
       if (store.isPlaying && store.currentSong) {
-        PlaybackStateManager.getInstance().syncNow();
+        PlaybackStateManager.getInstance().syncNow(true, controllerDeviceId);
+        if (store.queue && store.queue.length > 0) {
+          PlaybackStateManager.getInstance().emitLocalPlaybackState({
+            queue: store.queue,
+            queueIndex: store.queueIndex,
+            forceBroadcast: true,
+            targetDeviceId: controllerDeviceId,
+          });
+        }
       }
     } catch (err) {
       console.warn('[Connect] Error accepting incoming connection:', err);
@@ -332,7 +340,6 @@ export class ConnectEngine {
         volume: Math.round((store.volume || 1) * 100),
         shuffle: Boolean(store.shuffleMode && store.shuffleMode !== 'OFF'),
         repeat: store.repeatMode || 'OFF',
-        queue: store.queue,
         queueIndex: store.queueIndex,
       };
     });
@@ -858,6 +865,23 @@ export class ConnectEngine {
       ? this.activePlayerDeviceId
       : store.activePlaybackDeviceId;
     return store.isLocalPlayback && (!activeId || activeId === self.deviceId);
+  }
+
+  public hasActiveRemoteSession(): boolean {
+    if (this.isLocalSpeaker()) {
+      return Boolean(
+        this.activeControllerDeviceId !== null ||
+        (this.activeConnectionId !== null && this.connectionState === 'CONNECTED')
+      );
+    }
+    const self = DeviceIdentityManager.getInstance().getDevice();
+    const store = usePlayerStore.getState();
+    return Boolean(
+      !store.isLocalPlayback &&
+      this.activePlayerDeviceId &&
+      this.activePlayerDeviceId !== self.deviceId &&
+      (this.activeConnectionId !== null || this.connectionState === 'CONNECTED')
+    );
   }
 
   public getActivePlayerDeviceId(): string {
