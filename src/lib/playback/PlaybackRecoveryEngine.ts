@@ -69,7 +69,7 @@ export class PlaybackRecoveryEngine {
         song: s.currentSong,
         positionMs: Math.round((s.currentTime || 0) * 1000),
         queueIndex: s.queueIndex || 0,
-        isPlaying: s.isPlaying || false,
+        isPlaying: false, // Strict Rule: Playback snapshot on cold boot MUST NEVER auto-play
         shuffle: s.isShuffle || false,
         repeat: s.repeatMode || 'off',
         updatedAt: Date.now(),

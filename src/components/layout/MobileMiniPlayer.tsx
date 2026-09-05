@@ -1,11 +1,10 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { Play, Pause, SkipForward, SkipBack, Heart, MoreVertical, Disc3, Headphones, Radio, Speaker } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, Heart, MoreVertical, Disc3, Headphones } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SeekBar } from '@/components/player/SeekBar';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
-import { useJam } from '@/hooks/useJam';
 
 /**
  * RaagaX Floating Liquid Glass Mini-Player (Tier 02 Deep Glass)
@@ -64,57 +63,13 @@ export function MobileMiniPlayer() {
     togglePlayerExpanded,
     likedSongIds,
     toggleLikeSong,
-    isLocalPlayback,
-    activePlaybackDeviceId,
-    toggleConnectModal,
   } = usePlayerStore();
-
-  const { isInJam, roomPin, isLocalAudioOutput } = useJam();
 
   React.useEffect(() => {
     import('@/lib/sync/TabSyncCoordinator').then(({ TabSyncCoordinator }) => {
       TabSyncCoordinator.getInstance().updateDocumentTitle(currentSong, isPlaying);
     }).catch(() => {});
   }, [currentSong?.id, isPlaying]);
-
-  const [speakerDeviceName, setSpeakerDeviceName] = useState<string>('Remote Speaker');
-  const [hasRemoteSpeaker, setHasRemoteSpeaker] = useState<boolean>(false);
-
-  React.useEffect(() => {
-    if (isLocalPlayback) {
-      setHasRemoteSpeaker(false);
-      return;
-    }
-    let unsub: (() => void) | undefined;
-    Promise.all([
-      import('@/lib/connect/DeviceRegistry'),
-      import('@/lib/connect/DeviceIdentityManager'),
-    ]).then(([{ DeviceRegistry }, { DeviceIdentityManager }]) => {
-      const update = () => {
-        const selfDev = DeviceIdentityManager.getInstance().getDevice();
-        const isLocal = usePlayerStore.getState().isLocalPlayback;
-        const devId = usePlayerStore.getState().activePlaybackDeviceId;
-
-        if (isLocal || !devId || devId === selfDev.deviceId || devId === 'dev_local' || devId === 'local_device') {
-          setHasRemoteSpeaker(false);
-          return;
-        }
-
-        const dev = DeviceRegistry.getInstance().getDevice(devId);
-        if (dev?.deviceName && dev.deviceId !== selfDev.deviceId) {
-          setSpeakerDeviceName(dev.deviceName);
-          setHasRemoteSpeaker(true);
-        } else {
-          setHasRemoteSpeaker(false);
-        }
-      };
-      update();
-      unsub = DeviceRegistry.getInstance().subscribe(update);
-    }).catch(() => {});
-    return () => {
-      if (unsub) unsub();
-    };
-  }, [isLocalPlayback, activePlaybackDeviceId]);
 
   if (!mounted || !currentSong) return null;
 
@@ -233,7 +188,7 @@ export function MobileMiniPlayer() {
           >
             {/* Artwork (44dp Normal -> 36dp Collapsed) */}
             <div 
-              className={`relative flex-shrink-0 overflow-hidden shadow bg-black/50 border border-white/10 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+              className={`relative flex-shrink-0 overflow-hidden shadow bg-black/50 border border-white/10 flex items-center justify-center transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
                 isScrolled ? 'w-[36px] h-[36px] rounded-lg' : 'w-[44px] h-[44px] rounded-xl'
               }`}
             >
@@ -241,7 +196,8 @@ export function MobileMiniPlayer() {
                 src={coverUrl}
                 alt={currentSong.title}
                 size="thumb"
-                className="w-full h-full object-cover"
+                imageFit="contain"
+                className="w-full h-full object-contain"
               />
               {/* Playing Soundwave Pill Overlay */}
               {isPlaying && (
@@ -263,39 +219,6 @@ export function MobileMiniPlayer() {
                   <span>{currentSong.artist}</span>
                 </p>
               )}
-              {isInJam ? (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleConnectModal(true);
-                  }}
-                  className="text-[10px] font-bold text-[#1ed760] truncate flex items-center gap-1.5 mt-0.5"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#1ed760] animate-ping flex-shrink-0" />
-                  <Radio size={10} className="text-[#1ed760] flex-shrink-0" />
-                  <span className="truncate">
-                    Jam #{roomPin} • {isLocalAudioOutput ? "🎧 This Phone" : "📻 Host's Speaker"}
-                  </span>
-                </button>
-              ) : !isLocalPlayback && hasRemoteSpeaker ? (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleConnectModal(true);
-                  }}
-                  className="text-[10px] font-semibold text-[#1ed760] truncate flex items-center gap-1 mt-0.5"
-                >
-                  <span className="flex items-end gap-[1px] h-2 flex-shrink-0">
-                    <span className="w-[1.5px] bg-[#1ed760] h-full animate-[pulse_0.7s_infinite]" />
-                    <span className="w-[1.5px] bg-[#1ed760] h-2/3 animate-[pulse_0.5s_infinite_0.15s]" />
-                    <span className="w-[1.5px] bg-[#1ed760] h-4/5 animate-[pulse_0.8s_infinite_0.3s]" />
-                  </span>
-                  <Speaker size={10} className="text-[#1ed760] flex-shrink-0" />
-                  <span className="truncate">Playing on {speakerDeviceName}</span>
-                </button>
-              ) : null}
             </div>
           </div>
 

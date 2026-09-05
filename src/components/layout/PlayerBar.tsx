@@ -16,8 +16,6 @@ import {
   ListMusic,
   Disc3,
   Maximize2,
-  Radio,
-  Speaker,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SeekBar } from '@/components/player/SeekBar';
@@ -25,8 +23,6 @@ import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { SongFormatter } from '@/lib/music/SongFormatter';
 import { ArtworkColorExtractor, ChameleonPalette } from '@/lib/theme/ArtworkColorExtractor';
-import { DeviceIdentityManager } from '@/lib/connect/DeviceIdentityManager';
-import { useJam } from '@/hooks/useJam';
 
 export function PlayerBar() {
   const [mounted, setMounted] = useState(false);
@@ -49,21 +45,10 @@ export function PlayerBar() {
     toggleLyrics,
     toggleQueue,
     isQueueOpen,
-    rightPanelMode,
-    setRightPanelMode,
     isLyricsOpen,
     isPlayerExpanded,
     togglePlayerExpanded,
-    toggleConnectModal,
-    isLocalPlayback,
-    activePlaybackDeviceId,
   } = usePlayerStore();
-
-  const [speakerDeviceName, setSpeakerDeviceName] = useState<string>('Remote Speaker');
-  const [thisDeviceName, setThisDeviceName] = useState<string>('This Device');
-  const [activeControllerName, setActiveControllerName] = useState<string | null>(null);
-  const [hasRemoteSpeaker, setHasRemoteSpeaker] = useState<boolean>(false);
-  const { isInJam, roomPin, participantCount, isLocalAudioOutput } = useJam();
 
   useEffect(() => {
     setMounted(true);
@@ -79,84 +64,8 @@ export function PlayerBar() {
     }).catch(() => {});
   }, [currentSong?.id, isPlaying]);
 
-  // Track active speaker and controller device names dynamically
-  useEffect(() => {
-    let unsubRegistry: (() => void) | undefined;
-    let unsubController: (() => void) | undefined;
-
-    Promise.all([
-      import('@/lib/connect/DeviceRegistry'),
-      import('@/lib/connect/DeviceIdentityManager'),
-    ]).then(([{ DeviceRegistry }, { DeviceIdentityManager }]) => {
-      const updateSpeakerName = () => {
-        const selfDev = DeviceIdentityManager.getInstance().getDevice();
-        if (selfDev?.deviceName) {
-          setThisDeviceName(selfDev.deviceName);
-        }
-        const isLocal = usePlayerStore.getState().isLocalPlayback;
-        const activeDevId = usePlayerStore.getState().activePlaybackDeviceId;
-
-        if (isLocal || !activeDevId || activeDevId === selfDev.deviceId || activeDevId === 'dev_local' || activeDevId === 'local_device') {
-          setHasRemoteSpeaker(false);
-          return;
-        }
-
-        const dev = DeviceRegistry.getInstance().getDevice(activeDevId);
-        if (dev?.deviceName && dev.deviceId !== selfDev.deviceId) {
-          setSpeakerDeviceName(dev.deviceName);
-          setHasRemoteSpeaker(true);
-        } else {
-          setHasRemoteSpeaker(false);
-        }
-      };
-
-      unsubRegistry = DeviceRegistry.getInstance().subscribe(updateSpeakerName);
-      updateSpeakerName();
-    }).catch(() => {});
-
-    import('@/lib/connect/ConnectEngine').then(({ connectEngine }) => {
-      unsubController = connectEngine.onActiveControllerChange((controllerId) => {
-        if (controllerId) {
-          import('@/lib/connect/DeviceRegistry').then(({ DeviceRegistry }) => {
-            const dev = DeviceRegistry.getInstance().getDevice(controllerId);
-            setActiveControllerName(dev?.deviceName || 'Remote Controller');
-          }).catch(() => {});
-        } else {
-          setActiveControllerName(null);
-        }
-      });
-    }).catch(() => {});
-
-    return () => {
-      if (unsubRegistry) unsubRegistry();
-      if (unsubController) unsubController();
-    };
-  }, [activePlaybackDeviceId, isLocalPlayback]);
-
   const handleToggleQueue = () => {
-    if (typeof window !== 'undefined' && window.innerWidth >= 1280) {
-      if (isQueueOpen && rightPanelMode === 'queue') {
-        toggleQueue();
-      } else {
-        setRightPanelMode('queue');
-        if (!isQueueOpen) toggleQueue();
-      }
-    } else {
-      toggleQueue();
-    }
-  };
-
-  const handleToggleConnect = () => {
-    if (typeof window !== 'undefined' && window.innerWidth >= 1280) {
-      if (isQueueOpen && rightPanelMode === 'connect') {
-        toggleQueue();
-      } else {
-        setRightPanelMode('connect');
-        if (!isQueueOpen) toggleQueue();
-      }
-    } else {
-      toggleConnectModal(true);
-    }
+    toggleQueue();
   };
 
   const activeSong = currentSong;
@@ -235,46 +144,15 @@ export function PlayerBar() {
 
   return (
     <>
-      {/* ── Spotify Jam Full-width Green Bottom Bar (Matches Spotify Desktop) ── */}
-      {isInJam ? (
-        <div
-          onClick={handleToggleConnect}
-          className="hidden md:flex fixed bottom-0 left-0 right-0 z-30 h-6 sm:h-6.5 bg-[#1ed760] text-black text-xs font-bold px-4 sm:px-6 items-center justify-between cursor-pointer select-none hover:bg-[#1fdf64] transition-colors shadow-lg"
-          title={`Jam Session active (${participantCount} listening). Click to manage.`}
-        >
-          <div className="flex items-center gap-2">
-            <Radio className="w-3.5 h-3.5 text-black flex-shrink-0 animate-pulse" />
-            <span className="font-extrabold tracking-wide">JAM • #{roomPin}</span>
-            <span className="text-[11px] font-medium opacity-90">({participantCount} {participantCount === 1 ? 'person' : 'people'} listening)</span>
-          </div>
-          <div className="flex items-center gap-2 text-[11px]">
-            <span>{isLocalAudioOutput ? '🎧 Audio on this device' : "📻 Audio on Host's Speaker"}</span>
-          </div>
-        </div>
-      ) : !isLocalPlayback && hasRemoteSpeaker ? (
-        <div
-          onClick={handleToggleConnect}
-          className="hidden md:flex fixed bottom-0 left-0 right-0 z-30 h-6 sm:h-6.5 bg-[#1ed760] text-black text-xs font-bold px-4 sm:px-6 items-center justify-end gap-2 cursor-pointer select-none hover:bg-[#1fdf64] transition-colors shadow-lg"
-          title={`Playing on ${speakerDeviceName || 'Remote Device'}. Tap to manage devices.`}
-        >
-          <Volume2 className="w-3.5 h-3.5 text-black flex-shrink-0" />
-          <span className="truncate">Playing on {speakerDeviceName || 'Remote Device'}</span>
-        </div>
-      ) : null}
-
       <aside
         aria-label="Floating Media Player"
-        className={`hidden md:flex fixed ${
-          isInJam || (!isLocalPlayback && hasRemoteSpeaker)
-            ? 'bottom-[calc(2.25rem+env(safe-area-inset-bottom,0px))]'
-            : 'bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))]'
-        } z-40 group/player select-none items-center justify-between px-3.5 sm:px-4 py-1.5 backdrop-blur-2xl rounded-full transition-all duration-300 max-w-[calc(100vw-18rem)] md:max-w-[760px] lg:max-w-[840px] w-auto h-[54px] gap-2.5 sm:gap-4 -translate-x-1/2 bg-[#1c1c1e]/90 hover:bg-[#1c1c1e]/95 border border-white/10 hover:border-white/15 ring-1 ring-white/5 shadow-[0_12px_36px_rgba(0,0,0,0.65)] ${
+        className={`hidden md:flex fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] z-40 group/player select-none items-center justify-between px-3.5 sm:px-4 py-1.5 backdrop-blur-2xl rounded-full transition-all duration-300 max-w-[calc(100vw-18rem)] md:max-w-[760px] lg:max-w-[840px] w-auto h-[54px] gap-2.5 sm:gap-4 -translate-x-1/2 bg-[var(--surface-overlay)] hover:bg-[var(--surface-hover)] border border-[var(--border-subtle)] hover:border-[var(--border-strong)] ring-1 ring-black/5 dark:ring-white/5 shadow-[0_12px_36px_rgba(0,0,0,0.12)] dark:shadow-[0_12px_36px_rgba(0,0,0,0.5)] ${
           isQueueOpen
             ? 'left-[calc(50%+8rem)] xl:left-[calc(50%+8rem-180px)]'
             : 'left-[calc(50%+8rem)]'
         }`}
         style={{
-          boxShadow: `0 12px 36px rgba(0,0,0,0.7), 0 0 25px ${glowColor}`,
+          boxShadow: `0 12px 36px rgba(0,0,0,0.25), 0 0 25px ${glowColor}`,
         }}
       >
 
@@ -287,7 +165,7 @@ export function PlayerBar() {
             className={`p-1.5 rounded-full transition-colors cursor-pointer ${
               shuffleMode !== 'OFF'
                 ? 'text-[#FA233B] bg-[#FA233B]/15'
-                : 'text-zinc-400 hover:text-white hover:bg-white/10'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]'
             }`}
           >
             {shuffleMode === 'SMART' ? (
@@ -304,7 +182,7 @@ export function PlayerBar() {
             onClick={handlePlayPrev}
             aria-label="Previous track"
             title="Previous (K)"
-            className="p-1.5 text-zinc-300 hover:text-white hover:bg-white/10 rounded-full transition-all active:scale-90 cursor-pointer"
+            className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] rounded-full transition-all active:scale-90 cursor-pointer"
           >
             <SkipBack className="w-4 h-4 fill-current" />
           </button>
@@ -313,12 +191,12 @@ export function PlayerBar() {
             onClick={handleTogglePlayPause}
             aria-label={isPlayingActive ? 'Pause' : 'Play'}
             title={isPlayingActive ? 'Pause (Space)' : 'Play (Space)'}
-            className="p-1.5 text-white hover:scale-110 active:scale-95 transition-all cursor-pointer rounded-full hover:bg-white/10 flex items-center justify-center"
+            className="w-8 h-8 rounded-full bg-[#FA233B] hover:bg-[#E50914] text-white flex items-center justify-center shadow-md active:scale-90 transition-all cursor-pointer hover:scale-105"
           >
             {isPlayingActive ? (
-              <Pause className="w-4 h-4 fill-white text-white" />
+              <Pause className="w-4 h-4 fill-white text-white stroke-none" />
             ) : (
-              <Play className="w-4 h-4 fill-white text-white ml-0.5" />
+              <Play className="w-4 h-4 fill-white text-white stroke-none ml-0.5" />
             )}
           </button>
 
@@ -326,7 +204,7 @@ export function PlayerBar() {
             onClick={handlePlayNext}
             aria-label="Next track"
             title="Next (J)"
-            className="p-1.5 text-zinc-300 hover:text-white hover:bg-white/10 rounded-full transition-all active:scale-90 cursor-pointer"
+            className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] rounded-full transition-all active:scale-90 cursor-pointer"
           >
             <SkipForward className="w-4 h-4 fill-current" />
           </button>
@@ -338,7 +216,7 @@ export function PlayerBar() {
             className={`p-1.5 rounded-full transition-colors cursor-pointer ${
               repeatState !== 'OFF'
                 ? 'text-[#FA233B] bg-[#FA233B]/15'
-                : 'text-zinc-400 hover:text-white hover:bg-white/10'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]'
             }`}
           >
             {repeatState === 'ONE' ? (
@@ -355,14 +233,15 @@ export function PlayerBar() {
             <>
               <div
                 onClick={togglePlayerExpanded}
-                className="relative w-8 h-8 rounded-md overflow-hidden shadow-sm border border-white/10 cursor-pointer group/art flex-shrink-0"
+                className="relative w-8 h-8 rounded-md overflow-hidden shadow-sm border border-[var(--border-subtle)] cursor-pointer group/art flex-shrink-0 bg-black/40 flex items-center justify-center"
                 title="Expand Player (F)"
               >
                 <OptimizedImage
                   src={activeSong.coverUrl}
                   alt={activeSong.title}
                   size="thumb"
-                  className="w-full h-full object-cover group-hover/art:scale-110 transition-transform duration-300"
+                  imageFit="contain"
+                  className="w-full h-full object-contain group-hover/art:scale-110 transition-transform duration-300"
                   fallbackSrc="/app-icon.png"
                 />
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/art:opacity-100 transition-opacity flex items-center justify-center">
@@ -373,25 +252,25 @@ export function PlayerBar() {
               <div className="min-w-0 flex-1 overflow-hidden text-left">
                 <h4
                   onClick={togglePlayerExpanded}
-                  className="text-[12px] sm:text-[13px] font-semibold text-white truncate hover:underline cursor-pointer transition-colors leading-tight"
+                  className="text-[12px] sm:text-[13px] font-semibold text-[var(--text-primary)] truncate hover:underline cursor-pointer transition-colors leading-tight"
                   title={cleanTitle}
                 >
                   {cleanTitle}
                 </h4>
                 <p
-                  className="text-[10px] sm:text-[11px] text-zinc-400 truncate leading-tight mt-0.5 font-normal"
+                  className="text-[10px] sm:text-[11px] text-[var(--text-muted)] truncate leading-tight mt-0.5 font-normal"
                   title={subtitle}
                 >
                   <span>{subtitle}</span>
                 </p>
               </div>
 
-              <div className="flex-shrink-0 text-zinc-400 hover:text-white transition-colors">
+              <div className="flex-shrink-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
                 <SongActionMenu song={activeSong} />
               </div>
             </>
           ) : (
-            <div className="flex items-center gap-2 text-zinc-400 text-xs font-medium truncate">
+            <div className="flex items-center gap-2 text-[var(--text-muted)] text-xs font-medium truncate">
               <Disc3 className="w-4 h-4 text-[#FA233B] animate-spin flex-shrink-0" style={{ animationDuration: '8s' }} />
               <span className="truncate">Select a track to play</span>
             </div>
@@ -407,7 +286,7 @@ export function PlayerBar() {
             className={`p-1.5 rounded-full transition-colors cursor-pointer ${
               isLyricsOpen
                 ? 'text-[#FA233B] bg-[#FA233B]/15'
-                : 'text-zinc-400 hover:text-white hover:bg-white/10'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]'
             }`}
           >
             <MessageSquare className="w-3.5 h-3.5" />
@@ -418,48 +297,12 @@ export function PlayerBar() {
             aria-label="Open queue"
             title="Queue (Q)"
             className={`p-1.5 rounded-full transition-colors cursor-pointer ${
-              isQueueOpen && rightPanelMode === 'queue'
+              isQueueOpen
                 ? 'text-[#FA233B] bg-[#FA233B]/15'
-                : 'text-zinc-400 hover:text-white hover:bg-white/10'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]'
             }`}
           >
             <ListMusic className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Connect to Device Button (Spotify Clean Design with Jam indicator) */}
-          <button
-            onClick={handleToggleConnect}
-            aria-label={isInJam ? `Jam Session Active (#${roomPin})` : "Connect to a device"}
-            title={
-              isInJam
-                ? `Jam Active (#${roomPin}) • ${participantCount} listening. Tap to manage.`
-                : !isLocalPlayback && hasRemoteSpeaker
-                ? `Playing on ${speakerDeviceName || 'Remote Device'}. Tap to switch.`
-                : "Connect to a device"
-            }
-            className={`p-1.5 rounded-full transition-colors cursor-pointer relative group ${
-              isInJam
-                ? 'text-[#1ed760] bg-[#1ed760]/20 ring-1 ring-[#1ed760]/50'
-                : isQueueOpen && rightPanelMode === 'connect'
-                ? 'text-[#1ed760] bg-[#1ed760]/25 ring-1 ring-[#1ed760]/40'
-                : !isLocalPlayback && hasRemoteSpeaker
-                ? 'text-[#1ed760] hover:bg-white/10'
-                : 'text-zinc-400 hover:text-[#1ed760] hover:bg-[#1ed760]/10'
-            }`}
-          >
-            {isInJam ? (
-              <>
-                <Radio className="w-3.5 h-3.5 text-[#1ed760] animate-pulse" />
-                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-[#1ed760] animate-ping opacity-75" />
-              </>
-            ) : (
-              <>
-                <Speaker className="w-3.5 h-3.5" />
-                {!isLocalPlayback && hasRemoteSpeaker && (
-                  <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-[#1ed760] animate-pulse" />
-                )}
-              </>
-            )}
           </button>
 
           {/* Volume Control */}
@@ -468,7 +311,7 @@ export function PlayerBar() {
               onClick={() => toggleMute()}
               aria-label="Volume"
               title={isMuted || volume === 0 ? 'Unmute' : 'Mute'}
-              className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer flex-shrink-0"
+              className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] rounded-full transition-colors cursor-pointer flex-shrink-0"
             >
               {isMuted || volume === 0 ? (
                 <VolumeX className="w-3.5 h-3.5 text-[#FA233B]" />
@@ -478,7 +321,7 @@ export function PlayerBar() {
             </button>
 
             <div className="relative w-16 sm:w-20 h-4 flex items-center group/vol cursor-pointer">
-              <div className="absolute left-0 right-0 h-1 rounded-full bg-white/20 group-hover/vol:h-1.5 transition-all" />
+              <div className="absolute left-0 right-0 h-1 rounded-full bg-[var(--border-subtle)] group-hover/vol:h-1.5 transition-all" />
               <div
                 className="absolute left-0 h-1 group-hover/vol:h-1.5 rounded-full pointer-events-none transition-all bg-[#FA233B]"
                 style={{

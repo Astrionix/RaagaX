@@ -70,7 +70,7 @@ export class TabSyncCoordinator {
           try {
             const data: LiveTabSnapshot = JSON.parse(e.newValue);
             this.handleStorageUpdate(data);
-          } catch {}
+          } catch { }
         }
       });
 
@@ -132,24 +132,27 @@ export class TabSyncCoordinator {
           const current = store.currentSong;
           const isOlder = snap.timestamp && snap.timestamp > (Date.now() - 3600000); // within 1 hour
 
-          if (isOlder && (!current || current.id !== snap.song.id || store.isPlaying !== snap.isPlaying)) {
+          // CRITICAL ZERO-AUTOPLAY RULE:
+          // Reconciling from localStorage on startup / foreground must NEVER restore isPlaying = true or playbackIntent = 'PLAYING'!
+          // Only an active live handshake via BroadcastChannel (TAB_SYNC_RESPONSE) from an alive playing tab may assert isPlaying = true.
+          if (isOlder && (!current || current.id !== snap.song.id)) {
             usePlayerStore.setState({
               currentSong: snap.song,
               queueIndex: typeof snap.queueIndex === 'number' ? snap.queueIndex : store.queueIndex,
-              isPlaying: Boolean(snap.isPlaying),
-              playbackIntent: snap.isPlaying ? 'PLAYING' : 'PAUSED',
+              isPlaying: false, // Strict Rule: Always false when reading static persisted localStorage
+              playbackIntent: 'PAUSED',
               currentTime: typeof snap.currentTime === 'number' ? snap.currentTime : store.currentTime,
               duration: typeof snap.duration === 'number' && snap.duration > 0 ? snap.duration : (snap.song.duration || store.duration),
               queue: snap.queue && snap.queue.length > 0 ? snap.queue : store.queue,
-              lastPositionTimestamp: snap.isPlaying ? performance.now() : null,
+              lastPositionTimestamp: null,
             });
 
             MediaSessionManager.getInstance().updateSongMetadata(snap.song);
-            this.updateDocumentTitle(snap.song, Boolean(snap.isPlaying));
+            this.updateDocumentTitle(snap.song, false);
           }
         }
       }
-    } catch {}
+    } catch { }
 
     // 3. Send BroadcastChannel request so the active player can send exact sub-second position
     this.requestSync();
@@ -255,7 +258,7 @@ export class TabSyncCoordinator {
           timestamp: now,
         };
         this.channel.postMessage(payload);
-      } catch {}
+      } catch { }
     }
 
     // 2. Persist to localStorage for 100% reliable cross-tab wake-up & instant re-entry
@@ -271,7 +274,7 @@ export class TabSyncCoordinator {
           timestamp: now,
         };
         localStorage.setItem(TabSyncCoordinator.LIVE_METADATA_KEY, JSON.stringify(snapshot));
-      } catch {}
+      } catch { }
     }
 
     // 3. Update tab title
@@ -296,7 +299,7 @@ export class TabSyncCoordinator {
           timestamp: now,
         };
         this.channel.postMessage(payload);
-      } catch {}
+      } catch { }
     }
 
     if (typeof window !== 'undefined' && typeof localStorage !== 'undefined' && currentSong) {
@@ -311,7 +314,7 @@ export class TabSyncCoordinator {
           timestamp: now,
         };
         localStorage.setItem(TabSyncCoordinator.LIVE_METADATA_KEY, JSON.stringify(snapshot));
-      } catch {}
+      } catch { }
     }
 
     if (currentSong) {
@@ -327,7 +330,7 @@ export class TabSyncCoordinator {
         originTabId: this.tabId,
         timestamp: Date.now(),
       });
-    } catch {}
+    } catch { }
   }
 
   private broadcastLiveState(type: 'TAB_SYNC_RESPONSE' | 'TAB_METADATA_UPDATE'): void {
@@ -348,7 +351,7 @@ export class TabSyncCoordinator {
           queue: store.queue,
           timestamp: now,
         });
-      } catch {}
+      } catch { }
     }
 
     if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
@@ -363,7 +366,7 @@ export class TabSyncCoordinator {
           timestamp: now,
         };
         localStorage.setItem(TabSyncCoordinator.LIVE_METADATA_KEY, JSON.stringify(snapshot));
-      } catch {}
+      } catch { }
     }
   }
 

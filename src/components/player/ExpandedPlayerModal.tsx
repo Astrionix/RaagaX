@@ -55,7 +55,6 @@ import { AlbumCatalogEngine } from '@/lib/albumCatalog';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { VolumeControl } from '@/components/player/VolumeControl';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
-import { useJam } from '@/hooks/useJam';
 
 export function ExpandedPlayerModal() {
   const { playlists, addSongToPlaylist } = usePlaylistStore();
@@ -117,15 +116,12 @@ export function ExpandedPlayerModal() {
     setSelectedPlaylistId,
     toggleQueue,
     toggleSleepTimerModal,
-    toggleConnectModal,
     setSleepTimer,
     cancelSleepTimer,
     sleepTimerMinutes,
     sleepTimerEndsAt,
     sleepTimerMode,
   } = usePlayerStore();
-
-  const { isInJam, roomPin, participantCount, isLocalAudioOutput } = useJam();
 
   const currentSong = localCurrentSong;
   const isPlaying = localIsPlaying;
@@ -552,23 +548,8 @@ export function ExpandedPlayerModal() {
           </span>
         </div>
 
-        {/* Right: Jam Session Indicator or Balance Placeholder */}
-        {isInJam ? (
-          <button
-            onClick={() => {
-              haptics.lightImpact();
-              toggleConnectModal(true);
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#1ed760]/20 border border-[#1ed760]/40 text-[#1ed760] hover:bg-[#1ed760]/30 transition-all cursor-pointer text-[10px] font-bold select-none"
-            title="Manage Jam Session"
-          >
-            <Radio size={12} className="text-[#1ed760] animate-pulse" />
-            <span className="hidden sm:inline">Jam #{roomPin}</span>
-            <span className="text-[9px] opacity-80">({participantCount})</span>
-          </button>
-        ) : (
-          <div className="w-9 h-9 sm:w-10 sm:h-10 pointer-events-none" />
-        )}
+        {/* Right: Balance Placeholder */}
+        <div className="w-9 h-9 sm:w-10 sm:h-10 pointer-events-none" />
       </div>
 
       {/* ── 3. MAIN WORKSPACE (CENTRAL UNBOXED STAGE + OPTIONAL DESKTOP QUEUE) ─ */}
@@ -581,17 +562,17 @@ export function ExpandedPlayerModal() {
             {/* Top 2-Column Row (Artwork on Left, Song Info & Structured Metadata & Actions on Right) */}
             <div className="flex-1 flex flex-row items-center justify-center gap-10 lg:gap-16 w-full my-auto min-h-0">
 
-              {/* Left: Album Artwork (Pure raw cover, no surrounding dark frame or letterbox) */}
+              {/* Left: Album Artwork (Full uncropped cover, preserving complete fidelity and aspect ratio) */}
               <div className="flex flex-col items-center flex-shrink-0">
                 <div
                   key={`desk-info-${songTransitionKey}`}
-                  className="relative w-[340px] md:w-[380px] lg:w-[420px] xl:w-[450px] max-w-full max-h-[48vh] aspect-square rounded-[14px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85)] flex-shrink-0 transition-transform duration-300 hover:scale-[1.01]"
+                  className="relative w-[min(340px,46vh)] md:w-[min(380px,48vh)] lg:w-[min(420px,50vh)] xl:w-[min(450px,52vh)] h-[min(340px,46vh)] md:h-[min(380px,48vh)] lg:h-[min(420px,50vh)] xl:h-[min(450px,52vh)] max-w-full aspect-square rounded-[14px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85)] flex-shrink-0 bg-black/40 flex items-center justify-center transition-transform duration-300 hover:scale-[1.01]"
                 >
                   {coverUrl && coverUrl !== '/app-icon.png' ? (
                     <img
                       src={coverUrl}
                       alt={currentSong.title}
-                      className="w-full h-full object-cover select-none rounded-[14px]"
+                      className="w-full h-full object-contain select-none rounded-[14px]"
                       loading="eager"
                     />
                   ) : (
@@ -877,13 +858,13 @@ export function ExpandedPlayerModal() {
               {/* Artwork */}
               <div
                 key={`desk-lyr-${songTransitionKey}`}
-                className="relative w-full max-w-[320px] lg:max-w-[360px] aspect-square rounded-[14px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85)] flex-shrink-0 transition-transform duration-300 hover:scale-[1.01]"
+                className="relative w-[min(320px,40vh)] lg:w-[min(360px,44vh)] h-[min(320px,40vh)] lg:h-[min(360px,44vh)] aspect-square rounded-[14px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85)] flex-shrink-0 bg-black/40 flex items-center justify-center transition-transform duration-300 hover:scale-[1.01]"
               >
                 {coverUrl && coverUrl !== '/app-icon.png' ? (
                   <img
                     src={coverUrl}
                     alt={currentSong.title}
-                    className="w-full h-full object-cover select-none rounded-[14px]"
+                    className="w-full h-full object-contain select-none rounded-[14px]"
                     loading="eager"
                   />
                 ) : (
@@ -1345,13 +1326,13 @@ export function ExpandedPlayerModal() {
             <div className="w-full flex-1 flex items-center justify-center py-0.5 sm:py-1 min-h-0 overflow-hidden">
               <div
                 key={`mob-${songTransitionKey}`}
-                className="relative w-full max-w-[min(340px,78vw)] max-h-[min(340px,44vh)] aspect-square rounded-[14px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85)] flex-shrink-0 transition-transform duration-300 hover:scale-[1.01]"
+                className="relative w-[min(320px,76vw,42vh)] h-[min(320px,76vw,42vh)] aspect-square rounded-[14px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85)] flex-shrink-0 bg-black/40 flex items-center justify-center transition-transform duration-300 hover:scale-[1.01]"
               >
                 {coverUrl && coverUrl !== '/app-icon.png' ? (
                   <img
                     src={coverUrl}
                     alt={currentSong.title}
-                    className="w-full h-full object-cover select-none rounded-[14px]"
+                    className="w-full h-full object-contain select-none rounded-[14px]"
                     loading="eager"
                   />
                 ) : (
@@ -1458,12 +1439,13 @@ export function ExpandedPlayerModal() {
               <div className="flex-1 overflow-y-auto no-scrollbar py-2 px-2 space-y-2">
                 {/* Currently playing card */}
                 <div className="p-2.5 rounded-xl bg-white/[0.08] border border-white/15 flex items-center gap-3">
-                  <div className="relative w-11 h-11 rounded-lg overflow-hidden flex-shrink-0 shadow">
+                  <div className="relative w-11 h-11 rounded-lg overflow-hidden flex-shrink-0 shadow bg-black/40 flex items-center justify-center">
                     <OptimizedImage
                       src={coverUrl}
                       alt={currentSong.title}
                       size="thumb"
-                      className="w-full h-full object-cover"
+                      imageFit="contain"
+                      className="w-full h-full object-contain"
                     />
                     {isPlaying && (
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -1499,12 +1481,13 @@ export function ExpandedPlayerModal() {
                     >
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <span className="w-4 text-[11px] font-mono text-white/30 text-center flex-shrink-0">{idx + 1}</span>
-                        <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0">
+                        <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 bg-black/40 flex items-center justify-center">
                           <OptimizedImage
                             src={song.coverUrl}
                             alt={song.title}
                             size="thumb"
-                            className="w-full h-full object-cover"
+                            imageFit="contain"
+                            className="w-full h-full object-contain"
                           />
                         </div>
                         <div className="min-w-0 flex-1">
@@ -1864,12 +1847,13 @@ export function ExpandedPlayerModal() {
                   Playing Now
                 </span>
                 <div className="p-2.5 rounded-2xl bg-white/[0.06] border border-white/15 flex items-center gap-3 shadow-inner">
-                  <div className="relative w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 shadow-md">
+                  <div className="relative w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 shadow-md bg-black/40 flex items-center justify-center">
                     <OptimizedImage
                       src={coverUrl}
                       alt={currentSong.title}
                       size="thumb"
-                      className="w-full h-full object-cover"
+                      imageFit="contain"
+                      className="w-full h-full object-contain"
                     />
                     {isPlaying && (
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -1928,12 +1912,13 @@ export function ExpandedPlayerModal() {
                           </span>
                           <Play className="w-3.5 h-3.5 fill-white text-white hidden group-hover:block ml-0.5 flex-shrink-0" />
 
-                          <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 shadow">
+                          <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 shadow bg-black/40 flex items-center justify-center">
                             <OptimizedImage
                               src={sCover}
                               alt={song.title}
                               size="thumb"
-                              className="w-full h-full object-cover"
+                              imageFit="contain"
+                              className="w-full h-full object-contain"
                             />
                           </div>
 

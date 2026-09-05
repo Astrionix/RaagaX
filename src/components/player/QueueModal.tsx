@@ -9,8 +9,7 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { Song } from '@/types/music';
 import { SongFormatter } from '@/lib/music/SongFormatter';
-import { useJam } from '@/hooks/useJam';
-import { JamInviteModal } from '@/components/jam/JamInviteModal';
+
 
 export function QueueModal() {
   const { 
@@ -36,7 +35,6 @@ export function QueueModal() {
     setToastMessage
   } = usePlayerStore();
 
-  const { isInJam, isHost, roomPin, participantCount, inviteUrl, isInviteModalOpen, setIsInviteModalOpen, leaveJam, allowGuestControl, setAllowGuestControl, audioMode, setAudioMode, isLocalAudioOutput, setLocalAudioOutput } = useJam();
 
   const { playlists, addSongToPlaylist } = usePlaylistStore();
   const [activeMenuSongId, setActiveMenuSongId] = useState<string | null>(null);
@@ -170,29 +168,6 @@ export function QueueModal() {
         {/* Scrollable Queue Content */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 scrollbar-thin scrollbar-thumb-white/15 scrollbar-track-transparent">
           
-          {/* Jam Collaborative Queue Header */}
-          {isInJam && (
-            <div className="p-3 rounded-2xl bg-[#1ed760]/10 border border-[#1ed760]/30 flex items-center justify-between flex-shrink-0 animate-in fade-in">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-full bg-[#1ed760]/20 flex items-center justify-center flex-shrink-0">
-                  <Radio size={16} className="text-[#1ed760] animate-pulse" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-[#1ed760] truncate leading-tight">Jam Shared Queue • #{roomPin}</p>
-                  <p className="text-[11px] text-zinc-400 truncate leading-tight">{participantCount} listening together</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button
-                  onClick={() => setIsInviteModalOpen(true)}
-                  className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-colors cursor-pointer"
-                  title="Invite Friends"
-                >
-                  Invite
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* NOW PLAYING HERO SECTION */}
           {currentSong && (
@@ -209,12 +184,12 @@ export function QueueModal() {
 
               <div className="p-3 rounded-2xl bg-gradient-to-r from-white/[0.08] to-white/[0.03] border border-[#fa233b]/40 shadow-lg flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className="relative w-12 h-12 rounded-xl overflow-hidden shadow-md flex-shrink-0 border border-white/15">
+                  <div className="relative w-12 h-12 rounded-xl overflow-hidden shadow-md flex-shrink-0 border border-white/15 bg-black/40 flex items-center justify-center">
                     <img
                       src={currentSong.coverUrl || '/app-icon.png'}
                       alt={currentSong.title}
                       onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain"
                     />
                     <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
                       <Music className="w-5 h-5 text-[#fa233b] animate-pulse" />
@@ -317,13 +292,13 @@ export function QueueModal() {
                         {/* Thumbnail */}
                         <div 
                           onClick={() => playSong(song)}
-                          className="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-slate-800 cursor-pointer shadow-sm group/thumb"
+                          className="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-black/40 flex items-center justify-center cursor-pointer shadow-sm group/thumb"
                         >
                           <img 
                             src={song.coverUrl || '/app-icon.png'} 
                             alt={song.title} 
                             onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                            className="w-full h-full object-cover" 
+                            className="w-full h-full object-contain" 
                           />
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center">
                             <Play className="w-4 h-4 text-white fill-white ml-0.5" />
@@ -470,22 +445,6 @@ export function QueueModal() {
         </div>
       </div>
 
-      {/* Jam Invite Modal */}
-      <JamInviteModal
-        isOpen={isInviteModalOpen}
-        onClose={() => setIsInviteModalOpen(false)}
-        roomPin={roomPin}
-        inviteUrl={inviteUrl}
-        participantCount={participantCount}
-        onLeaveJam={leaveJam}
-        isHost={isHost}
-        allowGuestControl={allowGuestControl}
-        onToggleGuestControl={setAllowGuestControl}
-        audioMode={audioMode}
-        onSetAudioMode={setAudioMode}
-        isLocalAudioOutput={isLocalAudioOutput}
-        onSetLocalAudioOutput={setLocalAudioOutput}
-      />
     </div>
   );
 }

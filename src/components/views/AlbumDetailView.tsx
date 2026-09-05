@@ -838,6 +838,7 @@ export function AlbumDetailView() {
               <OptimizedImage
                 src={coverUrl}
                 alt={album.title}
+                imageFit="contain"
                 className="w-full h-full object-contain transition-transform duration-300"
                 fallbackSrc="/app-icon.png"
               />

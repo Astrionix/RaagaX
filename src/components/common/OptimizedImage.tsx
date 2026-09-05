@@ -73,8 +73,14 @@ export function OptimizedImage({
     }
   }, [src, resolvedUrl]);
 
+  const fitMode = imageFit === 'contain' || className?.includes('object-contain')
+    ? 'object-contain'
+    : imageFit === 'fill' || className?.includes('object-fill')
+    ? 'object-fill'
+    : 'object-cover';
+
   return (
-    <div className={`relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 ${className}`}>
+    <div className={`relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 ${fitMode === 'object-contain' ? 'flex items-center justify-center' : ''} ${className}`}>
       {/* Subtle pulse placeholder only if not yet in memory cache */}
       {!isLoaded && !hasError && (
         <div className="absolute inset-0 bg-white/[0.04] animate-pulse pointer-events-none" />
@@ -98,7 +104,7 @@ export function OptimizedImage({
             setIsLoaded(true);
           }
         }}
-        className={`w-full h-full ${imageFit === 'contain' ? 'object-contain' : imageFit === 'fill' ? 'object-fill' : 'object-cover'} transition-transform duration-300 pointer-events-none select-none`}
+        className={`w-full h-full ${fitMode} transition-transform duration-300 pointer-events-none select-none`}
         style={style}
         {...props}
       />

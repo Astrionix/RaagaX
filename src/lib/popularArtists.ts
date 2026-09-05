@@ -33,7 +33,7 @@ export const POPULAR_ARTISTS: PopularArtist[] = [
     genres: ['Telugu', 'Carnatic'],
   },
   {
-    id: '456863',
+    id: '455130',
     name: 'Shreya Ghoshal',
     image: 'https://c.saavncdn.com/artists/Shreya_Ghoshal_003_20230104093405_500x500.jpg',
     monthlyListeners: 22300000,
@@ -41,7 +41,7 @@ export const POPULAR_ARTISTS: PopularArtist[] = [
     genres: ['Melody', 'Multilingual'],
   },
   {
-    id: '464627',
+    id: '455663',
     name: 'Anirudh Ravichander',
     image: 'https://c.saavncdn.com/artists/Anirudh_Ravichander_002_20230104094030_500x500.jpg',
     monthlyListeners: 25600000,
@@ -57,7 +57,7 @@ export const POPULAR_ARTISTS: PopularArtist[] = [
     genres: ['Oscar Winner', 'Legend'],
   },
   {
-    id: '455125',
+    id: '455170',
     name: 'Devi Sri Prasad',
     image: 'https://c.saavncdn.com/artists/Devi_Sri_Prasad_002_20200810103948_500x500.jpg',
     monthlyListeners: 16500000,
@@ -73,7 +73,7 @@ export const POPULAR_ARTISTS: PopularArtist[] = [
     genres: ['Tamil', 'Telugu', 'Composer'],
   },
   {
-    id: '455130',
+    id: '544471',
     name: 'Thaman S',
     image: 'https://c.saavncdn.com/artists/Thaman_S_002_20200810103953_500x500.jpg',
     monthlyListeners: 17800000,

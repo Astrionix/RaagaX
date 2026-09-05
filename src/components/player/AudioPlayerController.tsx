@@ -234,16 +234,6 @@ export function AudioPlayerController() {
       if (typeof data.positionMs === 'number' && data.positionMs >= 0) {
         store.setCurrentTime(data.positionMs / 1000, true);
       }
-
-      if (store.isLocalPlayback) {
-        import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
-          PlaybackStateManager.getInstance().emitLocalPlaybackState({
-            isPlaying: data.isPlaying,
-            positionMs: typeof data.positionMs === 'number' ? data.positionMs : Math.round(store.currentTime * 1000),
-            durationMs: typeof data.durationMs === 'number' ? data.durationMs : Math.round(store.duration * 1000),
-          });
-        }).catch(() => {});
-      }
     });
 
     const unsubQueueEnded = RaagaXNativePlayer.addQueueEndedListener(() => {
@@ -352,18 +342,6 @@ export function AudioPlayerController() {
           );
         }).catch(() => {});
 
-        if (store.isLocalPlayback) {
-          import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
-            PlaybackStateManager.getInstance().emitLocalPlaybackState({
-              track: validTrack,
-              isPlaying: data.isPlaying !== undefined ? data.isPlaying : true,
-              positionMs: data.positionMs || 0,
-              durationMs: durationSec * 1000,
-              queueIndex: matchIdx !== -1 ? matchIdx : store.queueIndex,
-            });
-          }).catch(() => {});
-        }
-
         import('@/lib/playback/PlaybackSession').then(({ SessionManager }) => {
           SessionManager.getInstance().updateSession({
             currentTrack: validTrack,
@@ -458,13 +436,7 @@ export function AudioPlayerController() {
 
   // Native Android: poll ExoPlayer playback state for position & duration
   useEffect(() => {
-    let inJam = false;
-    try {
-      const { JamSessionManager } = require('@/lib/jam/JamSessionManager');
-      inJam = JamSessionManager.getInstance().getState().isInJam;
-    } catch {}
-
-    if (!RaagaXNativePlayer.isNative() || !isPlaying || (!inJam && !isLocalPlayback)) return;
+    if (!RaagaXNativePlayer.isNative() || !isPlaying) return;
     const interval = setInterval(async () => {
       // Block stale position updates while a seek is settling.
       // SeekLock.shouldBlockRemoteUpdate covers both the drag window and the
@@ -490,24 +462,6 @@ export function AudioPlayerController() {
     return () => clearInterval(interval);
   }, [isPlaying, isLocalPlayback]);
 
-  // Spotify Connect Controller Watchdog:
-  // When this device is acting as a remote controller (e.g. desktop monitoring phone speaker in background):
-  // Periodically check in with the speaker so track advances are reflected immediately on the controller
-  // without needing the user to wake the phone screen!
-  useEffect(() => {
-    if (isLocalPlayback || !isPlaying) return;
-
-    const interval = setInterval(() => {
-      const store = usePlayerStore.getState();
-      if (store.isLocalPlayback || !store.isPlaying) return;
-
-      import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
-        PlaybackStateManager.getInstance().requestPlaybackSync();
-      }).catch(() => {});
-    }, 3500);
-
-    return () => clearInterval(interval);
-  }, [isLocalPlayback, isPlaying]);
 
   // Restore Instant Playback Session
   useEffect(() => {
@@ -572,16 +526,7 @@ export function AudioPlayerController() {
           TabSyncCoordinator.getInstance().reconcileOnForeground();
         }).catch(() => {});
 
-        // 3. Request connect sync if acting as remote controller
-        if (!store.isLocalPlayback) {
-          import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
-            PlaybackStateManager.getInstance().requestPlaybackSync();
-          }).catch(() => {});
-        } else {
-          import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
-            PlaybackStateManager.getInstance().syncNow();
-          }).catch(() => {});
-        }
+
       }
     };
 
@@ -673,27 +618,6 @@ export function AudioPlayerController() {
   // Handle Play/Pause State Synchronization with Lyrics & Native bridges
   useEffect(() => {
     if (RaagaXNativePlayer.isNative()) {
-      let inJam = false;
-      try {
-        const { JamSessionManager } = require('@/lib/jam/JamSessionManager');
-        inJam = JamSessionManager.getInstance().getState().isInJam;
-      } catch {}
-
-      if (!inJam && !isLocalPlayback) {
-        // Connected to remote speaker: local ExoPlayer stays silent/paused.
-        LyricsEngine.getInstance().setPlaying(isPlaying);
-        if (currentSong) {
-          RaagaXNativePlayer.updateRemotePlayback({
-            trackId: currentSong.id,
-            title: currentSong.title,
-            artist: currentSong.artist || 'RaagaX Music',
-            artworkUrl: currentSong.coverUrl || '',
-            isPlaying: isPlaying,
-          }).catch(() => {});
-        }
-        return;
-      }
-
       if (isPlaying) {
         RaagaXNativePlayer.resume().catch(() => {});
         LyricsEngine.getInstance().setPlaying(true);

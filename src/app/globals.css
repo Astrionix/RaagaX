@@ -11,6 +11,9 @@
     --bg-surface: #0E1015;
     --bg-elevated: #151821;
     --bg-card: rgba(14, 16, 21, 0.75);
+    --surface-overlay: rgba(14, 16, 21, 0.88);
+    --surface-hover: rgba(21, 24, 33, 0.95);
+    --border-strong: rgba(255, 255, 255, 0.15);
     --accent-crimson: #E50914;
     --accent-crimson-deep: #8F0008;
     --accent-crimson-bright: #FF1E27;
@@ -24,9 +27,9 @@
     --glass-border: rgba(255, 255, 255, 0.08);
     --border-subtle: rgba(255, 255, 255, 0.08);
     --header-bg: rgba(0, 0, 0, 0.75);
-    --sidebar-bg: #060709;
-    --playerbar-bg: rgba(6, 7, 9, 0.82);
-    --nav-bg: rgba(6, 7, 9, 0.82);
+    --sidebar-bg: #0D0F14;
+    --playerbar-bg: rgba(14, 16, 21, 0.88);
+    --nav-bg: rgba(14, 16, 21, 0.92);
     --shadow-brand: 0 8px 30px rgba(229, 9, 20, 0.35);
   }
 
@@ -37,6 +40,9 @@
     --bg-surface: #F1F5F9;
     --bg-elevated: #FFFFFF;
     --bg-card: rgba(255, 255, 255, 0.95);
+    --surface-overlay: rgba(255, 255, 255, 0.92);
+    --surface-hover: rgba(241, 245, 249, 0.98);
+    --border-strong: rgba(15, 23, 42, 0.15);
     --accent-crimson: #E50914;
     --accent-crimson-deep: #B80710;
     --accent-crimson-bright: #FF1E27;
@@ -236,7 +242,15 @@
 .light [class*="bg-[#10121a]"], [data-theme="light"] [class*="bg-[#10121a]"],
 .light [class*="bg-[#151720]"], [data-theme="light"] [class*="bg-[#151720]"],
 .light [class*="bg-[#191b24]"], [data-theme="light"] [class*="bg-[#191b24]"],
-.light [class*="bg-[#1a1b24]"], [data-theme="light"] [class*="bg-[#1a1b24]"] {
+.light [class*="bg-[#1a1b24]"], [data-theme="light"] [class*="bg-[#1a1b24]"],
+.light [class*="bg-[#121316]"], [data-theme="light"] [class*="bg-[#121316]"],
+.light [class*="bg-[#12141A]"], [data-theme="light"] [class*="bg-[#12141A]"],
+.light [class*="bg-[#12141a]"], [data-theme="light"] [class*="bg-[#12141a]"],
+.light [class*="bg-[#121215]"], [data-theme="light"] [class*="bg-[#121215]"],
+.light [class*="bg-[#0D0F17]"], [data-theme="light"] [class*="bg-[#0D0F17]"],
+.light [class*="bg-[#0d0f17]"], [data-theme="light"] [class*="bg-[#0d0f17]"],
+.light [class*="bg-[#1A1D26]"], [data-theme="light"] [class*="bg-[#1A1D26]"],
+.light [class*="bg-[#1a1d26]"], [data-theme="light"] [class*="bg-[#1a1d26]"] {
   background-color: var(--bg-surface) !important;
 }
 

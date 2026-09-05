@@ -7,6 +7,7 @@
 import React, { useCallback, useRef } from 'react';
 import { Volume1, Volume2, VolumeX } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useThemeStore } from '@/context/useThemeStore';
 
 const SLIDER_CSS = `
   .rxv-track {
@@ -23,6 +24,10 @@ const SLIDER_CSS = `
     border-radius: 99px;
     background: rgba(255,255,255,0.15);
   }
+  .light .rxv-track::-webkit-slider-runnable-track,
+  [data-theme="light"] .rxv-track::-webkit-slider-runnable-track {
+    background: rgba(15,23,42,0.15);
+  }
   .rxv-track::-webkit-slider-thumb {
     -webkit-appearance: none;
     width: 14px;
@@ -34,6 +39,10 @@ const SLIDER_CSS = `
     transition: opacity 0.15s, transform 0.12s;
     box-shadow: 0 1px 4px rgba(0,0,0,0.4);
   }
+  .light .rxv-track::-webkit-slider-thumb,
+  [data-theme="light"] .rxv-track::-webkit-slider-thumb {
+    background: #0F172A;
+  }
   .rxv-wrap:hover .rxv-track::-webkit-slider-thumb {
     opacity: 1;
     transform: scale(1.1);
@@ -43,6 +52,10 @@ const SLIDER_CSS = `
     border-radius: 99px;
     background: rgba(255,255,255,0.15);
   }
+  .light .rxv-track::-moz-range-track,
+  [data-theme="light"] .rxv-track::-moz-range-track {
+    background: rgba(15,23,42,0.15);
+  }
   .rxv-track::-moz-range-thumb {
     width: 14px;
     height: 14px;
@@ -50,6 +63,10 @@ const SLIDER_CSS = `
     background: #fff;
     border: none;
     box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  }
+  .light .rxv-track::-moz-range-thumb,
+  [data-theme="light"] .rxv-track::-moz-range-thumb {
+    background: #0F172A;
   }
 `;
 
@@ -67,6 +84,8 @@ export function VolumeControl({ className = '', compact = false }: VolumeControl
   const isMuted = usePlayerStore((s) => s.isMuted);
   const setVolume = usePlayerStore((s) => s.setVolume);
   const toggleMute = usePlayerStore((s) => s.toggleMute);
+  const { resolvedTheme } = useThemeStore();
+  const isLight = resolvedTheme === 'light';
 
   const effectiveVol = isMuted ? 0 : volume;
   const pct = Math.round(effectiveVol * 100);
@@ -78,7 +97,7 @@ export function VolumeControl({ className = '', compact = false }: VolumeControl
       ? Volume1
       : Volume2;
 
-  const iconColor = isMuted || effectiveVol === 0 ? '#F0444F' : 'rgba(255,255,255,0.5)';
+  const iconColor = isMuted || effectiveVol === 0 ? '#F0444F' : isLight ? '#64748B' : 'rgba(255,255,255,0.6)';
 
   const handleVolumeChange = useCallback((newVol: number) => {
     const clamped = Math.max(0, Math.min(1, newVol));

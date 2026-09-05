@@ -34,33 +34,11 @@ export function MobileBottomController() {
     playPrev,
     togglePlayerExpanded,
     isPlayerExpanded,
-    isLocalPlayback,
-    activePlaybackDeviceId,
-    toggleConnectModal,
   } = usePlayerStore();
-
-  const [speakerDeviceName, setSpeakerDeviceName] = useState<string>('Remote Device');
 
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  useEffect(() => {
-    if (isLocalPlayback) return;
-    let unsub: (() => void) | undefined;
-    import('@/lib/connect/DeviceRegistry').then(({ DeviceRegistry }) => {
-      const update = () => {
-        const devId = usePlayerStore.getState().activePlaybackDeviceId;
-        const dev = DeviceRegistry.getInstance().getDevice(devId);
-        if (dev?.deviceName) setSpeakerDeviceName(dev.deviceName);
-      };
-      update();
-      unsub = DeviceRegistry.getInstance().subscribe(update);
-    }).catch(() => {});
-    return () => {
-      if (unsub) unsub();
-    };
-  }, [isLocalPlayback, activePlaybackDeviceId]);
 
   // ── BOTTOM NAVIGATION (HOME | NEW | LIBRARY | SEARCH) ──
   const navItems = [
@@ -128,18 +106,10 @@ export function MobileBottomController() {
             }}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
-            className={`w-full max-w-[440px] h-[54px] rounded-[20px] backdrop-blur-3xl border flex items-center justify-between px-3 cursor-pointer active:scale-[0.985] transition-all overflow-hidden relative group ${
-              !isLocalPlayback
-                ? 'bg-[#121214]/90 border-[#1ed760]/35 shadow-[0_16px_40px_rgba(0,0,0,0.85),0_0_20px_rgba(30,215,96,0.18)]'
-                : 'bg-[#161619]/85 border-white/15 shadow-[0_16px_40px_rgba(0,0,0,0.85),0_2px_12px_rgba(255,255,255,0.08)]'
-            }`}
+            className="w-full max-w-[440px] h-[54px] rounded-[20px] backdrop-blur-3xl border flex items-center justify-between px-3 cursor-pointer active:scale-[0.985] transition-all overflow-hidden relative group bg-[var(--surface-overlay)] border-[var(--border-subtle)] shadow-[0_16px_40px_rgba(0,0,0,0.5),0_2px_12px_rgba(255,255,255,0.05)]"
           >
             {/* Top Specular Liquid Edge Highlight */}
-            <div className={`absolute top-0 left-0 right-0 h-[1px] pointer-events-none ${
-              !isLocalPlayback
-                ? 'bg-gradient-to-r from-transparent via-[#1ed760]/50 to-transparent'
-                : 'bg-gradient-to-r from-transparent via-white/30 to-transparent'
-            }`} />
+            <div className="absolute top-0 left-0 right-0 h-[1px] pointer-events-none bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
             {/* Ambient Dynamic Background Glow matching album cover */}
             <div
@@ -153,66 +123,31 @@ export function MobileBottomController() {
 
             {/* Left: Thumbnail & Title */}
             <div className="flex items-center gap-3 min-w-0 flex-1 pr-2 z-10">
-              <div className="relative w-[40px] h-[40px] rounded-xl overflow-hidden bg-black/60 border border-white/15 flex-shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+              <div className="relative w-[40px] h-[40px] rounded-xl overflow-hidden bg-black/60 border border-white/15 flex-shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.5)] flex items-center justify-center">
                 <OptimizedImage
                   src={coverUrl}
                   alt={currentSong.title}
                   size="thumb"
-                  className="w-full h-full object-cover"
+                  imageFit="contain"
+                  className="w-full h-full object-contain"
                 />
               </div>
 
               <div className="min-w-0 flex-1">
-                <h4 className="text-[13px] font-bold text-white truncate leading-snug tracking-tight">
+                <h4 className="text-[13px] font-bold text-[var(--text-primary)] truncate leading-snug tracking-tight">
                   {currentSong.title}
                 </h4>
-                {!isLocalPlayback ? (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      haptics.lightImpact();
-                      toggleConnectModal(true);
-                    }}
-                    className="text-[11px] font-bold text-[#1ed760] truncate flex items-center gap-1 mt-0.5"
-                  >
-                    <span className="flex items-end gap-[1px] h-2 flex-shrink-0">
-                      <span className="w-[1.5px] bg-[#1ed760] h-full animate-[pulse_0.7s_infinite]" />
-                      <span className="w-[1.5px] bg-[#1ed760] h-2/3 animate-[pulse_0.5s_infinite_0.15s]" />
-                      <span className="w-[1.5px] bg-[#1ed760] h-4/5 animate-[pulse_0.8s_infinite_0.3s]" />
-                    </span>
-                    <Volume2 size={10} className="text-[#1ed760] flex-shrink-0" />
-                    <span className="truncate">{speakerDeviceName}</span>
-                  </button>
-                ) : (
-                  <p className="text-[11px] font-medium text-white/60 truncate flex items-center gap-1.5">
-                    <span className="truncate">{currentSong.artist || 'RaagaX Music'}</span>
-                  </p>
-                )}
+                <p className="text-[11px] font-medium text-[var(--text-muted)] truncate flex items-center gap-1.5">
+                  <span className="truncate">{currentSong.artist || 'RaagaX Music'}</span>
+                </p>
               </div>
             </div>
 
-            {/* Right: Direct Action Icons (Connect Devices + Play/Pause ▶ + FastForward ⏩) */}
+            {/* Right: Direct Action Icons (Play/Pause ▶ + FastForward ⏩) */}
             <div
               className="flex items-center gap-2 flex-shrink-0 pr-1 z-10"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Devices Button */}
-              <button
-                onClick={() => {
-                  haptics.lightImpact();
-                  toggleConnectModal(true);
-                }}
-                aria-label="Connect to a device"
-                title={!isLocalPlayback ? `Playing on ${speakerDeviceName}` : 'Connect to a device'}
-                className={`p-1.5 rounded-full transition-all active:scale-90 cursor-pointer ${
-                  !isLocalPlayback
-                    ? 'text-[#1ed760] hover:bg-[#1ed760]/15'
-                    : 'text-white/60 hover:text-white hover:bg-white/10'
-                }`}
-              >
-                <Volume2 className="w-4 h-4" />
-              </button>
 
               {/* Play / Pause Liquid Glass Button */}
               <button
@@ -221,12 +156,12 @@ export function MobileBottomController() {
                   togglePlayPause();
                 }}
                 aria-label={isPlaying ? 'Pause' : 'Play'}
-                className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center shadow-lg active:scale-90 transition-all cursor-pointer hover:scale-105"
+                className="w-9 h-9 rounded-full bg-[#FA233B] text-white flex items-center justify-center shadow-lg active:scale-90 transition-all cursor-pointer hover:scale-105"
               >
                 {isPlaying ? (
-                  <Pause className="w-4.5 h-4.5 fill-black text-black stroke-none" />
+                  <Pause className="w-4.5 h-4.5 fill-white text-white stroke-none" />
                 ) : (
-                  <Play className="w-4.5 h-4.5 fill-black text-black stroke-none ml-0.5" />
+                  <Play className="w-4.5 h-4.5 fill-white text-white stroke-none ml-0.5" />
                 )}
               </button>
 
@@ -236,9 +171,9 @@ export function MobileBottomController() {
                   playNext();
                 }}
                 aria-label="Next track"
-                className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white active:scale-90 transition-transform cursor-pointer"
+                className="w-8 h-8 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] active:scale-90 transition-transform cursor-pointer"
               >
-                <FastForward className="w-5 h-5 fill-white text-white stroke-none" />
+                <FastForward className="w-5 h-5 fill-current stroke-none" />
               </button>
             </div>
           </div>
@@ -250,7 +185,7 @@ export function MobileBottomController() {
       {/* ── 2. BOTTOM NAVIGATION BAR (GLASS FLOATING BAR) ──────────────── */}
       <div className="w-full px-3 flex justify-center pointer-events-auto">
         <div
-          className="w-full max-w-[440px] h-[52px] px-2 flex items-center justify-around bg-[#121215]/90 backdrop-blur-2xl border border-white/10 rounded-[22px] shadow-[0_12px_32px_rgba(0,0,0,0.8)]"
+          className="w-full max-w-[440px] h-[52px] px-2 flex items-center justify-around bg-[var(--nav-bg)] backdrop-blur-2xl border border-[var(--border-subtle)] rounded-[22px] shadow-[0_12px_32px_rgba(0,0,0,0.12)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.8)]"
           role="navigation"
           aria-label="Mobile Navigation"
         >
@@ -278,13 +213,13 @@ export function MobileBottomController() {
                   className={`w-5 h-5 relative z-10 transition-all duration-150 ${
                     isActive
                       ? `text-[#FA233B] ${isFillable ? 'fill-[#FA233B]' : 'stroke-[2.4]'}`
-                      : 'text-white/60 fill-none stroke-[1.8]'
+                      : 'text-[var(--text-muted)] fill-none stroke-[1.8]'
                   }`}
                 />
 
                 <span
                   className={`text-[10px] font-medium tracking-tight mt-0.5 relative z-10 transition-colors ${
-                    isActive ? 'text-[#FA233B] font-bold' : 'text-white/60'
+                    isActive ? 'text-[#FA233B] font-bold' : 'text-[var(--text-muted)]'
                   }`}
                 >
                   {item.label}

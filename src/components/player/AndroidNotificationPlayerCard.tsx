@@ -117,12 +117,13 @@ export function AndroidNotificationPlayerCard({
       {/* ── 3. TRACK INFO: Artwork + Title + Artist ── */}
       <div className="relative z-10 flex items-center gap-3.5 mb-3.5">
         {/* Original Artwork (54dp) */}
-        <div className="relative w-13 h-13 sm:w-14 sm:h-14 rounded-xl overflow-hidden shadow-[0_6px_16px_rgba(0,0,0,0.5)] border border-white/15 flex-shrink-0">
+        <div className="relative w-13 h-13 sm:w-14 sm:h-14 rounded-xl overflow-hidden shadow-[0_6px_16px_rgba(0,0,0,0.5)] border border-white/15 flex-shrink-0 bg-black/40 flex items-center justify-center">
           <OptimizedImage
             src={coverUrl}
             alt={currentSong.title}
             size="card"
-            className="w-full h-full object-cover"
+            imageFit="contain"
+            className="w-full h-full object-contain"
           />
         </div>
 

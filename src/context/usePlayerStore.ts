@@ -145,8 +145,6 @@ interface PlayerState {
   isSettingsModalOpen: boolean;
   isCastModalOpen: boolean;
   isSleepTimerModalOpen: boolean;
-  isConnectModalOpen: boolean;
-  toggleConnectModal: (open?: boolean) => void;
   isLockScreenOpen: boolean;
   toggleLockScreen: (open?: boolean) => void;
   isNotificationShadeOpen: boolean;
@@ -575,7 +573,6 @@ export const usePlayerStore = create<PlayerState>()(
       isSettingsModalOpen: false,
       isCastModalOpen: false,
       isSleepTimerModalOpen: false,
-      isConnectModalOpen: false,
       isLockScreenOpen: false,
       toggleLockScreen: (open) => set((s) => ({ isLockScreenOpen: open !== undefined ? open : !s.isLockScreenOpen })),
       isNotificationShadeOpen: false,
@@ -753,32 +750,11 @@ export const usePlayerStore = create<PlayerState>()(
       isInJam: false,
       setIsInJam: (inJam: boolean) => set({ isInJam: inJam }),
       setActivePlaybackDeviceId: (devId: string) => {
-        const inJam = get().isInJam;
-
-        let selfId: string | null = null;
-        try {
-          const { DeviceIdentityManager } = require('@/lib/connect/DeviceIdentityManager');
-          selfId = DeviceIdentityManager.getInstance().getDevice()?.deviceId;
-        } catch {}
-        const curId = selfId || get().currentDeviceId || (typeof window !== 'undefined' ? localStorage.getItem('raaga_device_id') : null) || 'dev_local';
-        const isLocal = inJam || !devId || devId === curId || devId === selfId || devId === 'dev_local' || devId === 'local_device';
-        if (typeof window !== 'undefined') {
-          try {
-            if (isLocal) {
-              localStorage.setItem('raagax_active_playback_device_id', curId);
-            } else if (devId) {
-              localStorage.setItem('raagax_active_playback_device_id', devId);
-            }
-          } catch {}
-        }
         set({
-          activePlaybackDeviceId: isLocal ? curId : devId,
-          currentDeviceId: curId,
-          isLocalPlayback: isLocal,
+          activePlaybackDeviceId: 'dev_local',
+          currentDeviceId: 'dev_local',
+          isLocalPlayback: true,
         });
-        if (!isLocal) {
-          PlaybackService.getInstance().pauseAudioElementOnly();
-        }
       },
       activeRenderer: 'audio',
       playbackStatus: 'paused',
@@ -1028,53 +1004,6 @@ export const usePlayerStore = create<PlayerState>()(
       switchTrack: async (track: Song, index: number, autoPlay: boolean = true) => {
         if (!track) return false;
 
-        const { isLocalPlayback, activePlaybackDeviceId, isInJam } = get();
-        let effectiveIsLocal = isInJam || isLocalPlayback;
-        if (!effectiveIsLocal) {
-          let hasValidRemote = false;
-          try {
-            const { DeviceRegistry } = await import('@/lib/connect/DeviceRegistry');
-            const { DeviceIdentityManager } = await import('@/lib/connect/DeviceIdentityManager');
-            const selfId = DeviceIdentityManager.getInstance().getDevice().deviceId;
-            const dev = DeviceRegistry.getInstance().getDevice(activePlaybackDeviceId);
-            hasValidRemote = Boolean(dev && dev.isOnline !== false && dev.deviceId !== selfId);
-          } catch {}
-
-          if (!hasValidRemote) {
-            console.log('[switchTrack] No online remote speaker found. Auto-reverting to local playback.');
-            const { DeviceIdentityManager } = await import('@/lib/connect/DeviceIdentityManager');
-            const selfId = DeviceIdentityManager.getInstance().getDevice().deviceId;
-            set({ isLocalPlayback: true, activePlaybackDeviceId: selfId });
-            effectiveIsLocal = true;
-          }
-        }
-
-        if (!effectiveIsLocal) {
-          PlaybackService.getInstance().pauseAudioElementOnly();
-          set({
-            currentSong: track,
-            queueIndex: index,
-            currentTime: 0,
-            isPlaying: autoPlay,
-            playbackIntent: autoPlay ? 'PLAYING' : 'PAUSED',
-            lastPositionTimestamp: autoPlay ? performance.now() : null,
-          });
-          const { connectEngine } = await import('@/lib/connect/ConnectEngine');
-          await connectEngine.sendRemoteCommand('TRANSFER_PLAYBACK', {
-            track,
-            queue: get().queue,
-            queueIndex: index,
-            positionMs: 0,
-            isPlaying: autoPlay,
-            volume: Math.round((get().volume || 1) * 100),
-            repeat: get().repeatMode,
-            shuffle: Boolean(get().shuffleMode && get().shuffleMode !== 'OFF'),
-          });
-          return true;
-        }
-
-
-
         const oldSong = get().currentSong;
         const oldIndex = get().queueIndex;
 
@@ -1110,12 +1039,6 @@ export const usePlayerStore = create<PlayerState>()(
           activeRenderer: 'audio',
           playbackRequestId: requestId,
         });
-
-        if (get().isLocalPlayback) {
-          import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
-            PlaybackStateManager.getInstance().syncNow();
-          }).catch(() => {});
-        }
 
         // Update PlaybackSession singleton
         import('@/lib/playback/PlaybackSession').then(({ SessionManager }) => {
@@ -1175,12 +1098,6 @@ export const usePlayerStore = create<PlayerState>()(
             MediaSessionManager.getInstance().setPlaybackState('paused');
           }
           return false;
-        }
-
-        if (get().isLocalPlayback) {
-          import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
-            PlaybackStateManager.getInstance().syncNow();
-          }).catch(() => {});
         }
 
         // Background Real Artwork Verification & Resolution
@@ -1347,53 +1264,6 @@ export const usePlayerStore = create<PlayerState>()(
         });
         persistSessionHelper(get());
 
-        const { isLocalPlayback, queue, activePlaybackDeviceId, isInJam } = get();
-        let effectiveIsLocal = isInJam || isLocalPlayback;
-        if (!effectiveIsLocal) {
-          let hasValidRemote = false;
-          try {
-            const { DeviceRegistry } = await import('@/lib/connect/DeviceRegistry');
-            const { DeviceIdentityManager } = await import('@/lib/connect/DeviceIdentityManager');
-            const selfId = DeviceIdentityManager.getInstance().getDevice().deviceId;
-            const dev = DeviceRegistry.getInstance().getDevice(activePlaybackDeviceId);
-            hasValidRemote = Boolean(dev && dev.isOnline !== false && dev.deviceId !== selfId && dev.deviceId !== 'dev_local');
-          } catch {}
-
-          if (!hasValidRemote) {
-            console.log('[playSong] No online remote speaker found. Auto-reverting to local playback.');
-            const { DeviceIdentityManager } = await import('@/lib/connect/DeviceIdentityManager');
-            const selfId = DeviceIdentityManager.getInstance().getDevice().deviceId;
-            set({ isLocalPlayback: true, activePlaybackDeviceId: selfId });
-            effectiveIsLocal = true;
-          }
-        }
-
-        if (!effectiveIsLocal) {
-          PlaybackService.getInstance().pauseAudioElementOnly();
-          const effectiveQueue = (syncedQueue && syncedQueue.length > 0) ? syncedQueue : (queue && queue.length > 0 ? queue : [activePlaySong]);
-          set({
-            currentSong: activePlaySong,
-            isPlaying: true,
-            playbackIntent: 'PLAYING',
-            currentTime: 0,
-            queue: effectiveQueue,
-            queueIndex: targetIndex,
-            lastPositionTimestamp: performance.now(),
-          });
-          const { connectEngine } = await import('@/lib/connect/ConnectEngine');
-          await connectEngine.sendRemoteCommand('TRANSFER_PLAYBACK', {
-            track: activePlaySong,
-            queue: effectiveQueue,
-            queueIndex: targetIndex,
-            positionMs: 0,
-            isPlaying: true,
-            volume: Math.round((get().volume || 1) * 100),
-            repeat: get().repeatMode,
-            shuffle: Boolean(get().shuffleMode && get().shuffleMode !== 'OFF'),
-          });
-          return;
-        }
-
         await get().switchTrack(activePlaySong, targetIndex, true);
 
         if (RaagaXNativePlayer.isNative() && syncedQueue && syncedQueue.length > 0) {
@@ -1421,31 +1291,6 @@ export const usePlayerStore = create<PlayerState>()(
           shuffleMode: snapshot.shuffleMode || 'STANDARD',
         });
 
-        const { isLocalPlayback } = get();
-        if (!isLocalPlayback) {
-          PlaybackService.getInstance().pauseAudioElementOnly();
-          set({
-            currentSong: firstSong,
-            isPlaying: true,
-            playbackIntent: 'PLAYING',
-            currentTime: 0,
-            queueIndex: 0,
-            lastPositionTimestamp: performance.now(),
-          });
-          const { connectEngine } = await import('@/lib/connect/ConnectEngine');
-          await connectEngine.sendRemoteCommand('TRANSFER_PLAYBACK', {
-            track: firstSong,
-            queue: syncedQueue,
-            queueIndex: 0,
-            positionMs: 0,
-            isPlaying: true,
-            volume: Math.round((get().volume || 1) * 100),
-            repeat: get().repeatMode,
-            shuffle: true,
-          });
-          return;
-        }
-
         await get().switchTrack(firstSong, 0, true);
 
         if (RaagaXNativePlayer.isNative() && syncedQueue && syncedQueue.length > 0) {
@@ -1454,58 +1299,6 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       togglePlayPause: async () => {
-        const { isLocalPlayback, isPlaying, activePlaybackDeviceId, isInJam } = get();
-
-        // In Jam Session: If guest in In-Person mode, delegate Play/Pause remotely to Host
-        if (isInJam) {
-          try {
-            const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
-            const jam = JamSessionManager.getInstance().getState();
-            if (!jam.isLocalAudioOutput && !jam.isHost) {
-              const nextAction = isPlaying ? 'PAUSE' : 'PLAY';
-              JamSessionManager.getInstance().sendRemoteAction(nextAction);
-              set({ isPlaying: !isPlaying });
-              return;
-            }
-          } catch {}
-        }
-
-        let effectiveIsLocal = isInJam || isLocalPlayback;
-        if (!effectiveIsLocal) {
-          let hasValidRemote = false;
-          try {
-            const { DeviceRegistry } = await import('@/lib/connect/DeviceRegistry');
-            const { DeviceIdentityManager } = await import('@/lib/connect/DeviceIdentityManager');
-            const selfId = DeviceIdentityManager.getInstance().getDevice().deviceId;
-            const dev = DeviceRegistry.getInstance().getDevice(activePlaybackDeviceId);
-            hasValidRemote = Boolean(dev && dev.isOnline !== false && dev.deviceId !== selfId && dev.deviceId !== 'dev_local');
-          } catch {}
-
-          if (!hasValidRemote) {
-            console.log('[togglePlayPause] No online remote speaker found. Auto-reverting to local playback.');
-            const { DeviceIdentityManager } = await import('@/lib/connect/DeviceIdentityManager');
-            const selfId = DeviceIdentityManager.getInstance().getDevice().deviceId;
-            set({ isLocalPlayback: true, activePlaybackDeviceId: selfId });
-            effectiveIsLocal = true;
-          }
-        }
-
-        if (!effectiveIsLocal) {
-          PlaybackService.getInstance().pauseAudioElementOnly();
-          const isNowPlaying = !isPlaying;
-          set({
-            isPlaying: isNowPlaying,
-            playbackIntent: isNowPlaying ? 'PLAYING' : 'PAUSED',
-            lastPositionTimestamp: isNowPlaying ? performance.now() : null,
-          });
-          import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
-            PlaybackStateManager.getInstance().updateLocalSnapshot({ isPlaying: isNowPlaying });
-          }).catch(() => {});
-          const { connectEngine } = await import('@/lib/connect/ConnectEngine');
-          await connectEngine.sendRemoteCommand(isNowPlaying ? 'PLAY' : 'PAUSE');
-          return;
-        }
-
         // 1. Single Source of Truth: derive true playing state directly from store or active engine
         let currentLivePlaying = get().isPlaying;
         if (!RaagaXNativePlayer.isNative()) {
@@ -1538,12 +1331,6 @@ export const usePlayerStore = create<PlayerState>()(
             PlaybackService.getInstance().play();
           }
         }
-
-        if (get().isLocalPlayback) {
-          import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
-            PlaybackStateManager.getInstance().emitLocalPlaybackState({ isPlaying: isNowPlaying });
-          }).catch(() => {});
-        }
       },
       setIsPlaying: async (playing, fromRemote = false) => {
         if (!playing && !fromRemote) {
@@ -1559,17 +1346,6 @@ export const usePlayerStore = create<PlayerState>()(
         }).catch(() => {});
 
         if (!fromRemote) {
-          const inJam = get().isInJam;
-          if (!inJam && !get().isLocalPlayback) {
-            PlaybackService.getInstance().pauseAudioElementOnly();
-            import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
-              PlaybackStateManager.getInstance().updateLocalSnapshot({ isPlaying: playing });
-            }).catch(() => {});
-            const { connectEngine } = await import('@/lib/connect/ConnectEngine');
-            await connectEngine.sendRemoteCommand(playing ? 'PLAY' : 'PAUSE');
-            return;
-          }
-
           if (RaagaXNativePlayer.isNative()) {
             if (!playing) {
               await RaagaXNativePlayer.pause();
@@ -1583,20 +1359,12 @@ export const usePlayerStore = create<PlayerState>()(
               PlaybackService.getInstance().play();
             }
           }
-
-          if (get().isLocalPlayback) {
-            import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
-              PlaybackStateManager.getInstance().emitLocalPlaybackState({ isPlaying: playing });
-            }).catch(() => {});
-          }
         }
       },
       setCurrentTime: (time, fromRemote = false) => {
         if (typeof time !== 'number' || !Number.isFinite(time) || isNaN(time) || time < 0) return;
 
         set({ currentTime: time });
-
-
 
         const state = get();
         if (state.currentSong) {
@@ -1606,22 +1374,6 @@ export const usePlayerStore = create<PlayerState>()(
       seek: async (time: number) => {
         get().setCurrentTime(time, true);
         get().setSeekTarget(time);
-        const { isLocalPlayback, isInJam } = get();
-        if (isInJam) {
-          try {
-            const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
-            const jam = JamSessionManager.getInstance().getState();
-            if (!jam.isLocalAudioOutput && !jam.isHost) {
-              JamSessionManager.getInstance().sendRemoteAction('SEEK', { positionSec: time });
-              return;
-            }
-          } catch {}
-        }
-        if (!isLocalPlayback) {
-          const { connectEngine } = await import('@/lib/connect/ConnectEngine');
-          await connectEngine.sendRemoteCommand('SEEK', { positionMs: time * 1000 });
-          return;
-        }
         PlaybackService.getInstance().seek(time);
       },
       setDuration: (dur) => {
@@ -1633,42 +1385,13 @@ export const usePlayerStore = create<PlayerState>()(
         const safeVol = Math.max(0, Math.min(1, vol));
         set({ volume: safeVol });
         persistSessionHelper(get());
-        const { isLocalPlayback } = get();
-        if (!isLocalPlayback) {
-          import('@/lib/connect/ConnectEngine').then(({ connectEngine }) => {
-            connectEngine.sendRemoteCommand('SET_VOLUME', { volume: Math.round(safeVol * 100) });
-          }).catch(() => {});
-        }
       },
       toggleMute: () => {
         const nextMuted = !get().isMuted;
         set({ isMuted: nextMuted });
-        if (!get().isLocalPlayback) {
-          import('@/lib/connect/ConnectEngine').then(({ connectEngine }) => {
-            connectEngine.sendRemoteCommand('MUTE');
-          }).catch(() => {});
-        }
       },
 
       playNext: async (isNaturalAutoEnd: boolean = false) => {
-        const { isLocalPlayback, isInJam } = get();
-        if (isInJam) {
-          try {
-            const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
-            const jam = JamSessionManager.getInstance().getState();
-            if (!jam.isLocalAudioOutput && !jam.isHost) {
-              JamSessionManager.getInstance().sendRemoteAction('NEXT');
-              return;
-            }
-          } catch {}
-        }
-        if (!isInJam && !isLocalPlayback) {
-          const { connectEngine } = await import('@/lib/connect/ConnectEngine');
-          await connectEngine.sendRemoteCommand('NEXT');
-          return;
-        }
-
-
         const { duration, currentTime, isPlaying, playbackIntent } = get();
         const isComplete = duration > 0 && currentTime >= duration - 5;
         get().logCurrentTelemetry(isComplete ? 'complete' : 'skip');
@@ -1708,26 +1431,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       playPrev: async () => {
-        const { isLocalPlayback, isInJam } = get();
-        if (isInJam) {
-          try {
-            const { JamSessionManager } = await import('@/lib/jam/JamSessionManager');
-            const jam = JamSessionManager.getInstance().getState();
-            if (!jam.isLocalAudioOutput && !jam.isHost) {
-              JamSessionManager.getInstance().sendRemoteAction('PREV');
-              return;
-            }
-          } catch {}
-        }
-        if (!isInJam && !isLocalPlayback) {
-          const { connectEngine } = await import('@/lib/connect/ConnectEngine');
-          await connectEngine.sendRemoteCommand('PREVIOUS');
-          return;
-        }
-
         const { queue, queueIndex, currentTime, currentSong, repeatMode, isPlaying, playbackIntent } = get();
-
-
 
         // If track played more than 3 seconds, restart current track at 0:00 and keep current playing state
         if (currentTime > 3) {
@@ -1764,15 +1468,6 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       toggleShuffle: async () => {
-        const { isLocalPlayback, shuffleMode } = get();
-        if (!isLocalPlayback) {
-          const next = shuffleMode === 'OFF' ? 'STANDARD' : 'OFF';
-          set({ shuffleMode: next });
-          const { connectEngine } = await import('@/lib/connect/ConnectEngine');
-          await connectEngine.sendRemoteCommand('SET_SHUFFLE');
-          return;
-        }
-
         const manager = QueueManager.getInstance();
         manager.toggleShuffle();
         const snapshot = manager.getSnapshot();
@@ -1800,13 +1495,6 @@ export const usePlayerStore = create<PlayerState>()(
         set({ repeatMode: normalized as any });
         persistSessionHelper(get());
 
-        const { isLocalPlayback } = get();
-        if (!isLocalPlayback) {
-          const { connectEngine } = await import('@/lib/connect/ConnectEngine');
-          await connectEngine.sendRemoteCommand('SET_REPEAT', { repeat: normalized });
-          return;
-        }
-
         if (RaagaXNativePlayer.isNative()) {
           RaagaXNativePlayer.setRepeatMode(normalized);
         }
@@ -1829,33 +1517,6 @@ export const usePlayerStore = create<PlayerState>()(
         const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
         set({ queue: syncedQueue, queueIndex: syncedIndex });
         PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
-
-        if (!get().isLocalPlayback) {
-          import('@/lib/connect/ConnectEngine').then(({ connectEngine }) => {
-            connectEngine.sendRemoteCommand('ADD_TO_QUEUE', {
-              song,
-              mode: 'end',
-              queue: syncedQueue,
-              queueIndex: syncedIndex,
-            });
-          }).catch(() => {});
-        } else {
-          try {
-            import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
-              PlaybackStateManager.getInstance().emitLocalPlaybackState({
-                queue: syncedQueue,
-                queueIndex: syncedIndex,
-              });
-            }).catch(() => {});
-          } catch {}
-        }
-
-        // Spotify Jam: Broadcast new queue to all active listeners in room
-        try {
-          import('@/lib/jam/JamSessionManager').then(({ JamSessionManager }) => {
-            JamSessionManager.getInstance().broadcastQueueChange(syncedQueue, syncedIndex, song);
-          }).catch(() => {});
-        } catch {}
       },
       playNextInQueue: (song) => {
         if (!song || !song.id) return;
@@ -1866,33 +1527,6 @@ export const usePlayerStore = create<PlayerState>()(
         const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
         set({ queue: syncedQueue, queueIndex: syncedIndex });
         PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
-
-        if (!get().isLocalPlayback) {
-          import('@/lib/connect/ConnectEngine').then(({ connectEngine }) => {
-            connectEngine.sendRemoteCommand('ADD_TO_QUEUE', {
-              song,
-              mode: 'next',
-              queue: syncedQueue,
-              queueIndex: syncedIndex,
-            });
-          }).catch(() => {});
-        } else {
-          try {
-            import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
-              PlaybackStateManager.getInstance().emitLocalPlaybackState({
-                queue: syncedQueue,
-                queueIndex: syncedIndex,
-              });
-            }).catch(() => {});
-          } catch {}
-        }
-
-        // Spotify Jam: Broadcast updated queue to all active listeners in room
-        try {
-          import('@/lib/jam/JamSessionManager').then(({ JamSessionManager }) => {
-            JamSessionManager.getInstance().broadcastQueueChange(syncedQueue, syncedIndex, song);
-          }).catch(() => {});
-        } catch {}
       },
       playLastInQueue: (song) => {
         if (!song || !song.id) return;
@@ -1909,24 +1543,6 @@ export const usePlayerStore = create<PlayerState>()(
           const syncedIndex = snapshot.currentIndex >= 0 ? snapshot.currentIndex : 0;
           set({ queue: syncedQueue, queueIndex: syncedIndex });
           PlaybackService.getInstance().loadQueueContext(syncedQueue, syncedIndex);
-
-          if (!get().isLocalPlayback) {
-            import('@/lib/connect/ConnectEngine').then(({ connectEngine }) => {
-              connectEngine.sendRemoteCommand('SYNC_QUEUE', {
-                queue: syncedQueue,
-                queueIndex: syncedIndex,
-              });
-            }).catch(() => {});
-          } else {
-            try {
-              import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
-                PlaybackStateManager.getInstance().emitLocalPlaybackState({
-                  queue: syncedQueue,
-                  queueIndex: syncedIndex,
-                });
-              }).catch(() => {});
-            } catch {}
-          }
         }
       },
       reorderQueue: async (newQueue) => {
@@ -2398,10 +2014,6 @@ export const usePlayerStore = create<PlayerState>()(
       toggleSleepTimerModal: (open) =>
         set((state) => ({
           isSleepTimerModalOpen: typeof open === 'boolean' ? open : !state.isSleepTimerModalOpen,
-        })),
-      toggleConnectModal: (open) =>
-        set((state) => ({
-          isConnectModalOpen: typeof open === 'boolean' ? open : !state.isConnectModalOpen,
         })),
       setCreatePlaylistModalOpen: (open) => set({ createPlaylistModalOpen: open }),
 

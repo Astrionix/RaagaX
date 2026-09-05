@@ -165,7 +165,7 @@ export class PlaybackService {
                 console.warn('[PlaybackService Watchdog] Autoplay blocked by browser policy. Breaking watchdog retry loop and waiting for user gesture.');
                 try {
                   usePlayerStore.getState().setToastMessage('Tap anywhere to play on this device');
-                } catch {}
+                } catch { }
                 this.attachAutoplayUnlockHandler();
               } else {
                 console.warn('[PlaybackService Watchdog] Auto-resume recovery failed:', err);
@@ -185,14 +185,14 @@ export class PlaybackService {
       window.removeEventListener('click', unlock);
       this.isAutoplayRestricted = false;
       this.watchdogRetryCount = 0;
-      console.log('[PlaybackService] User interacted with document. Resuming playback...');
       try {
         const store = usePlayerStore.getState();
-        if (store.isLocalPlayback) {
+        // ONLY resume if playbackIntent is explicitly PLAYING and isPlaying is true
+        if (store.isLocalPlayback && store.playbackIntent === 'PLAYING' && store.isPlaying) {
+          console.log('[PlaybackService] User interacted with document. Resuming active playback...');
           this.play();
-          store.setIsPlaying(true);
         }
-      } catch {}
+      } catch { }
     };
     window.addEventListener('pointerdown', unlock, { once: true, passive: true });
     window.addEventListener('keydown', unlock, { once: true, passive: true });
@@ -204,9 +204,10 @@ export class PlaybackService {
     this.isAutoplayRestricted = false;
     this.watchdogRetryCount = 0;
     const store = usePlayerStore.getState();
-    if (store.isLocalPlayback && (store.isPlaying || store.playbackIntent === 'PLAYING')) {
+    // NEVER auto-start if paused on startup restoration
+    if (store.isLocalPlayback && store.isPlaying && store.playbackIntent === 'PLAYING') {
       const active = this.getActiveAudio();
-      if (active && active.paused && active.src) {
+      if (active && active.paused && active.src && !active.src.startsWith('data:')) {
         console.log('[PlaybackService] Audio globally unlocked. Resuming active playback...');
         this.play();
       }
@@ -483,6 +484,9 @@ export class PlaybackService {
       const activeAudio = this.getActiveAudio();
       if (activeAudio) {
         activeAudio.pause();
+        if (activeAudio.dataset) {
+          activeAudio.dataset.trackId = song.id;
+        }
         if (activeAudio.src !== finalSrc) {
           activeAudio.src = finalSrc;
         }
@@ -491,6 +495,7 @@ export class PlaybackService {
             activeAudio.currentTime = positionSec;
           } catch { }
         }
+        activeAudio.pause();
       }
 
       MediaSessionManager.getInstance().updateMetadata({
@@ -619,7 +624,7 @@ export class PlaybackService {
 
       if (RaagaXNativePlayer.isNative()) {
         let finalSrc = '';
-        
+
         // 1. Instant Fast-Path: Use already-resolved or cached stream URL (< 5ms)
         if (song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
           finalSrc = song.audioUrl;
@@ -632,7 +637,7 @@ export class PlaybackService {
               resolvedSourceType = 'NETWORK_STREAM';
               song.audioUrl = finalSrc;
             }
-          } catch {}
+          } catch { }
         }
 
         // 2. Fallback Resolution: Resolve only if not already cached
@@ -645,7 +650,7 @@ export class PlaybackService {
               song.audioUrl = finalSrc;
               try {
                 PlayableUrlCache.getInstance().set(song.id, finalSrc, [finalSrc], resolvedSourceType === 'LOCAL_DOWNLOAD' ? 'offline' : 'remote');
-              } catch {}
+              } catch { }
               // Update native player queue URL just-in-time
               await RaagaXNativePlayer.updateQueueUrl(song.id, finalSrc);
             }
@@ -858,7 +863,7 @@ export class PlaybackService {
             store.setPlaybackIntent('PLAYING');
             try {
               store.setToastMessage('Tap anywhere to play on this device');
-            } catch {}
+            } catch { }
             this.emitPlaybackReady(song.id, activeAudio.duration || song.duration || 0, requestId);
             this.attachAutoplayUnlockHandler();
             return true;
@@ -1008,9 +1013,9 @@ export class PlaybackService {
     if (active) {
       const currentSong = usePlayerStore.getState().currentSong;
       const isInvalidSrc = typeof window !== 'undefined' && (
-        !active.src || 
-        active.src === 'about:blank' || 
-        active.src === window.location.href || 
+        !active.src ||
+        active.src === 'about:blank' ||
+        active.src === window.location.href ||
         active.src.startsWith('data:') ||
         active.src.endsWith('/null')
       );
@@ -1040,7 +1045,7 @@ export class PlaybackService {
               this.watchdogRetryCount = 2;
               try {
                 usePlayerStore.getState().setToastMessage('Click anywhere to enable audio playback');
-              } catch {}
+              } catch { }
               this.attachAutoplayUnlockHandler();
             } else if (err?.name !== 'AbortError') {
               console.warn('[PlaybackService] play() error:', err);
@@ -1242,12 +1247,6 @@ export class PlaybackService {
     console.log(`[PLAYBACK_ENDED] trackId=${endedTrackId} generation=${generation} tag=${tag}`);
     // Pass isNaturalEnd=true so playNext preserves continuous auto-advance
     this.playNextTrack(true);
-
-    if (store.isLocalPlayback) {
-      import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
-        PlaybackStateManager.getInstance().syncNow();
-      }).catch(() => {});
-    }
   }
 
   private handleNativeTimeUpdate(tag: 'A' | 'B') {
@@ -1258,21 +1257,6 @@ export class PlaybackService {
     if (!active || !standby) return;
 
     const store = usePlayerStore.getState();
-
-    // Background Spotify Connect Keep-Alive & Auto-Sync
-    // On mobile devices, setInterval is throttled by the OS when the screen is locked,
-    // but native audio timeupdate events fire continuously!
-    // Every 3 seconds during active playback, ensure channels are alive and pump syncNow()
-    const now = Date.now();
-    if (store.isLocalPlayback && store.isPlaying && now - this.lastConnectSyncTime > 3000) {
-      this.lastConnectSyncTime = now;
-      import('@/lib/connect/DiscoveryEngine').then(({ DiscoveryEngine }) => {
-        DiscoveryEngine.getInstance().ensureChannelsConnected();
-      }).catch(() => {});
-      import('@/lib/connect/PlaybackStateManager').then(({ PlaybackStateManager }) => {
-        PlaybackStateManager.getInstance().syncNow();
-      }).catch(() => {});
-    }
 
     // Anchor PlaybackEngine clock for smooth 60fps rAF predictions
     PlaybackEngine.getInstance().anchor();

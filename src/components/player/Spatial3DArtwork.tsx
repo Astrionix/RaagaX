@@ -199,7 +199,7 @@ export function Spatial3DArtwork({
         <img
           src={coverUrl}
           alt={currentSong.title}
-          className="w-full h-full object-cover rounded-[28px] sm:rounded-[32px] transition-transform duration-700 ease-out"
+          className="w-full h-full object-contain rounded-[28px] sm:rounded-[32px] transition-transform duration-700 ease-out"
           style={{
             transform: isPlaying && !prefersReducedMotion ? 'scale(1.01)' : 'scale(1.0)',
           }}

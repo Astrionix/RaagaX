@@ -99,12 +99,13 @@ export function AndroidPlaybackPlayerCard({
       {/* ── 2. HEADER & TRACK INFO (Artwork + RaagaX Badge + Output Device) ── */}
       <div className="relative z-10 flex items-start gap-3.5 mb-3.5">
         {/* Original Album Artwork (60dp, rounded-2xl, subtle shadow) */}
-        <div className="relative w-15 h-15 rounded-2xl overflow-hidden shadow-[0_8px_18px_rgba(0,0,0,0.5)] border border-white/20 flex-shrink-0">
+        <div className="relative w-15 h-15 rounded-2xl overflow-hidden shadow-[0_8px_18px_rgba(0,0,0,0.5)] border border-white/20 flex-shrink-0 bg-black/40 flex items-center justify-center">
           <OptimizedImage
             src={coverUrl}
             alt={currentSong.title}
             size="card"
-            className="w-full h-full object-cover"
+            imageFit="contain"
+            className="w-full h-full object-contain"
           />
         </div>
 

@@ -9,7 +9,6 @@ import {
   Check, Loader2, Search, X
 } from 'lucide-react';
 import { InsightsView } from '@/components/views/InsightsView';
-import { ArtistsView } from '@/components/views/ArtistsView';
 import { AlbumsView } from '@/components/views/AlbumsView';
 import { GenresView } from '@/components/views/GenresView';
 import { usePlayerStore, isOfflineMode } from '@/context/usePlayerStore';
@@ -407,7 +406,6 @@ export function LibraryView() {
     { id: 'liked', label: 'Liked Songs', subtitle: 'Your favorite tracks', icon: Heart, color: 'text-[#F51B3D]', bg: 'bg-[#F51B3D]/10' },
     { id: 'playlists', label: 'Playlists', subtitle: 'Your personal & collaborative playlists', icon: ListMusic, color: 'text-purple-400', bg: 'bg-purple-500/10' },
     { id: 'albums', label: 'Albums', subtitle: 'Saved audio releases', icon: Disc, color: 'text-rose-400', bg: 'bg-rose-500/10' },
-    { id: 'artists', label: 'Artists', subtitle: 'Followed artist catalog', icon: User, color: 'text-blue-400', bg: 'bg-blue-500/10' },
   ];
 
   const handlePlayAll = (songs: Song[], shuffle = false) => {
@@ -1241,11 +1239,6 @@ export function LibraryView() {
         activeSubtitle = 'Listening activity and top charts';
         content = <InsightsView />;
         break;
-      case 'artists':
-        activeLabel = 'Artists';
-        activeSubtitle = 'Followed artists and releases';
-        content = <ArtistsView />;
-        break;
       case 'albums':
         activeLabel = 'Albums';
         activeSubtitle = 'Saved album catalog';
@@ -1558,7 +1551,6 @@ export function LibraryView() {
           { id: 'playlists', label: 'Playlists', icon: ListMusic, color: 'text-purple-400', count: `${userPlaylists.length}` },
           { id: 'songs', label: 'Songs', icon: Music, color: 'text-cyan-400', count: `${downloadedSongs.length}` },
           { id: 'albums', label: 'Albums', icon: Disc, color: 'text-rose-400', count: `${downloadedAlbums.length || favoriteAlbumIds.length}` },
-          { id: 'artists', label: 'Artists', icon: User, color: 'text-blue-400', count: `${favoriteArtistIds.length || POPULAR_ARTISTS.length}` },
         ].map((item) => {
           const Icon = item.icon;
           return (

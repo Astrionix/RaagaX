@@ -5,7 +5,6 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { PlayerBar } from '@/components/layout/Navbar';
 import { RightQueuePanel } from '@/components/layout/RightQueuePanel';
-import { RightConnectPanel } from '@/components/connect/RightConnectPanel';
 import { MobileBottomController } from '@/components/layout/MobileBottomController';
 import { AudioPlayerController } from '@/components/player/AudioPlayerController';
 import { LyricsPanel } from '@/components/lyrics/LyricsPanel';
@@ -26,7 +25,6 @@ import { OfflineStorageSetupModal } from '@/components/modals/OfflineStorageSetu
 import { PermissionOnboardingModal } from '@/components/onboarding/PermissionOnboardingModal';
 import { LanguageOnboardingModal } from '@/components/onboarding/LanguageOnboardingModal';
 import { UpdateModal } from '@/components/modals/UpdateModal';
-import { ConnectModal } from '@/components/connect/ConnectModal';
 
 import { CreatePlaylistModal } from '@/components/modals/CreatePlaylistModal';
 import { NotificationCenterModal } from '@/components/modals/NotificationCenterModal';
@@ -44,7 +42,6 @@ import { PlaylistDetailView } from '@/components/views/PlaylistDetailView';
 import { AlbumDetailView } from '@/components/views/AlbumDetailView';
 import { AlbumsView } from '@/components/views/AlbumsView';
 import { ArtistDetailView } from '@/components/views/ArtistDetailView';
-import { ArtistsView } from '@/components/views/ArtistsView';
 import { ProfileView } from '@/components/views/ProfileView';
 import { DownloadsView } from '@/components/views/DownloadsView';
 import { FavoritesView } from '@/components/views/FavoritesView';
@@ -60,14 +57,12 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
 
 import { useGlobalKeyboardShortcuts } from '@/hooks/useGlobalKeyboardShortcuts';
-import { useConnect } from '@/hooks/useConnect';
 
 export default function Page() {
   const {
     activeTab,
     selectedArtistId,
     selectedAlbumId,
-    rightPanelMode,
     isQueueOpen,
     toggleQueue,
     isWrappedModalOpen,
@@ -82,32 +77,15 @@ export default function Page() {
     toggleNotificationShade,
     isSystemSurfacesOpen,
     toggleSystemSurfaces,
-    isConnectModalOpen,
-    toggleConnectModal,
     isLocalPlayback,
   } = usePlayerStore();
   const { isSetupModalOpen, setSetupModalOpen } = useDownloadStore();
   const { user } = useAuthStore();
-  const connect = useConnect(user?.id);
 
   React.useEffect(() => {
     useAuthStore.getState().initializeAuth();
   }, []);
 
-  // Spotify Jam: Auto-join room if opened with ?jam=PIN invite link
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const jamCode = params.get('jam');
-      if (jamCode) {
-        import('@/lib/jam/JamSessionManager').then(({ JamSessionManager }) => {
-          JamSessionManager.getInstance().joinJam(jamCode);
-          usePlayerStore.getState().setToastMessage(`Joining Jam room #${jamCode}...`);
-        });
-      }
-    } catch {}
-  }, []);
 
   // ── Global keyboard shortcuts (Space = play/pause, arrows = seek/volume, etc.)
   // Registered exactly once at the app root via AbortController — never duplicated.
@@ -120,11 +98,7 @@ export default function Page() {
     const handleBackNavigation = () => {
       const store = usePlayerStore.getState();
 
-      // 1. If Connect or Settings modal is open, close it
-      if (store.isConnectModalOpen) {
-        store.toggleConnectModal(false);
-        return true;
-      }
+
       if (store.isSettingsModalOpen) {
         store.toggleSettingsModal();
         return true;
@@ -263,7 +237,7 @@ export default function Page() {
               {activeTab === 'search' && <SearchView />}
               {activeTab === 'library' && <LibraryView />}
               {activeTab === 'genres' && <GenresView />}
-              {activeTab === 'artist' && (selectedArtistId ? <ArtistDetailView /> : <ArtistsView />)}
+              {activeTab === 'artist' && selectedArtistId && <ArtistDetailView />}
               {activeTab === 'album' && (selectedAlbumId ? <AlbumDetailView /> : <AlbumsView />)}
               {activeTab === 'playlist' && <PlaylistDetailView />}
               {activeTab === 'profile' && <ProfileView />}
@@ -281,32 +255,8 @@ export default function Page() {
 
           {/* Right Column (Toggled on desktop when isQueueOpen is true) */}
           {isQueueOpen && (
-            <div className={`queue-panel hidden xl:block w-[360px] min-w-[360px] h-full pt-6 ${
-              !isLocalPlayback ? 'pb-14' : 'pb-8'
-            } overflow-y-auto overflow-x-hidden border-l border-white/[0.04] bg-[var(--bg-secondary)] animate-in slide-in-from-right-4 duration-200`}>
-              {rightPanelMode === 'connect' ? (
-                <RightConnectPanel
-                  thisDevice={connect.thisDevice}
-                  availableDevices={connect.availableDevices}
-                  activePlayerDeviceId={connect.activePlayerDeviceId}
-                  isLocalSpeaker={connect.isLocalSpeaker}
-                  connectionState={connect.connectionState}
-                  activePairingPin={connect.activePairingPin}
-                  incomingPairingRequest={connect.incomingPairingRequest}
-                  diagnosticReport={connect.diagnosticReport}
-                  onConnectToDevice={connect.connectToDevice}
-                  onDisconnect={connect.disconnect}
-                  onSwitchPlayback={connect.switchPlaybackTo}
-                  onGeneratePin={connect.generatePairingPin}
-                  onSubmitPin={connect.submitPairingPin}
-                  onApprovePairing={connect.approvePairing}
-                  onRejectPairing={connect.rejectPairing}
-                  onRename={connect.renameDevice}
-                  onClose={() => toggleQueue()}
-                />
-              ) : (
-                <RightQueuePanel />
-              )}
+            <div className="queue-panel hidden xl:block w-[360px] min-w-[360px] h-full pt-6 pb-8 overflow-y-auto overflow-x-hidden border-l border-white/[0.04] bg-[var(--bg-secondary)] animate-in slide-in-from-right-4 duration-200">
+              <RightQueuePanel />
             </div>
           )}
         </div>
@@ -381,27 +331,6 @@ export default function Page() {
         onOpenNotificationShade={() => toggleNotificationShade(true)}
       />
 
-      {/* ── Connect to Device Modal ── */}
-      <ConnectModal
-        isOpen={isConnectModalOpen}
-        onClose={() => toggleConnectModal(false)}
-        thisDevice={connect.thisDevice}
-        availableDevices={connect.availableDevices}
-        activePlayerDeviceId={connect.activePlayerDeviceId}
-        isLocalSpeaker={connect.isLocalSpeaker}
-        connectionState={connect.connectionState}
-        activePairingPin={connect.activePairingPin}
-        incomingPairingRequest={connect.incomingPairingRequest}
-        diagnosticReport={connect.diagnosticReport}
-        onConnectToDevice={connect.connectToDevice}
-        onDisconnect={connect.disconnect}
-        onSwitchPlayback={connect.switchPlaybackTo}
-        onGeneratePin={connect.generatePairingPin}
-        onSubmitPin={connect.submitPairingPin}
-        onApprovePairing={connect.approvePairing}
-        onRejectPairing={connect.rejectPairing}
-        onRename={connect.renameDevice}
-      />
     </div>
   );
 }

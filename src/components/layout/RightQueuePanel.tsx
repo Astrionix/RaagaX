@@ -1,12 +1,10 @@
 'use client';
 
 import React from 'react';
-import { Trash2, Heart, X, ListMusic, Music2, Cast, Radio, Share2 } from 'lucide-react';
+import { Trash2, Heart, X, ListMusic, Music2 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { SongFormatter } from '@/lib/music/SongFormatter';
-import { useJam } from '@/hooks/useJam';
-import { JamInviteModal } from '@/components/jam/JamInviteModal';
 
 export function RightQueuePanel() {
   const [mounted, setMounted] = React.useState(false);
@@ -27,10 +25,7 @@ export function RightQueuePanel() {
     toggleAutoplay,
     reorderQueue,
     toggleQueue,
-    setRightPanelMode,
   } = usePlayerStore();
-
-  const { isInJam, isHost, roomPin, participantCount, inviteUrl, isInviteModalOpen, setIsInviteModalOpen, leaveJam, allowGuestControl, setAllowGuestControl, audioMode, setAudioMode, isLocalAudioOutput, setLocalAudioOutput } = useJam();
 
   const upNextQueue = mounted ? queue.slice(queueIndex + 1) : [];
 
@@ -43,38 +38,38 @@ export function RightQueuePanel() {
   };
 
   return (
-    <aside className="flex-1 flex flex-col text-white text-xs select-none p-4 h-full overflow-hidden">
+    <aside className="flex-1 flex flex-col text-[var(--text-primary)] text-xs select-none p-4 h-full overflow-hidden">
       {/* Header with Up Next, Autoplay Toggle, Clear and Close */}
-      <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-white/[0.08] flex-shrink-0">
+      <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-[var(--border-subtle)] flex-shrink-0">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="p-1.5 rounded-lg border flex-shrink-0 bg-[#fa233b]/15 text-[#fa233b] border-[#fa233b]/25">
             <ListMusic className="w-4 h-4" />
           </div>
           <div className="flex items-center gap-2 min-w-0">
-            <h3 className="font-black text-sm text-white tracking-tight">Queue</h3>
+            <h3 className="font-black text-sm text-[var(--text-primary)] tracking-tight">Queue</h3>
             {upNextQueue.length > 0 && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-slate-300 font-mono">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--surface-primary)] text-[var(--text-secondary)] font-mono border border-[var(--border-subtle)]">
                 {upNextQueue.length}
               </span>
             )}
           </div>
           
-          <div className="flex items-center gap-1.5 pl-2.5 border-l border-white/10">
-            <span className="text-[10px] font-bold text-slate-400">Autoplay</span>
-              <button
-                onClick={() => toggleAutoplay()}
-                className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${
-                  isAutoplayEnabled ? 'bg-[#fa233b]' : 'bg-slate-700'
-                }`}
-                title="Toggle Autoplay for similar songs"
-              >
-                <div 
-                  className={`w-3 h-3 rounded-full bg-white transition-transform ${
-                    isAutoplayEnabled ? 'translate-x-3' : 'translate-x-0'
-                  }`} 
-                />
-              </button>
-            </div>
+          <div className="flex items-center gap-1.5 pl-2.5 border-l border-[var(--border-subtle)]">
+            <span className="text-[10px] font-bold text-[var(--text-muted)]">Autoplay</span>
+            <button
+              onClick={() => toggleAutoplay()}
+              className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${
+                isAutoplayEnabled ? 'bg-[#fa233b]' : 'bg-slate-700'
+              }`}
+              title="Toggle Autoplay for similar songs"
+            >
+              <div 
+                className={`w-3 h-3 rounded-full bg-white transition-transform ${
+                  isAutoplayEnabled ? 'translate-x-3' : 'translate-x-0'
+                }`} 
+              />
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -88,7 +83,7 @@ export function RightQueuePanel() {
           )}
           <button
             onClick={toggleQueue}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
             title="Close Queue Panel"
             aria-label="Close Queue Panel"
           >
@@ -97,63 +92,24 @@ export function RightQueuePanel() {
         </div>
       </div>
 
-      {/* Mode Switcher Pill (Queue vs Devices) */}
-      <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl mb-3 flex-shrink-0 border border-white/5">
-        <button
-          onClick={() => setRightPanelMode("queue")}
-          className="flex-1 py-1.5 px-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 bg-[#fa233b] text-white shadow-sm cursor-default"
-        >
-          <ListMusic size={13} /> Queue
-        </button>
-        <button
-          onClick={() => setRightPanelMode("connect")}
-          className="flex-1 py-1.5 px-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 text-zinc-400 hover:text-white cursor-pointer"
-        >
-          <Cast size={13} /> Devices
-        </button>
-      </div>
-
-      {/* Jam Collaborative Queue Header */}
-      {mounted && isInJam && (
-        <div className="mb-3 p-2.5 rounded-xl bg-[#1ed760]/10 border border-[#1ed760]/30 flex items-center justify-between flex-shrink-0 animate-in fade-in">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-7 h-7 rounded-full bg-[#1ed760]/20 flex items-center justify-center flex-shrink-0">
-              <Radio size={14} className="text-[#1ed760] animate-pulse" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] font-bold text-[#1ed760] truncate leading-tight">Jam Shared Queue • #{roomPin}</p>
-              <p className="text-[10px] text-zinc-400 truncate leading-tight">{participantCount} listening together</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <button
-              onClick={() => setIsInviteModalOpen(true)}
-              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-              title="Invite Friends"
-            >
-              <Share2 size={13} />
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Currently Playing Card */}
       {mounted && currentSong && (
         <div className="p-3 rounded-2xl bg-gradient-to-r from-[#fa233b]/15 to-[#fa233b]/5 border border-[#fa233b]/30 flex items-center justify-between flex-shrink-0 min-w-0 w-full mb-3 shadow-md shadow-red-500/5">
           <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
-            <div className="relative w-10 h-10 rounded-xl overflow-hidden shadow-sm flex-shrink-0 border border-white/10">
+            <div className="relative w-10 h-10 rounded-xl overflow-hidden shadow-sm flex-shrink-0 border border-white/10 bg-black/40 flex items-center justify-center">
               <OptimizedImage
                 src={currentSong.coverUrl}
                 alt={currentSong.title}
-                className="w-full h-full object-cover"
+                imageFit="contain"
+                className="w-full h-full object-contain"
                 fallbackSrc="/app-icon.png"
               />
             </div>
             <div className="min-w-0 flex-1">
-              <h4 className="font-black text-xs text-white truncate leading-tight">
+              <h4 className="font-black text-xs text-[var(--text-primary)] truncate leading-tight">
                 {SongFormatter.cleanSongTitle(currentSong.title)}
               </h4>
-              <p className="text-[10px] text-slate-400 truncate mt-0.5 font-medium">
+              <p className="text-[10px] text-[var(--text-secondary)] truncate mt-0.5 font-medium">
                 {SongFormatter.decodeHtml(currentSong.artist) || currentSong.artist || 'Unknown Artist'}
               </p>
             </div>
@@ -164,7 +120,7 @@ export function RightQueuePanel() {
               className="p-1.5 hover:bg-[#fa233b]/20 rounded-full transition-colors cursor-pointer"
               title={likedSongIds.includes(currentSong.id) ? 'Unlike' : 'Like'}
             >
-              <Heart className={`w-3.5 h-3.5 ${likedSongIds.includes(currentSong.id) ? 'fill-[#fa233b] text-[#fa233b]' : 'text-slate-400'}`} />
+              <Heart className={`w-3.5 h-3.5 ${likedSongIds.includes(currentSong.id) ? 'fill-[#fa233b] text-[#fa233b]' : 'text-[var(--text-muted)]'}`} />
             </button>
             <span className="text-[9px] font-mono text-[#fa233b] font-extrabold px-1.5 py-0.5 rounded-full bg-[#fa233b]/15 border border-[#fa233b]/25">
               Playing
@@ -179,31 +135,31 @@ export function RightQueuePanel() {
           upNextQueue.map((item: any, idx) => {
             const song = item.song || item;
             const addedByName = item.addedByName;
-            const queueItemId = item.queueItemId;
 
             return (
               <div
                 key={`${song.id}-${idx}`}
-                className="p-2 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/5 flex items-center justify-between group cursor-pointer transition-all min-w-0 w-full"
+                className="p-2 rounded-xl hover:bg-[var(--surface-hover)] border border-transparent hover:border-[var(--border-subtle)] flex items-center justify-between group cursor-pointer transition-all min-w-0 w-full"
               >
                 <div
                   onClick={() => playSong(song)}
                   className="flex items-center gap-3 min-w-0 flex-1 pr-2"
                 >
-                  <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-sm flex-shrink-0 border border-white/5">
+                  <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-sm flex-shrink-0 border border-[var(--border-subtle)] bg-black/40 flex items-center justify-center">
                     <OptimizedImage
                       src={song.coverUrl}
                       alt={song.title}
-                      className="w-full h-full object-cover"
+                      imageFit="contain"
+                      className="w-full h-full object-contain"
                       fallbackSrc="/app-icon.png"
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h4 className="font-bold text-xs text-white truncate leading-tight group-hover:text-[#fa233b] transition-colors">
+                    <h4 className="font-bold text-xs text-[var(--text-primary)] truncate leading-tight group-hover:text-[#fa233b] transition-colors">
                       {SongFormatter.cleanSongTitle(song.title)}
                     </h4>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      <p className="text-[10px] text-slate-400 truncate leading-tight font-medium">
+                      <p className="text-[10px] text-[var(--text-secondary)] truncate leading-tight font-medium">
                         {SongFormatter.decodeHtml(song.artist) || song.artist || 'Unknown Artist'}
                       </p>
                       {addedByName && (
@@ -220,14 +176,14 @@ export function RightQueuePanel() {
                     className={`p-1 transition-colors cursor-pointer ${likedSongIds.includes(song.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
                     title={likedSongIds.includes(song.id) ? 'Unlike' : 'Like'}
                   >
-                    <Heart className={`w-3.5 h-3.5 ${likedSongIds.includes(song.id) ? 'fill-[#fa233b] text-[#fa233b]' : 'text-slate-400 hover:text-white'}`} />
+                    <Heart className={`w-3.5 h-3.5 ${likedSongIds.includes(song.id) ? 'fill-[#fa233b] text-[#fa233b]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`} />
                   </button>
-                  <span className="text-[10px] font-mono text-slate-500 font-medium">
+                  <span className="text-[10px] font-mono text-[var(--text-muted)] font-medium">
                     {song.duration ? `${Math.floor(Number(song.duration) / 60)}:${Math.floor(Number(song.duration) % 60).toString().padStart(2, '0')}` : '3:45'}
                   </span>
                   <button
                     onClick={() => removeFromQueue(song.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-400 transition-opacity cursor-pointer"
+                    className="opacity-0 group-hover:opacity-100 p-1 text-[var(--text-muted)] hover:text-red-400 transition-opacity cursor-pointer"
                     title="Remove from queue"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -237,30 +193,13 @@ export function RightQueuePanel() {
             );
           })
         ) : (
-          <div className="py-12 flex flex-col items-center justify-center text-center text-slate-500 text-xs font-semibold gap-2">
-            <Music2 className="w-8 h-8 text-slate-600/60" />
+          <div className="py-12 flex flex-col items-center justify-center text-center text-[var(--text-muted)] text-xs font-semibold gap-2">
+            <Music2 className="w-8 h-8 opacity-60" />
             <p>Queue is empty</p>
-            <p className="text-[10px] text-slate-600 font-normal">Play a track or add songs to queue</p>
+            <p className="text-[10px] opacity-70 font-normal">Play a track or add songs to queue</p>
           </div>
         )}
       </div>
-
-      {/* Jam Invite Modal */}
-      <JamInviteModal
-        isOpen={isInviteModalOpen}
-        onClose={() => setIsInviteModalOpen(false)}
-        roomPin={roomPin}
-        inviteUrl={inviteUrl}
-        participantCount={participantCount}
-        onLeaveJam={leaveJam}
-        isHost={isHost}
-        allowGuestControl={allowGuestControl}
-        onToggleGuestControl={setAllowGuestControl}
-        audioMode={audioMode}
-        onSetAudioMode={setAudioMode}
-        isLocalAudioOutput={isLocalAudioOutput}
-        onSetLocalAudioOutput={setLocalAudioOutput}
-      />
     </aside>
   );
 }

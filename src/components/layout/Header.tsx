@@ -48,7 +48,7 @@ export function Header() {
           {/* Profile Avatar on Top Right -> Opens Profile Menu Drawer */}
           <button
             onClick={() => setIsProfileMenuOpen(true)}
-            className="w-8 h-8 rounded-full overflow-hidden border border-white/20 bg-white/10 hover:border-white/40 transition-all flex items-center justify-center text-white font-bold text-xs shadow-sm cursor-pointer active:scale-95 flex-shrink-0"
+            className="w-8 h-8 rounded-full overflow-hidden border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[#FA233B]/40 transition-all flex items-center justify-center text-[var(--text-primary)] font-bold text-xs shadow-sm cursor-pointer active:scale-95 flex-shrink-0"
             title="Account & Menu"
             aria-label="Account & Menu"
           >
