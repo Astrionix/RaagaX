@@ -56,7 +56,7 @@ import com.raagax.music.playback.OfflineQueueResolver;
 public class RaagaXPlaybackService extends Service {
 
     private static final String TAG         = "RaagaXPlaybackService";
-    public  static final String CHANNEL_ID  = "raagax_playback_channel";
+    public  static final String CHANNEL_ID  = "raagax_playback_channel_v2";
     public  static final int    NOTIF_ID    = 1001;
 
     private static RaagaXPlaybackService instance;
@@ -1875,12 +1875,22 @@ public class RaagaXPlaybackService extends Service {
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel ch = new NotificationChannel(
-                    CHANNEL_ID, "RaagaX Music", NotificationManager.IMPORTANCE_LOW);
-            ch.setDescription("RaagaX background playback");
-            ch.setShowBadge(false);
             NotificationManager nm = getSystemService(NotificationManager.class);
-            if (nm != null) nm.createNotificationChannel(ch);
+            if (nm != null) {
+                // Purge legacy channel so that updated lockscreen attributes are not blocked by OS channel cache
+                try {
+                    nm.deleteNotificationChannel("raagax_playback_channel");
+                } catch (Exception ignored) {}
+
+                NotificationChannel ch = new NotificationChannel(
+                        CHANNEL_ID, "RaagaX Music Playback", NotificationManager.IMPORTANCE_LOW);
+                ch.setDescription("Active music playback and lockscreen media controls");
+                ch.setShowBadge(true);
+                ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+                ch.enableVibration(false);
+                ch.setSound(null, null);
+                nm.createNotificationChannel(ch);
+            }
         }
     }
 
@@ -1919,13 +1929,19 @@ public class RaagaXPlaybackService extends Service {
             }
         }
 
+        int smallIcon = R.drawable.ic_launcher_monochrome;
+        if (smallIcon == 0) {
+            smallIcon = android.R.drawable.ic_media_play;
+        }
+
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(R.mipmap.ic_launcher)
+                .setSmallIcon(smallIcon)
                 .setContentTitle(notifTitle)
                 .setContentText(notifArtist)
                 .setContentIntent(pi)
                 .setOngoing(isPlaying)
                 .setSilent(true)
+                .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
 
         if (currentArtworkBitmap != null) {

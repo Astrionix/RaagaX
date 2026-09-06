@@ -24,6 +24,7 @@ import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { SongFormatter } from '@/lib/music/SongFormatter';
 import { PersonalizationEngine } from '@/lib/recommendation/PersonalizationEngine';
 import { haptics } from '@/lib/haptics/HapticEngine';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 export function SearchView() {
   const {
@@ -222,7 +223,7 @@ export function SearchView() {
     const fetchTrends = async () => {
       try {
         const lang = preferredLanguage || 'Telugu';
-        const res = await fetch(`/api/home/trending-searches?lang=${encodeURIComponent(lang)}`);
+        const res = await fetch(getApiUrl(`/api/home/trending-searches?lang=${encodeURIComponent(lang)}`));
         if (res.ok) {
           const json = await res.json();
           if (!isCancelled && Array.isArray(json.data) && json.data.length > 0) {

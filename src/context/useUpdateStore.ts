@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { registerPlugin, Capacitor } from '@capacitor/core';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 export type UpdateState =
   | 'IDLE'
@@ -167,7 +168,7 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
 
       set({ state: 'CHECKING', error: null });
 
-      const response = await fetch('/api/app/version', {
+      const response = await fetch(getApiUrl('/api/app/version'), {
         headers: { 'Cache-Control': 'no-cache' }
       });
 

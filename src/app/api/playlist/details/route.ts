@@ -38,24 +38,38 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 2. Fetch via internal API if direct getPlaylistSongs returned empty
-    const saavnRes = await fetch(`${baseUrl}/api/playlists?id=${encodeURIComponent(playlistId)}&limit=${limitParam}`);
-    if (saavnRes.ok) {
-      const saavnJson = await saavnRes.json();
-      const data = saavnJson?.data;
-      if (data && Array.isArray(data.songs) && data.songs.length > 0) {
-        const mappedSongs = data.songs.map(mapTrackToSong);
-        const coverUrl = data.image?.[data.image.length - 1]?.url || data.image?.[0]?.url || mappedSongs[0]?.coverUrl || '/app-icon.png';
-        return NextResponse.json({
-          success: true,
-          playlist: {
-            id: playlistId,
-            title: data.name || data.title || `${lang} Playlist`,
-            coverUrl: typeof coverUrl === 'string' ? coverUrl.replace(/150x150|50x50/g, '500x500') : '/app-icon.png',
-            songs: mappedSongs
-          }
-        });
+    // 2. Fetch via internal API or raaga.me if direct getPlaylistSongs returned empty
+    let data: any = null;
+    try {
+      const saavnRes = await fetch(`${baseUrl}/api/playlists?id=${encodeURIComponent(playlistId)}&limit=${limitParam}`);
+      if (saavnRes.ok) {
+        const saavnJson = await saavnRes.json();
+        data = saavnJson?.data;
       }
+    } catch {}
+
+    if (!data && baseUrl !== 'https://raaga.me') {
+      try {
+        const raagaRes = await fetch(`https://raaga.me/api/playlists?id=${encodeURIComponent(playlistId)}&limit=${limitParam}`);
+        if (raagaRes.ok) {
+          const raagaJson = await raagaRes.json();
+          data = raagaJson?.data;
+        }
+      } catch {}
+    }
+
+    if (data && Array.isArray(data.songs) && data.songs.length > 0) {
+      const mappedSongs = data.songs.map(mapTrackToSong);
+      const coverUrl = data.image?.[data.image.length - 1]?.url || data.image?.[0]?.url || mappedSongs[0]?.coverUrl || '/app-icon.png';
+      return NextResponse.json({
+        success: true,
+        playlist: {
+          id: playlistId,
+          title: data.name || data.title || `${lang} Playlist`,
+          coverUrl: typeof coverUrl === 'string' ? coverUrl.replace(/150x150|50x50/g, '500x500') : '/app-icon.png',
+          songs: mappedSongs
+        }
+      });
     }
 
     return NextResponse.json({

@@ -3,6 +3,7 @@ import dynamicPlaylistsData from '@/lib/dynamic_home_playlists.json';
 import { getCuratedPlaylists } from '@/constants/playlists';
 import { RealMusicEngine } from '@/lib/realMusicEngine';
 import { SongUniquenessEngine } from '@/lib/music/SongUniquenessEngine';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 const dynamicPlaylists = dynamicPlaylistsData as Record<string, any>;
 
@@ -93,32 +94,14 @@ export class PlaylistDetailResolver {
       }
     }
 
-    // 3. Attempt direct API fetch from /api/playlist/details
+    // 3. Attempt direct API fetch from /api/playlists or /api/playlist/details
     const targetLang = foundMeta?.language || preferredLanguage || 'Telugu';
-    try {
-      const res = await fetch(`/api/playlist/details?playlistId=${encodeURIComponent(playlistId)}&lang=${encodeURIComponent(targetLang)}`);
-      if (res.ok) {
-        const json = await res.json();
-        if (json?.playlist?.songs && json.playlist.songs.length > 0) {
-          return {
-            id: playlistId,
-            title: foundMeta?.title || json.playlist.title || 'Curated Playlist',
-            description: foundMeta?.desc || `${targetLang} • ${json.playlist.songs.length} Tracks`,
-            coverUrl: foundMeta?.coverUrl || json.playlist.coverUrl || '/app-icon.png',
-            songs: SongUniquenessEngine.deduplicate(json.playlist.songs),
-            isUserOwned: false,
-            isCollaborative: false,
-          };
-        }
-      }
-    } catch {}
-
-    // Fallback: RealMusicEngine catalog lookup
     const realEngine = RealMusicEngine.getInstance();
     let apiSongs: Song[] = [];
     let apiTitle = '';
     let apiCover = '';
 
+    // First try RealMusicEngine catalog lookup (authoritative for JioSaavn playlist IDs)
     try {
       const apiResult = await realEngine.getPlaylistDetails(playlistId);
       if (apiResult && apiResult.songs && apiResult.songs.length > 0) {
@@ -128,10 +111,26 @@ export class PlaylistDetailResolver {
       }
     } catch {}
 
-    if (apiSongs.length >= 8) {
+    // Next try /api/playlist/details via absolute getApiUrl if needed
+    if (apiSongs.length === 0) {
+      try {
+        const fullUrl = getApiUrl(`/api/playlist/details?playlistId=${encodeURIComponent(playlistId)}&lang=${encodeURIComponent(targetLang)}`);
+        const res = await fetch(fullUrl, { signal: AbortSignal.timeout(6000) });
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.playlist?.songs && json.playlist.songs.length > 0) {
+            apiSongs = json.playlist.songs;
+            if (json.playlist.title) apiTitle = json.playlist.title;
+            if (json.playlist.coverUrl) apiCover = json.playlist.coverUrl;
+          }
+        }
+      } catch {}
+    }
+
+    if (apiSongs.length > 0) {
       const finalTitle = foundMeta?.title || apiTitle || 'Curated Playlist';
       const finalCover = foundMeta?.coverUrl || apiCover || '/app-icon.png';
-      const finalDesc = foundMeta?.desc || `Curated Playlist • ${apiSongs.length} Tracks`;
+      const finalDesc = foundMeta?.desc || `${targetLang} • ${apiSongs.length} Tracks`;
 
       return {
         id: playlistId,
@@ -152,9 +151,10 @@ export class PlaylistDetailResolver {
       .replace(/[-–:]*\s*(Telugu|Hindi|Tamil|Kannada|Malayalam|Punjabi|English)\s*$/i, '')
       .trim();
 
-    // Formulate 2 distinct high-yield queries
-    const primaryQuery = `${cleanTitle} ${targetLang} Hits`;
-    const secondaryQuery = `${cleanTitle} Best Songs`;
+    // If cleanTitle is purely numeric, formulate generic top queries for target language
+    const isNumeric = /^\d+$/.test(cleanTitle);
+    const primaryQuery = isNumeric ? `${targetLang} Top Hits` : `${cleanTitle} ${targetLang} Hits`;
+    const secondaryQuery = isNumeric ? `${targetLang} Trending Songs` : `${cleanTitle} Best Songs`;
 
     const [primaryResults, secondaryResults] = await Promise.all([
       realEngine.searchRealSongs(primaryQuery, 25).catch(() => []),

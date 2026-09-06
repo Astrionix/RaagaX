@@ -21,8 +21,8 @@ export function getSyncWebSocketUrl(): string {
   return process.env.NEXT_PUBLIC_SYNC_WS_URL || RENDER_COORDINATOR_WS;
 }
 
-export const PRODUCTION_DOMAIN = 'https://raaga.padalalmrreddy.workers.dev';
-export const WORKERS_DEV_URL = 'https://raaga.padalalmrreddy.workers.dev';
+export const PRODUCTION_DOMAIN = 'https://raaga.me';
+export const WORKERS_DEV_URL = 'https://raaga.me';
 
 export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {

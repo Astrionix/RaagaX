@@ -30,14 +30,16 @@ function isCapacitorNative(): boolean {
   if (typeof cap.isNativePlatform === 'function' && cap.isNativePlatform()) {
     return true;
   }
-  if (typeof cap.getPlatform === 'function' && (cap.getPlatform() === 'android' || cap.getPlatform() === 'ios')) {
-    return true;
+  if (typeof cap.getPlatform === 'function') {
+    const p = cap.getPlatform();
+    if (p === 'android' || p === 'ios') return true;
   }
-  return Boolean(cap.Plugins?.RaagaXPlayer);
+  if ((window as any).androidBridge) return true;
+  return false;
 }
 
 function getPlugin() {
-  if (typeof window === 'undefined') return null;
+  if (!isCapacitorNative()) return null;
   const cap = (window as any).Capacitor;
   return cap?.Plugins?.RaagaXPlayer || RaagaXPlayerPlugin || null;
 }
@@ -71,65 +73,99 @@ export const RaagaXNativePlayer = {
    * PRIMARY API — hands the complete playlist to ExoPlayer.
    * ExoPlayer auto-advances through all items natively in the background.
    * The WebView does NOT need to wake up for each track transition.
-   *
-   * @param tracks  Full ordered list of tracks for this playback session
-   * @param startIndex  Index of the track to start playing immediately
-   * @param autoPlay  Whether to start playing immediately
-   * @param startPositionMs Initial position offset
-   * @param requestId  Unique transition/generation identifier
    */
   async setQueue(tracks: NativeTrackItem[], startIndex: number = 0, autoPlay: boolean = true, startPositionMs: number = 0, requestId?: number): Promise<void> {
+    if (!isCapacitorNative()) return;
     const plugin = getPlugin();
     if (!plugin || !tracks || tracks.length === 0) return;
-    await plugin.setQueue({ tracks, startIndex, autoPlay, startPositionMs, requestId: requestId || 0 });
+    try {
+      await plugin.setQueue({ tracks, startIndex, autoPlay, startPositionMs, requestId: requestId || 0 });
+    } catch (e) {
+      console.warn('[RaagaXNativePlayer] setQueue error:', e);
+    }
   },
 
   // ── Legacy single-track API (kept for compatibility) ──────────────────────
 
   async play(options: NativeTrackItem, requestId?: number): Promise<void> {
+    if (!isCapacitorNative()) return;
     const plugin = getPlugin();
     if (!plugin) return;
-    await plugin.play({ ...options, requestId: requestId || 0 });
+    try {
+      await plugin.play({ ...options, requestId: requestId || 0 });
+    } catch (e) {
+      console.warn('[RaagaXNativePlayer] play error:', e);
+    }
   },
 
   async setNextTrack(options: NativeTrackItem): Promise<void> {
+    if (!isCapacitorNative()) return;
     const plugin = getPlugin();
     if (!plugin) return;
-    await plugin.setNextTrack(options);
+    try {
+      await plugin.setNextTrack(options);
+    } catch (e) {
+      console.warn('[RaagaXNativePlayer] setNextTrack error:', e);
+    }
   },
 
   async setNextTracksBatch(tracks: NativeTrackItem[]): Promise<void> {
+    if (!isCapacitorNative()) return;
     const plugin = getPlugin();
     if (!plugin || !tracks || tracks.length === 0) return;
-    await plugin.setNextTracksBatch({ tracks });
+    try {
+      await plugin.setNextTracksBatch({ tracks });
+    } catch (e) {
+      console.warn('[RaagaXNativePlayer] setNextTracksBatch error:', e);
+    }
   },
 
   // ── Playback controls ─────────────────────────────────────────────────────
 
   async pause(): Promise<void> {
+    if (!isCapacitorNative()) return;
     const plugin = getPlugin();
     if (!plugin) return;
     lastCachedNativeState.isPlaying = false;
-    await plugin.pause();
+    try {
+      await plugin.pause();
+    } catch (e) {
+      console.warn('[RaagaXNativePlayer] pause error:', e);
+    }
   },
 
   async resume(): Promise<void> {
+    if (!isCapacitorNative()) return;
     const plugin = getPlugin();
     if (!plugin) return;
     lastCachedNativeState.isPlaying = true;
-    await plugin.resume();
+    try {
+      await plugin.resume();
+    } catch (e) {
+      console.warn('[RaagaXNativePlayer] resume error:', e);
+    }
   },
 
   async next(): Promise<void> {
+    if (!isCapacitorNative()) return;
     const plugin = getPlugin();
     if (!plugin) return;
-    await plugin.next();
+    try {
+      await plugin.next();
+    } catch (e) {
+      console.warn('[RaagaXNativePlayer] next error:', e);
+    }
   },
 
   async previous(): Promise<void> {
+    if (!isCapacitorNative()) return;
     const plugin = getPlugin();
     if (!plugin) return;
-    await plugin.previous();
+    try {
+      await plugin.previous();
+    } catch (e) {
+      console.warn('[RaagaXNativePlayer] previous error:', e);
+    }
   },
 
   async prev(): Promise<void> {
@@ -137,44 +173,74 @@ export const RaagaXNativePlayer = {
   },
 
   async seekTo(positionMs: number): Promise<void> {
+    if (!isCapacitorNative()) return;
     const plugin = getPlugin();
     if (!plugin) return;
     lastCachedNativeState.positionMs = positionMs;
-    console.log('[SEEK] RaagaXNativePlayer plugin.seekTo:', positionMs);
-    await plugin.seekTo({ positionMs });
+    try {
+      await plugin.seekTo({ positionMs });
+    } catch (e) {
+      console.warn('[RaagaXNativePlayer] seekTo error:', e);
+    }
   },
 
   async setVolume(volume: number): Promise<void> {
+    if (!isCapacitorNative()) return;
     const plugin = getPlugin();
     if (!plugin) return;
-    await plugin.setVolume({ volume });
+    try {
+      await plugin.setVolume({ volume });
+    } catch (e) {
+      console.warn('[RaagaXNativePlayer] setVolume error:', e);
+    }
   },
 
   async setPlaybackRate(rate: number): Promise<void> {
+    if (!isCapacitorNative()) return;
     const plugin = getPlugin();
     if (!plugin) return;
-    await plugin.setPlaybackRate({ rate });
+    try {
+      await plugin.setPlaybackRate({ rate });
+    } catch (e) {
+      console.warn('[RaagaXNativePlayer] setPlaybackRate error:', e);
+    }
   },
 
   async updateQueueUrl(trackId: string, url: string): Promise<void> {
+    if (!isCapacitorNative()) return;
     const plugin = getPlugin();
     if (!plugin) return;
-    await plugin.updateQueueUrl({ trackId, url });
+    try {
+      await plugin.updateQueueUrl({ trackId, url });
+    } catch (e) {
+      console.warn('[RaagaXNativePlayer] updateQueueUrl error:', e);
+    }
   },
 
   async setLoudnessNormalizationEnabled(enabled: boolean): Promise<void> {
+    if (!isCapacitorNative()) return;
     const plugin = getPlugin();
     if (!plugin) return;
-    await plugin.setLoudnessNormalizationEnabled({ enabled });
+    try {
+      await plugin.setLoudnessNormalizationEnabled({ enabled });
+    } catch (e) {
+      console.warn('[RaagaXNativePlayer] setLoudnessNormalizationEnabled error:', e);
+    }
   },
 
   async setRepeatMode(repeatMode: string): Promise<void> {
+    if (!isCapacitorNative()) return;
     const plugin = getPlugin();
     if (!plugin) return;
-    await plugin.setRepeatMode({ repeatMode });
+    try {
+      await plugin.setRepeatMode({ repeatMode });
+    } catch (e) {
+      console.warn('[RaagaXNativePlayer] setRepeatMode error:', e);
+    }
   },
 
   async getPlaybackState(): Promise<NativePlaybackState> {
+    if (!isCapacitorNative()) return lastCachedNativeState;
     const plugin = getPlugin();
     if (!plugin) return lastCachedNativeState;
     try {

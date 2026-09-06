@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { LocalDatabase } from '@/lib/offline/LocalDatabase';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 export type UserEventType =
   | 'SEARCH'
@@ -149,7 +150,7 @@ export class UserBehaviorTracker {
         timestamp: item.timestamp,
       }));
 
-      await fetch('/api/preferences/events', {
+      await fetch(getApiUrl('/api/preferences/events'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

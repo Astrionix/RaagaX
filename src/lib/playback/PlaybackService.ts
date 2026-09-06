@@ -450,6 +450,7 @@ export class PlaybackService {
 
     const store = usePlayerStore.getState();
     if (!store.isLocalPlayback) return;
+    if (!RaagaXNativePlayer.isNative()) return;
 
     const isActuallyOffline =
       store.networkMode === 'offline' ||

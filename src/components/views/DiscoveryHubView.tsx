@@ -35,6 +35,7 @@ import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { Song } from '@/types/music';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 export type DiscoveryCategory = 'language' | 'new_music' | 'charts' | 'playlists' | 'mood' | 'genres' | 'combinatorial';
 
@@ -133,7 +134,7 @@ export function DiscoveryHubView({ initialCategory, onBack }: DiscoveryHubViewPr
   useEffect(() => {
     if (activeCategory === 'new_music') {
       setIsLoadingNewMusic(true);
-      fetch(`/api/home/discovery?type=new_music&lang=${encodeURIComponent(preferredLanguage)}`)
+      fetch(getApiUrl(`/api/home/discovery?type=new_music&lang=${encodeURIComponent(preferredLanguage)}`))
         .then((res) => res.json())
         .then((json) => {
           if (json.data) setNewMusicData(json.data);
@@ -147,7 +148,7 @@ export function DiscoveryHubView({ initialCategory, onBack }: DiscoveryHubViewPr
   useEffect(() => {
     if (activeCategory === 'charts') {
       setIsLoadingCharts(true);
-      fetch(`/api/home/discovery?type=charts&lang=${encodeURIComponent(chartsLanguage)}`)
+      fetch(getApiUrl(`/api/home/discovery?type=charts&lang=${encodeURIComponent(chartsLanguage)}`))
         .then((res) => res.json())
         .then((json) => {
           if (json.data) setChartsData(json.data);
@@ -161,7 +162,7 @@ export function DiscoveryHubView({ initialCategory, onBack }: DiscoveryHubViewPr
   useEffect(() => {
     if (activeCategory === 'mood') {
       setIsLoadingMood(true);
-      fetch(`/api/home/discovery?type=mood&lang=${encodeURIComponent(preferredLanguage)}&mood=${encodeURIComponent(selectedMood)}`)
+      fetch(getApiUrl(`/api/home/discovery?type=mood&lang=${encodeURIComponent(preferredLanguage)}&mood=${encodeURIComponent(selectedMood)}`))
         .then((res) => res.json())
         .then((json) => {
           if (json.data) setMoodData(json.data);
