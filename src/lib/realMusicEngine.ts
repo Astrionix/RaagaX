@@ -113,6 +113,38 @@ export class RealMusicEngine {
     }
   }
 
+  /**
+   * Fetches authoritative song details and direct CDN stream URL directly by song ID.
+   * Avoids fuzzy text search fallbacks that return remixes, covers, or wrong songs.
+   */
+  public async getSongById(songId: string): Promise<Song | null> {
+    if (!songId) return null;
+    const cleanId = songId.replace(/^saavn-/, '');
+    const url = `${getLocalApiBase()}/songs/${encodeURIComponent(cleanId)}`;
+
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 8000);
+
+    try {
+      const res = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(tid);
+      if (!res.ok) return null;
+      const data = await res.json();
+      const results = Array.isArray(data.data) ? data.data : (data.data?.results || data.results || []);
+      if (results.length > 0) {
+        const mapped = this.mapResults(results);
+        return mapped[0] || null;
+      }
+      return null;
+    } catch (err: any) {
+      clearTimeout(tid);
+      if (err?.name !== 'AbortError') {
+        console.warn(`[RealMusicEngine] getSongById error for: "${songId}"`, err?.message);
+      }
+      return null;
+    }
+  }
+
 
   private extractCoverUrl(image: any): string {
     if (!image) return '/app-icon.png';

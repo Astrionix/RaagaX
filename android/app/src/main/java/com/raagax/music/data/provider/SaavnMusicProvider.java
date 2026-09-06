@@ -325,6 +325,8 @@ public class SaavnMusicProvider implements MusicProvider {
 
     private MusicTrack fetchTrackFromNewApi(String trackId) {
         String[] endpoints = new String[] {
+            "https://raaga.padalalmrreddy.workers.dev/api/songs/" + trackId,
+            "https://raaga.padalalmrreddy.workers.dev/api/songs?id=" + trackId,
             "https://saavn.dev/api/songs?id=" + trackId,
             "https://saavn.dev/api/songs/" + trackId,
             "https://raaga.me/api/songs?ids=" + trackId,

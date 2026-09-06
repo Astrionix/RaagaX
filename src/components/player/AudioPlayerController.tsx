@@ -163,6 +163,7 @@ export function AudioPlayerController() {
     // This implements the Spotify-style foreground re-entry contract:
     //   App returns from background -> query native -> update UI state -> NO playback restart.
     const syncNativeStateToUI = async (reason: string) => {
+      if (!usePlayerStore.getState().isLocalPlayback) return;
       try {
         const state = await RaagaXNativePlayer.getPlaybackState();
         if (!state) return;
@@ -223,6 +224,7 @@ export function AudioPlayerController() {
 
     // playbackStateChanged fires whenever ExoPlayer changes between PLAYING and PAUSED
     const unsubPlaybackState = RaagaXNativePlayer.addPlaybackStateListener((data) => {
+      if (!usePlayerStore.getState().isLocalPlayback) return;
       console.log('[AudioPlayerController] Native playbackStateChanged — isPlaying:', data.isPlaying, 'durationMs:', data.durationMs, 'positionMs:', data.positionMs);
       const store = usePlayerStore.getState();
 
@@ -246,6 +248,7 @@ export function AudioPlayerController() {
     });
 
     const unsubQueueEnded = RaagaXNativePlayer.addQueueEndedListener(() => {
+      if (!usePlayerStore.getState().isLocalPlayback) return;
 
       if (Date.now() - lastSeekTimeRef.current < 1500) {
         console.log('[AudioPlayerController] Ignoring native queueEnded during seek settle lock');
@@ -266,6 +269,7 @@ export function AudioPlayerController() {
     });
 
     const unsubChanged = RaagaXNativePlayer.addTrackChangedListener((data) => {
+      if (!usePlayerStore.getState().isLocalPlayback) return;
       lastTrackChangeTimeRef.current = Date.now();
 
       const currentStoreTrack = usePlayerStore.getState().currentSong;
@@ -384,6 +388,7 @@ export function AudioPlayerController() {
     // Immediately update the UI with the authoritative position so the seekbar
     // doesn't snap back during the 1-second poll gap.
     const unsubSeekComplete = RaagaXNativePlayer.addSeekCompleteListener((data) => {
+      if (!usePlayerStore.getState().isLocalPlayback) return;
       console.log('[AudioPlayerController] Native seekComplete confirmed at:', data.positionMs, 'ms | wasPlaying:', data.wasPlaying);
       lastSeekTimeRef.current = Date.now();
       // Apply authoritative position immediately — this replaces the stale pre-seek value
@@ -446,7 +451,7 @@ export function AudioPlayerController() {
 
   // Native Android: poll ExoPlayer playback state for position & duration
   useEffect(() => {
-    if (!RaagaXNativePlayer.isNative() || !isPlaying) return;
+    if (!RaagaXNativePlayer.isNative() || !isPlaying || !isLocalPlayback) return;
     const interval = setInterval(async () => {
       // Block stale position updates while a seek is settling.
       // SeekLock.shouldBlockRemoteUpdate covers both the drag window and the
@@ -629,6 +634,14 @@ export function AudioPlayerController() {
 
   // Handle Play/Pause State Synchronization with Lyrics & Native bridges
   useEffect(() => {
+    if (!isLocalPlayback) {
+      if (RaagaXNativePlayer.isNative()) {
+        RaagaXNativePlayer.pause().catch(() => {});
+      }
+      LyricsEngine.getInstance().setPlaying(isPlaying);
+      return;
+    }
+
     if (RaagaXNativePlayer.isNative()) {
       if (isPlaying) {
         RaagaXNativePlayer.resume().catch(() => {});

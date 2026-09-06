@@ -21,6 +21,7 @@ import { DeviceKeyManager } from '../auth/DeviceKeyManager';
 import { DeviceDiscoveryEngine } from '../discovery/DeviceDiscoveryEngine';
 import { MediaSessionManager } from '@/lib/playback/MediaSessionManager';
 import { QueueManager } from '@/lib/queue/QueueManager';
+import { RaagaXNativePlayer } from '@/lib/playback/native/RaagaXNativePlayer';
 
 export class ConnectSessionManager {
   private static instance: ConnectSessionManager;
@@ -121,8 +122,12 @@ export class ConnectSessionManager {
     }
 
     // 3. If we are currently playing music locally, pause local audio engine so sound shifts to remote
-    if (store.isLocalPlayback && isPlaying) {
-      service.pause();
+    if (store.isLocalPlayback) {
+      service.pauseAudioElementOnly();
+      if (RaagaXNativePlayer.isNative()) {
+        RaagaXNativePlayer.pause().catch(() => {});
+        RaagaXNativePlayer.setRemotePlayback(true, peer.peer.deviceName || 'Remote Device').catch(() => {});
+      }
     }
 
     // 4. Mark local device as remote controller for the target peer
@@ -183,6 +188,10 @@ export class ConnectSessionManager {
     this.stopControllerInterpolation();
     this.activePeer = null;
     this.transportManager.closeAll().catch(() => {});
+    if (RaagaXNativePlayer.isNative()) {
+      RaagaXNativePlayer.setRemotePlayback(false, '').catch(() => {});
+      RaagaXNativePlayer.clearRemotePlayback().catch(() => {});
+    }
   }
 
   /**
@@ -219,6 +228,10 @@ export class ConnectSessionManager {
 
     // 3. Mark local device as active playback device
     store.setActivePlaybackDeviceId('dev_local', 'This Device');
+    if (RaagaXNativePlayer.isNative()) {
+      RaagaXNativePlayer.setRemotePlayback(false, '').catch(() => {});
+      RaagaXNativePlayer.clearRemotePlayback().catch(() => {});
+    }
 
     // 4. Seamlessly resume playback locally on this device
     if (currentSong) {
@@ -708,6 +721,17 @@ export class ConnectSessionManager {
           position: state.position || 0,
         });
       } catch {}
+
+      if (RaagaXNativePlayer.isNative()) {
+        RaagaXNativePlayer.updateRemotePlayback({
+          trackId: targetSong.id,
+          title: targetSong.title,
+          artist: targetSong.artist || '',
+          artworkUrl: targetSong.coverUrl || '',
+          isPlaying: state.isPlaying,
+          deviceName: store.activePlaybackDeviceName || 'Remote Device',
+        }).catch(() => {});
+      }
     } else if (state.currentSongData && store.currentSong && store.currentSong.id === state.trackId) {
       const updates: any = {};
       if (state.duration && state.duration !== store.duration) {

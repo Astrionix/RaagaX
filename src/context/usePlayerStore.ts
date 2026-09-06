@@ -790,6 +790,26 @@ export const usePlayerStore = create<PlayerState>()(
         if (!isLocal) {
           // Controller mode: Suppress local sound output
           PlaybackService.getInstance().pauseAudioElementOnly();
+          if (RaagaXNativePlayer.isNative()) {
+            RaagaXNativePlayer.pause().catch(() => {});
+            RaagaXNativePlayer.setRemotePlayback(true, deviceName || 'Remote Device').catch(() => {});
+            const curSong = get().currentSong;
+            if (curSong) {
+              RaagaXNativePlayer.updateRemotePlayback({
+                trackId: curSong.id,
+                title: curSong.title || 'RaagaX',
+                artist: curSong.artist || '',
+                artworkUrl: curSong.coverUrl || '',
+                isPlaying: get().isPlaying,
+                deviceName: deviceName || 'Remote Device',
+              }).catch(() => {});
+            }
+          }
+        } else {
+          if (RaagaXNativePlayer.isNative()) {
+            RaagaXNativePlayer.setRemotePlayback(false, '').catch(() => {});
+            RaagaXNativePlayer.clearRemotePlayback().catch(() => {});
+          }
         }
       },
       activeRenderer: 'audio',
@@ -1139,6 +1159,32 @@ export const usePlayerStore = create<PlayerState>()(
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().broadcastCurrentState();
           }).catch(() => {});
+        } else {
+          // Controller mode: Forward command to remote speaker and avoid local audio loading
+          if (RaagaXNativePlayer.isNative()) {
+            RaagaXNativePlayer.pause().catch(() => {});
+            RaagaXNativePlayer.updateRemotePlayback({
+              trackId: formattedTrack.id,
+              title: formattedTrack.title,
+              artist: formattedTrack.artist || '',
+              artworkUrl: formattedTrack.coverUrl || '',
+              isPlaying: autoPlay,
+              deviceName: get().activePlaybackDeviceName || 'Remote Device',
+            }).catch(() => {});
+          } else {
+            PlaybackService.getInstance().pauseAudioElementOnly();
+          }
+
+          import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
+            ConnectSessionManager.getInstance().sendCommand('SWITCH_PLAYBACK', {
+              song: formattedTrack,
+              position: initialPositionSec || 0,
+              isPlaying: autoPlay,
+              queue: get().queue,
+              queueIndex: index,
+            });
+          }).catch(() => {});
+          return true;
         }
 
         // 3. Load the NEW track's audio URL into audio engine
@@ -1376,7 +1422,7 @@ export const usePlayerStore = create<PlayerState>()(
 
         await get().switchTrack(activePlaySong, targetIndex, true);
 
-        if (RaagaXNativePlayer.isNative() && syncedQueue && syncedQueue.length > 0) {
+        if (get().isLocalPlayback && RaagaXNativePlayer.isNative() && syncedQueue && syncedQueue.length > 0) {
           PlaybackService.getInstance().loadQueueContext(syncedQueue, targetIndex, true, 0, get().playbackRequestId);
         }
       },
@@ -1480,7 +1526,7 @@ export const usePlayerStore = create<PlayerState>()(
 
         await get().switchTrack(firstSong, 0, true);
 
-        if (RaagaXNativePlayer.isNative() && syncedQueue && syncedQueue.length > 0) {
+        if (get().isLocalPlayback && RaagaXNativePlayer.isNative() && syncedQueue && syncedQueue.length > 0) {
           PlaybackService.getInstance().loadQueueContext(syncedQueue, 0, true, 0, get().playbackRequestId);
         }
       },
@@ -1555,6 +1601,27 @@ export const usePlayerStore = create<PlayerState>()(
         }
 
         if (!fromRemote) {
+          if (!get().isLocalPlayback) {
+            // In remote controller mode, never resume local audio engines
+            if (RaagaXNativePlayer.isNative()) {
+              RaagaXNativePlayer.pause().catch(() => {});
+              const curSong = get().currentSong;
+              if (curSong) {
+                RaagaXNativePlayer.updateRemotePlayback({
+                  trackId: curSong.id,
+                  title: curSong.title || 'RaagaX',
+                  artist: curSong.artist || '',
+                  artworkUrl: curSong.coverUrl || '',
+                  isPlaying: playing,
+                  deviceName: get().activePlaybackDeviceName || 'Remote Device',
+                }).catch(() => {});
+              }
+            } else {
+              PlaybackService.getInstance().pauseAudioElementOnly();
+            }
+            return;
+          }
+
           if (RaagaXNativePlayer.isNative()) {
             if (!playing) {
               await RaagaXNativePlayer.pause();

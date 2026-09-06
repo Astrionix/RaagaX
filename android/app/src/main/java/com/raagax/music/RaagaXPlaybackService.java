@@ -197,6 +197,10 @@ public class RaagaXPlaybackService extends Service {
             @Override
             public void onMediaItemTransition(androidx.media3.common.MediaItem mediaItem, int reason) {
                 if (mediaItem == null) return;
+                if (isRemotePlayback) {
+                    Log.d(TAG, "[onMediaItemTransition] Suppressed because isRemotePlayback=true");
+                    return;
+                }
                 long now = System.currentTimeMillis();
                 String oldTrackId = currentTrackId != null ? currentTrackId : "";
 
@@ -307,6 +311,7 @@ public class RaagaXPlaybackService extends Service {
                     androidx.media3.common.Player.PositionInfo newPosition,
                     int reason
             ) {
+                if (isRemotePlayback) return;
                 if (reason == Player.DISCONTINUITY_REASON_SEEK) {
                     long confirmedPos = newPosition.positionMs;
                     boolean isPlaying = player != null && player.isPlaying();
@@ -381,6 +386,7 @@ public class RaagaXPlaybackService extends Service {
 
             @Override
             public void onPlayerError(androidx.media3.common.PlaybackException error) {
+                if (isRemotePlayback) return;
                 Log.e(TAG, "[QUEUE_TRACK_FAILED]\ntrackId=" + currentTrackId + "\nerror=" + (error != null ? error.getMessage() : "unknown"));
                 Log.e(TAG, "[RAAGAX_LOCAL_PLAYBACK_ERROR] songId=" + currentTrackId + " errorCode=" + error.errorCode + " message=" + error.getMessage() + " cause=" + error.getCause());
                 android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(android.content.Context.CONNECTIVITY_SERVICE);
@@ -643,6 +649,11 @@ public class RaagaXPlaybackService extends Service {
         } else if ("CLEAR_REMOTE_PLAYBACK".equals(action)) {
             clearRemotePlayback();
 
+        } else if ("SET_REMOTE_PLAYBACK".equals(action)) {
+            boolean isRemote = intent.getBooleanExtra("isRemote", false);
+            String deviceName = intent.getStringExtra("deviceName");
+            setRemotePlaybackMode(isRemote, deviceName);
+
         } else if ("TOGGLE_PLAY".equals(action)) {
             if (isRemotePlayback) {
                 Log.d(TAG, "[REMOTE] TOGGLE_PLAY received -> broadcasting ACTION_TOGGLE_PLAY");
@@ -873,6 +884,10 @@ public class RaagaXPlaybackService extends Service {
                          String[] artworks, double[] loudnesses, int startIndex, long startPositionMs, boolean autoPlay) {
         runOnMainThread(() -> {
             if (player == null || urls == null || urls.length == 0) return;
+            if (isRemotePlayback) {
+                Log.d(TAG, "[setQueue] Suppressed because isRemotePlayback=true");
+                return;
+            }
 
             if (trackIds != null && loudnesses != null) {
                 for (int i = 0; i < Math.min(trackIds.length, loudnesses.length); i++) {
@@ -1051,6 +1066,10 @@ public class RaagaXPlaybackService extends Service {
      */
     public void setOfflineQueue(String[] songIds, int startIndex, boolean autoPlay) {
         if (songIds == null || songIds.length == 0) return;
+        if (isRemotePlayback) {
+            Log.d(TAG, "[setOfflineQueue] Suppressed because isRemotePlayback=true");
+            return;
+        }
 
         Log.d(TAG, "[SET_OFFLINE_QUEUE] Resolving " + songIds.length + " songIds on background thread");
 
@@ -1253,6 +1272,10 @@ public class RaagaXPlaybackService extends Service {
     public void playUrl(String trackId, String url, String title, String artist, String artworkUrl, double loudness) {
         runOnMainThread(() -> {
             if (player == null) return;
+            if (isRemotePlayback) {
+                Log.d(TAG, "[playUrl] Suppressed because isRemotePlayback=true");
+                return;
+            }
 
             if (trackId != null && !Double.isNaN(loudness)) {
                 trackLoudnessMap.put(trackId, loudness);
@@ -1453,8 +1476,35 @@ public class RaagaXPlaybackService extends Service {
         });
     }
 
-    public void resume()           { runOnMainThread(() -> { if (player != null) player.play(); }); }
-    public void pause()            { runOnMainThread(() -> { if (player != null) player.pause(); }); }
+    public void resume() {
+        runOnMainThread(() -> {
+            if (isRemotePlayback) {
+                Log.d(TAG, "[resume] Suppressed because isRemotePlayback=true");
+                return;
+            }
+            if (player != null) player.play();
+        });
+    }
+    public void pause() { runOnMainThread(() -> { if (player != null) player.pause(); }); }
+
+    public void setRemotePlaybackMode(boolean isRemote, String deviceName) {
+        runOnMainThread(() -> {
+            this.isRemotePlayback = isRemote;
+            this.remoteDeviceName = (deviceName != null && !deviceName.isEmpty()) ? deviceName : (isRemote ? "Connected Device" : "");
+            Log.d(TAG, "[setRemotePlaybackMode] isRemote=" + isRemote + " deviceName=" + this.remoteDeviceName);
+            if (isRemote) {
+                if (player != null && (player.isPlaying() || player.getPlayWhenReady())) {
+                    player.setPlayWhenReady(false);
+                    player.pause();
+                }
+                stopProgressTicker();
+            } else {
+                this.isRemotePlaying = false;
+                this.remoteDeviceName = "";
+            }
+            updateNotification();
+        });
+    }
 
     public void updateRemotePlayback(String trackId, String title, String artist, String artworkUrl, boolean isPlaying, String deviceName) {
         runOnMainThread(() -> {

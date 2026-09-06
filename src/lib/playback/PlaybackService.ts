@@ -466,28 +466,29 @@ export class PlaybackService {
       }
 
       // ── ONLINE PATH: resolve network URLs and call setQueue ─────────────────
-      // Lazy resolution: only resolve starting track, use placeholders for the rest
       const resolvedTracks = await Promise.all(
         songs.map(async (song, index) => {
           let finalSrc = '';
-          if (index === startIndex) {
+          // 1. Check in-memory stream cache
+          const cached = PlayableUrlCache.getInstance().get(song.id);
+          if (cached && cached.url) {
+            finalSrc = cached.url;
+          } else if (song.audioUrl && !song.audioUrl.includes('pixabay.com') && !song.audioUrl.startsWith('lazy://')) {
+            finalSrc = song.audioUrl;
+          }
+
+          // 2. For active track or upcoming tracks nearby (within 3 tracks), resolve if missing
+          if (!finalSrc && (index === startIndex || Math.abs(index - startIndex) <= 3)) {
             try {
               const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
               if (source?.url) finalSrc = source.url;
             } catch { }
-            if (!finalSrc && song.audioUrl && !song.audioUrl.includes('pixabay.com')) {
-              finalSrc = song.audioUrl;
-            }
-          } else {
-            // Check cache first to avoid network requests
-            const cached = PlayableUrlCache.getInstance().get(song.id);
-            if (cached && cached.url) {
-              finalSrc = cached.url;
-            } else {
-              // Lazy placeholder URL
-              finalSrc = `lazy://${song.id}`;
-            }
           }
+
+          if (!finalSrc && song.audioUrl && !song.audioUrl.includes('pixabay.com') && !song.audioUrl.startsWith('lazy://')) {
+            finalSrc = song.audioUrl;
+          }
+
           return {
             trackId: song.id,
             url: finalSrc,
@@ -510,7 +511,7 @@ export class PlaybackService {
 
       for (let i = 0; i < resolvedTracks.length; i++) {
         const t = resolvedTracks[i];
-        if (t.url) {
+        if (t.url && !t.url.startsWith('lazy://')) {
           if (songs[i]?.id === startingSongId) {
             newStartIndex = validTracks.length;
           }

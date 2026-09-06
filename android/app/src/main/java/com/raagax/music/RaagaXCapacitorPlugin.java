@@ -628,6 +628,23 @@ public class RaagaXCapacitorPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void setRemotePlayback(PluginCall call) {
+        boolean isRemote = call.getBoolean("isRemote", false);
+        String deviceName = call.getString("deviceName", "");
+
+        Intent intent = new Intent("SET_REMOTE_PLAYBACK");
+        intent.putExtra("isRemote", isRemote);
+        intent.putExtra("deviceName", deviceName);
+        sendCommandToService(intent);
+
+        RaagaXPlaybackService service = getService();
+        if (service != null) {
+            service.setRemotePlaybackMode(isRemote, deviceName);
+        }
+        call.resolve(new JSObject().put("success", true));
+    }
+
+    @PluginMethod
     public void clearRemotePlayback(PluginCall call) {
         Intent intent = new Intent("CLEAR_REMOTE_PLAYBACK");
         sendCommandToService(intent);

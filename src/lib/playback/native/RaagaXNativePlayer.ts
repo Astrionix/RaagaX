@@ -189,6 +189,23 @@ export const RaagaXNativePlayer = {
     await plugin.updateRemotePlayback(data);
   },
 
+  async setRemotePlayback(isRemote: boolean, deviceName: string = ''): Promise<void> {
+    const plugin = getPlugin();
+    if (!plugin) return;
+    await plugin.setRemotePlayback({ isRemote, deviceName });
+  },
+
+  async getNetworkState(): Promise<boolean> {
+    const plugin = getPlugin();
+    if (!plugin) return typeof navigator !== 'undefined' ? navigator.onLine : true;
+    try {
+      const res = await plugin.getNetworkState();
+      return Boolean(res?.isOnline);
+    } catch {
+      return typeof navigator !== 'undefined' ? navigator.onLine : true;
+    }
+  },
+
   async clearRemotePlayback(): Promise<void> {
     const plugin = getPlugin();
     if (!plugin) return;

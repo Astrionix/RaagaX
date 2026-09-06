@@ -60,7 +60,8 @@ export class PlaybackSourceResolver {
     const bypassCache = Boolean(options?.bypassCache);
     const networkMode = NetworkManager.getInstance().getMode();
     const isOfflineForced = networkMode === 'offline_forced';
-    const isOffline = networkMode === 'offline' || isOfflineForced || (typeof navigator !== 'undefined' && navigator.onLine === false);
+    const storeNetworkMode = usePlayerStore.getState().networkMode;
+    const isOffline = networkMode === 'offline' || isOfflineForced || storeNetworkMode === 'offline' || storeNetworkMode === 'offline_forced';
 
     // ── OFFLINE MODE: Resolve ONLY from RaagaX Local Downloads ─────────────
     if (isOffline) {
@@ -196,15 +197,28 @@ export class PlaybackSourceResolver {
 
     if (!validAudioUrl || isPixabay || isNonHttpScheme || isMedia3OnWeb || bypassCache || isAudioUrlExpired(validAudioUrl)) {
       try {
-        const query = `${song.title} ${song.artist || ''}`.trim();
-        console.log(`[PlaybackSourceResolver] Resolving real audio stream for: "${query}" (bypassCache=${bypassCache})`);
-        const realSongs = await RealMusicEngine.getInstance().searchRealSongs(query, 1);
+        let realSong: Song | null = null;
+        // Priority 1: Exact track resolution by unique ID
+        if (song.id && !song.id.startsWith('pixabay-') && !song.id.startsWith('native-') && !song.id.startsWith('local-')) {
+          console.log(`[PlaybackSourceResolver] Fetching authoritative track by ID: "${song.id}" ("${song.title}")`);
+          realSong = await RealMusicEngine.getInstance().getSongById(song.id);
+        }
+
+        // Priority 2: Precise query fallback only if ID lookup didn't yield a stream
+        if (!realSong || !realSong.audioUrl || realSong.audioUrl.includes('pixabay.com')) {
+          const query = `${song.title} ${song.artist || ''}`.trim();
+          console.log(`[PlaybackSourceResolver] Resolving real audio stream for query: "${query}" (bypassCache=${bypassCache})`);
+          const realSongs = await RealMusicEngine.getInstance().searchRealSongs(query, 1);
+          if (realSongs.length > 0) {
+            realSong = realSongs[0];
+          }
+        }
         
-        if (realSongs.length > 0 && realSongs[0].audioUrl && !realSongs[0].audioUrl.includes('pixabay.com')) {
-          validAudioUrl = realSongs[0].audioUrl.replace('http://', 'https://');
+        if (realSong && realSong.audioUrl && !realSong.audioUrl.includes('pixabay.com')) {
+          validAudioUrl = realSong.audioUrl.replace('http://', 'https://');
           song.audioUrl = validAudioUrl;
-          if (realSongs[0].coverUrl) {
-            song.coverUrl = realSongs[0].coverUrl.replace('http://', 'https://').replace(/150x150|50x50|300x300/g, '500x500');
+          if (realSong.coverUrl) {
+            song.coverUrl = realSong.coverUrl.replace('http://', 'https://').replace(/150x150|50x50|300x300/g, '500x500');
           }
         }
       } catch (err) {
