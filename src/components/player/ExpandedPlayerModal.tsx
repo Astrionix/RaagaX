@@ -39,6 +39,7 @@ import {
   Calendar,
   Disc3,
   Plus,
+  MonitorSpeaker,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
@@ -121,6 +122,10 @@ export function ExpandedPlayerModal() {
     sleepTimerMinutes,
     sleepTimerEndsAt,
     sleepTimerMode,
+    toggleCastModal,
+    isCastModalOpen,
+    isLocalPlayback,
+    activePlaybackDeviceName,
   } = usePlayerStore();
 
   const currentSong = localCurrentSong;
@@ -346,11 +351,11 @@ export function ExpandedPlayerModal() {
 
   const composer = (currentSong?.credits?.composer && currentSong.credits.composer !== 'Various Artists')
     ? currentSong.credits.composer
-    : (currentSong?.artist || 'Various Artists');
+    : undefined;
   const rawLyricist = currentSong?.credits?.lyricist;
   const lyricist = (rawLyricist && rawLyricist !== 'RaagaX Catalog')
     ? rawLyricist
-    : (currentSong?.artist || 'Various Artists');
+    : undefined;
   const label = currentSong?.credits?.label || 'Sony / Aditya Music';
   const releaseYear = currentSong?.releaseYear || (currentSong?.releaseDate ? parseInt(currentSong.releaseDate.slice(0, 4)) : 2026);
 
@@ -524,7 +529,7 @@ export function ExpandedPlayerModal() {
       <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-9 h-1 rounded-full bg-white/25 z-40 md:hidden pointer-events-none" />
 
       {/* ── 2. DESKTOP & MOBILE MINIMAL TOP BAR ───────────────────────────── */}
-      <div className="relative z-30 flex items-center justify-between px-5 sm:px-8 pt-3 sm:pt-4 w-full flex-shrink-0">
+      <div className="relative z-30 flex items-center justify-between px-5 sm:px-8 pt-2 sm:pt-3 pb-0.5 w-full flex-shrink-0">
         {/* Left: Minimize Chevron */}
         <button
           onClick={() => {
@@ -553,7 +558,7 @@ export function ExpandedPlayerModal() {
       </div>
 
       {/* ── 3. MAIN WORKSPACE (CENTRAL UNBOXED STAGE + OPTIONAL DESKTOP QUEUE) ─ */}
-      <div className="relative z-20 flex-1 flex items-center justify-center w-full max-w-7xl mx-auto px-5 sm:px-10 py-1 min-h-0 overflow-hidden">
+      <div className="relative z-20 flex-1 flex items-center justify-center w-full max-w-7xl mx-auto px-5 sm:px-10 pt-0 pb-1 min-h-0 overflow-hidden">
 
         {/* ── DESKTOP STAGE (MD+) ───────────────────────────────────────── */}
         {desktopView === 'info' ? (
@@ -702,7 +707,6 @@ export function ExpandedPlayerModal() {
                     onClick={() => {
                       haptics.lightImpact();
                       toggleLikeSong(currentSong.id);
-                      setToastMessage(isLiked ? 'Removed from Liked Songs' : 'Saved to Liked Songs');
                     }}
                     className="px-3.5 py-1.5 rounded-full bg-white/[0.07] hover:bg-white/[0.14] border border-white/10 text-white font-semibold text-xs flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-sm"
                   >
@@ -896,7 +900,6 @@ export function ExpandedPlayerModal() {
                     onClick={() => {
                       haptics.lightImpact();
                       toggleLikeSong(currentSong.id);
-                      setToastMessage(isLiked ? 'Removed from Liked Songs' : 'Saved to Liked Songs');
                     }}
                     className="w-10 h-10 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer"
                     title={isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
@@ -1257,21 +1260,25 @@ export function ExpandedPlayerModal() {
                         <span className="text-white/90 font-medium truncate">{currentSong.artist}</span>
                       </div>
 
-                      <div className="flex items-center">
-                        <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
-                          <Music className="w-4 h-4 text-white/40" />
-                          <span>Composer</span>
+                      {composer && (
+                        <div className="flex items-center">
+                          <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
+                            <Music className="w-4 h-4 text-white/40" />
+                            <span>Composer</span>
+                          </div>
+                          <span className="text-white/90 font-medium truncate">{SongFormatter.decodeHtml(composer)}</span>
                         </div>
-                        <span className="text-white/90 font-medium truncate">{composer}</span>
-                      </div>
+                      )}
 
-                      <div className="flex items-center">
-                        <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
-                          <Mic2 className="w-4 h-4 text-white/40" />
-                          <span>Lyricist</span>
+                      {lyricist && (
+                        <div className="flex items-center">
+                          <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
+                            <Mic2 className="w-4 h-4 text-white/40" />
+                            <span>Lyricist</span>
+                          </div>
+                          <span className="text-white/90 font-medium truncate">{SongFormatter.decodeHtml(lyricist)}</span>
                         </div>
-                        <span className="text-white/90 font-medium truncate">{lyricist}</span>
-                      </div>
+                      )}
 
                       <div className="flex items-center">
                         <div className="flex items-center gap-2.5 w-32 text-white/50 flex-shrink-0">
@@ -1318,15 +1325,15 @@ export function ExpandedPlayerModal() {
         )}
 
         {/* ── MOBILE STAGE (VERTICAL UNBOXED VIEW ON MOBILE < MD) ─────────── */}
-        <div className={`flex md:hidden flex-1 flex-col justify-between items-center h-full w-full transition-all duration-300 min-h-0 py-1 sm:py-2 gap-2 sm:gap-4 max-w-[390px] sm:max-w-[440px]`}>
+        <div className={`flex md:hidden flex-1 flex-col justify-between items-center h-full w-full transition-all duration-300 min-h-0 pt-0 pb-[calc(1.5rem+env(safe-area-inset-bottom,12px))] sm:pb-7 gap-1.5 sm:gap-3 max-w-[390px] sm:max-w-[440px]`}>
 
           {/* A. HERO ARTWORK / SYNCHRONIZED LYRICS / QUEUE / SLEEP TIMER */}
           {viewMode === 'art' ? (
             /* Large Unboxed Hero Artwork with Deep Cinematic Shadow */
-            <div className="w-full flex-1 flex items-center justify-center py-0.5 sm:py-1 min-h-0 overflow-hidden">
+            <div className="w-full flex-1 flex items-center justify-center pt-0 pb-1 min-h-0 overflow-hidden -mt-1 sm:-mt-2">
               <div
                 key={`mob-${songTransitionKey}`}
-                className="relative w-[min(320px,76vw,42vh)] h-[min(320px,76vw,42vh)] aspect-square rounded-[14px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85)] flex-shrink-0 bg-black/40 flex items-center justify-center transition-transform duration-300 hover:scale-[1.01]"
+                className="relative w-[min(300px,74vw,37vh)] h-[min(300px,74vw,37vh)] aspect-square rounded-[14px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85)] flex-shrink-0 bg-black/40 flex items-center justify-center transition-transform duration-300 hover:scale-[1.01]"
               >
                 {coverUrl && coverUrl !== '/app-icon.png' ? (
                   <img
@@ -1634,7 +1641,6 @@ export function ExpandedPlayerModal() {
                   onClick={() => {
                     haptics.lightImpact();
                     toggleLikeSong(currentSong.id);
-                    setToastMessage(isLiked ? 'Removed from Liked Songs' : 'Saved to Liked Songs');
                   }}
                   className="w-10 h-10 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/10 flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer"
                   title={isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
@@ -1736,7 +1742,7 @@ export function ExpandedPlayerModal() {
           <VolumeControl className="w-full px-3 flex-shrink-0" />
 
           {/* F. BOTTOM UTILITIES ROW [ Lyrics | Queue | Sleep Timer ] (Unboxed Minimal Pills) */}
-          <div className="w-full flex items-center justify-center gap-2 sm:gap-3 pt-1 pb-1 sm:pb-2 px-2 flex-shrink-0">
+          <div className="w-full flex items-center justify-center gap-2 sm:gap-3 pt-0.5 pb-0.5 px-2 flex-shrink-0">
             {/* Lyrics Button */}
             <button
               onClick={() => {

@@ -510,14 +510,9 @@ export function HomeView() {
       {/* 3. MADE FOR YOU — 4 Big, Interactive, Fully Working Mixes              */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       <section className="space-y-3.5">
-        <div className="flex items-center justify-between px-0.5">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-[#FA233B]" />
-            <h2 className="text-base sm:text-lg font-black text-white tracking-tight">Made For You</h2>
-          </div>
-          <span className="text-[11px] font-bold text-slate-400">
-            Updated daily · <span className="text-white font-extrabold">{currentLang}</span>
-          </span>
+        <div className="flex items-center gap-2 px-0.5">
+          <Sparkles className="w-4 h-4 text-[#FA233B]" />
+          <h2 className="text-base sm:text-lg font-black text-white tracking-tight">Made For You</h2>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

@@ -63,6 +63,12 @@ export class SpeakerVolumeGainManager {
 
     if (!audioA) return;
 
+    // Guarantee unmuted state when volume target > 0
+    if (target > 0) {
+      if (audioA.muted) audioA.muted = false;
+      if (audioB && audioB.muted) audioB.muted = false;
+    }
+
     const startVolume = audioA.volume;
     const delta = target - startVolume;
 
@@ -99,20 +105,30 @@ export class SpeakerVolumeGainManager {
   }
 
   /**
-   * Mute: freeze pre-mute volume, ramp to 0.
+   * Mute: freeze pre-mute volume, ramp to 0, and hardware-mute elements.
    */
   public mute(): void {
     const { volume } = usePlayerStore.getState();
     if (volume > 0) this.premuteVolume = volume;
+    const pb = PlaybackService.getInstance();
+    const audioA = pb.getActiveAudio();
+    const audioB = pb.getStandbyAudio();
+    if (audioA) audioA.muted = true;
+    if (audioB) audioB.muted = true;
     this.setSmoothVolume(0);
     usePlayerStore.setState({ isMuted: true });
   }
 
   /**
-   * Unmute: restore pre-mute volume with smooth ramp.
+   * Unmute: restore pre-mute volume with smooth ramp, ensure hardware unmute.
    */
   public unmute(): void {
-    const restored = this.premuteVolume > 0 ? this.premuteVolume : 0.8;
+    const restored = (this.premuteVolume > 0 && this.premuteVolume <= 1) ? this.premuteVolume : 0.8;
+    const pb = PlaybackService.getInstance();
+    const audioA = pb.getActiveAudio();
+    const audioB = pb.getStandbyAudio();
+    if (audioA) audioA.muted = false;
+    if (audioB) audioB.muted = false;
     this.setSmoothVolume(restored);
     usePlayerStore.setState({ isMuted: false, volume: restored });
   }
@@ -135,11 +151,17 @@ export class SpeakerVolumeGainManager {
    */
   public syncImmediate(): void {
     const { volume, isMuted } = usePlayerStore.getState();
-    const target = isMuted ? 0 : volume;
+    const target = isMuted ? 0 : (typeof volume === 'number' && !isNaN(volume) && volume > 0 ? volume : 0.8);
     const pb = PlaybackService.getInstance();
     const audioA = pb.getActiveAudio();
     const audioB = pb.getStandbyAudio();
-    if (audioA) audioA.volume = target;
-    if (audioB && audioB.src) audioB.volume = target;
+    if (audioA) {
+      audioA.muted = Boolean(isMuted);
+      audioA.volume = target;
+    }
+    if (audioB && audioB.src) {
+      audioB.muted = Boolean(isMuted);
+      audioB.volume = target;
+    }
   }
 }

@@ -10,6 +10,10 @@ export function Toast() {
 
   useEffect(() => {
     if (toastMessage) {
+      if (toastMessage.toLowerCase().includes('liked songs')) {
+        setToastMessage(null);
+        return;
+      }
       setIsVisible(true);
       const timer = setTimeout(() => {
         setIsVisible(false);

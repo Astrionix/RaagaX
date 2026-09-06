@@ -30,6 +30,7 @@ export function SearchView() {
     searchQuery,
     setSearchQuery,
     playSong,
+    playSearchSong,
     likedSongIds,
     downloadedSongIds,
     queue,
@@ -618,7 +619,7 @@ export function SearchView() {
                       <button
                         onClick={() => {
                           handleCommitSearch();
-                          playSong(searchResults.topResult!.item, searchResults.songs);
+                          playSearchSong(searchResults.topResult!.item);
                         }}
                         className="px-3.5 py-1.5 rounded-full bg-[#FA233B] text-white font-bold text-xs flex items-center gap-1.5 shadow-md hover:scale-105 transition-all cursor-pointer"
                       >
@@ -897,7 +898,7 @@ export function SearchView() {
                       <div
                         onClick={() => {
                           handleCommitSearch();
-                          playSong(song, searchResults.songs);
+                          playSearchSong(song);
                         }}
                         className="relative w-11 h-11 rounded-lg overflow-hidden shadow-sm flex-shrink-0 cursor-pointer border border-white/10"
                       >
@@ -918,7 +919,7 @@ export function SearchView() {
                         className="flex-1 min-w-0 cursor-pointer"
                         onClick={() => {
                           handleCommitSearch();
-                          playSong(song, searchResults.songs);
+                          playSearchSong(song);
                         }}
                       >
                         <h4

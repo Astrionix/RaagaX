@@ -16,13 +16,13 @@ export function getSyncWebSocketUrl(): string {
       if (custom && custom.trim()) {
         return custom.trim();
       }
-    } catch {}
+    } catch { }
   }
   return process.env.NEXT_PUBLIC_SYNC_WS_URL || RENDER_COORDINATOR_WS;
 }
 
-export const PRODUCTION_DOMAIN = 'https://raaga.me';
-export const WORKERS_DEV_URL = 'https://raaga.me';
+export const PRODUCTION_DOMAIN = 'https://raaga.padalalmrreddy.workers.dev';
+export const WORKERS_DEV_URL = 'https://raaga.padalalmrreddy.workers.dev';
 
 export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
@@ -32,11 +32,11 @@ export function getApiBaseUrl(): string {
       if (custom && custom.trim() && !custom.includes('onrender.com')) {
         return custom.trim().replace(/\/+$/, '');
       }
-    } catch {}
+    } catch { }
 
     const origin = window.location.origin || '';
 
-    // If running in any standard web browser (e.g. https://raaga.me, localhost, custom domain):
+    // If running in any standard web browser (e.g. localhost, custom domain):
     // Always use same-origin to prevent Mixed Content (HTTPS -> HTTP) and CORS errors
     const isNativeCapacitor = Boolean(
       (window as any).Capacitor?.isNativePlatform?.() ||
@@ -52,11 +52,11 @@ export function getApiBaseUrl(): string {
     }
 
     // In Capacitor Android/iOS Native APK:
-    // Route to custom domain https://raaga.me (or fallback)
-    return process.env.NEXT_PUBLIC_API_BASE_URL || PRODUCTION_DOMAIN;
+    // Route to live Cloudflare worker production backend
+    return process.env.NEXT_PUBLIC_API_BASE_URL || WORKERS_DEV_URL;
   }
 
-  return process.env.NEXT_PUBLIC_API_BASE_URL || PRODUCTION_DOMAIN;
+  return process.env.NEXT_PUBLIC_API_BASE_URL || WORKERS_DEV_URL;
 }
 
 export function getApiUrl(path: string): string {

@@ -95,12 +95,23 @@ export function mapTrackToSong(track: any, idx: number = 0): Song {
     ],
     credits: {
       composer: (() => {
-        const raw = track.more_info?.music || track.more_info?.composer || track.composer || track.more_info?.artistMap?.artists?.find((a: any) => a.role?.toLowerCase?.().includes('music') || a.role?.toLowerCase?.().includes('composer'))?.name;
-        return raw ? SongFormatter.decodeHtml(raw) : artist;
+        const checkRole = (a: any) => {
+          const r = String(a?.role || '').toLowerCase();
+          return r.includes('music') || r.includes('composer');
+        };
+        const musicArtist = track.artists?.all?.find(checkRole)?.name || track.more_info?.artistMap?.artists?.find(checkRole)?.name;
+        const raw = track.more_info?.music || track.more_info?.composer || track.composer || musicArtist;
+        if (raw) return SongFormatter.decodeHtml(raw);
+        return pa.length === 1 ? SongFormatter.decodeHtml(pa[0].name) : '';
       })(),
       lyricist: (() => {
-        const raw = track.more_info?.lyricist || track.more_info?.lyrics_by || track.lyricist || track.lyrics_by || track.more_info?.artistMap?.artists?.find((a: any) => a.role?.toLowerCase?.().includes('lyric') || a.role?.toLowerCase?.().includes('writer'))?.name;
-        return raw ? SongFormatter.decodeHtml(raw) : artist;
+        const checkRole = (a: any) => {
+          const r = String(a?.role || '').toLowerCase();
+          return r.includes('lyric') || r.includes('writer');
+        };
+        const lyricArtist = track.artists?.all?.find(checkRole)?.name || track.more_info?.artistMap?.artists?.find(checkRole)?.name;
+        const raw = track.more_info?.lyricist || track.more_info?.lyrics_by || track.lyricist || track.lyrics_by || lyricArtist;
+        return raw ? SongFormatter.decodeHtml(raw) : '';
       })(),
       singers: pa.map((a: any) => SongFormatter.decodeHtml(a.name)),
       label: track.more_info?.label || track.label || 'Sony / Aditya Music',

@@ -39,6 +39,7 @@ export class PlaybackService {
   private lastReadyTrackKey = '';
   private lastStartedTrackKey = '';
   private lastConnectSyncTime = 0;
+  private targetInitialPositionSec: number | null = null;
 
   private emitPlaybackReady(trackId: string, duration: number, generation: number) {
     const key = `${trackId}_${generation}`;
@@ -59,6 +60,12 @@ export class PlaybackService {
   private constructor() { }
 
   public static getInstance(): PlaybackService {
+    if (typeof window !== 'undefined') {
+      if (!(globalThis as any).__raaga_playback_service__) {
+        (globalThis as any).__raaga_playback_service__ = new PlaybackService();
+      }
+      return (globalThis as any).__raaga_playback_service__;
+    }
     if (!PlaybackService.instance) {
       PlaybackService.instance = new PlaybackService();
     }
@@ -86,6 +93,14 @@ export class PlaybackService {
 
     this.audioA.preload = 'auto';
     this.audioB.preload = 'auto';
+
+    const pStore = usePlayerStore.getState();
+    const isMuted = Boolean(pStore.isMuted);
+    const initialVol = isMuted ? 0 : (typeof pStore.volume === 'number' && !isNaN(pStore.volume) && pStore.volume > 0 ? pStore.volume : 0.8);
+    this.audioA.muted = isMuted;
+    this.audioB.muted = isMuted;
+    this.audioA.volume = initialVol;
+    this.audioB.volume = initialVol;
 
     import('./AudioUnlocker').then(({ initAudioUnlocker }) => {
       initAudioUnlocker([this.audioA!, this.audioB!]);
@@ -179,36 +194,71 @@ export class PlaybackService {
   private attachAutoplayUnlockHandler() {
     if (typeof window === 'undefined') return;
     const unlock = () => {
-      window.removeEventListener('pointerdown', unlock);
-      window.removeEventListener('keydown', unlock);
-      window.removeEventListener('touchstart', unlock);
-      window.removeEventListener('click', unlock);
+      window.removeEventListener('pointerdown', unlock, true);
+      window.removeEventListener('keydown', unlock, true);
+      window.removeEventListener('touchstart', unlock, true);
+      window.removeEventListener('click', unlock, true);
       this.isAutoplayRestricted = false;
       this.watchdogRetryCount = 0;
       try {
         const store = usePlayerStore.getState();
-        // ONLY resume if playbackIntent is explicitly PLAYING and isPlaying is true
-        if (store.isLocalPlayback && store.playbackIntent === 'PLAYING' && store.isPlaying) {
+        store.setIsAutoplayBlocked(false);
+        // ONLY resume if playbackIntent is explicitly PLAYING
+        if (store.isLocalPlayback && store.playbackIntent === 'PLAYING') {
           console.log('[PlaybackService] User interacted with document. Resuming active playback...');
-          this.play();
+          const active = this.getActiveAudio();
+          if (active && active.src && !active.src.startsWith('data:') && active.src !== 'about:blank') {
+            active.play().then(() => {
+              store.setIsPlaying(true);
+            }).catch((err) => {
+              console.warn('[PlaybackService] Unlock play failed:', err);
+            });
+          } else {
+            store.setIsPlaying(true);
+            this.play();
+          }
         }
       } catch { }
     };
-    window.addEventListener('pointerdown', unlock, { once: true, passive: true });
-    window.addEventListener('keydown', unlock, { once: true, passive: true });
-    window.addEventListener('touchstart', unlock, { once: true, passive: true });
-    window.addEventListener('click', unlock, { once: true, passive: true });
+    window.addEventListener('pointerdown', unlock, { once: true, passive: true, capture: true });
+    window.addEventListener('keydown', unlock, { once: true, passive: true, capture: true });
+    window.addEventListener('touchstart', unlock, { once: true, passive: true, capture: true });
+    window.addEventListener('click', unlock, { once: true, passive: true, capture: true });
+  }
+
+  public async unlockAndPlay(): Promise<boolean> {
+    this.isAutoplayRestricted = false;
+    this.watchdogRetryCount = 0;
+    const store = usePlayerStore.getState();
+    store.setIsAutoplayBlocked(false);
+    store.setPlaybackIntent('PLAYING');
+    const active = this.getActiveAudio();
+    if (active && active.src && !active.src.startsWith('data:') && active.src !== 'about:blank') {
+      try {
+        await active.play();
+        store.setIsPlaying(true);
+        return true;
+      } catch (err) {
+        console.warn('[PlaybackService] unlockAndPlay error:', err);
+      }
+    }
+    if (store.currentSong) {
+      return this.playTrack(store.currentSong, true);
+    }
+    return false;
   }
 
   public onAudioUnlocked() {
     this.isAutoplayRestricted = false;
     this.watchdogRetryCount = 0;
     const store = usePlayerStore.getState();
+    store.setIsAutoplayBlocked(false);
     // NEVER auto-start if paused on startup restoration
-    if (store.isLocalPlayback && store.isPlaying && store.playbackIntent === 'PLAYING') {
+    if (store.isLocalPlayback && store.playbackIntent === 'PLAYING') {
       const active = this.getActiveAudio();
       if (active && active.paused && active.src && !active.src.startsWith('data:')) {
         console.log('[PlaybackService] Audio globally unlocked. Resuming active playback...');
+        store.setIsPlaying(true);
         this.play();
       }
     }
@@ -221,6 +271,23 @@ export class PlaybackService {
   }
 
   public getActiveAudio(): HTMLAudioElement | null {
+    if (!this.audioA && typeof document !== 'undefined' && typeof document.getElementById === 'function') {
+      const elA = document.getElementById('raaga-audio-a') as HTMLAudioElement | null;
+      const elB = document.getElementById('raaga-audio-b') as HTMLAudioElement | null;
+      if (elA && elB) {
+        this.registerElements(elA, elB);
+      } else if (elA) {
+        this.audioA = elA;
+      } else if (typeof document.createElement === 'function' && document.body) {
+        const fallback = document.createElement('audio');
+        fallback.id = 'raaga-audio-a';
+        fallback.preload = 'auto';
+        fallback.className = 'hidden';
+        document.body.appendChild(fallback);
+        this.audioA = fallback;
+        this.attachListeners();
+      }
+    }
     return this.activeTag === 'A' ? this.audioA : this.audioB;
   }
 
@@ -522,15 +589,11 @@ export class PlaybackService {
       if (a) {
         try {
           a.pause();
-          a.removeAttribute('src');
           a.currentTime = 0;
           if (a.dataset) {
             delete a.dataset.trackId;
             delete a.dataset.playbackRequestId;
             delete a.dataset.playbackGeneration;
-          }
-          if (typeof a.load === 'function') {
-            a.load();
           }
         } catch { }
       }
@@ -562,12 +625,13 @@ export class PlaybackService {
    */
   public async loadAudioSource(song: Song, requestId?: number, autoPlay: boolean = true, initialPositionSec: number = 0): Promise<boolean> {
     if (!song) return false;
-    if (requestId === undefined || this.playbackRequestId === 0 || requestId <= 1) {
+    if (requestId === undefined || requestId <= 0) {
       this.playbackRequestId = ++this.playbackRequestId;
       this.playbackGeneration = this.playbackRequestId;
       requestId = this.playbackRequestId;
-    } else if (requestId !== this.playbackRequestId) {
-      return false;
+    } else {
+      this.playbackRequestId = requestId;
+      this.playbackGeneration = requestId;
     }
 
     // CONNECT SAFETY: Do NOT load or play local audio on a remote controller device
@@ -702,6 +766,7 @@ export class PlaybackService {
         if (isTest || typeof window === 'undefined') {
           return true;
         }
+        console.error('[PlaybackService] No active audio element available for playback');
         return false;
       }
 
@@ -783,23 +848,41 @@ export class PlaybackService {
       } catch { }
 
       if (initialPositionSec > 0) {
-        let seekApplied = false;
+        this.targetInitialPositionSec = initialPositionSec;
+        let seekDone = false;
         const applyInitialSeek = () => {
-          if (seekApplied) return;
-          seekApplied = true;
+          if (seekDone) return;
           try {
-            activeAudio.currentTime = initialPositionSec;
+            if (typeof activeAudio.readyState === 'number' && activeAudio.readyState >= 1) {
+              activeAudio.currentTime = initialPositionSec;
+              if (Math.abs(activeAudio.currentTime - initialPositionSec) <= 1.0) {
+                seekDone = true;
+                this.targetInitialPositionSec = null;
+              }
+            }
           } catch { }
         };
+
         if (typeof activeAudio.readyState === 'number' && activeAudio.readyState >= 1) {
           applyInitialSeek();
-        } else if (typeof activeAudio.addEventListener === 'function') {
-          activeAudio.addEventListener('loadeddata', applyInitialSeek, { once: true });
-          activeAudio.addEventListener('loadedmetadata', applyInitialSeek, { once: true });
-          activeAudio.addEventListener('canplay', applyInitialSeek, { once: true });
-        } else {
-          applyInitialSeek();
         }
+        if (typeof activeAudio.addEventListener === 'function') {
+          ['loadedmetadata', 'loadeddata', 'canplay', 'playing'].forEach((ev) => {
+            activeAudio.addEventListener(ev, applyInitialSeek);
+          });
+        }
+
+        // Periodic check to ensure seek applies once media buffer is ready
+        const seekPollId = setInterval(() => {
+          if (seekDone || this.playbackRequestId !== requestId) {
+            clearInterval(seekPollId);
+            return;
+          }
+          applyInitialSeek();
+        }, 120);
+        setTimeout(() => clearInterval(seekPollId), 3500);
+      } else {
+        this.targetInitialPositionSec = null;
       }
 
       if (!activeAudio.dataset) {
@@ -821,7 +904,9 @@ export class PlaybackService {
         const clampedDbGain = Math.min(6.0, dbGain); // Limit boost to +6dB
         volumeMultiplier = Math.pow(10, clampedDbGain / 20);
       }
-      activeAudio.volume = Math.max(0, Math.min(1, (store.isMuted ? 0 : store.volume) * volumeMultiplier));
+      activeAudio.muted = Boolean(store.isMuted);
+      const safeStoreVol = typeof store.volume === 'number' && !isNaN(store.volume) && store.volume > 0 ? store.volume : 0.8;
+      activeAudio.volume = Math.max(0, Math.min(1, (store.isMuted ? 0 : safeStoreVol) * volumeMultiplier));
 
       if (requestId !== this.playbackRequestId) {
         console.log(`[PlaybackService] Discarding stale loaded state for req #${requestId} (current #${this.playbackRequestId})`);
@@ -861,9 +946,7 @@ export class PlaybackService {
             console.warn('[PlaybackService] Autoplay restricted by browser policy. Audio loaded and waiting for user gesture.');
             store.setIsPlaying(false);
             store.setPlaybackIntent('PLAYING');
-            try {
-              store.setToastMessage('Tap anywhere to play on this device');
-            } catch { }
+            store.setIsAutoplayBlocked(true);
             this.emitPlaybackReady(song.id, activeAudio.duration || song.duration || 0, requestId);
             this.attachAutoplayUnlockHandler();
             return true;
@@ -1011,7 +1094,15 @@ export class PlaybackService {
 
     const active = this.getActiveAudio();
     if (active) {
-      const currentSong = usePlayerStore.getState().currentSong;
+      const store = usePlayerStore.getState();
+      if (!store.isMuted) {
+        if (active.muted) active.muted = false;
+        if (active.volume === 0) {
+          const safeVol = typeof store.volume === 'number' && !isNaN(store.volume) && store.volume > 0 ? store.volume : 0.8;
+          active.volume = safeVol;
+        }
+      }
+      const currentSong = store.currentSong;
       const isInvalidSrc = typeof window !== 'undefined' && (
         !active.src ||
         active.src === 'about:blank' ||
@@ -1043,9 +1134,9 @@ export class PlaybackService {
               console.warn('[PlaybackService] Autoplay blocked by browser policy. Attaching user gesture unlocker.');
               this.isAutoplayRestricted = true;
               this.watchdogRetryCount = 2;
-              try {
-                usePlayerStore.getState().setToastMessage('Click anywhere to enable audio playback');
-              } catch { }
+              const store = usePlayerStore.getState();
+              store.setPlaybackIntent('PLAYING');
+              store.setIsAutoplayBlocked(true);
               this.attachAutoplayUnlockHandler();
             } else if (err?.name !== 'AbortError') {
               console.warn('[PlaybackService] play() error:', err);
@@ -1141,7 +1232,19 @@ export class PlaybackService {
 
     const active = this.getActiveAudio() || PlaybackEngine.getInstance().getActiveMediaElement();
     if (active) {
-      active.currentTime = timeSeconds;
+      const applySeek = () => {
+        try {
+          active.currentTime = timeSeconds;
+        } catch { }
+      };
+
+      if (typeof active.readyState === 'number' && active.readyState >= 1) {
+        applySeek();
+      } else if (typeof active.addEventListener === 'function') {
+        active.addEventListener('loadedmetadata', applySeek, { once: true });
+        active.addEventListener('canplay', applySeek, { once: true });
+      }
+
       PlaybackEngine.getInstance().anchor();
       const store = usePlayerStore.getState();
       store.setCurrentTime(timeSeconds, fromRemote);
@@ -1264,6 +1367,22 @@ export class PlaybackService {
     // Project currentTime and duration to Zustand store
     const curTime = active.currentTime;
     const dur = active.duration;
+
+    // 1. Guard against overwriting store.currentTime with 0 during initial network load/seek
+    if (this.targetInitialPositionSec !== null && this.targetInitialPositionSec > 0) {
+      if (Math.abs(curTime - this.targetInitialPositionSec) > 1.5 && curTime < this.targetInitialPositionSec) {
+        // Audio element is still buffering near 0: attempt nudge if ready and do not zero out store
+        try {
+          if (typeof active.readyState === 'number' && active.readyState >= 1) {
+            active.currentTime = this.targetInitialPositionSec;
+          }
+        } catch { }
+        return;
+      } else {
+        // Target initial position reached successfully
+        this.targetInitialPositionSec = null;
+      }
+    }
 
     if (Math.abs(store.currentTime - curTime) > 0.3) {
       store.setCurrentTime(curTime, true);

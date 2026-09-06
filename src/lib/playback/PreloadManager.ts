@@ -3,6 +3,8 @@ import { PlaybackEngine } from './PlaybackEngine';
 import { PlaybackSourceResolver } from '@/lib/playbackSourceResolver';
 import { PlayableUrlCache } from './PlayableUrlCache';
 import { Song } from '@/types/music';
+import { usePlayerStore } from '@/context/usePlayerStore';
+import { RaagaXNativePlayer } from './native/RaagaXNativePlayer';
 
 export type PreloadStatus = 'IDLE' | 'RESOLVING' | 'BUFFERING' | 'READY' | 'FAILED';
 
@@ -61,7 +63,6 @@ export class PreloadManager {
   public async prepareNextTrack(song: Song, standbyElement: HTMLAudioElement | null = null, force: boolean = false): Promise<boolean> {
     if (!song || !song.id) return false;
     try {
-      const { usePlayerStore } = require('@/context/usePlayerStore');
       if (!usePlayerStore.getState().isLocalPlayback) return false;
     } catch {}
 
@@ -98,12 +99,8 @@ export class PreloadManager {
       }
 
       // Update native player queue URL just-in-time
-      if (finalSrc) {
-        import('@/lib/playback/native/RaagaXNativePlayer').then(({ RaagaXNativePlayer }) => {
-          if (RaagaXNativePlayer.isNative()) {
-            RaagaXNativePlayer.updateQueueUrl(song.id, finalSrc).catch(() => {});
-          }
-        });
+      if (finalSrc && RaagaXNativePlayer.isNative()) {
+        RaagaXNativePlayer.updateQueueUrl(song.id, finalSrc).catch(() => {});
       }
 
       if (!finalSrc) {

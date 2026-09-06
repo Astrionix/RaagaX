@@ -86,6 +86,34 @@ export class RealMusicEngine {
     }
   }
 
+  /**
+   * Fetches real-time song recommendations / suggestions for Smart Radio
+   */
+  public async getSongSuggestions(songId: string, limit = 15): Promise<Song[]> {
+    if (!songId) return [];
+    const cleanId = songId.replace(/^saavn-/, '');
+    const url = `${getLocalApiBase()}/songs/${encodeURIComponent(cleanId)}/suggestions?limit=${limit}`;
+
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 8000);
+
+    try {
+      const res = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(tid);
+      if (!res.ok) return [];
+      const data = await res.json();
+      const results = Array.isArray(data.data) ? data.data : (data.data?.results || data.results || []);
+      return results.length > 0 ? this.mapResults(results) : [];
+    } catch (err: any) {
+      clearTimeout(tid);
+      if (err?.name !== 'AbortError') {
+        console.warn(`[RealMusicEngine] Fetch error for song suggestions: "${songId}"`, err?.message);
+      }
+      return [];
+    }
+  }
+
+
   private extractCoverUrl(image: any): string {
     if (!image) return '/app-icon.png';
     let url = '';
@@ -120,7 +148,7 @@ export class RealMusicEngine {
       try {
         const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
         if (res.ok) data = await res.json();
-      } catch {}
+      } catch { }
 
       const results = data?.data?.results || data?.results || [];
       return results.map((album: any) => {
@@ -167,7 +195,7 @@ export class RealMusicEngine {
               break;
             }
           }
-        } catch {}
+        } catch { }
       }
 
       if (!collection) return null;
@@ -287,7 +315,7 @@ export class RealMusicEngine {
         const qualityPreset = usePlayerStore.getState().streamingQuality;
         const wantsDataSaver = (qualityPreset as string) === '320kbps MP3' || qualityPreset === 'LOW' || usePlayerStore.getState().isDataSaverEnabled;
         const maxBitrate = wantsDataSaver ? 160 : 320;
-        
+
         const selected = QualityManager.selectHighestQuality(track.downloadUrl, maxBitrate);
         if (selected) {
           audioUrl = selected;
@@ -340,12 +368,21 @@ export class RealMusicEngine {
         ],
         credits: {
           composer: (() => {
-            const raw = track.composer || track.more_info?.music || track.more_info?.composer || track.artists?.all?.find((a: any) => a.role?.toLowerCase?.().includes('music') || a.role?.toLowerCase?.().includes('composer'))?.name;
-            return raw ? decode(raw) : artist;
+            const musicArtist = track.artists?.all?.find((a: any) => {
+              const r = String(a?.role || '').toLowerCase();
+              return r.includes('music') || r.includes('composer');
+            })?.name;
+            const raw = track.composer || track.more_info?.music || track.more_info?.composer || musicArtist;
+            if (raw) return decode(raw);
+            return pa.length === 1 ? decode(pa[0].name) : '';
           })(),
           lyricist: (() => {
-            const raw = track.lyricist || track.lyrics_by || track.more_info?.lyricist || track.more_info?.lyrics_by || track.artists?.all?.find((a: any) => a.role?.toLowerCase?.().includes('lyric') || a.role?.toLowerCase?.().includes('writer'))?.name;
-            return raw ? decode(raw) : artist;
+            const lyricArtist = track.artists?.all?.find((a: any) => {
+              const r = String(a?.role || '').toLowerCase();
+              return r.includes('lyric') || r.includes('writer');
+            })?.name;
+            const raw = track.lyricist || track.lyrics_by || track.more_info?.lyricist || track.more_info?.lyrics_by || lyricArtist;
+            return raw ? decode(raw) : '';
           })(),
           singers: pa.map((a: any) => decode(a.name)),
           label: track.label || track.more_info?.label || 'Sony / Aditya Music',

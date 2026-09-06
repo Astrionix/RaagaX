@@ -16,6 +16,7 @@ import {
   ListMusic,
   Disc3,
   Maximize2,
+  MonitorSpeaker,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SeekBar } from '@/components/player/SeekBar';
@@ -45,9 +46,16 @@ export function PlayerBar() {
     toggleLyrics,
     toggleQueue,
     isQueueOpen,
+    setQueueOpen,
+    rightPanelMode,
+    setRightPanelMode,
     isLyricsOpen,
     isPlayerExpanded,
     togglePlayerExpanded,
+    toggleCastModal,
+    isCastModalOpen,
+    isLocalPlayback,
+    activePlaybackDeviceName,
   } = usePlayerStore();
 
   useEffect(() => {
@@ -65,7 +73,29 @@ export function PlayerBar() {
   }, [currentSong?.id, isPlaying]);
 
   const handleToggleQueue = () => {
-    toggleQueue();
+    if (typeof window !== 'undefined' && window.innerWidth >= 1280) {
+      if (isQueueOpen && rightPanelMode === 'queue') {
+        setQueueOpen(false);
+      } else {
+        setRightPanelMode('queue');
+        setQueueOpen(true);
+      }
+    } else {
+      toggleQueue();
+    }
+  };
+
+  const handleToggleConnect = () => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 1280) {
+      if (isQueueOpen && rightPanelMode === 'connect') {
+        setQueueOpen(false);
+      } else {
+        setRightPanelMode('connect');
+        setQueueOpen(true);
+      }
+    } else {
+      toggleCastModal();
+    }
   };
 
   const activeSong = currentSong;
@@ -101,29 +131,7 @@ export function PlayerBar() {
     };
   }, [activeSong?.coverUrl]);
 
-  // Spacebar Desktop Keyboard Listener
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' || e.key === ' ') {
-        const target = e.target as HTMLElement | null;
-        if (!target) return;
-        const tagName = target.tagName?.toLowerCase();
-        const isInputField =
-          tagName === 'input' ||
-          tagName === 'textarea' ||
-          tagName === 'select' ||
-          target.isContentEditable;
 
-        if (!isInputField) {
-          e.preventDefault();
-          usePlayerStore.getState().togglePlayPause();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   if (!mounted || isPlayerExpanded) return null;
 
@@ -263,6 +271,17 @@ export function PlayerBar() {
                 >
                   <span>{subtitle}</span>
                 </p>
+                {!isLocalPlayback && (
+                  <button
+                    onClick={toggleCastModal}
+                    className="flex items-center gap-1 text-[10px] font-bold text-[#1DB954] hover:underline cursor-pointer mt-0.5"
+                    title={`Playing on ${activePlaybackDeviceName}`}
+                    aria-label={`Playing on ${activePlaybackDeviceName}`}
+                  >
+                    <span className="text-[9px] leading-none">▶</span>
+                    <span className="truncate">playing on {activePlaybackDeviceName}</span>
+                  </button>
+                )}
               </div>
 
               <div className="flex-shrink-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
@@ -297,12 +316,29 @@ export function PlayerBar() {
             aria-label="Open queue"
             title="Queue (Q)"
             className={`p-1.5 rounded-full transition-colors cursor-pointer ${
-              isQueueOpen
+              isQueueOpen && rightPanelMode === 'queue'
                 ? 'text-[#FA233B] bg-[#FA233B]/15'
                 : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]'
             }`}
           >
             <ListMusic className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Spotify Connect Device Button (at the right side of Queue) */}
+          <button
+            onClick={handleToggleConnect}
+            aria-label="Connect to a device"
+            title={isLocalPlayback ? "Connect to a device" : `Listening on ${activePlaybackDeviceName}`}
+            className={`relative p-1.5 rounded-full transition-colors cursor-pointer ${
+              !isLocalPlayback || (isQueueOpen && rightPanelMode === 'connect') || isCastModalOpen
+                ? 'text-[#1DB954] bg-[#1DB954]/15 hover:bg-[#1DB954]/25'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]'
+            }`}
+          >
+            <MonitorSpeaker className="w-3.5 h-3.5" />
+            {!isLocalPlayback && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#1DB954] ring-2 ring-black animate-pulse" />
+            )}
           </button>
 
           {/* Volume Control */}
@@ -326,6 +362,12 @@ export function PlayerBar() {
                 className="absolute left-0 h-1 group-hover/vol:h-1.5 rounded-full pointer-events-none transition-all bg-[#FA233B]"
                 style={{
                   width: `${(isMuted ? 0 : volume) * 100}%`,
+                }}
+              />
+              <div
+                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-white shadow-sm pointer-events-none transition-all group-hover/vol:scale-125"
+                style={{
+                  left: `${(isMuted ? 0 : volume) * 100}%`,
                 }}
               />
               <input

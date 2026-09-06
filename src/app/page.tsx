@@ -31,7 +31,9 @@ import { NotificationCenterModal } from '@/components/modals/NotificationCenterM
 import { WrappedModal } from '@/components/modals/WrappedModal';
 import { CarModeModal } from '@/components/modals/CarModeModal';
 import { Toast } from '@/components/ui/Toast';
+import { VolumeHUD } from '@/components/ui/VolumeHUD';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
+import { DeviceDiscoveryEngine } from '@/lib/connect/discovery/DeviceDiscoveryEngine';
 
 import { HomeView } from '@/components/views/HomeView';
 import { NewView } from '@/components/views/NewView';
@@ -84,6 +86,12 @@ export default function Page() {
 
   React.useEffect(() => {
     useAuthStore.getState().initializeAuth();
+    // Spotify-style Background Presence: Automatically advertise this device on app startup
+    const accountId = typeof window !== 'undefined' ? localStorage.getItem('raagax_account_id') : null;
+    DeviceDiscoveryEngine.getInstance().startDiscovery('player', accountId);
+    import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
+      ConnectSessionManager.getInstance();
+    }).catch(() => {});
   }, []);
 
 
@@ -189,6 +197,7 @@ export default function Page() {
       {/* Splash Screen Animation */}
       <SplashScreen />
       <Toast />
+      <VolumeHUD />
 
       <OfflineStorageSetupModal
         isOpen={isSetupModalOpen}

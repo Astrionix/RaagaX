@@ -70,18 +70,26 @@ export function AudioPlayerController() {
     const attachAudioListeners = (audio: HTMLAudioElement) => {
       const handlePlay = () => {
         if (!usePlayerStore.getState().isLocalPlayback) return;
+        const active = PlaybackService.getInstance().getActiveAudio();
+        if (audio !== active || (audio.src && audio.src.startsWith('data:'))) return;
         usePlayerStore.getState().setIsPlaying(true, true);
       };
       const handlePlaying = () => {
         if (!usePlayerStore.getState().isLocalPlayback) return;
+        const active = PlaybackService.getInstance().getActiveAudio();
+        if (audio !== active || (audio.src && audio.src.startsWith('data:'))) return;
         usePlayerStore.getState().setIsPlaying(true, true);
       };
       const handlePause = () => {
         if (!usePlayerStore.getState().isLocalPlayback) return;
+        const active = PlaybackService.getInstance().getActiveAudio();
+        if (audio !== active || (audio.src && audio.src.startsWith('data:'))) return;
         usePlayerStore.getState().setIsPlaying(false, true);
       };
       const handleEnded = () => {
         if (!usePlayerStore.getState().isLocalPlayback) return;
+        const active = PlaybackService.getInstance().getActiveAudio();
+        if (audio !== active || (audio.src && audio.src.startsWith('data:'))) return;
         usePlayerStore.getState().setIsPlaying(false, true);
       };
 
@@ -139,6 +147,7 @@ export function AudioPlayerController() {
           currentSong: snapshot.song,
           currentTime: snapshot.positionMs / 1000,
           isPlaying: false, // restore in paused state so it doesn't blast audio unexpectedly
+          playbackIntent: 'PAUSED',
         });
       }
     } catch {}
@@ -314,11 +323,12 @@ export function AudioPlayerController() {
           : (validTrack.duration || 0);
 
         // Single atomic state update to prevent UI flickering / mixed metadata
+        const isNowPlaying = Boolean(data.isPlaying);
         usePlayerStore.setState({
           currentSong: validTrack,
           queueIndex: matchIdx !== -1 ? matchIdx : store.queueIndex,
-          isPlaying: data.isPlaying !== undefined ? data.isPlaying : true,
-          playbackIntent: 'PLAYING',
+          isPlaying: isNowPlaying,
+          playbackIntent: isNowPlaying ? 'PLAYING' : 'PAUSED',
           currentTime: data.positionMs ? (data.positionMs / 1000) : 0,
           duration: durationSec,
         });
@@ -503,6 +513,7 @@ export function AudioPlayerController() {
         // 1. Sync live audio element state to store if track changed during background playback
         const activeAudio = PlaybackService.getInstance().getActiveAudio();
         const store = usePlayerStore.getState();
+        if (!store.isLocalPlayback) return;
         if (activeAudio && activeAudio.dataset?.trackId) {
           const liveTrackId = activeAudio.dataset.trackId;
           if (store.currentSong && store.currentSong.id !== liveTrackId) {
@@ -543,6 +554,7 @@ export function AudioPlayerController() {
 
   // Watch for explicit seek targets from UI (Seek bar release, keyboard shortcuts, lyrics tap)
   useEffect(() => {
+    if (!isLocalPlayback) return;
     if (seekTarget !== null) {
       const targetSec = seekTarget;
       console.log('[SEEK] Store target:', targetSec, 'seconds (', Math.round(targetSec * 1000), 'ms)');
@@ -552,7 +564,7 @@ export function AudioPlayerController() {
       LyricsEngine.getInstance().seek(targetSec * 1000);
       usePlayerStore.setState({ seekTarget: null });
     }
-  }, [seekTarget]);
+  }, [seekTarget, isLocalPlayback]);
 
   // Auto-refill queue (Continuous Autoplay Mode)
   useEffect(() => {
@@ -668,7 +680,13 @@ export function AudioPlayerController() {
 
   // Handle Volume & Mute dynamically
   useEffect(() => {
-    const effectiveVolume = isMuted ? 0 : volume;
+    const isCurrentlyMuted = Boolean(isMuted);
+    const effectiveVolume = isCurrentlyMuted ? 0 : (typeof volume === 'number' && !isNaN(volume) && volume > 0 ? volume : 0.8);
+
+    // Keep actual HTMLAudioElements hardware-muted/unmuted in sync with Zustand store
+    if (audioRefA.current) audioRefA.current.muted = isCurrentlyMuted;
+    if (audioRefB.current) audioRefB.current.muted = isCurrentlyMuted;
+
     if (RaagaXNativePlayer.isNative()) {
       RaagaXNativePlayer.setVolume(effectiveVolume);
     } else {
@@ -691,7 +709,10 @@ export function AudioPlayerController() {
       }).catch(() => {
         // Fallback: instant assignment
         const activeAudio = PlaybackService.getInstance().getActiveAudio();
-        if (activeAudio) activeAudio.volume = targetVol;
+        if (activeAudio) {
+          activeAudio.muted = isCurrentlyMuted;
+          activeAudio.volume = targetVol;
+        }
       });
     }
   }, [volume, isMuted, currentSong?.id, loudnessNormalizationEnabled]);
@@ -769,6 +790,7 @@ export function AudioPlayerController() {
   return (
     <>
       <audio
+        id="raaga-audio-a"
         ref={audioRefA}
         onLoadedMetadata={handleLoadedMetadata}
         preload="auto"
@@ -776,6 +798,7 @@ export function AudioPlayerController() {
         className="hidden"
       />
       <audio
+        id="raaga-audio-b"
         ref={audioRefB}
         onLoadedMetadata={handleLoadedMetadata}
         preload="auto"

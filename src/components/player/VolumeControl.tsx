@@ -1,78 +1,16 @@
 'use client';
 
 /**
- * VolumeControl — Spotify-style local volume slider + mute toggle
+ * VolumeControl — Spotify-style volume slider + mute toggle
+ * Features smooth real-time visual progress, always-visible thumb indicator,
+ * and percentage display so volume changes (local, keyboard, or remote Connect)
+ * are immediately and clearly reflected in the UI.
  */
 
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback } from 'react';
 import { Volume1, Volume2, VolumeX } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useThemeStore } from '@/context/useThemeStore';
-
-const SLIDER_CSS = `
-  .rxv-track {
-    -webkit-appearance: none;
-    appearance: none;
-    background: transparent;
-    cursor: pointer;
-    width: 100%;
-    height: 4px;
-    outline: none;
-  }
-  .rxv-track::-webkit-slider-runnable-track {
-    height: 4px;
-    border-radius: 99px;
-    background: rgba(255,255,255,0.15);
-  }
-  .light .rxv-track::-webkit-slider-runnable-track,
-  [data-theme="light"] .rxv-track::-webkit-slider-runnable-track {
-    background: rgba(15,23,42,0.15);
-  }
-  .rxv-track::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: #fff;
-    margin-top: -5px;
-    opacity: 0;
-    transition: opacity 0.15s, transform 0.12s;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-  }
-  .light .rxv-track::-webkit-slider-thumb,
-  [data-theme="light"] .rxv-track::-webkit-slider-thumb {
-    background: #0F172A;
-  }
-  .rxv-wrap:hover .rxv-track::-webkit-slider-thumb {
-    opacity: 1;
-    transform: scale(1.1);
-  }
-  .rxv-track::-moz-range-track {
-    height: 4px;
-    border-radius: 99px;
-    background: rgba(255,255,255,0.15);
-  }
-  .light .rxv-track::-moz-range-track,
-  [data-theme="light"] .rxv-track::-moz-range-track {
-    background: rgba(15,23,42,0.15);
-  }
-  .rxv-track::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: #fff;
-    border: none;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-  }
-  .light .rxv-track::-moz-range-thumb,
-  [data-theme="light"] .rxv-track::-moz-range-thumb {
-    background: #0F172A;
-  }
-`;
-
-function StyleOnce() {
-  return <style>{SLIDER_CSS}</style>;
-}
 
 interface VolumeControlProps {
   className?: string;
@@ -87,7 +25,8 @@ export function VolumeControl({ className = '', compact = false }: VolumeControl
   const { resolvedTheme } = useThemeStore();
   const isLight = resolvedTheme === 'light';
 
-  const effectiveVol = isMuted ? 0 : volume;
+  const safeVolume = typeof volume === 'number' && !isNaN(volume) ? volume : 0.8;
+  const effectiveVol = isMuted ? 0 : safeVolume;
   const pct = Math.round(effectiveVol * 100);
 
   const Icon =
@@ -97,14 +36,11 @@ export function VolumeControl({ className = '', compact = false }: VolumeControl
       ? Volume1
       : Volume2;
 
-  const iconColor = isMuted || effectiveVol === 0 ? '#F0444F' : isLight ? '#64748B' : 'rgba(255,255,255,0.6)';
+  const iconColor = isMuted || effectiveVol === 0 ? '#FA233B' : isLight ? '#64748B' : 'rgba(255,255,255,0.7)';
 
   const handleVolumeChange = useCallback((newVol: number) => {
     const clamped = Math.max(0, Math.min(1, newVol));
     setVolume(clamped);
-    import('@/lib/playback/SpeakerVolumeGainManager').then(({ SpeakerVolumeGainManager }) => {
-      SpeakerVolumeGainManager.getInstance().setSmoothVolume(clamped);
-    }).catch(() => {});
   }, [setVolume]);
 
   const handleMuteToggle = useCallback(() => {
@@ -112,61 +48,77 @@ export function VolumeControl({ className = '', compact = false }: VolumeControl
   }, [toggleMute]);
 
   return (
-    <>
-      <StyleOnce />
-      <div
-        className={`rxv-wrap flex items-center gap-2.5 ${className}`}
-        title={`Volume: ${pct}%`}
+    <div
+      className={`group/vol flex items-center gap-2.5 ${className}`}
+      title={`Volume: ${pct}%`}
+    >
+      {/* Mute toggle */}
+      <button
+        onClick={handleMuteToggle}
+        className="flex-shrink-0 cursor-pointer transition-transform active:scale-90 hover:opacity-100 opacity-80"
+        aria-label={isMuted ? 'Unmute' : 'Mute'}
       >
-        {/* Mute toggle */}
-        <button
-          onClick={handleMuteToggle}
-          className="flex-shrink-0 cursor-pointer transition-transform active:scale-90"
-          aria-label={isMuted ? 'Unmute' : 'Mute'}
-        >
-          <Icon
-            style={{ width: compact ? 14 : 16, height: compact ? 14 : 16, color: iconColor }}
-          />
-        </button>
+        <Icon
+          style={{ width: compact ? 14 : 16, height: compact ? 14 : 16, color: iconColor }}
+        />
+      </button>
 
-        {/* Track + filled overlay */}
+      {/* Track + filled overlay + interactive thumb */}
+      <div
+        className="flex-1 relative flex items-center cursor-pointer"
+        style={{ height: compact ? 12 : 16 }}
+      >
+        {/* Background track */}
         <div
-          className="flex-1 relative"
-          style={{ height: compact ? 3 : 4 }}
-        >
-          {/* Filled portion */}
-          <div
-            className="absolute inset-y-0 left-0 rounded-full pointer-events-none transition-none"
-            style={{
-              width: `${pct}%`,
-              background: '#fff',
-              opacity: 0.7,
-            }}
-          />
-          {/* Slider input */}
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={effectiveVol}
-            onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-            className="rxv-track absolute inset-0"
-            style={{ height: compact ? 3 : 4 }}
-            aria-label="Volume"
-          />
-        </div>
-
-        {/* Max icon */}
-        <Volume2
+          className="absolute inset-x-0 rounded-full transition-all duration-150"
           style={{
-            width: compact ? 14 : 16,
-            height: compact ? 14 : 16,
-            color: 'rgba(255,255,255,0.5)',
-            flexShrink: 0,
+            height: compact ? 3 : 4,
+            background: isLight ? 'rgba(15,23,42,0.15)' : 'rgba(255,255,255,0.2)',
           }}
         />
+
+        {/* Filled active portion */}
+        <div
+          className="absolute left-0 rounded-full pointer-events-none transition-all duration-75"
+          style={{
+            width: `${pct}%`,
+            height: compact ? 3 : 4,
+            background: isLight ? '#0F172A' : '#ffffff',
+            boxShadow: isLight ? 'none' : '0 0 6px rgba(255,255,255,0.4)',
+          }}
+        />
+
+        {/* Circular thumb indicator (always positioned dynamically with volume) */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full pointer-events-none transition-all duration-75 shadow-[0_1px_4px_rgba(0,0,0,0.5)] group-hover/vol:scale-125"
+          style={{
+            left: `${pct}%`,
+            width: compact ? 10 : 12,
+            height: compact ? 10 : 12,
+            background: isLight ? '#0F172A' : '#ffffff',
+          }}
+        />
+
+        {/* Invisible native range input for accurate mouse & touch events */}
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.01}
+          value={effectiveVol}
+          onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+          aria-label="Volume slider"
+        />
       </div>
-    </>
+
+      {/* Percentage text */}
+      <span
+        className="font-mono text-[10px] sm:text-[11px] font-semibold min-w-[28px] sm:min-w-[32px] text-right select-none"
+        style={{ color: isLight ? '#64748B' : 'rgba(255,255,255,0.7)' }}
+      >
+        {isMuted ? '0%' : `${pct}%`}
+      </span>
+    </div>
   );
 }

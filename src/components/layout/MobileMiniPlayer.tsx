@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { Play, Pause, SkipForward, SkipBack, Heart, MoreVertical, Disc3, Headphones } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, Heart, MoreVertical, Disc3, Headphones, MonitorSpeaker } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SeekBar } from '@/components/player/SeekBar';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
@@ -63,6 +63,9 @@ export function MobileMiniPlayer() {
     togglePlayerExpanded,
     likedSongIds,
     toggleLikeSong,
+    toggleCastModal,
+    isLocalPlayback,
+    activePlaybackDeviceName,
   } = usePlayerStore();
 
   React.useEffect(() => {
@@ -214,25 +217,56 @@ export function MobileMiniPlayer() {
               <h4 className="text-xs sm:text-[13px] font-bold text-[var(--text-primary)] truncate leading-tight">
                 {currentSong.title}
               </h4>
-              {!isScrolled && (
-                <p className="text-[11px] text-[var(--text-secondary)] truncate leading-tight flex items-center gap-1 mt-0.5 animate-in fade-in duration-200">
-                  <span>{currentSong.artist}</span>
-                </p>
+              {!isLocalPlayback ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleCastModal();
+                  }}
+                  className="flex items-center gap-1 text-[11px] font-bold text-[#1DB954] hover:underline cursor-pointer mt-0.5 leading-tight truncate"
+                  title={`Playing on ${activePlaybackDeviceName}`}
+                  aria-label={`Playing on ${activePlaybackDeviceName}`}
+                >
+                  <span className="text-[9px] leading-none">▶</span>
+                  <span className="truncate">playing on {activePlaybackDeviceName}</span>
+                </button>
+              ) : (
+                !isScrolled && (
+                  <p className="text-[11px] text-[var(--text-secondary)] truncate leading-tight flex items-center gap-1 mt-0.5 animate-in fade-in duration-200">
+                    <span>{currentSong.artist}</span>
+                  </p>
+                )
               )}
             </div>
           </div>
 
-            {/* Right: Controls (Like, Play/Pause, Next) */}
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {/* Favorite button (visible in Normal state) */}
-            {!isScrolled && (
+          {/* Right: Controls (Connect icon, Favorite, Play/Pause, Next) */}
+          <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
+            {/* Connect to Device icon button (Section 1 primary entry point) */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleCastModal();
+              }}
+              aria-label={!isLocalPlayback ? `Playing on ${activePlaybackDeviceName}` : "Connect to a device"}
+              className={`w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center transition-all active:scale-90 cursor-pointer rounded-full ${
+                !isLocalPlayback 
+                  ? 'text-[#1DB954] bg-[#1DB954]/15' 
+                  : 'text-[#94A3B8] hover:text-white'
+              }`}
+            >
+              <MonitorSpeaker className={`w-4 h-4 ${!isLocalPlayback ? 'animate-pulse' : ''}`} />
+            </button>
+
+            {/* Favorite button (visible in Normal state when local) */}
+            {!isScrolled && isLocalPlayback && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleLikeSong(currentSong.id);
                 }}
                 aria-label="Favorite track"
-                className="w-11 h-11 flex items-center justify-center text-[#94A3B8] hover:text-white active:scale-90 transition-transform cursor-pointer rounded-full"
+                className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-[#94A3B8] hover:text-white active:scale-90 transition-transform cursor-pointer rounded-full"
               >
                 <Heart
                   className={`w-4 h-4 transition-colors ${

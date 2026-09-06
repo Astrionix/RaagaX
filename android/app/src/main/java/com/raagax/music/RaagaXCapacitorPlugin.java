@@ -49,7 +49,7 @@ public class RaagaXCapacitorPlugin extends Plugin {
                 data.put("totalItems",  intent.getIntExtra("totalItems", 0));
                 data.put("positionMs",  intent.getLongExtra("positionMs", 0L));
                 data.put("durationMs",  intent.getLongExtra("durationMs", 0L));
-                data.put("isPlaying",   intent.getBooleanExtra("isPlaying", true));
+                data.put("isPlaying",   intent.getBooleanExtra("isPlaying", false));
                 data.put("timestamp",   intent.getLongExtra("timestamp", System.currentTimeMillis()));
                 data.put("requestId",   intent.getLongExtra("requestId", 0L));
                 notifyListeners("trackChanged", data);

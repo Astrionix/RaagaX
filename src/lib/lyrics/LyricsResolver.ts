@@ -7,7 +7,7 @@ export class LyricsResolver {
   private static instance: LyricsResolver;
   private inFlightRequests = new Map<string, Promise<LyricsData | null>>();
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): LyricsResolver {
     if (!LyricsResolver.instance) {

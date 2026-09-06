@@ -92,7 +92,8 @@ function broadcastDeviceList(targetSubnet, targetAccountId) {
 // 3. WebSocket Connection Handling
 // ============================================================================
 wss.on('connection', (ws, req) => {
-  const meta = { deviceId: null, roomId: null };
+  const clientIp = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  const meta = { deviceId: null, roomId: null, clientIp };
   socketMetadata.set(ws, meta);
 
   ws.on('message', (raw) => {
@@ -221,6 +222,7 @@ wss.on('connection', (ws, req) => {
           ws,
           device: {
             ...device,
+            subnet: device.subnet || meta.clientIp,
             isOnline: true,
             lastSeenAt: Date.now(),
           },
@@ -228,20 +230,54 @@ wss.on('connection', (ws, req) => {
         });
 
         // Broadcast new device presence to all devices on the same network/account
-        broadcastDeviceList(device.subnet, device.accountId);
+        broadcastDeviceList(device.subnet || meta.clientIp, device.accountId);
+        return;
+      }
+
+      if (data.type === 'PING') {
+        ws.send(JSON.stringify({
+          type: 'PONG',
+          payload: data.payload || {},
+        }));
         return;
       }
 
       if (data.type === 'CONNECT_COMMAND') {
-        const { targetDeviceId, command } = data;
+        const targetDeviceId = data.targetDeviceId || data.toDeviceId;
+        const command = data.command || data.payload || data;
         const target = devices.get(targetDeviceId);
 
         if (target && target.ws && target.ws.readyState === WebSocket.OPEN) {
           target.ws.send(JSON.stringify({
             type: 'CONNECT_COMMAND',
-            payload: command || data,
+            payload: command,
           }));
+        } else {
+          console.warn(`[CONNECT_COMMAND] Target "${targetDeviceId}" not found in active devices (${devices.size} active)`);
         }
+        return;
+      }
+
+      if (data.type === 'SIGNAL_MESSAGE' || data.type === 'SIGNAL') {
+        const targetId = data.toDeviceId || data.targetDeviceId || (data.payload && (data.payload.toDeviceId || data.payload.targetDeviceId));
+        const target = devices.get(targetId);
+
+        if (target && target.ws && target.ws.readyState === WebSocket.OPEN) {
+          target.ws.send(JSON.stringify({
+            type: 'SIGNAL_MESSAGE',
+            payload: data.payload || data,
+          }));
+        } else {
+          console.warn(`[SIGNAL_MESSAGE] Target "${targetId}" not found for WebRTC signaling`);
+        }
+        return;
+      }
+
+      if (data.type === 'PING') {
+        ws.send(JSON.stringify({
+          type: 'PONG',
+          payload: data.payload,
+        }));
         return;
       }
 

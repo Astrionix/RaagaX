@@ -155,6 +155,14 @@ export function OnboardingAuthModal() {
           user: data.session.user,
           isLoading: false,
         });
+        const loginName = data.session.user?.user_metadata?.full_name || 
+                          data.session.user?.user_metadata?.name || 
+                          data.session.user?.email?.split('@')[0] || '';
+        if (loginName) {
+          import('@/lib/connect/auth/DeviceNameResolver').then(({ DeviceNameResolver }) => {
+            DeviceNameResolver.getInstance().setAccountDisplayName(loginName);
+          }).catch(() => {});
+        }
       }
       localStorage.setItem('raagax_onboarding_done', 'true');
       setAuthModalOpen(false);
@@ -180,6 +188,11 @@ export function OnboardingAuthModal() {
     if (password !== confirmPassword) {
       setErrorMsg('Passwords do not match.');
       return;
+    }
+    if (username.trim()) {
+      import('@/lib/connect/auth/DeviceNameResolver').then(({ DeviceNameResolver }) => {
+        DeviceNameResolver.getInstance().setAccountDisplayName(username.trim());
+      }).catch(() => {});
     }
     setMode('register-language');
   };
@@ -248,6 +261,12 @@ export function OnboardingAuthModal() {
               user: data.session.user,
               isLoading: false,
             });
+          }
+          const chosenName = username.trim() || data?.session?.user?.user_metadata?.full_name || cleanEmail.split('@')[0];
+          if (chosenName) {
+            import('@/lib/connect/auth/DeviceNameResolver').then(({ DeviceNameResolver }) => {
+              DeviceNameResolver.getInstance().setAccountDisplayName(chosenName);
+            }).catch(() => {});
           }
         } catch (authEx: any) {
           console.warn('[Onboarding] Cloud auth error:', authEx);

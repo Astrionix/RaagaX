@@ -366,7 +366,6 @@ export function QueueModal() {
                               <button
                                 onClick={() => {
                                   toggleLikeSong(song.id);
-                                  setToastMessage(isTrackLiked ? 'Removed from Liked Songs' : 'Saved to Liked Songs');
                                   setActiveMenuSongId(null);
                                 }}
                                 className="w-full text-left px-2.5 py-2 rounded-xl flex items-center gap-2.5 hover:bg-white/10 font-medium"

@@ -19,22 +19,21 @@ export interface AtomicDownloadResult {
   durationMs?: number;
 }
 
+import { CryptoPolyfill } from '../connect/auth/CryptoPolyfill';
+
 /**
  * Calculates SHA-256 checksum of an ArrayBuffer in browser or Node environments.
  */
 async function computeSha256(buffer: ArrayBuffer): Promise<string> {
   if (typeof crypto !== 'undefined' && crypto.subtle) {
-    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+    try {
+      const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+    } catch {}
   }
-  // Fallback simple checksum if Web Crypto is unavailable
-  let hash = 0;
-  const bytes = new Uint8Array(buffer);
-  for (let i = 0; i < bytes.length; i++) {
-    hash = (hash * 31 + bytes[i]) >>> 0;
-  }
-  return hash.toString(16).padStart(8, '0');
+  // Pure TypeScript SHA-256 fallback when Web Crypto subtle is unavailable (e.g. non-secure contexts)
+  return CryptoPolyfill.sha256Hex(new Uint8Array(buffer));
 }
 
 /**

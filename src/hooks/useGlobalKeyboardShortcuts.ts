@@ -99,14 +99,16 @@ export function useGlobalKeyboardShortcuts() {
           return;
         }
 
+        const wasPlaying = store.isPlaying;
         devLog('SPACE_TOGGLE', {
           target: (e.target as HTMLElement)?.tagName ?? 'UNKNOWN',
-          wasPlaying: store.isPlaying,
+          wasPlaying,
         });
 
         store.togglePlayPause();
 
-        devLog(store.isPlaying ? 'PAUSE_DISPATCHED' : 'PLAY_DISPATCHED');
+        const nowPlaying = usePlayerStore.getState().isPlaying;
+        devLog(nowPlaying ? 'PLAY_DISPATCHED' : 'PAUSE_DISPATCHED');
         return;
       }
 

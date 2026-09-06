@@ -36,7 +36,7 @@ export const apiFetch = async <T>({ endpoint, params, context, timeoutMs = DEFAU
 
   let response: Response;
   let text = '';
-  
+
   for (let attempt = 0; attempt < 2; attempt++) {
     const ua = attempt === 0 ? randomUserAgent : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
     const controller = new AbortController();

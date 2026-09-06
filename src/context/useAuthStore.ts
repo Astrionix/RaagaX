@@ -119,6 +119,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const initialUser = error ? null : (session?.user || null);
       if (initialUser?.id) {
         AccountIsolationGuard.getInstance().setAuthenticatedUser(initialUser.id, 'INITIAL_SESSION');
+        const initialUserName = initialUser.user_metadata?.full_name || 
+                               initialUser.user_metadata?.name || 
+                               initialUser.user_metadata?.user_name || 
+                               initialUser.email?.split('@')[0] || '';
+        if (initialUserName) {
+          import('@/lib/connect/auth/DeviceNameResolver').then(({ DeviceNameResolver }) => {
+            DeviceNameResolver.getInstance().setAccountDisplayName(initialUserName);
+          }).catch(() => {});
+        }
         // Instantly reconcile library and playlists for authenticated user
         import('@/lib/sync/AccountSyncEngine').then(({ AccountSyncEngine }) => {
           AccountSyncEngine.getInstance().reconcile(initialUser.id);
@@ -128,6 +137,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }).catch(() => {});
       } else {
         AccountIsolationGuard.getInstance().clearAuthenticatedUser('INITIAL_GUEST');
+        import('@/lib/connect/auth/DeviceNameResolver').then(({ DeviceNameResolver }) => {
+          DeviceNameResolver.getInstance().setAccountDisplayName(null);
+        }).catch(() => {});
       }
 
       set({
@@ -157,6 +169,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           });
 
           if (newUserId) {
+            const authUserName = newSession?.user?.user_metadata?.full_name || 
+                                 newSession?.user?.user_metadata?.name || 
+                                 newSession?.user?.user_metadata?.user_name || 
+                                 newSession?.user?.email?.split('@')[0] || '';
+            if (authUserName) {
+              import('@/lib/connect/auth/DeviceNameResolver').then(({ DeviceNameResolver }) => {
+                DeviceNameResolver.getInstance().setAccountDisplayName(authUserName);
+              }).catch(() => {});
+            }
+
             // Only migrate guest data if this session was genuinely an unauthenticated guest session
             if (event === 'SIGNED_IN' && wasGuest && !currentGuardUser) {
               import('@/lib/sync/AccountSyncEngine').then(({ AccountSyncEngine }) => {
@@ -173,6 +195,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             }).catch(() => {});
           }
         } else if (event === 'SIGNED_OUT') {
+          import('@/lib/connect/auth/DeviceNameResolver').then(({ DeviceNameResolver }) => {
+            DeviceNameResolver.getInstance().setAccountDisplayName(null);
+          }).catch(() => {});
           await purgeAllUserScopedState('AUTH_EVENT_SIGNED_OUT');
           set({ session: null, user: null });
         }
@@ -185,6 +210,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOut: async () => {
     // 1. Purge all in-memory, store, cache, and local database state
+    import('@/lib/connect/auth/DeviceNameResolver').then(({ DeviceNameResolver }) => {
+      DeviceNameResolver.getInstance().setAccountDisplayName(null);
+    }).catch(() => {});
     await purgeAllUserScopedState('USER_SIGNOUT_CLICK');
 
     // 2. Sign out from Supabase cloud

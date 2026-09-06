@@ -12,6 +12,7 @@ import {
   Library,
   Volume2,
   Speaker,
+  MonitorSpeaker,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { ActiveTab } from '@/types/music';
@@ -34,6 +35,10 @@ export function MobileBottomController() {
     playPrev,
     togglePlayerExpanded,
     isPlayerExpanded,
+    toggleCastModal,
+    isCastModalOpen,
+    isLocalPlayback,
+    activePlaybackDeviceName,
   } = usePlayerStore();
 
   useEffect(() => {
@@ -137,17 +142,52 @@ export function MobileBottomController() {
                 <h4 className="text-[13px] font-bold text-[var(--text-primary)] truncate leading-snug tracking-tight">
                   {currentSong.title}
                 </h4>
-                <p className="text-[11px] font-medium text-[var(--text-muted)] truncate flex items-center gap-1.5">
-                  <span className="truncate">{currentSong.artist || 'RaagaX Music'}</span>
-                </p>
+                {!isLocalPlayback ? (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      haptics.lightImpact();
+                      toggleCastModal();
+                    }}
+                    className="flex items-center gap-1 text-[11px] font-bold text-[#1DB954] hover:underline cursor-pointer mt-0.5 leading-tight truncate"
+                    title={`Playing on ${activePlaybackDeviceName}`}
+                    aria-label={`Playing on ${activePlaybackDeviceName}`}
+                  >
+                    <span className="text-[9px] leading-none">▶</span>
+                    <span className="truncate">playing on {activePlaybackDeviceName}</span>
+                  </button>
+                ) : (
+                  <p className="text-[11px] font-medium text-[var(--text-muted)] truncate flex items-center gap-1.5 mt-0.5">
+                    <span className="truncate">{currentSong.artist || 'RaagaX Music'}</span>
+                  </p>
+                )}
               </div>
             </div>
 
-            {/* Right: Direct Action Icons (Play/Pause ▶ + FastForward ⏩) */}
+            {/* Right: Direct Action Icons (Connect Device, Play/Pause ▶, FastForward ⏩) */}
             <div
-              className="flex items-center gap-2 flex-shrink-0 pr-1 z-10"
+              className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 pr-1 z-10"
               onClick={(e) => e.stopPropagation()}
             >
+              {/* Spotify Connect Device Button (§1 primary entry point) */}
+              <button
+                onClick={() => {
+                  haptics.lightImpact();
+                  toggleCastModal();
+                }}
+                aria-label={!isLocalPlayback ? `Playing on ${activePlaybackDeviceName}` : "Connect to a device"}
+                className={`relative w-8 h-8 flex items-center justify-center rounded-full transition-all active:scale-90 cursor-pointer ${
+                  !isLocalPlayback || isCastModalOpen
+                    ? 'text-[#1DB954] bg-[#1DB954]/15 shadow-sm'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/10'
+                }`}
+                title={isLocalPlayback ? "Connect to a device" : `Playing on ${activePlaybackDeviceName}`}
+              >
+                <MonitorSpeaker className={`w-4 h-4 ${!isLocalPlayback ? 'animate-pulse text-[#1DB954]' : ''}`} />
+                {!isLocalPlayback && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#1DB954] ring-2 ring-black animate-pulse" />
+                )}
+              </button>
 
               {/* Play / Pause Liquid Glass Button */}
               <button

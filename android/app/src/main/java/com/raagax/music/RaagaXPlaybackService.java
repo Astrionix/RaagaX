@@ -978,6 +978,9 @@ public class RaagaXPlaybackService extends Service {
                     + " action=SET");
 
             // Set the complete playlist — ExoPlayer starts from designated track & position
+            if (!autoPlay) {
+                player.setPlayWhenReady(false);
+            }
             player.setMediaSources(sources, safeIndex, safePositionMs);
             player.prepare();
             if (autoPlay) {
@@ -1777,6 +1780,7 @@ public class RaagaXPlaybackService extends Service {
 
                 if (!sources.isEmpty()) {
                     int safeIndex = Math.max(0, Math.min(index, sources.size() - 1));
+                    player.setPlayWhenReady(false);
                     player.setMediaSources(sources, safeIndex, positionMs);
                     player.setShuffleModeEnabled(shuffle);
                     player.setRepeatMode(repeat);

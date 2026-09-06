@@ -41,4 +41,33 @@ if (fs.existsSync(targetFile)) {
   } else {
     console.log('[Patch] Next.js standalone is already patched or patch not required.');
   }
+
+  // Patch 2: Guard hasCustomGetInitialProps and getDefinedNamedExports when pagesDir is undefined
+  if (content.includes('const customAppGetInitialPropsPromise = pagesStaticWorkers.hasCustomGetInitialProps({')) {
+    const unpatchedAppCheck = `const customAppGetInitialPropsPromise = pagesStaticWorkers.hasCustomGetInitialProps({
+                    page: appPageToCheck,
+                    distDir,
+                    runtimeEnvConfig,
+                    checkingApp: true
+                });
+                const namedExportsPromise = pagesStaticWorkers.getDefinedNamedExports({
+                    page: appPageToCheck,
+                    distDir,
+                    runtimeEnvConfig
+                });`;
+    const patchedAppCheck = `const customAppGetInitialPropsPromise = pagesDir ? pagesStaticWorkers.hasCustomGetInitialProps({
+                    page: appPageToCheck,
+                    distDir,
+                    runtimeEnvConfig,
+                    checkingApp: true
+                }) : Promise.resolve(false);
+                const namedExportsPromise = pagesDir ? pagesStaticWorkers.getDefinedNamedExports({
+                    page: appPageToCheck,
+                    distDir,
+                    runtimeEnvConfig
+                }) : Promise.resolve([]);`;
+    content = content.replace(unpatchedAppCheck, patchedAppCheck);
+    fs.writeFileSync(targetFile, content, 'utf8');
+    console.log('[Patch] Next.js App Router pagesDir guard patch applied successfully.');
+  }
 }
