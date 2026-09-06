@@ -800,6 +800,12 @@ export function AudioPlayerController() {
     }
   };
 
+  // On native Android, ExoPlayer in background service is the exclusive audio engine.
+  // HTML audio elements must NOT be rendered in WebView DOM to prevent dual-audio mixing.
+  if (RaagaXNativePlayer.isNative()) {
+    return null;
+  }
+
   return (
     <>
       <audio

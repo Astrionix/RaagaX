@@ -387,6 +387,16 @@ public class RaagaXPlaybackService extends Service {
             @Override
             public void onPlayerError(androidx.media3.common.PlaybackException error) {
                 if (isRemotePlayback) return;
+                if (isPreparingNewTrack) {
+                    Log.w(TAG, "[onPlayerError] Suppressed error while isPreparingNewTrack=true");
+                    return;
+                }
+                if (error != null && (
+                        error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_FAILED_RUNTIME_CHECK
+                        || (error.getMessage() != null && error.getMessage().toLowerCase().contains("cancel")))) {
+                    Log.w(TAG, "[onPlayerError] Suppressed cancelled/preempted stream error: " + error.errorCode);
+                    return;
+                }
                 Log.e(TAG, "[QUEUE_TRACK_FAILED]\ntrackId=" + currentTrackId + "\nerror=" + (error != null ? error.getMessage() : "unknown"));
                 Log.e(TAG, "[RAAGAX_LOCAL_PLAYBACK_ERROR] songId=" + currentTrackId + " errorCode=" + error.errorCode + " message=" + error.getMessage() + " cause=" + error.getCause());
                 android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(android.content.Context.CONNECTIVITY_SERVICE);
@@ -407,6 +417,10 @@ public class RaagaXPlaybackService extends Service {
                             if (track != null && track.streamUrl != null && !track.streamUrl.isEmpty()) {
                                 Log.d(TAG, "[RAAGAX_FALLBACK] Resolved online stream for fallback: " + track.streamUrl);
                                 runOnMainThread(() -> {
+                                    if (isRemotePlayback || isPreparingNewTrack || !fallbackTrackId.equals(currentTrackId)) {
+                                        Log.w(TAG, "[RAAGAX_FALLBACK] Aborting stale fallback play for " + fallbackTrackId + " (current is " + currentTrackId + ")");
+                                        return;
+                                    }
                                     playUrl(fallbackTrackId, track.streamUrl, fallbackTitle, fallbackArtist, fallbackArt);
                                 });
                                 return;
@@ -417,6 +431,10 @@ public class RaagaXPlaybackService extends Service {
 
                         // If online fallback resolution failed, safely attempt the next playable queue item
                         runOnMainThread(() -> {
+                            if (isRemotePlayback || isPreparingNewTrack || !fallbackTrackId.equals(currentTrackId)) {
+                                Log.w(TAG, "[RAAGAX_FALLBACK] Aborting stale fallback skip for " + fallbackTrackId + " (current is " + currentTrackId + ")");
+                                return;
+                            }
                             if (player != null && player.hasNextMediaItem()) {
                                 Log.w(TAG, "[QUEUE_TRACK_FAILED] Skipping to next playable queue item after fallback failure...");
                                 player.seekToNextMediaItem();
@@ -996,6 +1014,10 @@ public class RaagaXPlaybackService extends Service {
             if (!autoPlay) {
                 player.setPlayWhenReady(false);
             }
+            try {
+                player.stop();
+                player.clearMediaItems();
+            } catch (Exception ignored) {}
             player.setMediaSources(sources, safeIndex, safePositionMs);
             player.prepare();
             if (autoPlay) {
@@ -1138,6 +1160,10 @@ public class RaagaXPlaybackService extends Service {
                 currentArtist  = startTrack.artist;
                 loadArtworkAsync(startTrack.artworkUrl);
 
+                try {
+                    player.stop();
+                    player.clearMediaItems();
+                } catch (Exception ignored) {}
                 player.setMediaSources(sources, safeIndex, 0L);
                 player.prepare();
                 if (autoPlay) {

@@ -8,6 +8,8 @@
  * commands can trigger audio.play() seamlessly without NotAllowedError.
  */
 
+import { RaagaXNativePlayer } from './native/RaagaXNativePlayer';
+
 const SILENT_WAV = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
 
 let isAudioUnlocked = false;
@@ -26,7 +28,7 @@ if (typeof navigator !== 'undefined' && 'getAutoplayPolicy' in navigator) {
 }
 
 export function registerAudioForUnlock(element: HTMLAudioElement): void {
-  if (!element) return;
+  if (!element || RaagaXNativePlayer.isNative()) return;
   registeredElements.add(element);
 }
 
@@ -36,6 +38,7 @@ export function isAudioGloballyUnlocked(): boolean {
 
 export async function activatePlayer(): Promise<boolean> {
   if (typeof window === 'undefined') return false;
+  if (RaagaXNativePlayer.isNative()) return true;
   if (isAudioUnlocked) return true;
   if (typeof unlockAudioRef === 'function') {
     await unlockAudioRef();
@@ -47,6 +50,7 @@ let unlockAudioRef: (() => Promise<void>) | null = null;
 
 export function initAudioUnlocker(elements?: HTMLAudioElement | HTMLAudioElement[]): void {
   if (typeof window === 'undefined') return;
+  if (RaagaXNativePlayer.isNative()) return;
 
   if (elements) {
     const list = Array.isArray(elements) ? elements : [elements];
@@ -60,16 +64,20 @@ export function initAudioUnlocker(elements?: HTMLAudioElement | HTMLAudioElement
 
   const unlockAudio = async () => {
     if (isAudioUnlocked || isUnlocking) return;
+    if (RaagaXNativePlayer.isNative()) return;
     isUnlocking = true;
     try {
       // 1. Prime registered audio elements (audioA, audioB) that are uninitialized
+      const { PlaybackService } = await import('./PlaybackService');
+      const activeElement = PlaybackService.getInstance().getActiveAudio();
+
       for (const el of Array.from(registeredElements)) {
         if (!el) continue;
         el.preload = 'auto';
         const prevSrc = el.src;
         try {
-          // If the element already has a real media source waiting to play, resume it immediately in user gesture!
-          if (prevSrc && !prevSrc.startsWith('data:') && prevSrc !== 'about:blank') {
+          // If the active element already has a real media source waiting to play, resume it in user gesture!
+          if (el === activeElement && prevSrc && !prevSrc.startsWith('data:') && prevSrc !== 'about:blank') {
             const { usePlayerStore } = await import('@/context/usePlayerStore');
             const store = usePlayerStore.getState();
             store.setIsAutoplayBlocked(false);
@@ -78,13 +86,16 @@ export function initAudioUnlocker(elements?: HTMLAudioElement | HTMLAudioElement
               store.setIsPlaying(true);
             }
           } else {
-            // Only prime empty or silent dummy elements.
+            // Only prime with silent dummy elements. Standby elements must remain paused and silent.
             el.src = SILENT_WAV;
             await el.play();
             el.pause();
             el.currentTime = 0;
-            if (prevSrc && !prevSrc.startsWith('data:')) {
+            if (el === activeElement && prevSrc && !prevSrc.startsWith('data:')) {
               el.src = prevSrc;
+            } else if (el !== activeElement) {
+              el.removeAttribute('src');
+              el.load();
             }
           }
         } catch {

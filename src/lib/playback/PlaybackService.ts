@@ -271,6 +271,9 @@ export class PlaybackService {
   }
 
   public getActiveAudio(): HTMLAudioElement | null {
+    if (RaagaXNativePlayer.isNative()) {
+      return null;
+    }
     if (!this.audioA && typeof document !== 'undefined' && typeof document.getElementById === 'function') {
       const elA = document.getElementById('raaga-audio-a') as HTMLAudioElement | null;
       const elB = document.getElementById('raaga-audio-b') as HTMLAudioElement | null;
@@ -292,6 +295,9 @@ export class PlaybackService {
   }
 
   public getStandbyAudio(): HTMLAudioElement | null {
+    if (RaagaXNativePlayer.isNative()) {
+      return null;
+    }
     return this.activeTag === 'A' ? this.audioB : this.audioA;
   }
 
@@ -439,6 +445,7 @@ export class PlaybackService {
   public async loadQueueContext(songs: Song[], startIndex: number, autoPlay: boolean = true, startPositionMs: number = 0, requestId?: number): Promise<void> {
     if (!RaagaXNativePlayer.isNative()) return;
     if (!songs || songs.length === 0) return;
+    const currentReq = requestId ?? this.playbackRequestId;
     if (requestId !== undefined && requestId !== this.playbackRequestId) return;
 
     const store = usePlayerStore.getState();
@@ -481,7 +488,11 @@ export class PlaybackService {
           if (!finalSrc && (index === startIndex || Math.abs(index - startIndex) <= 3)) {
             try {
               const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
-              if (source?.url) finalSrc = source.url;
+              if (source?.url) {
+                finalSrc = source.url;
+                song.audioUrl = finalSrc;
+                PlayableUrlCache.getInstance().set(song.id, finalSrc, [finalSrc], source.type === 'offline' ? 'offline' : 'remote');
+              }
             } catch { }
           }
 
@@ -500,8 +511,8 @@ export class PlaybackService {
         })
       );
 
-      if (requestId !== undefined && requestId !== this.playbackRequestId) {
-        console.log(`[PlaybackService] loadQueueContext cancelled: stale requestId #${requestId} (current #${this.playbackRequestId})`);
+      if (currentReq !== this.playbackRequestId) {
+        console.log(`[PlaybackService] loadQueueContext cancelled: stale requestId #${currentReq} (current #${this.playbackRequestId})`);
         return;
       }
 
@@ -523,8 +534,8 @@ export class PlaybackService {
 
       // setQueue() hands ExoPlayer the entire playlist with the correct start index and position.
       // ExoPlayer then owns all transitions — no WebView involvement needed.
-      await RaagaXNativePlayer.setQueue(validTracks, newStartIndex, autoPlay, startPositionMs, requestId);
-      console.log(`[PlaybackService] loadQueueContext: setQueue(${validTracks.length} tracks, startIndex=${newStartIndex} (original=${startIndex}), startPos=${startPositionMs}ms, autoPlay=${autoPlay}, reqId=${requestId}) — ExoPlayer owns all transitions`);
+      await RaagaXNativePlayer.setQueue(validTracks, newStartIndex, autoPlay, startPositionMs, currentReq);
+      console.log(`[PlaybackService] loadQueueContext: setQueue(${validTracks.length} tracks, startIndex=${newStartIndex} (original=${startIndex}), startPos=${startPositionMs}ms, autoPlay=${autoPlay}, reqId=${currentReq}) — ExoPlayer owns all transitions`);
     } catch (e) {
       console.warn('[PlaybackService] loadQueueContext failed:', e);
     }
@@ -591,6 +602,8 @@ export class PlaybackService {
         try {
           a.pause();
           a.currentTime = 0;
+          a.removeAttribute('src');
+          a.load();
           if (a.dataset) {
             delete a.dataset.trackId;
             delete a.dataset.playbackRequestId;
@@ -835,6 +848,17 @@ export class PlaybackService {
 
       this.activeCandidates = resolvedSource?.candidates && resolvedSource.candidates.length > 0 ? resolvedSource.candidates : [finalSrc];
       this.activeCandidateIndex = 0;
+
+      // Flush and quiet standby audio element to prevent simultaneous dual-playback
+      const standbyAudio = this.getStandbyAudio();
+      if (standbyAudio) {
+        try {
+          standbyAudio.pause();
+          standbyAudio.currentTime = 0;
+          standbyAudio.removeAttribute('src');
+          standbyAudio.load();
+        } catch { }
+      }
 
       // Reset currentTime to initialPositionSec (or 0) and load new audio URL
       try {

@@ -14,16 +14,32 @@
  * but should be considered deprecated in favour of setQueue().
  */
 
-const IS_CAPACITOR_NATIVE =
-  typeof window !== 'undefined' &&
-  (window as any).Capacitor &&
-  typeof (window as any).Capacitor.isNativePlatform === 'function' &&
-  (window as any).Capacitor.isNativePlatform();
+import { Capacitor, registerPlugin } from '@capacitor/core';
+
+export const RaagaXPlayerPlugin = registerPlugin<any>('RaagaXPlayer');
+
+function isCapacitorNative(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    if (Capacitor.isNativePlatform()) return true;
+    const plat = Capacitor.getPlatform();
+    if (plat === 'android' || plat === 'ios') return true;
+  } catch {}
+  const cap = (window as any).Capacitor;
+  if (!cap) return false;
+  if (typeof cap.isNativePlatform === 'function' && cap.isNativePlatform()) {
+    return true;
+  }
+  if (typeof cap.getPlatform === 'function' && (cap.getPlatform() === 'android' || cap.getPlatform() === 'ios')) {
+    return true;
+  }
+  return Boolean(cap.Plugins?.RaagaXPlayer);
+}
 
 function getPlugin() {
-  if (!IS_CAPACITOR_NATIVE) return null;
+  if (typeof window === 'undefined') return null;
   const cap = (window as any).Capacitor;
-  return cap?.Plugins?.RaagaXPlayer ?? null;
+  return cap?.Plugins?.RaagaXPlayer || RaagaXPlayerPlugin || null;
 }
 
 export interface NativeTrackItem {
@@ -48,7 +64,7 @@ let lastCachedNativeState: NativePlaybackState = { isPlaying: false, positionMs:
 
 export const RaagaXNativePlayer = {
   isNative(): boolean {
-    return IS_CAPACITOR_NATIVE && getPlugin() !== null;
+    return isCapacitorNative();
   },
 
   /**

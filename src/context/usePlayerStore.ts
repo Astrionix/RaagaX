@@ -1420,10 +1420,27 @@ export const usePlayerStore = create<PlayerState>()(
         });
         persistSessionHelper(get());
 
-        await get().switchTrack(activePlaySong, targetIndex, true);
-
         if (get().isLocalPlayback && RaagaXNativePlayer.isNative() && syncedQueue && syncedQueue.length > 0) {
-          PlaybackService.getInstance().loadQueueContext(syncedQueue, targetIndex, true, 0, get().playbackRequestId);
+          const requestId = ++globalPlaybackRequestId;
+          PlaybackService.getInstance().setPlaybackRequestId(requestId);
+          PlaybackService.getInstance().stopAllAudio();
+          set({
+            currentSong: activePlaySong,
+            queueIndex: targetIndex,
+            currentTime: 0,
+            seekTarget: null,
+            lastPositionTimestamp: performance.now(),
+            duration: activePlaySong.duration || 0,
+            isPlaying: true,
+            playbackIntent: 'PLAYING',
+            activeRenderer: 'audio',
+            playbackRequestId: requestId,
+          });
+          MediaSessionManager.getInstance().updateSongMetadata(activePlaySong);
+          MediaSessionManager.getInstance().setPlaybackState('playing');
+          await PlaybackService.getInstance().loadQueueContext(syncedQueue, targetIndex, true, 0, requestId);
+        } else {
+          await get().switchTrack(activePlaySong, targetIndex, true);
         }
       },
 
