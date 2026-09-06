@@ -1039,10 +1039,10 @@ export function SettingsView() {
                   description="Automatically downloads any song you like (❤️) for offline listening."
                   control={
                     <ToggleSwitch
-                      checked={offlineSettings.autoDownloadFavorites}
+                      checked={Boolean(offlineSettings.autoDownloadFavorites || offlineSettings.autoDownloadLikedSongs)}
                       onChange={() => {
-                        const next = !offlineSettings.autoDownloadFavorites;
-                        setOfflineSettings({ autoDownloadFavorites: next });
+                        const next = !Boolean(offlineSettings.autoDownloadFavorites || offlineSettings.autoDownloadLikedSongs);
+                        setOfflineSettings({ autoDownloadFavorites: next, autoDownloadLikedSongs: next });
                         showToast(next ? 'Automatic favorites downloads enabled' : 'Automatic favorites downloads disabled');
                       }}
                     />

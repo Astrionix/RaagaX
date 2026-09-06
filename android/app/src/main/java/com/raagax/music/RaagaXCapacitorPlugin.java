@@ -315,13 +315,21 @@ public class RaagaXCapacitorPlugin extends Plugin {
             Long l = call.getLong("positionMs");
             positionMs = l != null ? l : 0L;
         }
-        Log.d(TAG, "seekTo received: " + positionMs + "ms");
+        boolean isPlaying = true;
+        if (call.getData() != null && call.getData().has("isPlaying")) {
+            isPlaying = call.getData().optBoolean("isPlaying", true);
+        } else {
+            Boolean b = call.getBoolean("isPlaying");
+            if (b != null) isPlaying = b;
+        }
+        Log.d(TAG, "seekTo received: " + positionMs + "ms, isPlaying=" + isPlaying);
         RaagaXPlaybackService service = getService();
         if (service != null) {
-            service.seekTo(positionMs);
+            service.seekTo(positionMs, isPlaying);
         } else {
             Intent intent = new Intent("SEEK");
             intent.putExtra("positionMs", positionMs);
+            intent.putExtra("isPlaying", isPlaying);
             sendCommandToService(intent);
         }
         call.resolve(new JSObject().put("success", true));

@@ -12,6 +12,7 @@ import { SongUniquenessEngine } from '@/lib/music/SongUniquenessEngine';
 import { SongFormatter } from '@/lib/music/SongFormatter';
 import { QualityManager } from '@/lib/playback/QualityManager';
 import { JioSaavnMediaPipeline } from '@/lib/media/JioSaavnMediaPipeline';
+import { createDownloadLinks } from '@/common/helpers/link.helper';
 
 const getLocalApiBase = () => {
   return `${getApiBaseUrl().replace(/\/+$/, '')}/api`;
@@ -73,17 +74,27 @@ export class RealMusicEngine {
     try {
       const res = await fetch(url, { signal: ctrl.signal });
       clearTimeout(tid);
-      if (!res.ok) return [];
-      const data = await res.json();
-      const results = data.data?.results || data.results || [];
-      return results.length > 0 ? this.mapResults(results) : [];
+      if (res.ok) {
+        const data = await res.json();
+        const results = data.data?.results || data.results || [];
+        if (results.length > 0) return this.mapResults(results);
+      }
     } catch (err: any) {
       clearTimeout(tid);
-      if (err?.name !== 'AbortError') {
-        console.warn(`[RealMusicEngine] Fetch error for query: "${q}"`, err?.message);
-      }
-      return [];
     }
+
+    // Direct fallback to JioSaavn API
+    try {
+      const directUrl = `https://www.jiosaavn.com/api.php?__call=search.getResults&q=${encodeURIComponent(q)}&n=${limit}&_format=json&_marker=0&ctx=web6dot0`;
+      const res = await fetch(directUrl, { signal: AbortSignal.timeout(6000) });
+      if (res.ok) {
+        const data = await res.json();
+        const results = data.results || data.data?.results || [];
+        if (results.length > 0) return this.mapResults(results);
+      }
+    } catch {}
+
+    return [];
   }
 
   /**
@@ -210,6 +221,10 @@ export class RealMusicEngine {
     const tryEndpoints = [
       isAlbum ? `${getLocalApiBase()}/albums?id=${fetchId}` : `${getLocalApiBase()}/playlists?id=${fetchId}`,
       `${getLocalApiBase()}/albums?id=${fetchId}`,
+      isAlbum
+        ? `https://www.jiosaavn.com/api.php?__call=content.getAlbumDetails&albumid=${fetchId}&_format=json&_marker=0&ctx=web6dot0`
+        : `https://www.jiosaavn.com/api.php?__call=playlist.getDetails&listid=${fetchId}&_format=json&_marker=0&ctx=web6dot0`,
+      `https://www.jiosaavn.com/api.php?__call=content.getAlbumDetails&albumid=${fetchId}&_format=json&_marker=0&ctx=web6dot0`,
     ];
 
     try {
@@ -343,14 +358,21 @@ export class RealMusicEngine {
       const coverUrl = resolvedCover || '/app-icon.png';
 
       let audioUrl = '';
-      if (Array.isArray(track.downloadUrl) && track.downloadUrl.length > 0) {
-        const qualityPreset = usePlayerStore.getState().streamingQuality;
-        const wantsDataSaver = (qualityPreset as string) === '320kbps MP3' || qualityPreset === 'LOW' || usePlayerStore.getState().isDataSaverEnabled;
-        const maxBitrate = wantsDataSaver ? 160 : 320;
+      const encUrl = track.encrypted_media_url || track.more_info?.encrypted_media_url;
+      const qualityPreset = usePlayerStore.getState().streamingQuality;
+      const wantsDataSaver = (qualityPreset as string) === '320kbps MP3' || qualityPreset === 'LOW' || usePlayerStore.getState().isDataSaverEnabled;
+      const maxBitrate = wantsDataSaver ? 160 : 320;
 
+      if (Array.isArray(track.downloadUrl) && track.downloadUrl.length > 0) {
         const selected = QualityManager.selectHighestQuality(track.downloadUrl, maxBitrate);
         if (selected) {
           audioUrl = selected;
+        }
+      } else if (encUrl) {
+        const links = createDownloadLinks(encUrl);
+        if (links && links.length > 0) {
+          const selected = QualityManager.selectHighestQuality(links, maxBitrate);
+          if (selected) audioUrl = selected;
         }
       } else if (typeof track.downloadUrl === 'string' && track.downloadUrl) {
         audioUrl = track.downloadUrl.replace('http://', 'https://');

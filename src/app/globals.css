@@ -500,3 +500,84 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* ── Apple Music Style Fluid Ambient Mesh Animations ── */
+@keyframes ambient-mesh-drift-1 {
+  0% {
+    transform: translate3d(0%, 0%, 0) scale(1) rotate(0deg);
+  }
+  33% {
+    transform: translate3d(8%, 12%, 0) scale(1.15) rotate(15deg);
+  }
+  66% {
+    transform: translate3d(-10%, 6%, 0) scale(0.92) rotate(-12deg);
+  }
+  100% {
+    transform: translate3d(0%, 0%, 0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes ambient-mesh-drift-2 {
+  0% {
+    transform: translate3d(0%, 0%, 0) scale(1) rotate(0deg);
+  }
+  30% {
+    transform: translate3d(-12%, -8%, 0) scale(1.22) rotate(-20deg);
+  }
+  70% {
+    transform: translate3d(14%, 10%, 0) scale(0.88) rotate(18deg);
+  }
+  100% {
+    transform: translate3d(0%, 0%, 0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes ambient-mesh-drift-3 {
+  0% {
+    transform: translate3d(0%, 0%, 0) scale(1) rotate(0deg);
+  }
+  40% {
+    transform: translate3d(10%, -12%, 0) scale(1.12) rotate(25deg);
+  }
+  80% {
+    transform: translate3d(-8%, 8%, 0) scale(1.05) rotate(-15deg);
+  }
+  100% {
+    transform: translate3d(0%, 0%, 0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes ambient-pulse-bloom {
+  0%, 100% {
+    transform: translate3d(-50%, -50%, 0) scale(1);
+    opacity: 0.42;
+  }
+  50% {
+    transform: translate3d(-50%, -50%, 0) scale(1.22);
+    opacity: 0.62;
+  }
+}
+
+.animate-ambient-drift-1 {
+  animation: ambient-mesh-drift-1 18s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animate-ambient-drift-2 {
+  animation: ambient-mesh-drift-2 24s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animate-ambient-drift-3 {
+  animation: ambient-mesh-drift-3 16s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animate-ambient-bloom {
+  animation: ambient-pulse-bloom 12s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.ambient-paused {
+  animation-play-state: paused !important;
+}

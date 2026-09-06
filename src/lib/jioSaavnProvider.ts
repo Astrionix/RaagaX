@@ -11,6 +11,7 @@ import { RequestDeduplicator } from '@/lib/network/RequestDeduplicator';
 import { QualityManager } from '@/lib/playback/QualityManager';
 
 import { JioSaavnMediaPipeline } from '@/lib/media/JioSaavnMediaPipeline';
+import { createDownloadLinks } from '@/common/helpers/link.helper';
 
 // Language code mapping used for filtering
 export const LANGUAGE_CODES: Record<string, string> = {
@@ -48,6 +49,13 @@ export function mapTrackToSong(track: any, idx: number = 0): Song {
   const coverUrl = resolvedCover || '/app-icon.png';
 
   let rawDownloadSource = track.downloadUrl;
+  const encUrl = track.encrypted_media_url || track.more_info?.encrypted_media_url;
+  if (!rawDownloadSource && encUrl) {
+    const links = createDownloadLinks(encUrl);
+    if (links && links.length > 0) {
+      rawDownloadSource = links;
+    }
+  }
   if (!rawDownloadSource && track.media_preview_url) {
     rawDownloadSource = track.media_preview_url.replace('http://', 'https://').replace('_preview.mp3', '_320.mp4');
   }
@@ -224,6 +232,7 @@ export class JioSaavnProvider {
     const urls = [
       `${this.localBase}/api/search/songs?query=${encoded}&limit=${limit}${langParam}`,
       `${this.externalBase}/api/search/songs?query=${encoded}&limit=${limit}${langParam}`,
+      `https://www.jiosaavn.com/api.php?__call=search.getResults&q=${encoded}&n=${limit}&_format=json&_marker=0&ctx=web6dot0`,
     ];
 
     for (const url of urls) {
@@ -295,6 +304,7 @@ export class JioSaavnProvider {
     const urls = [
       `${this.localBase}/api/search/albums?query=${encoded}&limit=${limit}`,
       `${this.externalBase}/api/search/albums?query=${encoded}&limit=${limit}`,
+      `https://www.jiosaavn.com/api.php?__call=search.getAlbumResults&q=${encoded}&n=${limit}&_format=json&_marker=0&ctx=web6dot0`,
     ];
     for (const url of urls) {
       const results = await safeFetch(url, 6000);
@@ -315,6 +325,7 @@ export class JioSaavnProvider {
     const urls = [
       `${this.localBase}/api/search/playlists?query=${encoded}&limit=${limit}`,
       `${this.externalBase}/api/search/playlists?query=${encoded}&limit=${limit}`,
+      `https://www.jiosaavn.com/api.php?__call=search.getPlaylistResults&q=${encoded}&n=${limit}&_format=json&_marker=0&ctx=web6dot0`,
     ];
     for (const url of urls) {
       const results = await safeFetch(url, 6000);
@@ -335,6 +346,7 @@ export class JioSaavnProvider {
     const urls = [
       `${this.localBase}/api/playlists?id=${playlistId}&limit=${limit}`,
       `${this.externalBase}/api/playlists?id=${playlistId}&limit=${limit}`,
+      `https://www.jiosaavn.com/api.php?__call=playlist.getDetails&listid=${playlistId}&_format=json&_marker=0&ctx=web6dot0`,
     ];
 
     for (const url of urls) {

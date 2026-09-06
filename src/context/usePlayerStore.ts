@@ -248,6 +248,7 @@ interface PlayerState {
   switchTrack: (track: Song, index: number, autoPlay?: boolean, initialPositionSec?: number) => Promise<boolean>;
   playSong: (song: Song, newQueue?: Song[], context?: import('@/lib/queue/types').PlaybackContext) => Promise<void> | void;
   playSearchSong: (song: Song) => Promise<void>;
+  startSongRadio: (seedSong: Song) => Promise<void>;
   shufflePlay: (songs: Song[], context?: import('@/lib/queue/types').PlaybackContext) => Promise<void>;
   commitPlaybackTransition: (song: Song, queueIndex?: number, updatedQueue?: Song[]) => void;
   togglePlayPause: () => void;
@@ -1521,6 +1522,50 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
 
+      startSongRadio: async (seedSong: Song) => {
+        if (!seedSong || !seedSong.id) return;
+
+        get().setToastMessage(`Tuning into ${seedSong.title} Radio...`);
+        import('@/lib/haptics/HapticEngine').then(m => m.haptics.mediumImpact()).catch(() => {});
+
+        let radioSongs: Song[] = [];
+        try {
+          const { JioSaavnProvider } = await import('@/lib/jioSaavnProvider');
+          const provider = JioSaavnProvider.getInstance();
+          radioSongs = await provider.getRecommendations(seedSong.id, 25);
+
+          if (!radioSongs || radioSongs.length < 5) {
+            const query = seedSong.artist || seedSong.title;
+            if (query) {
+              const searchResults = await provider.searchSongs(query, 25);
+              radioSongs = [...(radioSongs || []), ...(searchResults || [])];
+            }
+          }
+        } catch (err) {
+          console.warn('[usePlayerStore] startSongRadio fetch error:', err);
+        }
+
+        // Deduplicate and ensure seed song is at index 0
+        const seen = new Set<string>([seedSong.id]);
+        const filtered = (radioSongs || []).filter(s => {
+          if (!s || !s.id || seen.has(s.id)) return false;
+          seen.add(s.id);
+          return true;
+        });
+
+        const radioQueue = [seedSong, ...filtered];
+
+        await get().playSong(seedSong, radioQueue, {
+          contextType: 'RADIO',
+          type: 'RADIO',
+          id: `radio_${seedSong.id}`,
+          title: `${seedSong.title} Radio`,
+          name: `${seedSong.title} Radio`,
+        });
+
+        get().setToastMessage(`Started Radio for "${seedSong.title}" (${radioQueue.length} tracks)`);
+      },
+
       shufflePlay: async (songs, context) => {
         if (!songs || songs.length === 0) return;
 
@@ -1732,7 +1777,7 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
 
-      playNext: async (isNaturalAutoEnd: boolean = false, forcePlay: boolean = false) => {
+      playNext: async (isNaturalAutoEnd: boolean = false, forcePlay: boolean = true) => {
         if (!get().isLocalPlayback) {
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().sendCommand('NEXT');
@@ -1753,9 +1798,8 @@ export const usePlayerStore = create<PlayerState>()(
         const { queue, queueIndex, repeatMode } = get();
         if (queue.length === 0) return;
 
-        // Preserve playback intent:
-        // When track ends naturally (isNaturalAutoEnd === true) or forced by remote command (forcePlay === true), ALWAYS play next track.
-        const shouldPlay = isNaturalAutoEnd || forcePlay ? true : (isPlaying || playbackIntent === 'PLAYING');
+        // When queue exists, clicking Next or track auto-advance must always play the next song
+        const shouldPlay = true;
 
         const nextIndex = getNextQueueIndex(queue, queueIndex, repeatMode);
         const nextTrack = (nextIndex >= 0 && nextIndex < queue.length) ? queue[nextIndex] : null;
@@ -1777,7 +1821,7 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
 
-      playPrev: async (forcePlay: boolean = false) => {
+      playPrev: async (forcePlay: boolean = true) => {
         if (!get().isLocalPlayback) {
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().sendCommand('PREV');
@@ -1786,7 +1830,7 @@ export const usePlayerStore = create<PlayerState>()(
         }
 
         const { queue, queueIndex, currentTime, currentSong, repeatMode, isPlaying, playbackIntent } = get();
-        const shouldPlay = forcePlay ? true : (isPlaying || playbackIntent === 'PLAYING');
+        const shouldPlay = true;
 
         // If track played more than 3 seconds, restart current track at 0:00 and keep current playing state
         if (currentTime > 3) {

@@ -5,6 +5,7 @@ import { Play, Pause, SkipForward, SkipBack, Heart, MoreVertical, Disc3, Headpho
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SeekBar } from '@/components/player/SeekBar';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
+import { haptics } from '@/lib/haptics/HapticEngine';
 
 /**
  * RaagaX Floating Liquid Glass Mini-Player (Tier 02 Deep Glass)
@@ -12,9 +13,9 @@ import { OptimizedImage } from '@/components/common/OptimizedImage';
  * Features:
  * - Liquid glass backdrop blur with 1px crystal edge highlight
  * - Album artwork-derived dynamic atmospheric ambient glow
- * - Gesture support:
+ * - Spotify signature gesture support:
+ *    • Swipe Left / Right -> Fluid slide with directional cue badge & haptic skip
  *    • Swipe Up -> Expands to full player modal
- *    • Swipe Left / Right -> Play next / previous track
  *    • Tap -> Instant seamless expansion
  * - Progress scrubber line integrated directly on the top border
  * - Positioned precisely above the floating pill bottom nav
@@ -22,6 +23,7 @@ import { OptimizedImage } from '@/components/common/OptimizedImage';
 export function MobileMiniPlayer() {
   const [mounted, setMounted] = React.useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const [swipeOffset, setSwipeOffset] = useState({ x: 0, y: 0 });
@@ -78,76 +80,84 @@ export function MobileMiniPlayer() {
 
   const isLiked = likedSongIds.includes(currentSong.id);
 
-  // Gesture Handlers
+  // Spotify-Style Gesture Handlers with Dynamic Resistance & Directional Feedback
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
+    setIsDragging(true);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (touchStartX.current === null || touchStartY.current === null) return;
     const diffX = e.touches[0].clientX - touchStartX.current;
     const diffY = e.touches[0].clientY - touchStartY.current;
-    
-    // Track small physical resistance
+
+    // Track fluid horizontal displacement (up to +-85px with elastic feel)
     setSwipeOffset({
-      x: Math.max(-40, Math.min(40, diffX * 0.35)),
-      y: Math.max(-30, Math.min(20, diffY * 0.35)),
+      x: Math.max(-85, Math.min(85, diffX * 0.72)),
+      y: Math.max(-45, Math.min(15, diffY * 0.4)),
     });
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
+    setIsDragging(false);
     if (touchStartX.current === null || touchStartY.current === null) return;
     const diffX = e.changedTouches[0].clientX - touchStartX.current;
     const diffY = e.changedTouches[0].clientY - touchStartY.current;
 
-    // Reset offset
-    setSwipeOffset({ x: 0, y: 0 });
-
-    // Swipe Up -> Expand Full Player
-    if (diffY < -45 && Math.abs(diffY) > Math.abs(diffX)) {
-      togglePlayerExpanded();
-      touchStartX.current = null;
-      touchStartY.current = null;
-      return;
-    }
-
-    // Swipe Left -> Next Track
-    if (diffX < -50 && Math.abs(diffX) > Math.abs(diffY)) {
-      playNext();
-      touchStartX.current = null;
-      touchStartY.current = null;
-      return;
-    }
-
-    // Swipe Right -> Previous Track
-    if (diffX > 50 && Math.abs(diffX) > Math.abs(diffY)) {
-      playPrev();
-      touchStartX.current = null;
-      touchStartY.current = null;
-      return;
-    }
-
     touchStartX.current = null;
     touchStartY.current = null;
+
+    // 1. Vertical Swipe Up -> Expand Full Player
+    if (diffY < -45 && Math.abs(diffY) > Math.abs(diffX)) {
+      setSwipeOffset({ x: 0, y: 0 });
+      haptics.lightImpact();
+      togglePlayerExpanded();
+      return;
+    }
+
+    // 2. Horizontal Swipe Left -> Skip Next Track
+    if (diffX < -50 && Math.abs(diffX) > Math.abs(diffY)) {
+      haptics.mediumImpact();
+      // Slide out briefly to complete momentum
+      setSwipeOffset({ x: -120, y: 0 });
+      setTimeout(() => {
+        playNext();
+        setSwipeOffset({ x: 0, y: 0 });
+      }, 140);
+      return;
+    }
+
+    // 3. Horizontal Swipe Right -> Previous Track
+    if (diffX > 50 && Math.abs(diffX) > Math.abs(diffY)) {
+      haptics.mediumImpact();
+      // Slide out briefly to complete momentum
+      setSwipeOffset({ x: 120, y: 0 });
+      setTimeout(() => {
+        playPrev();
+        setSwipeOffset({ x: 0, y: 0 });
+      }, 140);
+      return;
+    }
+
+    // Spring back smoothly
+    setSwipeOffset({ x: 0, y: 0 });
   };
 
   const coverUrl = currentSong.coverUrl && !currentSong.coverUrl.includes('/null/') && !currentSong.coverUrl.includes('null/null')
     ? currentSong.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500')
     : '/app-icon.png';
 
+  const swipeOpacity = Math.min(1, Math.abs(swipeOffset.x) / 50);
+
   return (
     <div
-      className="md:hidden fixed left-4 right-4 z-40 max-w-[480px] mx-auto transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] select-none pointer-events-none"
+      className="md:hidden fixed left-4 right-4 z-40 max-w-[480px] mx-auto select-none pointer-events-none"
       style={{
         bottom: isScrolled 
           ? 'calc(3.45rem + env(safe-area-inset-bottom))' 
           : 'calc(3.75rem + env(safe-area-inset-bottom))',
-        transform: `translate(${swipeOffset.x}px, ${swipeOffset.y}px)`,
       }}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
     >
       {/* Dynamic Album-derived Ambient Illumination Layer */}
       <div 
@@ -159,17 +169,46 @@ export function MobileMiniPlayer() {
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           filter: 'blur(22px) saturate(180%)',
+          transform: `translate3d(${swipeOffset.x * 0.75}px, ${swipeOffset.y * 0.75}px, 0)`,
+          transition: isDragging ? 'none' : 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.7s ease',
         }}
       />
 
-      {/* Main 3D Floating Liquid Lens Panel (80dp Normal -> 52dp Collapsed) */}
+      {/* Main 3D Floating Liquid Lens Panel (80dp Normal -> 52dp Collapsed) with Spotify-Style Swiping */}
       <div 
-        className={`pointer-events-auto relative lens-floating flex flex-col justify-center overflow-hidden backdrop-blur-2xl transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] border border-white/12 shadow-[0_12px_32px_rgba(0,0,0,0.65)] ${
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        className={`pointer-events-auto relative lens-floating flex flex-col justify-center overflow-hidden backdrop-blur-2xl border border-white/12 shadow-[0_12px_32px_rgba(0,0,0,0.65)] ${
           isScrolled 
             ? 'h-[52px] rounded-[18px] px-3 py-1.5' 
             : 'h-[78px] rounded-[22px] px-3.5 py-2.5'
         }`}
+        style={{
+          transform: `translate3d(${swipeOffset.x}px, ${swipeOffset.y}px, 0) rotate(${swipeOffset.x * 0.035}deg)`,
+          transition: isDragging ? 'none' : 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease',
+        }}
       >
+        {/* Directional Cue Badges during Horizontal Swipe */}
+        {swipeOffset.x < -12 && (
+          <div 
+            className="absolute right-3 z-30 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#E50914]/90 text-white shadow-lg pointer-events-none backdrop-blur-md animate-in fade-in zoom-in-95 duration-150"
+            style={{ opacity: swipeOpacity }}
+          >
+            <span className="text-[10px] font-bold tracking-wider uppercase">Next</span>
+            <SkipForward className="w-3.5 h-3.5 fill-current" />
+          </div>
+        )}
+        {swipeOffset.x > 12 && (
+          <div 
+            className="absolute left-3 z-30 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 text-white shadow-lg pointer-events-none backdrop-blur-md border border-white/20 animate-in fade-in zoom-in-95 duration-150"
+            style={{ opacity: swipeOpacity }}
+          >
+            <SkipBack className="w-3.5 h-3.5 fill-current" />
+            <span className="text-[10px] font-bold tracking-wider uppercase">Prev</span>
+          </div>
+        )}
+
         {/* Specular Light Refraction Rim */}
         <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/35 to-transparent pointer-events-none" />
 
@@ -186,7 +225,10 @@ export function MobileMiniPlayer() {
         <div className="flex items-center justify-between gap-3 w-full">
           {/* Left: Artwork + Title + Artist */}
           <div 
-            onClick={togglePlayerExpanded}
+            onClick={() => {
+              if (Math.abs(swipeOffset.x) > 10) return;
+              togglePlayerExpanded();
+            }}
             className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
           >
             {/* Artwork (44dp Normal -> 36dp Collapsed) */}

@@ -69,13 +69,18 @@ try {
     }
   }
 
-  // Step 2: Clean previous out/ export directory and isolated .next_export directory
+  // Step 2: Clean previous out/ export directory and isolated .next directory
   if (fs.existsSync(outDir)) {
     console.log('[EXPORT] Cleaning previous out/ directory...');
     try { fs.rmSync(outDir, { recursive: true, force: true }); } catch {}
   }
-  if (process.platform === 'win32') {
-    try { execSync('cmd.exe /c "if exist .next rmdir /s /q .next & if exist .next_export rmdir /s /q .next_export"', { stdio: 'ignore' }); } catch {}
+  const nextDir = path.join(rootDir, '.next');
+  if (fs.existsSync(nextDir)) {
+    try { fs.rmSync(nextDir, { recursive: true, force: true }); } catch {}
+  }
+  const nextExportDir = path.join(rootDir, '.next_export');
+  if (fs.existsSync(nextExportDir)) {
+    try { fs.rmSync(nextExportDir, { recursive: true, force: true }); } catch {}
   }
 
   // Step 3: Run Next.js build in static export mode

@@ -213,8 +213,11 @@ export function FavoritesView() {
         if (songs && songs.length > 0) {
           const newEntries: Record<string, Song> = {};
           songs.forEach((s) => {
-            if (s && s.id) {
+            if (s && s.id && s.title && s.title !== 'Unknown Track') {
               newEntries[s.id] = s;
+            } else if (s?.id) {
+              // Unresolved ID: allow retry
+              attemptedRef.current.delete(s.id);
             }
           });
           setResolvedSongsMap((prev) => ({ ...prev, ...newEntries }));
@@ -222,6 +225,7 @@ export function FavoritesView() {
       })
       .catch((err) => {
         console.error('[FavoritesView] Error resolving songs:', err);
+        missingIds.forEach((id) => attemptedRef.current.delete(id));
       })
       .finally(() => {
         setIsLoading(false);
@@ -238,7 +242,7 @@ export function FavoritesView() {
       seen.add(id);
 
       const song = knownMap.get(id);
-      if (song) {
+      if (song && song.title && song.title !== 'Unknown Track') {
         const cover = song.coverUrl && !song.coverUrl.includes('/null/') ? song.coverUrl : '/app-icon.png';
         list.push({
           ...song,
@@ -247,15 +251,15 @@ export function FavoritesView() {
       } else {
         list.push({
           id,
-          title: 'Unknown Track',
-          artist: 'Unknown Artist',
+          title: song?.title && song.title !== 'Unknown Track' ? song.title : 'Loading Track...',
+          artist: song?.artist && song.artist !== 'Unknown Artist' ? song.artist : 'Loading...',
           artistId: '',
           album: 'Liked Songs',
           albumId: '',
-          coverUrl: '/app-icon.png',
+          coverUrl: song?.coverUrl || '/app-icon.png',
           audioUrl: '',
           duration: 180,
-          genre: 'Unknown',
+          genre: 'Various',
           category: 'global_trending',
           releaseYear: new Date().getFullYear(),
           plays: 0,

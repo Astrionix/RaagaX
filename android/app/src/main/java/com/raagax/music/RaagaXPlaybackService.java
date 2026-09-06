@@ -759,7 +759,7 @@ public class RaagaXPlaybackService extends Service {
 
         } else if ("PAUSE".equals(action))  { pause(); }
         else if ("RESUME".equals(action))    { resume(); }
-        else if ("SEEK".equals(action))      { seekTo(intent.getLongExtra("positionMs", 0)); }
+        else if ("SEEK".equals(action))      { seekTo(intent.getLongExtra("positionMs", 0), intent.getBooleanExtra("isPlaying", true)); }
         else if ("SET_VOLUME".equals(action)){ setVolume(intent.getFloatExtra("volume", 1.0f)); }
         else if ("SET_SPEED".equals(action)) { setPlaybackSpeed(intent.getFloatExtra("speed", 1.0f)); }
         else if ("SET_REPEAT".equals(action)){ setRepeatMode(intent.getStringExtra("repeatMode")); }
@@ -1433,6 +1433,7 @@ public class RaagaXPlaybackService extends Service {
             player.prepare();
             player.setPlayWhenReady(true);
             player.play();
+            applyNormalizedVolume();
             Log.d(TAG, "[MEDIA3] PLAY isPlaying=true duration=" + lastReportedDurationMs);
             updateNotification();
         });
@@ -1598,14 +1599,19 @@ public class RaagaXPlaybackService extends Service {
         });
     }
     public void seekTo(long posMs) {
+        boolean wasPlaying = player != null && (player.isPlaying() || player.getPlayWhenReady());
+        seekTo(posMs, wasPlaying);
+    }
+
+    public void seekTo(long posMs, boolean wasPlaying) {
         runOnMainThread(() -> {
             if (player == null) return;
 
             long targetPos = Math.max(0L, posMs);
-            boolean wasPlaying = player.isPlaying();
+            boolean shouldPlay = wasPlaying || player.isPlaying() || player.getPlayWhenReady();
             int state = player.getPlaybackState();
 
-            Log.d(TAG, "[SEEK] seekTo " + targetPos + "ms | wasPlaying=" + wasPlaying
+            Log.d(TAG, "[SEEK] seekTo " + targetPos + "ms | shouldPlay=" + shouldPlay
                     + " | state=" + state + " | currentPos=" + player.getCurrentPosition() + "ms");
 
             // If player is IDLE with no media, there is nothing to seek into — ignore.
@@ -1614,10 +1620,9 @@ public class RaagaXPlaybackService extends Service {
                 return;
             }
 
-            // If player hit STATE_ENDED but has media, re-prepare WITHOUT auto-play.
-            // We will restore the correct play/pause state after the seek completes.
+            // If player hit STATE_ENDED but has media, re-prepare with correct play intent
             if (state == Player.STATE_ENDED && player.getMediaItemCount() > 0) {
-                player.setPlayWhenReady(false); // ← DO NOT auto-play; restore below
+                player.setPlayWhenReady(shouldPlay);
                 player.prepare();
             }
 
@@ -1626,15 +1631,11 @@ public class RaagaXPlaybackService extends Service {
             player.seekTo(curIndex, targetPos);
 
             // ── Restore play/pause state as it was before the seek ──────────────────
-            // This is the critical rule: a SEEK within the same song must NEVER
-            // change whether the user was playing or paused.
-            if (wasPlaying) {
+            if (shouldPlay) {
                 player.setPlayWhenReady(true);
                 player.play();
             } else {
                 player.setPlayWhenReady(false);
-                // Do NOT call player.pause() here — ExoPlayer is already paused
-                // after seekTo when setPlayWhenReady is false.
             }
 
             Log.d(TAG, "[SEEK] Requested seekTo " + targetPos + "ms dispatch to ExoPlayer read-head.");

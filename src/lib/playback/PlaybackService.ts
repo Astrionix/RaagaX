@@ -597,7 +597,7 @@ export class PlaybackService {
     }
   }
 
-  public stopAllAudio() {
+  public stopAllAudio(stopNative: boolean = false) {
     [this.audioA, this.audioB].forEach((a) => {
       if (a) {
         try {
@@ -613,7 +613,7 @@ export class PlaybackService {
         } catch { }
       }
     });
-    if (RaagaXNativePlayer.isNative()) {
+    if (stopNative && RaagaXNativePlayer.isNative()) {
       try {
         RaagaXNativePlayer.pause();
         RaagaXNativePlayer.seekTo(0);
@@ -1249,9 +1249,11 @@ export class PlaybackService {
   }
 
   public seek(timeSeconds: number, fromRemote: boolean = false) {
+    const store = usePlayerStore.getState();
+    const shouldKeepPlaying = store.isPlaying || store.playbackIntent === 'PLAYING';
+
     if (RaagaXNativePlayer.isNative()) {
-      RaagaXNativePlayer.seekTo(timeSeconds * 1000);
-      const store = usePlayerStore.getState();
+      RaagaXNativePlayer.seekTo(timeSeconds * 1000, shouldKeepPlaying);
       store.setCurrentTime(timeSeconds, fromRemote);
       return;
     }
@@ -1261,6 +1263,9 @@ export class PlaybackService {
       const applySeek = () => {
         try {
           active.currentTime = timeSeconds;
+          if (shouldKeepPlaying && active.paused) {
+            active.play().catch(() => {});
+          }
         } catch { }
       };
 
@@ -1272,14 +1277,12 @@ export class PlaybackService {
       }
 
       PlaybackEngine.getInstance().anchor();
-      const store = usePlayerStore.getState();
       store.setCurrentTime(timeSeconds, fromRemote);
       MediaSessionManager.getInstance().setPositionState({
         duration: active.duration || store.duration || 0,
         position: timeSeconds
       });
     } else {
-      const store = usePlayerStore.getState();
       store.setCurrentTime(timeSeconds, fromRemote);
     }
   }

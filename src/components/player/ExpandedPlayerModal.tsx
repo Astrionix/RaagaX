@@ -480,33 +480,49 @@ export function ExpandedPlayerModal() {
         }}
       />
 
-      {/* Layer B: Dynamic 2-3 Dominant Color Ambient Lighting Meshes */}
+      {/* Layer B: Apple Music Style Living Fluid Ambient Mesh Background */}
       {palette && (
-        <>
-          {/* Primary Dominant Glow (Top & Center Atmosphere) */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {/* Fluid Mesh Orb 1: Primary Dominant Glow (Drifting top & center) */}
           <div
-            className="absolute -top-24 left-1/2 -translate-x-1/2 w-[130%] h-[560px] rounded-full blur-3xl pointer-events-none transition-all duration-700 opacity-75"
+            className={`absolute -top-32 left-1/4 w-[120%] h-[580px] rounded-full blur-[80px] transition-opacity duration-1000 opacity-75 animate-ambient-drift-1 ${
+              !isPlaying ? 'ambient-paused' : ''
+            }`}
             style={{
-              background: `radial-gradient(ellipse at 50% 25%, ${palette.primary} 0%, ${palette.secondary} 45%, transparent 75%)`,
+              background: `radial-gradient(ellipse at 50% 40%, ${palette.primary} 0%, ${palette.secondary || palette.primary} 55%, transparent 75%)`,
             }}
           />
 
-          {/* Secondary Ambient Accent (Side Atmosphere) */}
+          {/* Fluid Mesh Orb 2: Secondary Floating Accent (Counter-orbiting bottom-left to center) */}
           <div
-            className="absolute top-32 -left-16 w-[80%] h-[420px] rounded-full blur-3xl pointer-events-none transition-all duration-700 opacity-50"
+            className={`absolute top-48 -left-20 w-[90%] h-[480px] rounded-full blur-[75px] transition-opacity duration-1000 opacity-60 animate-ambient-drift-2 ${
+              !isPlaying ? 'ambient-paused' : ''
+            }`}
             style={{
-              background: `radial-gradient(circle at 30% 40%, ${palette.secondary} 0%, transparent 65%)`,
+              background: `radial-gradient(circle at 40% 40%, ${palette.secondary} 0%, ${palette.highlight || palette.primary} 50%, transparent 70%)`,
             }}
           />
 
-          {/* Highlight Bloom (Radiating Behind Foreground Artwork) */}
+          {/* Fluid Mesh Orb 3: Highlight Bloom (Pulsing Behind Foreground Artwork) */}
           <div
-            className="absolute top-20 left-1/2 -translate-x-1/2 w-[480px] h-[480px] rounded-full blur-2xl pointer-events-none transition-all duration-700 opacity-40"
+            className={`absolute top-1/3 left-1/2 w-[520px] h-[520px] rounded-full blur-[65px] transition-opacity duration-1000 opacity-45 animate-ambient-bloom ${
+              !isPlaying ? 'ambient-paused' : ''
+            }`}
             style={{
-              background: `radial-gradient(circle at 50% 50%, ${palette.highlight} 0%, transparent 60%)`,
+              background: `radial-gradient(circle at 50% 50%, ${palette.highlight || palette.primary} 0%, transparent 65%)`,
             }}
           />
-        </>
+
+          {/* Fluid Mesh Orb 4: Deep Atmospheric Under-Glow (Slow drifter in lower quadrant) */}
+          <div
+            className={`absolute -bottom-24 -right-16 w-[85%] h-[440px] rounded-full blur-[85px] transition-opacity duration-1000 opacity-50 animate-ambient-drift-3 ${
+              !isPlaying ? 'ambient-paused' : ''
+            }`}
+            style={{
+              background: `radial-gradient(ellipse at 50% 50%, ${palette.secondary} 0%, ${palette.primary} 45%, transparent 70%)`,
+            }}
+          />
+        </div>
       )}
 
       {/* Layer C: Dark Glass / Vignette Scrim (Ensures Crisp Artwork & Neutral Glass Readability) */}

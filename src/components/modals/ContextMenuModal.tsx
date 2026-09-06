@@ -15,6 +15,7 @@ export function ContextMenuModal() {
     contextMenuSong,
     closeContextMenu,
     playSong,
+    startSongRadio,
     playNextInQueue,
     addToQueue,
     likedSongIds,
@@ -146,6 +147,19 @@ export function ContextMenuModal() {
                 <span className="font-semibold text-slate-200 group-hover:text-white flex-1 ml-3 text-xs">Play Next</span>
               </button>
 
+              {/* 3. Start Song Radio (Instant 25-Song Vibe Stream) */}
+              <button
+                onClick={() => handleAction(() => startSongRadio(contextMenuSong))}
+                className="w-full py-2.5 px-3 rounded-xl hover:bg-white/10 flex items-center transition-colors group cursor-pointer"
+              >
+                <div className="w-8 h-8 rounded-lg bg-teal-500/10 border border-teal-500/20 text-teal-400 group-hover:bg-teal-500 group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
+                  <Radio className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col text-left ml-3 flex-1">
+                  <span className="font-semibold text-slate-200 group-hover:text-white text-xs">Start Song Radio</span>
+                  <span className="text-[10px] text-teal-400/80 group-hover:text-teal-200">Instant 25-song vibe queue</span>
+                </div>
+              </button>
 
               {/* 4. Add to Queue */}
               <button

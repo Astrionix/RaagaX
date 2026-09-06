@@ -218,7 +218,7 @@ export class SongResolver {
         }
       } catch {}
     } else if (missingIds.length > 0 && typeof window !== 'undefined') {
-      // 2. Directly fetch missing song metadata from JioSaavn API in parallel batches of 50
+      // 2. Directly fetch missing song metadata in parallel batches of 50
       try {
         const BATCH_SIZE = 50;
         const batches: string[][] = [];
@@ -227,16 +227,48 @@ export class SongResolver {
         }
 
         const fetchPromises = batches.map(async (batch) => {
+          const idsQuery = encodeURIComponent(batch.join(','));
+
+          // Tier 1: Try local/hosted Next.js API endpoint (Dev / Web environment)
           try {
-            const url = getApiUrl(`/api/songs?ids=${encodeURIComponent(batch.join(','))}`);
+            const url = getApiUrl(`/api/songs?ids=${idsQuery}`);
             const res = await RequestDeduplicator.getInstance().dedupe(url, () => fetch(url));
             if (res.ok) {
               const json = await res.json();
-              return json.data || [];
+              if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+                return json.data;
+              }
             }
           } catch (err) {
-            console.warn('[SongResolver] Batch resolution failed:', err);
+            // Standalone APK / static deployment fallback
           }
+
+          // Tier 2: Direct JioSaavn Gateway API (Authoritative, ultra-fast, works natively everywhere)
+          try {
+            const jioUrl = `https://www.jiosaavn.com/api.php?__call=song.getDetails&pids=${idsQuery}&_format=json&_marker=0&api_version=4&ctx=web6dot0`;
+            const res = await RequestDeduplicator.getInstance().dedupe(jioUrl, () => fetch(jioUrl));
+            if (res.ok) {
+              const json = await res.json();
+              if (json.songs && Array.isArray(json.songs) && json.songs.length > 0) {
+                return json.songs;
+              }
+            }
+          } catch (err) {
+            console.warn('[SongResolver] Direct JioSaavn batch resolution failed:', err);
+          }
+
+          // Tier 3: Public Saavn Gateway Fallback
+          try {
+            const publicUrl = `https://saavn.dev/api/songs?ids=${idsQuery}`;
+            const res = await RequestDeduplicator.getInstance().dedupe(publicUrl, () => fetch(publicUrl));
+            if (res.ok) {
+              const json = await res.json();
+              if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+                return json.data;
+              }
+            }
+          } catch {}
+
           return [];
         });
 

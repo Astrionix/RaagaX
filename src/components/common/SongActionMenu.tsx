@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { 
   MoreVertical, MoreHorizontal, ListPlus, FastForward, Heart, Play, Share2, Plus, 
   Download, PauseCircle, XCircle, ChevronRight, ChevronLeft, Info, Trash2, 
-  Check, User, Disc, Ban, Bookmark, Flag, Library, CloudDownload, X
+  Check, User, Disc, Ban, Bookmark, Flag, Library, CloudDownload, X, Radio
 } from 'lucide-react';
 import { Song } from '@/types/music';
 import { usePlayerStore } from '@/context/usePlayerStore';
@@ -38,6 +38,7 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
   
   const { 
     playSong, 
+    startSongRadio,
     addToQueue, 
     playNextInQueue, 
     toggleLikeSong, 
@@ -202,6 +203,22 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
                     <FastForward className="w-3.5 h-3.5" />
                   </div>
                   <span className="font-medium text-slate-200 group-hover:text-white flex-1 ml-3 text-xs">Play Next</span>
+                </button>
+
+                {/* 2b. Start Song Radio */}
+                <button 
+                  onClick={() => handleAction(() => {
+                    startSongRadio(song);
+                  })}
+                  className="w-full text-left px-2.5 py-2 hover:bg-white/10 rounded-xl flex items-center transition-all group cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-teal-500/10 border border-teal-500/20 text-teal-400 group-hover:bg-teal-500 group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
+                    <Radio className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="flex flex-col ml-3 flex-1 text-left">
+                    <span className="font-medium text-slate-200 group-hover:text-white text-xs">Start Song Radio</span>
+                    <span className="text-[10px] text-teal-400/80 group-hover:text-teal-200">Instant 25-song vibe queue</span>
+                  </div>
                 </button>
 
                 {/* 3. Add to Queue */}

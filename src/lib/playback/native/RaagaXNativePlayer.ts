@@ -172,13 +172,14 @@ export const RaagaXNativePlayer = {
     return this.previous();
   },
 
-  async seekTo(positionMs: number): Promise<void> {
+  async seekTo(positionMs: number, isPlaying: boolean = true): Promise<void> {
     if (!isCapacitorNative()) return;
     const plugin = getPlugin();
     if (!plugin) return;
     lastCachedNativeState.positionMs = positionMs;
+    lastCachedNativeState.isPlaying = isPlaying;
     try {
-      await plugin.seekTo({ positionMs });
+      await plugin.seekTo({ positionMs, isPlaying });
     } catch (e) {
       console.warn('[RaagaXNativePlayer] seekTo error:', e);
     }

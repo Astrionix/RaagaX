@@ -209,6 +209,7 @@ export function SeekBar({
       
       // End SeekLock with a settling window — blocks stale remote position
       // updates for 800ms after release so ExoPlayer can confirm the seek
+      SeekLock.endSeeking(800);
       // Execute seek via store (handles remote SEEK command if controller, or local audio if speaker)
       setCurrentTime(newTime);
       setSeekTarget(newTime);
