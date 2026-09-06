@@ -10,6 +10,7 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { AlbumCatalogEngine, AlbumItem } from '@/lib/albumCatalog';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
+import { JamSessionManager } from '@/lib/connect/jam/JamSessionManager';
 import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { Song } from '@/types/music';
@@ -663,6 +664,18 @@ export function AlbumDetailView() {
     setToastMessage(`Removed album downloads from local storage`);
   };
 
+  const handleAddAlbumToJam = () => {
+    if (!album || tracks.length === 0) return;
+    haptics.mediumImpact();
+    const jamMgr = JamSessionManager.getInstance();
+    if (jamMgr.getActiveState()) {
+      jamMgr.addMultipleToJamQueue(tracks, album.title);
+    } else {
+      usePlayerStore.getState().toggleJamModal(true);
+      setToastMessage(`Start or Join a Jam room to add "${album.title}"`);
+    }
+  };
+
 
 
   const formatDuration = (sec: number) => {
@@ -799,6 +812,15 @@ export function AlbumDetailView() {
                     {isAllDownloaded ? 'Remove All Downloads' : 'Download Album'}
                   </button>
                 )}
+                <button
+                  onClick={() => {
+                    handleAddAlbumToJam();
+                    setShowAlbumMenu(false);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-emerald-500/10 flex items-center gap-2.5 font-bold text-emerald-400"
+                >
+                  <Music2 className="w-4 h-4 text-emerald-400" /> Add Album to Jam Queue
+                </button>
                 <div className="h-px bg-white/10 my-1" />
                 <button
                   onClick={() => {

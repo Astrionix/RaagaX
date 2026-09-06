@@ -148,6 +148,10 @@ interface PlayerState {
   isBackupOpen: boolean;
   isSettingsModalOpen: boolean;
   isCastModalOpen: boolean;
+  isJamModalOpen: boolean;
+  activeJamRoomCode: string | null;
+  toggleJamModal: (open?: boolean) => void;
+  setActiveJamRoomCode: (code: string | null) => void;
   isSleepTimerModalOpen: boolean;
   isLockScreenOpen: boolean;
   toggleLockScreen: (open?: boolean) => void;
@@ -597,6 +601,23 @@ export const usePlayerStore = create<PlayerState>()(
 
       isSettingsModalOpen: false,
       isCastModalOpen: false,
+      isJamModalOpen: false,
+      activeJamRoomCode: null,
+      toggleJamModal: (open) => set((s) => {
+        const shouldOpen = open !== undefined ? open : !s.isJamModalOpen;
+        if (shouldOpen) {
+          if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+            return {
+              isQueueOpen: true,
+              rightPanelMode: 'connect',
+              isJamModalOpen: false,
+            };
+          }
+          return { isJamModalOpen: true };
+        }
+        return { isJamModalOpen: false };
+      }),
+      setActiveJamRoomCode: (code) => set({ activeJamRoomCode: code }),
       isSleepTimerModalOpen: false,
       isLockScreenOpen: false,
       toggleLockScreen: (open) => set((s) => ({ isLockScreenOpen: open !== undefined ? open : !s.isLockScreenOpen })),
@@ -803,6 +824,8 @@ export const usePlayerStore = create<PlayerState>()(
                 artworkUrl: curSong.coverUrl || '',
                 isPlaying: get().isPlaying,
                 deviceName: deviceName || 'Remote Device',
+                durationMs: Math.round((get().duration || curSong.duration || 0) * 1000),
+                positionMs: Math.round((get().currentTime || 0) * 1000),
               }).catch(() => {});
             }
           }
@@ -1171,6 +1194,8 @@ export const usePlayerStore = create<PlayerState>()(
               artworkUrl: formattedTrack.coverUrl || '',
               isPlaying: autoPlay,
               deviceName: get().activePlaybackDeviceName || 'Remote Device',
+              durationMs: Math.round((formattedTrack.duration || 0) * 1000),
+              positionMs: Math.round((initialPositionSec || 0) * 1000),
             }).catch(() => {});
           } else {
             PlaybackService.getInstance().pauseAudioElementOnly();
@@ -1598,6 +1623,23 @@ export const usePlayerStore = create<PlayerState>()(
         if (!get().isLocalPlayback) {
           const nextPlaying = !get().isPlaying;
           set({ isPlaying: nextPlaying, playbackIntent: nextPlaying ? 'PLAYING' : 'PAUSED' });
+
+          if (RaagaXNativePlayer.isNative()) {
+            const curSong = get().currentSong;
+            if (curSong) {
+              RaagaXNativePlayer.updateRemotePlayback({
+                trackId: curSong.id,
+                title: curSong.title || 'RaagaX',
+                artist: curSong.artist || '',
+                artworkUrl: curSong.coverUrl || '',
+                isPlaying: nextPlaying,
+                deviceName: get().activePlaybackDeviceName || 'Remote Device',
+                durationMs: Math.round((get().duration || curSong.duration || 0) * 1000),
+                positionMs: Math.round((get().currentTime || 0) * 1000),
+              }).catch(() => {});
+            }
+          }
+
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().sendCommand(nextPlaying ? 'PLAY' : 'PAUSE', {
               song: get().currentSong,
@@ -1676,6 +1718,8 @@ export const usePlayerStore = create<PlayerState>()(
                   artworkUrl: curSong.coverUrl || '',
                   isPlaying: playing,
                   deviceName: get().activePlaybackDeviceName || 'Remote Device',
+                  durationMs: Math.round((get().duration || curSong.duration || 0) * 1000),
+                  positionMs: Math.round((get().currentTime || 0) * 1000),
                 }).catch(() => {});
               }
             } else {
@@ -1778,6 +1822,18 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       playNext: async (isNaturalAutoEnd: boolean = false, forcePlay: boolean = true) => {
+        if (get().isInJam) {
+          try {
+            const { JamSessionManager } = await import('@/lib/connect/jam/JamSessionManager');
+            const jamMgr = JamSessionManager.getInstance();
+            const jamState = jamMgr.getActiveState();
+            if (jamState && jamState.queue.length > 0) {
+              jamMgr.playNextInJam();
+              return;
+            }
+          } catch {}
+        }
+
         if (!get().isLocalPlayback) {
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().sendCommand('NEXT');

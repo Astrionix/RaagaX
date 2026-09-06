@@ -42,6 +42,9 @@ export class ConnectSessionManager {
   private pendingVolumePayload: any = null;
   private lastTickerTime: number = 0;
   private debouncedBroadcastTimer: any = null;
+  private lastSyncedRemoteTrackId: string = '';
+  private lastSyncedRemoteIsPlaying: boolean | null = null;
+  private lastSyncedRemoteDeviceName: string = '';
 
   private constructor() {
     this.setupTransportListener();
@@ -126,7 +129,23 @@ export class ConnectSessionManager {
       service.pauseAudioElementOnly();
       if (RaagaXNativePlayer.isNative()) {
         RaagaXNativePlayer.pause().catch(() => {});
-        RaagaXNativePlayer.setRemotePlayback(true, peer.peer.deviceName || 'Remote Device').catch(() => {});
+        const devName = peer.peer.deviceName || 'Remote Device';
+        RaagaXNativePlayer.setRemotePlayback(true, devName).catch(() => {});
+        if (currentSong) {
+          this.lastSyncedRemoteTrackId = currentSong.id;
+          this.lastSyncedRemoteIsPlaying = isPlaying;
+          this.lastSyncedRemoteDeviceName = devName;
+          RaagaXNativePlayer.updateRemotePlayback({
+            trackId: currentSong.id,
+            title: currentSong.title,
+            artist: currentSong.artist || '',
+            artworkUrl: currentSong.coverUrl || '',
+            isPlaying: isPlaying,
+            deviceName: devName,
+            durationMs: Math.round((store.duration || currentSong.duration || 0) * 1000),
+            positionMs: Math.round((position || 0) * 1000),
+          }).catch(() => {});
+        }
       }
     }
 
@@ -159,6 +178,26 @@ export class ConnectSessionManager {
     const isLocalPlayer = usePlayerStore.getState().isLocalPlayback;
 
     if (!isLocalPlayer) {
+      if (RaagaXNativePlayer.isNative()) {
+        const devName = peer.peer.deviceName || 'Remote Device';
+        RaagaXNativePlayer.setRemotePlayback(true, devName).catch(() => {});
+        const cur = usePlayerStore.getState().currentSong;
+        if (cur) {
+          this.lastSyncedRemoteTrackId = cur.id;
+          this.lastSyncedRemoteIsPlaying = usePlayerStore.getState().isPlaying;
+          this.lastSyncedRemoteDeviceName = devName;
+          RaagaXNativePlayer.updateRemotePlayback({
+            trackId: cur.id,
+            title: cur.title,
+            artist: cur.artist || '',
+            artworkUrl: cur.coverUrl || '',
+            isPlaying: usePlayerStore.getState().isPlaying,
+            deviceName: devName,
+            durationMs: Math.round((usePlayerStore.getState().duration || cur.duration || 0) * 1000),
+            positionMs: Math.round((usePlayerStore.getState().currentTime || 0) * 1000),
+          }).catch(() => {});
+        }
+      }
       this.sendCommand('STATE_SYNC', { requestInitialSync: true });
       this.startControllerInterpolation();
     } else {
@@ -170,6 +209,9 @@ export class ConnectSessionManager {
    * Disconnects the session. If acting as a remote controller, sends PAUSE to remote speaker so audio stops.
    */
   public async disconnect(sendRemotePause: boolean = true): Promise<void> {
+    this.lastSyncedRemoteTrackId = '';
+    this.lastSyncedRemoteIsPlaying = null;
+    this.lastSyncedRemoteDeviceName = '';
     const store = usePlayerStore.getState();
     if (sendRemotePause && !store.isLocalPlayback && this.activePeer) {
       try {
@@ -648,7 +690,8 @@ export class ConnectSessionManager {
     const store = usePlayerStore.getState();
 
     // Reconcile playback state & controller timeline ticker
-    if (store.isPlaying !== state.isPlaying) {
+    const isPlayingChanged = typeof state.isPlaying === 'boolean' && store.isPlaying !== state.isPlaying;
+    if (isPlayingChanged) {
       store.setIsPlaying(state.isPlaying, true);
     }
     if (state.isPlaying) {
@@ -721,17 +764,6 @@ export class ConnectSessionManager {
           position: state.position || 0,
         });
       } catch {}
-
-      if (RaagaXNativePlayer.isNative()) {
-        RaagaXNativePlayer.updateRemotePlayback({
-          trackId: targetSong.id,
-          title: targetSong.title,
-          artist: targetSong.artist || '',
-          artworkUrl: targetSong.coverUrl || '',
-          isPlaying: state.isPlaying,
-          deviceName: store.activePlaybackDeviceName || 'Remote Device',
-        }).catch(() => {});
-      }
     } else if (state.currentSongData && store.currentSong && store.currentSong.id === state.trackId) {
       const updates: any = {};
       if (state.duration && state.duration !== store.duration) {
@@ -745,6 +777,46 @@ export class ConnectSessionManager {
       }
       if (Object.keys(updates).length > 0) {
         store.setRemoteState(updates);
+      }
+    }
+
+    // Synchronize controller lockscreen / control center / media notifications & native player
+    const activeRemoteSong = targetSong || store.currentSong || state.currentSongData;
+    if (activeRemoteSong && !store.isLocalPlayback) {
+      try {
+        MediaSessionManager.getInstance().updateSongMetadata(activeRemoteSong);
+        MediaSessionManager.getInstance().setPlaybackState(state.isPlaying ? 'playing' : 'paused');
+        MediaSessionManager.getInstance().setPositionState({
+          duration: state.duration || activeRemoteSong.duration || 0,
+          position: state.position || 0,
+        });
+      } catch {}
+
+      if (RaagaXNativePlayer.isNative()) {
+        const devName = store.activePlaybackDeviceName || 'Remote Device';
+        const durMs = Math.round((state.duration || activeRemoteSong.duration || 0) * 1000);
+        const posMs = Math.round((state.position || 0) * 1000);
+
+        if (
+          this.lastSyncedRemoteTrackId !== activeRemoteSong.id ||
+          this.lastSyncedRemoteIsPlaying !== state.isPlaying ||
+          this.lastSyncedRemoteDeviceName !== devName
+        ) {
+          this.lastSyncedRemoteTrackId = activeRemoteSong.id;
+          this.lastSyncedRemoteIsPlaying = state.isPlaying;
+          this.lastSyncedRemoteDeviceName = devName;
+
+          RaagaXNativePlayer.updateRemotePlayback({
+            trackId: activeRemoteSong.id,
+            title: activeRemoteSong.title || 'RaagaX',
+            artist: activeRemoteSong.artist || '',
+            artworkUrl: activeRemoteSong.coverUrl || '',
+            isPlaying: state.isPlaying,
+            deviceName: devName,
+            durationMs: durMs,
+            positionMs: posMs,
+          }).catch(() => {});
+        }
       }
     }
   }

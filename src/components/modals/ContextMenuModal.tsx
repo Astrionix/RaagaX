@@ -9,6 +9,7 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { SongDetailsModal } from '@/components/modals/SongDetailsModal';
+import { JamSessionManager } from '@/lib/connect/jam/JamSessionManager';
 
 export function ContextMenuModal() {
   const {
@@ -18,6 +19,7 @@ export function ContextMenuModal() {
     startSongRadio,
     playNextInQueue,
     addToQueue,
+    isInJam,
     likedSongIds,
     toggleLikeSong,
     downloadedSongIds,
@@ -171,6 +173,22 @@ export function ContextMenuModal() {
                 </div>
                 <span className="font-semibold text-slate-200 group-hover:text-white flex-1 ml-3 text-xs">Add to Queue</span>
               </button>
+
+              {/* Add to Jam Queue (When active in a Jam) */}
+              {isInJam && (
+                <button
+                  onClick={() => handleAction(() => JamSessionManager.getInstance().addToJamQueue(contextMenuSong))}
+                  className="w-full py-2.5 px-3 rounded-xl hover:bg-emerald-500/10 flex items-center transition-colors group cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
+                    <Radio className="w-4 h-4" />
+                  </div>
+                  <div className="flex flex-col text-left ml-3 flex-1">
+                    <span className="font-semibold text-emerald-300 group-hover:text-white text-xs">Add to Jam Queue</span>
+                    <span className="text-[10px] text-emerald-400/80 group-hover:text-emerald-200">Share with Jam room</span>
+                  </div>
+                </button>
+              )}
 
               {/* 4. Add to Playlist */}
               <button

@@ -11,76 +11,38 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 const rootDir = path.resolve(__dirname, '..');
-const apiDir = path.join(rootDir, 'src', 'app', 'api');
-const backupApiDir = path.join(rootDir, 'src', '.api-backup-temp');
 const outDir = path.join(rootDir, 'out');
 
 console.log('[EXPORT] Starting RaagaX local app-shell static export...');
 
-let apiMoved = false;
-
-function copyDir(src, dest) {
-  if (typeof fs.cpSync === 'function') {
-    fs.cpSync(src, dest, { recursive: true, force: true });
-    return;
-  }
-  fs.mkdirSync(dest, { recursive: true });
-  const entries = fs.readdirSync(src);
-  for (const entry of entries) {
-    const srcPath = path.join(src, entry);
-    const destPath = path.join(dest, entry);
-    const stat = fs.statSync(srcPath);
-    if (stat.isDirectory()) {
-      copyDir(srcPath, destPath);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
+function copyItem(src, dest) {
+  const stat = fs.statSync(src);
+  if (stat.isDirectory()) {
+    if (typeof fs.cpSync === 'function') {
+      fs.cpSync(src, dest, { recursive: true, force: true });
+      return;
     }
-  }
-}
-
-function removeDirFiles(dir) {
-  if (!fs.existsSync(dir)) return;
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      removeDirFiles(fullPath);
-      try { fs.rmdirSync(fullPath); } catch {}
-    } else {
-      try { fs.unlinkSync(fullPath); } catch {}
+    fs.mkdirSync(dest, { recursive: true });
+    const entries = fs.readdirSync(src);
+    for (const entry of entries) {
+      copyItem(path.join(src, entry), path.join(dest, entry));
     }
+  } else {
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.copyFileSync(src, dest);
   }
 }
 
 try {
-  // Step 1: Temporarily isolate server-only API routes during static export
-  if (fs.existsSync(apiDir)) {
-    console.log('[EXPORT] Isolating server API routes during static export...');
-    if (fs.existsSync(backupApiDir)) {
-      try { fs.rmSync(backupApiDir, { recursive: true, force: true }); } catch {}
-    }
-    try {
-      fs.renameSync(apiDir, backupApiDir);
-      apiMoved = true;
-    } catch {
-      copyDir(apiDir, backupApiDir);
-      try { fs.rmSync(apiDir, { recursive: true, force: true }); } catch {}
-      apiMoved = true;
-    }
-  }
 
-  // Step 2: Clean previous out/ export directory and isolated .next directory
+  // Step 2: Clean previous out/ export directory and .next_apk_build directory
   if (fs.existsSync(outDir)) {
     console.log('[EXPORT] Cleaning previous out/ directory...');
     try { fs.rmSync(outDir, { recursive: true, force: true }); } catch {}
   }
-  const nextDir = path.join(rootDir, '.next');
-  if (fs.existsSync(nextDir)) {
-    try { fs.rmSync(nextDir, { recursive: true, force: true }); } catch {}
-  }
-  const nextExportDir = path.join(rootDir, '.next_export');
-  if (fs.existsSync(nextExportDir)) {
-    try { fs.rmSync(nextExportDir, { recursive: true, force: true }); } catch {}
+  const apkBuildDir = path.join(rootDir, '.next_apk_build');
+  if (fs.existsSync(apkBuildDir)) {
+    try { fs.rmSync(apkBuildDir, { recursive: true, force: true }); } catch {}
   }
 
   // Step 3: Run Next.js build in static export mode
@@ -98,7 +60,8 @@ try {
   // Step 4: Populate out/ directory from .next_export
   const exportSource = path.join(rootDir, '.next_export');
   if (fs.existsSync(exportSource)) {
-    copyDir(exportSource, outDir);
+    console.log('[EXPORT] Populating out/ directory from static build...');
+    copyItem(exportSource, outDir);
   }
 
   // Verify out/index.html was produced
@@ -113,26 +76,8 @@ try {
     try { fs.rmSync(symlink404, { recursive: true, force: true }); } catch {}
   }
 
-  console.log(`[EXPORT SUCCESS] RaagaX static app shell successfully exported to: ${outDir}`);
+  console.log('✅ [EXPORT SUCCESS] RaagaX app-shell static export ready in out/');
 } catch (err) {
   console.error('[EXPORT ERROR] Failed to export static app shell:', err);
-  process.exitCode = 1;
-} finally {
-  // Step 5: Always restore server API routes
-  if (apiMoved && fs.existsSync(backupApiDir)) {
-    try {
-      if (fs.existsSync(apiDir)) {
-        try { fs.rmSync(apiDir, { recursive: true, force: true }); } catch {}
-      }
-      try {
-        fs.renameSync(backupApiDir, apiDir);
-      } catch {
-        copyDir(backupApiDir, apiDir);
-        try { fs.rmSync(backupApiDir, { recursive: true, force: true }); } catch {}
-      }
-      console.log('[EXPORT] Restored server API routes to src/app/api.');
-    } catch (restoreErr) {
-      console.error('[EXPORT CRITICAL] Failed to restore src/app/api from backup:', restoreErr);
-    }
-  }
+  process.exit(1);
 }

@@ -17,6 +17,7 @@ import { PlaylistImporterModal } from '@/components/modals/PlaylistImporterModal
 import { BackupRestoreModal } from '@/components/modals/BackupRestoreModal';
 import { SleepTimerModal } from '@/components/modals/SleepTimerModal';
 import { CastModal } from '@/components/modals/CastModal';
+import { JamModal } from '@/components/modals/JamModal';
 import { SettingsModal } from '@/components/modals/SettingsModal';
 import { ContextMenuModal } from '@/components/modals/ContextMenuModal';
 import { OnboardingAuthModal } from '@/components/modals/OnboardingAuthModal';
@@ -91,7 +92,7 @@ export default function Page() {
     DeviceDiscoveryEngine.getInstance().startDiscovery('player', accountId);
     import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
       ConnectSessionManager.getInstance();
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
 
@@ -223,24 +224,21 @@ export default function Page() {
 
       {/* App Layout (Grid after Sidebar) */}
       <div className="flex-1 ml-0 md:ml-64 flex flex-col min-w-0 md:h-screen md:overflow-hidden">
-        <div className={`grid flex-1 min-h-0 md:h-full transition-all duration-300 ${
-          isQueueOpen
-            ? 'grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px]'
-            : 'grid-cols-1'
-        }`}>
+        <div className={`grid flex-1 min-h-0 md:h-full transition-all duration-300 ${isQueueOpen
+          ? 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_302px]'
+          : 'grid-cols-1'
+          }`}>
           {/* Main Content Column */}
           <div className="main-content min-w-0 flex-1 flex flex-col md:h-full md:overflow-y-auto md:overflow-x-hidden relative">
             {/* Header Bar */}
             <Header />
 
             {/* View Switcher Container */}
-            <main className={`flex-1 pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] ${
-              !isLocalPlayback ? 'md:pb-[6.5rem]' : 'md:pb-[5.5rem]'
-            } ${
-              activeTab === 'album' || activeTab === 'playlist' || (activeTab === 'artist' && selectedArtistId)
+            <main className={`flex-1 pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] ${!isLocalPlayback ? 'md:pb-[6.5rem]' : 'md:pb-[5.5rem]'
+              } ${activeTab === 'album' || activeTab === 'playlist' || (activeTab === 'artist' && selectedArtistId)
                 ? 'pt-0 px-0'
                 : 'pt-14 md:pt-6 px-3.5 sm:px-8'
-            }`}>
+              }`}>
               {activeTab === 'home' && <HomeView />}
               {activeTab === 'new' && <NewView />}
               {activeTab === 'search' && <SearchView />}
@@ -262,9 +260,9 @@ export default function Page() {
             <MobileBottomController />
           </div>
 
-          {/* Right Column (Toggled on desktop when isQueueOpen is true) */}
+          {/* Right Column (Right side panel for Queue, Devices, and Jam) */}
           {isQueueOpen && (
-            <div className="queue-panel hidden xl:block w-[360px] min-w-[360px] h-full pt-6 pb-8 overflow-y-auto overflow-x-hidden border-l border-white/[0.04] bg-[var(--bg-secondary)] animate-in slide-in-from-right-4 duration-200">
+            <div className="queue-panel fixed inset-y-0 right-0 z-50 w-[290px] h-full overflow-y-auto overflow-x-hidden bg-[var(--bg-secondary)] border-l border-white/[0.08] shadow-2xl animate-in slide-in-from-right-4 duration-200 md:relative md:inset-auto md:z-auto md:w-auto md:h-auto md:my-3 md:mr-3 md:rounded-2xl md:overflow-hidden md:bg-[var(--sidebar-bg)] md:backdrop-blur-2xl md:border md:border-[var(--border-subtle)] md:shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
               <RightQueuePanel />
             </div>
           )}
@@ -281,9 +279,6 @@ export default function Page() {
       <ErrorBoundary name="LyricsPanel">
         <LyricsPanel />
       </ErrorBoundary>
-      <ErrorBoundary name="QueueModal">
-        <QueueModal />
-      </ErrorBoundary>
       <ErrorBoundary name="PlaylistImporterModal">
         <PlaylistImporterModal />
       </ErrorBoundary>
@@ -295,6 +290,9 @@ export default function Page() {
       </ErrorBoundary>
       <ErrorBoundary name="CastModal">
         <CastModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="JamModal">
+        <JamModal />
       </ErrorBoundary>
       <ErrorBoundary name="SettingsModal">
         <SettingsModal />

@@ -266,6 +266,8 @@ export const RaagaXNativePlayer = {
     artworkUrl?: string;
     isPlaying: boolean;
     deviceName?: string;
+    durationMs?: number;
+    positionMs?: number;
   }): Promise<void> {
     const plugin = getPlugin();
     if (!plugin) return;
@@ -362,6 +364,13 @@ export const RaagaXNativePlayer = {
     if (!plugin) return () => {};
     plugin.addListener('actionTogglePlay', callback);
     return () => plugin.removeAllListeners('actionTogglePlay');
+  },
+
+  addActionSeekListener(callback: (data: { positionMs: number }) => void): () => void {
+    const plugin = getPlugin();
+    if (!plugin) return () => {};
+    plugin.addListener('actionSeek', callback);
+    return () => plugin.removeAllListeners('actionSeek');
   },
 
   /**

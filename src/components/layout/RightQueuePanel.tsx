@@ -23,6 +23,21 @@ import {
   Pause,
   SkipBack,
   SkipForward,
+  Radio,
+  Users,
+  Copy,
+  Check,
+  Share2,
+  ThumbsUp,
+  ThumbsDown,
+  Settings,
+  Shield,
+  UserX,
+  SlidersHorizontal,
+  LogOut,
+  Sparkles,
+  Zap,
+  Plus,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
@@ -34,6 +49,9 @@ import { TransportManager } from '@/lib/connect/transport/TransportManager';
 import { DiscoveredPeer, ConnectMetrics } from '@/lib/connect/types';
 import { DeviceKeyManager } from '@/lib/connect/auth/DeviceKeyManager';
 import { DeviceNameResolver } from '@/lib/connect/auth/DeviceNameResolver';
+import { JamSessionManager } from '@/lib/connect/jam/JamSessionManager';
+import { JamSessionState } from '@/lib/connect/jam/JamTypes';
+import { haptics } from '@/lib/haptics/HapticEngine';
 
 export function RightQueuePanel() {
   const [mounted, setMounted] = React.useState(false);
@@ -70,20 +88,115 @@ export function RightQueuePanel() {
     playPrev,
     setToastMessage,
     toggleCastModal,
+    toggleJamModal,
   } = usePlayerStore();
 
   const [discoveredPeers, setDiscoveredPeers] = useState<DiscoveredPeer[]>([]);
   const [connectingPeerId, setConnectingPeerId] = useState<string | null>(null);
   const [rowContextMenuPeerId, setRowContextMenuPeerId] = useState<string | null>(null);
   const [showLearnMore, setShowLearnMore] = useState(false);
-  const [showManageDevices, setShowManageDevices] = useState(false);
   const [metrics, setMetrics] = useState<ConnectMetrics>(TransportManager.getInstance().getMetrics());
   const [localDeviceName, setLocalDeviceName] = useState(() =>
     DeviceNameResolver.getInstance().getLocalDeviceDisplayName()
   );
-  const [userRenameInput, setUserRenameInput] = useState(() =>
-    DeviceNameResolver.getInstance().getUserLabel() || ''
-  );
+
+  // Jam Session State & Handlers inside Right Side Panel
+  const [jamState, setJamState] = useState<JamSessionState | null>(null);
+  const [jamSubTab, setJamSubTab] = useState<'session' | 'join'>('session');
+  const [joinCodeInput, setJoinCodeInput] = useState('');
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [isCreatingJam, setIsCreatingJam] = useState(false);
+  const [isJoiningJam, setIsJoiningJam] = useState(false);
+
+  useEffect(() => {
+    const jamMgr = JamSessionManager.getInstance();
+    setJamState(jamMgr.getActiveState());
+    const unsub = jamMgr.onStateChanged((state) => {
+      setJamState(state);
+      if (state && jamSubTab === 'join') {
+        setJamSubTab('session');
+      }
+    });
+    return unsub;
+  }, [jamSubTab]);
+
+  const handleCreateJam = async () => {
+    setIsCreatingJam(true);
+    haptics.mediumImpact();
+    import('@/lib/playback/AudioUnlocker').then(({ activatePlayer }) => activatePlayer()).catch(() => {});
+    try {
+      const jamMgr = JamSessionManager.getInstance();
+      await jamMgr.createJamRoom();
+    } catch {
+      setToastMessage('Failed to create Jam session');
+    } finally {
+      setIsCreatingJam(false);
+    }
+  };
+
+  const handleJoinJam = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!joinCodeInput.trim()) return;
+
+    setIsJoiningJam(true);
+    haptics.mediumImpact();
+    import('@/lib/playback/AudioUnlocker').then(({ activatePlayer }) => activatePlayer()).catch(() => {});
+    try {
+      const jamMgr = JamSessionManager.getInstance();
+      const success = await jamMgr.joinJamRoom(joinCodeInput);
+      if (success) {
+        setJoinCodeInput('');
+      }
+    } catch {
+      setToastMessage('Failed to join Jam room');
+    } finally {
+      setIsJoiningJam(false);
+    }
+  };
+
+  const handleCopyJamCode = () => {
+    if (!jamState?.roomCode) return;
+    navigator.clipboard.writeText(jamState.roomCode);
+    setCopiedCode(true);
+    haptics.lightImpact();
+    setToastMessage('Room code copied!');
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const handleShareJamInvite = async () => {
+    if (!jamState?.roomCode) return;
+    const shareText = `🎵 Join my Raaga Jam live session!\nCode: ${jamState.roomCode}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Raaga Jam', text: shareText });
+        return;
+      } catch {}
+    }
+
+    navigator.clipboard.writeText(shareText);
+    setToastMessage('Invite link copied to clipboard!');
+    haptics.lightImpact();
+  };
+
+  const [showHostSettings, setShowHostSettings] = useState(false);
+
+  const handleLeaveJam = () => {
+    haptics.mediumImpact();
+    JamSessionManager.getInstance().leaveJamRoom();
+  };
+
+  const handleUpvoteJamSong = (queueItemId: string) => {
+    haptics.lightImpact();
+    JamSessionManager.getInstance().voteSongInQueue(queueItemId, 'upvote');
+  };
+
+  const handleDownvoteJamSong = (queueItemId: string) => {
+    haptics.lightImpact();
+    JamSessionManager.getInstance().voteSongInQueue(queueItemId, 'downvote');
+  };
+
+  const isJamHost = JamSessionManager.getInstance().isHost();
 
   useEffect(() => {
     const unsub = DeviceNameResolver.getInstance().onNameChanged((newName) => {
@@ -160,7 +273,11 @@ export function RightQueuePanel() {
 
     try {
       await ConnectSessionManager.getInstance().transferPlaybackToPeer(authorized);
-      setToastMessage(`Playing on ${peer.deviceName || 'Remote Device'}`);
+      setToastMessage(
+        jamState
+          ? `Routing Jam Room playback to ${peer.deviceName || 'Remote Device'}`
+          : `Playing on ${peer.deviceName || 'Remote Device'}`
+      );
     } catch (err) {
       console.error('[Connect] Transfer failed:', err);
       setToastMessage(`Couldn't connect to ${peer.deviceName || 'device'}. Playing here instead.`);
@@ -195,7 +312,7 @@ export function RightQueuePanel() {
   };
 
   return (
-    <aside className="flex-1 flex flex-col text-[var(--text-primary)] text-xs select-none p-4 h-full overflow-hidden">
+    <aside className="flex flex-col w-full h-full text-[var(--text-primary)] text-xs select-none p-4 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-[var(--border-subtle)] flex-shrink-0">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -217,6 +334,12 @@ export function RightQueuePanel() {
             {rightPanelMode === 'queue' && upNextQueue.length > 0 && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--surface-primary)] text-[var(--text-secondary)] font-mono border border-[var(--border-subtle)]">
                 {upNextQueue.length}
+              </span>
+            )}
+            {rightPanelMode === 'connect' && jamState && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-[#1DB954]/20 text-[#1DB954] border border-[#1DB954]/30 uppercase">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#1DB954] mr-1 animate-ping" />
+                JAM LIVE
               </span>
             )}
           </div>
@@ -261,41 +384,6 @@ export function RightQueuePanel() {
         </div>
       </div>
 
-      {/* Mode Switcher Pill (Queue vs Devices) */}
-      <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl mb-3 flex-shrink-0 border border-white/5">
-        <button
-          onClick={() => setRightPanelMode('queue')}
-          className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-            rightPanelMode === 'queue'
-              ? 'bg-[#fa233b] text-white shadow-sm'
-              : 'text-[var(--text-muted)] hover:text-white hover:bg-white/5'
-          }`}
-        >
-          <ListMusic className="w-3.5 h-3.5" />
-          <span>Queue</span>
-          {upNextQueue.length > 0 && (
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20 font-mono">
-              {upNextQueue.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setRightPanelMode('connect')}
-          className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-            rightPanelMode === 'connect'
-              ? 'bg-[#1DB954] text-black shadow-sm'
-              : !isLocalPlayback
-              ? 'text-[#1DB954] bg-[#1DB954]/10 hover:bg-[#1DB954]/20'
-              : 'text-[var(--text-muted)] hover:text-white hover:bg-white/5'
-          }`}
-        >
-          <MonitorSpeaker className={`w-3.5 h-3.5 ${!isLocalPlayback ? 'animate-pulse' : ''}`} />
-          <span>Devices</span>
-          {!isLocalPlayback && (
-            <span className="w-1.5 h-1.5 rounded-full bg-[#1DB954]" />
-          )}
-        </button>
-      </div>
 
       {/* ── MODE A: QUEUE VIEW ── */}
       {rightPanelMode === 'queue' ? (
@@ -486,6 +574,8 @@ export function RightQueuePanel() {
             )}
           </div>
 
+
+
           {/* ── SECTION 2: YOUR DEVICES (§2) ── */}
           <div className="space-y-1">
             <span className="text-[10px] font-bold text-[#b3b3b3] uppercase tracking-wider px-2 block">
@@ -668,6 +758,318 @@ export function RightQueuePanel() {
             )}
           </div>
 
+          {/* ── SECTION: RAAGA JAM LISTENING ROOM (INLINE BELOW NEARBY DEVICES) ── */}
+          <div className="pt-1 pb-1">
+            {!jamState ? (
+              <div className="p-3.5 rounded-2xl bg-[#181818] border border-[#1DB954]/30 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-[#1DB954]/20 border border-[#1DB954]/40 flex items-center justify-center text-[#1DB954] flex-shrink-0">
+                    <Radio className="w-5 h-5 text-[#1DB954] animate-pulse" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-xs text-white flex items-center gap-1.5">
+                      Raaga Jam Room
+                      <span className="text-[9px] bg-[#1DB954]/20 text-[#1DB954] px-1.5 py-0.2 rounded-full uppercase tracking-wider font-extrabold">Live Sync</span>
+                    </h4>
+                    <p className="text-[10px] text-[#b3b3b3]">Sync listening with friends in real-time</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleCreateJam}
+                  disabled={isCreatingJam}
+                  className="w-full py-2.5 px-4 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] active:scale-[0.98] text-black font-extrabold shadow-md shadow-[#1DB954]/20 transition-all flex items-center justify-center gap-2 text-xs tracking-wide cursor-pointer"
+                >
+                  <Radio className="w-4 h-4 text-black" />
+                  {isCreatingJam ? 'Creating Room...' : 'Start Raaga Jam Room'}
+                </button>
+
+                {/* Inline Join Code Form */}
+                <form onSubmit={handleJoinJam} className="pt-2 border-t border-white/10 flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={joinCodeInput}
+                    onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
+                    placeholder="Enter code (e.g. 8K4P)"
+                    maxLength={8}
+                    className="flex-1 bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono uppercase placeholder:text-[#535353] focus:outline-none focus:border-[#1DB954]"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!joinCodeInput.trim() || isJoiningJam}
+                    className="px-3.5 py-1.5 bg-white/10 hover:bg-[#1DB954] hover:text-black disabled:opacity-40 text-white text-xs font-bold rounded-lg transition-all cursor-pointer flex-shrink-0 flex items-center gap-1"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    {isJoiningJam ? 'Joining...' : 'Join'}
+                  </button>
+                </form>
+              </div>
+            ) : (
+              /* Active Jam Room View directly inside Devices Tab */
+              <div className="p-3.5 rounded-2xl bg-[#181818] border border-[#1DB954]/50 shadow-lg space-y-3.5 animate-in fade-in">
+                {/* 1. Header with Room Code, Host Badge & Settings */}
+                <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-[#1DB954] animate-ping" />
+                    <span className="text-xs font-extrabold text-[#1DB954] uppercase tracking-wider">Jam Room Live</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {isJamHost && (
+                      <span className="text-[9px] bg-[#1DB954]/20 text-[#1DB954] font-black px-2 py-0.5 rounded-full border border-[#1DB954]/30">
+                        ★ HOST
+                      </span>
+                    )}
+                    <button
+                      onClick={() => setShowHostSettings(!showHostSettings)}
+                      className={`p-1 rounded-md transition-colors cursor-pointer border ${
+                        showHostSettings
+                          ? 'bg-[#1DB954] text-black border-[#1DB954]'
+                          : 'bg-white/5 text-[#b3b3b3] hover:text-white hover:bg-white/10 border-white/10'
+                      }`}
+                      title="Host & Room Settings"
+                    >
+                      <Settings className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Host & Room Settings Dropdown Panel */}
+                {showHostSettings && (
+                  <div className="p-3 rounded-xl bg-black/60 border border-[#1DB954]/40 space-y-2.5 animate-in fade-in text-xs">
+                    <div className="flex items-center justify-between pb-1 border-b border-white/10">
+                      <span className="font-extrabold text-white flex items-center gap-1.5">
+                        <Shield className="w-3.5 h-3.5 text-[#1DB954]" /> Room Controls
+                      </span>
+                      <button
+                        onClick={() => setShowHostSettings(false)}
+                        className="text-[10px] text-[#b3b3b3] hover:text-white cursor-pointer"
+                      >
+                        Done
+                      </button>
+                    </div>
+
+                    {/* Toggle: Guest Playback Controls */}
+                    <div className="flex items-center justify-between py-1">
+                      <div>
+                        <p className="font-bold text-white text-[11px]">Guest Controls</p>
+                        <p className="text-[9px] text-[#b3b3b3]">Allow guests to Play / Pause / Skip</p>
+                      </div>
+                      {isJamHost ? (
+                        <button
+                          onClick={() => {
+                            const next = !jamState.isGuestControlAllowed;
+                            JamSessionManager.getInstance().setGuestControlAllowed(next);
+                          }}
+                          className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${
+                            jamState.isGuestControlAllowed ? 'bg-[#1DB954]' : 'bg-slate-700'
+                          }`}
+                        >
+                          <div
+                            className={`w-3 h-3 rounded-full bg-white transition-transform ${
+                              jamState.isGuestControlAllowed ? 'translate-x-3' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-[#1DB954] font-bold">
+                          {jamState.isGuestControlAllowed ? 'Allowed' : 'Host Only'}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Member Management */}
+                    <div className="pt-2 border-t border-white/10 space-y-1">
+                      <p className="text-[10px] font-bold text-[#b3b3b3] uppercase tracking-wider">
+                        Connected Members ({jamState.members.length})
+                      </p>
+                      {jamState.members.map((member) => (
+                        <div key={member.deviceId} className="flex items-center justify-between py-1 px-2 rounded-lg bg-white/5">
+                          <span className="text-xs text-white font-medium truncate">{member.displayName}</span>
+                          {member.isHost && (
+                            <span className="text-[8px] bg-[#1DB954]/20 text-[#1DB954] font-black px-1.5 py-0.2 rounded-full">HOST</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Room Join Code Display */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between">
+                  <div>
+                    <span className="text-[9px] text-[#b3b3b3] font-bold uppercase tracking-wider block">
+                      Room Code
+                    </span>
+                    <div className="text-2xl font-black text-[#1DB954] tracking-widest font-mono drop-shadow-[0_2px_8px_rgba(29,185,84,0.3)]">
+                      {jamState.roomCode || 'JAM-ROOM'}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={handleCopyJamCode}
+                      className="p-2 rounded-full bg-[#282828] hover:bg-[#333333] text-xs font-semibold text-white transition-all cursor-pointer border border-white/10 active:scale-95"
+                      title="Copy Code"
+                    >
+                      {copiedCode ? <Check className="w-3.5 h-3.5 text-[#1DB954]" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      onClick={handleShareJamInvite}
+                      className="flex items-center gap-1 py-1.5 px-3 rounded-full bg-[#1DB954] hover:bg-[#1ed760] text-xs font-extrabold text-black shadow-md shadow-[#1DB954]/20 transition-all cursor-pointer active:scale-95"
+                    >
+                      <Share2 className="w-3.5 h-3.5 text-black" />
+                      <span>Share</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Compact Now Playing Track */}
+                {jamState.currentSong && (
+                  <div className="p-2.5 rounded-xl bg-black/30 border border-white/5 flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-lg overflow-hidden shadow-md flex-shrink-0 bg-slate-800 border border-white/10 flex items-center justify-center">
+                      <OptimizedImage
+                        src={jamState.currentSong.coverUrl}
+                        alt={jamState.currentSong.title}
+                        size="thumb"
+                        imageFit="contain"
+                        className="w-full h-full object-contain"
+                        fallbackSrc="/app-icon.png"
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[9px] text-[#1DB954] font-extrabold uppercase tracking-wider flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#1DB954]" /> Jam Playing
+                      </p>
+                      <p className="text-xs font-bold text-white truncate">{jamState.currentSong.title}</p>
+                      <p className="text-[10px] text-[#b3b3b3] truncate">{jamState.currentSong.artist}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Connected Friends List */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-bold text-[#b3b3b3] uppercase tracking-wider flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-[#1DB954]" />
+                    Connected ({jamState.members.length})
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {jamState.members.map((member) => (
+                      <div
+                        key={member.deviceId}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 border border-white/10 text-xs text-white"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#1DB954]" />
+                        <span className="font-semibold text-xs">{member.displayName}</span>
+                        {member.isHost && (
+                          <span className="text-[8px] bg-[#1DB954]/20 text-[#1DB954] font-black px-1.5 py-0.2 rounded-full">HOST</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 4. Collaborative Jam Queue */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-[#b3b3b3] uppercase tracking-wider flex items-center gap-1.5">
+                      <Music2 className="w-3.5 h-3.5 text-[#1DB954]" />
+                      Jam Queue ({jamState.queue.length})
+                    </span>
+                    {currentSong && (
+                      <button
+                        onClick={() => JamSessionManager.getInstance().addToJamQueue(currentSong)}
+                        className="text-[9px] bg-[#1DB954] hover:bg-[#1ed760] text-black font-extrabold px-2.5 py-0.5 rounded-full flex items-center gap-1 transition-all cursor-pointer active:scale-95 shadow-sm"
+                      >
+                        <Plus className="w-3 h-3 text-black" /> Add Playing
+                      </button>
+                    )}
+                  </div>
+
+                  {jamState.queue.length === 0 ? (
+                    <div className="p-3 rounded-xl bg-black/20 border border-white/5 text-center text-xs text-[#b3b3b3] space-y-0.5">
+                      <p className="font-semibold text-white">Queue is empty</p>
+                      <p className="text-[10px] text-[#727272]">Tap 3-dots (⋮) on any song & select "Add to Jam Queue"</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar pr-0.5">
+                      {jamState.queue.map((item) => {
+                        const myDeviceId = DeviceKeyManager.getInstance().getOrCreateDeviceId();
+                        const upCount = item.upvotes?.length || 0;
+                        const downCount = item.downvotes?.length || 0;
+                        const hasUpvoted = item.upvotes?.includes(myDeviceId);
+                        const hasDownvoted = item.downvotes?.includes(myDeviceId);
+
+                        return (
+                          <div
+                            key={item.id}
+                            className="flex items-center justify-between p-2 rounded-xl bg-black/30 border border-white/5 hover:bg-[#282828] transition-colors gap-2"
+                          >
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <div className="w-8 h-8 rounded-lg overflow-hidden shadow-sm flex-shrink-0 bg-slate-800 border border-white/10 flex items-center justify-center">
+                                <OptimizedImage
+                                  src={item.song.coverUrl}
+                                  alt={item.song.title}
+                                  size="thumb"
+                                  imageFit="contain"
+                                  className="w-full h-full object-contain"
+                                  fallbackSrc="/app-icon.png"
+                                />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-bold text-white truncate">{item.song.title}</p>
+                                <p className="text-[9px] text-[#b3b3b3] truncate">
+                                  Added by {item.addedByMemberName}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Upvote & Downvote Buttons */}
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <button
+                                onClick={() => handleUpvoteJamSong(item.id)}
+                                className={`py-0.5 px-2 rounded-full text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 border active:scale-95 ${
+                                  hasUpvoted
+                                    ? 'bg-[#1DB954]/25 text-[#1DB954] border-[#1DB954]/50 shadow-[0_0_8px_rgba(29,185,84,0.3)]'
+                                    : 'bg-[#282828] text-white/70 hover:text-white hover:bg-[#333333] border-white/5'
+                                }`}
+                                title="Upvote / Like song"
+                              >
+                                <ThumbsUp className={`w-3 h-3 ${hasUpvoted ? 'fill-[#1DB954]' : ''}`} />
+                                <span>{upCount}</span>
+                              </button>
+
+                              <button
+                                onClick={() => handleDownvoteJamSong(item.id)}
+                                className={`py-0.5 px-2 rounded-full text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 border active:scale-95 ${
+                                  hasDownvoted
+                                    ? 'bg-red-500/25 text-red-400 border-red-500/50 shadow-[0_0_8px_rgba(239,68,68,0.3)]'
+                                    : 'bg-[#282828] text-white/70 hover:text-white hover:bg-[#333333] border-white/5'
+                                }`}
+                                title="Downvote / Dislike song"
+                              >
+                                <ThumbsDown className={`w-3.5 h-3.5 ${hasDownvoted ? 'fill-red-400' : ''}`} />
+                                <span>{downCount}</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* 5. Minimal Leave Room Button */}
+                <button
+                  onClick={handleLeaveJam}
+                  className="w-full py-2 px-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  Leave Jam Room
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* ── REMOTE PLAYBACK ACTIVE CONTROLLER CARD (SPOTIFY CONNECT STYLE) ── */}
           {!isLocalPlayback && currentSong && (
             <div className="p-3.5 rounded-2xl bg-gradient-to-br from-[#1DB954]/15 via-white/[0.06] to-white/[0.02] border border-[#1DB954]/30 shadow-xl space-y-3">
@@ -776,92 +1178,6 @@ export function RightQueuePanel() {
           )}
 
 
-          {/* ── SECTION 5: MANAGE DEVICES (§9) ── */}
-          <div className="pt-1 border-t border-white/5">
-            <button
-              onClick={() => setShowManageDevices(!showManageDevices)}
-              className="w-full text-center text-[11px] text-[#727272] hover:text-white hover:underline transition-colors py-1 cursor-pointer block"
-            >
-              Manage devices
-            </button>
-
-            {showManageDevices && (
-              <div className="mt-2 p-3 rounded-xl bg-black/30 border border-white/10 space-y-3 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-white font-bold">Device Settings</span>
-                  <button
-                    onClick={() => setShowManageDevices(false)}
-                    className="text-[#b3b3b3] hover:text-white text-[10px] cursor-pointer"
-                  >
-                    Close
-                  </button>
-                </div>
-
-                {/* Rename this device (§spec) */}
-                <div className="space-y-1.5 pt-1">
-                  <label className="text-[11px] font-semibold text-[#b3b3b3] block">
-                    Rename this device
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="text"
-                      value={userRenameInput}
-                      onChange={(e) => setUserRenameInput(e.target.value)}
-                      placeholder={DeviceNameResolver.getInstance().getDefaultDeviceDisplayName()}
-                      className="flex-1 bg-white/5 border border-white/15 rounded-lg px-2.5 py-1 text-xs text-white placeholder:text-[#535353] focus:outline-none focus:border-[#1DB954]"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          DeviceNameResolver.getInstance().setUserLabel(userRenameInput);
-                          setToastMessage(`Device renamed to "${DeviceNameResolver.getInstance().getLocalDeviceDisplayName()}"`);
-                        }
-                      }}
-                    />
-                    <button
-                      onClick={() => {
-                        DeviceNameResolver.getInstance().setUserLabel(userRenameInput);
-                        setToastMessage(`Device renamed to "${DeviceNameResolver.getInstance().getLocalDeviceDisplayName()}"`);
-                      }}
-                      className="px-2.5 py-1 bg-[#1DB954] hover:bg-[#1ed760] text-black text-xs font-bold rounded-lg transition-colors cursor-pointer"
-                    >
-                      Save
-                    </button>
-                    {DeviceNameResolver.getInstance().getUserLabel() && (
-                      <button
-                        onClick={() => {
-                          DeviceNameResolver.getInstance().setUserLabel(null);
-                          setUserRenameInput('');
-                          setToastMessage('Device name reset to default');
-                        }}
-                        className="px-2 py-1 bg-white/10 hover:bg-white/20 text-[#b3b3b3] hover:text-white text-[11px] rounded-lg transition-colors cursor-pointer"
-                        title="Reset to default"
-                      >
-                        Reset
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-[10px] text-[#727272]">
-                    Default: {DeviceNameResolver.getInstance().getDefaultDeviceDisplayName()}
-                  </p>
-                </div>
-
-                <div className="pt-2 border-t border-white/10 space-y-2">
-                  <p className="text-[11px] text-[#727272]">
-                    Hardware device ID: <span className="font-mono text-white">{myDeviceId.slice(0, 16)}...</span>
-                  </p>
-                  <button
-                    onClick={() => {
-                      PairingService.getInstance().revokeAuthorization(activePlaybackDeviceId);
-                      setToastMessage('Device pairing authorization revoked');
-                      setShowManageDevices(false);
-                    }}
-                    className="text-[11px] text-red-400 hover:text-red-300 font-bold block cursor-pointer"
-                  >
-                    Revoke current device authorization
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       )}
     </aside>

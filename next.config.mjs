@@ -2,7 +2,7 @@
 const isStaticExport = process.env.STATIC_EXPORT === 'true';
 
 const nextConfig = {
-  ...(isStaticExport ? { output: 'export', trailingSlash: true } : {}),
+  ...(isStaticExport ? { output: 'export', distDir: '.next_apk_build', trailingSlash: true } : {}),
   reactStrictMode: true,
   eslint: {
     ignoreDuringBuilds: true,

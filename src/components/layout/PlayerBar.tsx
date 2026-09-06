@@ -73,28 +73,20 @@ export function PlayerBar() {
   }, [currentSong?.id, isPlaying]);
 
   const handleToggleQueue = () => {
-    if (typeof window !== 'undefined' && window.innerWidth >= 1280) {
-      if (isQueueOpen && rightPanelMode === 'queue') {
-        setQueueOpen(false);
-      } else {
-        setRightPanelMode('queue');
-        setQueueOpen(true);
-      }
+    if (isQueueOpen && rightPanelMode === 'queue') {
+      setQueueOpen(false);
     } else {
-      toggleQueue();
+      setRightPanelMode('queue');
+      setQueueOpen(true);
     }
   };
 
   const handleToggleConnect = () => {
-    if (typeof window !== 'undefined' && window.innerWidth >= 1280) {
-      if (isQueueOpen && rightPanelMode === 'connect') {
-        setQueueOpen(false);
-      } else {
-        setRightPanelMode('connect');
-        setQueueOpen(true);
-      }
+    if (isQueueOpen && rightPanelMode === 'connect') {
+      setQueueOpen(false);
     } else {
-      toggleCastModal();
+      setRightPanelMode('connect');
+      setQueueOpen(true);
     }
   };
 

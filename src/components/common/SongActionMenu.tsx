@@ -13,6 +13,7 @@ import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { SongDetailsModal } from '@/components/modals/SongDetailsModal';
 import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
+import { JamSessionManager } from '@/lib/connect/jam/JamSessionManager';
 
 interface SongActionMenuProps {
   song: Song;
@@ -50,7 +51,9 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
     setToastMessage,
     setSelectedArtistId,
     setSelectedAlbumId,
-    setActiveTab
+    setActiveTab,
+    isInJam,
+    toggleJamModal
   } = usePlayerStore();
   
   const { playlists, addSongToPlaylist, removeSongFromPlaylist } = usePlaylistStore();
@@ -233,6 +236,30 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
                     <ListPlus className="w-3.5 h-3.5" />
                   </div>
                   <span className="font-medium text-slate-200 group-hover:text-white flex-1 ml-3 text-xs">Add to Queue</span>
+                </button>
+
+                {/* 3b. Add to Jam Queue */}
+                <button 
+                  onClick={() => handleAction(() => {
+                    const jamMgr = JamSessionManager.getInstance();
+                    if (jamMgr.getActiveState()) {
+                      jamMgr.addToJamQueue(song);
+                    } else {
+                      toggleJamModal(true);
+                      setToastMessage(`Start or Join a Jam room to add "${song.title}"`);
+                    }
+                  })}
+                  className="w-full text-left px-2.5 py-2 hover:bg-emerald-500/10 rounded-xl flex items-center transition-all group cursor-pointer border border-emerald-500/10 bg-emerald-500/5 my-0.5"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white flex items-center justify-center flex-shrink-0 transition-colors">
+                    <Radio className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="flex flex-col ml-3 flex-1 text-left">
+                    <span className="font-semibold text-emerald-400 group-hover:text-white text-xs">Add to Jam Queue</span>
+                    <span className="text-[10px] text-emerald-400/80 group-hover:text-emerald-200">
+                      {isInJam ? 'Share with active Jam room' : 'Start or join a Jam room'}
+                    </span>
+                  </div>
                 </button>
 
                 {/* 4. Add to Playlist / Remove from Playlist (contextual) */}

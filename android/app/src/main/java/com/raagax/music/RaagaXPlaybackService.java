@@ -27,6 +27,7 @@ import androidx.annotation.OptIn;
 import androidx.core.app.NotificationCompat;
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
+import androidx.media3.common.ForwardingPlayer;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.Player;
@@ -79,6 +80,10 @@ public class RaagaXPlaybackService extends Service {
     private volatile boolean isRemotePlayback = false;
     private volatile boolean isRemotePlaying  = false;
     private String           remoteDeviceName = "";
+    private final java.util.concurrent.CopyOnWriteArrayList<Player.Listener> sessionListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private long             remoteDurationMs = 0L;
+    private long             remotePositionMs = 0L;
+    private long             remotePositionTimestampMs = 0L;
     private final Runnable progressTicker = new Runnable() {
         @Override
         public void run() {
@@ -159,7 +164,184 @@ public class RaagaXPlaybackService extends Service {
             PendingIntent sessionActivityPi = PendingIntent.getActivity(this, 0, launchIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-            mediaSession = new androidx.media3.session.MediaSession.Builder(this, player)
+            ForwardingPlayer forwardingPlayer = new ForwardingPlayer(player) {
+                @Override
+                public void addListener(Player.Listener listener) {
+                    sessionListeners.add(listener);
+                    super.addListener(listener);
+                }
+
+                @Override
+                public void removeListener(Player.Listener listener) {
+                    sessionListeners.remove(listener);
+                    super.removeListener(listener);
+                }
+
+                @Override
+                public boolean isPlaying() {
+                    if (isRemotePlayback) return isRemotePlaying;
+                    return super.isPlaying();
+                }
+
+                @Override
+                public boolean getPlayWhenReady() {
+                    if (isRemotePlayback) return isRemotePlaying;
+                    return super.getPlayWhenReady();
+                }
+
+                @Override
+                public int getPlaybackState() {
+                    if (isRemotePlayback) {
+                        return (currentTrackId != null && !currentTrackId.isEmpty()) ? Player.STATE_READY : Player.STATE_IDLE;
+                    }
+                    return super.getPlaybackState();
+                }
+
+                @Override
+                public MediaItem getCurrentMediaItem() {
+                    if (isRemotePlayback) {
+                        return buildRemoteMediaItem();
+                    }
+                    return super.getCurrentMediaItem();
+                }
+
+                @Override
+                public MediaMetadata getMediaMetadata() {
+                    if (isRemotePlayback) {
+                        MediaItem item = buildRemoteMediaItem();
+                        return item.mediaMetadata != null ? item.mediaMetadata : MediaMetadata.EMPTY;
+                    }
+                    return super.getMediaMetadata();
+                }
+
+                @Override
+                public MediaMetadata getPlaylistMetadata() {
+                    if (isRemotePlayback) {
+                        MediaItem item = buildRemoteMediaItem();
+                        return item.mediaMetadata != null ? item.mediaMetadata : MediaMetadata.EMPTY;
+                    }
+                    return super.getPlaylistMetadata();
+                }
+
+                @Override
+                public long getDuration() {
+                    if (isRemotePlayback) {
+                        return remoteDurationMs > 0 ? remoteDurationMs : C.TIME_UNSET;
+                    }
+                    return super.getDuration();
+                }
+
+                @Override
+                public long getCurrentPosition() {
+                    if (isRemotePlayback) {
+                        if (isRemotePlaying && remotePositionTimestampMs > 0) {
+                            long elapsed = android.os.SystemClock.elapsedRealtime() - remotePositionTimestampMs;
+                            long calculated = remotePositionMs + elapsed;
+                            return (remoteDurationMs > 0) ? Math.min(calculated, remoteDurationMs) : calculated;
+                        }
+                        return remotePositionMs;
+                    }
+                    return super.getCurrentPosition();
+                }
+
+                @Override
+                public Player.Commands getAvailableCommands() {
+                    if (isRemotePlayback) {
+                        return new Player.Commands.Builder()
+                                .addAll(super.getAvailableCommands())
+                                .add(Player.COMMAND_PLAY_PAUSE)
+                                .add(Player.COMMAND_SEEK_TO_NEXT)
+                                .add(Player.COMMAND_SEEK_TO_PREVIOUS)
+                                .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
+                                .add(Player.COMMAND_STOP)
+                                .build();
+                    }
+                    return super.getAvailableCommands();
+                }
+
+                @Override
+                public void play() {
+                    if (isRemotePlayback) {
+                        Log.d(TAG, "[ForwardingPlayer] play() in remote mode -> broadcasting ACTION_TOGGLE_PLAY");
+                        sendBroadcast(new Intent("com.raagax.music.ACTION_TOGGLE_PLAY"));
+                        return;
+                    }
+                    super.play();
+                }
+
+                @Override
+                public void pause() {
+                    if (isRemotePlayback) {
+                        Log.d(TAG, "[ForwardingPlayer] pause() in remote mode -> broadcasting ACTION_TOGGLE_PLAY");
+                        sendBroadcast(new Intent("com.raagax.music.ACTION_TOGGLE_PLAY"));
+                        return;
+                    }
+                    super.pause();
+                }
+
+                @Override
+                public void seekToNext() {
+                    if (isRemotePlayback) {
+                        Log.d(TAG, "[ForwardingPlayer] seekToNext() in remote mode -> broadcasting ACTION_NEXT");
+                        sendBroadcast(new Intent("com.raagax.music.ACTION_NEXT"));
+                        return;
+                    }
+                    super.seekToNext();
+                }
+
+                @Override
+                public void seekToNextMediaItem() {
+                    if (isRemotePlayback) {
+                        seekToNext();
+                        return;
+                    }
+                    super.seekToNextMediaItem();
+                }
+
+                @Override
+                public void seekToPrevious() {
+                    if (isRemotePlayback) {
+                        Log.d(TAG, "[ForwardingPlayer] seekToPrevious() in remote mode -> broadcasting ACTION_PREV");
+                        sendBroadcast(new Intent("com.raagax.music.ACTION_PREV"));
+                        return;
+                    }
+                    super.seekToPrevious();
+                }
+
+                @Override
+                public void seekToPreviousMediaItem() {
+                    if (isRemotePlayback) {
+                        seekToPrevious();
+                        return;
+                    }
+                    super.seekToPreviousMediaItem();
+                }
+
+                @Override
+                public void seekTo(long positionMs) {
+                    if (isRemotePlayback) {
+                        Log.d(TAG, "[ForwardingPlayer] seekTo() in remote mode -> " + positionMs);
+                        remotePositionMs = positionMs;
+                        remotePositionTimestampMs = android.os.SystemClock.elapsedRealtime();
+                        Intent i = new Intent("com.raagax.music.ACTION_SEEK");
+                        i.putExtra("positionMs", positionMs);
+                        sendBroadcast(i);
+                        return;
+                    }
+                    super.seekTo(positionMs);
+                }
+
+                @Override
+                public void seekTo(int mediaItemIndex, long positionMs) {
+                    if (isRemotePlayback) {
+                        seekTo(positionMs);
+                        return;
+                    }
+                    super.seekTo(mediaItemIndex, positionMs);
+                }
+            };
+
+            mediaSession = new androidx.media3.session.MediaSession.Builder(this, forwardingPlayer)
                     .setSessionActivity(sessionActivityPi)
                     .setCallback(new androidx.media3.session.MediaSession.Callback() {
                         @Override
@@ -536,38 +718,57 @@ public class RaagaXPlaybackService extends Service {
             return;
         }
         currentArtworkUrl = url;
+
+        String cleanUrl = url;
+        if (cleanUrl.startsWith("http://")) {
+            cleanUrl = "https://" + cleanUrl.substring(7);
+        }
+
         Bitmap cached = artworkCache.get(url);
+        if (cached == null) {
+            cached = artworkCache.get(cleanUrl);
+        }
         if (cached != null) {
             currentArtworkBitmap = cached;
+            if (isRemotePlayback) {
+                applyRemoteMediaItem();
+            }
             updateNotification();
             return;
         }
-        // Atomic Transition Guard: Never show previous song's cover with new track metadata
+
         currentArtworkBitmap = null;
         updateNotification();
 
+        final String targetFetchUrl = cleanUrl;
         final String requestTrackId = trackId;
         new Thread(() -> {
             try {
-                URL u = new URL(url);
+                URL u = new URL(targetFetchUrl);
                 HttpURLConnection conn = (HttpURLConnection) u.openConnection();
-                conn.setConnectTimeout(4000);
-                conn.setReadTimeout(4000);
+                conn.setConnectTimeout(6000);
+                conn.setReadTimeout(6000);
+                conn.setInstanceFollowRedirects(true);
                 conn.setDoInput(true);
                 conn.connect();
                 InputStream in = conn.getInputStream();
                 Bitmap b = BitmapFactory.decodeStream(in);
                 if (b != null) {
                     artworkCache.put(url, b);
-                    // Prevent Stale Async Responses: Only apply if trackId is still current!
+                    artworkCache.put(targetFetchUrl, b);
                     if ((requestTrackId == null || requestTrackId.isEmpty() || requestTrackId.equals(currentTrackId))
-                            && url.equals(currentArtworkUrl)) {
+                            && (url.equals(currentArtworkUrl) || targetFetchUrl.equals(currentArtworkUrl))) {
                         currentArtworkBitmap = b;
-                        runOnMainThread(this::updateNotification);
+                        runOnMainThread(() -> {
+                            if (isRemotePlayback) {
+                                applyRemoteMediaItem();
+                            }
+                            updateNotification();
+                        });
                     }
                 }
             } catch (Exception e) {
-                Log.w(TAG, "Failed to load artwork: " + e.getMessage());
+                Log.w(TAG, "Failed to load artwork (" + targetFetchUrl + "): " + e.getMessage());
             }
         }).start();
     }
@@ -662,7 +863,9 @@ public class RaagaXPlaybackService extends Service {
             String artworkUrl = intent.getStringExtra("artworkUrl");
             boolean isPlaying = intent.getBooleanExtra("isPlaying", false);
             String deviceName = intent.getStringExtra("deviceName");
-            updateRemotePlayback(trackId, title, artist, artworkUrl, isPlaying, deviceName);
+            long durationMs = intent.getLongExtra("durationMs", 0L);
+            long positionMs = intent.getLongExtra("positionMs", 0L);
+            updateRemotePlayback(trackId, title, artist, artworkUrl, isPlaying, deviceName, durationMs, positionMs);
 
         } else if ("CLEAR_REMOTE_PLAYBACK".equals(action)) {
             clearRemotePlayback();
@@ -1514,6 +1717,64 @@ public class RaagaXPlaybackService extends Service {
     }
     public void pause() { runOnMainThread(() -> { if (player != null) player.pause(); }); }
 
+    private MediaItem buildRemoteMediaItem() {
+        String displayArtist = currentArtist != null ? currentArtist : "";
+        if (remoteDeviceName != null && !remoteDeviceName.isEmpty()) {
+            displayArtist = displayArtist.isEmpty() ? "Playing on " + remoteDeviceName : displayArtist + " • " + remoteDeviceName;
+        }
+
+        MediaMetadata.Builder mb = new MediaMetadata.Builder()
+                .setTitle(currentTitle != null && !currentTitle.isEmpty() ? currentTitle : "RaagaX")
+                .setArtist(displayArtist)
+                .setDisplayTitle(currentTitle != null && !currentTitle.isEmpty() ? currentTitle : "RaagaX")
+                .setAlbumArtist(displayArtist);
+
+        if (currentArtworkUrl != null && !currentArtworkUrl.isEmpty()) {
+            mb.setArtworkUri(parsePlayableUri(currentArtworkUrl));
+        }
+        if (currentArtworkBitmap != null) {
+            try {
+                java.io.ByteArrayOutputStream stream = new java.io.ByteArrayOutputStream();
+                currentArtworkBitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
+                byte[] byteArray = stream.toByteArray();
+                mb.setArtworkData(byteArray, MediaMetadata.PICTURE_TYPE_FRONT_COVER);
+            } catch (Exception ignored) {}
+        }
+
+        MediaMetadata meta = mb.build();
+        return new MediaItem.Builder()
+                .setMediaId(currentTrackId != null && !currentTrackId.isEmpty() ? currentTrackId : "remote_track")
+                .setMediaMetadata(meta)
+                .build();
+    }
+
+    private void applyRemoteMediaItem() {
+        MediaItem remoteItem = buildRemoteMediaItem();
+        MediaMetadata remoteMeta = remoteItem.mediaMetadata;
+
+        if (player != null) {
+            try {
+                player.setMediaItem(remoteItem, /* resetPosition= */ false);
+                player.setPlaylistMetadata(remoteMeta);
+            } catch (Exception e) {
+                Log.w(TAG, "Failed to setMediaItem on player for remote track: " + e.getMessage());
+            }
+        }
+
+        for (Player.Listener listener : sessionListeners) {
+            try {
+                listener.onMediaItemTransition(remoteItem, Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED);
+                listener.onMediaMetadataChanged(remoteMeta);
+                listener.onPlaylistMetadataChanged(remoteMeta);
+                listener.onPlaybackStateChanged(Player.STATE_READY);
+                listener.onPlayWhenReadyChanged(isRemotePlaying, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
+                listener.onIsPlayingChanged(isRemotePlaying);
+            } catch (Exception e) {
+                Log.w(TAG, "Error notifying session listener of remote item: " + e.getMessage());
+            }
+        }
+    }
+
     public void setRemotePlaybackMode(boolean isRemote, String deviceName) {
         runOnMainThread(() -> {
             this.isRemotePlayback = isRemote;
@@ -1525,22 +1786,43 @@ public class RaagaXPlaybackService extends Service {
                     player.pause();
                 }
                 stopProgressTicker();
+                this.remotePositionMs = 0L;
+                this.remotePositionTimestampMs = android.os.SystemClock.elapsedRealtime();
+                if (currentTrackId != null && !currentTrackId.isEmpty()) {
+                    applyRemoteMediaItem();
+                }
             } else {
                 this.isRemotePlaying = false;
                 this.remoteDeviceName = "";
+                this.remotePositionMs = 0L;
+                this.remotePositionTimestampMs = 0L;
             }
             updateNotification();
         });
     }
 
-    public void updateRemotePlayback(String trackId, String title, String artist, String artworkUrl, boolean isPlaying, String deviceName) {
+    public void updateRemotePlayback(String trackId, String title, String artist, String artworkUrl, boolean isPlaying, String deviceName, long durationMs, long positionMs) {
         runOnMainThread(() -> {
+            boolean isNewTrack = (trackId != null && !trackId.isEmpty() && !trackId.equals(this.currentTrackId)) || !this.isRemotePlayback;
             this.isRemotePlayback = true;
+
+            if (this.isRemotePlaying && !isPlaying && this.remotePositionTimestampMs > 0) {
+                long elapsed = android.os.SystemClock.elapsedRealtime() - this.remotePositionTimestampMs;
+                this.remotePositionMs = (this.remoteDurationMs > 0) ? Math.min(this.remotePositionMs + elapsed, this.remoteDurationMs) : (this.remotePositionMs + elapsed);
+            }
+
             this.isRemotePlaying = isPlaying;
             this.remoteDeviceName = (deviceName != null && !deviceName.isEmpty()) ? deviceName : "Connected Device";
-            this.currentTrackId = (trackId != null) ? trackId : "";
             this.currentTitle = (title != null && !title.isEmpty()) ? title : "RaagaX";
             this.currentArtist = (artist != null) ? artist : "";
+            if (durationMs > 0) this.remoteDurationMs = durationMs;
+
+            if (positionMs >= 0) {
+                this.remotePositionMs = positionMs;
+                this.remotePositionTimestampMs = android.os.SystemClock.elapsedRealtime();
+            } else if (this.remotePositionTimestampMs == 0L) {
+                this.remotePositionTimestampMs = android.os.SystemClock.elapsedRealtime();
+            }
 
             // Silence local ExoPlayer so no audio conflicts occur
             if (player != null && (player.isPlaying() || player.getPlayWhenReady())) {
@@ -1549,7 +1831,29 @@ public class RaagaXPlaybackService extends Service {
             }
 
             stopProgressTicker();
-            loadArtworkAsync(artworkUrl, this.currentTrackId);
+
+            if (isNewTrack) {
+                this.currentTrackId = (trackId != null) ? trackId : "";
+                this.currentArtworkBitmap = null;
+                this.currentArtworkUrl = (artworkUrl != null) ? artworkUrl : "";
+                applyRemoteMediaItem();
+                if (artworkUrl != null && !artworkUrl.isEmpty()) {
+                    loadArtworkAsync(artworkUrl, this.currentTrackId);
+                }
+            } else {
+                for (Player.Listener listener : sessionListeners) {
+                    try {
+                        listener.onPlaybackStateChanged(Player.STATE_READY);
+                        listener.onPlayWhenReadyChanged(isRemotePlaying, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST);
+                        listener.onIsPlayingChanged(isRemotePlaying);
+                    } catch (Exception ignored) {}
+                }
+                if (artworkUrl != null && !artworkUrl.isEmpty() && (!artworkUrl.equals(currentArtworkUrl) || currentArtworkBitmap == null)) {
+                    loadArtworkAsync(artworkUrl, this.currentTrackId);
+                } else {
+                    applyRemoteMediaItem();
+                }
+            }
 
             Notification notif = buildNotification();
             try {
@@ -1566,12 +1870,18 @@ public class RaagaXPlaybackService extends Service {
         });
     }
 
+    public void updateRemotePlayback(String trackId, String title, String artist, String artworkUrl, boolean isPlaying, String deviceName) {
+        updateRemotePlayback(trackId, title, artist, artworkUrl, isPlaying, deviceName, 0L, 0L);
+    }
+
     public void clearRemotePlayback() {
         runOnMainThread(() -> {
             if (!this.isRemotePlayback) return;
             this.isRemotePlayback = false;
             this.isRemotePlaying = false;
             this.remoteDeviceName = "";
+            this.remoteDurationMs = 0L;
+            this.remotePositionMs = 0L;
 
             if (player != null && player.getCurrentMediaItem() != null) {
                 MediaItem mi = player.getCurrentMediaItem();
@@ -1940,7 +2250,7 @@ public class RaagaXPlaybackService extends Service {
                 .setContentTitle(notifTitle)
                 .setContentText(notifArtist)
                 .setContentIntent(pi)
-                .setOngoing(isPlaying)
+                .setOngoing(isRemotePlayback || isPlaying)
                 .setSilent(true)
                 .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
@@ -1954,7 +2264,7 @@ public class RaagaXPlaybackService extends Service {
                        isPlaying ? "Pause" : "Play", playPausePending)
                .addAction(android.R.drawable.ic_media_next, "Next", nextPending);
 
-        if (!isRemotePlayback && mediaSession != null) {
+        if (mediaSession != null) {
             try {
                 androidx.media3.session.MediaStyleNotificationHelper.MediaStyle mediaStyle =
                         new androidx.media3.session.MediaStyleNotificationHelper.MediaStyle(mediaSession)
@@ -1965,20 +2275,32 @@ public class RaagaXPlaybackService extends Service {
                 androidx.media.app.NotificationCompat.MediaStyle fallbackMediaStyle =
                         new androidx.media.app.NotificationCompat.MediaStyle()
                                 .setShowActionsInCompactView(0, 1, 2);
+                try {
+                    fallbackMediaStyle.setMediaSession((android.support.v4.media.session.MediaSessionCompat.Token) mediaSession.getSessionCompatToken());
+                } catch (Exception ignored) {}
                 builder.setStyle(fallbackMediaStyle);
             }
-        } else {
-            androidx.media.app.NotificationCompat.MediaStyle mediaStyle =
-                    new androidx.media.app.NotificationCompat.MediaStyle()
-                            .setShowActionsInCompactView(0, 1, 2);
-            builder.setStyle(mediaStyle);
         }
 
         return builder.build();
     }
 
     private void updateNotification() {
-        NotificationManager nm = getSystemService(NotificationManager.class);
-        if (nm != null) nm.notify(NOTIF_ID, buildNotification());
+        Notification notif = buildNotification();
+        try {
+            if (isRemotePlayback || (player != null && (player.isPlaying() || player.getPlayWhenReady()))) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(NOTIF_ID, notif, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+                } else {
+                    startForeground(NOTIF_ID, notif);
+                }
+            } else {
+                NotificationManager nm = getSystemService(NotificationManager.class);
+                if (nm != null) nm.notify(NOTIF_ID, notif);
+            }
+        } catch (Exception e) {
+            NotificationManager nm = getSystemService(NotificationManager.class);
+            if (nm != null) nm.notify(NOTIF_ID, notif);
+        }
     }
 }

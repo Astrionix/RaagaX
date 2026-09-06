@@ -3,10 +3,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Heart, Play, Shuffle, Loader2, Disc, Download, Check,
-  ArrowUpDown, Search, X, Clock
+  ArrowUpDown, Search, X, Clock, Radio
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
+import { JamSessionManager } from '@/lib/connect/jam/JamSessionManager';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { OfflineCatalog } from '@/lib/offline/OfflineCatalog';
 import { SongResolver } from '@/lib/discovery/SongResolver';
@@ -420,6 +421,26 @@ export function FavoritesView() {
             >
               <Shuffle className="w-3.5 h-3.5 text-slate-300 flex-shrink-0" />
               <span>Shuffle</span>
+            </button>
+
+            {/* Add Liked Songs to Jam Button */}
+            <button
+              onClick={() => {
+                if (displaySongs.length === 0) return;
+                haptics.mediumImpact();
+                const jamMgr = JamSessionManager.getInstance();
+                if (jamMgr.getActiveState()) {
+                  jamMgr.addMultipleToJamQueue(displaySongs, 'Liked Songs');
+                } else {
+                  usePlayerStore.getState().toggleJamModal(true);
+                  usePlayerStore.getState().setToastMessage('Start or Join a Jam room to add Liked Songs');
+                }
+              }}
+              className="h-9 px-3.5 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-400 font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+              title="Add Liked Songs to Jam Queue"
+            >
+              <Radio className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+              <span>Add to Jam</span>
             </button>
 
             {/* Sort Selector Dropdown */}

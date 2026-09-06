@@ -40,6 +40,7 @@ export function CastModal() {
   const {
     isCastModalOpen,
     toggleCastModal,
+    toggleJamModal,
     activePlaybackDeviceId,
     activePlaybackDeviceName,
     setActivePlaybackDeviceId,
@@ -301,6 +302,31 @@ export function CastModal() {
                   </span>
                 </div>
               )}
+            </div>
+
+            {/* ── SECTION: RAAGA JAM LISTENING ROOM ── */}
+            <div className="pt-1 pb-1">
+              <button
+                onClick={() => {
+                  toggleCastModal();
+                  toggleJamModal(true);
+                }}
+                className="w-full flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-emerald-950/80 to-teal-900/60 border border-emerald-500/30 hover:border-emerald-500/60 transition-all text-left cursor-pointer group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+                    <Radio className="w-4 h-4 animate-pulse" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-xs text-white group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
+                      Start Raaga Jam Room
+                      <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded uppercase tracking-wider font-semibold">New</span>
+                    </p>
+                    <p className="text-[10px] text-emerald-200/70">Sync listening in real-time with friends</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-emerald-400/70 group-hover:translate-x-0.5 transition-transform" />
+              </button>
             </div>
 
             {/* ── SECTION 2: YOUR DEVICES (Same account, §2) ── */}

@@ -86,6 +86,11 @@ public class RaagaXCapacitorPlugin extends Plugin {
             } else if ("com.raagax.music.ACTION_TOGGLE_PLAY".equals(action)) {
                 notifyListeners("actionTogglePlay", new JSObject());
 
+            } else if ("com.raagax.music.ACTION_SEEK".equals(action)) {
+                JSObject data = new JSObject();
+                data.put("positionMs", intent.getLongExtra("positionMs", 0L));
+                notifyListeners("actionSeek", data);
+
             } else if ("com.raagax.music.TRACK_ENDED".equals(action)) {
                 // Legacy — kept for compatibility
                 notifyListeners("trackEnded", new JSObject());
@@ -117,6 +122,7 @@ public class RaagaXCapacitorPlugin extends Plugin {
         filter.addAction("com.raagax.music.ACTION_NEXT");
         filter.addAction("com.raagax.music.ACTION_PREV");
         filter.addAction("com.raagax.music.ACTION_TOGGLE_PLAY");
+        filter.addAction("com.raagax.music.ACTION_SEEK");
         filter.addAction("com.raagax.music.TRACK_ENDED");
         filter.addAction("com.raagax.music.OFFLINE_QUEUE_READY");
         filter.addAction("com.raagax.music.OFFLINE_QUEUE_EMPTY");
@@ -618,6 +624,10 @@ public class RaagaXCapacitorPlugin extends Plugin {
         String artworkUrl = call.getString("artworkUrl", "");
         boolean isPlaying = call.getBoolean("isPlaying", false);
         String deviceName = call.getString("deviceName", "Connected Device");
+        Double durD = call.getDouble("durationMs");
+        Double posD = call.getDouble("positionMs");
+        long durationMs = durD != null ? durD.longValue() : 0L;
+        long positionMs = posD != null ? posD.longValue() : 0L;
 
         Intent intent = new Intent("UPDATE_REMOTE_PLAYBACK");
         intent.putExtra("trackId", trackId);
@@ -626,11 +636,13 @@ public class RaagaXCapacitorPlugin extends Plugin {
         intent.putExtra("artworkUrl", artworkUrl);
         intent.putExtra("isPlaying", isPlaying);
         intent.putExtra("deviceName", deviceName);
+        intent.putExtra("durationMs", durationMs);
+        intent.putExtra("positionMs", positionMs);
         sendCommandToService(intent);
 
         RaagaXPlaybackService service = getService();
         if (service != null) {
-            service.updateRemotePlayback(trackId, title, artist, artworkUrl, isPlaying, deviceName);
+            service.updateRemotePlayback(trackId, title, artist, artworkUrl, isPlaying, deviceName, durationMs, positionMs);
         }
         call.resolve(new JSObject().put("success", true));
     }

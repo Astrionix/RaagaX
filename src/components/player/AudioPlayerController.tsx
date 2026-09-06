@@ -414,6 +414,12 @@ export function AudioPlayerController() {
       usePlayerStore.getState().togglePlayPause();
     });
 
+    const unsubActionSeek = RaagaXNativePlayer.addActionSeekListener((data) => {
+      console.log('[AudioPlayerController] Native actionSeek command received -> seek', data.positionMs);
+      const posSec = Math.max(0, (data.positionMs || 0) / 1000);
+      usePlayerStore.getState().seek(posSec);
+    });
+
     return () => {
       unsubPlaybackState();
       unsubQueueEnded();
@@ -422,6 +428,7 @@ export function AudioPlayerController() {
       unsubActionNext();
       unsubActionPrev();
       unsubActionTogglePlay();
+      unsubActionSeek();
       if (appStateHandle) {
         try { appStateHandle.remove(); } catch {}
       }

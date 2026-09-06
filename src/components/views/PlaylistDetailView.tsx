@@ -6,7 +6,7 @@ import {
   Share2, Copy, Check, Lock, Globe, Sparkles, Plus,
   ArrowUpDown, CheckSquare, Square, X, CheckCheck, Pause, Loader2,
   MoreVertical, Edit3, MoveUp, MoveDown, CheckCircle2, PauseCircle,
-  Clock, HardDrive, RefreshCw
+  Clock, HardDrive, RefreshCw, Radio
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { Song } from '@/types/music';
@@ -21,6 +21,7 @@ import { ArtworkColorExtractor, ChameleonPalette } from '@/lib/theme/ArtworkColo
 import { SwipeableSongRow } from '@/components/common/SwipeableSongRow';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
 import { PlaylistDetailResolver } from '@/lib/playlist/PlaylistDetailResolver';
+import { JamSessionManager } from '@/lib/connect/jam/JamSessionManager';
 import { haptics } from '@/lib/haptics/HapticEngine';
 
 type SortOption = 'newest' | 'oldest' | 'az' | 'za' | 'duration';
@@ -288,6 +289,18 @@ export function PlaylistDetailView() {
       id: playlist.id,
       title: playlist.title,
     });
+  };
+
+  const handleAddPlaylistToJam = () => {
+    if (!playlist || !playlist.songs || playlist.songs.length === 0) return;
+    haptics.mediumImpact();
+    const jamMgr = JamSessionManager.getInstance();
+    if (jamMgr.getActiveState()) {
+      jamMgr.addMultipleToJamQueue(playlist.songs, playlist.title);
+    } else {
+      usePlayerStore.getState().toggleJamModal(true);
+      setToastMessage(`Start or Join a Jam room to add "${playlist.title}"`);
+    }
   };
 
   // Intelligent Bulk Download
@@ -645,6 +658,15 @@ export function PlaylistDetailView() {
               >
                 <Shuffle className="w-4 h-4 text-slate-300" />
                 <span>Shuffle</span>
+              </button>
+
+              <button
+                onClick={handleAddPlaylistToJam}
+                className="h-10 sm:h-11 px-3.5 sm:px-5 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 text-emerald-400 hover:text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2 border border-emerald-500/30 shadow-md transition-all cursor-pointer shrink-0 whitespace-nowrap"
+                title="Add Playlist to Jam Queue"
+              >
+                <Radio className="w-4 h-4 text-emerald-400" />
+                <span>Add to Jam</span>
               </button>
 
           {isUserOwned ? (
