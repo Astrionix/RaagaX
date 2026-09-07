@@ -27,31 +27,30 @@ targets.forEach((filePath) => {
   }
 });
 
-// Also search and delete any other .apk files recursively in public, out, or assets
-const deleteApkRecursively = (dir) => {
+// Also search and delete any heavy binaries (.apk, .dmg, .exe, .zip) recursively in public, out, or assets
+const purgeHeavyBinaries = (dir) => {
   if (!fs.existsSync(dir)) return;
   const files = fs.readdirSync(dir);
   files.forEach((file) => {
     const fullPath = path.join(dir, file);
     const stat = fs.statSync(fullPath);
     if (stat.isDirectory()) {
-      // Don't traverse node_modules, .git, or .next
       if (file !== 'node_modules' && file !== '.git' && file !== '.next') {
-        deleteApkRecursively(fullPath);
+        purgeHeavyBinaries(fullPath);
       }
-    } else if (file.endsWith('.apk')) {
+    } else if (file.endsWith('.apk') || file.endsWith('.dmg') || file.endsWith('.exe') || file.endsWith('.zip')) {
       try {
         fs.unlinkSync(fullPath);
-        console.log(`[Clean APKs] Cleaned wildcard APK: ${fullPath}`);
+        console.log(`[Clean APKs] Purged binary asset: ${fullPath}`);
       } catch (err) {
-        console.warn(`[Clean APKs] Failed to delete wildcard APK ${fullPath}:`, err.message);
+        console.warn(`[Clean APKs] Failed to purge ${fullPath}:`, err.message);
       }
     }
   });
 };
 
-deleteApkRecursively(path.join(rootDir, 'public'));
-deleteApkRecursively(path.join(rootDir, 'out'));
-deleteApkRecursively(path.join(rootDir, 'android', 'app', 'src', 'main', 'assets'));
+purgeHeavyBinaries(path.join(rootDir, 'public', 'RaagaX.apk'));
+purgeHeavyBinaries(path.join(rootDir, 'out'));
+purgeHeavyBinaries(path.join(rootDir, 'android', 'app', 'src', 'main', 'assets'));
 
 console.log('[Clean APKs] Cleanup completed successfully!');

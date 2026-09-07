@@ -34,14 +34,14 @@ function copyFolderFiltered(src, dest) {
     const destPath = path.join(dest, entry.name);
 
     if (entry.isDirectory()) {
-      // Exclude src/app/api from static export shadow tree
-      if (entry.name === 'api' && srcPath.includes(path.join('src', 'app', 'api'))) {
+      // Exclude src/app/api and src/app/releases route handlers from static export shadow tree
+      if ((entry.name === 'api' || entry.name === 'releases') && srcPath.includes(path.join('src', 'app'))) {
         continue;
       }
       copyFolderFiltered(srcPath, destPath);
     } else {
-      // Exclude sitemap.ts and robots.ts from static export shadow tree
-      if ((entry.name === 'sitemap.ts' || entry.name === 'robots.ts') && srcPath.includes(path.join('src', 'app'))) {
+      // Exclude sitemap.ts, robots.ts, and route.ts files from static export shadow tree
+      if ((entry.name === 'sitemap.ts' || entry.name === 'robots.ts' || entry.name === 'route.ts' || entry.name === 'route.js') && srcPath.includes(path.join('src', 'app'))) {
         continue;
       }
       fs.copyFileSync(srcPath, destPath);
@@ -116,6 +116,15 @@ try {
   const indexPath = path.join(outDir, 'index.html');
   if (!fs.existsSync(indexPath)) {
     throw new Error(`[EXPORT ERROR] out/index.html was not generated at: ${indexPath}`);
+  }
+
+  // Prune heavy releases binaries (DMGs, EXEs) from exported out/ directory
+  const outReleases = path.join(outDir, 'releases');
+  if (fs.existsSync(outReleases)) {
+    try {
+      fs.rmSync(outReleases, { recursive: true, force: true });
+      console.log('[EXPORT] Pruned out/releases heavy binaries to keep APK bundle light.');
+    } catch (e) {}
   }
 
   console.log('✅ [EXPORT SUCCESS] RaagaX app-shell static export ready in out/');
