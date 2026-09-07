@@ -428,7 +428,7 @@ export function AudioPlayerController() {
       import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
         const jamState = JamSessionManager.getInstance().getActiveState();
         if (jamState) {
-          JamSessionManager.getInstance().sendControlAction('NEXT');
+          JamSessionManager.getInstance().sendControlCommand('NEXT');
           return;
         }
         if (!usePlayerStore.getState().isLocalPlayback) {
@@ -446,7 +446,7 @@ export function AudioPlayerController() {
       import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
         const jamState = JamSessionManager.getInstance().getActiveState();
         if (jamState) {
-          JamSessionManager.getInstance().sendControlAction('PREV');
+          JamSessionManager.getInstance().sendControlCommand('PREV');
           return;
         }
         if (!usePlayerStore.getState().isLocalPlayback) {
@@ -466,7 +466,7 @@ export function AudioPlayerController() {
       import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
         const jamState = JamSessionManager.getInstance().getActiveState();
         if (jamState) {
-          JamSessionManager.getInstance().sendControlAction(isPlaying ? 'PAUSE' : 'PLAY');
+          JamSessionManager.getInstance().sendControlCommand(isPlaying ? 'PAUSE' : 'PLAY');
           return;
         }
         if (!store.isLocalPlayback) {
@@ -485,7 +485,7 @@ export function AudioPlayerController() {
       import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
         const jamState = JamSessionManager.getInstance().getActiveState();
         if (jamState) {
-          JamSessionManager.getInstance().sendControlAction('SEEK', { position: posSec });
+          JamSessionManager.getInstance().sendControlCommand('SEEK', { position: posSec });
           return;
         }
         if (!usePlayerStore.getState().isLocalPlayback) {
