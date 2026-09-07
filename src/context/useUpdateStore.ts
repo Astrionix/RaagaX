@@ -159,9 +159,6 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
               set({ showModal: true });
             }
             return true;
-          } else {
-            set({ state: 'UP_TO_DATE', manifest: null });
-            return false;
           }
         } catch { }
       }
@@ -229,8 +226,9 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
     });
 
     try {
+      const downloadUrl = getApiUrl(manifest.apkUrl);
       const result = await RaagaXUpdater.downloadApk({
-        url: manifest.apkUrl,
+        url: downloadUrl,
         sha256: manifest.sha256,
         fileSize: manifest.fileSize
       });

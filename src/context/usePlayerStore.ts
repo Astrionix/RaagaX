@@ -1218,7 +1218,7 @@ export const usePlayerStore = create<PlayerState>()(
         }
 
         // 3. Load the NEW track's audio URL into audio engine
-        const loaded = await PlaybackService.getInstance().loadAudioSource(track, requestId, autoPlay, initialPositionSec);
+        const loaded = await PlaybackService.getInstance().loadAudioSource(formattedTrack, requestId, autoPlay, initialPositionSec);
 
         // 4. Stale-request check: verify the requestId is still current
         if (requestId !== globalPlaybackRequestId || !loaded) {
@@ -1929,8 +1929,8 @@ export const usePlayerStore = create<PlayerState>()(
             } else {
               if (jamState?.isGuestControlAllowed) {
                 jamMgr.sendControlCommand('NEXT');
-                return;
               }
+              return;
             }
           } catch { }
         }
@@ -1987,8 +1987,8 @@ export const usePlayerStore = create<PlayerState>()(
               const jamState = jamMgr.getActiveState();
               if (jamState?.isGuestControlAllowed) {
                 jamMgr.sendControlCommand('PREV');
-                return;
               }
+              return;
             }
           } catch { }
         }

@@ -1106,8 +1106,10 @@ public class RaagaXPlaybackService extends Service {
         runOnMainThread(() -> {
             if (player == null || urls == null || urls.length == 0) return;
             if (isRemotePlayback) {
-                Log.d(TAG, "[setQueue] Suppressed because isRemotePlayback=true");
-                return;
+                Log.d(TAG, "[setQueue] Received explicit setQueue while in remote mode - auto-resetting isRemotePlayback to false");
+                isRemotePlayback = false;
+                isRemotePlaying = false;
+                remoteDeviceName = "";
             }
 
             if (trackIds != null && loudnesses != null) {
@@ -1502,8 +1504,10 @@ public class RaagaXPlaybackService extends Service {
         runOnMainThread(() -> {
             if (player == null) return;
             if (isRemotePlayback) {
-                Log.d(TAG, "[playUrl] Suppressed because isRemotePlayback=true");
-                return;
+                Log.d(TAG, "[playUrl] Received explicit playUrl while in remote mode - auto-resetting isRemotePlayback to false");
+                isRemotePlayback = false;
+                isRemotePlaying = false;
+                remoteDeviceName = "";
             }
 
             if (trackId != null && !Double.isNaN(loudness)) {

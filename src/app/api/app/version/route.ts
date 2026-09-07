@@ -1,37 +1,35 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import latestManifest from '../../../../../public/releases/latest.json';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const filePath = path.join(process.cwd(), 'public/releases/latest.json');
-    if (fs.existsSync(filePath)) {
-      const data = fs.readFileSync(filePath, 'utf8');
-      return NextResponse.json(JSON.parse(data));
+    if (latestManifest && latestManifest.versionCode) {
+      return NextResponse.json(latestManifest);
     }
   } catch (e) {
-    console.error('Failed to read latest release manifest:', e);
+    console.error('Failed to return latest release manifest:', e);
   }
 
-  // Fallback to static default manifest if file is not found (e.g. dev server startup)
+  // Fallback to latest stable release manifest (versionCode 8 - v1.2.4)
   return NextResponse.json({
-    versionCode: 2,
-    versionName: "1.1.0",
-    apkUrl: "/api/app/download",
-    sha256: "80b07843d60eb800b3db92593511d8314874c7d888d779f7bb9b9b0425c6ca48",
-    fileSize: 13247156,
-    releaseDate: "2026-08-28",
+    versionCode: 8,
+    versionName: "1.2.4",
+    apkUrl: "https://raaga.me/api/app/download",
+    sha256: "84bf379125f32ce9d3b54efbd73be30a71526a9b98109560e472ff49219aee76",
+    fileSize: 13233996,
+    releaseDate: "2026-09-07",
     mandatory: false,
     minimumSupportedVersion: 1,
     releaseChannel: "stable",
     releaseNotes: [
-      "Added real-time Search & Sort in Liked Songs, History, and Downloaded Music.",
-      "Added direct Download button beside Shuffle in Liked Songs for mobile.",
-      "Accurate lyricist & songwriter credits across all playback views.",
-      "Reliable spacebar Play/Pause keyboard shortcut engine.",
-      "High-fidelity lossless audio playback and memory optimizations."
+      "Fixed Jam Session playback in APK: guests seamlessly stream and play host Jam songs.",
+      "Fixed stale playbar song audio lingering when joining Jam sessions.",
+      "Seamless Android Lock Screen & Notification Shade sync for Jam & Connect.",
+      "Real-time song title, artist, artwork, position & duration sync on Lock Screen.",
+      "Lossless playback engine and performance enhancements."
     ]
   });
 }
+

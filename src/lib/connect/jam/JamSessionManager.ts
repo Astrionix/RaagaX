@@ -13,6 +13,7 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { haptics } from '@/lib/haptics/HapticEngine';
 import { supabase } from '@/lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { RaagaXNativePlayer } from '@/lib/playback/native/RaagaXNativePlayer';
 
 type JamStateListener = (state: JamSessionState | null) => void;
 
@@ -30,6 +31,8 @@ export class JamSessionManager {
   private isReconciling = false;
   private lastSeekTime = 0;
   private isGuestLocallyPaused = false;
+  private lastRemoteSyncTrackId: string | null = null;
+  private lastRemoteSyncIsPlaying: boolean | null = null;
   private processedEventIds = new Set<string>();
   private processedEventIdLru: string[] = [];
   private readonly MAX_EVENT_LRU_SIZE = 200;
@@ -53,17 +56,14 @@ export class JamSessionManager {
         }
       });
 
-      // Auto leave room ONLY when app is explicitly closed / terminated / swiped away
+      // Do NOT attach pagehide/unload listeners to leaveJamRoom, as Android WebView fires pagehide when screen locks or app backgrounds while playing audio.
       const handleAppTeardown = () => {
         if (this.activeState) {
           console.log('[JamSessionManager] App terminating/unloading, leaving Jam room');
-          this.leaveJamRoom();
         }
       };
 
       window.addEventListener('beforeunload', handleAppTeardown);
-      window.addEventListener('pagehide', handleAppTeardown);
-      window.addEventListener('unload', handleAppTeardown);
 
       // Case 1: Auto-reconnect when device comes back online (Wi-Fi ↔ 5G / Tunnel)
       window.addEventListener('online', () => {
@@ -162,6 +162,11 @@ export class JamSessionManager {
     this.startHostSyncTimer();
     this.isGuestLocallyPaused = false;
 
+    if (typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()) {
+      RaagaXNativePlayer.setRemotePlayback(false).catch(() => {});
+    }
+    usePlayerStore.setState({ isLocalPlayback: true });
+
     store.setIsInJam(true);
     store.setActiveJamRoomCode(roomCode);
     store.setToastMessage(`🎉 Raaga Jam Created: ${roomCode}`);
@@ -208,8 +213,28 @@ export class JamSessionManager {
     this.startHostHeartbeatWatchdog();
 
     const store = usePlayerStore.getState();
+    // Stop previous local audio pipeline immediately so old track audio does not leak into Jam session
+    import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
+      PlaybackService.getInstance().stopAllAudio(true);
+    }).catch(() => {});
+
+    // Ensure native Android player is NOT in remote playback mode
+    if (typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()) {
+      RaagaXNativePlayer.setRemotePlayback(false).catch(() => {});
+    }
+
+    // Reset store currentSong & local queue state to prepare for Host's incoming Jam track
     store.setIsInJam(true);
     store.setActiveJamRoomCode(formattedCode);
+    usePlayerStore.setState({
+      isLocalPlayback: true,
+      isPlaying: false,
+      playbackIntent: 'PAUSED',
+      currentSong: null,
+      currentTime: 0,
+      seekTarget: null,
+    });
+
     store.setToastMessage(`🚀 Joined Jam Room: ${formattedCode}`);
     haptics.mediumImpact();
 
@@ -305,6 +330,11 @@ export class JamSessionManager {
 
     this.activeState = null;
     this.isGuestLocallyPaused = false;
+
+    if (typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()) {
+      RaagaXNativePlayer.setRemotePlayback(false).catch(() => {});
+    }
+
     const store = usePlayerStore.getState();
     store.setIsInJam(false);
     store.setActiveJamRoomCode(null);
@@ -686,8 +716,8 @@ export class JamSessionManager {
 
       const now = Date.now();
       const lastHostBeat = this.activeState.updatedAt || 0;
-      // If 12 seconds have elapsed with zero heartbeat/state sync from Host:
-      if (lastHostBeat > 0 && now - lastHostBeat > 12000) {
+      // If 45 seconds have elapsed with zero heartbeat/state sync from Host (accommodates Android background screen-off timer throttling):
+      if (lastHostBeat > 0 && now - lastHostBeat > 45000) {
         this.handleHostCrashOrShutdown();
       }
     }, 3500);
@@ -871,6 +901,11 @@ export class JamSessionManager {
             const rawMerged = hasMeInHostMembers ? hostMembers : [...hostMembers, myMember];
             const mergedMembers = this.deduplicateMembers(rawMerged);
 
+            const prevSongId = this.activeState?.currentSong?.id;
+            const prevIsPlaying = this.activeState?.isPlaying;
+            const prevMemberCount = this.activeState?.members?.length;
+            const prevQueueLength = this.activeState?.queue?.length;
+
             this.activeState = {
               ...hostState,
               members: mergedMembers,
@@ -884,7 +919,16 @@ export class JamSessionManager {
             }
 
             this.reconcileGuestPlayback(hostState);
-            this.notifyListeners();
+
+            const hasVisualStateChanged =
+              prevSongId !== hostState.currentSong?.id ||
+              prevIsPlaying !== hostState.isPlaying ||
+              prevMemberCount !== mergedMembers.length ||
+              prevQueueLength !== hostState.queue?.length;
+
+            if (hasVisualStateChanged) {
+              this.notifyListeners();
+            }
           }
         }
         break;
@@ -903,16 +947,6 @@ export class JamSessionManager {
     try {
       const store = usePlayerStore.getState();
 
-      // Notification Shade / Local Pause Guard:
-      // If guest has paused locally (e.g. phone call, quiet, personal pause),
-      // keep local playback paused and prevent Host sync from forcibly unpausing it.
-      if (this.isGuestLocallyPaused) {
-        if (store.isPlaying) {
-          await store.setIsPlaying(false, true);
-        }
-        return;
-      }
-
       const hostSong = hostState.currentSong;
       const rawHostPosSec = (hostState.positionMs || 0) / 1000;
       const now = Date.now();
@@ -921,22 +955,43 @@ export class JamSessionManager {
       const transitLatencySec = Math.max(0, Math.min(2.0, (now - (hostState.updatedAt || now)) / 1000));
       const effectiveHostPosSec = hostState.isPlaying ? rawHostPosSec + transitLatencySec : rawHostPosSec;
 
+      // Local Pause Guard:
+      // If the host has transitioned to a new track or initial track is arriving,
+      // reset local pause so guest receives and plays the new track!
+      const isNewSongFromHost = Boolean(
+        hostSong &&
+        (!store.currentSong ||
+          (store.currentSong.id !== hostSong.id &&
+            store.currentSong.title?.trim().toLowerCase() !== hostSong.title?.trim().toLowerCase()))
+      );
+
+      if (isNewSongFromHost) {
+        this.isGuestLocallyPaused = false;
+      } else if (this.isGuestLocallyPaused) {
+        if (store.isPlaying) {
+          await store.setIsPlaying(false, true);
+        }
+        return;
+      }
+
       if (hostSong) {
-        // Sync Android native lock screen & notification shade metadata in Jam session
+        // Ensure local playback on native Android: Jam sessions play audio LOCALLY on member devices
         if (typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()) {
-          import('@/lib/playback/native/RaagaXNativePlayer').then(({ RaagaXNativePlayer }) => {
-            RaagaXNativePlayer.setRemotePlayback(true, `Jam Room: ${hostState.roomCode}`).catch(() => {});
-            RaagaXNativePlayer.updateRemotePlayback({
-              trackId: hostSong.id,
-              title: hostSong.title,
-              artist: hostSong.artist || 'Jam Room',
-              artworkUrl: hostSong.coverUrl || '',
-              isPlaying: hostState.isPlaying,
-              deviceName: `Jam (${hostState.members?.length || 1} listening)`,
-              durationMs: Math.round((hostSong.duration || 0) * 1000),
-              positionMs: Math.round(effectiveHostPosSec * 1000),
-            }).catch(() => {});
-          });
+          RaagaXNativePlayer.setRemotePlayback(false).catch(() => {});
+        }
+        if (!store.isLocalPlayback) {
+          usePlayerStore.setState({ isLocalPlayback: true });
+        }
+
+        // Sync queue from Jam session so next tracks come from the Jam room
+        if (hostState.queue && Array.isArray(hostState.queue)) {
+          const jamQueueSongs = hostState.queue.map((item) => item.song).filter(Boolean);
+          const currentQueueIds = store.queue.map((s) => s.id).join(',');
+          const newQueue = [hostSong, ...jamQueueSongs.filter((s) => s.id !== hostSong.id)];
+          const newQueueIds = newQueue.map((s) => s.id).join(',');
+          if (currentQueueIds !== newQueueIds) {
+            usePlayerStore.setState({ queue: newQueue });
+          }
         }
 
         const isSameSong = Boolean(
@@ -948,6 +1003,7 @@ export class JamSessionManager {
         );
 
         if (!isSameSong) {
+          this.lastSeekTime = now;
           await store.switchTrack(hostSong, 0, hostState.isPlaying, effectiveHostPosSec);
           if (hostState.isPlaying && !store.isPlaying) {
             await store.setIsPlaying(true);

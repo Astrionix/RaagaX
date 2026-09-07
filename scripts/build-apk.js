@@ -182,9 +182,9 @@ try {
     const fileSize = fileBuffer.length;
 
     const newManifest = {
-      versionCode: 5,
-      versionName: '1.2.1',
-      apkUrl: '/api/app/download',
+      versionCode: 8,
+      versionName: '1.2.4',
+      apkUrl: 'https://raaga.me/api/app/download',
       sha256: sha256,
       fileSize: fileSize,
       releaseDate: new Date().toISOString().split('T')[0],
@@ -192,11 +192,11 @@ try {
       minimumSupportedVersion: 1,
       releaseChannel: 'stable',
       releaseNotes: [
-        'Added seamless Android Lock Screen & Notification Shade remote controls for Jam & Connect.',
+        'Fixed Jam Session playback in APK: guests seamlessly stream and play host Jam songs.',
+        'Fixed stale playbar song audio lingering when joining Jam sessions.',
+        'Seamless Android Lock Screen & Notification Shade sync for Jam & Connect.',
         'Real-time song title, artist, artwork, position & duration sync on Lock Screen.',
-        'Jam Session PlayerBar flickering fix and state reconciliation optimizations.',
-        'Account-isolated Spotify Connect device discovery and instant handover.',
-        'High-fidelity lossless playback engine and performance enhancements.'
+        'Lossless playback engine and performance enhancements.'
       ]
     };
 

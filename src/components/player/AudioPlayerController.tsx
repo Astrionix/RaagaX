@@ -252,20 +252,6 @@ export function AudioPlayerController() {
           const jamMgr = JamSessionManager.getInstance();
           if (jamMgr.isHost()) {
             jamMgr.broadcastHostState(data.positionMs, data.isPlaying);
-          } else {
-            const jamState = jamMgr.getActiveState();
-            if (data.isPlaying === false) {
-              if (jamState?.isGuestControlAllowed) {
-                jamMgr.sendControlCommand('PAUSE');
-              } else {
-                jamMgr.setGuestLocallyPaused(true);
-              }
-            } else if (data.isPlaying === true) {
-              jamMgr.setGuestLocallyPaused(false);
-              if (jamState?.isGuestControlAllowed) {
-                jamMgr.sendControlCommand('PLAY');
-              }
-            }
           }
         }).catch(() => {});
       }
@@ -273,6 +259,16 @@ export function AudioPlayerController() {
 
     const unsubQueueEnded = RaagaXNativePlayer.addQueueEndedListener(() => {
       if (!usePlayerStore.getState().isLocalPlayback) return;
+      const store = usePlayerStore.getState();
+
+      if (store.isInJam) {
+        import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
+          if (!JamSessionManager.getInstance().isHost()) {
+            console.log('[AudioPlayerController] Suppressing queueEnded playNext in Jam guest mode (Host is authoritative)');
+            return;
+          }
+        });
+      }
 
       if (Date.now() - lastSeekTimeRef.current < 1500) {
         console.log('[AudioPlayerController] Ignoring native queueEnded during seek settle lock');
@@ -283,7 +279,6 @@ export function AudioPlayerController() {
         console.log('[AudioPlayerController] Suppressing premature queueEnded (only', timeSinceChange, 'ms since track change)');
         return;
       }
-      const store = usePlayerStore.getState();
       if (store.duration > 0 && store.currentTime < store.duration - 5) {
         console.log('[AudioPlayerController] Suppressing premature queueEnded (currentTime', store.currentTime, '< duration', store.duration, ')');
         return;
@@ -295,6 +290,20 @@ export function AudioPlayerController() {
     const unsubChanged = RaagaXNativePlayer.addTrackChangedListener((data) => {
       if (!usePlayerStore.getState().isLocalPlayback) return;
       lastTrackChangeTimeRef.current = Date.now();
+
+      const store = usePlayerStore.getState();
+      if (store.isInJam) {
+        import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
+          const jamMgr = JamSessionManager.getInstance();
+          if (!jamMgr.isHost()) {
+            const jamSong = jamMgr.getActiveState()?.currentSong;
+            if (jamSong && data.trackId && data.trackId !== jamSong.id) {
+              console.log('[AudioPlayerController] Ignoring native trackChanged for non-jam track while in Jam room:', data.trackId);
+              return;
+            }
+          }
+        });
+      }
 
       const currentStoreTrack = usePlayerStore.getState().currentSong;
       const oldTrackId = data.oldTrackId || currentStoreTrack?.id || '';
@@ -464,9 +473,15 @@ export function AudioPlayerController() {
       const store = usePlayerStore.getState();
       const isPlaying = store.isPlaying;
       import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
-        const jamState = JamSessionManager.getInstance().getActiveState();
+        const jamMgr = JamSessionManager.getInstance();
+        const jamState = jamMgr.getActiveState();
         if (jamState) {
-          JamSessionManager.getInstance().sendControlCommand(isPlaying ? 'PAUSE' : 'PLAY');
+          if (jamMgr.isHost() || jamState.isGuestControlAllowed) {
+            jamMgr.sendControlCommand(isPlaying ? 'PAUSE' : 'PLAY');
+          } else {
+            jamMgr.setGuestLocallyPaused(isPlaying);
+            store.setIsPlaying(!isPlaying);
+          }
           return;
         }
         if (!store.isLocalPlayback) {
