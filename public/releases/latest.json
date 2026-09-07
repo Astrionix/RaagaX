@@ -1,18 +1,18 @@
 {
-  "versionCode": 2,
-  "versionName": "1.1.0",
+  "versionCode": 5,
+  "versionName": "1.2.1",
   "apkUrl": "/api/app/download",
-  "sha256": "80b07843d60eb800b3db92593511d8314874c7d888d779f7bb9b9b0425c6ca48",
-  "fileSize": 13247156,
-  "releaseDate": "2026-08-28",
+  "sha256": "5edec34417804df15d878945e16941176f60b5046b17e3c50322d8fe06371286",
+  "fileSize": 13582518,
+  "releaseDate": "2026-09-07",
   "mandatory": false,
   "minimumSupportedVersion": 1,
   "releaseChannel": "stable",
   "releaseNotes": [
-    "Added real-time Search & Sort in Liked Songs, History, and Downloaded Music.",
-    "Added direct Download button beside Shuffle in Liked Songs for mobile.",
-    "Accurate lyricist & songwriter credits across all playback views.",
-    "Reliable spacebar Play/Pause keyboard shortcut engine.",
-    "High-fidelity lossless audio playback and memory optimizations."
+    "Added seamless Android Lock Screen & Notification Shade remote controls for Jam & Connect.",
+    "Real-time song title, artist, artwork, position & duration sync on Lock Screen.",
+    "Jam Session PlayerBar flickering fix and state reconciliation optimizations.",
+    "Account-isolated Spotify Connect device discovery and instant handover.",
+    "High-fidelity lossless playback engine and performance enhancements."
   ]
 }

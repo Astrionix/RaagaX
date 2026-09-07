@@ -156,14 +156,53 @@ try {
     }
   }
 
-  // Step 5: Copy generated APK to root and Desktop
+  // Step 5: Copy generated APK to root, Desktop, and public/releases for OTA Updates
   const apkOutput = path.join(androidDir, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
   const targetApk = path.join(rootDir, 'RaagaX.apk');
   const desktopDir = path.join(process.env.HOME || '/Users/chandureddy', 'Desktop');
   const desktopApk = path.join(desktopDir, 'RaagaX.apk');
+  const releasesDir = path.join(rootDir, 'public', 'releases');
+  const latestApkPath = path.join(releasesDir, 'RaagaX-latest.apk');
+  const manifestPath = path.join(releasesDir, 'latest.json');
 
   if (fs.existsSync(apkOutput)) {
     fs.copyFileSync(apkOutput, targetApk);
+    
+    // Ensure public/releases exists
+    if (!fs.existsSync(releasesDir)) {
+      fs.mkdirSync(releasesDir, { recursive: true });
+    }
+    fs.copyFileSync(apkOutput, latestApkPath);
+    console.log(`📦 [OTA BUILD] Published release APK to: ${latestApkPath}`);
+
+    // Compute SHA256 checksum and file size for In-App OTA Update integrity
+    const crypto = require('crypto');
+    const fileBuffer = fs.readFileSync(latestApkPath);
+    const sha256 = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+    const fileSize = fileBuffer.length;
+
+    const newManifest = {
+      versionCode: 5,
+      versionName: '1.2.1',
+      apkUrl: '/api/app/download',
+      sha256: sha256,
+      fileSize: fileSize,
+      releaseDate: new Date().toISOString().split('T')[0],
+      mandatory: false,
+      minimumSupportedVersion: 1,
+      releaseChannel: 'stable',
+      releaseNotes: [
+        'Added seamless Android Lock Screen & Notification Shade remote controls for Jam & Connect.',
+        'Real-time song title, artist, artwork, position & duration sync on Lock Screen.',
+        'Jam Session PlayerBar flickering fix and state reconciliation optimizations.',
+        'Account-isolated Spotify Connect device discovery and instant handover.',
+        'High-fidelity lossless playback engine and performance enhancements.'
+      ]
+    };
+
+    fs.writeFileSync(manifestPath, JSON.stringify(newManifest, null, 2));
+    console.log(`📄 [OTA BUILD] Auto-updated update manifest at: ${manifestPath}`);
+
     try {
       if (fs.existsSync(desktopDir)) {
         fs.copyFileSync(apkOutput, desktopApk);
@@ -172,7 +211,7 @@ try {
     } catch (e) {
       console.warn('Could not copy APK to Desktop:', e.message);
     }
-    console.log(`\n🎉 [SUCCESS] RaagaX APK compiled successfully!`);
+    console.log(`\n🎉 [SUCCESS] RaagaX APK compiled & published for In-App OTA Update!`);
     console.log(`📍 Project output location: ${targetApk}`);
   } else {
     console.log(`\n✅ Gradle compilation completed.`);

@@ -6,14 +6,18 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    // Try to find the version-specific APK first
-    let filePath = path.join(process.cwd(), 'public/releases/RaagaX-1.1.0.apk');
-    let fileName = 'RaagaX-1.1.0.apk';
+    // Try to find the latest release APK in public/releases or root
+    let filePath = path.join(process.cwd(), 'public/releases/RaagaX-latest.apk');
+    let fileName = 'RaagaX-latest.apk';
 
     if (!fs.existsSync(filePath)) {
-      // Fallback to a generic latest release path if version-specific doesn't exist
-      filePath = path.join(process.cwd(), 'public/releases/RaagaX-latest.apk');
-      fileName = 'RaagaX-latest.apk';
+      filePath = path.join(process.cwd(), 'public/RaagaX.apk');
+      fileName = 'RaagaX.apk';
+    }
+
+    if (!fs.existsSync(filePath)) {
+      filePath = path.join(process.cwd(), 'RaagaX.apk');
+      fileName = 'RaagaX.apk';
     }
 
     if (!fs.existsSync(filePath)) {
