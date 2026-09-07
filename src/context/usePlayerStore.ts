@@ -1187,6 +1187,16 @@ export const usePlayerStore = create<PlayerState>()(
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().broadcastCurrentState();
           }).catch(() => { });
+        }
+
+        // Broadcast immediately to Jam room members if this device is Jam Host
+        if (get().isInJam) {
+          import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
+            const jamMgr = JamSessionManager.getInstance();
+            if (jamMgr.isHost()) {
+              jamMgr.broadcastHostState(initialPositionSec || 0, autoPlay);
+            }
+          }).catch(() => {});
         } else {
           // Controller mode: Forward command to remote speaker and avoid local audio loading
           if (RaagaXNativePlayer.isNative()) {
@@ -1234,6 +1244,15 @@ export const usePlayerStore = create<PlayerState>()(
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().broadcastCurrentState();
           }).catch(() => { });
+        }
+
+        if (get().isInJam) {
+          import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
+            const jamMgr = JamSessionManager.getInstance();
+            if (jamMgr.isHost()) {
+              jamMgr.broadcastHostState(undefined, autoPlay);
+            }
+          }).catch(() => {});
         }
 
         // Background Real Artwork Verification & Resolution
@@ -1923,12 +1942,19 @@ export const usePlayerStore = create<PlayerState>()(
             const jamState = jamMgr.getActiveState();
             if (jamMgr.isHost()) {
               if (jamState && jamState.queue.length > 0) {
-                jamMgr.playNextInJam();
+                await jamMgr.playNextInJam();
                 return;
               }
             } else {
+              if (isNaturalAutoEnd) {
+                console.log('[usePlayerStore] Suppressing natural end playNext in Jam guest mode (Host is authoritative)');
+                return;
+              }
               if (jamState?.isGuestControlAllowed) {
                 jamMgr.sendControlCommand('NEXT');
+                get().setToastMessage('⏭️ Next song requested in Jam');
+              } else {
+                get().setToastMessage('🔒 Host has locked room playback controls');
               }
               return;
             }
@@ -1969,6 +1995,25 @@ export const usePlayerStore = create<PlayerState>()(
 
           await get().switchTrack(nextTrack, nextIndex, shouldPlay);
         } else {
+          // If queue ended in Jam mode, fetch recommendations so Jam session continues seamlessly
+          const curSong = get().currentSong;
+          if (curSong?.id && get().isInJam) {
+            try {
+              const { JioSaavnProvider } = await import('@/lib/jioSaavnProvider');
+              const recs = await JioSaavnProvider.getInstance().getRecommendations(curSong.id, 10);
+              const validRecs = (recs || []).filter((s) => s && s.id && s.id !== curSong.id && !queue.some((q) => q.id === s.id));
+              if (validRecs.length > 0) {
+                const updatedQueue = [...queue, ...validRecs];
+                const newIdx = queue.length;
+                set({ queue: updatedQueue });
+                await get().switchTrack(updatedQueue[newIdx], newIdx, shouldPlay);
+                return;
+              }
+            } catch (err) {
+              console.warn('[playNext] Failed to fetch Jam recommendations:', err);
+            }
+          }
+
           if (get().sleepTimerMode === 'end_of_queue') {
             get().setSleepTimer(null);
             get().setToastMessage('Sleep Timer Ended — Playback paused at end of queue');
@@ -1987,6 +2032,9 @@ export const usePlayerStore = create<PlayerState>()(
               const jamState = jamMgr.getActiveState();
               if (jamState?.isGuestControlAllowed) {
                 jamMgr.sendControlCommand('PREV');
+                get().setToastMessage('⏮️ Previous song requested in Jam');
+              } else {
+                get().setToastMessage('🔒 Host has locked room playback controls');
               }
               return;
             }
@@ -2017,6 +2065,14 @@ export const usePlayerStore = create<PlayerState>()(
               ConnectSessionManager.getInstance().broadcastCurrentState();
             }).catch(() => { });
           }
+          if (get().isInJam) {
+            import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
+              const jamMgr = JamSessionManager.getInstance();
+              if (jamMgr.isHost()) {
+                jamMgr.broadcastHostState(0, shouldPlay);
+              }
+            }).catch(() => {});
+          }
           return;
         }
 
@@ -2042,6 +2098,14 @@ export const usePlayerStore = create<PlayerState>()(
             import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
               ConnectSessionManager.getInstance().broadcastCurrentState();
             }).catch(() => { });
+          }
+          if (get().isInJam) {
+            import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
+              const jamMgr = JamSessionManager.getInstance();
+              if (jamMgr.isHost()) {
+                jamMgr.broadcastHostState(0, shouldPlay);
+              }
+            }).catch(() => {});
           }
         }
       },

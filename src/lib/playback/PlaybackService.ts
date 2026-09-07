@@ -128,6 +128,10 @@ export class PlaybackService {
     return !active.paused && !active.ended;
   }
 
+  public getIsTransitioning(): boolean {
+    return this.isTransitioning;
+  }
+
   public syncLivePlayingState(): boolean {
     if (RaagaXNativePlayer.isNative()) {
       return usePlayerStore.getState().isPlaying;

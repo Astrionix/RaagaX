@@ -84,6 +84,8 @@ export function AudioPlayerController() {
         if (!usePlayerStore.getState().isLocalPlayback) return;
         const active = PlaybackService.getInstance().getActiveAudio();
         if (audio !== active || (audio.src && audio.src.startsWith('data:'))) return;
+        if (PlaybackService.getInstance().getIsTransitioning()) return;
+        if (usePlayerStore.getState().playbackIntent === 'PLAYING') return;
         usePlayerStore.getState().setIsPlaying(false, true);
       };
       const handleEnded = () => {
@@ -251,6 +253,9 @@ export function AudioPlayerController() {
         import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
           const jamMgr = JamSessionManager.getInstance();
           if (jamMgr.isHost()) {
+            if (!data.isPlaying && PlaybackService.getInstance().getIsTransitioning()) {
+              return;
+            }
             jamMgr.broadcastHostState(data.positionMs, data.isPlaying);
           }
         }).catch(() => {});

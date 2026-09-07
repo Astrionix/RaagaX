@@ -504,53 +504,67 @@ export class JamSessionManager {
     }
   }
 
-  public executeControlAction(action: JamControlAction, data?: any): void {
+  public async executeControlAction(action: JamControlAction, data?: any): Promise<void> {
     const store = usePlayerStore.getState();
     switch (action) {
       case 'PLAY':
-        store.setIsPlaying(true);
+        await store.setIsPlaying(true);
+        if (this.isHost()) {
+          this.broadcastHostState(undefined, true);
+        }
         break;
       case 'PAUSE':
-        store.setIsPlaying(false);
+        await store.setIsPlaying(false);
+        if (this.isHost()) {
+          this.broadcastHostState(undefined, false);
+        }
         break;
       case 'NEXT':
-        this.playNextInJam();
+        await this.playNextInJam();
         break;
       case 'PREV':
-        store.playPrev();
+        await store.playPrev();
         break;
       case 'SEEK':
         if (typeof data?.position === 'number') {
-          store.seek(data.position);
+          await store.seek(data.position);
+          if (this.isHost()) {
+            this.broadcastHostState(data.position * 1000);
+          }
         }
         break;
       case 'PLAY_SONG':
         if (data?.song) {
-          store.playSong(data.song);
+          await store.playSong(data.song);
         }
         break;
     }
-    if (this.isHost()) {
-      this.broadcastHostState();
-    }
   }
 
-  public playNextInJam(): void {
+  public async playNextInJam(): Promise<void> {
     if (!this.activeState) return;
 
     if (this.activeState.queue.length > 0) {
       const nextItem = this.activeState.queue.shift();
-      if (nextItem) {
-        usePlayerStore.getState().playSong(nextItem.song);
+      if (nextItem && nextItem.song) {
+        const store = usePlayerStore.getState();
         usePlayerStore.getState().setToastMessage(`▶️ Now Playing from Jam Queue: ${nextItem.song.title}`);
+        
+        // Preserve store queue by inserting Jam song right after current song
+        const curQueue = [...store.queue];
+        const curIndex = store.queueIndex >= 0 ? store.queueIndex : 0;
+        curQueue.splice(curIndex + 1, 0, nextItem.song);
+        usePlayerStore.setState({ queue: curQueue });
+
+        await store.switchTrack(nextItem.song, curIndex + 1, true, 0);
         if (this.isHost()) {
-          this.broadcastHostState();
+          this.broadcastHostState(0, true);
         }
         this.notifyListeners();
         return;
       }
     }
-    usePlayerStore.getState().playNext();
+    await usePlayerStore.getState().playNext(false, true);
   }
 
   /**
