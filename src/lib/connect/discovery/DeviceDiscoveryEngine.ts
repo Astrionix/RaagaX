@@ -363,8 +363,16 @@ export class DeviceDiscoveryEngine implements SignalingChannel {
           }
 
           if (data.type === 'DEVICE_LIST_UPDATED' && Array.isArray(data.devices)) {
+            const myAccountId = typeof window !== 'undefined' ? localStorage.getItem('raagax_account_id') : null;
             for (const dev of data.devices) {
               if (dev.deviceId === deviceId) continue;
+
+              // Security & Privacy Protection: Remote cloud devices must match current account ID
+              if (dev.transport === 'cloud_presence') {
+                if (!myAccountId || !dev.accountId || dev.accountId !== myAccountId) {
+                  continue;
+                }
+              }
 
               const peer: DiscoveredPeer = {
                 deviceId: dev.deviceId,

@@ -21,7 +21,6 @@ import {
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
-import { RaagaXLogo } from '@/components/brand/RaagaXLogo';
 
 export function Sidebar() {
   const [mounted, setMounted] = React.useState(false);
@@ -57,7 +56,7 @@ export function Sidebar() {
     >
       {/* ── TOP HEADER & BRAND ────────────────────────────────────────────── */}
       <div className="p-3 pb-2 flex-shrink-0 border-b border-[var(--border-subtle)]">
-        {/* Brand Logo */}
+        {/* Brand Brand Header: Only RaagaX, No Icon */}
         <div
           onClick={() => {
             usePlayerStore.getState().setSelectedAlbumId(null);
@@ -65,12 +64,11 @@ export function Sidebar() {
             usePlayerStore.getState().setSelectedPlaylistId(null);
             setActiveTab('home');
           }}
-          className="flex items-center gap-2.5 px-2 py-1 cursor-pointer group rounded-lg hover:bg-[var(--bg-surface)] transition-colors"
+          className="flex items-center px-2 py-1.5 cursor-pointer group rounded-lg transition-colors select-none"
           title="RaagaX — Music Beyond Limits"
         >
-          <RaagaXLogo size={22} variant="monochrome-red" />
-          <span className="font-bold text-[15px] tracking-tight text-[var(--text-primary)] group-hover:text-[#FA233B] transition-colors">
-            RaagaX
+          <span className="font-black text-[23px] tracking-tight text-[var(--text-primary)] transition-colors">
+            Raaga<span className="text-[#FA233B] drop-shadow-[0_0_14px_rgba(250,35,59,0.55)]">X</span>
           </span>
         </div>
 

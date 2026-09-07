@@ -59,31 +59,42 @@ const devices = new Map();
 // Reverse lookup: ws -> { deviceId, roomId }
 const socketMetadata = new WeakMap();
 
-// Broadcast device list to all devices on the same subnet or account
+// Broadcast device list to all devices on the same account or verified local subnet
 function broadcastDeviceList(targetSubnet, targetAccountId) {
-  const allActive = [];
   const now = Date.now();
 
+  // Purge dead devices (>30s stale)
   for (const [id, record] of devices.entries()) {
-    if (now - record.lastSeen < 30000) {
-      allActive.push(record.device);
-    } else {
+    if (now - record.lastSeen >= 30000) {
       devices.delete(id);
     }
   }
 
   for (const [id, record] of devices.entries()) {
     if (record.ws && record.ws.readyState === WebSocket.OPEN) {
-      const dev = record.device;
-      const sameAccount = Boolean(targetAccountId && dev.accountId && targetAccountId === dev.accountId);
-      const sameSubnet = Boolean(!targetSubnet || !dev.subnet || targetSubnet === dev.subnet || dev.subnet === '127.0.0');
+      const recipientDev = record.device;
+      const recipientAccountId = recipientDev?.accountId;
 
-      if (sameAccount || sameSubnet) {
-        record.ws.send(JSON.stringify({
-          type: 'DEVICE_LIST_UPDATED',
-          devices: allActive.filter((d) => d.deviceId !== id),
-        }));
+      // Filter active devices so recipient ONLY sees devices under their own account
+      const allowedDevices = [];
+      for (const [otherId, otherRecord] of devices.entries()) {
+        if (otherId === id) continue;
+        const otherDev = otherRecord.device;
+
+        // 1. Same Account Match (Non-null)
+        if (recipientAccountId && otherDev.accountId && recipientAccountId === otherDev.accountId) {
+          allowedDevices.push(otherDev);
+        }
+        // 2. Same Local Subnet (LAN discovery fallback)
+        else if (recipientDev.subnet && otherDev.subnet && recipientDev.subnet === otherDev.subnet && recipientDev.subnet !== '127.0.0' && recipientDev.subnet !== 'unknown') {
+          allowedDevices.push(otherDev);
+        }
       }
+
+      record.ws.send(JSON.stringify({
+        type: 'DEVICE_LIST_UPDATED',
+        devices: allowedDevices,
+      }));
     }
   }
 }
