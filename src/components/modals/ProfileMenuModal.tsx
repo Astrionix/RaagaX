@@ -218,6 +218,32 @@ export function ProfileMenuModal({ isOpen, onClose }: ProfileMenuModalProps) {
                 <ChevronRight className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-colors" />
               </button>
             )}
+
+            {/* Get Desktop & Mobile Apps */}
+            <button
+              onClick={() => {
+                haptics.lightImpact();
+                onClose();
+                usePlayerStore.getState().toggleGetAppModal(true);
+              }}
+              className="w-full p-3 rounded-2xl bg-gradient-to-r from-[#FA233B]/10 to-purple-600/10 hover:from-[#FA233B]/20 hover:to-purple-600/20 border border-[#FA233B]/30 flex items-center justify-between text-left group transition-all cursor-pointer"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#FA233B]/20 border border-[#FA233B]/40 flex items-center justify-center text-[#FA233B]">
+                  <Download className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white group-hover:text-[#FA233B] transition-colors flex items-center gap-1.5">
+                    Get RaagaX App
+                    <span className="text-[9px] bg-[#FA233B]/20 text-[#FA233B] font-extrabold px-1.5 py-0.5 rounded-full border border-[#FA233B]/30 uppercase">
+                      Desktop & APK
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400">Download for Mac, Windows & Android</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-[#FA233B] group-hover:translate-x-0.5 transition-transform" />
+            </button>
           </div>
 
           {/* 3. Notifications & Preferences */}

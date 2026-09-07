@@ -27,11 +27,11 @@ export const LANGUAGE_CODES: Record<string, string> = {
 };
 
 export function mapTrackToSong(track: any, idx: number = 0): Song {
-  const pa = track.artists?.primary || track.artists?.all || [];
+  const pa = track.artists?.primary || track.artists?.all || track.more_info?.artistMap?.primary_artists || [];
   const rawArtist =
     pa.length > 0
       ? pa.map((a: any) => SongFormatter.decodeHtml(a.name)).join(', ')
-      : SongFormatter.decodeHtml(track.artist || track.subtitle || 'Unknown Artist');
+      : SongFormatter.decodeHtml(track.artist || track.singers || track.primary_artists || track.subtitle || 'Unknown Artist');
 
   // Authoritative separation of Song Artwork vs. Album Artwork vs. Playlist Artwork
   const songImg = track.image || track.images || track.artwork || track.cover;
@@ -64,13 +64,13 @@ export function mapTrackToSong(track: any, idx: number = 0): Song {
   const audioUrl = streamUrl || '';
 
   const duration =
-    typeof track.duration === 'number' ? track.duration : parseInt(track.duration) || 210;
+    typeof track.duration === 'number' ? track.duration : parseInt(track.duration || track.more_info?.duration) || 210;
   const playCount =
-    typeof track.playCount === 'number' ? track.playCount : parseInt(track.playCount) || 0;
-  const trackLanguage = track.language || '';
+    typeof track.playCount === 'number' ? track.playCount : parseInt(track.playCount || track.more_info?.play_count) || 0;
+  const trackLanguage = track.language || track.more_info?.language || '';
   const genre = trackLanguage ? `${trackLanguage.toUpperCase()} HITS` : 'MELODY HITS';
 
-  const rawTitle = track.name || track.title || 'Untitled Track';
+  const rawTitle = track.song || track.name || track.title || 'Untitled Track';
   const rawAlbum = track.album?.name || track.album || track.more_info?.album || '';
   const cleanTitle = SongFormatter.cleanSongTitle(rawTitle);
   const cleanAlbum = SongFormatter.cleanAlbumTitle(rawAlbum, rawTitle) || cleanTitle;

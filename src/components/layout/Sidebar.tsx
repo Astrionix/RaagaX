@@ -15,6 +15,8 @@ import {
   Disc3,
   BarChart3,
   Clock,
+  Download,
+  ChevronRight,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
@@ -36,6 +38,7 @@ export function Sidebar() {
     setSelectedPlaylistId,
     selectedPlaylistId,
     setCreatePlaylistModalOpen,
+    toggleGetAppModal,
   } = usePlayerStore();
 
   const { user, signOut, setAuthModalOpen } = useAuthStore();
@@ -240,6 +243,29 @@ export function Sidebar() {
             </button>
           )}
         </div>
+      </div>
+
+      {/* ── INSTALL APP PROMO BUTTON ── */}
+      <div className="px-2.5 pb-2 flex-shrink-0">
+        <button
+          onClick={() => toggleGetAppModal(true)}
+          className="w-full group relative flex items-center justify-between p-2 rounded-xl bg-gradient-to-r from-[#FA233B]/10 via-rose-500/10 to-[#FA233B]/15 hover:from-[#FA233B]/20 hover:to-[#FA233B]/25 border border-[#FA233B]/20 hover:border-[#FA233B]/45 text-left transition-all duration-200 cursor-pointer shadow-sm hover:shadow-[0_0_20px_rgba(250,35,59,0.15)]"
+          title="Install RaagaX for Windows, Mac & Android"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-[#FA233B]/20 text-[#FA233B] flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+              <Download className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold text-[var(--text-primary)] group-hover:text-[#FA233B] transition-colors leading-tight truncate flex items-center gap-1.5">
+                Install App
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              </p>
+              <p className="text-[9px] text-[var(--text-muted)] truncate leading-tight">Mac, Windows & APK</p>
+            </div>
+          </div>
+          <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[#FA233B] group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+        </button>
       </div>
 
       {/* ── BOTTOM PIN: USER ACCOUNT / SETTINGS ────────────────────────────── */}

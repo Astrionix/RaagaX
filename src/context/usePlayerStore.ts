@@ -166,6 +166,8 @@ interface PlayerState {
   toggleEqualizer: (open?: boolean) => void;
   isCarModeOpen: boolean;
   toggleCarMode: (open?: boolean) => void;
+  isGetAppModalOpen: boolean;
+  toggleGetAppModal: (open?: boolean) => void;
   isOnboardingOpen: boolean;
   toggleOnboarding: (open?: boolean) => void;
   completeOnboarding: (languages: string[], interests: string[]) => void;
@@ -632,6 +634,8 @@ export const usePlayerStore = create<PlayerState>()(
       toggleEqualizer: (open) => set((s) => ({ isEqualizerOpen: open !== undefined ? open : !s.isEqualizerOpen })),
       isCarModeOpen: false,
       toggleCarMode: (open) => set((s) => ({ isCarModeOpen: open !== undefined ? open : !s.isCarModeOpen })),
+      isGetAppModalOpen: false,
+      toggleGetAppModal: (open) => set((s) => ({ isGetAppModalOpen: open !== undefined ? open : !s.isGetAppModalOpen })),
       isOnboardingOpen: typeof window !== 'undefined' ? localStorage.getItem('raagax_onboarding_completed') !== 'true' : false,
       toggleOnboarding: (open) => set((s) => ({ isOnboardingOpen: open !== undefined ? open : !s.isOnboardingOpen })),
 

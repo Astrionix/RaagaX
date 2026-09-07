@@ -16,7 +16,14 @@
     "lint": "next lint",
     "test": "vitest run",
     "electron:dev": "concurrently \"next dev\" \"wait-on tcp:3000 && electron .\"",
-    "electron:build": "npm run export:app && electron-builder --win",
+    "electron:build": "npm run desktop:build:win",
+    "desktop:icons": "node scripts/generate-desktop-icons.js",
+    "desktop:build:mac": "npm run desktop:icons && npm run export:app && electron-builder --mac",
+    "desktop:build:mac:arm64": "npm run desktop:icons && npm run export:app && electron-builder --mac dmg --arm64",
+    "desktop:build:mac:universal": "npm run desktop:icons && npm run export:app && electron-builder --mac dmg --universal",
+    "desktop:build:win": "npm run desktop:icons && npm run export:app && electron-builder --win",
+    "desktop:build:win:x64": "npm run desktop:icons && npm run export:app && electron-builder --win nsis portable --x64",
+    "desktop:build:all": "npm run desktop:icons && npm run export:app && electron-builder -mw",
     "doctor": "node scripts/doctor.js",
     "export:app": "node scripts/export-app.js",
     "apk:sync": "npx cap copy android && npx cap sync android",
@@ -37,6 +44,7 @@
     "nodeGypRebuild": false,
     "files": [
       "out/**/*",
+      "!out/releases/**",
       "electron/**/*",
       "package.json",
       "!**/node_modules/**"
@@ -50,7 +58,8 @@
         {
           "target": "nsis",
           "arch": [
-            "x64"
+            "x64",
+            "ia32"
           ]
         },
         {
@@ -60,9 +69,10 @@
           ]
         }
       ],
-      "icon": "public/app-icon.png"
+      "icon": "public/brand/icon.ico"
     },
     "nsis": {
+      "artifactName": "RaagaX-Windows-Universal.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
@@ -74,6 +84,47 @@
     },
     "portable": {
       "artifactName": "${productName}-Portable-${version}.${ext}"
+    },
+    "mac": {
+      "category": "public.app-category.music",
+      "icon": "public/brand/icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "identity": null
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 540,
+        "height": 380
+      }
     }
   },
   "dependencies": {

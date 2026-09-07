@@ -36,23 +36,30 @@ export function getApiBaseUrl(): string {
 
     const origin = window.location.origin || '';
 
+    const isElectron = Boolean(
+      (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.includes('Electron')) ||
+      (typeof window !== 'undefined' && (window as any).process?.versions?.electron) ||
+      origin.startsWith('app:') ||
+      origin.startsWith('file:')
+    );
+
     // If running in any standard web browser (e.g. localhost, custom domain):
     // Always use same-origin to prevent Mixed Content (HTTPS -> HTTP) and CORS errors
-    const isNativeCapacitor = Boolean(
+    const isNativePlatform = Boolean(
       (window as any).Capacitor?.isNativePlatform?.() ||
       (window as any).androidBridge ||
       origin.startsWith('capacitor:') ||
-      origin.startsWith('file:') ||
       origin === 'https://localhost' ||
-      origin === 'http://localhost'
+      origin === 'http://localhost' ||
+      isElectron
     );
 
-    if (!isNativeCapacitor && origin) {
+    if (!isNativePlatform && origin) {
       return origin;
     }
 
-    // In Capacitor Android/iOS Native APK:
-    // Route to live Cloudflare worker production backend
+    // In Native Apps (Electron Desktop & Capacitor Mobile APK):
+    // Route to live production backend
     return process.env.NEXT_PUBLIC_API_BASE_URL || WORKERS_DEV_URL;
   }
 

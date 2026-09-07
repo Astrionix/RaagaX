@@ -117,6 +117,8 @@ dist
 out
 *.apk
 *.exe
+*.dmg
+public/releases/*.dmg
 
 # Cloudflare & OpenNext
 .open-next/

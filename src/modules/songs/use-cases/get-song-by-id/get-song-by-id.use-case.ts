@@ -14,16 +14,22 @@ export class GetSongByIdUseCase implements IUseCase<GetSongByIdArgs, z.infer<typ
   constructor() {}
 
   async execute({ songIds }: GetSongByIdArgs) {
-    const { data } = await apiFetch<{ songs: z.infer<typeof SongAPIResponseModel>[] }>({
+    const { data } = await apiFetch<any>({
       endpoint: Endpoints.songs.id,
       params: {
         pids: songIds
       }
     })
 
-    if (!data?.songs?.length) throw new HTTPException(404, { message: 'song not found' })
+    const rawSongs: any[] = Array.isArray(data?.songs)
+      ? data.songs
+      : data && typeof data === 'object'
+      ? Object.values(data).filter((v: any) => v && typeof v === 'object' && (v.id || v.song || v.title))
+      : [];
 
-    const songs = data.songs.map((song) => createSongPayload(song))
+    if (!rawSongs.length) throw new HTTPException(404, { message: 'song not found' })
+
+    const songs = rawSongs.map((song) => createSongPayload(song))
 
     return songs
   }

@@ -27,6 +27,7 @@ function autoDetectJavaHome() {
         'C:\\Program Files\\Java\\jdk-21',
       ]
     : [
+        path.join(process.env.HOME || '/Users/chandureddy', '.jdk17', 'zulu-17.jdk', 'Contents', 'Home'),
         path.join(process.env.HOME || '/Users/chandureddy', '.jdk17', 'Contents', 'Home'),
         path.join(process.env.HOME || '/Users/chandureddy', '.jdk17'),
         '/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home',
@@ -58,6 +59,33 @@ function autoDetectJavaHome() {
   return null;
 }
 
+function autoDetectAndroidHome() {
+  if (process.env.ANDROID_HOME && fs.existsSync(process.env.ANDROID_HOME)) {
+    return process.env.ANDROID_HOME;
+  }
+  if (process.env.ANDROID_SDK_ROOT && fs.existsSync(process.env.ANDROID_SDK_ROOT)) {
+    return process.env.ANDROID_SDK_ROOT;
+  }
+
+  const candidatePaths = isWin
+    ? [
+        path.join(process.env.LOCALAPPDATA || '', 'Android', 'Sdk'),
+      ]
+    : [
+        path.join(process.env.HOME || '/Users/chandureddy', 'Library', 'Android', 'sdk'),
+        path.join(process.env.HOME || '/Users/chandureddy', 'Android', 'Sdk'),
+      ];
+
+  for (const p of candidatePaths) {
+    if (fs.existsSync(p)) {
+      console.log(`🔍 [RaagaX Build] Auto-detected Android SDK at: ${p}`);
+      return p;
+    }
+  }
+
+  return null;
+}
+
 const detectedJava = autoDetectJavaHome();
 if (detectedJava) {
   process.env.JAVA_HOME = detectedJava;
@@ -68,6 +96,25 @@ if (detectedJava) {
   console.log(`☕ [RaagaX Build] JAVA_HOME set to: ${detectedJava}`);
 } else {
   console.warn('⚠️ [RaagaX Build] JAVA_HOME not found in environment or standard paths.');
+}
+
+const detectedAndroid = autoDetectAndroidHome();
+if (detectedAndroid) {
+  process.env.ANDROID_HOME = detectedAndroid;
+  process.env.ANDROID_SDK_ROOT = detectedAndroid;
+  const localPropPath = path.join(androidDir, 'local.properties');
+  if (!fs.existsSync(localPropPath)) {
+    try {
+      const sanitized = detectedAndroid.replace(/\\/g, '/');
+      fs.writeFileSync(localPropPath, `sdk.dir=${sanitized}\n`);
+      console.log(`📱 [RaagaX Build] Created local.properties with sdk.dir: ${sanitized}`);
+    } catch (e) {
+      console.warn('⚠️ [RaagaX Build] Could not write local.properties:', e.message);
+    }
+  }
+  console.log(`📱 [RaagaX Build] ANDROID_HOME set to: ${detectedAndroid}`);
+} else {
+  console.warn('⚠️ [RaagaX Build] ANDROID_HOME not found in environment or standard paths.');
 }
 
 try {

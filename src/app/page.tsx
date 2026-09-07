@@ -26,6 +26,7 @@ import { OfflineStorageSetupModal } from '@/components/modals/OfflineStorageSetu
 import { PermissionOnboardingModal } from '@/components/onboarding/PermissionOnboardingModal';
 import { LanguageOnboardingModal } from '@/components/onboarding/LanguageOnboardingModal';
 import { UpdateModal } from '@/components/modals/UpdateModal';
+import { GetAppModal } from '@/components/modals/GetAppModal';
 
 import { CreatePlaylistModal } from '@/components/modals/CreatePlaylistModal';
 import { NotificationCenterModal } from '@/components/modals/NotificationCenterModal';
@@ -322,6 +323,9 @@ export default function Page() {
       </ErrorBoundary>
       <ErrorBoundary name="UpdateModal">
         <UpdateModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="GetAppModal">
+        <GetAppModal />
       </ErrorBoundary>
 
       {/* ── Native Android Connected Surfaces ── */}

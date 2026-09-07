@@ -209,7 +209,19 @@ export function FavoritesView() {
     missingIds.forEach((id) => attemptedRef.current.add(id));
 
     setIsLoading(true);
-    SongResolver.resolveSongs(missingIds)
+    SongResolver.resolveSongs(missingIds, (chunk) => {
+      if (chunk && chunk.length > 0) {
+        const newEntries: Record<string, Song> = {};
+        chunk.forEach((s) => {
+          if (s && s.id && s.title && s.title !== 'Unknown Track') {
+            newEntries[s.id] = s;
+          }
+        });
+        if (Object.keys(newEntries).length > 0) {
+          setResolvedSongsMap((prev) => ({ ...prev, ...newEntries }));
+        }
+      }
+    })
       .then((songs) => {
         if (songs && songs.length > 0) {
           const newEntries: Record<string, Song> = {};
@@ -231,7 +243,7 @@ export function FavoritesView() {
       .finally(() => {
         setIsLoading(false);
       });
-  }, [likedSongIds, resolvedSongsMap, likedSongs, offlineTracks]);
+  }, [likedSongIds, likedSongs, offlineTracks]);
 
   // Construct resolved liked songs list in exact reverse chronological order
   const resolvedLikedSongs: Song[] = useMemo(() => {
@@ -243,29 +255,12 @@ export function FavoritesView() {
       seen.add(id);
 
       const song = knownMap.get(id);
-      if (song && song.title && song.title !== 'Unknown Track') {
+      if (song && song.title && song.title !== 'Unknown Track' && song.title !== 'Loading Track...') {
         const cover = song.coverUrl && !song.coverUrl.includes('/null/') ? song.coverUrl : '/app-icon.png';
         list.push({
           ...song,
           coverUrl: cover.replace('http://', 'https://'),
         });
-      } else {
-        list.push({
-          id,
-          title: song?.title && song.title !== 'Unknown Track' ? song.title : 'Loading Track...',
-          artist: song?.artist && song.artist !== 'Unknown Artist' ? song.artist : 'Loading...',
-          artistId: '',
-          album: 'Liked Songs',
-          albumId: '',
-          coverUrl: song?.coverUrl || '/app-icon.png',
-          audioUrl: '',
-          duration: 180,
-          genre: 'Various',
-          category: 'global_trending',
-          releaseYear: new Date().getFullYear(),
-          plays: 0,
-          likes: 1,
-        } as Song);
       }
     });
 
@@ -391,12 +386,24 @@ export function FavoritesView() {
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight">
             Liked Songs
           </h1>
-          <p className="text-xs text-slate-400 font-medium mt-1">
-            {displaySongs.length} {displaySongs.length === 1 ? 'song' : 'songs'}
-            {searchQuery.trim() && resolvedLikedSongs.length !== displaySongs.length && (
-              <span className="text-slate-500 ml-1"> (filtered from {resolvedLikedSongs.length})</span>
+          <p className="text-xs text-slate-400 font-medium mt-1 flex items-center gap-2 flex-wrap">
+            <span>
+              {likedSongIds.length > 0 ? `${likedSongIds.length} songs` : `${displaySongs.length} songs`}
+              {searchQuery.trim() && resolvedLikedSongs.length !== displaySongs.length && (
+                <span className="text-slate-500 ml-1"> (filtered from {resolvedLikedSongs.length})</span>
+              )}
+              {formattedTotalDuration && ` • ${formattedTotalDuration}`}
+            </span>
+            {isLoading && likedSongIds.length > 0 && (
+              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FA233B]/10 border border-[#FA233B]/25 text-[#FA233B] text-[11px] font-semibold animate-pulse shadow-sm">
+                <span className="flex items-end gap-[2px] h-3">
+                  <span className="w-0.5 bg-[#FA233B] rounded-full animate-[bounce_0.8s_infinite_100ms] h-3" />
+                  <span className="w-0.5 bg-[#FA233B] rounded-full animate-[bounce_0.8s_infinite_300ms] h-2" />
+                  <span className="w-0.5 bg-[#FA233B] rounded-full animate-[bounce_0.8s_infinite_200ms] h-2.5" />
+                </span>
+                <span>Syncing in background ({resolvedLikedSongs.length}/{likedSongIds.length})</span>
+              </span>
             )}
-            {formattedTotalDuration && ` • ${formattedTotalDuration}`}
           </p>
         </div>
 
@@ -515,10 +522,49 @@ export function FavoritesView() {
 
       {/* ── LIKED SONGS LIST / TABLE ─────────────────────────────────────────── */}
       <div>
-        {isLoading && resolvedLikedSongs.length === 0 ? (
-          <div className="py-20 text-center text-slate-500 space-y-3 bg-white/[0.02] rounded-2xl border border-white/5 flex flex-col items-center justify-center">
-            <Loader2 className="w-7 h-7 text-[#FA233B] animate-spin" />
-            <p className="text-xs font-bold text-slate-300">Loading your liked songs...</p>
+        {(likedSongIds.length > 0 && resolvedLikedSongs.length === 0) ? (
+          <div className="py-16 px-4 text-center space-y-6 bg-gradient-to-b from-white/[0.04] to-transparent rounded-3xl border border-white/[0.06] flex flex-col items-center justify-center animate-in fade-in duration-300">
+            {/* Glowing Audio Equalizer Waveform Animation */}
+            <div className="relative flex items-center justify-center">
+              <div className="absolute -inset-6 bg-[#FA233B]/20 rounded-full blur-2xl animate-pulse pointer-events-none" />
+              <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-tr from-[#FA233B]/20 via-black/80 to-white/[0.05] border border-[#FA233B]/30 flex items-center justify-center shadow-2xl shadow-red-500/15">
+                {/* 5-bar animated audio equalizer */}
+                <div className="flex items-end justify-center gap-1 h-8">
+                  <span className="w-1.5 bg-[#FA233B] rounded-full animate-[pulse_0.6s_ease-in-out_infinite] h-8" />
+                  <span className="w-1.5 bg-[#FA233B] rounded-full animate-[pulse_0.9s_ease-in-out_infinite_150ms] h-5" />
+                  <span className="w-1.5 bg-[#FA233B] rounded-full animate-[pulse_0.7s_ease-in-out_infinite_300ms] h-7" />
+                  <span className="w-1.5 bg-[#FA233B] rounded-full animate-[pulse_0.85s_ease-in-out_infinite_450ms] h-4" />
+                  <span className="w-1.5 bg-[#FA233B] rounded-full animate-[pulse_0.65s_ease-in-out_infinite_200ms] h-6" />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 text-center max-w-sm">
+              <h3 className="text-base font-bold text-white tracking-wide flex items-center justify-center gap-2">
+                <span>Loading Liked Songs</span>
+                <Loader2 className="w-4 h-4 text-[#FA233B] animate-spin" />
+              </h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Fetching lossless metadata & artwork for {likedSongIds.length} tracks in the background...
+              </p>
+            </div>
+
+            {/* Shimmer skeleton placeholder rows */}
+            <div className="w-full max-w-3xl space-y-2 pt-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={`skeleton-liked-${i}`}
+                  className="flex items-center gap-3.5 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] animate-pulse"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-white/[0.06] flex-shrink-0" />
+                  <div className="flex-1 space-y-2 text-left">
+                    <div className="h-3.5 bg-white/[0.08] rounded-md w-2/5" />
+                    <div className="h-2.5 bg-white/[0.04] rounded-md w-1/4" />
+                  </div>
+                  <div className="h-3 bg-white/[0.04] rounded-md w-14 hidden sm:block" />
+                </div>
+              ))}
+            </div>
           </div>
         ) : displaySongs.length > 0 ? (
           <div>
