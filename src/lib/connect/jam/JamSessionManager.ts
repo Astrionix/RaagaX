@@ -30,6 +30,9 @@ export class JamSessionManager {
   private isReconciling = false;
   private lastSeekTime = 0;
   private isGuestLocallyPaused = false;
+  private processedEventIds = new Set<string>();
+  private processedEventIdLru: string[] = [];
+  private readonly MAX_EVENT_LRU_SIZE = 200;
 
   public static getInstance(): JamSessionManager {
     if (!JamSessionManager.instance) {
@@ -741,6 +744,17 @@ export class JamSessionManager {
     // Ignore self-emitted events
     if (event.senderDeviceId === myDeviceId) return;
 
+    // Deduplicate duplicate signals (BroadcastChannel + Supabase Realtime + LocalStorage)
+    if (event.eventId) {
+      if (this.processedEventIds.has(event.eventId)) return;
+      this.processedEventIds.add(event.eventId);
+      this.processedEventIdLru.push(event.eventId);
+      if (this.processedEventIdLru.length > this.MAX_EVENT_LRU_SIZE) {
+        const oldest = this.processedEventIdLru.shift();
+        if (oldest) this.processedEventIds.delete(oldest);
+      }
+    }
+
     switch (event.type) {
       case 'JOIN_ROOM': {
         const newMember: JamMember = event.payload.member;
@@ -908,7 +922,15 @@ export class JamSessionManager {
       const effectiveHostPosSec = hostState.isPlaying ? rawHostPosSec + transitLatencySec : rawHostPosSec;
 
       if (hostSong) {
-        if (store.currentSong?.id !== hostSong.id) {
+        const isSameSong = Boolean(
+          store.currentSong &&
+          (store.currentSong.id === hostSong.id ||
+            (store.currentSong.title && hostSong.title &&
+              store.currentSong.title.trim().toLowerCase() === hostSong.title.trim().toLowerCase() &&
+              (store.currentSong.artist || '').trim().toLowerCase() === (hostSong.artist || '').trim().toLowerCase()))
+        );
+
+        if (!isSameSong) {
           await store.switchTrack(hostSong, 0, hostState.isPlaying, effectiveHostPosSec);
           if (hostState.isPlaying && !store.isPlaying) {
             await store.setIsPlaying(true);
