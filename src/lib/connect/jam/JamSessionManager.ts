@@ -29,6 +29,7 @@ export class JamSessionManager {
   private hostHeartbeatWatchdogTimer: NodeJS.Timeout | null = null;
   private isReconciling = false;
   private lastSeekTime = 0;
+  private isGuestLocallyPaused = false;
 
   public static getInstance(): JamSessionManager {
     if (!JamSessionManager.instance) {
@@ -85,6 +86,17 @@ export class JamSessionManager {
     if (!this.activeState) return false;
     const myDeviceId = DeviceKeyManager.getInstance().getOrCreateDeviceId();
     return this.activeState.hostDeviceId === myDeviceId;
+  }
+
+  public setGuestLocallyPaused(paused: boolean): void {
+    this.isGuestLocallyPaused = paused;
+    if (!paused && this.activeState && !this.isHost()) {
+      this.reconcileGuestPlayback(this.activeState);
+    }
+  }
+
+  public isGuestPausedLocally(): boolean {
+    return this.isGuestLocallyPaused;
   }
 
   public onStateChanged(listener: JamStateListener): () => void {
@@ -145,6 +157,7 @@ export class JamSessionManager {
     this.stopHostHeartbeatWatchdog();
     this.initCommunicationChannel(roomCode);
     this.startHostSyncTimer();
+    this.isGuestLocallyPaused = false;
 
     store.setIsInJam(true);
     store.setActiveJamRoomCode(roomCode);
@@ -170,6 +183,8 @@ export class JamSessionManager {
       isHost: false,
       joinedAt: Date.now(),
     };
+
+    this.isGuestLocallyPaused = false;
 
     this.activeState = {
       roomCode: formattedCode,
@@ -286,6 +301,7 @@ export class JamSessionManager {
     }
 
     this.activeState = null;
+    this.isGuestLocallyPaused = false;
     const store = usePlayerStore.getState();
     store.setIsInJam(false);
     store.setActiveJamRoomCode(null);
@@ -595,13 +611,17 @@ export class JamSessionManager {
     }, 1500);
   }
 
-  public broadcastHostState(): void {
+  public broadcastHostState(forcePositionMs?: number, forceIsPlaying?: boolean): void {
     if (!this.activeState || !this.isHost()) return;
 
     const store = usePlayerStore.getState();
     this.activeState.currentSong = store.currentSong;
-    this.activeState.positionMs = Math.round((store.currentTime || 0) * 1000);
-    this.activeState.isPlaying = store.isPlaying;
+    this.activeState.positionMs = typeof forcePositionMs === 'number' && !isNaN(forcePositionMs)
+      ? Math.round(forcePositionMs)
+      : Math.round((store.currentTime || 0) * 1000);
+    this.activeState.isPlaying = typeof forceIsPlaying === 'boolean'
+      ? forceIsPlaying
+      : store.isPlaying;
     this.activeState.updatedAt = Date.now();
 
     this.sendSignal({
@@ -868,6 +888,17 @@ export class JamSessionManager {
 
     try {
       const store = usePlayerStore.getState();
+
+      // Notification Shade / Local Pause Guard:
+      // If guest has paused locally (e.g. phone call, quiet, personal pause),
+      // keep local playback paused and prevent Host sync from forcibly unpausing it.
+      if (this.isGuestLocallyPaused) {
+        if (store.isPlaying) {
+          await store.setIsPlaying(false, true);
+        }
+        return;
+      }
+
       const hostSong = hostState.currentSong;
       const rawHostPosSec = (hostState.positionMs || 0) / 1000;
       const now = Date.now();

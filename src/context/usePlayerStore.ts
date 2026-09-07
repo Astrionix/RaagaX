@@ -1650,6 +1650,80 @@ export const usePlayerStore = create<PlayerState>()(
           return;
         }
 
+        // RAAGA JAM MODE: Synchronized play/pause across Host and Guests
+        if (get().isInJam) {
+          try {
+            const { JamSessionManager } = await import('@/lib/connect/jam/JamSessionManager');
+            const jamMgr = JamSessionManager.getInstance();
+            const jamState = jamMgr.getActiveState();
+            const isHost = jamMgr.isHost();
+            const isNowPlaying = !get().isPlaying;
+
+            if (isHost) {
+              set({ isPlaying: isNowPlaying, playbackIntent: isNowPlaying ? 'PLAYING' : 'PAUSED' });
+              persistSessionHelper({ ...get() });
+              MediaSessionManager.getInstance().setPlaybackState(isNowPlaying ? 'playing' : 'paused');
+              if (RaagaXNativePlayer.isNative()) {
+                if (!isNowPlaying) {
+                  await RaagaXNativePlayer.pause();
+                } else {
+                  await RaagaXNativePlayer.resume();
+                }
+              } else {
+                if (!isNowPlaying) {
+                  PlaybackService.getInstance().pause();
+                } else {
+                  PlaybackService.getInstance().play();
+                }
+              }
+              // Instant broadcast to all guests in <30ms
+              jamMgr.broadcastHostState(undefined, isNowPlaying);
+              return;
+            } else {
+              // Guest toggles playback
+              if (jamState?.isGuestControlAllowed) {
+                jamMgr.sendControlCommand(isNowPlaying ? 'PLAY' : 'PAUSE');
+                set({ isPlaying: isNowPlaying, playbackIntent: isNowPlaying ? 'PLAYING' : 'PAUSED' });
+                MediaSessionManager.getInstance().setPlaybackState(isNowPlaying ? 'playing' : 'paused');
+                if (RaagaXNativePlayer.isNative()) {
+                  if (!isNowPlaying) await RaagaXNativePlayer.pause();
+                  else await RaagaXNativePlayer.resume();
+                } else {
+                  if (!isNowPlaying) PlaybackService.getInstance().pause();
+                  else PlaybackService.getInstance().play();
+                }
+                return;
+              } else {
+                // Room controls locked by Host: Local mute/pause only
+                if (!isNowPlaying) {
+                  jamMgr.setGuestLocallyPaused(true);
+                  set({ isPlaying: false, playbackIntent: 'PAUSED' });
+                  MediaSessionManager.getInstance().setPlaybackState('paused');
+                  if (RaagaXNativePlayer.isNative()) {
+                    await RaagaXNativePlayer.pause();
+                  } else {
+                    PlaybackService.getInstance().pause();
+                  }
+                  get().setToastMessage('⏸️ Paused Jam audio on this device');
+                } else {
+                  jamMgr.setGuestLocallyPaused(false);
+                  set({ isPlaying: true, playbackIntent: 'PLAYING' });
+                  MediaSessionManager.getInstance().setPlaybackState('playing');
+                  if (RaagaXNativePlayer.isNative()) {
+                    await RaagaXNativePlayer.resume();
+                  } else {
+                    PlaybackService.getInstance().play();
+                  }
+                  get().setToastMessage('▶️ Resumed Jam audio');
+                }
+                return;
+              }
+            }
+          } catch (e) {
+            console.warn('[usePlayerStore] togglePlayPause Jam error:', e);
+          }
+        }
+
         // When local user triggers togglePlayPause, activate AudioContext / elements
         import('@/lib/playback/AudioUnlocker').then(({ activatePlayer }) => activatePlayer()).catch(() => { });
         set({ isAudioReady: true });
@@ -1702,6 +1776,22 @@ export const usePlayerStore = create<PlayerState>()(
 
         if (get().isLocalPlayback) {
           broadcastSpeakerState();
+        }
+
+        if (!fromRemote && get().isInJam) {
+          import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
+            const jamMgr = JamSessionManager.getInstance();
+            if (jamMgr.isHost()) {
+              jamMgr.broadcastHostState(undefined, playing);
+            } else {
+              const jamState = jamMgr.getActiveState();
+              if (jamState?.isGuestControlAllowed) {
+                jamMgr.sendControlCommand(playing ? 'PLAY' : 'PAUSE');
+              } else {
+                jamMgr.setGuestLocallyPaused(!playing);
+              }
+            }
+          }).catch(() => {});
         }
 
         if (!fromRemote) {
@@ -1827,9 +1917,16 @@ export const usePlayerStore = create<PlayerState>()(
             const { JamSessionManager } = await import('@/lib/connect/jam/JamSessionManager');
             const jamMgr = JamSessionManager.getInstance();
             const jamState = jamMgr.getActiveState();
-            if (jamState && jamState.queue.length > 0) {
-              jamMgr.playNextInJam();
-              return;
+            if (jamMgr.isHost()) {
+              if (jamState && jamState.queue.length > 0) {
+                jamMgr.playNextInJam();
+                return;
+              }
+            } else {
+              if (jamState?.isGuestControlAllowed) {
+                jamMgr.sendControlCommand('NEXT');
+                return;
+              }
             }
           } catch { }
         }
@@ -1878,6 +1975,20 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       playPrev: async (forcePlay: boolean = true) => {
+        if (get().isInJam) {
+          try {
+            const { JamSessionManager } = await import('@/lib/connect/jam/JamSessionManager');
+            const jamMgr = JamSessionManager.getInstance();
+            if (!jamMgr.isHost()) {
+              const jamState = jamMgr.getActiveState();
+              if (jamState?.isGuestControlAllowed) {
+                jamMgr.sendControlCommand('PREV');
+                return;
+              }
+            }
+          } catch { }
+        }
+
         if (!get().isLocalPlayback) {
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().sendCommand('PREV');

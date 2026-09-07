@@ -245,6 +245,30 @@ export function AudioPlayerController() {
       if (typeof data.positionMs === 'number' && data.positionMs >= 0) {
         store.setCurrentTime(data.positionMs / 1000, true);
       }
+
+      // ── Raaga Jam Notification Bar & Lock Screen Bridge ──────────
+      if (store.isInJam) {
+        import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
+          const jamMgr = JamSessionManager.getInstance();
+          if (jamMgr.isHost()) {
+            jamMgr.broadcastHostState(data.positionMs, data.isPlaying);
+          } else {
+            const jamState = jamMgr.getActiveState();
+            if (data.isPlaying === false) {
+              if (jamState?.isGuestControlAllowed) {
+                jamMgr.sendControlCommand('PAUSE');
+              } else {
+                jamMgr.setGuestLocallyPaused(true);
+              }
+            } else if (data.isPlaying === true) {
+              jamMgr.setGuestLocallyPaused(false);
+              if (jamState?.isGuestControlAllowed) {
+                jamMgr.sendControlCommand('PLAY');
+              }
+            }
+          }
+        }).catch(() => {});
+      }
     });
 
     const unsubQueueEnded = RaagaXNativePlayer.addQueueEndedListener(() => {
