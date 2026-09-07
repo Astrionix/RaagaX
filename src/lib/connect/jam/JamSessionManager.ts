@@ -14,6 +14,7 @@ import { haptics } from '@/lib/haptics/HapticEngine';
 import { supabase } from '@/lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { RaagaXNativePlayer } from '@/lib/playback/native/RaagaXNativePlayer';
+import { PlaybackService } from '@/lib/playback/PlaybackService';
 
 type JamStateListener = (state: JamSessionState | null) => void;
 
@@ -214,9 +215,7 @@ export class JamSessionManager {
 
     const store = usePlayerStore.getState();
     // Stop previous local audio pipeline immediately so old track audio does not leak into Jam session
-    import('@/lib/playback/PlaybackService').then(({ PlaybackService }) => {
-      PlaybackService.getInstance().stopAllAudio(true);
-    }).catch(() => {});
+    PlaybackService.getInstance().stopAllAudio(true);
 
     // Ensure native Android player is NOT in remote playback mode
     if (typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()) {
@@ -1018,6 +1017,17 @@ export class JamSessionManager {
 
         if (!isSameSong) {
           this.lastSeekTime = now;
+          const currentJamQueue = usePlayerStore.getState().queue;
+          const jamQueue = currentJamQueue.length > 0 ? currentJamQueue : [hostSong];
+          if (RaagaXNativePlayer.isNative()) {
+            await PlaybackService.getInstance().loadQueueContext(
+              jamQueue,
+              0,
+              hostState.isPlaying,
+              Math.round(effectiveHostPosSec * 1000),
+              usePlayerStore.getState().playbackRequestId
+            );
+          }
           await store.switchTrack(hostSong, 0, hostState.isPlaying, effectiveHostPosSec);
           if (hostState.isPlaying && !store.isPlaying) {
             await store.setIsPlaying(true);

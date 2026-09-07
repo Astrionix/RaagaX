@@ -1196,7 +1196,7 @@ export const usePlayerStore = create<PlayerState>()(
             if (jamMgr.isHost()) {
               jamMgr.broadcastHostState(initialPositionSec || 0, autoPlay);
             }
-          }).catch(() => {});
+          }).catch(() => { });
         } else {
           // Controller mode: Forward command to remote speaker and avoid local audio loading
           if (RaagaXNativePlayer.isNative()) {
@@ -1252,7 +1252,7 @@ export const usePlayerStore = create<PlayerState>()(
             if (jamMgr.isHost()) {
               jamMgr.broadcastHostState(undefined, autoPlay);
             }
-          }).catch(() => {});
+          }).catch(() => { });
         }
 
         // Background Real Artwork Verification & Resolution
@@ -1814,7 +1814,7 @@ export const usePlayerStore = create<PlayerState>()(
                 jamMgr.setGuestLocallyPaused(!playing);
               }
             }
-          }).catch(() => {});
+          }).catch(() => { });
         }
 
         if (!fromRemote) {
@@ -2071,7 +2071,7 @@ export const usePlayerStore = create<PlayerState>()(
               if (jamMgr.isHost()) {
                 jamMgr.broadcastHostState(0, shouldPlay);
               }
-            }).catch(() => {});
+            }).catch(() => { });
           }
           return;
         }
@@ -2105,7 +2105,7 @@ export const usePlayerStore = create<PlayerState>()(
               if (jamMgr.isHost()) {
                 jamMgr.broadcastHostState(0, shouldPlay);
               }
-            }).catch(() => {});
+            }).catch(() => { });
           }
         }
       },

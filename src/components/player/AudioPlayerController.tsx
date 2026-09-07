@@ -26,6 +26,7 @@ import { initAudioUnlocker } from '@/lib/playback/AudioUnlocker';
 import { getApiUrl } from '@/lib/config/apiConfig';
 import { ArtworkColorExtractor } from '@/lib/theme/ArtworkColorExtractor';
 import { LocalDatabase } from '@/lib/localDatabase';
+import { JamSessionManager } from '@/lib/connect/jam/JamSessionManager';
 
 export function AudioPlayerController() {
   const audioRefA = useRef<HTMLAudioElement | null>(null);
@@ -250,15 +251,13 @@ export function AudioPlayerController() {
 
       // ── Raaga Jam Notification Bar & Lock Screen Bridge ──────────
       if (store.isInJam) {
-        import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
-          const jamMgr = JamSessionManager.getInstance();
-          if (jamMgr.isHost()) {
-            if (!data.isPlaying && PlaybackService.getInstance().getIsTransitioning()) {
-              return;
-            }
-            jamMgr.broadcastHostState(data.positionMs, data.isPlaying);
+        const jamMgr = JamSessionManager.getInstance();
+        if (jamMgr.isHost()) {
+          if (!data.isPlaying && PlaybackService.getInstance().getIsTransitioning()) {
+            return;
           }
-        }).catch(() => {});
+          jamMgr.broadcastHostState(data.positionMs, data.isPlaying);
+        }
       }
     });
 
@@ -267,12 +266,10 @@ export function AudioPlayerController() {
       const store = usePlayerStore.getState();
 
       if (store.isInJam) {
-        import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
-          if (!JamSessionManager.getInstance().isHost()) {
-            console.log('[AudioPlayerController] Suppressing queueEnded playNext in Jam guest mode (Host is authoritative)');
-            return;
-          }
-        });
+        if (!JamSessionManager.getInstance().isHost()) {
+          console.log('[AudioPlayerController] Suppressing queueEnded playNext in Jam guest mode (Host is authoritative)');
+          return;
+        }
       }
 
       if (Date.now() - lastSeekTimeRef.current < 1500) {
@@ -298,16 +295,14 @@ export function AudioPlayerController() {
 
       const store = usePlayerStore.getState();
       if (store.isInJam) {
-        import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
-          const jamMgr = JamSessionManager.getInstance();
-          if (!jamMgr.isHost()) {
-            const jamSong = jamMgr.getActiveState()?.currentSong;
-            if (jamSong && data.trackId && data.trackId !== jamSong.id) {
-              console.log('[AudioPlayerController] Ignoring native trackChanged for non-jam track while in Jam room:', data.trackId);
-              return;
-            }
+        const jamMgr = JamSessionManager.getInstance();
+        if (!jamMgr.isHost()) {
+          const jamSong = jamMgr.getActiveState()?.currentSong;
+          if (jamSong && data.trackId && data.trackId !== jamSong.id) {
+            console.log('[AudioPlayerController] Synchronously ignoring native trackChanged for non-jam track while in Jam room:', data.trackId);
+            return;
           }
-        });
+        }
       }
 
       const currentStoreTrack = usePlayerStore.getState().currentSong;
@@ -439,83 +434,75 @@ export function AudioPlayerController() {
 
     const unsubActionNext = RaagaXNativePlayer.addActionNextListener(() => {
       console.log('[AudioPlayerController] Native actionNext command received');
-      import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
-        const jamState = JamSessionManager.getInstance().getActiveState();
-        if (jamState) {
-          JamSessionManager.getInstance().sendControlCommand('NEXT');
-          return;
-        }
-        if (!usePlayerStore.getState().isLocalPlayback) {
-          import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
-            ConnectSessionManager.getInstance().sendCommand('NEXT');
-          });
-          return;
-        }
-        usePlayerStore.getState().playNext();
-      });
+      const jamState = JamSessionManager.getInstance().getActiveState();
+      if (jamState) {
+        JamSessionManager.getInstance().sendControlCommand('NEXT');
+        return;
+      }
+      if (!usePlayerStore.getState().isLocalPlayback) {
+        import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
+          ConnectSessionManager.getInstance().sendCommand('NEXT');
+        });
+        return;
+      }
+      usePlayerStore.getState().playNext();
     });
 
     const unsubActionPrev = RaagaXNativePlayer.addActionPrevListener(() => {
       console.log('[AudioPlayerController] Native actionPrev command received');
-      import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
-        const jamState = JamSessionManager.getInstance().getActiveState();
-        if (jamState) {
-          JamSessionManager.getInstance().sendControlCommand('PREV');
-          return;
-        }
-        if (!usePlayerStore.getState().isLocalPlayback) {
-          import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
-            ConnectSessionManager.getInstance().sendCommand('PREV');
-          });
-          return;
-        }
-        usePlayerStore.getState().playPrev();
-      });
+      const jamState = JamSessionManager.getInstance().getActiveState();
+      if (jamState) {
+        JamSessionManager.getInstance().sendControlCommand('PREV');
+        return;
+      }
+      if (!usePlayerStore.getState().isLocalPlayback) {
+        import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
+          ConnectSessionManager.getInstance().sendCommand('PREV');
+        });
+        return;
+      }
+      usePlayerStore.getState().playPrev();
     });
 
     const unsubActionTogglePlay = RaagaXNativePlayer.addActionTogglePlayListener(() => {
       console.log('[AudioPlayerController] Native actionTogglePlay command received');
       const store = usePlayerStore.getState();
       const isPlaying = store.isPlaying;
-      import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
-        const jamMgr = JamSessionManager.getInstance();
-        const jamState = jamMgr.getActiveState();
-        if (jamState) {
-          if (jamMgr.isHost() || jamState.isGuestControlAllowed) {
-            jamMgr.sendControlCommand(isPlaying ? 'PAUSE' : 'PLAY');
-          } else {
-            jamMgr.setGuestLocallyPaused(isPlaying);
-            store.setIsPlaying(!isPlaying);
-          }
-          return;
+      const jamMgr = JamSessionManager.getInstance();
+      const jamState = jamMgr.getActiveState();
+      if (jamState) {
+        if (jamMgr.isHost() || jamState.isGuestControlAllowed) {
+          jamMgr.sendControlCommand(isPlaying ? 'PAUSE' : 'PLAY');
+        } else {
+          jamMgr.setGuestLocallyPaused(isPlaying);
+          store.setIsPlaying(!isPlaying);
         }
-        if (!store.isLocalPlayback) {
-          import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
-            ConnectSessionManager.getInstance().sendCommand(isPlaying ? 'PAUSE' : 'PLAY');
-          });
-          return;
-        }
-        store.togglePlayPause();
-      });
+        return;
+      }
+      if (!store.isLocalPlayback) {
+        import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
+          ConnectSessionManager.getInstance().sendCommand(isPlaying ? 'PAUSE' : 'PLAY');
+        });
+        return;
+      }
+      store.togglePlayPause();
     });
 
     const unsubActionSeek = RaagaXNativePlayer.addActionSeekListener((data) => {
       console.log('[AudioPlayerController] Native actionSeek command received:', data.positionMs);
       const posSec = Math.max(0, (data.positionMs || 0) / 1000);
-      import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
-        const jamState = JamSessionManager.getInstance().getActiveState();
-        if (jamState) {
-          JamSessionManager.getInstance().sendControlCommand('SEEK', { position: posSec });
-          return;
-        }
-        if (!usePlayerStore.getState().isLocalPlayback) {
-          import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
-            ConnectSessionManager.getInstance().sendCommand('SEEK', { position: posSec });
-          });
-          return;
-        }
-        usePlayerStore.getState().seek(posSec);
-      });
+      const jamState = JamSessionManager.getInstance().getActiveState();
+      if (jamState) {
+        JamSessionManager.getInstance().sendControlCommand('SEEK', { position: posSec });
+        return;
+      }
+      if (!usePlayerStore.getState().isLocalPlayback) {
+        import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
+          ConnectSessionManager.getInstance().sendCommand('SEEK', { position: posSec });
+        });
+        return;
+      }
+      usePlayerStore.getState().seek(posSec);
     });
 
     return () => {
