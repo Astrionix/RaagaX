@@ -314,39 +314,69 @@ export function RightQueuePanel() {
   return (
     <aside className="flex flex-col w-full h-full text-[var(--text-primary)] text-xs select-none p-4 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-[var(--border-subtle)] flex-shrink-0">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className={`p-1.5 rounded-lg border flex-shrink-0 ${
-            rightPanelMode === 'connect'
-              ? 'bg-[#1DB954]/15 text-[#1DB954] border-[#1DB954]/25'
-              : 'bg-[#fa233b]/15 text-[#fa233b] border-[#fa233b]/25'
-          }`}>
-            {rightPanelMode === 'connect' ? (
-              <MonitorSpeaker className="w-4 h-4" />
-            ) : (
-              <ListMusic className="w-4 h-4" />
-            )}
+      <div className="flex flex-col gap-2 pb-3 mb-3 border-b border-[var(--border-subtle)] flex-shrink-0">
+        {/* Top Control Bar: Segmented Tabs (Queue | Connect) + Close Button */}
+        <div className="flex items-center justify-between gap-2 w-full">
+          {/* Segmented Control Pills */}
+          <div className="flex items-center p-1 rounded-xl bg-black/40 border border-white/10 flex-1 min-w-0 shadow-inner">
+            <button
+              onClick={() => {
+                haptics.lightImpact();
+                setRightPanelMode('queue');
+              }}
+              className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer select-none ${
+                rightPanelMode === 'queue'
+                  ? 'bg-[#fa233b]/20 text-[#fa233b] border border-[#fa233b]/35 shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+              }`}
+            >
+              <ListMusic className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="truncate min-w-0">Queue</span>
+              {upNextQueue.length > 0 && (
+                <span className="px-1.5 py-0.2 text-[9px] font-mono font-extrabold rounded-full bg-[#fa233b]/25 text-[#fa233b] border border-[#fa233b]/30 flex-shrink-0">
+                  {upNextQueue.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => {
+                haptics.lightImpact();
+                setRightPanelMode('connect');
+              }}
+              className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer select-none ${
+                rightPanelMode === 'connect' || rightPanelMode === 'jam'
+                  ? 'bg-[#1DB954]/20 text-[#1DB954] border border-[#1DB954]/35 shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+              }`}
+            >
+              <MonitorSpeaker className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="truncate min-w-0">Connect</span>
+              {jamState && (
+                <span className="relative flex h-2 w-2 ml-0.5 flex-shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </span>
+              )}
+            </button>
           </div>
-          <div className="flex items-center gap-2 min-w-0">
-            <h3 className="font-black text-sm text-[var(--text-primary)] tracking-tight">
-              {rightPanelMode === 'connect' ? 'Connect to a device' : 'Queue'}
-            </h3>
-            {rightPanelMode === 'queue' && upNextQueue.length > 0 && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--surface-primary)] text-[var(--text-secondary)] font-mono border border-[var(--border-subtle)]">
-                {upNextQueue.length}
-              </span>
-            )}
-            {rightPanelMode === 'connect' && jamState && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-[#1DB954]/20 text-[#1DB954] border border-[#1DB954]/30 uppercase">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#1DB954] mr-1 animate-ping" />
-                JAM LIVE
-              </span>
-            )}
-          </div>
-          
-          {rightPanelMode === 'queue' && (
-            <div className="flex items-center gap-1.5 pl-2.5 border-l border-[var(--border-subtle)]">
-              <span className="text-[10px] font-bold text-[var(--text-muted)]">Autoplay</span>
+
+          {/* Close Panel Button */}
+          <button
+            onClick={toggleQueue}
+            className="p-2 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] border border-transparent hover:border-[var(--border-subtle)] transition-all cursor-pointer flex-shrink-0"
+            title="Close Panel"
+            aria-label="Close Panel"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Sub-Bar Actions */}
+        {rightPanelMode === 'queue' ? (
+          <div className="flex items-center justify-between px-1 text-[11px] font-medium text-[var(--text-secondary)]">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Autoplay</span>
               <button
                 onClick={() => toggleAutoplay()}
                 className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${
@@ -354,34 +384,34 @@ export function RightQueuePanel() {
                 }`}
                 title="Toggle Autoplay for similar songs"
               >
-                <div 
+                <div
                   className={`w-3 h-3 rounded-full bg-white transition-transform ${
                     isAutoplayEnabled ? 'translate-x-3' : 'translate-x-0'
-                  }`} 
+                  }`}
                 />
               </button>
             </div>
-          )}
-        </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {rightPanelMode === 'queue' && upNextQueue.length > 0 && (
-            <button 
-              onClick={handleClearQueue} 
-              className="text-[11px] font-bold text-[#fa233b] hover:underline px-1.5 py-0.5 rounded cursor-pointer transition-colors"
-            >
-              Clear
-            </button>
-          )}
-          <button
-            onClick={toggleQueue}
-            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
-            title="Close Panel"
-            aria-label="Close Panel"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+            {upNextQueue.length > 0 && (
+              <button
+                onClick={handleClearQueue}
+                className="text-[11px] font-bold text-[#fa233b] hover:underline px-1 py-0.5 rounded cursor-pointer transition-colors"
+              >
+                Clear Queue
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center justify-between px-1 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
+            <span className="truncate">Active: {activePlaybackDeviceName || 'This Device'}</span>
+            {jamState && (
+              <span className="text-emerald-400 font-extrabold flex items-center gap-1 flex-shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Jam Room ({jamState.roomCode})
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
 
@@ -775,32 +805,46 @@ export function RightQueuePanel() {
                   </div>
                 </div>
 
-                <button
-                  onClick={handleCreateJam}
-                  disabled={isCreatingJam}
-                  className="w-full py-2.5 px-4 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] active:scale-[0.98] text-black font-extrabold shadow-md shadow-[#1DB954]/20 transition-all flex items-center justify-center gap-2 text-xs tracking-wide cursor-pointer"
-                >
-                  <Radio className="w-4 h-4 text-black" />
-                  {isCreatingJam ? 'Creating Room...' : 'Start Raaga Jam Room'}
-                </button>
+                {/* 2 Options: Create Room OR Join Code */}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    onClick={handleCreateJam}
+                    disabled={isCreatingJam}
+                    className="py-2.5 px-3 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] active:scale-[0.98] text-black font-extrabold shadow-md shadow-[#1DB954]/20 transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer truncate"
+                  >
+                    <Radio className="w-3.5 h-3.5 text-black flex-shrink-0" />
+                    <span className="truncate">{isCreatingJam ? 'Creating...' : 'Create Room'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      haptics.lightImpact();
+                      toggleJamModal(true);
+                    }}
+                    className="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 active:scale-[0.98] text-white font-extrabold border border-white/15 transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer truncate"
+                  >
+                    <Zap className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                    <span className="truncate">Join Code</span>
+                  </button>
+                </div>
 
                 {/* Inline Join Code Form */}
-                <form onSubmit={handleJoinJam} className="pt-2 border-t border-white/10 flex items-center gap-2">
+                <form onSubmit={handleJoinJam} className="pt-2 border-t border-white/10 flex items-center gap-1.5 w-full min-w-0">
                   <input
                     type="text"
                     value={joinCodeInput}
                     onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
                     placeholder="Enter code (e.g. 8K4P)"
                     maxLength={8}
-                    className="flex-1 bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono uppercase placeholder:text-[#535353] focus:outline-none focus:border-[#1DB954]"
+                    className="min-w-0 flex-1 bg-white/5 border border-white/15 rounded-lg px-2 py-1.5 text-xs text-white font-mono uppercase placeholder:text-[#535353] focus:outline-none focus:border-[#1DB954]"
                   />
                   <button
                     type="submit"
                     disabled={!joinCodeInput.trim() || isJoiningJam}
-                    className="px-3.5 py-1.5 bg-white/10 hover:bg-[#1DB954] hover:text-black disabled:opacity-40 text-white text-xs font-bold rounded-lg transition-all cursor-pointer flex-shrink-0 flex items-center gap-1"
+                    className="px-2.5 py-1.5 bg-[#1DB954] hover:bg-[#1ed760] text-black disabled:opacity-40 text-xs font-bold rounded-lg transition-all cursor-pointer flex-shrink-0 flex items-center gap-1"
                   >
-                    <Zap className="w-3.5 h-3.5" />
-                    {isJoiningJam ? 'Joining...' : 'Join'}
+                    <Zap className="w-3.5 h-3.5 flex-shrink-0 text-black fill-current" />
+                    <span className="text-black font-extrabold">{isJoiningJam ? 'Joining...' : 'Join'}</span>
                   </button>
                 </form>
               </div>

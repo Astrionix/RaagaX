@@ -23,6 +23,7 @@ import {
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { JamSessionManager } from '@/lib/connect/jam/JamSessionManager';
 import { JamSessionState, JamQueueItem } from '@/lib/connect/jam/JamTypes';
+import { DeviceKeyManager } from '@/lib/connect/auth/DeviceKeyManager';
 import { haptics } from '@/lib/haptics/HapticEngine';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 
@@ -34,18 +35,16 @@ export function JamModal() {
   const [copied, setCopied] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [showHostSettings, setShowHostSettings] = useState(false);
 
 
   useEffect(() => {
     const jamMgr = JamSessionManager.getInstance();
     const unsub = jamMgr.onStateChanged((state) => {
       setJamState(state);
-      if (state && activeTab === 'join') {
-        setActiveTab('session');
-      }
     });
     return unsub;
-  }, [activeTab]);
+  }, []);
 
   if (!isJamModalOpen) return null;
 
@@ -75,6 +74,7 @@ export function JamModal() {
       const success = await jamMgr.joinJamRoom(joinCodeInput);
       if (success) {
         setJoinCodeInput('');
+        setActiveTab('session');
       }
     } catch {
       setToastMessage('Failed to join Jam room');
@@ -86,7 +86,9 @@ export function JamModal() {
 
   const handleCopyCode = () => {
     if (!jamState?.roomCode) return;
-    navigator.clipboard.writeText(jamState.roomCode);
+    if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      try { navigator.clipboard.writeText(jamState.roomCode); } catch {}
+    }
     setCopied(true);
     haptics.lightImpact();
     setToastMessage('Room code copied!');
@@ -97,19 +99,19 @@ export function JamModal() {
     if (!jamState?.roomCode) return;
     const shareText = `🎵 Join my Raaga Jam live session!\nCode: ${jamState.roomCode}`;
 
-    if (navigator.share) {
+    if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({ title: 'Raaga Jam', text: shareText });
         return;
       } catch {}
     }
 
-    navigator.clipboard.writeText(shareText);
+    if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      try { await navigator.clipboard.writeText(shareText); } catch {}
+    }
     setToastMessage('Invite link copied to clipboard!');
     haptics.lightImpact();
   };
-
-  const [showHostSettings, setShowHostSettings] = useState(false);
 
   const handleLeaveJam = () => {
     haptics.mediumImpact();
@@ -129,7 +131,7 @@ export function JamModal() {
   const isHost = JamSessionManager.getInstance().isHost();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/80 backdrop-blur-md animate-fade-in select-none">
+    <div className="fixed inset-0 z-[160] flex items-end md:items-center justify-center p-0 md:p-4 bg-black/80 backdrop-blur-md animate-fade-in select-none">
       {/* Backdrop overlay dismiss */}
       <div className="absolute inset-0" onClick={() => toggleJamModal(false)} />
 
@@ -388,7 +390,6 @@ export function JamModal() {
                   ) : (
                     <div className="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-1">
                       {jamState.queue.map((item) => {
-                        const { DeviceKeyManager } = require('@/lib/connect/auth/DeviceKeyManager');
                         const myDeviceId = DeviceKeyManager.getInstance().getOrCreateDeviceId();
                         const upCount = item.upvotes?.length || 0;
                         const downCount = item.downvotes?.length || 0;

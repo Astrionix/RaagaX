@@ -13,7 +13,24 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 let _client: SupabaseClient | null = null;
 
 function createStubClient(): SupabaseClient {
-  // Returns a proxy that logs a warning on every DB call instead of crashing
+  const stub: any = {
+    select: () => stub, insert: () => stub, update: () => stub,
+    upsert: () => stub, delete: () => stub, eq: () => stub,
+    on: () => stub,
+    subscribe: (cb?: any) => {
+      if (typeof cb === 'function') {
+        try { setTimeout(() => cb('SUBSCRIBED'), 0); } catch {}
+      }
+      return stub;
+    },
+    send: async () => ({ error: null }),
+    track: async () => ({ error: null }),
+    untrack: async () => ({ error: null }),
+    single: async () => ({ data: null, error: { message: 'Supabase not configured' } }),
+    then: (resolve: any) => resolve({ data: null, error: { message: 'Supabase not configured' } }),
+    order: () => stub, limit: () => stub, match: () => stub,
+  };
+
   return new Proxy({} as SupabaseClient, {
     get(_t, prop) {
       if (prop === 'auth') {
@@ -26,15 +43,13 @@ function createStubClient(): SupabaseClient {
           }
         });
       }
+      if (prop === 'channel') {
+        return () => stub;
+      }
+      if (prop === 'removeChannel') {
+        return () => Promise.resolve('ok');
+      }
       return (..._args: any[]) => {
-        const stub = {
-          select: () => stub, insert: () => stub, update: () => stub,
-          upsert: () => stub, delete: () => stub, eq: () => stub,
-          on: () => stub, subscribe: (cb?: any) => { if (typeof cb === 'function') cb('SUBSCRIBED'); return stub; },
-          single: async () => ({ data: null, error: { message: 'Supabase not configured' } }),
-          then: (resolve: any) => resolve({ data: null, error: { message: 'Supabase not configured' } }),
-          order: () => stub, limit: () => stub, match: () => stub,
-        };
         console.warn(`[Supabase] .${String(prop)}() called but Supabase is not configured.`);
         return stub;
       };
@@ -113,8 +128,13 @@ export function getSupabase(): SupabaseClient {
       detectSessionInUrl: true,
     },
     global: {
-      // Bypasses Next.js patched fetch caching on server-side environments
-      fetch: (url, options) => fetch(url, { ...options, cache: 'no-store' }),
+      // Bypasses Next.js patched fetch caching on server-side environments and binds window.fetch on Android WebView
+      fetch: (url, options) => {
+        const fetchImpl = typeof window !== 'undefined' && typeof window.fetch === 'function'
+          ? window.fetch.bind(window)
+          : globalThis.fetch;
+        return fetchImpl(url, { ...options, cache: 'no-store' });
+      },
     },
   });
   return _client;

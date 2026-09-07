@@ -176,7 +176,7 @@ export function AlbumsView() {
   };
 
   return (
-    <div className="space-y-6 pb-6 text-white select-none animate-in fade-in duration-200 max-w-7xl mx-auto px-4 sm:px-8 md:px-10 lg:px-12 pt-5 sm:pt-7">
+    <div className="space-y-6 pb-6 text-white select-none animate-in fade-in duration-200 w-full pt-1">
       {/* ── TOOLBAR: Title & Count, Search & Sort ───────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/[0.06]">
         {/* Left: Section Title & Count */}

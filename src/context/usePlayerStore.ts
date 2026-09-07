@@ -222,8 +222,8 @@ interface PlayerState {
   setRemoteState: (state: Partial<PlayerState>) => void;
   setRenderer: (renderer: Renderer) => void;
 
-  rightPanelMode: 'queue' | 'connect';
-  setRightPanelMode: (mode: 'queue' | 'connect') => void;
+  rightPanelMode: 'queue' | 'connect' | 'jam';
+  setRightPanelMode: (mode: 'queue' | 'connect' | 'jam') => void;
   lastPositionTimestamp: number | null;
 
   // Autoplay and Context
@@ -529,13 +529,13 @@ const getPreviousQueueIndex = (queue: Song[], currentIndex: number, repeatMode: 
 const broadcastSpeakerState = () => {
   try {
     ConnectSessionManager.getInstance().broadcastCurrentState();
-  } catch {}
+  } catch { }
 };
 
 const broadcastSpeakerStateDebounced = () => {
   try {
     ConnectSessionManager.getInstance().broadcastCurrentStateDebounced();
-  } catch {}
+  } catch { }
 };
 
 export const usePlayerStore = create<PlayerState>()(
@@ -813,8 +813,8 @@ export const usePlayerStore = create<PlayerState>()(
           // Controller mode: Suppress local sound output
           PlaybackService.getInstance().pauseAudioElementOnly();
           if (RaagaXNativePlayer.isNative()) {
-            RaagaXNativePlayer.pause().catch(() => {});
-            RaagaXNativePlayer.setRemotePlayback(true, deviceName || 'Remote Device').catch(() => {});
+            RaagaXNativePlayer.pause().catch(() => { });
+            RaagaXNativePlayer.setRemotePlayback(true, deviceName || 'Remote Device').catch(() => { });
             const curSong = get().currentSong;
             if (curSong) {
               RaagaXNativePlayer.updateRemotePlayback({
@@ -826,13 +826,13 @@ export const usePlayerStore = create<PlayerState>()(
                 deviceName: deviceName || 'Remote Device',
                 durationMs: Math.round((get().duration || curSong.duration || 0) * 1000),
                 positionMs: Math.round((get().currentTime || 0) * 1000),
-              }).catch(() => {});
+              }).catch(() => { });
             }
           }
         } else {
           if (RaagaXNativePlayer.isNative()) {
-            RaagaXNativePlayer.setRemotePlayback(false, '').catch(() => {});
-            RaagaXNativePlayer.clearRemotePlayback().catch(() => {});
+            RaagaXNativePlayer.setRemotePlayback(false, '').catch(() => { });
+            RaagaXNativePlayer.clearRemotePlayback().catch(() => { });
           }
         }
       },
@@ -849,7 +849,7 @@ export const usePlayerStore = create<PlayerState>()(
         if (ready) {
           import('@/lib/connect/discovery/DeviceDiscoveryEngine').then(({ DeviceDiscoveryEngine }) => {
             DeviceDiscoveryEngine.getInstance().requestDiscoveryRefresh();
-          }).catch(() => {});
+          }).catch(() => { });
         }
       },
 
@@ -1089,7 +1089,7 @@ export const usePlayerStore = create<PlayerState>()(
             formattedTrack.duration || 0,
             currentQ
           );
-        } catch {}
+        } catch { }
       },
 
       switchTrack: async (track: Song, index: number, autoPlay: boolean = true, initialPositionSec: number = 0) => {
@@ -1176,17 +1176,17 @@ export const usePlayerStore = create<PlayerState>()(
             formattedTrack.duration || 0,
             get().queue
           );
-        } catch {}
+        } catch { }
 
         // Broadcast immediately to connected remote controllers (Spotify Connect style)
         if (get().isLocalPlayback) {
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().broadcastCurrentState();
-          }).catch(() => {});
+          }).catch(() => { });
         } else {
           // Controller mode: Forward command to remote speaker and avoid local audio loading
           if (RaagaXNativePlayer.isNative()) {
-            RaagaXNativePlayer.pause().catch(() => {});
+            RaagaXNativePlayer.pause().catch(() => { });
             RaagaXNativePlayer.updateRemotePlayback({
               trackId: formattedTrack.id,
               title: formattedTrack.title,
@@ -1196,7 +1196,7 @@ export const usePlayerStore = create<PlayerState>()(
               deviceName: get().activePlaybackDeviceName || 'Remote Device',
               durationMs: Math.round((formattedTrack.duration || 0) * 1000),
               positionMs: Math.round((initialPositionSec || 0) * 1000),
-            }).catch(() => {});
+            }).catch(() => { });
           } else {
             PlaybackService.getInstance().pauseAudioElementOnly();
           }
@@ -1209,7 +1209,7 @@ export const usePlayerStore = create<PlayerState>()(
               queue: get().queue,
               queueIndex: index,
             });
-          }).catch(() => {});
+          }).catch(() => { });
           return true;
         }
 
@@ -1229,7 +1229,7 @@ export const usePlayerStore = create<PlayerState>()(
         if (get().isLocalPlayback) {
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().broadcastCurrentState();
-          }).catch(() => {});
+          }).catch(() => { });
         }
 
         // Background Real Artwork Verification & Resolution
@@ -1247,7 +1247,7 @@ export const usePlayerStore = create<PlayerState>()(
               if (get().isLocalPlayback) {
                 import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
                   ConnectSessionManager.getInstance().broadcastCurrentState();
-                }).catch(() => {});
+                }).catch(() => { });
               }
             }
           }
@@ -1340,14 +1340,14 @@ export const usePlayerStore = create<PlayerState>()(
               isPlaying: true,
               context,
             });
-          }).catch(() => {});
+          }).catch(() => { });
           return;
         }
 
 
 
         // When local user initiates playback, activate AudioContext / elements
-        import('@/lib/playback/AudioUnlocker').then(({ activatePlayer }) => activatePlayer()).catch(() => {});
+        import('@/lib/playback/AudioUnlocker').then(({ activatePlayer }) => activatePlayer()).catch(() => { });
         set({ isAudioReady: true });
 
         // NOTE: navigator.onLine is intentionally NOT used here.
@@ -1538,7 +1538,7 @@ export const usePlayerStore = create<PlayerState>()(
                     newQueue: curQueue,
                     queueIndex: get().queueIndex,
                   });
-                }).catch(() => {});
+                }).catch(() => { });
               }
             }
           } catch (err) {
@@ -1551,7 +1551,7 @@ export const usePlayerStore = create<PlayerState>()(
         if (!seedSong || !seedSong.id) return;
 
         get().setToastMessage(`Tuning into ${seedSong.title} Radio...`);
-        import('@/lib/haptics/HapticEngine').then(m => m.haptics.mediumImpact()).catch(() => {});
+        import('@/lib/haptics/HapticEngine').then(m => m.haptics.mediumImpact()).catch(() => { });
 
         let radioSongs: Song[] = [];
         try {
@@ -1636,7 +1636,7 @@ export const usePlayerStore = create<PlayerState>()(
                 deviceName: get().activePlaybackDeviceName || 'Remote Device',
                 durationMs: Math.round((get().duration || curSong.duration || 0) * 1000),
                 positionMs: Math.round((get().currentTime || 0) * 1000),
-              }).catch(() => {});
+              }).catch(() => { });
             }
           }
 
@@ -1646,12 +1646,12 @@ export const usePlayerStore = create<PlayerState>()(
               queue: get().queue,
               queueIndex: get().queueIndex,
             });
-          }).catch(() => {});
+          }).catch(() => { });
           return;
         }
 
         // When local user triggers togglePlayPause, activate AudioContext / elements
-        import('@/lib/playback/AudioUnlocker').then(({ activatePlayer }) => activatePlayer()).catch(() => {});
+        import('@/lib/playback/AudioUnlocker').then(({ activatePlayer }) => activatePlayer()).catch(() => { });
         set({ isAudioReady: true });
 
         // 1. Single Source of Truth: derive true playing state directly from store or active engine
@@ -1698,7 +1698,7 @@ export const usePlayerStore = create<PlayerState>()(
         MediaSessionManager.getInstance().setPlaybackState(playing ? 'playing' : 'paused');
         try {
           TabSyncCoordinator.getInstance().broadcastPlaybackState(playing);
-        } catch {}
+        } catch { }
 
         if (get().isLocalPlayback) {
           broadcastSpeakerState();
@@ -1708,7 +1708,7 @@ export const usePlayerStore = create<PlayerState>()(
           if (!get().isLocalPlayback) {
             // In remote controller mode, never resume local audio engines
             if (RaagaXNativePlayer.isNative()) {
-              RaagaXNativePlayer.pause().catch(() => {});
+              RaagaXNativePlayer.pause().catch(() => { });
               const curSong = get().currentSong;
               if (curSong) {
                 RaagaXNativePlayer.updateRemotePlayback({
@@ -1720,7 +1720,7 @@ export const usePlayerStore = create<PlayerState>()(
                   deviceName: get().activePlaybackDeviceName || 'Remote Device',
                   durationMs: Math.round((get().duration || curSong.duration || 0) * 1000),
                   positionMs: Math.round((get().currentTime || 0) * 1000),
-                }).catch(() => {});
+                }).catch(() => { });
               }
             } else {
               PlaybackService.getInstance().pauseAudioElementOnly();
@@ -1760,7 +1760,7 @@ export const usePlayerStore = create<PlayerState>()(
         if (!get().isLocalPlayback) {
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().sendCommand('SEEK', { position: time });
-          }).catch(() => {});
+          }).catch(() => { });
           return;
         }
 
@@ -1768,7 +1768,7 @@ export const usePlayerStore = create<PlayerState>()(
         if (get().isLocalPlayback) {
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().broadcastCurrentState();
-          }).catch(() => {});
+          }).catch(() => { });
         }
       },
       setDuration: (dur) => {
@@ -1788,11 +1788,11 @@ export const usePlayerStore = create<PlayerState>()(
         if (!get().isLocalPlayback) {
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().sendCommand('VOLUME', { volume: safeVol });
-          }).catch(() => {});
+          }).catch(() => { });
         } else {
           import('@/lib/playback/SpeakerVolumeGainManager').then(({ SpeakerVolumeGainManager }) => {
             SpeakerVolumeGainManager.getInstance().setSmoothVolume(safeVol);
-          }).catch(() => {});
+          }).catch(() => { });
           broadcastSpeakerStateDebounced();
         }
       },
@@ -1808,7 +1808,7 @@ export const usePlayerStore = create<PlayerState>()(
         if (!get().isLocalPlayback) {
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().sendCommand('VOLUME', { volume: nextMuted ? 0 : nextVol });
-          }).catch(() => {});
+          }).catch(() => { });
         } else {
           import('@/lib/playback/SpeakerVolumeGainManager').then(({ SpeakerVolumeGainManager }) => {
             if (nextMuted) {
@@ -1816,7 +1816,7 @@ export const usePlayerStore = create<PlayerState>()(
             } else {
               SpeakerVolumeGainManager.getInstance().unmute();
             }
-          }).catch(() => {});
+          }).catch(() => { });
           broadcastSpeakerState();
         }
       },
@@ -1831,13 +1831,13 @@ export const usePlayerStore = create<PlayerState>()(
               jamMgr.playNextInJam();
               return;
             }
-          } catch {}
+          } catch { }
         }
 
         if (!get().isLocalPlayback) {
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().sendCommand('NEXT');
-          }).catch(() => {});
+          }).catch(() => { });
           return;
         }
 
@@ -1881,7 +1881,7 @@ export const usePlayerStore = create<PlayerState>()(
         if (!get().isLocalPlayback) {
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().sendCommand('PREV');
-          }).catch(() => {});
+          }).catch(() => { });
           return;
         }
 
@@ -1900,7 +1900,7 @@ export const usePlayerStore = create<PlayerState>()(
           if (get().isLocalPlayback) {
             import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
               ConnectSessionManager.getInstance().broadcastCurrentState();
-            }).catch(() => {});
+            }).catch(() => { });
           }
           return;
         }
@@ -1926,7 +1926,7 @@ export const usePlayerStore = create<PlayerState>()(
           if (get().isLocalPlayback) {
             import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
               ConnectSessionManager.getInstance().broadcastCurrentState();
-            }).catch(() => {});
+            }).catch(() => { });
           }
         }
       },
@@ -1937,7 +1937,7 @@ export const usePlayerStore = create<PlayerState>()(
           set({ shuffleMode: newShuffle });
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().sendCommand('SHUFFLE');
-          }).catch(() => {});
+          }).catch(() => { });
           return;
         }
 
@@ -1971,7 +1971,7 @@ export const usePlayerStore = create<PlayerState>()(
           set({ repeatMode: normalized as any });
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().sendCommand('REPEAT', { mode: normalized });
-          }).catch(() => {});
+          }).catch(() => { });
           return;
         }
 
@@ -2002,7 +2002,7 @@ export const usePlayerStore = create<PlayerState>()(
           set({ queue: [...curQueue, song] });
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().sendCommand('QUEUE_UPDATE', { action: 'add', song });
-          }).catch(() => {});
+          }).catch(() => { });
           return;
         }
 
@@ -2027,7 +2027,7 @@ export const usePlayerStore = create<PlayerState>()(
           set({ queue: updated });
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().sendCommand('QUEUE_UPDATE', { action: 'reorder', newQueue: updated });
-          }).catch(() => {});
+          }).catch(() => { });
           return;
         }
 
@@ -2052,7 +2052,7 @@ export const usePlayerStore = create<PlayerState>()(
           set({ queue: curQueue });
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().sendCommand('QUEUE_UPDATE', { action: 'remove', songId });
-          }).catch(() => {});
+          }).catch(() => { });
           return;
         }
 
@@ -2076,7 +2076,7 @@ export const usePlayerStore = create<PlayerState>()(
           set({ queue: newQueue });
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().sendCommand('QUEUE_UPDATE', { action: 'reorder', newQueue });
-          }).catch(() => {});
+          }).catch(() => { });
           return;
         }
 
@@ -2095,7 +2095,7 @@ export const usePlayerStore = create<PlayerState>()(
           set({ queue: remainingQueue, queueIndex: 0 });
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().sendCommand('QUEUE_UPDATE', { action: 'clear' });
-          }).catch(() => {});
+          }).catch(() => { });
           return;
         }
 
@@ -2133,7 +2133,7 @@ export const usePlayerStore = create<PlayerState>()(
           set({ queue: newQueue });
           import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
             ConnectSessionManager.getInstance().sendCommand('QUEUE_UPDATE', { action: 'reorder', newQueue });
-          }).catch(() => {});
+          }).catch(() => { });
           return;
         }
 

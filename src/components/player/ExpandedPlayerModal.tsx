@@ -1796,8 +1796,6 @@ export function ExpandedPlayerModal() {
               )}
             </button>
 
-
-
             {/* Sleep Timer Button (Mobile) */}
             <button
               onClick={() => {

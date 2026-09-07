@@ -123,3 +123,6 @@ out
 .wrangler/
 .dev.vars
 
+# APK Shadow build dirs
+.apk_app_build/
+.next_apk_build/

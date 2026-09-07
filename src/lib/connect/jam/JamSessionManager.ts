@@ -24,7 +24,11 @@ export class JamSessionManager {
   private realtimeChannel: RealtimeChannel | null = null;
   private stateListeners: Set<JamStateListener> = new Set();
   private hostStateBroadcastTimer: NodeJS.Timeout | null = null;
+  private joinRetryTimer: NodeJS.Timeout | null = null;
+  private backgroundLeaveTimer: NodeJS.Timeout | null = null;
+  private hostHeartbeatWatchdogTimer: NodeJS.Timeout | null = null;
   private isReconciling = false;
+  private lastSeekTime = 0;
 
   public static getInstance(): JamSessionManager {
     if (!JamSessionManager.instance) {
@@ -42,6 +46,32 @@ export class JamSessionManager {
             const event: JamSignalEvent = JSON.parse(e.newValue);
             this.handleIncomingSignal(event);
           } catch {}
+        }
+      });
+
+      // Auto leave room ONLY when app is explicitly closed / terminated / swiped away
+      const handleAppTeardown = () => {
+        if (this.activeState) {
+          console.log('[JamSessionManager] App terminating/unloading, leaving Jam room');
+          this.leaveJamRoom();
+        }
+      };
+
+      window.addEventListener('beforeunload', handleAppTeardown);
+      window.addEventListener('pagehide', handleAppTeardown);
+      window.addEventListener('unload', handleAppTeardown);
+
+      // Case 1: Auto-reconnect when device comes back online (Wi-Fi ↔ 5G / Tunnel)
+      window.addEventListener('online', () => {
+        if (this.activeState) {
+          usePlayerStore.getState().setToastMessage('📶 Connection restored! Syncing Jam Room...');
+          this.handleNetworkReconnect();
+        }
+      });
+
+      window.addEventListener('offline', () => {
+        if (this.activeState) {
+          usePlayerStore.getState().setToastMessage('⚠️ Connection lost. Waiting for network...');
         }
       });
     }
@@ -112,6 +142,7 @@ export class JamSessionManager {
       updatedAt: Date.now(),
     };
 
+    this.stopHostHeartbeatWatchdog();
     this.initCommunicationChannel(roomCode);
     this.startHostSyncTimer();
 
@@ -154,6 +185,9 @@ export class JamSessionManager {
     };
 
     this.initCommunicationChannel(formattedCode);
+    this.sendJoinRoomSignal(formattedCode);
+    this.startJoinRetryTimer(formattedCode);
+    this.startHostHeartbeatWatchdog();
 
     const store = usePlayerStore.getState();
     store.setIsInJam(true);
@@ -163,6 +197,46 @@ export class JamSessionManager {
 
     this.notifyListeners();
     return true;
+  }
+
+  private startJoinRetryTimer(roomCode: string): void {
+    if (this.joinRetryTimer) clearInterval(this.joinRetryTimer);
+    let attempts = 0;
+    this.joinRetryTimer = setInterval(() => {
+      attempts++;
+      if (this.isHost() || !this.activeState) {
+        if (this.joinRetryTimer) clearInterval(this.joinRetryTimer);
+        this.joinRetryTimer = null;
+        return;
+      }
+      const myDeviceId = DeviceKeyManager.getInstance().getOrCreateDeviceId();
+      const isAcknowledgedByHost = Boolean(
+        this.activeState.hostDeviceId &&
+        this.activeState.members.some((m) => m.deviceId === myDeviceId)
+      );
+
+      if (isAcknowledgedByHost || attempts > 25) {
+        if (this.joinRetryTimer) clearInterval(this.joinRetryTimer);
+        this.joinRetryTimer = null;
+        return;
+      }
+      this.sendJoinRoomSignal(roomCode);
+    }, 1200);
+  }
+
+  private sendJoinRoomSignal(roomCode: string): void {
+    if (this.isHost() || !this.activeState) return;
+    const myDeviceId = DeviceKeyManager.getInstance().getOrCreateDeviceId();
+    const myName = DeviceNameResolver.getInstance().getLocalDeviceDisplayName();
+    this.sendSignal({
+      eventId: 'evt_' + Math.random().toString(36).substring(2, 9),
+      roomCode,
+      type: 'JOIN_ROOM',
+      senderDeviceId: myDeviceId,
+      senderName: myName,
+      timestamp: Date.now(),
+      payload: { member: { deviceId: myDeviceId, displayName: myName, isHost: false, joinedAt: Date.now() } },
+    });
   }
 
   /**
@@ -188,6 +262,18 @@ export class JamSessionManager {
       clearInterval(this.hostStateBroadcastTimer);
       this.hostStateBroadcastTimer = null;
     }
+
+    if (this.joinRetryTimer) {
+      clearInterval(this.joinRetryTimer);
+      this.joinRetryTimer = null;
+    }
+
+    if (this.backgroundLeaveTimer) {
+      clearTimeout(this.backgroundLeaveTimer);
+      this.backgroundLeaveTimer = null;
+    }
+
+    this.stopHostHeartbeatWatchdog();
 
     if (this.channel) {
       try { this.channel.close(); } catch {}
@@ -464,17 +550,7 @@ export class JamSessionManager {
           console.log(`[JamSessionManager] Supabase Realtime channel ${topicName} status:`, status);
           if (status === 'SUBSCRIBED') {
             if (!this.isHost() && this.activeState) {
-              const myDeviceId = DeviceKeyManager.getInstance().getOrCreateDeviceId();
-              const myName = DeviceNameResolver.getInstance().getLocalDeviceDisplayName();
-              this.sendSignal({
-                eventId: 'evt_' + Math.random().toString(36).substring(2, 9),
-                roomCode,
-                type: 'JOIN_ROOM',
-                senderDeviceId: myDeviceId,
-                senderName: myName,
-                timestamp: Date.now(),
-                payload: { member: { deviceId: myDeviceId, displayName: myName, isHost: false, joinedAt: Date.now() } },
-              });
+              this.sendJoinRoomSignal(roomCode);
             } else if (this.isHost()) {
               this.broadcastHostState();
             }
@@ -494,15 +570,18 @@ export class JamSessionManager {
         localStorage.setItem('raagax_jam_sync_event', JSON.stringify(event));
       } catch {}
     }
-    if (this.realtimeChannel) {
+    if (this.realtimeChannel && typeof (this.realtimeChannel as any).send === 'function') {
       try {
-        this.realtimeChannel.send({
+        const res = (this.realtimeChannel as any).send({
           type: 'broadcast',
           event: 'JAM_SIGNAL',
           payload: event,
-        }).catch((err) => {
-          console.warn('[JamSessionManager] Realtime broadcast error:', err);
         });
+        if (res && typeof res.catch === 'function') {
+          res.catch((err: any) => {
+            console.warn('[JamSessionManager] Realtime broadcast error:', err);
+          });
+        }
       } catch {}
     }
   }
@@ -536,6 +615,105 @@ export class JamSessionManager {
     });
   }
 
+  /**
+   * Case 5: Deduplicate members by deviceId while preserving original joinedAt timestamp
+   */
+  private deduplicateMembers(members: JamMember[]): JamMember[] {
+    const map = new Map<string, JamMember>();
+    for (const m of members) {
+      if (!m || !m.deviceId) continue;
+      const existing = map.get(m.deviceId);
+      if (!existing) {
+        map.set(m.deviceId, { ...m });
+      } else {
+        map.set(m.deviceId, {
+          ...m,
+          joinedAt: Math.min(existing.joinedAt || Infinity, m.joinedAt || Infinity),
+          isHost: existing.isHost || m.isHost,
+        });
+      }
+    }
+    return Array.from(map.values());
+  }
+
+  /**
+   * Case 1: Handle network restoration (Wi-Fi ↔ 5G switch, tunnel exit)
+   */
+  private handleNetworkReconnect(): void {
+    if (!this.activeState) return;
+    this.initCommunicationChannel(this.activeState.roomCode);
+    if (this.isHost()) {
+      this.broadcastHostState();
+    } else {
+      this.sendJoinRoomSignal(this.activeState.roomCode);
+      this.startHostHeartbeatWatchdog();
+    }
+  }
+
+  /**
+   * Case 3: Watchdog timer for sudden Host crash / battery death / unexpected disconnection
+   */
+  private startHostHeartbeatWatchdog(): void {
+    if (this.hostHeartbeatWatchdogTimer) clearInterval(this.hostHeartbeatWatchdogTimer);
+    this.hostHeartbeatWatchdogTimer = setInterval(() => {
+      if (this.isHost() || !this.activeState) {
+        this.stopHostHeartbeatWatchdog();
+        return;
+      }
+
+      const now = Date.now();
+      const lastHostBeat = this.activeState.updatedAt || 0;
+      // If 12 seconds have elapsed with zero heartbeat/state sync from Host:
+      if (lastHostBeat > 0 && now - lastHostBeat > 12000) {
+        this.handleHostCrashOrShutdown();
+      }
+    }, 3500);
+  }
+
+  private stopHostHeartbeatWatchdog(): void {
+    if (this.hostHeartbeatWatchdogTimer) {
+      clearInterval(this.hostHeartbeatWatchdogTimer);
+      this.hostHeartbeatWatchdogTimer = null;
+    }
+  }
+
+  private handleHostCrashOrShutdown(): void {
+    if (!this.activeState || this.isHost()) return;
+
+    const deadHostId = this.activeState.hostDeviceId;
+    console.warn(`[JamSessionManager] Host ${deadHostId} heartbeat timed out. Initiating automatic host handover...`);
+
+    const remainingMembers = this.activeState.members.filter((m) => m.deviceId !== deadHostId);
+    if (remainingMembers.length === 0) {
+      usePlayerStore.getState().setToastMessage(`📢 Jam Room host disconnected.`);
+      this.leaveJamRoom();
+      return;
+    }
+
+    // Sort by joinedAt ascending -> The 2nd joined member becomes the new Host!
+    remainingMembers.sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
+    const newHost = remainingMembers[0];
+    newHost.isHost = true;
+
+    this.activeState.hostDeviceId = newHost.deviceId;
+    this.activeState.hostName = newHost.displayName;
+    this.activeState.members = this.deduplicateMembers(remainingMembers);
+    this.activeState.updatedAt = Date.now();
+
+    const myDeviceId = DeviceKeyManager.getInstance().getOrCreateDeviceId();
+    if (newHost.deviceId === myDeviceId) {
+      this.stopHostHeartbeatWatchdog();
+      this.startHostSyncTimer();
+      this.broadcastHostState();
+      usePlayerStore.getState().setToastMessage(`👑 Host disconnected. You are now the new Jam Host!`);
+      haptics.mediumImpact();
+    } else {
+      usePlayerStore.getState().setToastMessage(`👑 ${newHost.displayName} is now the Jam Host.`);
+    }
+
+    this.notifyListeners();
+  }
+
   private handleIncomingSignal(event: JamSignalEvent): void {
     if (!this.activeState || event.roomCode !== this.activeState.roomCode) return;
     const myDeviceId = DeviceKeyManager.getInstance().getOrCreateDeviceId();
@@ -550,6 +728,7 @@ export class JamSessionManager {
           const exists = this.activeState.members.some((m) => m.deviceId === newMember.deviceId);
           if (!exists) {
             this.activeState.members.push(newMember);
+            this.activeState.members = this.deduplicateMembers(this.activeState.members);
             usePlayerStore.getState().setToastMessage(`👋 ${newMember.displayName} joined the Jam!`);
             haptics.lightImpact();
           }
@@ -564,8 +743,31 @@ export class JamSessionManager {
       case 'LEAVE_ROOM': {
         const leftId = event.payload.deviceId;
         if (leftId === this.activeState.hostDeviceId) {
-          usePlayerStore.getState().setToastMessage(`📢 The Host ended the Jam Room.`);
-          this.leaveJamRoom();
+          const remainingMembers = this.activeState.members.filter((m) => m.deviceId !== leftId);
+          if (remainingMembers.length > 0) {
+            // Sort by joinedAt timestamp so the member who joined second becomes the new Host!
+            remainingMembers.sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
+            const newHost = remainingMembers[0];
+            newHost.isHost = true;
+            this.activeState.hostDeviceId = newHost.deviceId;
+            this.activeState.hostName = newHost.displayName;
+            this.activeState.members = this.deduplicateMembers(remainingMembers);
+
+            const myDeviceId = DeviceKeyManager.getInstance().getOrCreateDeviceId();
+            if (newHost.deviceId === myDeviceId) {
+              this.stopHostHeartbeatWatchdog();
+              this.startHostSyncTimer();
+              this.broadcastHostState();
+              usePlayerStore.getState().setToastMessage(`👑 You are now the new Host of the Jam Room!`);
+              haptics.mediumImpact();
+            } else {
+              usePlayerStore.getState().setToastMessage(`👑 ${newHost.displayName} is now the Jam Host.`);
+            }
+            this.notifyListeners();
+          } else {
+            usePlayerStore.getState().setToastMessage(`📢 Jam Room closed.`);
+            this.leaveJamRoom();
+          }
         } else {
           const leftMember = this.activeState.members.find((m) => m.deviceId === leftId);
           this.activeState.members = this.activeState.members.filter((m) => m.deviceId !== leftId);
@@ -622,10 +824,30 @@ export class JamSessionManager {
         if (!this.isHost()) {
           const hostState: JamSessionState = event.payload.state;
           if (hostState) {
+            const myName = DeviceNameResolver.getInstance().getLocalDeviceDisplayName();
+            const myMember: JamMember = {
+              deviceId: myDeviceId,
+              displayName: myName,
+              isHost: false,
+              joinedAt: Date.now(),
+            };
+
+            const hostMembers = hostState.members || [];
+            const hasMeInHostMembers = hostMembers.some((m) => m.deviceId === myDeviceId);
+            const rawMerged = hasMeInHostMembers ? hostMembers : [...hostMembers, myMember];
+            const mergedMembers = this.deduplicateMembers(rawMerged);
+
             this.activeState = {
               ...hostState,
-              members: hostState.members || this.activeState.members,
+              members: mergedMembers,
+              updatedAt: Date.now(),
             };
+
+            this.startHostHeartbeatWatchdog();
+
+            if (!hasMeInHostMembers) {
+              this.sendJoinRoomSignal(this.activeState.roomCode);
+            }
 
             this.reconcileGuestPlayback(hostState);
             this.notifyListeners();
@@ -638,6 +860,7 @@ export class JamSessionManager {
 
   /**
    * Guest device reconciles its local player with Host's broadcasted metadata
+   * Includes latency transit compensation and debounced soft-seek drift sync.
    */
   private async reconcileGuestPlayback(hostState: JamSessionState): Promise<void> {
     if (this.isReconciling) return;
@@ -646,11 +869,16 @@ export class JamSessionManager {
     try {
       const store = usePlayerStore.getState();
       const hostSong = hostState.currentSong;
-      const hostPosSec = (hostState.positionMs || 0) / 1000;
+      const rawHostPosSec = (hostState.positionMs || 0) / 1000;
+      const now = Date.now();
+
+      // Case 2 & 6: Latency transit compensation (compensates for broadcast delivery delay)
+      const transitLatencySec = Math.max(0, Math.min(2.0, (now - (hostState.updatedAt || now)) / 1000));
+      const effectiveHostPosSec = hostState.isPlaying ? rawHostPosSec + transitLatencySec : rawHostPosSec;
 
       if (hostSong) {
         if (store.currentSong?.id !== hostSong.id) {
-          await store.switchTrack(hostSong, 0, hostState.isPlaying, hostPosSec);
+          await store.switchTrack(hostSong, 0, hostState.isPlaying, effectiveHostPosSec);
           if (hostState.isPlaying && !store.isPlaying) {
             await store.setIsPlaying(true);
           }
@@ -660,8 +888,23 @@ export class JamSessionManager {
           }
 
           const currentPosSec = store.currentTime || 0;
-          if (Math.abs(currentPosSec - hostPosSec) > 1.8 && hostPosSec > 0) {
-            store.seek(hostPosSec);
+          const drift = Math.abs(currentPosSec - effectiveHostPosSec);
+
+          if (hostState.isPlaying) {
+            // Case 2: Smooth buffer drift handling:
+            // Under 0.8s: Natural network jitter - do NOT seek to preserve silky smooth playback
+            // Between 0.8s - 2.5s: Soft seek debounced by 2.5s (lets player buffer settle)
+            // Over 2.5s: Severe drift / resumed from buffer stall, snap to host
+            if ((drift > 2.5 || (drift > 0.8 && now - this.lastSeekTime > 2500)) && effectiveHostPosSec > 0) {
+              this.lastSeekTime = now;
+              store.seek(effectiveHostPosSec);
+            }
+          } else {
+            // Paused: Snap immediately if drift > 0.4s
+            if (drift > 0.4 && now - this.lastSeekTime > 1500) {
+              this.lastSeekTime = now;
+              store.seek(effectiveHostPosSec);
+            }
           }
         }
       } else {

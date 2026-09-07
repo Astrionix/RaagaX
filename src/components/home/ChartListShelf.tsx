@@ -30,7 +30,7 @@ export function ChartListShelf({ title, items }: { title: string; items: ShelfIt
   }, [items, title]);
 
   return (
-    <section className="mb-4 sm:mb-6 w-full max-w-4xl px-3 sm:px-0">
+    <section className="mb-4 sm:mb-6 w-full px-3 sm:px-0">
       <h2 className="text-[20px] sm:text-xl font-semibold leading-[26px] text-white tracking-tight cursor-pointer truncate whitespace-nowrap mb-2.5">
         {title}
       </h2>

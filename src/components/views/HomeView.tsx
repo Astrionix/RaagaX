@@ -442,7 +442,7 @@ export function HomeView() {
   const isInitialLoading = !payload && isLoading && !feed;
   if (isInitialLoading) {
     return (
-      <div className="space-y-6 pb-8 select-none animate-in fade-in duration-300 max-w-7xl mx-auto">
+      <div className="space-y-6 pb-8 select-none animate-in fade-in duration-300 w-full">
         {/* Header Skeleton */}
         <div className="pt-1">
           <div className="h-8 w-56 bg-white/10 rounded-lg animate-pulse" />
@@ -509,7 +509,7 @@ export function HomeView() {
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* 3. MADE FOR YOU — 4 Big, Interactive, Fully Working Mixes              */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <section className="space-y-3.5">
+      <section className="space-y-3.5 pr-2 sm:pr-3">
         <div className="flex items-center gap-2 px-0.5">
           <Sparkles className="w-4 h-4 text-[#FA233B]" />
           <h2 className="text-base sm:text-lg font-black text-white tracking-tight">Made For You</h2>
@@ -752,7 +752,7 @@ export function HomeView() {
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {homeFeedControls.showPopularArtists !== false && feed?.topArtists && feed.topArtists.length > 0 && (
         <section className="space-y-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 pr-4 sm:pr-6">
             <User className="w-4 h-4 text-[#FA233B]" />
             <h2 className="text-sm font-black text-white">
               {topArtistName ? `Because You Like ${topArtistName}` : 'Your Top Artists'}

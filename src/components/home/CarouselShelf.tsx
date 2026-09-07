@@ -324,7 +324,7 @@ export function CarouselShelf({
 
   return (
     <section className="mb-2.5 sm:mb-4">
-      <div className="flex items-center justify-between mb-2 px-0">
+      <div className="flex items-center justify-between mb-2 px-0 pr-3 sm:pr-4">
         <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
           {icon}
           <div className="min-w-0 flex-1">

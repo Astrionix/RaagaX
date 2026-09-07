@@ -32,6 +32,7 @@ import { TransportManager } from '@/lib/connect/transport/TransportManager';
 import { DiscoveredPeer, AuthorizedPeer, ConnectMetrics, TransportKind } from '@/lib/connect/types';
 import { DeviceKeyManager } from '@/lib/connect/auth/DeviceKeyManager';
 import { DeviceNameResolver } from '@/lib/connect/auth/DeviceNameResolver';
+import { JamSessionManager } from '@/lib/connect/jam/JamSessionManager';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { SongFormatter } from '@/lib/music/SongFormatter';
 import { haptics } from '@/lib/haptics/HapticEngine';
@@ -189,7 +190,7 @@ export function CastModal() {
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/65 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[150] flex items-end md:items-center justify-center bg-black/65 backdrop-blur-sm animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
       aria-label="Connect to a device"

@@ -225,7 +225,7 @@ export default function Page() {
       {/* App Layout (Grid after Sidebar) */}
       <div className="flex-1 ml-0 md:ml-64 flex flex-col min-w-0 md:h-screen md:overflow-hidden">
         <div className={`grid flex-1 min-h-0 md:h-full transition-all duration-300 ${isQueueOpen
-          ? 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_302px]'
+          ? 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_304px]'
           : 'grid-cols-1'
           }`}>
           {/* Main Content Column */}
@@ -235,9 +235,11 @@ export default function Page() {
 
             {/* View Switcher Container */}
             <main className={`flex-1 pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] ${!isLocalPlayback ? 'md:pb-[6.5rem]' : 'md:pb-[5.5rem]'
-              } ${activeTab === 'album' || activeTab === 'playlist' || (activeTab === 'artist' && selectedArtistId)
+              } ${activeTab === 'playlist' || (activeTab === 'artist' && selectedArtistId) || (activeTab === 'album' && selectedAlbumId)
                 ? 'pt-0 px-0'
-                : 'pt-14 md:pt-6 px-3.5 sm:px-8'
+                : isQueueOpen
+                  ? 'pt-14 md:pt-6 pl-3.5 sm:pl-7 md:pl-8 pr-0 sm:pr-0 md:pr-0'
+                  : 'pt-14 md:pt-6 px-3.5 sm:px-8'
               }`}>
               {activeTab === 'home' && <HomeView />}
               {activeTab === 'new' && <NewView />}
@@ -262,7 +264,7 @@ export default function Page() {
 
           {/* Right Column (Right side panel for Queue, Devices, and Jam) */}
           {isQueueOpen && (
-            <div className="queue-panel fixed inset-y-0 right-0 z-50 w-[290px] h-full overflow-y-auto overflow-x-hidden bg-[var(--bg-secondary)] border-l border-white/[0.08] shadow-2xl animate-in slide-in-from-right-4 duration-200 md:relative md:inset-auto md:z-auto md:w-auto md:h-auto md:my-3 md:mr-3 md:rounded-2xl md:overflow-hidden md:bg-[var(--sidebar-bg)] md:backdrop-blur-2xl md:border md:border-[var(--border-subtle)] md:shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
+            <div className="queue-panel fixed inset-y-0 right-0 z-50 w-[290px] h-full overflow-y-auto overflow-x-hidden bg-[var(--bg-secondary)] border-l border-white/[0.08] shadow-2xl animate-in slide-in-from-right-4 duration-200 md:relative md:inset-auto md:z-auto md:w-auto md:h-auto md:my-3 md:mr-3 md:ml-0 md:rounded-2xl md:overflow-hidden md:bg-[var(--sidebar-bg)] md:backdrop-blur-2xl md:border md:border-[var(--border-subtle)] md:shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
               <RightQueuePanel />
             </div>
           )}

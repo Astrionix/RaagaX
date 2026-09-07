@@ -82,7 +82,7 @@ export function PlayerBar() {
   };
 
   const handleToggleConnect = () => {
-    if (isQueueOpen && rightPanelMode === 'connect') {
+    if (isQueueOpen && (rightPanelMode === 'connect' || rightPanelMode === 'jam')) {
       setQueueOpen(false);
     } else {
       setRightPanelMode('connect');
@@ -322,7 +322,7 @@ export function PlayerBar() {
             aria-label="Connect to a device"
             title={isLocalPlayback ? "Connect to a device" : `Listening on ${activePlaybackDeviceName}`}
             className={`relative p-1.5 rounded-full transition-colors cursor-pointer ${
-              !isLocalPlayback || (isQueueOpen && rightPanelMode === 'connect') || isCastModalOpen
+              !isLocalPlayback || (isQueueOpen && (rightPanelMode === 'connect' || rightPanelMode === 'jam')) || isCastModalOpen
                 ? 'text-[#1DB954] bg-[#1DB954]/15 hover:bg-[#1DB954]/25'
                 : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]'
             }`}

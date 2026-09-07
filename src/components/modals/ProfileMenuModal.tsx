@@ -30,6 +30,7 @@ export function ProfileMenuModal({ isOpen, onClose }: ProfileMenuModalProps) {
   const {
     setActiveTab,
     toggleSettingsModal,
+    toggleCastModal,
   } = usePlayerStore();
   const { theme, setTheme } = useThemeStore();
 
@@ -140,11 +141,35 @@ export function ProfileMenuModal({ isOpen, onClose }: ProfileMenuModalProps) {
             </button>
           </div>
 
-          {/* 2. Audio & Settings */}
+          {/* 2. Audio & Devices */}
           <div className="pt-3 space-y-1">
             <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--text-muted)] px-1">
               Audio & Devices
             </span>
+
+            {/* Raaga Jam & Devices */}
+            <button
+              onClick={() => {
+                haptics.lightImpact();
+                onClose();
+                toggleCastModal();
+              }}
+              className="w-full p-3 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-between text-left group transition-all cursor-pointer"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                  <Settings className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
+                    Raaga Jam & Connect Devices
+                    <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-extrabold px-1.5 py-0.2 rounded-full border border-emerald-500/30 uppercase">Live</span>
+                  </h4>
+                  <p className="text-[11px] text-emerald-200/70">Sync playback with friends & stream to speakers</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-emerald-400 group-hover:translate-x-0.5 transition-transform" />
+            </button>
 
             {/* Audio Settings */}
             <button
