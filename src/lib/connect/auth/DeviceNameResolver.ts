@@ -81,14 +81,14 @@ export class DeviceNameResolver {
     }
 
     // ── 4. macOS ──
-    if (/Mac OS X|Macintosh|MacIntel/i.test(ua) || /Mac/i.test(platform)) {
+    if (/Mac OS X|Macintosh|MacIntel/i.test(ua) || (!customUA && /Mac/i.test(platform))) {
       const isScreenLarge = (customScreen?.width ?? (typeof window !== 'undefined' ? window.screen?.width : 1920) ?? 1920) >= 1680;
       const friendly = isScreenLarge ? 'MacBook Pro' : 'MacBook Air';
       return { rawModel: 'macOS', friendlyModel: friendly, deviceType: 'desktop' };
     }
 
     // ── 5. Windows ──
-    if (/Windows/i.test(ua) || /Win/i.test(platform)) {
+    if (/Windows/i.test(ua) || (!customUA && /Win/i.test(platform))) {
       const isTouch = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
       const friendly = isTouch ? 'Surface Pro' : 'Windows PC';
       return { rawModel: 'Windows', friendlyModel: friendly, deviceType: 'desktop' };

@@ -83,17 +83,17 @@ describe('RaagaX Connect — DeviceNameResolver Specification Suite', () => {
   describe('2. Personalized Possessive Naming Formula (e.g. chan\'s Desk, chan\'s iPhone, chan\'s iPad, chan\'s Mobile)', () => {
     it('constructs clean default display name for guest, and formats possessive name when user is logged in', () => {
       resolver.setAccountDisplayName(null);
-      const guestName = resolver.getDefaultDeviceDisplayName();
+      const guestName = resolver.getDefaultDeviceDisplayName('Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
       expect(guestName).toBe('Desk');
 
       // When user logs in as "chan"
       resolver.setAccountDisplayName('chan');
-      const chanDesk = resolver.getDefaultDeviceDisplayName();
+      const chanDesk = resolver.getDefaultDeviceDisplayName('Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
       expect(chanDesk).toBe("chan's Desk");
 
       // Verify possessive apostrophe rules for names ending in 's'
       resolver.setAccountDisplayName('James');
-      expect(resolver.getDefaultDeviceDisplayName()).toBe("James' Desk");
+      expect(resolver.getDefaultDeviceDisplayName('Mozilla/5.0 (Windows NT 10.0; Win64; x64)')).toBe("James' Desk");
 
       resolver.setAccountDisplayName(null);
     });

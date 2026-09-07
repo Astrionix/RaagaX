@@ -31,6 +31,45 @@ const nextConfig = {
       };
     }
     return config;
+  },
+  async redirects() {
+    return [
+      {
+        source: '/releases/RaagaX-Windows-Universal.exe',
+        destination: 'https://github.com/Astrionix/RaagaX/releases/download/v1.0.0/RaagaX-Windows-Universal.exe',
+        permanent: false,
+      },
+      {
+        source: '/releases/RaagaX-Windows-Portable.exe',
+        destination: 'https://github.com/Astrionix/RaagaX/releases/download/v1.0.0/RaagaX-Windows-Portable.exe',
+        permanent: false,
+      },
+      {
+        source: '/releases/RaagaX-macOS-Universal.dmg',
+        destination: 'https://github.com/Astrionix/RaagaX/releases/download/v1.0.0/RaagaX-macOS-Universal.dmg',
+        permanent: false,
+      },
+      {
+        source: '/releases/RaagaX-macOS-arm64.dmg',
+        destination: 'https://github.com/Astrionix/RaagaX/releases/download/v1.0.0/RaagaX-macOS-Universal.dmg',
+        permanent: false,
+      },
+      {
+        source: '/releases/RaagaX-macOS-intel.dmg',
+        destination: 'https://github.com/Astrionix/RaagaX/releases/download/v1.0.0/RaagaX-macOS-Universal.dmg',
+        permanent: false,
+      },
+      {
+        source: '/releases/RaagaX-latest.apk',
+        destination: 'https://github.com/Astrionix/RaagaX/releases/download/v1.0.0/RaagaX.apk',
+        permanent: false,
+      },
+      {
+        source: '/releases/RaagaX.apk',
+        destination: 'https://github.com/Astrionix/RaagaX/releases/download/v1.0.0/RaagaX.apk',
+        permanent: false,
+      },
+    ];
   }
 };
 

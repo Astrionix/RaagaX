@@ -20,6 +20,15 @@ import { haptics } from '@/lib/haptics/HapticEngine';
 
 type PlatformTab = 'windows' | 'mac' | 'android';
 
+const RELEASE_BASE_URL = 'https://github.com/Astrionix/RaagaX/releases/download/v1.0.0';
+
+export const APP_DOWNLOAD_URLS = {
+  windowsUniversal: `${RELEASE_BASE_URL}/RaagaX-Windows-Universal.exe`,
+  windowsPortable: `${RELEASE_BASE_URL}/RaagaX-Windows-Portable.exe`,
+  macUniversal: `${RELEASE_BASE_URL}/RaagaX-macOS-Universal.dmg`,
+  androidApk: `${RELEASE_BASE_URL}/RaagaX.apk`,
+};
+
 interface PlatformInfo {
   tab: PlatformTab;
   name: string;
@@ -39,8 +48,8 @@ function detectUserOS(): PlatformInfo {
       osLabel: 'Universal Edition (32-bit & 64-bit)',
       badge: 'Universal .EXE',
       fileName: 'RaagaX-Windows-Universal.exe',
-      downloadUrl: '/releases/RaagaX-Windows-Universal.exe',
-      size: '~120 MB',
+      downloadUrl: APP_DOWNLOAD_URLS.windowsUniversal,
+      size: '96 MB',
       subtext: 'Auto-detects 32-bit & 64-bit • Compatible with all Windows PCs',
     };
   }
@@ -62,8 +71,8 @@ function detectUserOS(): PlatformInfo {
       osLabel: 'Universal Edition (32-bit & 64-bit)',
       badge: 'Universal .EXE',
       fileName: 'RaagaX-Windows-Universal.exe',
-      downloadUrl: '/releases/RaagaX-Windows-Universal.exe',
-      size: '~120 MB',
+      downloadUrl: APP_DOWNLOAD_URLS.windowsUniversal,
+      size: '96 MB',
       subtext: 'Auto-detects 32-bit & 64-bit • Compatible with all Windows PCs',
     };
   }
@@ -75,8 +84,8 @@ function detectUserOS(): PlatformInfo {
       osLabel: 'Universal Edition (Intel & Apple Silicon)',
       badge: 'Universal .DMG',
       fileName: 'RaagaX-macOS-Universal.dmg',
-      downloadUrl: '/releases/RaagaX-macOS-Universal.dmg',
-      size: '~210 MB',
+      downloadUrl: APP_DOWNLOAD_URLS.macUniversal,
+      size: '201 MB',
       subtext: 'Guaranteed native speed on ALL Macs (Intel & M1/M2/M3/M4)',
     };
   }
@@ -88,8 +97,8 @@ function detectUserOS(): PlatformInfo {
       osLabel: 'Android 8.0+',
       badge: 'Official .APK',
       fileName: 'RaagaX.apk',
-      downloadUrl: '/releases/RaagaX-latest.apk',
-      size: '~13 MB',
+      downloadUrl: APP_DOWNLOAD_URLS.androidApk,
+      size: '13 MB',
       subtext: 'Offline downloads • Background playback',
     };
   }
@@ -98,12 +107,12 @@ function detectUserOS(): PlatformInfo {
     return {
       tab: 'mac',
       name: 'macOS',
-      osLabel: 'Apple Desktop Client',
-      badge: 'Native .DMG',
-      fileName: 'RaagaX-macOS-arm64.dmg',
-      downloadUrl: '/releases/RaagaX-macOS-arm64.dmg',
-      size: '~106 MB',
-      subtext: 'Desktop client for your Mac',
+      osLabel: 'Universal Mac Client',
+      badge: 'Universal .DMG',
+      fileName: 'RaagaX-macOS-Universal.dmg',
+      downloadUrl: APP_DOWNLOAD_URLS.macUniversal,
+      size: '201 MB',
+      subtext: 'Native macOS build for your Mac',
     };
   }
 
@@ -112,11 +121,11 @@ function detectUserOS(): PlatformInfo {
     tab: 'windows',
     name: 'Windows',
     osLabel: 'Windows 10 / 11 (64-bit)',
-    badge: 'Portable .EXE',
-    fileName: 'RaagaX-Windows-Portable.exe',
-    downloadUrl: '/releases/RaagaX-Windows-Portable.exe',
-    size: '~87 MB',
-    subtext: 'Zero installation required • Double-click to run',
+    badge: 'Universal .EXE',
+    fileName: 'RaagaX-Windows-Universal.exe',
+    downloadUrl: APP_DOWNLOAD_URLS.windowsUniversal,
+    size: '96 MB',
+    subtext: 'Auto-detects 32-bit & 64-bit • All Windows PCs',
   };
 }
 
@@ -133,11 +142,9 @@ export function GetAppModal() {
     setDetectedPlatform(detected);
     setActiveTab(detected.tab);
 
-    // Generate QR code for mobile APK download
+    // Generate QR code for mobile APK download directly from CDN
     import('qrcode').then((QRCode) => {
-      const origin = window.location.origin;
-      const downloadUrl = `${origin}/releases/RaagaX-latest.apk`;
-      QRCode.toDataURL(downloadUrl, {
+      QRCode.toDataURL(APP_DOWNLOAD_URLS.androidApk, {
         width: 160,
         margin: 1,
         color: {
@@ -327,7 +334,7 @@ export function GetAppModal() {
                 </div>
 
                 <a
-                  href="/releases/RaagaX-Windows-Universal.exe"
+                  href={APP_DOWNLOAD_URLS.windowsUniversal}
                   download="RaagaX-Windows-Universal.exe"
                   onClick={() => haptics.mediumImpact()}
                   className="py-3 px-5 rounded-xl bg-gradient-to-r from-[#0078D7] to-[#00A4EF] hover:brightness-110 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-[#0078D7]/20 flex-shrink-0"
@@ -343,7 +350,7 @@ export function GetAppModal() {
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-bold text-white">RaagaX Portable (64-bit)</h3>
                     <span className="px-2 py-0.5 rounded-md bg-white/10 text-slate-300 text-[10px] font-bold">
-                      Zero Install • Standalone
+                       Zero Install • Standalone
                     </span>
                   </div>
                   <p className="text-xs text-slate-400">
@@ -357,7 +364,7 @@ export function GetAppModal() {
                 </div>
 
                 <a
-                  href="/releases/RaagaX-Windows-Portable.exe"
+                  href={APP_DOWNLOAD_URLS.windowsPortable}
                   download="RaagaX-Windows-Portable.exe"
                   onClick={() => haptics.lightImpact()}
                   className="py-2.5 px-4 rounded-xl bg-white/[0.08] hover:bg-white/[0.15] text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer border border-white/10 flex-shrink-0"
@@ -405,14 +412,14 @@ export function GetAppModal() {
                   <div className="flex items-center gap-3 text-[11px] text-slate-500 pt-1">
                     <span>Format: <strong className="text-slate-300">.DMG</strong></span>
                     <span>•</span>
-                    <span>Size: <strong className="text-slate-300">~210 MB</strong></span>
+                    <span>Size: <strong className="text-slate-300">201 MB</strong></span>
                     <span>•</span>
                     <span>Arch: <strong className="text-slate-300">Universal (x86_64 + ARM64)</strong></span>
                   </div>
                 </div>
 
                 <a
-                  href="/releases/RaagaX-macOS-Universal.dmg"
+                  href={APP_DOWNLOAD_URLS.macUniversal}
                   download="RaagaX-macOS-Universal.dmg"
                   onClick={() => haptics.mediumImpact()}
                   className="py-3 px-5 rounded-xl bg-gradient-to-r from-[#FA233B] to-[#FF4E61] hover:brightness-110 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-red-500/20 flex-shrink-0"
@@ -431,13 +438,13 @@ export function GetAppModal() {
                     <p className="text-[10px] text-slate-400">For Intel MacBook Pro / Air / iMac</p>
                   </div>
                   <a
-                    href="/releases/RaagaX-macOS-intel.dmg"
-                    download="RaagaX-macOS-intel.dmg"
+                    href={APP_DOWNLOAD_URLS.macUniversal}
+                    download="RaagaX-macOS-Universal.dmg"
                     onClick={() => haptics.lightImpact()}
                     className="py-1.5 px-3 rounded-lg bg-white/10 hover:bg-white/15 text-white font-semibold text-[11px] flex items-center gap-1 transition-colors flex-shrink-0"
                   >
                     <Download className="w-3 h-3" />
-                    <span>Intel DMG (108 MB)</span>
+                    <span>Universal DMG (201 MB)</span>
                   </a>
                 </div>
 
@@ -448,13 +455,13 @@ export function GetAppModal() {
                     <p className="text-[10px] text-slate-400">For M1, M2, M3, M4 Macs</p>
                   </div>
                   <a
-                    href="/releases/RaagaX-macOS-arm64.dmg"
-                    download="RaagaX-macOS-arm64.dmg"
+                    href={APP_DOWNLOAD_URLS.macUniversal}
+                    download="RaagaX-macOS-Universal.dmg"
                     onClick={() => haptics.lightImpact()}
                     className="py-1.5 px-3 rounded-lg bg-white/10 hover:bg-white/15 text-white font-semibold text-[11px] flex items-center gap-1 transition-colors flex-shrink-0"
                   >
                     <Download className="w-3 h-3" />
-                    <span>M-Series (106 MB)</span>
+                    <span>Universal DMG (201 MB)</span>
                   </a>
                 </div>
               </div>
@@ -496,7 +503,7 @@ export function GetAppModal() {
 
                   <div className="pt-2">
                     <a
-                      href="/releases/RaagaX-latest.apk"
+                      href={APP_DOWNLOAD_URLS.androidApk}
                       download="RaagaX.apk"
                       onClick={() => haptics.mediumImpact()}
                       className="inline-flex py-3 px-6 rounded-xl bg-gradient-to-r from-[#3DDC84] to-[#2BA863] hover:brightness-110 text-black font-bold text-xs items-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-500/20"
