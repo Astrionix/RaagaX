@@ -424,24 +424,78 @@ export function AudioPlayerController() {
     });
 
     const unsubActionNext = RaagaXNativePlayer.addActionNextListener(() => {
-      console.log('[AudioPlayerController] Native actionNext command received -> playNext()');
-      usePlayerStore.getState().playNext();
+      console.log('[AudioPlayerController] Native actionNext command received');
+      import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
+        const jamState = JamSessionManager.getInstance().getActiveState();
+        if (jamState) {
+          JamSessionManager.getInstance().sendControlAction('NEXT');
+          return;
+        }
+        if (!usePlayerStore.getState().isLocalPlayback) {
+          import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
+            ConnectSessionManager.getInstance().sendCommand('NEXT');
+          });
+          return;
+        }
+        usePlayerStore.getState().playNext();
+      });
     });
 
     const unsubActionPrev = RaagaXNativePlayer.addActionPrevListener(() => {
-      console.log('[AudioPlayerController] Native actionPrev command received -> playPrev()');
-      usePlayerStore.getState().playPrev();
+      console.log('[AudioPlayerController] Native actionPrev command received');
+      import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
+        const jamState = JamSessionManager.getInstance().getActiveState();
+        if (jamState) {
+          JamSessionManager.getInstance().sendControlAction('PREV');
+          return;
+        }
+        if (!usePlayerStore.getState().isLocalPlayback) {
+          import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
+            ConnectSessionManager.getInstance().sendCommand('PREV');
+          });
+          return;
+        }
+        usePlayerStore.getState().playPrev();
+      });
     });
 
     const unsubActionTogglePlay = RaagaXNativePlayer.addActionTogglePlayListener(() => {
-      console.log('[AudioPlayerController] Native actionTogglePlay command received -> togglePlayPause()');
-      usePlayerStore.getState().togglePlayPause();
+      console.log('[AudioPlayerController] Native actionTogglePlay command received');
+      const store = usePlayerStore.getState();
+      const isPlaying = store.isPlaying;
+      import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
+        const jamState = JamSessionManager.getInstance().getActiveState();
+        if (jamState) {
+          JamSessionManager.getInstance().sendControlAction(isPlaying ? 'PAUSE' : 'PLAY');
+          return;
+        }
+        if (!store.isLocalPlayback) {
+          import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
+            ConnectSessionManager.getInstance().sendCommand(isPlaying ? 'PAUSE' : 'PLAY');
+          });
+          return;
+        }
+        store.togglePlayPause();
+      });
     });
 
     const unsubActionSeek = RaagaXNativePlayer.addActionSeekListener((data) => {
-      console.log('[AudioPlayerController] Native actionSeek command received -> seek', data.positionMs);
+      console.log('[AudioPlayerController] Native actionSeek command received:', data.positionMs);
       const posSec = Math.max(0, (data.positionMs || 0) / 1000);
-      usePlayerStore.getState().seek(posSec);
+      import('@/lib/connect/jam/JamSessionManager').then(({ JamSessionManager }) => {
+        const jamState = JamSessionManager.getInstance().getActiveState();
+        if (jamState) {
+          JamSessionManager.getInstance().sendControlAction('SEEK', { position: posSec });
+          return;
+        }
+        if (!usePlayerStore.getState().isLocalPlayback) {
+          import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
+            ConnectSessionManager.getInstance().sendCommand('SEEK', { position: posSec });
+          });
+          return;
+        }
+        usePlayerStore.getState().seek(posSec);
+      });
     });
 
     return () => {

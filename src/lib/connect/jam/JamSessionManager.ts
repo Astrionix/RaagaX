@@ -922,6 +922,23 @@ export class JamSessionManager {
       const effectiveHostPosSec = hostState.isPlaying ? rawHostPosSec + transitLatencySec : rawHostPosSec;
 
       if (hostSong) {
+        // Sync Android native lock screen & notification shade metadata in Jam session
+        if (typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()) {
+          import('@/lib/playback/native/RaagaXNativePlayer').then(({ RaagaXNativePlayer }) => {
+            RaagaXNativePlayer.setRemotePlayback(true, `Jam Room: ${hostState.roomCode}`).catch(() => {});
+            RaagaXNativePlayer.updateRemotePlayback({
+              trackId: hostSong.id,
+              title: hostSong.title,
+              artist: hostSong.artist || 'Jam Room',
+              artworkUrl: hostSong.coverUrl || '',
+              isPlaying: hostState.isPlaying,
+              deviceName: `Jam (${hostState.members?.length || 1} listening)`,
+              durationMs: Math.round((hostSong.duration || 0) * 1000),
+              positionMs: Math.round(effectiveHostPosSec * 1000),
+            }).catch(() => {});
+          });
+        }
+
         const isSameSong = Boolean(
           store.currentSong &&
           (store.currentSong.id === hostSong.id ||
