@@ -1,6 +1,17 @@
 # RaagaX - Futuristic Music Streaming Platform & API
 
-A full-stack music streaming solution consisting of a high-performance **RaagaX Music API Engine** and a futuristic **RaagaX Music Web UI Application**.
+A full-stack music streaming solution consisting of a high-performance **RaagaX Music API Engine**, a futuristic **RaagaX Music Web UI Application**, and native **Desktop & Mobile Apps** (macOS, Windows, Android).
+
+## 📥 Download RaagaX
+
+| Platform | Package | Architecture | Direct Download |
+| :--- | :--- | :--- | :--- |
+| 🍏 **macOS** | Universal DMG | Apple Silicon (M1/M2/M3/M4) & Intel (x64) | [**Download DMG (201 MB)**](https://github.com/Astrionix/RaagaX/releases/download/v1.0.0/RaagaX-macOS-Universal.dmg) |
+| 🪟 **Windows** | Universal Installer | Windows 10/11 (64-bit & 32-bit NSIS) | [**Download Installer (96 MB)**](https://github.com/Astrionix/RaagaX/releases/download/v1.0.0/RaagaX-Windows-Universal.exe) |
+| 🪟 **Windows** | Portable EXE | Windows 10/11 (Standalone, No Install) | [**Download Portable (96 MB)**](https://github.com/Astrionix/RaagaX/releases/download/v1.0.0/RaagaX-Windows-Portable.exe) |
+| 📱 **Android** | Universal APK | Android 8.0+ (Phones & Tablets) | [**Download APK (13 MB)**](https://github.com/Astrionix/RaagaX/releases/download/v1.0.0/RaagaX.apk) |
+
+> 🔗 **All Releases & Release Notes**: [GitHub Releases v1.0.0](https://github.com/Astrionix/RaagaX/releases/tag/v1.0.0)
 
 ## 📁 Repository Structure
 
