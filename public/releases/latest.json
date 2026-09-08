@@ -1,6 +1,6 @@
 {
-  "versionCode": 12,
-  "versionName": "1.2.8",
+  "versionCode": 13,
+  "versionName": "1.2.9",
   "apkUrl": "https://raaga.me/api/app/download",
   "sha256": "b8ad079b36c2d6df924486ebb6bce0656622ff6ad01e138534a3f308212bbcb0",
   "fileSize": 13251382,
@@ -9,10 +9,9 @@
   "minimumSupportedVersion": 1,
   "releaseChannel": "stable",
   "releaseNotes": [
-    "Fixed Jam Session playback in APK: guests seamlessly stream and play host Jam songs.",
-    "Fixed stale playbar song audio lingering when joining Jam sessions.",
-    "Seamless Android Lock Screen & Notification Shade sync for Jam & Connect.",
-    "Real-time song title, artist, artwork, position & duration sync on Lock Screen.",
-    "Lossless playback engine and performance enhancements."
+    "New: Karaoke & Synced Lyrics mode on Mobile & Desktop floating player.",
+    "New: Friends Activity Feed & Single Blend Hub moved directly into Library view.",
+    "New: Active Friend Song Marquee Ticker on Home screen.",
+    "Performance and stability enhancements for Android."
   ]
 }
