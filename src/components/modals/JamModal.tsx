@@ -466,7 +466,7 @@ export function JamModal() {
             <form onSubmit={handleJoinJam} className="py-4 space-y-5">
               <div className="text-center space-y-1">
                 <h3 className="text-base font-bold text-white">Enter 4-Digit Room Code</h3>
-                <p className="text-xs text-[#b3b3b3]">Ask your friend for their 4-character Jam code (e.g. 8K4P)</p>
+                <p className="text-xs text-[#b3b3b3]">Ask your friend for their 4-character Jam code (e.g. RAAG)</p>
               </div>
 
               <div className="relative max-w-xs mx-auto">
@@ -474,7 +474,7 @@ export function JamModal() {
                   type="text"
                   value={joinCodeInput}
                   onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
-                  placeholder="8K4P"
+                  placeholder="RAAG"
                   maxLength={8}
                   className="w-full text-center text-4xl font-mono tracking-widest font-black py-3.5 px-4 rounded-2xl bg-black border border-[#1DB954]/40 text-[#1DB954] focus:outline-none focus:border-[#1DB954]"
                 />

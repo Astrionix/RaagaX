@@ -834,7 +834,7 @@ export function RightQueuePanel() {
                     type="text"
                     value={joinCodeInput}
                     onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
-                    placeholder="Enter code (e.g. 8K4P)"
+                    placeholder="Enter code (e.g. RAAG)"
                     maxLength={8}
                     className="min-w-0 flex-1 bg-white/5 border border-white/15 rounded-lg px-2 py-1.5 text-xs text-white font-mono uppercase placeholder:text-[#535353] focus:outline-none focus:border-[#1DB954]"
                   />

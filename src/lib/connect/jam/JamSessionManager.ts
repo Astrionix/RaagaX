@@ -116,10 +116,10 @@ export class JamSessionManager {
   }
 
   /**
-   * Generates a simple 4-character alphanumeric room code like "8K4P"
+   * Generates a 4-character alphabetic room code like "RAAG", "WAVE", "BEAT"
    */
   private generateRoomCode(): string {
-    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     let code = '';
     for (let i = 0; i < 4; i++) {
       code += chars.charAt(Math.floor(Math.random() * chars.length));
