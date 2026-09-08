@@ -7,6 +7,7 @@ import { RaagaXLogo } from '@/components/brand/RaagaXLogo';
 import { RaagaXWordmark } from '@/components/brand/RaagaXWordmark';
 import { NetworkManager } from '@/lib/offline/NetworkManager';
 import { ProfileMenuModal } from '@/components/modals/ProfileMenuModal';
+import { TopRightUpdateBadge } from '@/components/common/TopRightUpdateBadge';
 
 export function Header() {
   const [mounted, setMounted] = React.useState(false);
@@ -38,6 +39,8 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-2">
+          <TopRightUpdateBadge />
+
           {mounted && !isOnline && (
             <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-bold tracking-wide animate-pulse">
               <WifiOff className="w-3 h-3" />
