@@ -20,7 +20,7 @@ export async function GET() {
     sha256: "skip",
     fileSize: 13537812,
     releaseDate: "2026-09-08",
-    mandatory: true,
+    mandatory: false,
     minimumSupportedVersion: 1,
     releaseChannel: "stable",
     releaseNotes: [

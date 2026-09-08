@@ -144,9 +144,23 @@ export const useUpdateStore = create<UpdateStore>((set, get) => ({
       const lastCheck = lastCheckStr ? parseInt(lastCheckStr, 10) : 0;
       const cachedManifestStr = localStorage.getItem('raagax_cached_update_manifest');
 
-      if (!force && (now - lastCheck < 6 * 60 * 60 * 1000) && cachedManifestStr) {
+      // If cached manifest has a hardcoded sha256 hash (not "skip"), clear it to force fresh fetch
+      // This prevents stale checksum mismatches from old cached manifests
+      if (cachedManifestStr) {
         try {
           const cachedManifest = JSON.parse(cachedManifestStr) as VersionManifest;
+          if (cachedManifest.sha256 && cachedManifest.sha256 !== 'skip' && cachedManifest.sha256.length > 10) {
+            console.log('[UpdateStore] Clearing stale cached manifest with hardcoded sha256 to force fresh fetch');
+            localStorage.removeItem('raagax_cached_update_manifest');
+            localStorage.removeItem('raagax_last_update_check');
+          }
+        } catch { }
+      }
+
+      const freshCachedManifestStr = localStorage.getItem('raagax_cached_update_manifest');
+      if (!force && (now - lastCheck < 6 * 60 * 60 * 1000) && freshCachedManifestStr) {
+        try {
+          const cachedManifest = JSON.parse(freshCachedManifestStr) as VersionManifest;
           if (cachedManifest.versionCode > installed.versionCode) {
             set({
               state: 'UPDATE_AVAILABLE',
