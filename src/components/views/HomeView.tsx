@@ -340,16 +340,12 @@ export function HomeView() {
       }
     } catch {}
 
-    // First, prioritize any pinned friend who is actively playing
-    if (pinnedTags.length > 0) {
-      const pinnedPlaying = friendsActivity.find(
-        (a) => pinnedTags.includes(a.userTag) && a.isPlaying && a.songTitle
-      );
-      if (pinnedPlaying) return pinnedPlaying;
-    }
+    // Strictly only show if the friend's tag was explicitly added by the user
+    if (pinnedTags.length === 0) return null;
 
-    // Otherwise, show any online friend who is actively playing
-    return friendsActivity.find((a) => a.isPlaying && a.songTitle) || null;
+    return friendsActivity.find(
+      (a) => pinnedTags.includes(a.userTag) && a.isPlaying && a.songTitle
+    ) || null;
   }, [friendsActivity]);
 
   const { tasks, nativeDownloadedTracks, isOfflineMode } = useDownloadStore();

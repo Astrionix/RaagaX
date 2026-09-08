@@ -239,16 +239,23 @@ export class FriendActivityEngine {
       return;
     }
 
-    // Update the activity in memory
-    this.activeActivities.set(activity.userId, activity);
+    // If friend paused or stopped, remove their active status immediately
+    if (!activity.isPlaying) {
+      this.activeActivities.delete(activity.userId);
+    } else {
+      this.activeActivities.set(activity.userId, activity);
+    }
     this.notifyListeners();
   }
 
   /**
-   * Returns active activities, excluding current user by default.
+   * Returns active activities, excluding current user and stale activities (> 5m).
    */
   public getActiveActivities(excludeSelf = true): FriendActivityState[] {
-    const list = Array.from(this.activeActivities.values());
+    const now = Date.now();
+    const list = Array.from(this.activeActivities.values()).filter(
+      (item) => item.isPlaying && now - item.timestamp < 300000
+    );
     if (!excludeSelf) return list;
     const my = getMyFriendIdentity();
     return list.filter((item) => item.userId !== my.userId && item.userTag !== my.userTag);
