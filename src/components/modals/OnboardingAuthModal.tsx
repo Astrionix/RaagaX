@@ -287,6 +287,7 @@ export function OnboardingAuthModal() {
   };
 
   const handleClose = () => {
+    if (!user) return; // Strict: No guest mode, authentication is mandatory
     localStorage.setItem('raagax_onboarding_done', 'true');
     setAuthModalOpen(false);
   };
@@ -296,9 +297,24 @@ export function OnboardingAuthModal() {
       
       {/* MOBILE HEADER */}
       <div className="md:hidden flex items-center justify-between p-5 pt-8 sticky top-0 bg-[#07080C] z-10">
-        <button onClick={handleClose} className="p-2 -ml-2 text-[#9AA0AE] hover:text-[#F5F5F7] transition-colors">
-          <ChevronLeft className="w-6 h-6" />
-        </button>
+        {mode !== 'login' && mode !== 'register-credentials' ? (
+          <button
+            onClick={() => {
+              if (mode === 'register-artists') setMode('register-moods');
+              else if (mode === 'register-moods') setMode('register-language');
+              else if (mode === 'register-language') setMode('register-credentials');
+            }}
+            className="p-2 -ml-2 text-[#9AA0AE] hover:text-[#F5F5F7] transition-colors"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+        ) : user ? (
+          <button onClick={handleClose} className="p-2 -ml-2 text-[#9AA0AE] hover:text-[#F5F5F7] transition-colors">
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+        ) : (
+          <div className="w-6" />
+        )}
         <div className="flex items-center gap-2 mr-4">
           <Disc3 className="w-5 h-5 text-[#F51B3D]" />
           <span className="font-bold text-lg tracking-tight">RaagaX</span>
@@ -309,14 +325,16 @@ export function OnboardingAuthModal() {
       {/* MAIN DESKTOP CONTAINER (Full screen on desktop, takes remaining space on mobile) */}
       <div className="w-full h-full md:h-[80vh] md:max-h-[800px] md:max-w-[1200px] flex flex-col md:flex-row relative flex-grow md:rounded-[32px] overflow-hidden md:border border-[#272A33] md:shadow-2xl bg-[#07080C]">
         
-        {/* CLOSE BUTTON FOR DESKTOP */}
-        <button 
-          onClick={handleClose}
-          title="Close"
-          className="hidden md:flex absolute top-6 right-6 z-50 p-2.5 bg-black/20 hover:bg-[#171820] rounded-full text-[#9AA0AE] hover:text-white transition-all border border-transparent hover:border-[#272A33]"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        {/* CLOSE BUTTON FOR DESKTOP — only visible if already authenticated */}
+        {user && (
+          <button 
+            onClick={handleClose}
+            title="Close"
+            className="hidden md:flex absolute top-6 right-6 z-50 p-2.5 bg-black/20 hover:bg-[#171820] rounded-full text-[#9AA0AE] hover:text-white transition-all border border-transparent hover:border-[#272A33]"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
 
         {/* LEFT COLUMN: FORM */}
         <div className="relative z-10 w-full md:w-[480px] p-6 sm:p-8 md:p-14 flex flex-col flex-shrink-0 bg-[#07080C] overflow-y-auto">

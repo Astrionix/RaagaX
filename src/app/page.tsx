@@ -87,7 +87,10 @@ export default function Page() {
     isSidebarCollapsed,
   } = usePlayerStore();
   const { isSetupModalOpen, setSetupModalOpen } = useDownloadStore();
-  const { user } = useAuthStore();
+  const authUser = useAuthStore((s) => s.user);
+  const isAuthLoading = useAuthStore((s) => s.isLoading);
+  const isAuthModalOpen = useAuthStore((s) => s.isAuthModalOpen);
+  const setAuthModalOpen = useAuthStore((s) => s.setAuthModalOpen);
 
   React.useEffect(() => {
     useAuthStore.getState().initializeAuth();
@@ -98,6 +101,13 @@ export default function Page() {
       ConnectSessionManager.getInstance();
     }).catch(() => { });
   }, []);
+
+  // Strict Authentication Guard: Force Login or Sign Up (no guest mode)
+  React.useEffect(() => {
+    if (!isAuthLoading && !authUser && !isAuthModalOpen) {
+      setAuthModalOpen(true);
+    }
+  }, [isAuthLoading, authUser, isAuthModalOpen, setAuthModalOpen]);
 
   // Global Friend Activity Broadcast: Broadcast playing song in real-time across Mobile & Desktop
   const currentSong = usePlayerStore((s) => s.currentSong);

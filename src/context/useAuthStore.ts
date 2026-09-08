@@ -145,7 +145,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         session: error ? null : session,
         user: initialUser,
-        isLoading: false
+        isLoading: false,
+        isAuthModalOpen: !initialUser,
       });
 
       // Listen for auth changes
@@ -199,12 +200,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             DeviceNameResolver.getInstance().setAccountDisplayName(null);
           }).catch(() => {});
           await purgeAllUserScopedState('AUTH_EVENT_SIGNED_OUT');
-          set({ session: null, user: null });
+          set({ session: null, user: null, isAuthModalOpen: true });
         }
       });
     } catch (e) {
       console.warn('Auth initialization fallback:', e);
-      set({ isLoading: false, session: null, user: null });
+      set({ isLoading: false, session: null, user: null, isAuthModalOpen: true });
     }
   },
 
@@ -218,8 +219,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // 2. Sign out from Supabase cloud
     await supabase.auth.signOut().catch(() => { });
 
-    // 3. Clear store state
-    set({ user: null, session: null });
+    // 3. Clear store state and prompt login
+    set({ user: null, session: null, isAuthModalOpen: true });
   }
 }));
 

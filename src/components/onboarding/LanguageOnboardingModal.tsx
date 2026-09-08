@@ -90,12 +90,6 @@ export function LanguageOnboardingModal() {
     }
   };
 
-  const handleContinueAsGuest = () => {
-    haptics.mediumImpact();
-    completeOnboarding(selectedLangs, selectedInterests);
-    setToastMessage(`Welcome to RaagaX! Exploring as Guest with local library.`);
-  };
-
   const handleSignUpLogin = () => {
     haptics.mediumImpact();
     completeOnboarding(selectedLangs, selectedInterests);
@@ -306,31 +300,23 @@ export function LanguageOnboardingModal() {
                 Ready to listen?
               </h2>
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                Enjoy complete local playback without an account, or create an account for automatic cloud synchronization across your devices.
+                An account is required to stream lossless music, sync your personal playlists, and connect with your friends in real-time.
               </p>
             </div>
 
             {/* Account Choice Action Buttons */}
             <div className="w-full max-w-sm space-y-3 pt-2">
               <button
-                onClick={handleContinueAsGuest}
-                className="w-full py-3.5 px-6 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-sm border border-white/15 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer shadow-lg flex items-center justify-center gap-2"
-              >
-                <User className="w-4 h-4 text-slate-300" />
-                <span>Continue as Guest</span>
-              </button>
-
-              <button
                 onClick={handleSignUpLogin}
-                className="w-full py-3.5 px-6 rounded-2xl bg-[#FA233B] hover:bg-[#d91e32] text-white font-black text-sm shadow-xl shadow-red-500/30 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                className="w-full py-4 px-6 rounded-2xl bg-[#FA233B] hover:bg-[#d91e32] text-white font-black text-sm shadow-xl shadow-red-500/30 transition-all hover:scale-[1.02] active:scale-95 cursor-pointer flex items-center justify-center gap-2"
               >
                 <Lock className="w-4 h-4" />
-                <span>Sign Up / Log In</span>
+                <span>Create Account or Log In</span>
               </button>
             </div>
 
             <p className="text-[11px] text-slate-400 max-w-xs leading-tight">
-              ⭐ <strong>Guest to Account Merge:</strong> Liked songs, playlists, and history created as a guest will automatically follow you when you log in later.
+              Create a free account in seconds with your email or sign in to access your existing music library.
             </p>
           </div>
         )}
