@@ -1,16 +1,16 @@
 {
-  "versionCode": 13,
-  "versionName": "1.2.9",
+  "versionCode": 12,
+  "versionName": "1.2.8",
   "apkUrl": "https://raaga.me/api/app/download",
-  "sha256": "e6adcbaf1c386dd3a808b2f521d67f6264ab1cafefddc55f24f6df8d9679b865",
+  "sha256": "bf93b7b54b2da2974ecc3241bd9e42c2168f00c41f156f48573ba575cc2626f5",
   "fileSize": 13537812,
   "releaseDate": "2026-09-08",
   "mandatory": false,
   "minimumSupportedVersion": 1,
   "releaseChannel": "stable",
   "releaseNotes": [
-    "Automatic In-App OTA Update notification & live download progress bar.",
-    "Fixed Jam Session playback & sync across host and guest devices.",
+    "Fixed Jam Session playback in APK: guests seamlessly stream and play host Jam songs.",
+    "Fixed stale playbar song audio lingering when joining Jam sessions.",
     "Seamless Android Lock Screen & Notification Shade sync for Jam & Connect.",
     "Real-time song title, artist, artwork, position & duration sync on Lock Screen.",
     "Lossless playback engine and performance enhancements."
