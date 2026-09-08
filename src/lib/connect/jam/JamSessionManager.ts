@@ -1036,17 +1036,15 @@ export class JamSessionManager {
           const drift = Math.abs(currentPosSec - effectiveHostPosSec);
 
           if (hostState.isPlaying) {
-            // Case 2: Smooth buffer drift handling:
-            // Under 0.8s: Natural network jitter - do NOT seek to preserve silky smooth playback
-            // Between 0.8s - 2.5s: Soft seek debounced by 2.5s (lets player buffer settle)
-            // Over 2.5s: Severe drift / resumed from buffer stall, snap to host
-            if ((drift > 2.5 || (drift > 0.8 && now - this.lastSeekTime > 2500)) && effectiveHostPosSec > 0) {
+            // SILKY SMOOTH PLAYBACK: Do NOT force-seek for minor network drift under 3.5s.
+            // Force seeking flushes audio decoders and causes micro-drops/stutters.
+            if (drift > 3.5 && effectiveHostPosSec > 0 && now - this.lastSeekTime > 4000) {
               this.lastSeekTime = now;
               store.seek(effectiveHostPosSec);
             }
           } else {
-            // Paused: Snap immediately if drift > 0.4s
-            if (drift > 0.4 && now - this.lastSeekTime > 1500) {
+            // Paused: Snap immediately if drift > 0.8s
+            if (drift > 0.8 && now - this.lastSeekTime > 1500) {
               this.lastSeekTime = now;
               store.seek(effectiveHostPosSec);
             }
