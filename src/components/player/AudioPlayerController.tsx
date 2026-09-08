@@ -189,6 +189,13 @@ export function AudioPlayerController() {
         // If the store has no currentSong but native is reporting a title,
         // try to reconcile with the session queue so the mini-player renders.
         if (!store.currentSong && state.title) {
+          if (store.isInJam) {
+            const jamMgr = JamSessionManager.getInstance();
+            if (!jamMgr.isHost()) {
+              console.log('[AudioPlayerController] Skipping re-entry queue reconciliation for non-jam track while in Jam guest mode');
+              return;
+            }
+          }
           const matchedInQueue = store.queue.find(
             (s) => s.title?.toLowerCase() === state.title?.toLowerCase()
           );
@@ -298,8 +305,16 @@ export function AudioPlayerController() {
         const jamMgr = JamSessionManager.getInstance();
         if (!jamMgr.isHost()) {
           const jamSong = jamMgr.getActiveState()?.currentSong;
-          if (jamSong && data.trackId && data.trackId !== jamSong.id) {
-            console.log('[AudioPlayerController] Synchronously ignoring native trackChanged for non-jam track while in Jam room:', data.trackId);
+          if (!jamSong) {
+            console.log('[AudioPlayerController] Synchronously ignoring native trackChanged in Jam guest mode before host track received:', data.trackId || data.title);
+            return;
+          }
+          const isMatch = Boolean(
+            (data.trackId && data.trackId === jamSong.id) ||
+            (data.title && jamSong.title && data.title.trim().toLowerCase() === jamSong.title.trim().toLowerCase())
+          );
+          if (!isMatch) {
+            console.log('[AudioPlayerController] Synchronously ignoring native trackChanged for non-jam track while in Jam room:', data.trackId || data.title);
             return;
           }
         }

@@ -232,6 +232,8 @@ export class JamSessionManager {
       currentSong: null,
       currentTime: 0,
       seekTarget: null,
+      queue: [],
+      queueIndex: 0,
     });
 
     store.setToastMessage(`🚀 Joined Jam Room: ${formattedCode}`);
@@ -1018,15 +1020,8 @@ export class JamSessionManager {
         if (!isSameSong) {
           this.lastSeekTime = now;
           const currentJamQueue = usePlayerStore.getState().queue;
-          const jamQueue = currentJamQueue.length > 0 ? currentJamQueue : [hostSong];
-          if (RaagaXNativePlayer.isNative()) {
-            await PlaybackService.getInstance().loadQueueContext(
-              jamQueue,
-              0,
-              hostState.isPlaying,
-              Math.round(effectiveHostPosSec * 1000),
-              usePlayerStore.getState().playbackRequestId
-            );
+          if (currentJamQueue.length === 0) {
+            usePlayerStore.setState({ queue: [hostSong] });
           }
           await store.switchTrack(hostSong, 0, hostState.isPlaying, effectiveHostPosSec);
           if (hostState.isPlaying && !store.isPlaying) {

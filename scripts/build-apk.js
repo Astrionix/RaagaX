@@ -182,8 +182,8 @@ try {
     const fileSize = fileBuffer.length;
 
     const newManifest = {
-      versionCode: 8,
-      versionName: '1.2.4',
+      versionCode: 9,
+      versionName: '1.2.5',
       apkUrl: 'https://raaga.me/api/app/download',
       sha256: sha256,
       fileSize: fileSize,
