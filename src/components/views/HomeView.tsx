@@ -444,7 +444,7 @@ export function HomeView() {
     return (
       <div className="space-y-6 pb-8 select-none animate-in fade-in duration-300 w-full">
         {/* Header Skeleton */}
-        <div className="pt-1">
+        <div className="pt-3.5">
           <div className="h-8 w-56 bg-white/10 rounded-lg animate-pulse" />
         </div>
 
@@ -499,7 +499,7 @@ export function HomeView() {
       {/* 1. HEADER — Greeting                                                  */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       <section className="pt-0 flex flex-col gap-1">
-        <div className="pt-1">
+        <div className="pt-3.5">
           <h1 suppressHydrationWarning className="text-2xl sm:text-3xl font-black text-white tracking-tight">
             {feed?.greeting || greeting}, {displayName}
           </h1>
