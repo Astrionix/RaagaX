@@ -573,7 +573,11 @@ export class JamSessionManager {
    */
   public setGuestControlAllowed(allowed: boolean): void {
     if (!this.activeState || !this.isHost()) return;
-    this.activeState.isGuestControlAllowed = allowed;
+    this.activeState = {
+      ...this.activeState,
+      isGuestControlAllowed: allowed,
+      updatedAt: Date.now(),
+    };
     this.broadcastHostState();
     this.notifyListeners();
   }
@@ -663,14 +667,20 @@ export class JamSessionManager {
     if (!this.activeState || !this.isHost()) return;
 
     const store = usePlayerStore.getState();
-    this.activeState.currentSong = store.currentSong;
-    this.activeState.positionMs = typeof forcePositionMs === 'number' && !isNaN(forcePositionMs)
+    const newPos = typeof forcePositionMs === 'number' && !isNaN(forcePositionMs)
       ? Math.round(forcePositionMs)
       : Math.round((store.currentTime || 0) * 1000);
-    this.activeState.isPlaying = typeof forceIsPlaying === 'boolean'
+    const newPlaying = typeof forceIsPlaying === 'boolean'
       ? forceIsPlaying
       : store.isPlaying;
-    this.activeState.updatedAt = Date.now();
+
+    this.activeState = {
+      ...this.activeState,
+      currentSong: store.currentSong,
+      positionMs: newPos,
+      isPlaying: newPlaying,
+      updatedAt: Date.now(),
+    };
 
     this.sendSignal({
       eventId: 'evt_' + Math.random().toString(36).substring(2, 9),

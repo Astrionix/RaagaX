@@ -902,6 +902,7 @@ export function RightQueuePanel() {
                         <button
                           onClick={() => {
                             const next = !jamState.isGuestControlAllowed;
+                            setJamState((prev) => prev ? ({ ...prev, isGuestControlAllowed: next }) : null);
                             JamSessionManager.getInstance().setGuestControlAllowed(next);
                           }}
                           className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${

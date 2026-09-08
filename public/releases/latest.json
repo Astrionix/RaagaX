@@ -1,9 +1,9 @@
 {
-  "versionCode": 10,
-  "versionName": "1.2.6",
+  "versionCode": 11,
+  "versionName": "1.2.7",
   "apkUrl": "https://raaga.me/api/app/download",
-  "sha256": "bef87658dac4b4c00ca7386b8d4b51f97985d973ffb6224dd9ebd44349ee640a",
-  "fileSize": 13234671,
+  "sha256": "be1de60264cde48c35eb8eeb6c5a8882b6a5b08ed92770faede8b375a817057f",
+  "fileSize": 13234654,
   "releaseDate": "2026-09-08",
   "mandatory": false,
   "minimumSupportedVersion": 1,
