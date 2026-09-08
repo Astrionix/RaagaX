@@ -16,7 +16,6 @@ import {
   Settings,
   Disc3,
   BarChart3,
-  Clock,
   Download,
   ChevronRight,
   PanelLeftClose,
@@ -321,21 +320,6 @@ export function Sidebar() {
           >
             <Disc3 className={`w-4 h-4 flex-shrink-0 ${activeTab === 'album' ? 'text-[#FA233B]' : 'text-[var(--text-muted)]'}`} />
             {!isSidebarCollapsed && <span>Albums</span>}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('history')}
-            title="Listening History"
-            className={`w-full flex items-center ${
-              isSidebarCollapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2.5 py-2'
-            } rounded-xl text-xs transition-all cursor-pointer ${
-              activeTab === 'history'
-                ? 'bg-[#FA233B]/15 text-[#FA233B] font-semibold border border-[#FA233B]/20'
-                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] font-medium border border-transparent'
-            }`}
-          >
-            <Clock className={`w-4 h-4 flex-shrink-0 ${activeTab === 'history' ? 'text-[#FA233B]' : 'text-[var(--text-muted)]'}`} />
-            {!isSidebarCollapsed && <span>History</span>}
           </button>
 
           <button

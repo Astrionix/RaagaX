@@ -37,13 +37,13 @@ import {
   LogOut,
   Sparkles,
   Zap,
-  Clock,
+
   Plus,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { SongFormatter } from '@/lib/music/SongFormatter';
-import { QueueHistory } from '@/lib/queue/QueueHistory';
+
 import { Song } from '@/types/music';
 import { DeviceDiscoveryEngine } from '@/lib/connect/discovery/DeviceDiscoveryEngine';
 import { PairingService } from '@/lib/connect/auth/PairingService';
@@ -104,9 +104,8 @@ export function RightQueuePanel() {
     DeviceNameResolver.getInstance().getLocalDeviceDisplayName()
   );
 
-  // Queue Sub-Tab State ('upnext' | 'history' | 'friends')
-  const [queueSubTab, setQueueSubTab] = useState<'upnext' | 'history' | 'friends'>('upnext');
-  const [historyItems, setHistoryItems] = useState<{ song: Song; playedAt?: number }[]>([]);
+  // Queue Sub-Tab State ('upnext' | 'friends')
+  const [queueSubTab, setQueueSubTab] = useState<'upnext' | 'friends'>('upnext');
   const [friendsActivity, setFriendsActivity] = useState<FriendActivityState[]>([]);
 
   useEffect(() => {
@@ -126,36 +125,7 @@ export function RightQueuePanel() {
     }
   }, [currentSong?.id, isPlaying]);
 
-  useEffect(() => {
-    if (rightPanelMode === 'queue' && queueSubTab === 'history') {
-      const qh = QueueHistory.getInstance();
-      qh.ensureLoaded().then(() => {
-        const entries = qh.getRecentlyPlayed(50);
-        if (entries) {
-          setHistoryItems(entries.map((e) => ({ song: e.song, playedAt: e.startedAt || Date.now() })));
-        }
-      }).catch(() => {});
-    }
-  }, [rightPanelMode, queueSubTab]);
 
-  const handleClearHistory = async () => {
-    haptics.mediumImpact();
-    await QueueHistory.getInstance().clear();
-    setHistoryItems([]);
-    setToastMessage('Listening history cleared');
-  };
-
-  const formatTimeAgo = (ts?: number) => {
-    if (!ts) return '';
-    const diffSec = Math.floor((Date.now() - ts) / 1000);
-    if (diffSec < 60) return 'Just now';
-    const diffMin = Math.floor(diffSec / 60);
-    if (diffMin < 60) return `${diffMin}m ago`;
-    const diffHours = Math.floor(diffMin / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d ago`;
-  };
 
   // Jam Session State & Handlers inside Right Side Panel
   const [jamState, setJamState] = useState<JamSessionState | null>(null);
@@ -397,20 +367,7 @@ export function RightQueuePanel() {
                 )}
               </button>
 
-              <button
-                onClick={() => {
-                  haptics.lightImpact();
-                  setQueueSubTab('history');
-                }}
-                className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer select-none ${
-                  queueSubTab === 'history'
-                    ? 'bg-[#fa233b]/20 text-[#fa233b] border border-[#fa233b]/35 shadow-sm'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
-                }`}
-              >
-                <Clock className="w-3.5 h-3.5 flex-shrink-0" />
-                <span className="truncate min-w-0">History</span>
-              </button>
+
 
               <button
                 onClick={() => {
@@ -483,19 +440,7 @@ export function RightQueuePanel() {
                   </button>
                 )}
               </>
-            ) : (
-              <>
-                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Recently Played</span>
-                {historyItems.length > 0 && (
-                  <button
-                    onClick={handleClearHistory}
-                    className="text-[11px] font-bold text-[#fa233b] hover:underline px-1 py-0.5 rounded cursor-pointer transition-colors"
-                  >
-                    Clear History
-                  </button>
-                )}
-              </>
-            )}
+            ) : null}
           </div>
         ) : (
           <div className="flex items-center justify-between px-1 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
@@ -624,79 +569,6 @@ export function RightQueuePanel() {
               )}
             </div>
           </>
-        ) : queueSubTab === 'history' ? (
-          /* ── SUB-TAB: LISTENING HISTORY VIEW ── */
-          <div className="space-y-1 overflow-y-auto no-scrollbar flex-1 pr-0.5">
-            {historyItems.length > 0 ? (
-              historyItems.map((item, idx) => (
-                <div
-                  key={`${item.song.id}-${item.playedAt || idx}`}
-                  className="p-2 rounded-xl hover:bg-[var(--surface-hover)] border border-transparent hover:border-[var(--border-subtle)] flex items-center justify-between group cursor-pointer transition-all min-w-0 w-full"
-                >
-                  <div
-                    onClick={() => {
-                      haptics.lightImpact();
-                      playSong(item.song);
-                    }}
-                    className="flex items-center gap-3 min-w-0 flex-1 pr-2"
-                  >
-                    <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-sm flex-shrink-0 border border-[var(--border-subtle)] bg-black/40 flex items-center justify-center group-hover:border-[#fa233b]/40">
-                      <OptimizedImage
-                        src={item.song.coverUrl}
-                        alt={item.song.title}
-                        imageFit="contain"
-                        className="w-full h-full object-contain"
-                        fallbackSrc="/app-icon.png"
-                      />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <Play className="w-4 h-4 text-white fill-white" />
-                      </div>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h4 className="font-bold text-xs text-[var(--text-primary)] truncate leading-tight group-hover:text-[#fa233b] transition-colors">
-                        {SongFormatter.cleanSongTitle(item.song.title)}
-                      </h4>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <p className="text-[10px] text-[var(--text-secondary)] truncate leading-tight font-medium">
-                          {SongFormatter.decodeHtml(item.song.artist) || item.song.artist || 'Unknown Artist'}
-                        </p>
-                        {item.playedAt && (
-                          <span className="text-[9px] text-[var(--text-muted)] font-mono flex-shrink-0">
-                            • {formatTimeAgo(item.playedAt)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => toggleLikeSong(item.song.id)}
-                      className={`p-1 transition-colors cursor-pointer ${likedSongIds.includes(item.song.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                      title={likedSongIds.includes(item.song.id) ? 'Unlike' : 'Like'}
-                    >
-                      <Heart className={`w-3.5 h-3.5 ${likedSongIds.includes(item.song.id) ? 'fill-[#fa233b] text-[#fa233b]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`} />
-                    </button>
-                    <button
-                      onClick={() => {
-                        haptics.lightImpact();
-                        playSong(item.song);
-                      }}
-                      className="p-1 text-[var(--text-muted)] hover:text-[#fa233b] transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
-                      title="Play again"
-                    >
-                      <Play className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="py-12 flex flex-col items-center justify-center text-center text-[var(--text-muted)] text-xs font-semibold gap-2">
-                <Clock className="w-8 h-8 opacity-60 text-slate-500" />
-                <p>No listening history yet</p>
-                <p className="text-[10px] opacity-70 font-normal">Songs you play will appear here</p>
-              </div>
-            )}
-          </div>
         ) : (
           /* ── SUB-TAB: FRIENDS LIVE ACTIVITY FEED ── */
           <div className="space-y-2 overflow-y-auto no-scrollbar flex-1 pr-0.5">
