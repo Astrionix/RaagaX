@@ -37,11 +37,14 @@ import {
   LogOut,
   Sparkles,
   Zap,
+  Clock,
   Plus,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { SongFormatter } from '@/lib/music/SongFormatter';
+import { QueueHistory } from '@/lib/queue/QueueHistory';
+import { Song } from '@/types/music';
 import { DeviceDiscoveryEngine } from '@/lib/connect/discovery/DeviceDiscoveryEngine';
 import { PairingService } from '@/lib/connect/auth/PairingService';
 import { ConnectSessionManager } from '@/lib/connect/session/ConnectSessionManager';
@@ -99,6 +102,41 @@ export function RightQueuePanel() {
   const [localDeviceName, setLocalDeviceName] = useState(() =>
     DeviceNameResolver.getInstance().getLocalDeviceDisplayName()
   );
+
+  // Queue Sub-Tab State ('upnext' | 'history')
+  const [queueSubTab, setQueueSubTab] = useState<'upnext' | 'history'>('upnext');
+  const [historyItems, setHistoryItems] = useState<{ song: Song; playedAt?: number }[]>([]);
+
+  useEffect(() => {
+    if (rightPanelMode === 'queue' && queueSubTab === 'history') {
+      const qh = QueueHistory.getInstance();
+      qh.ensureLoaded().then(() => {
+        const entries = qh.getRecentlyPlayed(50);
+        if (entries) {
+          setHistoryItems(entries.map((e) => ({ song: e.song, playedAt: e.startedAt || Date.now() })));
+        }
+      }).catch(() => {});
+    }
+  }, [rightPanelMode, queueSubTab]);
+
+  const handleClearHistory = async () => {
+    haptics.mediumImpact();
+    await QueueHistory.getInstance().clear();
+    setHistoryItems([]);
+    setToastMessage('Listening history cleared');
+  };
+
+  const formatTimeAgo = (ts?: number) => {
+    if (!ts) return '';
+    const diffSec = Math.floor((Date.now() - ts) / 1000);
+    if (diffSec < 60) return 'Just now';
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d ago`;
+  };
 
   // Jam Session State & Handlers inside Right Side Panel
   const [jamState, setJamState] = useState<JamSessionState | null>(null);
@@ -372,33 +410,78 @@ export function RightQueuePanel() {
           </button>
         </div>
 
-        {/* Sub-Bar Actions */}
+        {/* Sub-Bar Actions: Queue Mode Sub-Tabs vs Connect Status */}
         {rightPanelMode === 'queue' ? (
-          <div className="flex items-center justify-between px-1 text-[11px] font-medium text-[var(--text-secondary)]">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Autoplay</span>
+          <div className="flex items-center justify-between gap-2 px-0.5 pt-1">
+            {/* Sub-tab Pill Switcher */}
+            <div className="flex items-center gap-1 p-0.5 rounded-lg bg-black/30 border border-white/5 flex-1 min-w-0">
               <button
-                onClick={() => toggleAutoplay()}
-                className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${
-                  isAutoplayEnabled ? 'bg-[#fa233b]' : 'bg-slate-700'
+                onClick={() => {
+                  haptics.lightImpact();
+                  setQueueSubTab('upnext');
+                }}
+                className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[10px] font-extrabold transition-all cursor-pointer select-none ${
+                  queueSubTab === 'upnext'
+                    ? 'bg-[#fa233b]/20 text-[#fa233b] border border-[#fa233b]/35 shadow-xs'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/5 border border-transparent'
                 }`}
-                title="Toggle Autoplay for similar songs"
               >
-                <div
-                  className={`w-3 h-3 rounded-full bg-white transition-transform ${
-                    isAutoplayEnabled ? 'translate-x-3' : 'translate-x-0'
-                  }`}
-                />
+                <ListMusic className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate">Up Next</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  haptics.lightImpact();
+                  setQueueSubTab('history');
+                }}
+                className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[10px] font-extrabold transition-all cursor-pointer select-none ${
+                  queueSubTab === 'history'
+                    ? 'bg-[#fa233b]/20 text-[#fa233b] border border-[#fa233b]/35 shadow-xs'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/5 border border-transparent'
+                }`}
+              >
+                <Clock className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate">History</span>
               </button>
             </div>
 
-            {upNextQueue.length > 0 && (
-              <button
-                onClick={handleClearQueue}
-                className="text-[11px] font-bold text-[#fa233b] hover:underline px-1 py-0.5 rounded cursor-pointer transition-colors"
-              >
-                Clear Queue
-              </button>
+            {/* Quick Action Button based on Sub-Tab */}
+            {queueSubTab === 'upnext' ? (
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <span className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider hidden sm:inline">Autoplay</span>
+                <button
+                  onClick={() => toggleAutoplay()}
+                  className={`w-6 h-3.5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                    isAutoplayEnabled ? 'bg-[#fa233b]' : 'bg-slate-700'
+                  }`}
+                  title="Toggle Autoplay for similar songs"
+                >
+                  <div
+                    className={`w-2.5 h-2.5 rounded-full bg-white transition-transform ${
+                      isAutoplayEnabled ? 'translate-x-2.5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+                {upNextQueue.length > 0 && (
+                  <button
+                    onClick={handleClearQueue}
+                    className="text-[10px] font-bold text-[#fa233b] hover:underline ml-1 cursor-pointer transition-colors"
+                    title="Clear queue"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            ) : (
+              historyItems.length > 0 && (
+                <button
+                  onClick={handleClearHistory}
+                  className="text-[10px] font-bold text-[#fa233b] hover:underline px-1 py-0.5 rounded cursor-pointer transition-colors flex-shrink-0"
+                >
+                  Clear History
+                </button>
+              )
             )}
           </div>
         ) : (
@@ -415,118 +498,193 @@ export function RightQueuePanel() {
       </div>
 
 
-      {/* ── MODE A: QUEUE VIEW ── */}
+      {/* ── MODE A: QUEUE / HISTORY VIEW ── */}
       {rightPanelMode === 'queue' ? (
-        <>
-          {/* Currently Playing Card */}
-          {mounted && currentSong && (
-            <div className="p-3 rounded-2xl bg-gradient-to-r from-[#fa233b]/15 to-[#fa233b]/5 border border-[#fa233b]/30 flex items-center justify-between flex-shrink-0 min-w-0 w-full mb-3 shadow-md shadow-red-500/5">
-              <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
-                <div className="relative w-10 h-10 rounded-xl overflow-hidden shadow-sm flex-shrink-0 border border-white/10 bg-black/40 flex items-center justify-center">
-                  <OptimizedImage
-                    src={currentSong.coverUrl}
-                    alt={currentSong.title}
-                    imageFit="contain"
-                    className="w-full h-full object-contain"
-                    fallbackSrc="/app-icon.png"
-                  />
+        queueSubTab === 'upnext' ? (
+          <>
+            {/* Currently Playing Card */}
+            {mounted && currentSong && (
+              <div className="p-3 rounded-2xl bg-gradient-to-r from-[#fa233b]/15 to-[#fa233b]/5 border border-[#fa233b]/30 flex items-center justify-between flex-shrink-0 min-w-0 w-full mb-3 shadow-md shadow-red-500/5">
+                <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                  <div className="relative w-10 h-10 rounded-xl overflow-hidden shadow-sm flex-shrink-0 border border-white/10 bg-black/40 flex items-center justify-center">
+                    <OptimizedImage
+                      src={currentSong.coverUrl}
+                      alt={currentSong.title}
+                      imageFit="contain"
+                      className="w-full h-full object-contain"
+                      fallbackSrc="/app-icon.png"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-black text-xs text-[var(--text-primary)] truncate leading-tight">
+                      {SongFormatter.cleanSongTitle(currentSong.title)}
+                    </h4>
+                    <p className="text-[10px] text-[var(--text-secondary)] truncate mt-0.5 font-medium">
+                      {SongFormatter.decodeHtml(currentSong.artist) || currentSong.artist || 'Unknown Artist'}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <h4 className="font-black text-xs text-[var(--text-primary)] truncate leading-tight">
-                    {SongFormatter.cleanSongTitle(currentSong.title)}
-                  </h4>
-                  <p className="text-[10px] text-[var(--text-secondary)] truncate mt-0.5 font-medium">
-                    {SongFormatter.decodeHtml(currentSong.artist) || currentSong.artist || 'Unknown Artist'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button 
-                  onClick={() => toggleLikeSong(currentSong.id)}
-                  className="p-1.5 hover:bg-[#fa233b]/20 rounded-full transition-colors cursor-pointer"
-                  title={likedSongIds.includes(currentSong.id) ? 'Unlike' : 'Like'}
-                >
-                  <Heart className={`w-3.5 h-3.5 ${likedSongIds.includes(currentSong.id) ? 'fill-[#fa233b] text-[#fa233b]' : 'text-[var(--text-muted)]'}`} />
-                </button>
-                <span className="text-[9px] font-mono text-[#fa233b] font-extrabold px-1.5 py-0.5 rounded-full bg-[#fa233b]/15 border border-[#fa233b]/25">
-                  Playing
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Up Next Queue List */}
-          <div className="space-y-1 overflow-y-auto no-scrollbar flex-1 pr-0.5">
-            {upNextQueue.length > 0 ? (
-              upNextQueue.map((item: any, idx) => {
-                const song = item.song || item;
-                const addedByName = item.addedByName;
-
-                return (
-                  <div
-                    key={`${song.id}-${idx}`}
-                    className="p-2 rounded-xl hover:bg-[var(--surface-hover)] border border-transparent hover:border-[var(--border-subtle)] flex items-center justify-between group cursor-pointer transition-all min-w-0 w-full"
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button 
+                    onClick={() => toggleLikeSong(currentSong.id)}
+                    className="p-1.5 hover:bg-[#fa233b]/20 rounded-full transition-colors cursor-pointer"
+                    title={likedSongIds.includes(currentSong.id) ? 'Unlike' : 'Like'}
                   >
+                    <Heart className={`w-3.5 h-3.5 ${likedSongIds.includes(currentSong.id) ? 'fill-[#fa233b] text-[#fa233b]' : 'text-[var(--text-muted)]'}`} />
+                  </button>
+                  <span className="text-[9px] font-mono text-[#fa233b] font-extrabold px-1.5 py-0.5 rounded-full bg-[#fa233b]/15 border border-[#fa233b]/25">
+                    Playing
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Up Next Queue List */}
+            <div className="space-y-1 overflow-y-auto no-scrollbar flex-1 pr-0.5">
+              {upNextQueue.length > 0 ? (
+                upNextQueue.map((item: any, idx) => {
+                  const song = item.song || item;
+                  const addedByName = item.addedByName;
+
+                  return (
                     <div
-                      onClick={() => playSong(song)}
-                      className="flex items-center gap-3 min-w-0 flex-1 pr-2"
+                      key={`${song.id}-${idx}`}
+                      className="p-2 rounded-xl hover:bg-[var(--surface-hover)] border border-transparent hover:border-[var(--border-subtle)] flex items-center justify-between group cursor-pointer transition-all min-w-0 w-full"
                     >
-                      <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-sm flex-shrink-0 border border-[var(--border-subtle)] bg-black/40 flex items-center justify-center">
-                        <OptimizedImage
-                          src={song.coverUrl}
-                          alt={song.title}
-                          imageFit="contain"
-                          className="w-full h-full object-contain"
-                          fallbackSrc="/app-icon.png"
-                        />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h4 className="font-bold text-xs text-[var(--text-primary)] truncate leading-tight group-hover:text-[#fa233b] transition-colors">
-                          {SongFormatter.cleanSongTitle(song.title)}
-                        </h4>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <p className="text-[10px] text-[var(--text-secondary)] truncate leading-tight font-medium">
-                            {SongFormatter.decodeHtml(song.artist) || song.artist || 'Unknown Artist'}
-                          </p>
-                          {addedByName && (
-                            <span className="text-[8px] px-1 py-0.1 rounded-full bg-[#FA233B]/10 text-[#FA233B] border border-[#FA233B]/20">
-                              {addedByName}
-                            </span>
-                          )}
+                      <div
+                        onClick={() => playSong(song)}
+                        className="flex items-center gap-3 min-w-0 flex-1 pr-2"
+                      >
+                        <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-sm flex-shrink-0 border border-[var(--border-subtle)] bg-black/40 flex items-center justify-center">
+                          <OptimizedImage
+                            src={song.coverUrl}
+                            alt={song.title}
+                            imageFit="contain"
+                            className="w-full h-full object-contain"
+                            fallbackSrc="/app-icon.png"
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-bold text-xs text-[var(--text-primary)] truncate leading-tight group-hover:text-[#fa233b] transition-colors">
+                            {SongFormatter.cleanSongTitle(song.title)}
+                          </h4>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <p className="text-[10px] text-[var(--text-secondary)] truncate leading-tight font-medium">
+                              {SongFormatter.decodeHtml(song.artist) || song.artist || 'Unknown Artist'}
+                            </p>
+                            {addedByName && (
+                              <span className="text-[8px] px-1 py-0.1 rounded-full bg-[#FA233B]/10 text-[#FA233B] border border-[#FA233B]/20">
+                                {addedByName}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button 
+                          onClick={() => toggleLikeSong(song.id)}
+                          className={`p-1 transition-colors cursor-pointer ${likedSongIds.includes(song.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                          title={likedSongIds.includes(song.id) ? 'Unlike' : 'Like'}
+                        >
+                          <Heart className={`w-3.5 h-3.5 ${likedSongIds.includes(song.id) ? 'fill-[#fa233b] text-[#fa233b]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`} />
+                        </button>
+                        <span className="text-[10px] font-mono text-[var(--text-muted)] font-medium">
+                          {song.duration ? `${Math.floor(Number(song.duration) / 60)}:${Math.floor(Number(song.duration) % 60).toString().padStart(2, '0')}` : '3:45'}
+                        </span>
+                        <button
+                          onClick={() => removeFromQueue(song.id)}
+                          className="opacity-0 group-hover:opacity-100 p-1 text-[var(--text-muted)] hover:text-red-400 transition-opacity cursor-pointer"
+                          title="Remove from queue"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button 
-                        onClick={() => toggleLikeSong(song.id)}
-                        className={`p-1 transition-colors cursor-pointer ${likedSongIds.includes(song.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                        title={likedSongIds.includes(song.id) ? 'Unlike' : 'Like'}
-                      >
-                        <Heart className={`w-3.5 h-3.5 ${likedSongIds.includes(song.id) ? 'fill-[#fa233b] text-[#fa233b]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`} />
-                      </button>
-                      <span className="text-[10px] font-mono text-[var(--text-muted)] font-medium">
-                        {song.duration ? `${Math.floor(Number(song.duration) / 60)}:${Math.floor(Number(song.duration) % 60).toString().padStart(2, '0')}` : '3:45'}
-                      </span>
-                      <button
-                        onClick={() => removeFromQueue(song.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-[var(--text-muted)] hover:text-red-400 transition-opacity cursor-pointer"
-                        title="Remove from queue"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                  );
+                })
+              ) : (
+                <div className="py-12 flex flex-col items-center justify-center text-center text-[var(--text-muted)] text-xs font-semibold gap-2">
+                  <Music2 className="w-8 h-8 opacity-60" />
+                  <p>Queue is empty</p>
+                  <p className="text-[10px] opacity-70 font-normal">Play a track or add songs to queue</p>
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          /* ── SUB-TAB: LISTENING HISTORY VIEW ── */
+          <div className="space-y-1 overflow-y-auto no-scrollbar flex-1 pr-0.5">
+            {historyItems.length > 0 ? (
+              historyItems.map((item, idx) => (
+                <div
+                  key={`${item.song.id}-${item.playedAt || idx}`}
+                  className="p-2 rounded-xl hover:bg-[var(--surface-hover)] border border-transparent hover:border-[var(--border-subtle)] flex items-center justify-between group cursor-pointer transition-all min-w-0 w-full"
+                >
+                  <div
+                    onClick={() => {
+                      haptics.lightImpact();
+                      playSong(item.song);
+                    }}
+                    className="flex items-center gap-3 min-w-0 flex-1 pr-2"
+                  >
+                    <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-sm flex-shrink-0 border border-[var(--border-subtle)] bg-black/40 flex items-center justify-center group-hover:border-[#fa233b]/40">
+                      <OptimizedImage
+                        src={item.song.coverUrl}
+                        alt={item.song.title}
+                        imageFit="contain"
+                        className="w-full h-full object-contain"
+                        fallbackSrc="/app-icon.png"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Play className="w-4 h-4 text-white fill-white" />
+                      </div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="font-bold text-xs text-[var(--text-primary)] truncate leading-tight group-hover:text-[#fa233b] transition-colors">
+                        {SongFormatter.cleanSongTitle(item.song.title)}
+                      </h4>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-[10px] text-[var(--text-secondary)] truncate leading-tight font-medium">
+                          {SongFormatter.decodeHtml(item.song.artist) || item.song.artist || 'Unknown Artist'}
+                        </p>
+                        {item.playedAt && (
+                          <span className="text-[9px] text-[var(--text-muted)] font-mono flex-shrink-0">
+                            • {formatTimeAgo(item.playedAt)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                );
-              })
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => toggleLikeSong(item.song.id)}
+                      className={`p-1 transition-colors cursor-pointer ${likedSongIds.includes(item.song.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                      title={likedSongIds.includes(item.song.id) ? 'Unlike' : 'Like'}
+                    >
+                      <Heart className={`w-3.5 h-3.5 ${likedSongIds.includes(item.song.id) ? 'fill-[#fa233b] text-[#fa233b]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        haptics.lightImpact();
+                        playSong(item.song);
+                      }}
+                      className="p-1 text-[var(--text-muted)] hover:text-[#fa233b] transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
+                      title="Play again"
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))
             ) : (
               <div className="py-12 flex flex-col items-center justify-center text-center text-[var(--text-muted)] text-xs font-semibold gap-2">
-                <Music2 className="w-8 h-8 opacity-60" />
-                <p>Queue is empty</p>
-                <p className="text-[10px] opacity-70 font-normal">Play a track or add songs to queue</p>
+                <Clock className="w-8 h-8 opacity-60 text-slate-500" />
+                <p>No listening history yet</p>
+                <p className="text-[10px] opacity-70 font-normal">Songs you play will appear here</p>
               </div>
             )}
           </div>
-        </>
+        )
       ) : (
         /* ── MODE B: CONNECT TO DEVICE VIEW (§1-§10) ── */
         <div className="space-y-4 overflow-y-auto custom-scrollbar flex-1 pr-0.5">
