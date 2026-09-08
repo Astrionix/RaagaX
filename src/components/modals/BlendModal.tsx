@@ -7,6 +7,8 @@ import { BlendEngine, BlendResult } from '@/lib/social/BlendEngine';
 import { X, Sparkles, Play, Share2, Users, Check, Copy, Fingerprint, Search, Loader2 } from 'lucide-react';
 import { haptics } from '@/lib/haptics/HapticEngine';
 
+import { getMyFriendIdentity } from '@/lib/social/FriendActivityEngine';
+
 export function BlendModal({
   isOpen,
   onClose,
@@ -15,16 +17,18 @@ export function BlendModal({
   onClose: () => void;
 }) {
   const { user } = useAuthStore();
-  const { likedSongs, playSong, activeBlend, leaveActiveBlend, setActiveBlend } = usePlayerStore();
+  const { likedSongs, queue, playSong, activeBlend, leaveActiveBlend, setActiveBlend } = usePlayerStore();
   const [friendInput, setFriendInput] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [blendResult, setBlendResult] = useState<BlendResult | null>(null);
   const [copiedId, setCopiedId] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Generate deterministic Unique Blend ID for logged in user
+  // Use persistent, deterministic Unique RGX Tag consistent with Friends Activity
   const myName = user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'You';
-  const myUniqueId = useMemo(() => BlendEngine.getUniqueBlendId(user?.id || myName), [user?.id, myName]);
+  const myUniqueId = useMemo(() => {
+    return getMyFriendIdentity().userTag;
+  }, []);
 
   const parsedInput = useMemo(() => {
     if (!friendInput.trim()) return null;
@@ -40,9 +44,11 @@ export function BlendModal({
     haptics.mediumImpact();
     setIsAnalyzing(true);
 
+    const songsPool = (likedSongs && likedSongs.length > 0) ? likedSongs : (queue && queue.length > 0 ? queue : []);
+
     // Smooth loading transition delay for realistic music DNA analysis feel
     setTimeout(() => {
-      const result = BlendEngine.createBlend(myName, myUniqueId, friendInput, likedSongs as any[], likedSongs as any[]);
+      const result = BlendEngine.createBlend(myName, myUniqueId, friendInput, songsPool as any[], songsPool as any[]);
       setBlendResult(result);
       setIsAnalyzing(false);
     }, 1100);
@@ -60,7 +66,7 @@ export function BlendModal({
   const handleCopyInviteLink = () => {
     haptics.lightImpact();
     if (typeof navigator !== 'undefined') {
-      navigator.clipboard.writeText(`https://raagax.app/blend?id=${myUniqueId}`);
+      navigator.clipboard.writeText(`https://raaga.me/blend?id=${myUniqueId}`);
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2500);
     }
@@ -72,6 +78,9 @@ export function BlendModal({
     // Enforce single-blend rule: leave any existing blend before connecting to a new one
     if (activeBlend) leaveActiveBlend();
     setActiveBlend(blendResult);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('raagax_active_blend', JSON.stringify(blendResult));
+    }
     playSong(blendResult.songs[0], blendResult.songs, {
       type: 'made_for_you',
       id: blendResult.id,

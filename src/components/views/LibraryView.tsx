@@ -62,13 +62,8 @@ export function LibraryView() {
   });
   const [tagInput, setTagInput] = useState('');
   const [copiedTag, setCopiedTag] = useState(false);
-  const [activeBlend, setActiveBlend] = useState<BlendResult | null>(() => {
-    if (typeof window === 'undefined') return null;
-    try {
-      const raw = localStorage.getItem('raagax_active_blend');
-      return raw ? JSON.parse(raw) : null;
-    } catch { return null; }
-  });
+  const activeBlend = usePlayerStore((s) => s.activeBlend);
+  const leaveActiveBlend = usePlayerStore((s) => s.leaveActiveBlend);
 
   const [myTag, setMyTag] = useState<string>('RGX-0000');
 
@@ -124,10 +119,7 @@ export function LibraryView() {
   };
 
   const handleLeaveBlend = () => {
-    setActiveBlend(null);
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('raagax_active_blend');
-    }
+    leaveActiveBlend();
     haptics.mediumImpact();
   };
 

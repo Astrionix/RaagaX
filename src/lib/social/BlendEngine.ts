@@ -90,6 +90,115 @@ export class BlendEngine {
       if (blendedSongs.length >= 40) break;
     }
 
+    // Fallback: If both users have empty liked songs, provide high-quality curated chartbusters
+    if (blendedSongs.length < 5) {
+      const fallbackTracks: Song[] = [
+        {
+          id: 'dev_chuttamalle',
+          title: 'Chuttamalle',
+          artist: 'Shilpa Rao, Anirudh Ravichander',
+          artistId: '455663',
+          album: 'Devara Part 1',
+          albumId: 'devara_1',
+          duration: 220,
+          coverUrl: 'https://c.saavncdn.com/006/Devara-Part-1-Telugu-2024-20240927161008-500x500.jpg',
+          audioUrl: null,
+          genre: 'Melody',
+          category: 'latest_telugu',
+          releaseYear: 2024,
+          plays: 12000000,
+          likes: 450000,
+        },
+        {
+          id: 'dev_fear_song',
+          title: 'Fear Song',
+          artist: 'Anirudh Ravichander',
+          artistId: '455663',
+          album: 'Devara Part 1',
+          albumId: 'devara_1',
+          duration: 195,
+          coverUrl: 'https://c.saavncdn.com/006/Devara-Part-1-Telugu-2024-20240927161008-500x500.jpg',
+          audioUrl: null,
+          genre: 'Mass',
+          category: 'mass',
+          releaseYear: 2024,
+          plays: 18000000,
+          likes: 620000,
+        },
+        {
+          id: 'push_srivalli',
+          title: 'Srivalli',
+          artist: 'Sid Sriram, Devi Sri Prasad',
+          artistId: '689580',
+          album: 'Pushpa - The Rise',
+          albumId: 'pushpa_1',
+          duration: 218,
+          coverUrl: 'https://c.saavncdn.com/832/Pushpa-The-Rise-Telugu-2021-20211223201458-500x500.jpg',
+          audioUrl: null,
+          genre: 'Melody',
+          category: 'latest_telugu',
+          releaseYear: 2021,
+          plays: 25000000,
+          likes: 850000,
+        },
+        {
+          id: 'ala_samajavaragamana',
+          title: 'Samajavaragamana',
+          artist: 'Sid Sriram, Thaman S',
+          artistId: '689580',
+          album: 'Ala Vaikunthapurramuloo',
+          albumId: 'avpl_1',
+          duration: 214,
+          coverUrl: 'https://c.saavncdn.com/348/Ala-Vaikunthapurramuloo-Telugu-2019-20200113151128-500x500.jpg',
+          audioUrl: null,
+          genre: 'Melody',
+          category: 'latest_telugu',
+          releaseYear: 2020,
+          plays: 35000000,
+          likes: 1200000,
+        },
+        {
+          id: 'rrr_naatu',
+          title: 'Naatu Naatu',
+          artist: 'Rahul Sipligunj, Kaala Bhairava, M.M. Keeravaani',
+          artistId: '456269',
+          album: 'RRR',
+          albumId: 'rrr_1',
+          duration: 215,
+          coverUrl: 'https://c.saavncdn.com/581/RRR-Telugu-2021-20211210141008-500x500.jpg',
+          audioUrl: null,
+          genre: 'Mass Beats',
+          category: 'mass',
+          releaseYear: 2022,
+          plays: 40000000,
+          likes: 1500000,
+        },
+        {
+          id: 'dev_daavudi',
+          title: 'Daavudi',
+          artist: 'Nakash Aziz, Akasa, Anirudh Ravichander',
+          artistId: '455663',
+          album: 'Devara Part 1',
+          albumId: 'devara_1',
+          duration: 205,
+          coverUrl: 'https://c.saavncdn.com/006/Devara-Part-1-Telugu-2024-20240927161008-500x500.jpg',
+          audioUrl: null,
+          genre: 'Dance',
+          category: 'mass',
+          releaseYear: 2024,
+          plays: 9000000,
+          likes: 320000,
+        }
+      ];
+
+      fallbackTracks.forEach((t) => {
+        if (!usedIds.has(t.id)) {
+          blendedSongs.push(t);
+          usedIds.add(t.id);
+        }
+      });
+    }
+
     const descriptions = [
       `Your music DNA overlaps on high-energy Telugu & Bollywood hits!`,
       `You both share a deep love for acoustic melodies & late-night tracks!`,

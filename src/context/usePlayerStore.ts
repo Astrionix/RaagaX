@@ -628,9 +628,31 @@ export const usePlayerStore = create<PlayerState>()(
       isJamModalOpen: false,
       isBlendModalOpen: false,
       toggleBlendModal: (open) => set((s) => ({ isBlendModalOpen: open !== undefined ? open : !s.isBlendModalOpen })),
-      activeBlend: null,
-      setActiveBlend: (blend) => set({ activeBlend: blend }),
-      leaveActiveBlend: () => set({ activeBlend: null }),
+      activeBlend: (() => {
+        if (typeof window === 'undefined') return null;
+        try {
+          const raw = localStorage.getItem('raagax_active_blend');
+          return raw ? JSON.parse(raw) : null;
+        } catch { return null; }
+      })(),
+      setActiveBlend: (blend) => {
+        if (typeof window !== 'undefined') {
+          try {
+            if (blend) {
+              localStorage.setItem('raagax_active_blend', JSON.stringify(blend));
+            } else {
+              localStorage.removeItem('raagax_active_blend');
+            }
+          } catch {}
+        }
+        set({ activeBlend: blend });
+      },
+      leaveActiveBlend: () => {
+        if (typeof window !== 'undefined') {
+          try { localStorage.removeItem('raagax_active_blend'); } catch {}
+        }
+        set({ activeBlend: null });
+      },
       activeJamRoomCode: null,
       toggleJamModal: (open) => set((s) => {
         const shouldOpen = open !== undefined ? open : !s.isJamModalOpen;
