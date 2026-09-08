@@ -17,8 +17,9 @@ export function TopRightUpdateBadge() {
     return unsub;
   }, []);
 
-  // ONLY VISIBLE WHEN UPDATE IS AVAILABLE!
-  if (!updateState.isUpdateAvailable || !updateState.manifest) {
+  // ONLY VISIBLE WHEN UPDATE IS AVAILABLE & ON NATIVE MOBILE APK!
+  const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
+  if (!isNative || !updateState.isUpdateAvailable || !updateState.manifest) {
     return null;
   }
 

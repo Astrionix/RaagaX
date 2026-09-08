@@ -103,6 +103,13 @@ export class AppUpdateEngine {
    * Checks the server for latest release manifest and compares versionCode
    */
   public async checkForUpdates(): Promise<boolean> {
+    const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
+    if (!isNative) {
+      this.isUpdateAvailable = false;
+      this.notify();
+      return false;
+    }
+
     try {
       await this.initNativeVersionDetection();
 

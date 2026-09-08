@@ -21,7 +21,6 @@ import {
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
-import { TopRightUpdateBadge } from '@/components/common/TopRightUpdateBadge';
 
 export function Sidebar() {
   const [mounted, setMounted] = React.useState(false);
@@ -57,24 +56,20 @@ export function Sidebar() {
     >
       {/* ── TOP HEADER & BRAND ────────────────────────────────────────────── */}
       <div className="p-3 pb-2 flex-shrink-0 border-b border-[var(--border-subtle)]">
-        {/* Brand Header & Update Badge */}
-        <div className="flex items-center justify-between px-2 py-1.5 select-none">
-          <div
-            onClick={() => {
-              usePlayerStore.getState().setSelectedAlbumId(null);
-              usePlayerStore.getState().setSelectedArtistId(null);
-              usePlayerStore.getState().setSelectedPlaylistId(null);
-              setActiveTab('home');
-            }}
-            className="cursor-pointer group transition-colors"
-            title="RaagaX — Music Beyond Limits"
-          >
-            <span className="font-black text-[23px] tracking-tight text-[var(--text-primary)] transition-colors">
-              Raaga<span className="text-[#FA233B] drop-shadow-[0_0_14px_rgba(250,35,59,0.55)]">X</span>
-            </span>
-          </div>
-
-          <TopRightUpdateBadge />
+        {/* Brand Brand Header: Only RaagaX, No Icon */}
+        <div
+          onClick={() => {
+            usePlayerStore.getState().setSelectedAlbumId(null);
+            usePlayerStore.getState().setSelectedArtistId(null);
+            usePlayerStore.getState().setSelectedPlaylistId(null);
+            setActiveTab('home');
+          }}
+          className="flex items-center px-2 py-1.5 cursor-pointer group rounded-lg transition-colors select-none"
+          title="RaagaX — Music Beyond Limits"
+        >
+          <span className="font-black text-[23px] tracking-tight text-[var(--text-primary)] transition-colors">
+            Raaga<span className="text-[#FA233B] drop-shadow-[0_0_14px_rgba(250,35,59,0.55)]">X</span>
+          </span>
         </div>
 
         {/* Integrated Quick Search Input */}
