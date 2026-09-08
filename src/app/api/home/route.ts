@@ -193,16 +193,6 @@ async function buildHomeData(userId: string | null, lang: string, phase: string,
     });
   }
 
-  // Personalized Contextual Shelves (Daylist, Release Radar, New Movie Songs, Artist Radars)
-  if (daylist && daylist.songs && daylist.songs.length > 0) {
-    sections.push({
-      id: 'daylist',
-      type: 'carousel',
-      title: daylist.title,
-      items: daylist.songs.map((s: any) => ({ ...s, type: 'song', subtitle: s.artist }))
-    });
-  }
-
   if (releaseRadar.length > 0) {
     sections.push({
       id: 'release_radar',

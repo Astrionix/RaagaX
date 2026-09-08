@@ -1,25 +1,12 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { Play, Pause, SkipForward, SkipBack, Heart, MoreVertical, Disc3, Headphones, MonitorSpeaker } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, Heart, MoreVertical, Disc3, Headphones, MonitorSpeaker, Mic2 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SeekBar } from '@/components/player/SeekBar';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { haptics } from '@/lib/haptics/HapticEngine';
 
-/**
- * RaagaX Floating Liquid Glass Mini-Player (Tier 02 Deep Glass)
- * 
- * Features:
- * - Liquid glass backdrop blur with 1px crystal edge highlight
- * - Album artwork-derived dynamic atmospheric ambient glow
- * - Spotify signature gesture support:
- *    • Swipe Left / Right -> Fluid slide with directional cue badge & haptic skip
- *    • Swipe Up -> Expands to full player modal
- *    • Tap -> Instant seamless expansion
- * - Progress scrubber line integrated directly on the top border
- * - Positioned precisely above the floating pill bottom nav
- */
 export function MobileMiniPlayer() {
   const [mounted, setMounted] = React.useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -68,6 +55,8 @@ export function MobileMiniPlayer() {
     toggleCastModal,
     isLocalPlayback,
     activePlaybackDeviceName,
+    isLyricsOpen,
+    toggleLyrics,
   } = usePlayerStore();
 
   React.useEffect(() => {
@@ -284,6 +273,23 @@ export function MobileMiniPlayer() {
 
           {/* Right: Controls (Connect icon, Favorite, Play/Pause, Next) */}
           <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
+            {/* Karaoke & Synced Lyrics Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                haptics.lightImpact();
+                if (!isLyricsOpen) toggleLyrics();
+                togglePlayerExpanded();
+              }}
+              aria-label="Karaoke & Synced Lyrics"
+              title="Karaoke & Synced Lyrics"
+              className={`w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center active:scale-90 transition-transform cursor-pointer rounded-full ${
+                isLyricsOpen ? 'text-[#FA233B] bg-[#FA233B]/20 border border-[#FA233B]/30' : 'text-[#94A3B8] hover:text-white'
+              }`}
+            >
+              <Mic2 className="w-4 h-4" />
+            </button>
+
             {/* Connect to Device icon button (Section 1 primary entry point) */}
             <button
               onClick={(e) => {

@@ -24,6 +24,11 @@ import { getCuratedPlaylists, LANGUAGE_PLAYLIST_MAP } from '@/constants/playlist
 import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 import { SwipeableSongRow } from '@/components/common/SwipeableSongRow';
 import { haptics } from '@/lib/haptics/HapticEngine';
+import { FriendActivityEngine } from '@/lib/social/FriendActivityEngine';
+import type { FriendActivityState } from '@/lib/social/FriendActivityEngine';
+import { BlendEngine } from '@/lib/social/BlendEngine';
+import type { BlendResult } from '@/lib/social/BlendEngine';
+import { Users, Plus, Copy, Radio, LogOut } from 'lucide-react';
 
 export function LibraryView() {
   const [tab, setTab] = useState<string>('menu');
@@ -44,8 +49,70 @@ export function LibraryView() {
   const [showDownloadedSortMenu, setShowDownloadedSortMenu] = useState(false);
   // Search query state for song list sub-views
   const [librarySongSearch, setLibrarySongSearch] = useState('');
-  const attemptedMissingIdsRef = useRef<Set<string>>(new Set());
   const { user } = useAuthStore();
+
+  // Friends activity & Single Blend state inside Library
+  const [friendsActivity, setFriendsActivity] = useState<FriendActivityState[]>([]);
+  const [pinnedFriends, setPinnedFriends] = useState<{ tag: string; name: string }[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem('raagax_pinned_friends');
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  });
+  const [tagInput, setTagInput] = useState('');
+  const [copiedTag, setCopiedTag] = useState(false);
+  const [activeBlend, setActiveBlend] = useState<BlendResult | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem('raagax_active_blend');
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  });
+
+  const myTag = useMemo(() => {
+    return BlendEngine.getUniqueBlendId(user?.id || user?.email || 'guest');
+  }, [user]);
+
+  useEffect(() => {
+    const engine = FriendActivityEngine.getInstance();
+    engine.init();
+    setFriendsActivity(engine.getActiveActivities());
+    const unsub = engine.onActivitiesUpdated((list) => setFriendsActivity(list));
+    return () => { try { unsub(); } catch {} };
+  }, []);
+
+  const handleCopyTag = () => {
+    navigator.clipboard.writeText(myTag);
+    setCopiedTag(true);
+    haptics.lightImpact();
+    setTimeout(() => setCopiedTag(false), 2000);
+  };
+
+  const handleAddFriend = (e: React.FormEvent) => {
+    e.preventDefault();
+    const tag = tagInput.trim().toUpperCase();
+    if (!tag) return;
+    const normalised = tag.startsWith('RGX-') ? tag : `RGX-${tag}`;
+    if (pinnedFriends.some(f => f.tag === normalised)) return;
+    const online = friendsActivity.find(a => BlendEngine.getUniqueBlendId(a.userId) === normalised);
+    const name = online?.userName || normalised;
+    const updated = [...pinnedFriends, { tag: normalised, name }];
+    setPinnedFriends(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('raagax_pinned_friends', JSON.stringify(updated));
+    }
+    setTagInput('');
+    haptics.lightImpact();
+  };
+
+  const handleLeaveBlend = () => {
+    setActiveBlend(null);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('raagax_active_blend');
+    }
+    haptics.mediumImpact();
+  };
 
   const {
     queue,
@@ -231,6 +298,7 @@ export function LibraryView() {
     return map;
   }, [storeLikedSongs, queue, offlineTrackList, nativeDownloadedTracks, resolvedSongsMap, cloudDownloadRecords]);
 
+  const attemptedMissingIdsRef = useRef<Set<string>>(new Set());
   const { playlists: userPlaylists = [], fetchPlaylists } = usePlaylistStore();
 
   useEffect(() => {
@@ -1542,6 +1610,136 @@ export function LibraryView() {
             </button>
           )}
           <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors" />
+        </div>
+      </div>
+
+      {/* ── 🌀 SINGLE BLEND HUB CARD ── */}
+      <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-900/30 via-purple-900/20 to-slate-900/60 border border-purple-500/20 shadow-xl space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-white tracking-tight">Single Blend Hub</h3>
+              <p className="text-[11px] text-slate-400">1-on-1 Connected Friend Playlist</p>
+            </div>
+          </div>
+
+          {activeBlend && (
+            <button
+              onClick={handleLeaveBlend}
+              className="px-2.5 py-1 rounded-full bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-400 text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1"
+            >
+              <LogOut className="w-3 h-3" /> Leave Blend
+            </button>
+          )}
+        </div>
+
+        {activeBlend ? (
+          <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h4 className="text-xs font-bold text-white truncate">{activeBlend.playlistTitle}</h4>
+              <p className="text-[11px] text-purple-300 font-medium">{activeBlend.matchScore}% Music Taste Match • {activeBlend.songs?.length || 0} tracks</p>
+            </div>
+            <button
+              onClick={() => {
+                if (activeBlend.songs && activeBlend.songs.length > 0) {
+                  playSong(activeBlend.songs[0], activeBlend.songs, { type: 'blend', id: activeBlend.id, title: activeBlend.playlistTitle });
+                }
+              }}
+              className="px-3 py-1.5 rounded-full bg-purple-500 hover:bg-purple-400 text-white text-xs font-bold flex items-center gap-1 shadow-md cursor-pointer flex-shrink-0"
+            >
+              <Play className="w-3 h-3 fill-current" /> Play Blend
+            </button>
+          </div>
+        ) : (
+          <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between gap-3">
+            <p className="text-xs text-slate-300">No active blend connected. Pair with a friend using RGX tag.</p>
+            <button
+              onClick={() => {
+                usePlayerStore.setState({ isBlendModalOpen: true });
+              }}
+              className="px-3 py-1.5 rounded-full bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all shadow-md cursor-pointer flex-shrink-0"
+            >
+              + Blend Friend
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── 👥 FRIENDS ACTIVITY & TAG SECTION ── */}
+      <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900/80 via-slate-900/60 to-purple-950/30 border border-white/10 shadow-xl space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-center text-[#FA233B]">
+              <Users className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-white tracking-tight">Friends Activity</h3>
+              <p className="text-[11px] text-slate-400">Live Listening Feed & Tags</p>
+            </div>
+          </div>
+
+          {/* User Personal Tag Pill */}
+          <button
+            onClick={handleCopyTag}
+            className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/15 border border-white/15 text-xs font-mono font-bold text-slate-200 transition-all flex items-center gap-1.5 cursor-pointer"
+            title="Click to copy your RGX tag"
+          >
+            <span>{myTag}</span>
+            {copiedTag ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-slate-400" />}
+          </button>
+        </div>
+
+        {/* Add Friend Form */}
+        <form onSubmit={handleAddFriend} className="flex gap-2">
+          <input
+            type="text"
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            placeholder="Enter Friend RGX Tag (e.g. RGX-4A2B)..."
+            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-[#FA233B]/50 transition-colors"
+          />
+          <button
+            type="submit"
+            className="px-3 py-1.5 rounded-xl bg-[#FA233B] hover:bg-[#D90429] text-white text-xs font-bold transition-all shadow-md cursor-pointer flex items-center gap-1"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add
+          </button>
+        </form>
+
+        {/* Friends Live List */}
+        <div className="space-y-2 pt-1">
+          {friendsActivity.length > 0 ? (
+            friendsActivity.map((friend) => (
+              <div
+                key={friend.userId}
+                className="p-2.5 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between gap-3 group hover:bg-white/10 transition-colors"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-slate-800 border border-white/10 overflow-hidden flex-shrink-0 relative">
+                    <img
+                      src={friend.userAvatar || friend.coverUrl || '/app-icon.png'}
+                      alt={friend.userName}
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+                      className="w-full h-full object-cover"
+                    />
+                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-slate-900" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs font-bold text-white truncate">{friend.userName}</p>
+                      <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/15 px-1.5 py-0.2 rounded-full border border-emerald-500/20">LIVE</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 truncate">🎵 {friend.songTitle} — {friend.artist}</p>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-xs text-slate-400 italic text-center py-2">No friends currently active live.</p>
+          )}
         </div>
       </div>
 

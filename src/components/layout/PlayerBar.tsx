@@ -13,6 +13,7 @@ import {
   Volume2,
   VolumeX,
   MessageSquare,
+  Mic2,
   ListMusic,
   Disc3,
   Maximize2,
@@ -292,15 +293,15 @@ export function PlayerBar() {
         <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
           <button
             onClick={toggleLyrics}
-            aria-label="Open lyrics"
-            title="Lyrics (L)"
+            aria-label="Karaoke & Synced Lyrics"
+            title="Karaoke & Synced Lyrics (L)"
             className={`p-1.5 rounded-full transition-colors cursor-pointer ${
               isLyricsOpen
                 ? 'text-[#FA233B] bg-[#FA233B]/15'
                 : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]'
             }`}
           >
-            <MessageSquare className="w-3.5 h-3.5" />
+            <Mic2 className="w-3.5 h-3.5" />
           </button>
 
           <button
