@@ -353,51 +353,59 @@ export function RightQueuePanel() {
     <aside className="flex flex-col w-full h-full text-[var(--text-primary)] text-xs select-none p-4 overflow-hidden">
       {/* Header */}
       <div className="flex flex-col gap-2 pb-3 mb-3 border-b border-[var(--border-subtle)] flex-shrink-0">
-        {/* Top Control Bar: Segmented Tabs (Queue | Connect) + Close Button */}
+        {/* Top Header Bar */}
         <div className="flex items-center justify-between gap-2 w-full">
-          {/* Segmented Control Pills */}
-          <div className="flex items-center p-1 rounded-xl bg-black/40 border border-white/10 flex-1 min-w-0 shadow-inner">
-            <button
-              onClick={() => {
-                haptics.lightImpact();
-                setRightPanelMode('queue');
-              }}
-              className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer select-none ${
-                rightPanelMode === 'queue'
-                  ? 'bg-[#fa233b]/20 text-[#fa233b] border border-[#fa233b]/35 shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
-              }`}
-            >
-              <ListMusic className="w-3.5 h-3.5 flex-shrink-0" />
-              <span className="truncate min-w-0">Queue</span>
-              {upNextQueue.length > 0 && (
-                <span className="px-1.5 py-0.2 text-[9px] font-mono font-extrabold rounded-full bg-[#fa233b]/25 text-[#fa233b] border border-[#fa233b]/30 flex-shrink-0">
-                  {upNextQueue.length}
-                </span>
-              )}
-            </button>
+          {rightPanelMode === 'queue' ? (
+            /* Segmented Control Pills for Queue Mode: Queue | Listening History */
+            <div className="flex items-center p-1 rounded-xl bg-black/40 border border-white/10 flex-1 min-w-0 shadow-inner">
+              <button
+                onClick={() => {
+                  haptics.lightImpact();
+                  setQueueSubTab('upnext');
+                }}
+                className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer select-none ${
+                  queueSubTab === 'upnext'
+                    ? 'bg-[#fa233b]/20 text-[#fa233b] border border-[#fa233b]/35 shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+                }`}
+              >
+                <ListMusic className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="truncate min-w-0">Queue</span>
+                {upNextQueue.length > 0 && (
+                  <span className="px-1.5 py-0.2 text-[9px] font-mono font-extrabold rounded-full bg-[#fa233b]/25 text-[#fa233b] border border-[#fa233b]/30 flex-shrink-0">
+                    {upNextQueue.length}
+                  </span>
+                )}
+              </button>
 
-            <button
-              onClick={() => {
-                haptics.lightImpact();
-                setRightPanelMode('connect');
-              }}
-              className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer select-none ${
-                rightPanelMode === 'connect' || rightPanelMode === 'jam'
-                  ? 'bg-[#1DB954]/20 text-[#1DB954] border border-[#1DB954]/35 shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
-              }`}
-            >
-              <MonitorSpeaker className="w-3.5 h-3.5 flex-shrink-0" />
-              <span className="truncate min-w-0">Connect</span>
+              <button
+                onClick={() => {
+                  haptics.lightImpact();
+                  setQueueSubTab('history');
+                }}
+                className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer select-none ${
+                  queueSubTab === 'history'
+                    ? 'bg-[#fa233b]/20 text-[#fa233b] border border-[#fa233b]/35 shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="truncate min-w-0">Listening History</span>
+              </button>
+            </div>
+          ) : (
+            /* Header Title for Connect Mode: Connect to Device */
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#1DB954]/15 border border-[#1DB954]/30 text-[#1DB954] flex-1 min-w-0 shadow-sm">
+              <MonitorSpeaker className="w-4 h-4 flex-shrink-0" />
+              <span className="font-extrabold text-xs truncate">Connect to Device</span>
               {jamState && (
-                <span className="relative flex h-2 w-2 ml-0.5 flex-shrink-0">
+                <span className="relative flex h-2 w-2 ml-auto flex-shrink-0">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                 </span>
               )}
-            </button>
-          </div>
+            </div>
+          )}
 
           {/* Close Panel Button */}
           <button
@@ -410,78 +418,49 @@ export function RightQueuePanel() {
           </button>
         </div>
 
-        {/* Sub-Bar Actions: Queue Mode Sub-Tabs vs Connect Status */}
+        {/* Sub-Bar Actions */}
         {rightPanelMode === 'queue' ? (
-          <div className="flex items-center justify-between gap-2 px-0.5 pt-1">
-            {/* Sub-tab Pill Switcher */}
-            <div className="flex items-center gap-1 p-0.5 rounded-lg bg-black/30 border border-white/5 flex-1 min-w-0">
-              <button
-                onClick={() => {
-                  haptics.lightImpact();
-                  setQueueSubTab('upnext');
-                }}
-                className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[10px] font-extrabold transition-all cursor-pointer select-none ${
-                  queueSubTab === 'upnext'
-                    ? 'bg-[#fa233b]/20 text-[#fa233b] border border-[#fa233b]/35 shadow-xs'
-                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/5 border border-transparent'
-                }`}
-              >
-                <ListMusic className="w-3 h-3 flex-shrink-0" />
-                <span className="truncate">Up Next</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  haptics.lightImpact();
-                  setQueueSubTab('history');
-                }}
-                className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[10px] font-extrabold transition-all cursor-pointer select-none ${
-                  queueSubTab === 'history'
-                    ? 'bg-[#fa233b]/20 text-[#fa233b] border border-[#fa233b]/35 shadow-xs'
-                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/5 border border-transparent'
-                }`}
-              >
-                <Clock className="w-3 h-3 flex-shrink-0" />
-                <span className="truncate">History</span>
-              </button>
-            </div>
-
-            {/* Quick Action Button based on Sub-Tab */}
+          <div className="flex items-center justify-between px-1 text-[11px] font-medium text-[var(--text-secondary)]">
             {queueSubTab === 'upnext' ? (
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <span className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider hidden sm:inline">Autoplay</span>
-                <button
-                  onClick={() => toggleAutoplay()}
-                  className={`w-6 h-3.5 rounded-full p-0.5 transition-colors cursor-pointer ${
-                    isAutoplayEnabled ? 'bg-[#fa233b]' : 'bg-slate-700'
-                  }`}
-                  title="Toggle Autoplay for similar songs"
-                >
-                  <div
-                    className={`w-2.5 h-2.5 rounded-full bg-white transition-transform ${
-                      isAutoplayEnabled ? 'translate-x-2.5' : 'translate-x-0'
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Autoplay</span>
+                  <button
+                    onClick={() => toggleAutoplay()}
+                    className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${
+                      isAutoplayEnabled ? 'bg-[#fa233b]' : 'bg-slate-700'
                     }`}
-                  />
-                </button>
+                    title="Toggle Autoplay for similar songs"
+                  >
+                    <div
+                      className={`w-3 h-3 rounded-full bg-white transition-transform ${
+                        isAutoplayEnabled ? 'translate-x-3' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
                 {upNextQueue.length > 0 && (
                   <button
                     onClick={handleClearQueue}
-                    className="text-[10px] font-bold text-[#fa233b] hover:underline ml-1 cursor-pointer transition-colors"
-                    title="Clear queue"
+                    className="text-[11px] font-bold text-[#fa233b] hover:underline px-1 py-0.5 rounded cursor-pointer transition-colors"
                   >
-                    Clear
+                    Clear Queue
                   </button>
                 )}
-              </div>
+              </>
             ) : (
-              historyItems.length > 0 && (
-                <button
-                  onClick={handleClearHistory}
-                  className="text-[10px] font-bold text-[#fa233b] hover:underline px-1 py-0.5 rounded cursor-pointer transition-colors flex-shrink-0"
-                >
-                  Clear History
-                </button>
-              )
+              <>
+                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Recently Played</span>
+                {historyItems.length > 0 && (
+                  <button
+                    onClick={handleClearHistory}
+                    className="text-[11px] font-bold text-[#fa233b] hover:underline px-1 py-0.5 rounded cursor-pointer transition-colors"
+                  >
+                    Clear History
+                  </button>
+                )}
+              </>
             )}
           </div>
         ) : (
