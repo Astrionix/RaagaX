@@ -1998,6 +1998,11 @@ export const usePlayerStore = create<PlayerState>()(
           // If queue ended in Jam mode, fetch recommendations so Jam session continues seamlessly
           const curSong = get().currentSong;
           if (curSong?.id && get().isInJam) {
+            const { JamSessionManager } = await import('@/lib/connect/jam/JamSessionManager');
+            if (!JamSessionManager.getInstance().isHost()) {
+              get().setIsPlaying(false, true);
+              return;
+            }
             try {
               const { JioSaavnProvider } = await import('@/lib/jioSaavnProvider');
               const recs = await JioSaavnProvider.getInstance().getRecommendations(curSong.id, 10);

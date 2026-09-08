@@ -680,6 +680,8 @@ export function AudioPlayerController() {
 
   // Auto-refill queue (Continuous Autoplay Mode)
   useEffect(() => {
+    if (usePlayerStore.getState().isInJam) return; // STRICT JAM GUARD: Never refill queue locally during Jam sessions!
+
     const remaining = queue.length - (queueIndex + 1);
     if (remaining > QUEUE_REFILL_THRESHOLD || isRefilling.current || !currentSong) return;
 

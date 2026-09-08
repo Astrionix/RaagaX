@@ -19,6 +19,8 @@ export class SmartQueue {
 
   public async evaluateRefill(engine: QueueEngine) {
     if (this.isGenerating) return;
+    const store = (await import('@/context/usePlayerStore')).usePlayerStore.getState();
+    if (store.isInJam) return;
     if (!engine.isAutoplayEnabled()) return;
     if (engine.getRepeatMode() !== 'OFF') return;
 

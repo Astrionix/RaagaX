@@ -25,6 +25,9 @@ export class AdaptiveQueueController {
     this.isRegenerating = true;
 
     try {
+      const store = (await import('@/context/usePlayerStore')).usePlayerStore.getState();
+      if (store.isInJam) return;
+
       const manager = QueueManager.getInstance();
       const snapshot = manager.getSnapshot();
       const firstItemSource = snapshot.items[0]?.source;
@@ -52,7 +55,6 @@ export class AdaptiveQueueController {
 
       const lifecycle = UserLifecycleManager.getInstance();
       const lifecycleData = lifecycle.getData();
-      const store = (await import('@/context/usePlayerStore')).usePlayerStore.getState();
       const selectedLanguages = lifecycleData.selectedLanguages ?? (store.preferredLanguage ? [store.preferredLanguage] : []);
       const historyIds = items.map(i => i.trackId);
 
