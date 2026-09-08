@@ -91,13 +91,22 @@ export default function Page() {
 
   React.useEffect(() => {
     useAuthStore.getState().initializeAuth();
-    // Spotify-style Background Presence: Automatically advertise this device on app startup
+    // Background Presence: Automatically advertise this device on app startup
     const accountId = typeof window !== 'undefined' ? localStorage.getItem('raagax_account_id') : null;
     DeviceDiscoveryEngine.getInstance().startDiscovery('player', accountId);
     import('@/lib/connect/session/ConnectSessionManager').then(({ ConnectSessionManager }) => {
       ConnectSessionManager.getInstance();
     }).catch(() => { });
   }, []);
+
+  // Global Friend Activity Broadcast: Broadcast playing song in real-time across Mobile & Desktop
+  const currentSong = usePlayerStore((s) => s.currentSong);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
+  React.useEffect(() => {
+    import('@/lib/social/FriendActivityEngine').then(({ FriendActivityEngine }) => {
+      FriendActivityEngine.getInstance().broadcastActivity(currentSong, isPlaying);
+    }).catch(() => {});
+  }, [currentSong?.id, isPlaying]);
 
 
   // ── Global keyboard shortcuts (Space = play/pause, arrows = seek/volume, etc.)

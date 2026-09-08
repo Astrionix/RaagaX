@@ -3,6 +3,7 @@ import { Song } from '@/types/music';
 
 export interface FriendActivityState {
   userId: string;
+  userTag: string;
   userName: string;
   userAvatar?: string;
   songTitle: string;
@@ -12,13 +13,60 @@ export interface FriendActivityState {
   timestamp: number;
 }
 
+/**
+ * Generates and preserves a persistent, unique identity for this device/installation.
+ * Ensures that User A and User B always have different, permanent RGX tags.
+ */
+export function getMyFriendIdentity(): { userId: string; userTag: string; userName: string; userAvatar: string } {
+  if (typeof window === 'undefined') {
+    return { userId: 'usr_guest', userTag: 'RGX-0000', userName: 'RaagaX Listener', userAvatar: '' };
+  }
+
+  let userId = localStorage.getItem('raagax_user_id');
+  if (!userId) {
+    userId = 'usr_' + Math.random().toString(36).substring(2, 10);
+    localStorage.setItem('raagax_user_id', userId);
+  }
+
+  let userTag = localStorage.getItem('raagax_user_tag');
+  if (!userTag || userTag === 'RGX-0000' || userTag === 'RGX-D295') {
+    // Generate a permanent random 4-character hex code: RGX-XXXX
+    const hex = Math.floor(0x1000 + Math.random() * 0xefff).toString(16).toUpperCase();
+    userTag = `RGX-${hex}`;
+    localStorage.setItem('raagax_user_tag', userTag);
+  }
+
+  let userName = localStorage.getItem('raagax_user_name');
+  if (!userName || userName === 'RaagaX Listener') {
+    userName = `Friend ${userTag.replace('RGX-', '')}`;
+    localStorage.setItem('raagax_user_name', userName);
+  }
+
+  return { userId, userTag, userName, userAvatar: '' };
+}
+
 export class FriendActivityEngine {
   private static instance: FriendActivityEngine;
   private channel: any = null;
+  private isSubscribed = false;
   private listeners: Set<(activities: FriendActivityState[]) => void> = new Set();
   private activeActivities: Map<string, FriendActivityState> = new Map();
+  private lastBroadcastPayload: FriendActivityState | null = null;
+  private pendingPayload: FriendActivityState | null = null;
+  private localBroadcastChannel: any = null;
 
-  private constructor() {}
+  private constructor() {
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        this.localBroadcastChannel = new BroadcastChannel('raagax_friend_activity_local');
+        this.localBroadcastChannel.onmessage = (event: MessageEvent) => {
+          if (event.data && event.data.type === 'FRIEND_ACTIVITY') {
+            this.handleIncomingActivity(event.data.payload);
+          }
+        };
+      } catch {}
+    }
+  }
 
   public static getInstance(): FriendActivityEngine {
     if (!FriendActivityEngine.instance) {
@@ -31,44 +79,97 @@ export class FriendActivityEngine {
     if (this.channel) return;
 
     try {
-      this.channel = supabase.channel('presence:music_activity', {
-        config: { presence: { key: 'music_activity' } },
+      const myIdentity = getMyFriendIdentity();
+
+      // Channel config using both broadcast (for 100% reliable instant signals)
+      // and presence (with unique client key)
+      this.channel = supabase.channel('raaga_friends_stream', {
+        config: {
+          broadcast: { self: false },
+          presence: { key: myIdentity.userId },
+        },
       });
 
-      this.channel
-        .on('presence', { event: 'sync' }, () => {
+      // 1. Instant Realtime Broadcasts
+      this.channel.on('broadcast', { event: 'FRIEND_ACTIVITY' }, ({ payload }: { payload: FriendActivityState }) => {
+        if (payload && payload.userId) {
+          this.handleIncomingActivity(payload);
+        }
+      });
+
+      // 2. Ping-Pong: When someone joins, they ping so existing players announce their songs
+      this.channel.on('broadcast', { event: 'FRIEND_PING' }, () => {
+        if (this.lastBroadcastPayload && this.lastBroadcastPayload.isPlaying) {
+          this.sendBroadcast(this.lastBroadcastPayload);
+        }
+      });
+
+      // 3. Presence Sync as fallback
+      this.channel.on('presence', { event: 'sync' }, () => {
+        try {
           const state = this.channel.presenceState();
-          const list: FriendActivityState[] = [];
           Object.values(state).forEach((presences: any) => {
             if (Array.isArray(presences)) {
               presences.forEach((p) => {
                 if (p.userId && p.songTitle) {
-                  list.push(p as FriendActivityState);
+                  this.handleIncomingActivity(p as FriendActivityState);
                 }
               });
             }
           });
-          this.activeActivities.clear();
-          list.forEach((item) => this.activeActivities.set(item.userId, item));
-          this.notifyListeners();
-        })
-        .subscribe();
+        } catch {}
+      });
+
+      // 4. Subscribe and trigger queued activity
+      this.channel.subscribe((status: string) => {
+        if (status === 'SUBSCRIBED') {
+          this.isSubscribed = true;
+          // Ping to discover who is currently online and playing
+          try {
+            this.channel.send({
+              type: 'broadcast',
+              event: 'FRIEND_PING',
+              payload: { from: myIdentity.userId },
+            });
+          } catch {}
+
+          // Flush any pending payload that was queued before subscription finished
+          if (this.pendingPayload) {
+            this.sendBroadcast(this.pendingPayload);
+            this.pendingPayload = null;
+          }
+        }
+      });
     } catch (e) {
-      console.warn('[FriendActivityEngine] Realtime presence sub skipped:', e);
+      console.warn('[FriendActivityEngine] Realtime init warning:', e);
     }
   }
 
   public broadcastActivity(song: Song | null, isPlaying: boolean) {
-    if (!song) return;
+    if (typeof window === 'undefined') return;
 
+    const myIdentity = getMyFriendIdentity();
+
+    if (!song) {
+      if (this.lastBroadcastPayload) {
+        this.lastBroadcastPayload.isPlaying = false;
+        this.sendBroadcast(this.lastBroadcastPayload);
+      }
+      return;
+    }
+
+    // Try reading session if user is logged in to get user full name / avatar
     supabase.auth.getSession().then(({ data: { session } }) => {
       const user = session?.user;
-      const userId = user?.id || 'guest-' + Math.random().toString(36).substring(2, 7);
-      const userName = user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'RaagaX Listener';
+      const userName =
+        user?.user_metadata?.full_name?.split(' ')[0] ||
+        user?.email?.split('@')[0] ||
+        myIdentity.userName;
       const userAvatar = user?.user_metadata?.avatar_url || '';
 
       const payload: FriendActivityState = {
-        userId,
+        userId: myIdentity.userId,
+        userTag: myIdentity.userTag,
         userName,
         userAvatar,
         songTitle: song.title,
@@ -78,16 +179,79 @@ export class FriendActivityEngine {
         timestamp: Date.now(),
       };
 
-      if (!this.channel) this.init();
-
-      if (this.channel) {
-        this.channel.track(payload).catch(() => {});
-      }
-    }).catch(() => {});
+      this.lastBroadcastPayload = payload;
+      this.sendBroadcast(payload);
+    }).catch(() => {
+      const payload: FriendActivityState = {
+        userId: myIdentity.userId,
+        userTag: myIdentity.userTag,
+        userName: myIdentity.userName,
+        userAvatar: '',
+        songTitle: song.title,
+        artist: song.artist,
+        coverUrl: song.coverUrl,
+        isPlaying,
+        timestamp: Date.now(),
+      };
+      this.lastBroadcastPayload = payload;
+      this.sendBroadcast(payload);
+    });
   }
 
-  public getActiveActivities(): FriendActivityState[] {
-    return Array.from(this.activeActivities.values());
+  private sendBroadcast(payload: FriendActivityState) {
+    // 1. Send via local tab BroadcastChannel
+    if (this.localBroadcastChannel) {
+      try {
+        this.localBroadcastChannel.postMessage({ type: 'FRIEND_ACTIVITY', payload });
+      } catch {}
+    }
+
+    // 2. Send via Supabase Realtime Channel
+    if (!this.channel) {
+      this.init();
+    }
+
+    if (!this.isSubscribed || !this.channel) {
+      this.pendingPayload = payload;
+      return;
+    }
+
+    try {
+      this.channel.send({
+        type: 'broadcast',
+        event: 'FRIEND_ACTIVITY',
+        payload,
+      });
+
+      // Also track in presence for new joiners
+      this.channel.track(payload).catch(() => {});
+    } catch (err) {
+      console.warn('[FriendActivityEngine] Broadcast send error:', err);
+    }
+  }
+
+  private handleIncomingActivity(activity: FriendActivityState) {
+    if (!activity || !activity.userId) return;
+
+    // Do not register our own activity as a "friend"
+    const my = getMyFriendIdentity();
+    if (activity.userId === my.userId || (activity.userTag && activity.userTag === my.userTag)) {
+      return;
+    }
+
+    // Update the activity in memory
+    this.activeActivities.set(activity.userId, activity);
+    this.notifyListeners();
+  }
+
+  /**
+   * Returns active activities, excluding current user by default.
+   */
+  public getActiveActivities(excludeSelf = true): FriendActivityState[] {
+    const list = Array.from(this.activeActivities.values());
+    if (!excludeSelf) return list;
+    const my = getMyFriendIdentity();
+    return list.filter((item) => item.userId !== my.userId && item.userTag !== my.userTag);
   }
 
   public onActivitiesUpdated(fn: (activities: FriendActivityState[]) => void) {
@@ -98,7 +262,11 @@ export class FriendActivityEngine {
   }
 
   private notifyListeners() {
-    const list = this.getActiveActivities();
-    this.listeners.forEach((fn) => fn(list));
+    const list = this.getActiveActivities(true);
+    this.listeners.forEach((fn) => {
+      try {
+        fn(list);
+      } catch {}
+    });
   }
 }

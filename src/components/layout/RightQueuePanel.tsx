@@ -112,7 +112,7 @@ export function RightQueuePanel() {
   useEffect(() => {
     const engine = FriendActivityEngine.getInstance();
     engine.init();
-    setFriendsActivity(engine.getActiveActivities());
+    setFriendsActivity(engine.getActiveActivities(true));
     const unsub = engine.onActivitiesUpdated((list) => setFriendsActivity(list));
     return () => {
       unsub();

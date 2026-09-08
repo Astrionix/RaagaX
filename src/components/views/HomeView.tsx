@@ -325,13 +325,31 @@ export function HomeView() {
   useEffect(() => {
     const engine = FriendActivityEngine.getInstance();
     engine.init();
-    setFriendsActivity(engine.getActiveActivities());
+    setFriendsActivity(engine.getActiveActivities(true));
     const unsub = engine.onActivitiesUpdated((list) => setFriendsActivity(list));
     return () => { try { unsub(); } catch {} };
   }, []);
 
   const activeFriend = React.useMemo(() => {
-    return friendsActivity.find((a) => a.isPlaying && a.songTitle) || friendsActivity[0] || null;
+    if (friendsActivity.length === 0) return null;
+    let pinnedTags: string[] = [];
+    try {
+      const raw = localStorage.getItem('raagax_pinned_friends');
+      if (raw) {
+        pinnedTags = (JSON.parse(raw) as { tag: string }[]).map((p) => p.tag);
+      }
+    } catch {}
+
+    // First, prioritize any pinned friend who is actively playing
+    if (pinnedTags.length > 0) {
+      const pinnedPlaying = friendsActivity.find(
+        (a) => pinnedTags.includes(a.userTag) && a.isPlaying && a.songTitle
+      );
+      if (pinnedPlaying) return pinnedPlaying;
+    }
+
+    // Otherwise, show any online friend who is actively playing
+    return friendsActivity.find((a) => a.isPlaying && a.songTitle) || null;
   }, [friendsActivity]);
 
   const { tasks, nativeDownloadedTracks, isOfflineMode } = useDownloadStore();
