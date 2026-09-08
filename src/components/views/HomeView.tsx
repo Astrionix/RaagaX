@@ -28,6 +28,7 @@ import { MoreLikeWhatYouHeardShelf } from '@/components/home/MoreLikeWhatYouHear
 import { FollowedArtistsNewReleasesShelf } from '@/components/home/FollowedArtistsNewReleasesShelf';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { haptics } from '@/lib/haptics/HapticEngine';
+import { DaylistEngine } from '@/lib/recommendation/DaylistEngine';
 
 const EMPTY_SHELF_ITEMS: ShelfItem[] = [];
 
@@ -505,6 +506,60 @@ export function HomeView() {
           </h1>
         </div>
       </section>
+
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* 2. DAYLIST — Dynamic Time-Adaptive Vibe Shift Banner                   */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {(() => {
+        const daylist = DaylistEngine.getDaylistInfo();
+        const queue = feed?.madeForYou?.length ? feed.madeForYou : (feed?.recentlyPlayed?.length ? feed.recentlyPlayed : (likedSongs as Song[]));
+        const isDaylistActive = currentSong && queue.some(s => s.id === currentSong.id);
+
+        return (
+          <section className="pr-2 sm:pr-3">
+            <div
+              onClick={() => {
+                haptics.mediumImpact();
+                if (queue && queue.length > 0) {
+                  playSong(queue[0], queue, { type: 'made_for_you', id: 'daylist', title: daylist.title });
+                }
+              }}
+              className={`relative rounded-3xl p-5 sm:p-6 bg-gradient-to-r ${daylist.gradient} border ${daylist.borderColor} transition-all duration-300 hover:scale-[1.01] active:scale-[0.99] cursor-pointer group shadow-2xl overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4`}
+            >
+              <div className="space-y-1.5 relative z-10">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-mono font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border shadow-sm ${daylist.badgeBg}`}>
+                    {daylist.badge}
+                  </span>
+                  <span className="text-[11px] text-white/70 font-mono">Updates 3x daily</span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black text-white capitalize tracking-tight drop-shadow-md">
+                  {daylist.title}
+                </h2>
+                <p className="text-xs text-slate-300 font-medium max-w-xl">
+                  {daylist.tagline}
+                </p>
+              </div>
+
+              <div className="relative z-10 flex items-center gap-3">
+                <button
+                  className={`px-5 py-2.5 rounded-full text-xs font-black flex items-center gap-2 shadow-xl transition-all ${
+                    isDaylistActive && isPlaying
+                      ? 'bg-[#FA233B] text-white scale-105 shadow-[0_0_20px_rgba(250,35,59,0.6)]'
+                      : 'bg-white text-black hover:bg-[#FA233B] hover:text-white hover:scale-105'
+                  }`}
+                >
+                  {isDaylistActive && isPlaying ? (
+                    <> <Pause className="w-4 h-4 fill-current" /> PAUSE DAYLIST </>
+                  ) : (
+                    <> <Play className="w-4 h-4 fill-current ml-0.5" /> LISTEN TO DAYLIST </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </section>
+        );
+      })()}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* 3. MADE FOR YOU — 4 Big, Interactive, Fully Working Mixes              */}

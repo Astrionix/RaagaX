@@ -121,6 +121,10 @@ interface PlayerState {
 
   crossfadeSec: number;
   isGaplessEnabled: boolean;
+  isKaraokeMode: boolean;
+  vocalReductionLevel: number;
+  toggleKaraokeMode: () => void;
+  setVocalReductionLevel: (val: number) => void;
 
   activeTab: ActiveTab;
   selectedArtistId: string | null;
@@ -152,6 +156,8 @@ interface PlayerState {
   isSettingsModalOpen: boolean;
   isCastModalOpen: boolean;
   isJamModalOpen: boolean;
+  isBlendModalOpen: boolean;
+  toggleBlendModal: (open?: boolean) => void;
   activeJamRoomCode: string | null;
   toggleJamModal: (open?: boolean) => void;
   setActiveJamRoomCode: (code: string | null) => void;
@@ -227,8 +233,8 @@ interface PlayerState {
   setRemoteState: (state: Partial<PlayerState>) => void;
   setRenderer: (renderer: Renderer) => void;
 
-  rightPanelMode: 'queue' | 'connect' | 'jam';
-  setRightPanelMode: (mode: 'queue' | 'connect' | 'jam') => void;
+  rightPanelMode: 'queue' | 'connect' | 'jam' | 'friends';
+  setRightPanelMode: (mode: 'queue' | 'connect' | 'jam' | 'friends') => void;
   lastPositionTimestamp: number | null;
 
   // Autoplay and Context
@@ -578,6 +584,10 @@ export const usePlayerStore = create<PlayerState>()(
 
       crossfadeSec: 0,
       isGaplessEnabled: true,
+      isKaraokeMode: false,
+      vocalReductionLevel: 0.8,
+      toggleKaraokeMode: () => set((s) => ({ isKaraokeMode: !s.isKaraokeMode })),
+      setVocalReductionLevel: (val: number) => set({ vocalReductionLevel: Math.max(0, Math.min(1, val)) }),
       playbackContext: null,
 
       likedSongIds: [],
@@ -613,6 +623,8 @@ export const usePlayerStore = create<PlayerState>()(
       isSettingsModalOpen: false,
       isCastModalOpen: false,
       isJamModalOpen: false,
+      isBlendModalOpen: false,
+      toggleBlendModal: (open) => set((s) => ({ isBlendModalOpen: open !== undefined ? open : !s.isBlendModalOpen })),
       activeJamRoomCode: null,
       toggleJamModal: (open) => set((s) => {
         const shouldOpen = open !== undefined ? open : !s.isJamModalOpen;
@@ -2879,6 +2891,8 @@ export const usePlayerStore = create<PlayerState>()(
         repeatMode: state.repeatMode,
         preferredLanguage: state.preferredLanguage,
         crossfadeSec: state.crossfadeSec,
+        isKaraokeMode: state.isKaraokeMode,
+        vocalReductionLevel: state.vocalReductionLevel,
         streamingQuality: state.streamingQuality,
         downloadQuality: state.downloadQuality,
         isAutoplayEnabled: state.isAutoplayEnabled,

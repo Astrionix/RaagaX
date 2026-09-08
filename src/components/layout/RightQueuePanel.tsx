@@ -54,6 +54,7 @@ import { DeviceKeyManager } from '@/lib/connect/auth/DeviceKeyManager';
 import { DeviceNameResolver } from '@/lib/connect/auth/DeviceNameResolver';
 import { JamSessionManager } from '@/lib/connect/jam/JamSessionManager';
 import { JamSessionState } from '@/lib/connect/jam/JamTypes';
+import { FriendActivityEngine, FriendActivityState } from '@/lib/social/FriendActivityEngine';
 import { haptics } from '@/lib/haptics/HapticEngine';
 
 export function RightQueuePanel() {
@@ -103,9 +104,27 @@ export function RightQueuePanel() {
     DeviceNameResolver.getInstance().getLocalDeviceDisplayName()
   );
 
-  // Queue Sub-Tab State ('upnext' | 'history')
-  const [queueSubTab, setQueueSubTab] = useState<'upnext' | 'history'>('upnext');
+  // Queue Sub-Tab State ('upnext' | 'history' | 'friends')
+  const [queueSubTab, setQueueSubTab] = useState<'upnext' | 'history' | 'friends'>('upnext');
   const [historyItems, setHistoryItems] = useState<{ song: Song; playedAt?: number }[]>([]);
+  const [friendsActivity, setFriendsActivity] = useState<FriendActivityState[]>([]);
+
+  useEffect(() => {
+    const engine = FriendActivityEngine.getInstance();
+    engine.init();
+    setFriendsActivity(engine.getActiveActivities());
+    const unsub = engine.onActivitiesUpdated((list) => setFriendsActivity(list));
+    return () => {
+      unsub();
+    };
+  }, []);
+
+  // Broadcast current song activity whenever track or playback state changes
+  useEffect(() => {
+    if (currentSong) {
+      FriendActivityEngine.getInstance().broadcastActivity(currentSong, isPlaying);
+    }
+  }, [currentSong?.id, isPlaying]);
 
   useEffect(() => {
     if (rightPanelMode === 'queue' && queueSubTab === 'history') {
@@ -390,7 +409,22 @@ export function RightQueuePanel() {
                 }`}
               >
                 <Clock className="w-3.5 h-3.5 flex-shrink-0" />
-                <span className="truncate min-w-0">Listening History</span>
+                <span className="truncate min-w-0">History</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  haptics.lightImpact();
+                  setQueueSubTab('friends');
+                }}
+                className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer select-none ${
+                  queueSubTab === 'friends'
+                    ? 'bg-[#fa233b]/20 text-[#fa233b] border border-[#fa233b]/35 shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="truncate min-w-0">Friends</span>
               </button>
             </div>
           ) : (
@@ -590,7 +624,7 @@ export function RightQueuePanel() {
               )}
             </div>
           </>
-        ) : (
+        ) : queueSubTab === 'history' ? (
           /* ── SUB-TAB: LISTENING HISTORY VIEW ── */
           <div className="space-y-1 overflow-y-auto no-scrollbar flex-1 pr-0.5">
             {historyItems.length > 0 ? (
@@ -660,6 +694,51 @@ export function RightQueuePanel() {
                 <Clock className="w-8 h-8 opacity-60 text-slate-500" />
                 <p>No listening history yet</p>
                 <p className="text-[10px] opacity-70 font-normal">Songs you play will appear here</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* ── SUB-TAB: FRIENDS LIVE ACTIVITY FEED ── */
+          <div className="space-y-2 overflow-y-auto no-scrollbar flex-1 pr-0.5">
+            {friendsActivity.length > 0 ? (
+              friendsActivity.map((activity) => (
+                <div
+                  key={activity.userId}
+                  className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-[#FA233B]/40 transition-all flex items-center justify-between group cursor-pointer"
+                >
+                  <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                    <div className="relative w-10 h-10 rounded-full overflow-hidden border border-white/20 flex-shrink-0 bg-slate-800">
+                      {activity.userAvatar ? (
+                        <img src={activity.userAvatar} alt={activity.userName} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-tr from-[#FA233B] to-rose-500 text-white font-bold flex items-center justify-center text-xs">
+                          {activity.userName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      {activity.isPlaying && (
+                        <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-400 border-2 border-black animate-pulse" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-white truncate">{activity.userName}</p>
+                      <p className="text-[11px] text-[#FA233B] font-semibold truncate leading-tight mt-0.5">
+                        {activity.songTitle}
+                      </p>
+                      <p className="text-[10px] text-slate-400 truncate">{activity.artist}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className="text-[9px] font-mono text-emerald-400 font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                      LIVE 🎧
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="py-12 flex flex-col items-center justify-center text-center text-[var(--text-muted)] text-xs font-semibold gap-2">
+                <Users className="w-8 h-8 opacity-60 text-rose-400" />
+                <p>No active friends right now</p>
+                <p className="text-[10px] opacity-70 font-normal">When friends listen to music, their live activity appears here!</p>
               </div>
             )}
           </div>

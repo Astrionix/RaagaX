@@ -9,7 +9,15 @@ import { X, Mic2, Music } from 'lucide-react';
 
 export function LyricsPanel() {
   const { status, type, lines, currentLineIndex, scriptMode, setScriptMode, hasTransliteration } = useLyricsStore();
-  const { isLyricsOpen, toggleLyrics, currentSong } = usePlayerStore();
+  const {
+    isLyricsOpen,
+    toggleLyrics,
+    currentSong,
+    isKaraokeMode,
+    toggleKaraokeMode,
+    vocalReductionLevel,
+    setVocalReductionLevel,
+  } = usePlayerStore();
   const { resolvedTheme } = useThemeStore();
   const isLight = resolvedTheme === 'light';
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -245,6 +253,65 @@ export function LyricsPanel() {
           <h4 className={`text-sm font-black truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>{currentSong.title}</h4>
           <p className={`text-xs truncate font-medium ${isLight ? 'text-slate-500' : 'text-white/60'}`}>{currentSong.artist}</p>
         </div>
+      </div>
+
+      {/* 🎤 Apple Music Sing — Karaoke Mode Control Card */}
+      <div className={`mb-3 p-3 rounded-2xl border transition-all ${
+        isKaraokeMode
+          ? (isLight ? 'bg-gradient-to-r from-rose-100 to-pink-100 border-rose-300' : 'bg-gradient-to-r from-[#FA233B]/20 to-rose-900/30 border-[#FA233B]/40 shadow-[0_0_20px_rgba(250,35,59,0.2)]')
+          : (isLight ? 'bg-slate-50 border-slate-200' : 'bg-white/[0.03] border-white/10')
+      }`}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className={`w-7 h-7 rounded-xl flex items-center justify-center transition-all ${
+              isKaraokeMode ? 'bg-[#FA233B] text-white animate-pulse' : 'bg-white/10 text-slate-400'
+            }`}>
+              <Mic2 className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <p className={`text-xs font-black leading-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                Apple Music Sing
+              </p>
+              <p className={`text-[10px] leading-tight ${isLight ? 'text-slate-500' : 'text-white/50'}`}>
+                {isKaraokeMode ? 'Vocal Attenuation Active' : 'Karaoke Lead Vocal Mute'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              toggleKaraokeMode();
+              import('@/lib/haptics/HapticEngine').then(m => m.haptics.mediumImpact());
+            }}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+              isKaraokeMode
+                ? 'bg-[#FA233B] text-white shadow-md hover:bg-rose-600 scale-105'
+                : (isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-white/10 hover:bg-white/20 text-white')
+            }`}
+          >
+            {isKaraokeMode ? 'SING ON 🎤' : 'Enable Sing'}
+          </button>
+        </div>
+
+        {isKaraokeMode && (
+          <div className="mt-2.5 pt-2 border-t border-white/10 flex items-center gap-3 animate-in fade-in duration-200">
+            <span className="text-[10px] font-bold text-rose-400 font-mono w-14">
+              Vocal: {Math.round((1 - vocalReductionLevel) * 100)}%
+            </span>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={vocalReductionLevel}
+              onChange={(e) => setVocalReductionLevel(parseFloat(e.target.value))}
+              className="flex-1 accent-[#FA233B] h-1.5 rounded-lg bg-white/20 cursor-pointer"
+            />
+            <span className="text-[10px] font-bold text-white/70 font-mono">
+              {Math.round(vocalReductionLevel * 100)}% Mute
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Synchronized Lyrics Container */}

@@ -18,6 +18,7 @@ import { BackupRestoreModal } from '@/components/modals/BackupRestoreModal';
 import { SleepTimerModal } from '@/components/modals/SleepTimerModal';
 import { CastModal } from '@/components/modals/CastModal';
 import { JamModal } from '@/components/modals/JamModal';
+import { BlendModal } from '@/components/modals/BlendModal';
 import { SettingsModal } from '@/components/modals/SettingsModal';
 import { ContextMenuModal } from '@/components/modals/ContextMenuModal';
 import { OnboardingAuthModal } from '@/components/modals/OnboardingAuthModal';
@@ -298,6 +299,12 @@ export default function Page() {
       </ErrorBoundary>
       <ErrorBoundary name="JamModal">
         <JamModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="BlendModal">
+        <BlendModal
+          isOpen={usePlayerStore((s) => s.isBlendModalOpen)}
+          onClose={() => usePlayerStore.getState().toggleBlendModal(false)}
+        />
       </ErrorBoundary>
       <ErrorBoundary name="SettingsModal">
         <SettingsModal />

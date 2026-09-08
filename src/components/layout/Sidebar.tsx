@@ -19,6 +19,8 @@ import {
   ChevronRight,
   PanelLeftClose,
   PanelLeftOpen,
+  Users,
+  Sparkles,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
@@ -285,6 +287,17 @@ export function Sidebar() {
           >
             <BarChart3 className={`w-4 h-4 flex-shrink-0 ${activeTab === 'insights' ? 'text-[#FA233B]' : 'text-[var(--text-muted)]'}`} />
             {!isSidebarCollapsed && <span>Music Insights</span>}
+          </button>
+
+          <button
+            onClick={() => usePlayerStore.getState().toggleBlendModal(true)}
+            title="Create Spotify Blend"
+            className={`w-full flex items-center ${
+              isSidebarCollapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2.5 py-2'
+            } rounded-xl text-xs transition-all cursor-pointer text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] font-medium border border-transparent`}
+          >
+            <Users className="w-4 h-4 flex-shrink-0 text-rose-400" />
+            {!isSidebarCollapsed && <span>Spotify Blend</span>}
           </button>
         </div>
 
