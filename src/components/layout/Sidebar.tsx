@@ -1,6 +1,8 @@
 'use client';
 
 import React from 'react';
+import { FriendActivityEngine } from '@/lib/social/FriendActivityEngine';
+import type { FriendActivityState } from '@/lib/social/FriendActivityEngine';
 import {
   Home,
   Flame,
@@ -21,6 +23,8 @@ import {
   PanelLeftOpen,
   Users,
   Sparkles,
+  Music,
+  X,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
@@ -30,9 +34,69 @@ import { haptics } from '@/lib/haptics/HapticEngine';
 
 export function Sidebar() {
   const [mounted, setMounted] = React.useState(false);
+  const [friendsActivity, setFriendsActivity] = React.useState<FriendActivityState[]>([]);
+  const [showAddFriend, setShowAddFriend] = React.useState(false);
+  const [tagInput, setTagInput] = React.useState('');
+  const [addedFeedback, setAddedFeedback] = React.useState('');
+
+  // Pinned friends stored as { tag: string, name: string }[]
+  const [pinnedFriends, setPinnedFriends] = React.useState<{ tag: string; name: string }[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem('raagax_pinned_friends');
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  });
+
+  const savePinned = (list: { tag: string; name: string }[]) => {
+    setPinnedFriends(list);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('raagax_pinned_friends', JSON.stringify(list));
+    }
+  };
+
+  const handleAddFriend = (e: React.FormEvent) => {
+    e.preventDefault();
+    const tag = tagInput.trim().toUpperCase();
+    if (!tag) return;
+    // Normalise: add RGX- prefix if missing
+    const normalised = tag.startsWith('RGX-') ? tag : `RGX-${tag}`;
+    if (pinnedFriends.some(f => f.tag === normalised)) {
+      setAddedFeedback('Already added!');
+      setTimeout(() => setAddedFeedback(''), 2000);
+      return;
+    }
+    // Derive friendly display name from activity if online, else use tag
+    const online = friendsActivity.find(a => {
+      try {
+        const { BlendEngine } = require('@/lib/social/BlendEngine');
+        return BlendEngine.getUniqueBlendId(a.userId) === normalised;
+      } catch { return false; }
+    });
+    const name = online?.userName || normalised;
+    savePinned([...pinnedFriends, { tag: normalised, name }]);
+    setTagInput('');
+    setAddedFeedback(`${name} added!`);
+    setShowAddFriend(false);
+    setTimeout(() => setAddedFeedback(''), 2500);
+    haptics.lightImpact();
+  };
+
+  const handleRemoveFriend = (tag: string) => {
+    savePinned(pinnedFriends.filter(f => f.tag !== tag));
+    haptics.lightImpact();
+  };
 
   React.useEffect(() => {
     setMounted(true);
+  }, []);
+
+  // Subscribe to live friend activity via Supabase Realtime Presence
+  React.useEffect(() => {
+    const engine = FriendActivityEngine.getInstance();
+    setFriendsActivity(engine.getActiveActivities());
+    const unsub = engine.onActivitiesUpdated((list) => setFriendsActivity(list));
+    return () => { try { unsub(); } catch { } };
   }, []);
 
   const {
@@ -301,7 +365,119 @@ export function Sidebar() {
           </button>
         </div>
 
-        {/* 3. PLAYLISTS SECTION */}
+        {/* 3. FRIENDS LIVE SECTION */}
+        <div className="space-y-1">
+          {!isSidebarCollapsed && (
+            <div className="flex items-center justify-between px-2.5 py-1">
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
+                Friends Live
+              </span>
+              <button
+                onClick={() => { setShowAddFriend(v => !v); setTagInput(''); setAddedFeedback(''); }}
+                className="p-1 rounded-md hover:bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[#FA233B] transition-colors cursor-pointer"
+                title="Add Friend by Blend Tag"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Success feedback */}
+          {addedFeedback && !isSidebarCollapsed && (
+            <div className="mx-2.5 px-2.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-400 font-bold animate-in fade-in duration-200">
+              ✓ {addedFeedback}
+            </div>
+          )}
+
+          {/* Add Friend inline form */}
+          {showAddFriend && !isSidebarCollapsed && (
+            <form onSubmit={handleAddFriend} className="px-2.5 space-y-1.5 animate-in slide-in-from-top-2 duration-200">
+              <div className="relative">
+                <input
+                  autoFocus
+                  type="text"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  placeholder="Enter RGX-XXXX tag"
+                  className="w-full pl-3 pr-8 py-2 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] focus:border-[#FA233B]/60 text-[11px] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none transition-all"
+                />
+                <button
+                  type="submit"
+                  disabled={!tagInput.trim()}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[#FA233B] disabled:text-[var(--text-muted)] transition-colors cursor-pointer disabled:cursor-not-allowed"
+                  title="Add"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <p className="text-[9px] text-[var(--text-muted)] px-0.5">
+                Get your friend&apos;s tag from Raaga Blend &rarr; &ldquo;Your Unique Blend Tag&rdquo;
+              </p>
+            </form>
+          )}
+
+          {isSidebarCollapsed ? (
+            <div className="flex justify-center">
+              <div className="relative p-2.5" title="Friends Live Activity">
+                <Users className="w-4 h-4 text-emerald-400" />
+                {pinnedFriends.length > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                )}
+              </div>
+            </div>
+          ) : pinnedFriends.length > 0 ? (
+            <div className="space-y-0.5">
+              {pinnedFriends.map((friend) => {
+                const activity = friendsActivity.find(a => a.userId === friend.tag || a.userName === friend.name);
+                const isOnline = !!activity;
+                return (
+                  <div
+                    key={friend.tag}
+                    className={`group flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs transition-all ${isOnline ? 'hover:bg-[var(--bg-surface)]' : 'opacity-50'}`}
+                  >
+                    <div className="relative flex-shrink-0">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-[#FA233B] to-rose-400 text-white font-bold text-[10px] flex items-center justify-center">
+                        {friend.name.charAt(0).toUpperCase()}
+                      </div>
+                      {isOnline && (
+                        <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border border-[var(--sidebar-bg)]" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-semibold text-[var(--text-primary)] truncate leading-tight">
+                        {friend.name}
+                      </p>
+                      <p className="text-[9px] text-[var(--text-muted)] truncate leading-tight flex items-center gap-1">
+                        {isOnline
+                          ? <><Music className="w-2.5 h-2.5 flex-shrink-0" />{activity!.songTitle}</>
+                          : <span className="font-mono">{friend.tag}</span>
+                        }
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveFriend(friend.tag)}
+                      className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-[var(--text-muted)] hover:text-red-400 transition-all cursor-pointer flex-shrink-0"
+                      title="Remove friend"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowAddFriend(true)}
+              className="w-full flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-[var(--bg-surface)]/50 border border-dashed border-[var(--border-subtle)] hover:border-[#FA233B]/40 text-[var(--text-muted)] hover:text-[var(--text-primary)] text-left cursor-pointer transition-all group"
+            >
+              <Plus className="w-3.5 h-3.5 group-hover:text-[#FA233B] transition-colors flex-shrink-0" />
+              <span className="text-[10px] font-medium">Add friends by Blend Tag</span>
+            </button>
+          )}
+        </div>
+
+        {/* 4. PLAYLISTS SECTION */}
         <div className="space-y-1">
           {!isSidebarCollapsed && (
             <div className="flex items-center justify-between px-2.5 py-1 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">

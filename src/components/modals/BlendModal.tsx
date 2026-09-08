@@ -15,7 +15,7 @@ export function BlendModal({
   onClose: () => void;
 }) {
   const { user } = useAuthStore();
-  const { likedSongs, playSong } = usePlayerStore();
+  const { likedSongs, playSong, activeBlend, leaveActiveBlend, setActiveBlend } = usePlayerStore();
   const [friendInput, setFriendInput] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [blendResult, setBlendResult] = useState<BlendResult | null>(null);
@@ -69,6 +69,9 @@ export function BlendModal({
   const handlePlayBlend = () => {
     if (!blendResult || blendResult.songs.length === 0) return;
     haptics.mediumImpact();
+    // Enforce single-blend rule: leave any existing blend before connecting to a new one
+    if (activeBlend) leaveActiveBlend();
+    setActiveBlend(blendResult);
     playSong(blendResult.songs[0], blendResult.songs, {
       type: 'made_for_you',
       id: blendResult.id,
@@ -119,6 +122,27 @@ export function BlendModal({
         ) : !blendResult ? (
           /* ── STEP 2: SEARCH BY UNIQUE ID OR NAME ── */
           <div className="space-y-4 relative z-10">
+
+            {/* ── ACTIVE BLEND WARNING BANNER ── */}
+            {activeBlend && (
+              <div className="flex items-start gap-3 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 animate-in fade-in duration-300">
+                <div className="w-7 h-7 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Users className="w-3.5 h-3.5 text-amber-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-black text-amber-300">Active Blend: {activeBlend.userB}</p>
+                  <p className="text-[10px] text-amber-400/70 mt-0.5">
+                    You&apos;re currently blended with <span className="font-bold">{activeBlend.userB}</span>. Generating a new blend will end this connection.
+                  </p>
+                  <button
+                    onClick={() => { leaveActiveBlend(); haptics.lightImpact(); }}
+                    className="mt-1.5 text-[10px] font-bold text-amber-300 hover:text-white underline underline-offset-2 cursor-pointer transition-colors"
+                  >
+                    Leave current blend
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* My Unique Blend Tag Badge */}
             <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-between gap-3">

@@ -158,6 +158,9 @@ interface PlayerState {
   isJamModalOpen: boolean;
   isBlendModalOpen: boolean;
   toggleBlendModal: (open?: boolean) => void;
+  activeBlend: import('@/lib/social/BlendEngine').BlendResult | null;
+  setActiveBlend: (blend: import('@/lib/social/BlendEngine').BlendResult | null) => void;
+  leaveActiveBlend: () => void;
   activeJamRoomCode: string | null;
   toggleJamModal: (open?: boolean) => void;
   setActiveJamRoomCode: (code: string | null) => void;
@@ -625,6 +628,9 @@ export const usePlayerStore = create<PlayerState>()(
       isJamModalOpen: false,
       isBlendModalOpen: false,
       toggleBlendModal: (open) => set((s) => ({ isBlendModalOpen: open !== undefined ? open : !s.isBlendModalOpen })),
+      activeBlend: null,
+      setActiveBlend: (blend) => set({ activeBlend: blend }),
+      leaveActiveBlend: () => set({ activeBlend: null }),
       activeJamRoomCode: null,
       toggleJamModal: (open) => set((s) => {
         const shouldOpen = open !== undefined ? open : !s.isJamModalOpen;
@@ -1218,7 +1224,7 @@ export const usePlayerStore = create<PlayerState>()(
               jamMgr.broadcastHostState(initialPositionSec || 0, autoPlay);
             }
           }).catch(() => { });
-        } else {
+        } else if (!get().isLocalPlayback) {
           // Controller mode: Forward command to remote speaker and avoid local audio loading
           if (RaagaXNativePlayer.isNative()) {
             RaagaXNativePlayer.pause().catch(() => { });
@@ -2893,6 +2899,7 @@ export const usePlayerStore = create<PlayerState>()(
         crossfadeSec: state.crossfadeSec,
         isKaraokeMode: state.isKaraokeMode,
         vocalReductionLevel: state.vocalReductionLevel,
+        activeBlend: state.activeBlend,
         streamingQuality: state.streamingQuality,
         downloadQuality: state.downloadQuality,
         isAutoplayEnabled: state.isAutoplayEnabled,
