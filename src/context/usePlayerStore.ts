@@ -138,6 +138,9 @@ interface PlayerState {
   deliveredQuality: AudioQuality;
   loudnessNormalizationEnabled: boolean;
 
+  isSidebarCollapsed: boolean;
+  toggleSidebarCollapse: (collapsed?: boolean) => void;
+
   isPlayerExpanded: boolean;
   isLyricsOpen: boolean;
   isQueueOpen: boolean;
@@ -567,6 +570,12 @@ export const usePlayerStore = create<PlayerState>()(
       shuffleMode: 'OFF',
       repeatMode: 'off',
       isRefillingQueue: false,
+      isSidebarCollapsed: false,
+      toggleSidebarCollapse: (collapsed?: boolean) => {
+        const next = collapsed !== undefined ? collapsed : !get().isSidebarCollapsed;
+        set({ isSidebarCollapsed: next });
+      },
+
       crossfadeSec: 0,
       isGaplessEnabled: true,
       playbackContext: null,
@@ -2873,6 +2882,7 @@ export const usePlayerStore = create<PlayerState>()(
         streamingQuality: state.streamingQuality,
         downloadQuality: state.downloadQuality,
         isAutoplayEnabled: state.isAutoplayEnabled,
+        isSidebarCollapsed: state.isSidebarCollapsed,
         loudnessNormalizationEnabled: state.loudnessNormalizationEnabled,
         lastTrackId: state.currentSong?.id || null,
         lastPositionSec: state.lastPositionSec || 0,
