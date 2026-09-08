@@ -30,8 +30,8 @@ export async function GET() {
 
   // Fallback to latest stable release manifest
   return NextResponse.json({
-    versionCode: 13,
-    versionName: "1.2.9",
+    versionCode: 14,
+    versionName: "1.3.0",
     apkUrl: "https://raaga.me/api/app/download",
     sha256: "b8ad079b36c2d6df924486ebb6bce0656622ff6ad01e138534a3f308212bbcb0",
     fileSize: 13251382,
