@@ -270,7 +270,7 @@ export function LyricsPanel() {
             </div>
             <div>
               <p className={`text-xs font-black leading-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                Apple Music Sing
+                Raaga Sing Mode
               </p>
               <p className={`text-[10px] leading-tight ${isLight ? 'text-slate-500' : 'text-white/50'}`}>
                 {isKaraokeMode ? 'Vocal Attenuation Active' : 'Karaoke Lead Vocal Mute'}

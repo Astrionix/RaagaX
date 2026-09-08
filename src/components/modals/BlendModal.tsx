@@ -65,7 +65,7 @@ export function BlendModal({
               <Users className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-base font-black text-white">Spotify Blend</h3>
+              <h3 className="text-base font-black text-white">Raaga Blend</h3>
               <p className="text-[10px] text-slate-400">Shared music compatibility score</p>
             </div>
           </div>
@@ -109,7 +109,7 @@ export function BlendModal({
                 type="submit"
                 className="w-full py-3 rounded-xl bg-gradient-to-r from-[#FA233B] to-rose-600 text-white font-bold text-xs shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-transform cursor-pointer flex items-center justify-center gap-2"
               >
-                <Sparkles className="w-4 h-4" /> Create Spotify Blend
+                <Sparkles className="w-4 h-4" /> Create Raaga Blend
               </button>
             </form>
 
