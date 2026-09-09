@@ -127,21 +127,21 @@ function ContinueListeningCard({
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleResume(e as unknown as React.MouseEvent); } }}
       className={[
         'group relative flex items-center gap-3 p-2.5 rounded-xl cursor-pointer',
-        'transition-all duration-200',
+        'transition-all duration-200 ease-out',
         'border backdrop-blur-sm',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-crimson)] focus-visible:ring-offset-1',
-        'hover:-translate-y-px hover:shadow-md',
+        'hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20',
         isPlaying_
-          ? 'bg-[var(--bg-surface)] border-[var(--accent-crimson)]/40 shadow-sm shadow-rose-950/20'
+          ? 'bg-[var(--bg-surface)] border-[var(--accent-crimson)]/50 shadow-sm shadow-rose-950/20'
           : 'bg-[var(--bg-surface)]/80 border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] hover:border-[var(--border-strong)]/40',
       ].join(' ')}
     >
       {/* ── Artwork ────────────────────────────────────────────── */}
-      <div className="relative w-[52px] h-[52px] shrink-0 rounded-lg overflow-hidden bg-zinc-800 shadow-sm">
+      <div className="relative w-[52px] h-[52px] shrink-0 rounded-lg overflow-hidden bg-zinc-800 shadow-sm group-hover:shadow-md transition-shadow duration-200">
         <OptimizedImage
           src={session.song.coverUrl}
           alt={session.song.title}
-          className="w-full h-full object-cover group-hover:scale-[1.06] transition-transform duration-300"
+          className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-200 ease-out"
         />
 
         {/* Playing: animated equalizer bars */}
@@ -155,7 +155,7 @@ function ContinueListeningCard({
 
         {/* Hover: play icon */}
         {!isPlaying_ && (
-          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-150" aria-hidden>
+          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-200" aria-hidden>
             <Play className="w-4 h-4 text-white fill-current ml-0.5 drop-shadow" />
           </div>
         )}
@@ -182,12 +182,12 @@ function ContinueListeningCard({
             aria-label={`${fmt(session.currentTimeSec)} of ${fmt(session.durationSec)}`}
           >
             <div
-              className="h-full rounded-full transition-[width] duration-300"
+              className="h-full rounded-full transition-all duration-200 ease-out group-hover:brightness-125"
               style={{
                 width: `${pct}%`,
                 background: isPlaying_
                   ? 'var(--accent-crimson)'
-                  : 'color-mix(in srgb, var(--accent-crimson) 70%, transparent)',
+                  : 'color-mix(in srgb, var(--accent-crimson) 80%, transparent)',
               }}
             />
           </div>

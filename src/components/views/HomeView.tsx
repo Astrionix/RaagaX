@@ -32,6 +32,7 @@ import { FriendActivityEngine } from '@/lib/social/FriendActivityEngine';
 import type { FriendActivityState } from '@/lib/social/FriendActivityEngine';
 import { useTimeAwareTheme } from '@/context/useTimeAwareTheme';
 import { ContinueListeningShelf, ContinueListeningSession } from '@/components/home/ContinueListeningShelf';
+import { LivingSkyBackdrop } from '@/components/home/LivingSkyBackdrop';
 
 const EMPTY_SHELF_ITEMS: ShelfItem[] = [];
 
@@ -527,6 +528,9 @@ export function HomeView() {
 
   return (
     <div className="space-y-5 sm:space-y-6 pb-2 select-none relative animate-in fade-in duration-300">
+
+      {/* ── Living Sky 24-Hour Environmental Backdrop System ── */}
+      <LivingSkyBackdrop timeDetails={timeTheme} />
 
       {/* ── Subtle Artwork Atmospheric Glow ── */}
       {isMounted && currentSong && (
