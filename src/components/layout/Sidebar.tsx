@@ -16,6 +16,7 @@ import {
   Settings,
   Disc3,
   BarChart3,
+  Clock,
   Download,
   ChevronRight,
   PanelLeftClose,
@@ -322,8 +323,6 @@ export function Sidebar() {
           </button>
 
           <button
-<<<<<<< HEAD
-=======
             onClick={() => setActiveTab('history')}
             title="Listening History"
             className={`w-full flex items-center ${
@@ -339,7 +338,6 @@ export function Sidebar() {
           </button>
 
           <button
->>>>>>> bcd36ed (feat(brand): update Raaga Music Icon, favicons, app icons, and sidebar illumination)
             onClick={() => setActiveTab('insights')}
             title="Music Insights"
             className={`w-full flex items-center ${
