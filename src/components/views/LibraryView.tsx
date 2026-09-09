@@ -92,9 +92,9 @@ export function LibraryView() {
     e.preventDefault();
     const tag = tagInput.trim().toUpperCase();
     if (!tag) return;
-    const normalised = tag.startsWith('RGX-') ? tag : `RGX-${tag}`;
+    const normalised = tag.startsWith('RGX-') ? tag : (tag.length === 4 ? `RGX-${tag}` : `RGX-${tag}`);
     if (normalised === myTag) {
-      alert('This is your own RGX tag. Please enter your friend’s RGX tag.');
+      alert('This is your own RGX tag. Please enter your friend’s 4-character tag.');
       return;
     }
     if (pinnedFriends.some(f => f.tag === normalised)) return;
@@ -628,7 +628,7 @@ export function LibraryView() {
                     <span>Sort: {currentLikedLabel} ▾</span>
                   </button>
                   {showLikedSortMenu && (
-                    <div className="absolute left-0 top-full mt-1.5 w-52 bg-[#141520] border border-white/15 rounded-xl p-1.5 shadow-2xl z-30 text-xs animate-in zoom-in-95 duration-100">
+                    <div className="absolute left-0 top-full mt-1.5 w-52 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-xl p-1.5 shadow-2xl z-30 text-xs animate-in zoom-in-95 duration-100">
                       {likedSortOptions.map((opt) => (
                         <button
                           key={opt.value}
@@ -640,7 +640,7 @@ export function LibraryView() {
                           className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors flex items-center justify-between cursor-pointer ${
                             likedSortBy === opt.value
                               ? 'bg-[#FA233B]/20 text-red-400 font-bold'
-                              : 'hover:bg-white/10 text-slate-300 hover:text-white'
+                              : 'hover:bg-[var(--bg-surface)] text-[var(--text-primary)]'
                           }`}
                         >
                           <span>{opt.label}</span>
@@ -665,7 +665,7 @@ export function LibraryView() {
                     <span>Sort: {currentHistoryLabel} ▾</span>
                   </button>
                   {showHistorySortMenu && (
-                    <div className="absolute left-0 top-full mt-1.5 w-52 bg-[#141520] border border-white/15 rounded-xl p-1.5 shadow-2xl z-30 text-xs animate-in zoom-in-95 duration-100">
+                    <div className="absolute left-0 top-full mt-1.5 w-52 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-xl p-1.5 shadow-2xl z-30 text-xs animate-in zoom-in-95 duration-100">
                       {historySortOptions.map((opt) => (
                         <button
                           key={opt.value}
@@ -677,7 +677,7 @@ export function LibraryView() {
                           className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors flex items-center justify-between cursor-pointer ${
                             historySortBy === opt.value
                               ? 'bg-[#FA233B]/20 text-red-400 font-bold'
-                              : 'hover:bg-white/10 text-slate-300 hover:text-white'
+                              : 'hover:bg-[var(--bg-surface)] text-[var(--text-primary)]'
                           }`}
                         >
                           <span>{opt.label}</span>
@@ -702,7 +702,7 @@ export function LibraryView() {
                     <span>Sort: {currentDownloadedLabel} ▾</span>
                   </button>
                   {showDownloadedSortMenu && (
-                    <div className="absolute left-0 top-full mt-1.5 w-56 bg-[#141520] border border-white/15 rounded-xl p-1.5 shadow-2xl z-30 text-xs animate-in zoom-in-95 duration-100">
+                    <div className="absolute left-0 top-full mt-1.5 w-56 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-xl p-1.5 shadow-2xl z-30 text-xs animate-in zoom-in-95 duration-100">
                       {downloadedSortOptions.map((opt) => (
                         <button
                           key={opt.value}
@@ -714,7 +714,7 @@ export function LibraryView() {
                           className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors flex items-center justify-between cursor-pointer ${
                             downloadedSortBy === opt.value
                               ? 'bg-emerald-500/20 text-emerald-400 font-bold'
-                              : 'hover:bg-white/10 text-slate-300 hover:text-white'
+                              : 'hover:bg-[var(--bg-surface)] text-[var(--text-primary)]'
                           }`}
                         >
                           <span>{opt.label}</span>
@@ -841,7 +841,7 @@ export function LibraryView() {
                   }}
                 >
                   <div
-                    className={`py-2.5 px-3 sm:px-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-white/10 hover:bg-white/[0.06] transition-all flex items-center justify-between group min-h-[64px] sm:min-h-[68px] ${
+                    className={`py-2.5 px-3 sm:px-4 rounded-2xl bg-[var(--bg-surface)]/40 border border-[var(--border-subtle)] hover:border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] transition-all flex items-center justify-between group min-h-[64px] sm:min-h-[68px] ${
                       isSongOfflineUnavailable ? 'opacity-40 pointer-events-none select-none' : ''
                     }`}
                   >
@@ -858,10 +858,10 @@ export function LibraryView() {
                         className="w-12 h-12 rounded-xl object-cover shadow-sm flex-shrink-0 bg-slate-800"
                       />
                       <div className="min-w-0 flex-1">
-                        <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-[#F51B3D] transition-colors truncate">
+                        <h4 className="text-xs sm:text-sm font-bold text-[var(--text-primary)] group-hover:text-[#F51B3D] transition-colors truncate">
                           {song.title}
                         </h4>
-                        <p className="text-[11px] text-[#8E92A4] truncate mt-0.5">{song.artist}</p>
+                        <p className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">{song.artist}</p>
                       </div>
                     </div>
 
@@ -923,21 +923,21 @@ export function LibraryView() {
                 <button
                   key={item.id}
                   onClick={() => setDownloadSubTab(item.id as any)}
-                  className="w-full py-3.5 px-4 flex items-center justify-between hover:bg-white/5 active:bg-white/10 transition-colors text-left group cursor-pointer"
+                  className="w-full py-3.5 px-4 flex items-center justify-between hover:bg-[var(--bg-surface)] active:bg-[var(--bg-elevated)] transition-colors text-left group cursor-pointer"
                 >
                   <div className="flex items-center gap-3.5">
-                    <div className="w-7 h-7 rounded-lg bg-white/[0.04] border border-white/5 flex items-center justify-center flex-shrink-0 group-hover:bg-white/10 transition-colors">
+                    <div className="w-7 h-7 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center justify-center flex-shrink-0 group-hover:bg-[var(--bg-elevated)] transition-colors">
                       <Icon className={`w-3.5 h-3.5 ${item.color}`} />
                     </div>
-                    <span className="text-xs sm:text-sm font-bold text-white group-hover:text-white transition-colors">
+                    <span className="text-xs sm:text-sm font-bold text-[var(--text-primary)] group-hover:text-[var(--text-primary)] transition-colors">
                       {item.label}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-slate-400">
+                  <div className="flex items-center gap-1.5 text-[var(--text-muted)]">
                     {item.count !== null && (
-                      <span className="text-[11px] font-mono text-slate-500 font-semibold">{item.count}</span>
+                      <span className="text-[11px] font-mono text-[var(--text-muted)] font-semibold">{item.count}</span>
                     )}
-                    <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
+                    <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-colors" />
                   </div>
                 </button>
               );
@@ -1696,7 +1696,7 @@ export function LibraryView() {
             className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/15 border border-white/15 text-xs font-mono font-bold text-slate-200 transition-all flex items-center gap-1.5 cursor-pointer"
             title="Click to copy your RGX tag"
           >
-            <span>{myTag}</span>
+            <span>{myTag.replace('RGX-', '')}</span>
             {copiedTag ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-slate-400" />}
           </button>
         </div>
@@ -1707,8 +1707,8 @@ export function LibraryView() {
             type="text"
             value={tagInput}
             onChange={(e) => setTagInput(e.target.value)}
-            placeholder="Enter Friend RGX Tag (e.g. RGX-4A2B)..."
-            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-[#FA233B]/50 transition-colors"
+            placeholder="Enter 4-character tag (e.g. A8K2)..."
+            className="flex-1 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl px-3 py-1.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[#FA233B]/50 transition-colors"
           />
           <button
             type="submit"
@@ -1726,10 +1726,10 @@ export function LibraryView() {
               return (
                 <div
                   key={f.tag}
-                  className="p-2.5 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between gap-3 group hover:bg-white/10 transition-colors"
+                  className="p-2.5 rounded-xl bg-[var(--bg-surface)]/50 border border-[var(--border-subtle)] flex items-center justify-between gap-3 group hover:bg-[var(--bg-surface)] transition-colors"
                 >
                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                    <div className="w-8 h-8 rounded-full bg-slate-800 border border-white/10 overflow-hidden flex-shrink-0 relative">
+                    <div className="w-8 h-8 rounded-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] overflow-hidden flex-shrink-0 relative">
                       <img
                         src={live?.userAvatar || live?.coverUrl || '/app-icon.png'}
                         alt={live?.userName || f.name}
@@ -1742,12 +1742,12 @@ export function LibraryView() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
-                        <p className="text-xs font-bold text-white truncate">{live?.userName || f.name}</p>
-                        <span className="text-[10px] font-mono text-slate-400">({f.tag})</span>
+                        <p className="text-xs font-bold text-[var(--text-primary)] truncate">{live?.userName || f.name}</p>
+                        <span className="text-[10px] font-mono text-[var(--text-muted)]">({f.tag.replace('RGX-', '')})</span>
                         {live?.isPlaying ? (
                           <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/15 px-1.5 py-0.2 rounded-full border border-emerald-500/20">LIVE</span>
                         ) : (
-                          <span className="text-[9px] text-slate-500">Offline</span>
+                          <span className="text-[9px] text-[var(--text-muted)]">Offline</span>
                         )}
                       </div>
                       {live?.isPlaying ? (
@@ -1755,14 +1755,14 @@ export function LibraryView() {
                           🎵 {live.songTitle} — {live.artist}
                         </p>
                       ) : (
-                        <p className="text-[11px] text-slate-400 truncate">Not currently listening</p>
+                        <p className="text-[11px] text-[var(--text-muted)] truncate">Not currently listening</p>
                       )}
                     </div>
                   </div>
 
                   <button
                     onClick={() => handleRemoveFriend(f.tag)}
-                    className="p-1.5 text-slate-500 hover:text-red-400 rounded-lg hover:bg-white/5 opacity-60 group-hover:opacity-100 transition-all cursor-pointer"
+                    className="p-1.5 text-[var(--text-muted)] hover:text-red-400 rounded-lg hover:bg-[var(--bg-surface)] opacity-60 group-hover:opacity-100 transition-all cursor-pointer"
                     title="Remove Friend"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -1771,7 +1771,7 @@ export function LibraryView() {
               );
             })
           ) : (
-            <p className="text-xs text-slate-400 italic text-center py-2">
+            <p className="text-xs text-[var(--text-muted)] italic text-center py-2">
               No friends added yet. Enter a friend&apos;s RGX tag above to see what they are listening to live!
             </p>
           )}
@@ -1790,19 +1790,19 @@ export function LibraryView() {
             <button
               key={item.id}
               onClick={() => setTab(item.id)}
-              className="w-full py-2.5 px-4 flex items-center justify-between hover:bg-white/5 transition-colors text-left group cursor-pointer"
+              className="w-full py-2.5 px-4 flex items-center justify-between hover:bg-[var(--bg-surface)] transition-colors text-left group cursor-pointer"
             >
               <div className="flex items-center gap-3">
-                <div className="w-7 h-7 rounded-lg bg-white/[0.04] border border-white/5 flex items-center justify-center flex-shrink-0 group-hover:bg-white/10 transition-colors">
+                <div className="w-7 h-7 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center justify-center flex-shrink-0 group-hover:bg-[var(--bg-elevated)] transition-colors">
                   <Icon className={`w-3.5 h-3.5 ${item.color}`} />
                 </div>
-                <span className="text-xs sm:text-sm font-bold text-white group-hover:text-white transition-colors">
+                <span className="text-xs sm:text-sm font-bold text-[var(--text-primary)] transition-colors">
                   {item.label}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 text-slate-400">
-                <span className="text-[11px] font-mono text-slate-500 font-semibold">{item.count}</span>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
+              <div className="flex items-center gap-1.5 text-[var(--text-muted)]">
+                <span className="text-[11px] font-mono text-[var(--text-muted)] font-semibold">{item.count}</span>
+                <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-colors" />
               </div>
             </button>
           );
@@ -1822,21 +1822,21 @@ export function LibraryView() {
             <button
               key={item.id}
               onClick={() => setTab(item.id)}
-              className="w-full py-2.5 px-4 flex items-center justify-between hover:bg-white/5 transition-colors text-left group cursor-pointer"
+              className="w-full py-2.5 px-4 flex items-center justify-between hover:bg-[var(--bg-surface)] transition-colors text-left group cursor-pointer"
             >
               <div className="flex items-center gap-3">
-                <div className="w-7 h-7 rounded-lg bg-white/[0.04] border border-white/5 flex items-center justify-center flex-shrink-0 group-hover:bg-white/10 transition-colors">
+                <div className="w-7 h-7 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center justify-center flex-shrink-0 group-hover:bg-[var(--bg-elevated)] transition-colors">
                   <Icon className={`w-3.5 h-3.5 ${item.color}`} />
                 </div>
                 <div>
-                  <span className="text-xs sm:text-sm font-bold text-white block group-hover:text-white transition-colors">
+                  <span className="text-xs sm:text-sm font-bold text-[var(--text-primary)] block transition-colors">
                     {item.label}
                   </span>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 text-slate-400">
-                <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">{item.subtitle}</span>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
+              <div className="flex items-center gap-1.5 text-[var(--text-muted)]">
+                <span className="text-[11px] text-[var(--text-muted)] font-medium hidden sm:inline">{item.subtitle}</span>
+                <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-colors" />
               </div>
             </button>
           );

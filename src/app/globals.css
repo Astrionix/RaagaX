@@ -127,6 +127,16 @@
     background: rgba(255, 255, 255, 0.25);
   }
 
+  /* Light mode sidebar scrollbar */
+  .light .sidebar-scrollbar::-webkit-scrollbar-thumb,
+  [data-theme="light"] .sidebar-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(15, 23, 42, 0.12);
+  }
+  .light .sidebar-scrollbar::-webkit-scrollbar-thumb:hover,
+  [data-theme="light"] .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(15, 23, 42, 0.25);
+  }
+
   /* Remove 300ms tap delay on interactive buttons/links */
   button, a, [role="button"], input, select, label {
     touch-action: manipulation;
@@ -250,8 +260,30 @@
 .light [class*="bg-[#0D0F17]"], [data-theme="light"] [class*="bg-[#0D0F17]"],
 .light [class*="bg-[#0d0f17]"], [data-theme="light"] [class*="bg-[#0d0f17]"],
 .light [class*="bg-[#1A1D26]"], [data-theme="light"] [class*="bg-[#1A1D26]"],
-.light [class*="bg-[#1a1d26]"], [data-theme="light"] [class*="bg-[#1a1d26]"] {
+.light [class*="bg-[#1a1d26]"], [data-theme="light"] [class*="bg-[#1a1d26]"],
+.light [class*="bg-[#161B26]"], [data-theme="light"] [class*="bg-[#161B26]"],
+.light [class*="bg-[#161b26]"], [data-theme="light"] [class*="bg-[#161b26]"],
+.light [class*="bg-[#0F131C]"], [data-theme="light"] [class*="bg-[#0F131C]"],
+.light [class*="bg-[#0f131c]"], [data-theme="light"] [class*="bg-[#0f131c]"],
+.light [class*="bg-[#0A0D14]"], [data-theme="light"] [class*="bg-[#0A0D14]"],
+.light [class*="bg-[#0a0d14]"], [data-theme="light"] [class*="bg-[#0a0d14]"],
+.light [class*="bg-[#12131c]"], [data-theme="light"] [class*="bg-[#12131c]"],
+.light [class*="bg-[#12131C]"], [data-theme="light"] [class*="bg-[#12131C]"],
+.light [class*="bg-[#141520]"], [data-theme="light"] [class*="bg-[#141520]"],
+.light [class*="bg-[#0a0b10]"], [data-theme="light"] [class*="bg-[#0a0b10]"] {
   background-color: var(--bg-surface) !important;
+}
+
+/* Light mode: invert gradient from-/via-/to- dark hex backgrounds on modals */
+.light .from-\[\#161B26\],
+.light .via-\[\#0F131C\],
+.light .to-\[\#0A0D14\],
+[data-theme="light"] .from-\[\#161B26\],
+[data-theme="light"] .via-\[\#0F131C\],
+[data-theme="light"] .to-\[\#0A0D14\] {
+  --tw-gradient-from: var(--bg-elevated);
+  --tw-gradient-via: var(--bg-surface);
+  --tw-gradient-to: var(--bg-elevated);
 }
 
 /* Semi-transparent dark glass layers in light mode */
@@ -362,15 +394,21 @@
 .light .lens-soft,
 .light .lens-floating,
 .light .lens-crystal,
+.light .glass-deep,
+.light .glass-frosted,
+.light .glass-capsule,
 [data-theme="light"] .lens-soft,
 [data-theme="light"] .lens-floating,
-[data-theme="light"] .lens-crystal {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.88) 0%, rgba(240, 244, 248, 0.75) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.95);
+[data-theme="light"] .lens-crystal,
+[data-theme="light"] .glass-deep,
+[data-theme="light"] .glass-frosted,
+[data-theme="light"] .glass-capsule {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92) 0%, rgba(241, 245, 249, 0.85) 100%) !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
   box-shadow: 
-    0 16px 40px -8px rgba(15, 23, 42, 0.08),
-    inset 0 1.5px 2px rgba(255, 255, 255, 1),
-    inset 0 -1.5px 2px rgba(0, 0, 0, 0.05);
+    0 8px 24px -4px rgba(15, 23, 42, 0.08),
+    inset 0 1px 2px rgba(255, 255, 255, 1),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.04) !important;
 }
 
 /* Glass Card Baseline */
@@ -580,4 +618,346 @@
 
 .ambient-paused {
   animation-play-state: paused !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MADE FOR YOU CARDS — Premium flowing wave animation system
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Card container ── */
+.mfy-card {
+  min-height: 190px;
+  background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.80);
+  box-shadow: 0 22px 45px rgba(30,35,50,0.12);
+  transition: transform 0.30s ease, box-shadow 0.30s ease;
+  isolation: isolate;
+}
+.mfy-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 28px 55px rgba(30,35,50,0.16);
+}
+.dark .mfy-card {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.10);
+  box-shadow: 0 25px 55px rgba(0,0,0,0.40);
+}
+.dark .mfy-card:hover {
+  box-shadow: 0 32px 65px rgba(0,0,0,0.55);
+}
+
+/* Dark text override */
+.dark .mfy-card h3 { color: #f7f8fc !important; }
+.dark .mfy-card p  { color: rgba(168,175,189,0.90) !important; }
+
+/* ── Moving light reflection sweep across the card ── */
+.mfy-card::before {
+  content: "";
+  position: absolute;
+  width: 65%;
+  height: 180%;
+  top: -40%;
+  left: -90%;
+  z-index: 2;
+  background: linear-gradient(
+    110deg,
+    transparent 35%,
+    rgba(255,255,255,0.36) 48%,
+    rgba(255,255,255,0.10) 54%,
+    transparent 68%
+  );
+  transform: rotate(12deg);
+  filter: blur(8px);
+  pointer-events: none;
+  animation: mfyLightSweep 14s ease-in-out infinite;
+}
+.dark .mfy-card::before {
+  background: linear-gradient(
+    110deg,
+    transparent 35%,
+    rgba(255,255,255,0.12) 48%,
+    rgba(255,255,255,0.04) 54%,
+    transparent 68%
+  );
+}
+
+@keyframes mfyLightSweep {
+  0%   { left: -90%; opacity: 0; }
+  20%  { opacity: 0.35; }
+  50%  { left: 45%;  opacity: 0.50; }
+  80%  { opacity: 0.20; }
+  100% { left: 130%; opacity: 0; }
+}
+
+/* ── Animated flowing wave background ── */
+.mfy-flow {
+  position: absolute;
+  inset: -45%;
+  z-index: -3;
+  filter: blur(3px);
+  transform: translate3d(0,0,0);
+  animation: mfyBaseFlow 18s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+/* Wave 1 */
+.mfy-flow::before {
+  content: "";
+  position: absolute;
+  width: 170%;
+  height: 55%;
+  left: -35%;
+  top: 28%;
+  border-radius: 50%;
+  transform: rotate(-12deg) scale(1);
+  animation: mfyWaveOne 12s ease-in-out infinite alternate;
+}
+
+/* Wave 2 */
+.mfy-flow::after {
+  content: "";
+  position: absolute;
+  width: 170%;
+  height: 48%;
+  left: -10%;
+  top: 42%;
+  border-radius: 50%;
+  transform: rotate(10deg) scale(1);
+  animation: mfyWaveTwo 16s ease-in-out infinite alternate;
+}
+
+@keyframes mfyBaseFlow {
+  0%   { transform: translate3d(-2%,-1%,0) scale(1); }
+  50%  { transform: translate3d(2%, 2%,0) scale(1.035); }
+  100% { transform: translate3d(-1%,4%,0) scale(1.07); }
+}
+
+@keyframes mfyWaveOne {
+  0%   { transform: translate3d(-5%,-3%,0) rotate(-12deg) scale(1); }
+  25%  { transform: translate3d( 2%, 2%,0) rotate(-8deg)  scale(1.04); }
+  50%  { transform: translate3d( 7%,-1%,0) rotate(-14deg) scale(1.08); }
+  75%  { transform: translate3d( 1%, 4%,0) rotate(-7deg)  scale(1.03); }
+  100% { transform: translate3d(-6%, 1%,0) rotate(-13deg) scale(1.06); }
+}
+
+@keyframes mfyWaveTwo {
+  0%   { transform: translate3d( 5%, 3%,0) rotate(10deg) scale(1); }
+  25%  { transform: translate3d(-2%,-2%,0) rotate(15deg) scale(1.05); }
+  50%  { transform: translate3d(-8%, 2%,0) rotate(6deg)  scale(1.08); }
+  75%  { transform: translate3d(-1%,-3%,0) rotate(13deg) scale(1.04); }
+  100% { transform: translate3d( 7%, 1%,0) rotate(8deg)  scale(1.07); }
+}
+
+/* ── Per-card timing — each card moves independently ── */
+.mfy-pink    .mfy-flow          { animation-duration: 17s; }
+.mfy-pink    .mfy-flow::before  { animation-duration: 11s; }
+.mfy-pink    .mfy-flow::after   { animation-duration: 15s; }
+
+.mfy-purple  .mfy-flow          { animation-duration: 21s; }
+.mfy-purple  .mfy-flow::before  { animation-duration: 14s; }
+.mfy-purple  .mfy-flow::after   { animation-duration: 18s; }
+
+.mfy-cyan    .mfy-flow          { animation-duration: 19s; }
+.mfy-cyan    .mfy-flow::before  { animation-duration: 13s; }
+.mfy-cyan    .mfy-flow::after   { animation-duration: 17s; }
+
+.mfy-magenta .mfy-flow          { animation-duration: 23s; }
+.mfy-magenta .mfy-flow::before  { animation-duration: 15s; }
+.mfy-magenta .mfy-flow::after   { animation-duration: 20s; }
+
+/* ── Glass overlay (light: white fade-up, dark: dark fade-up) ── */
+.mfy-glass {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background: linear-gradient(
+    to bottom,
+    rgba(255,255,255,0.12),
+    rgba(255,255,255,0.96)
+  );
+  pointer-events: none;
+  transition: background 0.35s ease;
+}
+.dark .mfy-glass {
+  background: linear-gradient(
+    to bottom,
+    rgba(10,12,18,0.08),
+    rgba(8,10,15,0.96)
+  );
+}
+
+/* ── Play button glass ── */
+.mfy-play-btn {
+  background: rgba(90,95,105,0.25);
+  border: 1px solid rgba(255,255,255,0.55);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+}
+.dark .mfy-play-btn {
+  background: rgba(255,255,255,0.13);
+  border-color: rgba(255,255,255,0.30);
+}
+
+/* ── Badge glass ── */
+.mfy-badge {
+  background: rgba(255,255,255,0.28);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.dark .mfy-badge {
+  background: rgba(0,0,0,0.22) !important;
+}
+
+/* ════════════════════════════════════════
+   LIGHT MODE — WAVE COLORS
+   ════════════════════════════════════════ */
+
+/* PINK */
+.mfy-pink .mfy-flow {
+  background:
+    radial-gradient(ellipse at 15% 30%, #ff9aae 0%, transparent 42%),
+    radial-gradient(ellipse at 80% 20%, #ffc7d4 0%, transparent 45%),
+    #fff1f4;
+}
+.mfy-pink .mfy-flow::before {
+  background: linear-gradient(105deg,
+    transparent 10%, rgba(255,50,87,0.75) 35%,
+    rgba(255,160,180,0.55) 60%, transparent 82%);
+}
+.mfy-pink .mfy-flow::after {
+  background: linear-gradient(100deg,
+    transparent 20%, rgba(255,255,255,0.90) 45%, transparent 75%);
+}
+
+/* PURPLE */
+.mfy-purple .mfy-flow {
+  background:
+    radial-gradient(ellipse at 20% 30%, #c7a7ff 0%, transparent 43%),
+    radial-gradient(ellipse at 80% 55%, #e4d7ff 0%, transparent 45%),
+    #f3efff;
+}
+.mfy-purple .mfy-flow::before {
+  background: linear-gradient(110deg,
+    transparent 5%, rgba(137,91,246,0.65) 35%,
+    rgba(190,155,255,0.55) 60%, transparent 82%);
+}
+.mfy-purple .mfy-flow::after {
+  background: linear-gradient(105deg,
+    transparent 20%, rgba(255,255,255,0.90) 48%, transparent 75%);
+}
+
+/* CYAN */
+.mfy-cyan .mfy-flow {
+  background:
+    radial-gradient(ellipse at 20% 35%, #85e3dd 0%, transparent 42%),
+    radial-gradient(ellipse at 80% 50%, #b8eaff 0%, transparent 45%),
+    #effcfb;
+}
+.mfy-cyan .mfy-flow::before {
+  background: linear-gradient(105deg,
+    transparent 8%, rgba(0,194,185,0.70) 35%,
+    rgba(75,190,255,0.55) 60%, transparent 82%);
+}
+.mfy-cyan .mfy-flow::after {
+  background: linear-gradient(105deg,
+    transparent 20%, rgba(255,255,255,0.90) 45%, transparent 72%);
+}
+
+/* MAGENTA */
+.mfy-magenta .mfy-flow {
+  background:
+    radial-gradient(ellipse at 20% 30%, #ffaddb 0%, transparent 42%),
+    radial-gradient(ellipse at 80% 25%, #ffd0a8 0%, transparent 45%),
+    #fff1f9;
+}
+.mfy-magenta .mfy-flow::before {
+  background: linear-gradient(110deg,
+    transparent 8%, rgba(244,65,164,0.70) 35%,
+    rgba(255,165,205,0.55) 60%, transparent 82%);
+}
+.mfy-magenta .mfy-flow::after {
+  background: linear-gradient(100deg,
+    transparent 20%, rgba(255,255,255,0.90) 45%, transparent 75%);
+}
+
+/* ════════════════════════════════════════
+   DARK MODE — WAVE COLORS
+   ════════════════════════════════════════ */
+
+/* PINK dark */
+.dark .mfy-pink .mfy-flow {
+  background:
+    radial-gradient(ellipse at 15% 30%, #b5123e 0%, transparent 42%),
+    radial-gradient(ellipse at 80% 20%, #7d1639 0%, transparent 45%),
+    #170b12;
+}
+.dark .mfy-pink .mfy-flow::before {
+  background: linear-gradient(105deg,
+    transparent 10%, rgba(255,36,83,0.85) 35%,
+    rgba(210,35,80,0.55) 60%, transparent 82%);
+}
+.dark .mfy-pink .mfy-flow::after {
+  background: linear-gradient(100deg,
+    transparent 20%, rgba(255,100,140,0.40) 45%, transparent 75%);
+}
+
+/* PURPLE dark */
+.dark .mfy-purple .mfy-flow {
+  background:
+    radial-gradient(ellipse at 20% 30%, #5933a5 0%, transparent 43%),
+    radial-gradient(ellipse at 80% 55%, #3d2874 0%, transparent 45%),
+    #100d1c;
+}
+.dark .mfy-purple .mfy-flow::before {
+  background: linear-gradient(110deg,
+    transparent 5%, rgba(137,92,255,0.80) 35%,
+    rgba(112,73,205,0.55) 60%, transparent 82%);
+}
+.dark .mfy-purple .mfy-flow::after {
+  background: linear-gradient(105deg,
+    transparent 20%, rgba(186,155,255,0.35) 48%, transparent 75%);
+}
+
+/* CYAN dark */
+.dark .mfy-cyan .mfy-flow {
+  background:
+    radial-gradient(ellipse at 20% 35%, #087d82 0%, transparent 42%),
+    radial-gradient(ellipse at 80% 50%, #135a83 0%, transparent 45%),
+    #071719;
+}
+.dark .mfy-cyan .mfy-flow::before {
+  background: linear-gradient(105deg,
+    transparent 8%, rgba(0,218,207,0.80) 35%,
+    rgba(25,150,220,0.55) 60%, transparent 82%);
+}
+.dark .mfy-cyan .mfy-flow::after {
+  background: linear-gradient(105deg,
+    transparent 20%, rgba(90,240,230,0.35) 45%, transparent 72%);
+}
+
+/* MAGENTA dark */
+.dark .mfy-magenta .mfy-flow {
+  background:
+    radial-gradient(ellipse at 20% 30%, #9b286e 0%, transparent 42%),
+    radial-gradient(ellipse at 80% 25%, #9b5935 0%, transparent 45%),
+    #1a0b17;
+}
+.dark .mfy-magenta .mfy-flow::before {
+  background: linear-gradient(110deg,
+    transparent 8%, rgba(255,48,170,0.80) 35%,
+    rgba(235,90,170,0.55) 60%, transparent 82%);
+}
+.dark .mfy-magenta .mfy-flow::after {
+  background: linear-gradient(100deg,
+    transparent 20%, rgba(255,150,210,0.35) 45%, transparent 75%);
+}
+
+/* ── Reduce motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .mfy-flow,
+  .mfy-flow::before,
+  .mfy-flow::after,
+  .mfy-card::before { animation: none; }
+  .mfy-card { transition: none; }
 }

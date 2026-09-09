@@ -29,10 +29,14 @@ export function getMyFriendIdentity(): { userId: string; userTag: string; userNa
   }
 
   let userTag = localStorage.getItem('raagax_user_tag');
-  if (!userTag || userTag === 'RGX-0000' || userTag === 'RGX-D295') {
-    // Generate a permanent random 4-character hex code: RGX-XXXX
-    const hex = Math.floor(0x1000 + Math.random() * 0xefff).toString(16).toUpperCase();
-    userTag = `RGX-${hex}`;
+  if (!userTag || userTag === 'RGX-0000' || userTag === 'RGX-D295' || !userTag.startsWith('RGX-') || userTag.length < 8) {
+    // Generate a permanent random 4-character alphanumeric code (digits + uppercase letters)
+    const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    let code = '';
+    for (let i = 0; i < 4; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    userTag = `RGX-${code}`;
     localStorage.setItem('raagax_user_tag', userTag);
   }
 

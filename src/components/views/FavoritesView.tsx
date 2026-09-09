@@ -379,18 +379,18 @@ export function FavoritesView() {
   }, [displaySongs]);
 
   return (
-    <div className="space-y-4 pb-4 text-white select-none animate-in fade-in duration-200 w-full pt-1">
+    <div className="space-y-4 pb-4 text-[var(--text-primary)] select-none animate-in fade-in duration-200 w-full pt-1">
       {/* ── HEADER AREA (Apple Music Style Density) ─────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-white/[0.06] pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-[var(--border-subtle)] pb-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-[var(--text-primary)] tracking-tight">
             Liked Songs
           </h1>
-          <p className="text-xs text-slate-400 font-medium mt-1 flex items-center gap-2 flex-wrap">
+          <p className="text-xs text-[var(--text-muted)] font-medium mt-1 flex items-center gap-2 flex-wrap">
             <span>
               {likedSongIds.length > 0 ? `${likedSongIds.length} songs` : `${displaySongs.length} songs`}
               {searchQuery.trim() && resolvedLikedSongs.length !== displaySongs.length && (
-                <span className="text-slate-500 ml-1"> (filtered from {resolvedLikedSongs.length})</span>
+                <span className="text-[var(--text-muted)] ml-1"> (filtered from {resolvedLikedSongs.length})</span>
               )}
               {formattedTotalDuration && ` • ${formattedTotalDuration}`}
             </span>
@@ -423,10 +423,10 @@ export function FavoritesView() {
             {/* Shuffle Button */}
             <button
               onClick={() => handlePlayAll(true)}
-              className="h-9 px-4 rounded-full bg-white/[0.06] hover:bg-white/[0.12] active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 border border-white/10 transition-all cursor-pointer"
+              className="h-9 px-4 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] active:scale-95 text-[var(--text-primary)] font-bold text-xs flex items-center justify-center gap-1.5 border border-[var(--border-subtle)] transition-all cursor-pointer"
               title="Shuffle liked songs"
             >
-              <Shuffle className="w-3.5 h-3.5 text-slate-300 flex-shrink-0" />
+              <Shuffle className="w-3.5 h-3.5 text-[var(--text-secondary)] flex-shrink-0" />
               <span>Shuffle</span>
             </button>
 
@@ -454,7 +454,7 @@ export function FavoritesView() {
             <div className="relative z-20">
               <button
                 onClick={() => setShowSortMenu(!showSortMenu)}
-                className="h-9 px-3.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+                className="h-9 px-3.5 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer whitespace-nowrap"
               >
                 <ArrowUpDown className="w-3.5 h-3.5 text-[#FA233B]" />
                 <span>
@@ -468,7 +468,7 @@ export function FavoritesView() {
                     className="fixed inset-0 z-20"
                     onClick={() => setShowSortMenu(false)}
                   />
-                  <div className="absolute right-0 sm:left-0 top-full mt-1.5 w-52 bg-[#161722] border border-white/15 rounded-2xl p-1.5 shadow-2xl z-30 text-xs animate-in zoom-in-95 duration-100 divide-y divide-white/5">
+                  <div className="absolute right-0 sm:left-0 top-full mt-1.5 w-52 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-2xl p-1.5 shadow-2xl z-30 text-xs animate-in zoom-in-95 duration-100 divide-y divide-[var(--border-subtle)]">
                     <div className="p-1 space-y-0.5">
                       {SORT_OPTIONS.map((opt) => (
                         <button
@@ -481,7 +481,7 @@ export function FavoritesView() {
                           className={`w-full text-left px-3 py-2 rounded-xl transition-colors flex items-center justify-between cursor-pointer ${
                             sortBy === opt.value
                               ? 'bg-[#FA233B]/20 text-red-400 font-bold'
-                              : 'hover:bg-white/10 text-slate-300 hover:text-white'
+                              : 'hover:bg-[var(--bg-surface)] text-[var(--text-primary)]'
                           }`}
                         >
                           <span>{opt.label}</span>
@@ -496,7 +496,7 @@ export function FavoritesView() {
 
             {/* Quick Search Bar */}
             <div className="relative min-w-[140px] sm:w-48">
-              <Search className="w-3 h-3 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Search className="w-3 h-3 text-[var(--text-muted)] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="search"
                 autoComplete="off"
@@ -504,12 +504,12 @@ export function FavoritesView() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Filter songs..."
-                className="w-full bg-white/[0.05] border border-white/10 text-xs text-white placeholder-slate-500 rounded-full pl-8 pr-7 py-2 outline-none focus:border-[#FA233B]/60 focus:bg-black/40 transition-all font-medium"
+                className="w-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-full pl-8 pr-7 py-2 outline-none focus:border-[#FA233B]/60 focus:bg-[var(--bg-elevated)] transition-all font-medium"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-white cursor-pointer"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
                   title="Clear filter"
                 >
                   <X className="w-3 h-3" />
@@ -523,11 +523,11 @@ export function FavoritesView() {
       {/* ── LIKED SONGS LIST / TABLE ─────────────────────────────────────────── */}
       <div>
         {(likedSongIds.length > 0 && resolvedLikedSongs.length === 0) ? (
-          <div className="py-16 px-4 text-center space-y-6 bg-gradient-to-b from-white/[0.04] to-transparent rounded-3xl border border-white/[0.06] flex flex-col items-center justify-center animate-in fade-in duration-300">
+          <div className="py-16 px-4 text-center space-y-6 bg-gradient-to-b from-[var(--bg-surface)]/40 to-transparent rounded-3xl border border-[var(--border-subtle)] flex flex-col items-center justify-center animate-in fade-in duration-300">
             {/* Glowing Audio Equalizer Waveform Animation */}
             <div className="relative flex items-center justify-center">
               <div className="absolute -inset-6 bg-[#FA233B]/20 rounded-full blur-2xl animate-pulse pointer-events-none" />
-              <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-tr from-[#FA233B]/20 via-black/80 to-white/[0.05] border border-[#FA233B]/30 flex items-center justify-center shadow-2xl shadow-red-500/15">
+              <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-tr from-[#FA233B]/20 via-[var(--bg-app)]/80 to-[var(--bg-surface)] border border-[#FA233B]/30 flex items-center justify-center shadow-2xl shadow-red-500/15">
                 {/* 5-bar animated audio equalizer */}
                 <div className="flex items-end justify-center gap-1 h-8">
                   <span className="w-1.5 bg-[#FA233B] rounded-full animate-[pulse_0.6s_ease-in-out_infinite] h-8" />
@@ -540,11 +540,11 @@ export function FavoritesView() {
             </div>
 
             <div className="space-y-1.5 text-center max-w-sm">
-              <h3 className="text-base font-bold text-white tracking-wide flex items-center justify-center gap-2">
+              <h3 className="text-base font-bold text-[var(--text-primary)] tracking-wide flex items-center justify-center gap-2">
                 <span>Loading Liked Songs</span>
                 <Loader2 className="w-4 h-4 text-[#FA233B] animate-spin" />
               </h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
+              <p className="text-xs text-[var(--text-muted)] leading-relaxed">
                 Fetching lossless metadata & artwork for {likedSongIds.length} tracks in the background...
               </p>
             </div>
@@ -571,7 +571,7 @@ export function FavoritesView() {
             {/* ── DESKTOP MUSIC TABLE (Apple Music Density) ─────────────────── */}
             <div className="hidden md:block">
               {/* Table Header (Sticky) */}
-              <div className="sticky top-0 z-10 bg-[#0a0b10]/90 backdrop-blur-md border-b border-white/[0.06] py-2 px-3 grid grid-cols-[40px_minmax(220px,2fr)_minmax(140px,1.2fr)_minmax(140px,1.2fr)_70px_60px] items-center gap-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none mb-1">
+              <div className="sticky top-0 z-10 bg-[var(--header-bg)] backdrop-blur-md border-b border-[var(--border-subtle)] py-2 px-3 grid grid-cols-[40px_minmax(220px,2fr)_minmax(140px,1.2fr)_minmax(140px,1.2fr)_70px_60px] items-center gap-3 text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider select-none mb-1">
                 <div className="text-center">#</div>
                 <div>Song</div>
                 <div>Artist</div>
@@ -655,7 +655,7 @@ export function FavoritesView() {
                             setActiveTab('artist');
                           }
                         }}
-                        className="text-xs text-slate-400 truncate hover:text-white hover:underline transition-colors"
+                        className="text-xs text-[var(--text-muted)] truncate hover:text-[var(--text-primary)] hover:underline transition-colors"
                       >
                         {displayArtist || 'Unknown Artist'}
                       </div>
@@ -670,13 +670,13 @@ export function FavoritesView() {
                             setActiveTab('album');
                           }
                         }}
-                        className="text-xs text-slate-400 truncate hover:text-white hover:underline transition-colors"
+                        className="text-xs text-[var(--text-muted)] truncate hover:text-[var(--text-primary)] hover:underline transition-colors"
                       >
                         {displayAlbum || 'Unknown Album'}
                       </div>
 
                       {/* 5. Time (Duration) */}
-                      <div className="text-xs font-mono text-slate-400 text-right pr-1">
+                      <div className="text-xs font-mono text-[var(--text-muted)] text-right pr-1">
                         {formatDuration(song.duration)}
                       </div>
 

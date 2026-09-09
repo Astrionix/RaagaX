@@ -563,27 +563,32 @@ export function HomeView() {
       ) : null}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 3. MADE FOR YOU — 4 Big, Interactive, Fully Working Mixes              */}
+      {/* 3. MADE FOR YOU — 4 Big, Interactive, Premium Mix Cards               */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <section className="space-y-3.5 pr-2 sm:pr-3">
-        <div className="flex items-center gap-2 px-0.5">
-          <Sparkles className="w-4 h-4 text-[#FA233B]" />
-          <h2 className="text-base sm:text-lg font-black text-white tracking-tight">Made For You</h2>
+      <section className="space-y-4 pr-2 sm:pr-3">
+        {/* Section Header */}
+        <div className="flex items-center gap-3 px-0.5">
+          <div className="flex items-center justify-center text-[#FA233B] text-2xl font-bold leading-none select-none">✦</div>
+          <div>
+            <h2 className="text-lg sm:text-xl font-black text-[var(--text-primary)] tracking-tight leading-none">Made For You</h2>
+            <p className="text-xs text-[var(--text-muted)] font-medium mt-0.5">Personalized mixes, just for you</p>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
           {[
             {
               id: 'heavy-rotation',
               label: 'Heavy Rotation',
               badge: 'ON REPEAT',
+              badgeIcon: '♨',
               desc: 'Your most played & loved tracks',
-              gradient: 'from-[#FA233B]/30 via-[#990e1f]/20 to-black/60',
-              accentColor: 'text-[#FA233B]',
-              borderColor: 'border-[#FA233B]/30 hover:border-[#FA233B]/60',
-              badgeBg: 'bg-[#FA233B]/20 text-[#FA233B] border-[#FA233B]/40',
-              icon: <Flame className="w-4 h-4 text-[#FA233B]" />,
-              glowColor: 'rgba(250,35,59,0.35)',
+              colorClass: 'mfy-pink',
+              badgeColorLight: '#f52b4e',
+              badgeBorderLight: '#ff5872',
+              avatarInitials: ['R', 'A', 'K'],
+              avatarMore: '+2',
+              icon: <Flame className="w-3.5 h-3.5" />,
               getQueue: () => {
                 if (feed?.recentlyPlayed && feed.recentlyPlayed.length > 0) return feed.recentlyPlayed;
                 if (feed?.topSongs && feed.topSongs.length > 0) return feed.topSongs;
@@ -595,13 +600,14 @@ export function HomeView() {
               id: 'daily-mix',
               label: 'Daily Mix',
               badge: 'CURATED',
+              badgeIcon: '✨',
               desc: 'Tailored to your current vibe',
-              gradient: 'from-violet-600/30 via-indigo-900/20 to-black/60',
-              accentColor: 'text-violet-400',
-              borderColor: 'border-violet-500/30 hover:border-violet-500/60',
-              badgeBg: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
-              icon: <Sparkles className="w-4 h-4 text-violet-400" />,
-              glowColor: 'rgba(139,92,246,0.35)',
+              colorClass: 'mfy-purple',
+              badgeColorLight: '#9676f6',
+              badgeBorderLight: '#a991ff',
+              avatarInitials: ['M', 'S', 'V'],
+              avatarMore: '+3',
+              icon: <Sparkles className="w-3.5 h-3.5" />,
               getQueue: () => {
                 if (feed?.dailyMixes?.[0]?.songs?.length) return feed.dailyMixes[0].songs;
                 if (feed?.madeForYou && feed.madeForYou.length > 0) return feed.madeForYou;
@@ -613,13 +619,14 @@ export function HomeView() {
               id: 'discover-mix',
               label: 'Discover Mix',
               badge: 'NEW FOR YOU',
+              badgeIcon: '◉',
               desc: 'Fresh songs you might love',
-              gradient: 'from-teal-600/30 via-cyan-950/20 to-black/60',
-              accentColor: 'text-teal-400',
-              borderColor: 'border-teal-500/30 hover:border-teal-500/60',
-              badgeBg: 'bg-teal-500/20 text-teal-300 border-teal-500/40',
-              icon: <Radio className="w-4 h-4 text-teal-400" />,
-              glowColor: 'rgba(20,184,166,0.35)',
+              colorClass: 'mfy-cyan',
+              badgeColorLight: '#22c5bd',
+              badgeBorderLight: '#46d6ce',
+              avatarInitials: ['D', 'P', 'J'],
+              avatarMore: '+4',
+              icon: <Radio className="w-3.5 h-3.5" />,
               getQueue: () => {
                 if (feed?.newReleases && feed.newReleases.length > 0) return feed.newReleases;
                 if (feed?.trendingSongs && feed.trendingSongs.length > 0) return feed.trendingSongs;
@@ -630,13 +637,14 @@ export function HomeView() {
               id: 'favorites-mix',
               label: 'Favorites Mix',
               badge: 'LIKED',
+              badgeIcon: '♥',
               desc: 'Hearted songs on endless shuffle',
-              gradient: 'from-pink-600/30 via-rose-950/20 to-black/60',
-              accentColor: 'text-pink-400',
-              borderColor: 'border-pink-500/30 hover:border-pink-500/60',
-              badgeBg: 'bg-pink-500/20 text-pink-300 border-pink-500/40',
-              icon: <Heart className="w-4 h-4 text-pink-400 fill-current" />,
-              glowColor: 'rgba(244,63,94,0.35)',
+              colorClass: 'mfy-magenta',
+              badgeColorLight: '#e95ba9',
+              badgeBorderLight: '#ec75bb',
+              avatarInitials: ['A', 'N', 'R'],
+              avatarMore: '+5',
+              icon: <Heart className="w-3.5 h-3.5 fill-current" />,
               getQueue: () => {
                 if (likedSongs.length > 0) return likedSongs as Song[];
                 if (feed?.topSongs && feed.topSongs.length > 0) return feed.topSongs;
@@ -647,12 +655,11 @@ export function HomeView() {
             const queue = mix.getQueue();
             const trackCount = queue.length > 0 ? `${queue.length} tracks` : `${currentLang} Mix`;
             const isMixActive = currentSong && queue.some((s) => s.id === currentSong.id);
+            const previewCovers = queue.slice(0, 3).map((s) => s.coverUrl).filter(Boolean);
 
             const handleCardClick = async () => {
               haptics.mediumImpact();
               let playableQueue = mix.getQueue();
-
-              // If queue is still empty, load live songs
               if (!playableQueue || playableQueue.length === 0) {
                 try {
                   const fallback = await PersonalizationEngine.getInstance().getPersonalizedHomeFeed(activeUserId, currentLang);
@@ -661,91 +668,116 @@ export function HomeView() {
                   console.warn('Fallback mix fetch failed', e);
                 }
               }
-
               if (playableQueue && playableQueue.length > 0) {
                 if (mix.id === 'favorites-mix' || mix.id === 'discover-mix') {
-                  usePlayerStore.getState().shufflePlay(playableQueue, {
-                    contextType: 'MADE_FOR_YOU',
-                    title: mix.label,
-                  });
+                  usePlayerStore.getState().shufflePlay(playableQueue, { contextType: 'MADE_FOR_YOU', title: mix.label });
                 } else {
-                  playSong(playableQueue[0], playableQueue, {
-                    type: 'made_for_you',
-                    id: mix.id,
-                    title: mix.label,
-                  });
+                  playSong(playableQueue[0], playableQueue, { type: 'made_for_you', id: mix.id, title: mix.label });
                 }
               } else {
-                // Navigate to library if completely empty
                 setActiveTab('library');
               }
             };
-
-            // Pick up to 3 cover URLs for visual depth
-            const previewCovers = queue.slice(0, 3).map((s) => s.coverUrl).filter(Boolean);
 
             return (
               <div
                 key={mix.id}
                 onClick={handleCardClick}
-                className={`relative rounded-3xl p-4 sm:p-5 bg-gradient-to-br ${mix.gradient} border ${mix.borderColor} transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] cursor-pointer group shadow-lg overflow-hidden flex flex-col justify-between min-h-[160px] sm:min-h-[175px]`}
-                style={{
-                  boxShadow: `0 8px 30px rgba(0,0,0,0.5), 0 0 20px ${mix.glowColor}`,
-                }}
+                className={`mfy-card ${mix.colorClass} relative rounded-[26px] overflow-hidden cursor-pointer group`}
               >
-                {/* Background Artwork Silhouette if available */}
+                {/* Animated flowing wave background */}
+                <div className="mfy-flow" />
+
+                {/* Glass overlay — light: white fade-up, dark: dark fade-up */}
+                <div className="mfy-glass" />
+
+                {/* Subtle album art tint behind glass */}
                 {previewCovers[0] && (
                   <div
-                    className="absolute right-0 top-0 w-3/4 h-full opacity-15 blur-sm bg-cover bg-center pointer-events-none transition-transform duration-700 group-hover:scale-110"
+                    className="absolute inset-0 z-[-1] bg-cover bg-center opacity-20 dark:opacity-10 scale-110 pointer-events-none"
                     style={{ backgroundImage: `url(${previewCovers[0]})` }}
                   />
                 )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
 
-                {/* Top Header: Badge + Play Button */}
-                <div className="relative z-10 flex items-center justify-between gap-2">
-                  <span className={`text-[9.5px] font-mono font-black uppercase tracking-wider px-2.5 py-1 rounded-full border shadow-sm flex items-center gap-1.5 ${mix.badgeBg}`}>
-                    {mix.icon}
-                    <span>{mix.badge}</span>
-                  </span>
-
-                  {/* Circular Play / Pause Action Button */}
+                {/* ── TOP ROW: Badge + Play ── */}
+                <div className="relative z-10 flex items-start justify-between p-3 sm:p-4 pb-0">
+                  {/* Badge */}
                   <div
-                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shadow-xl transition-all duration-200 ${
+                    className="mfy-badge flex items-center gap-1 px-2 py-1 rounded-full border text-[9px] font-black uppercase tracking-widest"
+                    style={{
+                      color: mix.badgeColorLight,
+                      borderColor: mix.badgeBorderLight,
+                      background: `color-mix(in srgb, ${mix.badgeColorLight} 10%, transparent)`,
+                      backdropFilter: 'blur(10px)',
+                    }}
+                  >
+                    <span className="text-xs leading-none">{mix.badgeIcon}</span>
+                    <span className="hidden sm:inline">{mix.badge}</span>
+                    <span className="sm:hidden">{mix.badge.split(' ')[0]}</span>
+                  </div>
+
+                  {/* Play / Pause Button */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleCardClick(); }}
+                    className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
                       isMixActive && isPlaying
-                        ? 'bg-[#FA233B] text-white scale-105 shadow-[0_0_15px_rgba(250,35,59,0.7)]'
-                        : 'bg-white/15 text-white backdrop-blur-md border border-white/25 group-hover:bg-[#FA233B] group-hover:border-[#FA233B] group-hover:scale-105'
+                        ? 'bg-[#FA233B] text-white shadow-[0_6px_16px_rgba(255,37,71,0.45)] scale-105'
+                        : 'mfy-play-btn text-white group-hover:scale-105'
                     }`}
+                    aria-label={isMixActive && isPlaying ? 'Pause' : 'Play'}
                   >
                     {isMixActive && isPlaying ? (
-                      <Pause className="w-4 h-4 fill-white stroke-none" />
+                      <Pause className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-white stroke-none" />
                     ) : (
-                      <Play className="w-4 h-4 fill-white stroke-none ml-0.5" />
+                      <Play className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-white stroke-none ml-0.5" />
                     )}
-                  </div>
+                  </button>
                 </div>
 
-                {/* Bottom Content: Title + Description + Track Count */}
-                <div className="relative z-10 pt-4">
-                  <h3 className="text-base sm:text-lg font-black text-white tracking-tight leading-tight group-hover:text-white transition-colors">
+                {/* ── BOTTOM CONTENT ── */}
+                <div className="relative z-10 p-3 sm:p-4 pt-5 sm:pt-6">
+                  <h3 className="text-sm sm:text-base font-black text-[var(--text-primary)] tracking-tight leading-tight mb-1">
                     {mix.label}
                   </h3>
-                  <p className="text-[11px] text-slate-300/80 mt-1 line-clamp-1">
+                  <p className="text-[10px] sm:text-[11px] text-[var(--text-secondary)] font-medium mb-2 truncate">
                     {mix.desc}
                   </p>
-                  <div className="mt-2.5 flex items-center gap-1.5">
-                    <span className="text-[10px] font-mono font-bold text-white/90 bg-white/10 px-2 py-0.5 rounded-md border border-white/10">
+
+                  {/* Bottom row: track count + avatar stack */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Track count pill */}
+                    <span className="h-6 px-2.5 flex items-center rounded-lg bg-[var(--bg-surface)]/70 border border-[var(--border-subtle)] text-[var(--text-primary)] font-mono text-[10px] font-black whitespace-nowrap backdrop-blur-sm">
                       {trackCount}
                     </span>
-                    {previewCovers.length > 1 && (
-                      <div className="flex -space-x-1.5 overflow-hidden ml-1">
-                        {previewCovers.map((c, i) => (
-                          <div key={i} className="w-4 h-4 rounded-full overflow-hidden border border-white/20">
-                            <OptimizedImage src={c} alt="mix cover" size="thumb" className="w-full h-full object-cover" />
-                          </div>
-                        ))}
+
+                    {/* Avatar Stack */}
+                    <div className="flex items-center">
+                      {mix.avatarInitials.map((initial, i) => (
+                        <div
+                          key={i}
+                          className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-white dark:border-[var(--bg-surface)] flex items-center justify-center text-white text-[9px] font-black shadow-sm overflow-hidden"
+                          style={{
+                            marginLeft: i === 0 ? 0 : -5,
+                            background: [
+                              'linear-gradient(135deg, #ff6347, #ff9a44, #6d3cff)',
+                              'linear-gradient(135deg, #111827, #f97316, #facc15)',
+                              'linear-gradient(135deg, #0ea5e9, #ec4899, #f97316)',
+                              'linear-gradient(135deg, #22c55e, #ef4444, #f59e0b)',
+                            ][i % 4],
+                          }}
+                        >
+                          {previewCovers[i] ? (
+                            <img src={previewCovers[i]} alt={initial} className="w-full h-full object-cover" />
+                          ) : initial}
+                        </div>
+                      ))}
+                      <div
+                        className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-white dark:border-[var(--bg-surface)] bg-[var(--bg-surface)] flex items-center justify-center text-[var(--text-secondary)] text-[9px] font-black shadow-sm"
+                        style={{ marginLeft: -5 }}
+                      >
+                        {mix.avatarMore}
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
               </div>

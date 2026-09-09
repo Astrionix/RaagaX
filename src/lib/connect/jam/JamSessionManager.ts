@@ -490,6 +490,11 @@ export class JamSessionManager {
       this.executeControlAction(action, data);
     } else {
       if (!this.activeState.isGuestControlAllowed) {
+        // Guest controls locked: immediately revert local UI to host's current play state
+        // to prevent flicker loops. Do NOT touch audio engine here — reconcileGuestPlayback
+        // will handle the actual engine state on the next STATE_SYNC heartbeat.
+        const hostIsPlaying = this.activeState.isPlaying;
+        usePlayerStore.setState({ isPlaying: hostIsPlaying, playbackIntent: hostIsPlaying ? 'PLAYING' : 'PAUSED' });
         usePlayerStore.getState().setToastMessage('🔒 Host has locked room controls');
         return;
       }
@@ -1038,8 +1043,10 @@ export class JamSessionManager {
             await store.setIsPlaying(true);
           }
         } else {
+          // Always pass fromRemote=true so this reconcile call does NOT re-trigger
+          // Jam control signals and create a play/pause flicker loop.
           if (store.isPlaying !== hostState.isPlaying) {
-            await store.setIsPlaying(hostState.isPlaying);
+            await store.setIsPlaying(hostState.isPlaying, true);
           }
 
           const currentPosSec = store.currentTime || 0;

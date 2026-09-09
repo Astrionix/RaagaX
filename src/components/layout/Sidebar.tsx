@@ -59,7 +59,7 @@ export function Sidebar() {
     e.preventDefault();
     const tag = tagInput.trim().toUpperCase();
     if (!tag) return;
-    // Normalise: add RGX- prefix if missing
+    // Normalise: add RGX- prefix if missing (e.g. A8K2 -> RGX-A8K2)
     const normalised = tag.startsWith('RGX-') ? tag : `RGX-${tag}`;
     if (pinnedFriends.some(f => f.tag === normalised)) {
       setAddedFeedback('Already added!');
@@ -132,7 +132,7 @@ export function Sidebar() {
       aria-label="Sidebar Navigation"
       className={`hidden md:flex fixed left-3 top-3 bottom-3 z-30 ${
         isSidebarCollapsed ? 'w-[72px]' : 'w-[240px]'
-      } select-none flex-col justify-between rounded-2xl bg-[var(--sidebar-bg)] backdrop-blur-2xl border border-[var(--border-subtle)] shadow-[0_8px_32px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden transition-all duration-300 text-[var(--text-secondary)]`}
+      } select-none flex-col justify-between rounded-2xl bg-[var(--sidebar-bg)] backdrop-blur-2xl border border-[var(--border-subtle)] shadow-[0_8px_32px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] text-[var(--text-secondary)]`}
     >
       {/* ── TOP HEADER & BRAND ────────────────────────────────────────────── */}
       <div className="p-3 pb-2 flex-shrink-0 border-b border-[var(--border-subtle)]">
@@ -257,7 +257,12 @@ export function Sidebar() {
             }`}
           >
             <Home className={`w-4 h-4 flex-shrink-0 transition-all ${activeTab === 'home' ? 'text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : 'text-[var(--text-muted)]'}`} />
-            {!isSidebarCollapsed && <span>Home</span>}
+            {!isSidebarCollapsed && (
+              <span className="transition-[opacity,max-width] duration-200 ease-in-out overflow-hidden whitespace-nowrap"
+                style={{ opacity: isSidebarCollapsed ? 0 : 1, maxWidth: isSidebarCollapsed ? 0 : 120 }}>
+                Home
+              </span>
+            )}
           </button>
 
           <button
@@ -277,7 +282,12 @@ export function Sidebar() {
             }`}
           >
             <Flame className={`w-4 h-4 flex-shrink-0 transition-all ${activeTab === 'new' ? 'text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : 'text-[var(--text-muted)]'}`} />
-            {!isSidebarCollapsed && <span>New</span>}
+            {!isSidebarCollapsed && (
+              <span className="transition-[opacity,max-width] duration-200 ease-in-out overflow-hidden whitespace-nowrap"
+                style={{ opacity: isSidebarCollapsed ? 0 : 1, maxWidth: isSidebarCollapsed ? 0 : 120 }}>
+                New
+              </span>
+            )}
           </button>
         </div>
 
@@ -301,7 +311,12 @@ export function Sidebar() {
             }`}
           >
             <Heart className={`w-4 h-4 flex-shrink-0 transition-all ${activeTab === 'favorites' ? 'fill-[#FA233B] text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : 'text-[var(--text-muted)]'}`} />
-            {!isSidebarCollapsed && <span>Liked Songs</span>}
+            {!isSidebarCollapsed && (
+              <span className="transition-[opacity,max-width] duration-200 ease-in-out overflow-hidden whitespace-nowrap"
+                style={{ opacity: isSidebarCollapsed ? 0 : 1, maxWidth: isSidebarCollapsed ? 0 : 120 }}>
+                Liked Songs
+              </span>
+            )}
           </button>
 
           <button
@@ -319,7 +334,12 @@ export function Sidebar() {
             }`}
           >
             <Disc3 className={`w-4 h-4 flex-shrink-0 transition-all ${activeTab === 'album' ? 'text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : 'text-[var(--text-muted)]'}`} />
-            {!isSidebarCollapsed && <span>Albums</span>}
+            {!isSidebarCollapsed && (
+              <span className="transition-[opacity,max-width] duration-200 ease-in-out overflow-hidden whitespace-nowrap"
+                style={{ opacity: isSidebarCollapsed ? 0 : 1, maxWidth: isSidebarCollapsed ? 0 : 120 }}>
+                Albums
+              </span>
+            )}
           </button>
 
           <button
@@ -334,7 +354,12 @@ export function Sidebar() {
             }`}
           >
             <Clock className={`w-4 h-4 flex-shrink-0 transition-all ${activeTab === 'history' ? 'text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : 'text-[var(--text-muted)]'}`} />
-            {!isSidebarCollapsed && <span>History</span>}
+            {!isSidebarCollapsed && (
+              <span className="transition-[opacity,max-width] duration-200 ease-in-out overflow-hidden whitespace-nowrap"
+                style={{ opacity: isSidebarCollapsed ? 0 : 1, maxWidth: isSidebarCollapsed ? 0 : 120 }}>
+                History
+              </span>
+            )}
           </button>
 
           <button
@@ -349,7 +374,12 @@ export function Sidebar() {
             }`}
           >
             <BarChart3 className={`w-4 h-4 flex-shrink-0 transition-all ${activeTab === 'insights' ? 'text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : 'text-[var(--text-muted)]'}`} />
-            {!isSidebarCollapsed && <span>Music Insights</span>}
+            {!isSidebarCollapsed && (
+              <span className="transition-[opacity,max-width] duration-200 ease-in-out overflow-hidden whitespace-nowrap"
+                style={{ opacity: isSidebarCollapsed ? 0 : 1, maxWidth: isSidebarCollapsed ? 0 : 120 }}>
+                Music Insights
+              </span>
+            )}
           </button>
 
           <button
@@ -360,7 +390,12 @@ export function Sidebar() {
             } rounded-xl text-xs transition-all cursor-pointer text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] font-medium border border-transparent`}
           >
             <Users className="w-4 h-4 flex-shrink-0 text-rose-400" />
-            {!isSidebarCollapsed && <span>Raaga Blend</span>}
+            {!isSidebarCollapsed && (
+              <span className="transition-[opacity,max-width] duration-200 ease-in-out overflow-hidden whitespace-nowrap"
+                style={{ opacity: isSidebarCollapsed ? 0 : 1, maxWidth: isSidebarCollapsed ? 0 : 120 }}>
+                Raaga Blend
+              </span>
+            )}
           </button>
         </div>
 
@@ -398,7 +433,7 @@ export function Sidebar() {
                   type="text"
                   value={tagInput}
                   onChange={(e) => setTagInput(e.target.value)}
-                  placeholder="Enter RGX-XXXX tag"
+                  placeholder="Enter 4-char tag (e.g. A8K2)"
                   className="w-full pl-3 pr-8 py-2 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] focus:border-[#FA233B]/60 text-[11px] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none transition-all"
                 />
                 <button
@@ -450,7 +485,7 @@ export function Sidebar() {
                       <p className="text-[9px] text-[var(--text-muted)] truncate leading-tight flex items-center gap-1">
                         {isOnline
                           ? <><Music className="w-2.5 h-2.5 flex-shrink-0" />{activity!.songTitle}</>
-                          : <span className="font-mono">{friend.tag}</span>
+                          : <span className="font-mono">{friend.tag.replace('RGX-', '')}</span>
                         }
                       </p>
                     </div>

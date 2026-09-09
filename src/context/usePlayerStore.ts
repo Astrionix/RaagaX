@@ -1859,9 +1859,11 @@ export const usePlayerStore = create<PlayerState>()(
               const jamState = jamMgr.getActiveState();
               if (jamState?.isGuestControlAllowed) {
                 jamMgr.sendControlCommand(playing ? 'PLAY' : 'PAUSE');
-              } else {
-                jamMgr.setGuestLocallyPaused(!playing);
               }
+              // When guest controls are locked, do NOT call setGuestLocallyPaused here.
+              // sendControlCommand already reverted the UI state immediately.
+              // Calling setGuestLocallyPaused here creates a fight with reconcileGuestPlayback
+              // that causes the play/pause flicker loop.
             }
           }).catch(() => { });
         }

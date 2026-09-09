@@ -246,7 +246,7 @@ export default function Page() {
       <Sidebar />
 
       {/* App Layout (Grid after Sidebar) */}
-      <div className={`flex-1 ml-0 ${isSidebarCollapsed ? 'md:ml-[88px]' : 'md:ml-64'} flex flex-col min-w-0 md:h-screen md:overflow-hidden transition-all duration-300`}>
+      <div className={`flex-1 ml-0 ${isSidebarCollapsed ? 'md:ml-[88px]' : 'md:ml-64'} flex flex-col min-w-0 md:h-screen md:overflow-hidden transition-[margin-left] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]`}>
         <div className={`grid flex-1 min-h-0 md:h-full transition-all duration-300 ${isQueueOpen
           ? 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_304px]'
           : 'grid-cols-1'

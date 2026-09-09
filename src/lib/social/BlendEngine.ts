@@ -14,32 +14,50 @@ export interface BlendResult {
 }
 
 export class BlendEngine {
+  public static generate4CharAlphanumeric(): string {
+    const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    let code = '';
+    for (let i = 0; i < 4; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  }
+
   public static getUniqueBlendId(seed?: string): string {
     if (!seed) {
-      const randomHex = Math.floor(1000 + Math.random() * 9000).toString(16).toUpperCase();
-      return `RGX-${randomHex}`;
+      return `RGX-${this.generate4CharAlphanumeric()}`;
     }
     let hash = 0;
     for (let i = 0; i < seed.length; i++) {
       hash = ((hash << 5) - hash) + seed.charCodeAt(i);
       hash |= 0;
     }
-    const positiveHash = Math.abs(hash).toString(16).substring(0, 4).toUpperCase();
-    return `RGX-${positiveHash}`;
+    const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    let posHash = Math.abs(hash);
+    let code = '';
+    for (let i = 0; i < 4; i++) {
+      code += chars.charAt(posHash % chars.length);
+      posHash = Math.floor(posHash / chars.length);
+    }
+    return `RGX-${code}`;
   }
 
   public static parseBlendInput(input: string): { friendName: string; friendId: string; isUniqueId: boolean } {
-    const trimmed = input.trim();
-    if (trimmed.toUpperCase().startsWith('RGX-') || trimmed.length === 8) {
+    const trimmed = input.trim().toUpperCase();
+    // Support 4-character alphanumeric code (e.g. A8K2), RGX-A8K2, or 8-char codes
+    const isTag = trimmed.startsWith('RGX-') || (trimmed.length === 4 && /^[A-Z0-9]{4}$/.test(trimmed)) || trimmed.length === 8;
+    if (isTag) {
+      const fullTag = trimmed.startsWith('RGX-') ? trimmed : (trimmed.length === 4 ? `RGX-${trimmed}` : trimmed);
+      const codePart = fullTag.replace('RGX-', '');
       return {
-        friendName: `User ${trimmed.toUpperCase()}`,
-        friendId: trimmed.toUpperCase(),
+        friendName: `Friend ${codePart}`,
+        friendId: fullTag,
         isUniqueId: true,
       };
     }
     return {
-      friendName: trimmed,
-      friendId: this.getUniqueBlendId(trimmed),
+      friendName: input.trim(),
+      friendId: this.getUniqueBlendId(input.trim()),
       isUniqueId: false,
     };
   }

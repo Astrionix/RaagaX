@@ -737,7 +737,7 @@ export function AlbumDetailView() {
     <DynamicArtworkAtmosphere artworkUrl={coverUrl} isPlaying={isPlaying}>
       <div className="relative text-white pb-0 select-none animate-in fade-in duration-300">
         {/* ── TOP NAVIGATION BAR ────────────────────────────────────────────── */}
-        <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-3.5 backdrop-blur-md bg-black/20 border-b border-white/[0.04]">
+        <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-3.5 backdrop-blur-md bg-[var(--header-bg)] border-b border-[var(--border-subtle)]">
           <button
             onClick={() => {
               haptics.lightImpact();
@@ -779,14 +779,14 @@ export function AlbumDetailView() {
             {showAlbumMenu && (
               <div
                 onClick={(e) => e.stopPropagation()}
-                className="absolute right-0 top-full mt-2 w-56 bg-[#12131c]/98 backdrop-blur-2xl border border-white/15 rounded-2xl p-2 shadow-2xl z-50 text-xs animate-in zoom-in-95 duration-150"
+                className="absolute right-0 top-full mt-2 w-56 bg-[var(--bg-elevated)] backdrop-blur-2xl border border-[var(--border-subtle)] rounded-2xl p-2 shadow-2xl z-50 text-xs animate-in zoom-in-95 duration-150"
               >
                 <button
                   onClick={() => {
                     handlePlayAll();
                     setShowAlbumMenu(false);
                   }}
-                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 font-bold"
+                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-[var(--bg-surface)] text-[var(--text-primary)] flex items-center gap-2.5 font-bold"
                 >
                   <Play className="w-4 h-4 fill-current" style={{ color: themeColor }} /> Play Album
                 </button>
@@ -795,7 +795,7 @@ export function AlbumDetailView() {
                     handleShufflePlay();
                     setShowAlbumMenu(false);
                   }}
-                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 font-bold"
+                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-[var(--bg-surface)] text-[var(--text-primary)] flex items-center gap-2.5 font-bold"
                 >
                   <Shuffle className="w-4 h-4 text-white/70" /> Shuffle Play
                 </button>
@@ -806,7 +806,7 @@ export function AlbumDetailView() {
                       else handleDownloadAll();
                       setShowAlbumMenu(false);
                     }}
-                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 font-bold"
+                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-[var(--bg-surface)] text-[var(--text-primary)] flex items-center gap-2.5 font-bold"
                   >
                     <Download className="w-4 h-4 text-emerald-400" />
                     {isAllDownloaded ? 'Remove All Downloads' : 'Download Album'}
@@ -821,7 +821,7 @@ export function AlbumDetailView() {
                 >
                   <Music2 className="w-4 h-4 text-emerald-400" /> Add Album to Jam Queue
                 </button>
-                <div className="h-px bg-white/10 my-1" />
+                <div className="h-px bg-[var(--border-subtle)] my-1" />
                 <button
                   onClick={() => {
                     if (album.artist) {
@@ -830,7 +830,7 @@ export function AlbumDetailView() {
                     }
                     setShowAlbumMenu(false);
                   }}
-                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-white/70 hover:text-white"
+                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-2.5"
                 >
                   <User className="w-4 h-4" /> Go to Artist
                 </button>
@@ -843,7 +843,7 @@ export function AlbumDetailView() {
                     }
                     setShowAlbumMenu(false);
                   }}
-                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-white/70 hover:text-white"
+                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-2.5"
                 >
                   <Share2 className="w-4 h-4" /> Share Album
                 </button>
@@ -869,7 +869,7 @@ export function AlbumDetailView() {
 
             {/* Album Information */}
             <div className="flex-1 min-w-0 space-y-2">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black text-[var(--text-primary)] tracking-tight leading-tight">
                 {album.title}
               </h1>
 
@@ -890,7 +890,7 @@ export function AlbumDetailView() {
               </p>
 
               {/* Metadata Line */}
-              <div className="flex items-center justify-center md:justify-start gap-2 text-xs text-slate-400 font-medium pt-0.5">
+              <div className="flex items-center justify-center md:justify-start gap-2 text-xs text-[var(--text-muted)] font-medium pt-0.5">
                 <span className="capitalize">{album.language || preferredLanguage}</span>
                 <span>•</span>
                 <span>{album.releaseYear || '2024'}</span>
@@ -969,12 +969,12 @@ export function AlbumDetailView() {
         {/* ── TRACK LIST SECTION ────────────────────────────────────────────── */}
         <div className="max-w-6xl mx-auto px-4 sm:px-8">
           {/* Track List Header & Sort Option */}
-          <div className="flex items-center justify-between pb-3 mb-2 border-b border-white/10 gap-2">
+          <div className="flex items-center justify-between pb-3 mb-2 border-b border-[var(--border-subtle)] gap-2">
             {/* Left: Sort Menu */}
             <div className="relative">
               <button
                 onClick={() => setShowSortMenu(!showSortMenu)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-xs font-bold text-slate-300 hover:text-white transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer border border-[var(--border-subtle)]"
               >
                 <ArrowUpDown className="w-3.5 h-3.5" />
                 <span>
@@ -985,7 +985,7 @@ export function AlbumDetailView() {
               {showSortMenu && (
                 <div
                   onClick={(e) => e.stopPropagation()}
-                  className="absolute left-0 top-full mt-1 w-44 bg-[#141520] border border-white/15 rounded-xl p-1.5 shadow-2xl z-30 text-xs"
+                  className="absolute left-0 top-full mt-1 w-44 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-xl p-1.5 shadow-2xl z-30 text-xs"
                 >
                   {(['default', 'az', 'za', 'popular'] as const).map((opt) => (
                     <button
@@ -994,8 +994,7 @@ export function AlbumDetailView() {
                         setSortOption(opt);
                         setShowSortMenu(false);
                       }}
-                      className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors ${sortOption === opt ? 'font-bold' : 'hover:bg-white/10 text-slate-300 hover:text-white'
-                        }`}
+                      className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-colors ${sortOption === opt ? 'font-bold' : 'hover:bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
                       style={sortOption === opt ? {
                         backgroundColor: bgTint,
                         color: themeColor,
@@ -1065,8 +1064,8 @@ export function AlbumDetailView() {
                     key={track.id}
                     onClick={() => playSong(track, sortedTracks, { type: 'album', id: album.id, title: album.title, name: album.title })}
                     className={`group flex items-center justify-between gap-3 px-3 sm:px-4 py-2.5 rounded-xl sm:rounded-2xl transition-all cursor-pointer select-none border ${isPlayingCurrent
-                        ? 'text-white'
-                        : 'hover:bg-white/5 text-slate-300 hover:text-white border-transparent'
+                        ? 'text-[var(--text-primary)]'
+                        : 'hover:bg-[var(--bg-surface)]/60 text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-transparent'
                       }`}
                     style={isPlayingCurrent ? {
                       backgroundColor: bgTint,
@@ -1084,7 +1083,7 @@ export function AlbumDetailView() {
                             <span className={`w-1 rounded-full ${isPlaying ? 'animate-pulse' : ''} h-3`} style={{ backgroundColor: themeColor, animationDelay: '300ms' }} />
                           </div>
                         ) : (
-                          <span className="text-xs font-mono font-medium text-slate-400 group-hover:text-white transition-colors">
+                          <span className="text-xs font-mono font-medium text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-colors">
                             {trackNum}
                           </span>
                         )}
