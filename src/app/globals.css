@@ -961,3 +961,35 @@
   .mfy-card::before { animation: none; }
   .mfy-card { transition: none; }
 }
+
+/* ── Recommendation Section ─────────────────────────────────────────────── */
+
+/* Subtitle fade-slide-in animation triggered by React key remount */
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* EQ bar animations for currently-playing indicator on recommendation cards */
+@keyframes eqBarRec {
+  0%, 100% { height: 4px; }
+  50% { height: 16px; }
+}
+
+.animate-eq-1 { animation: eqBarRec 0.7s ease-in-out infinite 0.0s; }
+.animate-eq-2 { animation: eqBarRec 0.5s ease-in-out infinite 0.15s; }
+.animate-eq-3 { animation: eqBarRec 0.8s ease-in-out infinite 0.08s; }
+.animate-eq-4 { animation: eqBarRec 0.6s ease-in-out infinite 0.25s; }
+
+/* Recommendation card playing border pulse */
+@keyframes recPlayingBorder {
+  0%, 100% { box-shadow: 0 0 16px rgba(229, 9, 20, 0.2); }
+  50% { box-shadow: 0 0 28px rgba(229, 9, 20, 0.45); }
+}
+
