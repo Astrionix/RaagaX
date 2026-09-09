@@ -323,6 +323,15 @@ export function Sidebar() {
           onClick={() => { haptics.lightImpact(); usePlayerStore.getState().toggleBlendModal(true); }}
         />
 
+        {/* CONNECT */}
+        {!c && <SectionLabel>Connect</SectionLabel>}
+        {c && <div className="h-px bg-white/5 my-1 mx-1" />}
+        <NavItem
+          icon={MonitorSpeaker} label="Devices" isActive={false} collapsed={c}
+          accentColor="#38bdf8"
+          onClick={() => { haptics.lightImpact(); usePlayerStore.getState().toggleCastModal(); }}
+        />
+
         {/* FRIENDS LIVE */}
         {!c && (
           <div className="flex items-center justify-between px-2.5 pt-3 pb-1">

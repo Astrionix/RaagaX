@@ -30,6 +30,8 @@ import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { haptics } from '@/lib/haptics/HapticEngine';
 import { FriendActivityEngine } from '@/lib/social/FriendActivityEngine';
 import type { FriendActivityState } from '@/lib/social/FriendActivityEngine';
+import { useTimeAwareTheme } from '@/context/useTimeAwareTheme';
+import { ContinueListeningShelf, ContinueListeningSession } from '@/components/home/ContinueListeningShelf';
 
 const EMPTY_SHELF_ITEMS: ShelfItem[] = [];
 
@@ -425,10 +427,25 @@ export function HomeView() {
 
   const isActuallyOffline = isMounted && (!isOnline || isOfflineMode);
 
-  const hours = new Date().getHours();
-  const greeting = !isMounted ? 'Good day' : (
-    hours < 12 ? 'Good morning' : hours < 17 ? 'Good afternoon' : hours < 21 ? 'Good evening' : 'Good night'
-  );
+  const timeTheme = useTimeAwareTheme();
+  const greeting = timeTheme.greeting;
+
+  const continueListeningSessions = React.useMemo<ContinueListeningSession[]>(() => {
+    if (!feed?.recentlyPlayed || feed.recentlyPlayed.length === 0) return [];
+    return feed.recentlyPlayed.slice(0, 6).map((song, idx) => {
+      const mockDurations = [268, 224, 195, 310, 240, 180];
+      const mockOffsets = [134, 182, 95, 210, 145, 60];
+      const duration = song.duration ? Number(song.duration) : mockDurations[idx % mockDurations.length];
+      const currentTime = mockOffsets[idx % mockOffsets.length];
+      return {
+        id: song.id,
+        song,
+        currentTimeSec: currentTime,
+        durationSec: duration,
+        lastPlayedAt: Date.now() - idx * 3600000,
+      };
+    });
+  }, [feed?.recentlyPlayed]);
 
   const recentlyPlayedItems = React.useMemo(() => {
     return feed?.recentlyPlayed && feed.recentlyPlayed.length > 0
@@ -447,7 +464,7 @@ export function HomeView() {
       rawItem: pl,
     }));
   }, [preferredLanguage]);
-  const displayName = user?.user_metadata?.full_name?.split(' ')[0] || 'Listener';
+  const displayName = user?.user_metadata?.full_name?.split(' ')[0] || user?.user_metadata?.name?.split(' ')[0] || 'Chan';
 
   const coverUrl = currentSong?.coverUrl && !currentSong.coverUrl.includes('/null/')
     ? currentSong.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500')
@@ -525,114 +542,44 @@ export function HomeView() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 1. HERO GREETING — cinematic, minimal, premium                         */}
+      {/* 1. TIME-AWARE HERO GREETING                                            */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <section className="relative pt-8 sm:pt-10 pb-2 flex flex-col select-none" suppressHydrationWarning>
+      <section className="relative pt-6 sm:pt-8 pb-3 flex flex-col items-start justify-start select-none" suppressHydrationWarning>
 
-        {/* Ambient warm/cool glow layer — no artwork required */}
+        {/* Dynamic atmospheric glow background */}
         <div
-          className="absolute -top-6 -left-10 w-[340px] h-[220px] pointer-events-none -z-10"
-          style={{
-            background: greeting === 'Good morning' || greeting === 'Good afternoon'
-              ? 'radial-gradient(ellipse at 30% 50%, rgba(255,160,60,0.09) 0%, transparent 70%)'
-              : 'radial-gradient(ellipse at 30% 50%, rgba(100,130,255,0.08) 0%, transparent 70%)',
-          }}
+          className="absolute -top-6 -left-10 w-80 h-80 pointer-events-none -z-10 transition-all duration-700"
+          style={{ background: 'var(--time-hero-glow)' }}
         />
 
-        {/* Eyebrow: icon + label */}
-        <div className="flex items-center gap-2 mb-4" suppressHydrationWarning>
-          {/* Time-of-day icon */}
-          <span
-            className="text-[15px] leading-none"
-            suppressHydrationWarning
-            aria-hidden="true"
-          >
-            {greeting === 'Good morning' ? '🌅' : greeting === 'Good afternoon' ? '☀️' : greeting === 'Good evening' ? '🌆' : '🌙'}
+        {/* 1. Top-Left Greeting: emoji + "Good Morning, Chan" */}
+        <div className="flex items-center gap-3" suppressHydrationWarning>
+          <span className="text-2xl sm:text-3xl select-none" aria-hidden="true">
+            {timeTheme.icon}
           </span>
-
-          {/* Label */}
-          <span
-            className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.22em] text-white/35"
-            suppressHydrationWarning
-          >
-            {greeting}
-          </span>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">
+            {timeTheme.greeting.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')}, {displayName}
+          </h1>
         </div>
 
-        {/* Display name — no comma, cinematic size */}
-        <h1
-          className="text-[48px] sm:text-[64px] lg:text-[72px] font-black text-white leading-[0.95] tracking-[-0.03em]"
-          style={{ fontVariantNumeric: 'tabular-nums' }}
+        {/* 2. Sub-header (Left-Aligned Directly Below Greeting) */}
+        <button
+          onClick={() => {
+            haptics.lightImpact();
+            document.getElementById('continue-listening')?.scrollIntoView({ behavior: 'smooth' });
+          }}
+          className="flex items-center gap-2 pt-2.5 pb-1 text-sm font-medium tracking-wide text-secondary hover:text-primary transition-colors cursor-pointer text-left group"
         >
-          {displayName}
-        </h1>
-
-        {/* Subtitle + arrow */}
-        <p className="mt-4 flex items-center gap-2 text-[13px] sm:text-[14px] font-medium text-white/38 tracking-wide">
-          <span>{currentSong ? 'Continue where you left off' : 'Your music is waiting'}</span>
-          <span
-            className="inline-block animate-[subtleFloat_2.8s_ease-in-out_infinite]"
-            aria-hidden="true"
-          >
-            ↓
-          </span>
-        </p>
-
-        {/* Thin gradient rule */}
-        <div className="mt-7 h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+          <span>{timeTheme.subtitle}</span>
+          <ChevronRight className="w-4 h-4 text-tertiary group-hover:text-crimson group-hover:translate-x-0.5 transition-all rotate-90" />
+        </button>
       </section>
 
-
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 2. CONTINUE LISTENING — Quick-access horizontal strip                 */}
+      {/* 2. CONTINUE LISTENING RESUME SHELF                                    */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {recentlyPlayedItems.length > 0 && (
-        <section className="pr-2 sm:pr-3">
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5">
-            {recentlyPlayedItems.slice(0, 6).map((item) => {
-              const song = item.rawItem as Song | undefined;
-              const isCurrent = song && currentSong?.id === song.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    haptics.lightImpact();
-                    if (song) playSong(song, recentlyPlayedItems.map(i => i.rawItem as Song).filter(Boolean));
-                  }}
-                  className={`flex items-center gap-2.5 p-2 rounded-xl transition-all duration-200 text-left cursor-pointer group ${
-                    isCurrent
-                      ? 'bg-[#FA233B]/12 border border-[#FA233B]/35'
-                      : 'bg-white/[0.04] border border-white/[0.07] hover:bg-white/[0.08] hover:border-white/15'
-                  }`}
-                >
-                  <div className="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-slate-800">
-                    <img
-                      src={item.imageUrl || '/app-icon.png'}
-                      alt={item.title}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                    />
-                    {isCurrent && isPlaying && (
-                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                        <div className="flex items-end gap-[2px] h-3">
-                          {[1,2,3].map(i => (
-                            <div key={i} className="w-[3px] bg-[#FA233B] rounded-full animate-pulse" style={{ height: `${[60,100,75][i-1]}%`, animationDelay: `${i * 0.1}s` }} />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-[12px] font-bold truncate leading-tight transition-colors ${
-                      isCurrent ? 'text-[#FA233B]' : 'text-white group-hover:text-[#FA233B]'
-                    }`}>{item.title}</p>
-                    <p className="text-[10px] text-slate-400 truncate mt-0.5 font-medium">{item.subtitle}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
+      {continueListeningSessions.length > 0 && (
+        <ContinueListeningShelf sessions={continueListeningSessions} />
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}

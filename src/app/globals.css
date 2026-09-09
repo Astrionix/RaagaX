@@ -62,6 +62,114 @@
     --shadow-brand: 0 8px 30px rgba(229, 9, 20, 0.15);
   }
 
+  /* ══════════════════════════════════════════════════════════════════════════ */
+  /* TIME-AWARE ATMOSPHERIC DESIGN SYSTEM                                       */
+  /* ══════════════════════════════════════════════════════════════════════════ */
+
+  /* 1. MORNING LIGHT — Warm sunrise off-white, golden amber glow, spacious */
+  [data-time-theme="morning-light"] {
+    --bg-primary: #FDFBF7;
+    --bg-secondary: #F7F3EB;
+    --bg-surface: #F2ECE0;
+    --bg-elevated: #FFFFFF;
+    --sidebar-bg: #FAF6EF;
+    --playerbar-bg: rgba(247, 243, 235, 0.95);
+    --header-bg: rgba(253, 251, 247, 0.88);
+    --time-glow: radial-gradient(circle at 20% 0%, rgba(255, 170, 70, 0.18) 0%, rgba(255, 210, 140, 0.08) 50%, transparent 80%);
+    --time-hero-glow: radial-gradient(ellipse at 30% 40%, rgba(255, 160, 50, 0.15) 0%, transparent 70%);
+  }
+
+  /* 2. MORNING DARK — Obsidian dark base, golden warm sunrise ambient lighting */
+  [data-time-theme="morning-dark"] {
+    --bg-primary: #0A0C10;
+    --bg-secondary: #0E1218;
+    --bg-surface: #141A24;
+    --bg-elevated: #1B2230;
+    --sidebar-bg: #0C0F14;
+    --playerbar-bg: rgba(14, 18, 24, 0.92);
+    --header-bg: rgba(10, 12, 16, 0.85);
+    --time-glow: radial-gradient(circle at 20% 0%, rgba(255, 140, 40, 0.12) 0%, rgba(255, 190, 80, 0.04) 50%, transparent 80%);
+    --time-hero-glow: radial-gradient(ellipse at 30% 40%, rgba(255, 150, 40, 0.12) 0%, transparent 70%);
+  }
+
+  /* 3. AFTERNOON LIGHT — Daylight clean off-white, sky cyan ambient accents */
+  [data-time-theme="afternoon-light"] {
+    --bg-primary: #F8FAF9;
+    --bg-secondary: #EEF4F2;
+    --bg-surface: #E3ECE9;
+    --bg-elevated: #FFFFFF;
+    --sidebar-bg: #F2F7F5;
+    --playerbar-bg: rgba(238, 244, 242, 0.95);
+    --header-bg: rgba(248, 250, 249, 0.88);
+    --time-glow: radial-gradient(circle at 20% 0%, rgba(56, 189, 248, 0.15) 0%, rgba(45, 212, 191, 0.08) 50%, transparent 80%);
+    --time-hero-glow: radial-gradient(ellipse at 30% 40%, rgba(14, 165, 233, 0.12) 0%, transparent 70%);
+  }
+
+  /* 4. AFTERNOON DARK — Energetic deep charcoal, cyan/sky blue ambient highlights */
+  [data-time-theme="afternoon-dark"] {
+    --bg-primary: #0A0F14;
+    --bg-secondary: #0F1720;
+    --bg-surface: #15222E;
+    --bg-elevated: #1C2D3D;
+    --sidebar-bg: #0C1218;
+    --playerbar-bg: rgba(15, 23, 32, 0.92);
+    --header-bg: rgba(10, 15, 20, 0.85);
+    --time-glow: radial-gradient(circle at 20% 0%, rgba(14, 165, 233, 0.14) 0%, rgba(20, 184, 166, 0.05) 50%, transparent 80%);
+    --time-hero-glow: radial-gradient(ellipse at 30% 40%, rgba(56, 189, 248, 0.12) 0%, transparent 70%);
+  }
+
+  /* 5. EVENING LIGHT — Sunset warm rose/peach off-white, deep amber/violet tints */
+  [data-time-theme="evening-light"] {
+    --bg-primary: #FDF8F6;
+    --bg-secondary: #F7EDE9;
+    --bg-surface: #F0DFD8;
+    --bg-elevated: #FFFFFF;
+    --sidebar-bg: #FAF2EE;
+    --playerbar-bg: rgba(247, 237, 233, 0.95);
+    --header-bg: rgba(253, 248, 246, 0.88);
+    --time-glow: radial-gradient(circle at 20% 0%, rgba(244, 63, 94, 0.14) 0%, rgba(249, 115, 22, 0.08) 50%, transparent 80%);
+    --time-hero-glow: radial-gradient(ellipse at 30% 40%, rgba(236, 72, 153, 0.12) 0%, transparent 70%);
+  }
+
+  /* 6. EVENING DARK — Sunset twilight base, warm crimson/magenta/violet ambient glow */
+  [data-time-theme="evening-dark"] {
+    --bg-primary: #0F0A12;
+    --bg-secondary: #160F1A;
+    --bg-surface: #201526;
+    --bg-elevated: #2B1D33;
+    --sidebar-bg: #120C16;
+    --playerbar-bg: rgba(22, 15, 26, 0.92);
+    --header-bg: rgba(15, 10, 18, 0.85);
+    --time-glow: radial-gradient(circle at 20% 0%, rgba(225, 29, 72, 0.14) 0%, rgba(168, 85, 247, 0.06) 50%, transparent 80%);
+    --time-hero-glow: radial-gradient(ellipse at 30% 40%, rgba(244, 63, 94, 0.12) 0%, transparent 70%);
+  }
+
+  /* 7. NIGHT LIGHT — Soft lavender-slate off-white, quiet indigo/violet tint */
+  [data-time-theme="night-light"] {
+    --bg-primary: #F6F6FA;
+    --bg-secondary: #ECECF5;
+    --bg-surface: #E0E0EF;
+    --bg-elevated: #FFFFFF;
+    --sidebar-bg: #F1F1F8;
+    --playerbar-bg: rgba(236, 236, 245, 0.95);
+    --header-bg: rgba(246, 246, 250, 0.88);
+    --time-glow: radial-gradient(circle at 20% 0%, rgba(99, 102, 241, 0.14) 0%, rgba(139, 92, 246, 0.07) 50%, transparent 80%);
+    --time-hero-glow: radial-gradient(ellipse at 30% 40%, rgba(129, 140, 248, 0.12) 0%, transparent 70%);
+  }
+
+  /* 8. NIGHT DARK — Immersive midnight black base, deep violet/navy ambient glow */
+  [data-time-theme="night-dark"] {
+    --bg-primary: #07080C;
+    --bg-secondary: #0B0C12;
+    --bg-surface: #10131D;
+    --bg-elevated: #171B2A;
+    --sidebar-bg: #090A0F;
+    --playerbar-bg: rgba(11, 12, 18, 0.92);
+    --header-bg: rgba(7, 8, 12, 0.85);
+    --time-glow: radial-gradient(circle at 20% 0%, rgba(99, 102, 241, 0.12) 0%, rgba(168, 85, 247, 0.04) 50%, transparent 80%);
+    --time-hero-glow: radial-gradient(ellipse at 30% 40%, rgba(99, 102, 241, 0.10) 0%, transparent 70%);
+  }
+
   html, body {
     width: 100%;
     min-height: 100%;
