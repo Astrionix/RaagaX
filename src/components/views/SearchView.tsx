@@ -495,7 +495,7 @@ export function SearchView() {
               <Flame className="w-3.5 h-3.5 text-[#FA233B]" /> Trending Searches
             </h2>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+            <div className="flex flex-wrap gap-2">
               {dynamicTrendingSearches.map((item) => (
                 <button
                   key={`${item.term}-${item.rank}`}
@@ -504,18 +504,17 @@ export function SearchView() {
                     setSearchQuery(item.term);
                     handleCommitSearch(item.term);
                   }}
-                  className="py-2.5 px-3.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.06] hover:border-white/15 flex items-center gap-3 transition-colors text-left cursor-pointer group"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 hover:border-[#FA233B]/40 text-xs font-semibold text-zinc-300 hover:text-white transition-all cursor-pointer active:scale-95 group"
                 >
-                  <span className="text-xs font-black text-[#FA233B] w-4 text-center">{item.rank}</span>
-                  <span className="text-xs font-semibold text-zinc-200 capitalize group-hover:text-white truncate">
-                    {item.term}
-                  </span>
+                  <span className="text-[10px] font-black text-[#FA233B] w-4 text-center">{item.rank}</span>
+                  <span className="capitalize group-hover:text-white truncate max-w-[160px]">{item.term}</span>
                 </button>
               ))}
             </div>
           </section>
         </div>
       )}
+
 
       {/* ── 4. RESULTS VIEW (When query or category is active) ──────────────── */}
       {(!isDiscoveryView || isSearching) && (

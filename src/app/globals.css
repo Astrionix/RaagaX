@@ -993,3 +993,57 @@
   50% { box-shadow: 0 0 28px rgba(229, 9, 20, 0.45); }
 }
 
+/* ── Micro-animations ───────────────────────────────────────────────────────── */
+
+/* Heart pop — like button feedback */
+@keyframes heartPop {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.45); }
+  60%  { transform: scale(0.85); }
+  80%  { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+.animate-heart-pop { animation: heartPop 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
+
+/* Check pop — add to queue / add to playlist confirmation */
+@keyframes checkPop {
+  0%   { transform: scale(0) rotate(-20deg); opacity: 0; }
+  60%  { transform: scale(1.2) rotate(4deg);  opacity: 1; }
+  100% { transform: scale(1) rotate(0deg);    opacity: 1; }
+}
+.animate-check-pop { animation: checkPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+/* Fade + slide up — section entrances */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+.animate-fade-up { animation: fadeUp 0.4s ease both; }
+
+/* Scale in — card pop entrance */
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.93); }
+  to   { opacity: 1; transform: scale(1);    }
+}
+.animate-scale-in { animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+/* Premium hover — reusable class for cards/buttons */
+.premium-hover {
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              border-color 200ms ease,
+              box-shadow 200ms ease;
+}
+.premium-hover:hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 8px 24px rgba(229, 9, 20, 0.12);
+}
+.premium-hover:active {
+  transform: scale(0.97);
+}
+
+/* Subtle float — hero greeting arrow */
+@keyframes subtleFloat {
+  0%, 100% { transform: translateY(0px);   opacity: 0.38; }
+  50%       { transform: translateY(4px);   opacity: 0.7;  }
+}
+

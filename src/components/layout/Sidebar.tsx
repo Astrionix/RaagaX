@@ -25,6 +25,7 @@ import {
   Sparkles,
   Music,
   X,
+  MonitorSpeaker,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
@@ -32,6 +33,82 @@ import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { RaagaXLogo } from '@/components/brand/RaagaXLogo';
 import { haptics } from '@/lib/haptics/HapticEngine';
 
+// ─── Reusable nav button ─────────────────────────────────────────────────────
+function NavItem({
+  icon: Icon,
+  label,
+  isActive,
+  onClick,
+  collapsed,
+  badge,
+  accentColor = '#FA233B',
+  fillWhenActive = false,
+}: {
+  icon: React.ElementType;
+  label: string;
+  isActive: boolean;
+  onClick: () => void;
+  collapsed: boolean;
+  badge?: React.ReactNode;
+  accentColor?: string;
+  fillWhenActive?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={collapsed ? label : undefined}
+      className={`w-full flex items-center ${
+        collapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2.5 py-1.5'
+      } rounded-xl text-xs transition-all duration-200 cursor-pointer relative group/nav ${
+        isActive
+          ? 'font-semibold'
+          : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)] font-medium'
+      }`}
+      style={isActive ? { color: accentColor } : {}}
+    >
+      {/* Active pill background */}
+      {isActive && (
+        <span
+          className="absolute inset-0 rounded-xl opacity-10 pointer-events-none"
+          style={{ background: accentColor }}
+        />
+      )}
+
+      <Icon
+        className={`w-4 h-4 flex-shrink-0 transition-all relative z-10 ${
+          isActive
+            ? `drop-shadow-[0_0_8px_${accentColor}99]`
+            : 'text-[var(--text-muted)] group-hover/nav:text-[var(--text-primary)]'
+        } ${fillWhenActive && isActive ? 'fill-current' : ''}`}
+        style={isActive ? { color: accentColor } : {}}
+      />
+
+      {!collapsed && (
+        <span
+          className="transition-[opacity,max-width] duration-200 ease-in-out overflow-hidden whitespace-nowrap flex-1 text-left relative z-10"
+          style={{ opacity: collapsed ? 0 : 1, maxWidth: collapsed ? 0 : 140 }}
+        >
+          {label}
+        </span>
+      )}
+
+      {badge && !collapsed && (
+        <span className="ml-auto relative z-10">{badge}</span>
+      )}
+    </button>
+  );
+}
+
+// ─── Section label ────────────────────────────────────────────────────────────
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="px-2.5 pt-3 pb-1 text-[9.5px] font-black text-[var(--text-muted)] uppercase tracking-[0.12em] block select-none">
+      {children}
+    </span>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 export function Sidebar() {
   const [mounted, setMounted] = React.useState(false);
   const [friendsActivity, setFriendsActivity] = React.useState<FriendActivityState[]>([]);
@@ -39,7 +116,6 @@ export function Sidebar() {
   const [tagInput, setTagInput] = React.useState('');
   const [addedFeedback, setAddedFeedback] = React.useState('');
 
-  // Pinned friends stored as { tag: string, name: string }[]
   const [pinnedFriends, setPinnedFriends] = React.useState<{ tag: string; name: string }[]>(() => {
     if (typeof window === 'undefined') return [];
     try {
@@ -59,14 +135,12 @@ export function Sidebar() {
     e.preventDefault();
     const tag = tagInput.trim().toUpperCase();
     if (!tag) return;
-    // Normalise: add RGX- prefix if missing (e.g. A8K2 -> RGX-A8K2)
     const normalised = tag.startsWith('RGX-') ? tag : `RGX-${tag}`;
     if (pinnedFriends.some(f => f.tag === normalised)) {
       setAddedFeedback('Already added!');
       setTimeout(() => setAddedFeedback(''), 2000);
       return;
     }
-    // Derive friendly display name from activity if online, else use tag
     const online = friendsActivity.find(a => {
       try {
         const { BlendEngine } = require('@/lib/social/BlendEngine');
@@ -87,11 +161,8 @@ export function Sidebar() {
     haptics.lightImpact();
   };
 
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
+  React.useEffect(() => { setMounted(true); }, []);
 
-  // Subscribe to live friend activity via Supabase Realtime Presence
   React.useEffect(() => {
     const engine = FriendActivityEngine.getInstance();
     setFriendsActivity(engine.getActiveActivities());
@@ -116,9 +187,7 @@ export function Sidebar() {
   const { playlists: userPlaylists, fetchPlaylists } = usePlaylistStore();
 
   React.useEffect(() => {
-    if (user) {
-      fetchPlaylists();
-    }
+    if (user) fetchPlaylists();
   }, [user, fetchPlaylists]);
 
   const handleToggle = (e: React.MouseEvent) => {
@@ -127,26 +196,30 @@ export function Sidebar() {
     toggleSidebarCollapse();
   };
 
+  const navTo = (tab: string, extras?: { albumId?: null; artistId?: null; playlistId?: null }) => {
+    if (extras?.albumId !== undefined) usePlayerStore.getState().setSelectedAlbumId(null);
+    if (extras?.artistId !== undefined) usePlayerStore.getState().setSelectedArtistId(null);
+    if (extras?.playlistId !== undefined) usePlayerStore.getState().setSelectedPlaylistId(null);
+    setActiveTab(tab as any);
+    haptics.lightImpact();
+  };
+
+  const c = isSidebarCollapsed;
+
   return (
     <aside
       aria-label="Sidebar Navigation"
       className={`hidden md:flex fixed left-3 top-3 bottom-3 z-30 ${
-        isSidebarCollapsed ? 'w-[72px]' : 'w-[240px]'
-      } select-none flex-col justify-between rounded-2xl bg-[var(--sidebar-bg)] backdrop-blur-2xl border border-[var(--border-subtle)] shadow-[0_8px_32px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] text-[var(--text-secondary)]`}
+        c ? 'w-[72px]' : 'w-[240px]'
+      } select-none flex-col rounded-2xl bg-[var(--sidebar-bg)] backdrop-blur-2xl border border-[var(--border-subtle)] shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] text-[var(--text-secondary)]`}
     >
-      {/* ── TOP HEADER & BRAND ────────────────────────────────────────────── */}
+      {/* ── HEADER ── */}
       <div className="p-3 pb-2 flex-shrink-0 border-b border-[var(--border-subtle)]">
-        {isSidebarCollapsed ? (
-          /* Collapsed Slim Header: Logo + Expand Button */
+        {c ? (
           <div className="flex flex-col items-center gap-2 py-0.5">
             <div
-              onClick={() => {
-                usePlayerStore.getState().setSelectedAlbumId(null);
-                usePlayerStore.getState().setSelectedArtistId(null);
-                usePlayerStore.getState().setSelectedPlaylistId(null);
-                setActiveTab('home');
-              }}
-              className="cursor-pointer group hover:scale-105 transition-transform"
+              onClick={() => navTo('home', { albumId: null, artistId: null, playlistId: null })}
+              className="cursor-pointer hover:scale-105 transition-transform"
               title="RaagaX Home"
             >
               <RaagaXLogo variant="full" size={44} />
@@ -155,55 +228,44 @@ export function Sidebar() {
               onClick={handleToggle}
               className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] border border-transparent hover:border-[var(--border-subtle)] transition-all cursor-pointer"
               title="Expand Sidebar"
-              aria-label="Expand Sidebar"
             >
               <PanelLeftOpen className="w-4 h-4 text-[#FA233B]" />
             </button>
           </div>
         ) : (
-          /* Expanded Full Header: Brand + Collapse Button */
           <div className="flex items-center justify-between px-1 py-1">
             <div
-              onClick={() => {
-                usePlayerStore.getState().setSelectedAlbumId(null);
-                usePlayerStore.getState().setSelectedArtistId(null);
-                usePlayerStore.getState().setSelectedPlaylistId(null);
-                setActiveTab('home');
-              }}
+              onClick={() => navTo('home', { albumId: null, artistId: null, playlistId: null })}
               className="flex items-center cursor-pointer group rounded-lg transition-colors select-none"
               title="RaagaX — Music Beyond Limits"
             >
-              <span className="font-black text-[24px] tracking-tight text-[var(--text-primary)] transition-colors px-1">
+              <span className="font-black text-[24px] tracking-tight text-[var(--text-primary)] px-1">
                 Raaga<span className="text-[#FA233B] drop-shadow-[0_0_14px_rgba(250,35,59,0.55)]">X</span>
               </span>
             </div>
-
             <button
               onClick={handleToggle}
               className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] border border-transparent hover:border-[var(--border-subtle)] transition-all cursor-pointer flex-shrink-0"
-              title="Collapse Sidebar (Slim Mode)"
-              aria-label="Collapse Sidebar"
+              title="Collapse Sidebar"
             >
               <PanelLeftClose className="w-4 h-4 text-[var(--text-muted)] hover:text-[#FA233B]" />
             </button>
           </div>
         )}
 
-        {/* Integrated Quick Search Input / Collapsed Search Button */}
-        {isSidebarCollapsed ? (
+        {/* Search */}
+        {c ? (
           <div className="mt-2 flex justify-center">
             <button
-              onClick={() => {
-                if (activeTab !== 'search') setActiveTab('search');
-              }}
+              onClick={() => setActiveTab('search')}
               className={`p-2.5 rounded-xl transition-all cursor-pointer ${
                 activeTab === 'search'
-                  ? 'text-[#FA233B] border border-transparent'
+                  ? 'text-[#FA233B]'
                   : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
               title="Search Music"
             >
-              <Search className={`w-4 h-4 transition-all ${activeTab === 'search' ? 'text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : ''}`} />
+              <Search className={`w-4 h-4 transition-all ${activeTab === 'search' ? 'text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)]' : ''}`} />
             </button>
           </div>
         ) : (
@@ -218,16 +280,10 @@ export function Sidebar() {
               spellCheck={false}
               name="raagax-sidebar-search-query"
               value={searchQuery}
-              onFocus={() => {
-                if (activeTab !== 'search') {
-                  setActiveTab('search');
-                }
-              }}
+              onFocus={() => { if (activeTab !== 'search') setActiveTab('search'); }}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
-                if (activeTab !== 'search') {
-                  setActiveTab('search');
-                }
+                if (activeTab !== 'search') setActiveTab('search');
               }}
               placeholder="Search songs, artists..."
               className="w-full pl-8 pr-2.5 py-1.5 rounded-lg bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] border border-[var(--border-subtle)] focus:border-[#FA233B]/60 focus:outline-none transition-all font-medium"
@@ -236,340 +292,191 @@ export function Sidebar() {
         )}
       </div>
 
-      {/* ── MIDDLE SCROLLABLE NAVIGATION ───────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 space-y-4 sidebar-scrollbar">
-        {/* 1. PRIMARY NAVIGATION */}
-        <div className="space-y-1">
-          <button
-            onClick={() => {
-              usePlayerStore.getState().setSelectedAlbumId(null);
-              usePlayerStore.getState().setSelectedArtistId(null);
-              usePlayerStore.getState().setSelectedPlaylistId(null);
-              setActiveTab('home');
-            }}
-            title="Home"
-            className={`w-full flex items-center ${
-              isSidebarCollapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2.5 py-1.5'
-            } rounded-xl text-xs transition-all cursor-pointer ${
-              activeTab === 'home'
-                ? 'text-[#FA233B] font-semibold border border-transparent'
-                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] font-medium border border-transparent'
-            }`}
-          >
-            <Home className={`w-4 h-4 flex-shrink-0 transition-all ${activeTab === 'home' ? 'text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : 'text-[var(--text-muted)]'}`} />
-            {!isSidebarCollapsed && (
-              <span className="transition-[opacity,max-width] duration-200 ease-in-out overflow-hidden whitespace-nowrap"
-                style={{ opacity: isSidebarCollapsed ? 0 : 1, maxWidth: isSidebarCollapsed ? 0 : 120 }}>
-                Home
-              </span>
-            )}
-          </button>
+      {/* ── SCROLLABLE NAV ── */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-2 space-y-0.5 sidebar-scrollbar">
 
-          <button
-            onClick={() => {
-              usePlayerStore.getState().setSelectedAlbumId(null);
-              usePlayerStore.getState().setSelectedArtistId(null);
-              usePlayerStore.getState().setSelectedPlaylistId(null);
-              setActiveTab('new');
-            }}
-            title="New & Trending"
-            className={`w-full flex items-center ${
-              isSidebarCollapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2.5 py-1.5'
-            } rounded-xl text-xs transition-all cursor-pointer ${
-              activeTab === 'new'
-                ? 'text-[#FA233B] font-semibold border border-transparent'
-                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] font-medium border border-transparent'
-            }`}
-          >
-            <Flame className={`w-4 h-4 flex-shrink-0 transition-all ${activeTab === 'new' ? 'text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : 'text-[var(--text-muted)]'}`} />
-            {!isSidebarCollapsed && (
-              <span className="transition-[opacity,max-width] duration-200 ease-in-out overflow-hidden whitespace-nowrap"
-                style={{ opacity: isSidebarCollapsed ? 0 : 1, maxWidth: isSidebarCollapsed ? 0 : 120 }}>
-                New
-              </span>
-            )}
-          </button>
-        </div>
+        {/* DISCOVER */}
+        {!c && <SectionLabel>Discover</SectionLabel>}
+        <NavItem icon={Home} label="Home" isActive={activeTab === 'home'} collapsed={c}
+          onClick={() => navTo('home', { albumId: null, artistId: null, playlistId: null })} />
+        <NavItem icon={Flame} label="New" isActive={activeTab === 'new'} collapsed={c}
+          onClick={() => navTo('new', { albumId: null, artistId: null, playlistId: null })} />
 
-        {/* 2. LIBRARY SECTION */}
-        <div className="space-y-1">
-          {!isSidebarCollapsed && (
-            <span className="px-2.5 py-1 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">
-              LIBRARY
+        {/* YOUR MUSIC */}
+        {!c && <SectionLabel>Your Music</SectionLabel>}
+        {c && <div className="h-px bg-white/5 my-1 mx-1" />}
+        <NavItem icon={Heart} label="Liked Songs" isActive={activeTab === 'favorites'} collapsed={c}
+          fillWhenActive onClick={() => navTo('favorites')} />
+        <NavItem icon={Disc3} label="Albums" isActive={activeTab === 'album' && !usePlayerStore.getState().selectedAlbumId} collapsed={c}
+          onClick={() => { usePlayerStore.getState().setSelectedAlbumId(null); navTo('album'); }} />
+        <NavItem icon={Clock} label="History" isActive={activeTab === 'history'} collapsed={c}
+          onClick={() => navTo('history')} />
+
+        {/* YOUR WORLD */}
+        {!c && <SectionLabel>Your World</SectionLabel>}
+        {c && <div className="h-px bg-white/5 my-1 mx-1" />}
+        <NavItem icon={BarChart3} label="Music Insights" isActive={activeTab === 'insights'} collapsed={c}
+          onClick={() => navTo('insights')} />
+        <NavItem
+          icon={Sparkles} label="Raaga Blend" isActive={false} collapsed={c}
+          accentColor="#f472b6"
+          onClick={() => { haptics.lightImpact(); usePlayerStore.getState().toggleBlendModal(true); }}
+        />
+
+        {/* FRIENDS LIVE */}
+        {!c && (
+          <div className="flex items-center justify-between px-2.5 pt-3 pb-1">
+            <span className="text-[9.5px] font-black text-[var(--text-muted)] uppercase tracking-[0.12em] flex items-center gap-1.5 select-none">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
+              Friends Live
             </span>
-          )}
-
-          <button
-            onClick={() => setActiveTab('favorites')}
-            title="Liked Songs"
-            className={`w-full flex items-center ${
-              isSidebarCollapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2.5 py-2'
-            } rounded-xl text-xs transition-all cursor-pointer ${
-              activeTab === 'favorites'
-                ? 'text-[#FA233B] font-semibold border border-transparent'
-                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] font-medium border border-transparent'
-            }`}
-          >
-            <Heart className={`w-4 h-4 flex-shrink-0 transition-all ${activeTab === 'favorites' ? 'fill-[#FA233B] text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : 'text-[var(--text-muted)]'}`} />
-            {!isSidebarCollapsed && (
-              <span className="transition-[opacity,max-width] duration-200 ease-in-out overflow-hidden whitespace-nowrap"
-                style={{ opacity: isSidebarCollapsed ? 0 : 1, maxWidth: isSidebarCollapsed ? 0 : 120 }}>
-                Liked Songs
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => {
-              usePlayerStore.getState().setSelectedAlbumId(null);
-              setActiveTab('album');
-            }}
-            title="Albums"
-            className={`w-full flex items-center ${
-              isSidebarCollapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2.5 py-2'
-            } rounded-xl text-xs transition-all cursor-pointer ${
-              activeTab === 'album' && !usePlayerStore.getState().selectedAlbumId
-                ? 'text-[#FA233B] font-semibold border border-transparent'
-                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] font-medium border border-transparent'
-            }`}
-          >
-            <Disc3 className={`w-4 h-4 flex-shrink-0 transition-all ${activeTab === 'album' ? 'text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : 'text-[var(--text-muted)]'}`} />
-            {!isSidebarCollapsed && (
-              <span className="transition-[opacity,max-width] duration-200 ease-in-out overflow-hidden whitespace-nowrap"
-                style={{ opacity: isSidebarCollapsed ? 0 : 1, maxWidth: isSidebarCollapsed ? 0 : 120 }}>
-                Albums
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('history')}
-            title="Listening History"
-            className={`w-full flex items-center ${
-              isSidebarCollapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2.5 py-2'
-            } rounded-xl text-xs transition-all cursor-pointer ${
-              activeTab === 'history'
-                ? 'text-[#FA233B] font-semibold border border-transparent'
-                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] font-medium border border-transparent'
-            }`}
-          >
-            <Clock className={`w-4 h-4 flex-shrink-0 transition-all ${activeTab === 'history' ? 'text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : 'text-[var(--text-muted)]'}`} />
-            {!isSidebarCollapsed && (
-              <span className="transition-[opacity,max-width] duration-200 ease-in-out overflow-hidden whitespace-nowrap"
-                style={{ opacity: isSidebarCollapsed ? 0 : 1, maxWidth: isSidebarCollapsed ? 0 : 120 }}>
-                History
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('insights')}
-            title="Music Insights"
-            className={`w-full flex items-center ${
-              isSidebarCollapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2.5 py-2'
-            } rounded-xl text-xs transition-all cursor-pointer ${
-              activeTab === 'insights'
-                ? 'text-[#FA233B] font-semibold border border-transparent'
-                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] font-medium border border-transparent'
-            }`}
-          >
-            <BarChart3 className={`w-4 h-4 flex-shrink-0 transition-all ${activeTab === 'insights' ? 'text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : 'text-[var(--text-muted)]'}`} />
-            {!isSidebarCollapsed && (
-              <span className="transition-[opacity,max-width] duration-200 ease-in-out overflow-hidden whitespace-nowrap"
-                style={{ opacity: isSidebarCollapsed ? 0 : 1, maxWidth: isSidebarCollapsed ? 0 : 120 }}>
-                Music Insights
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => usePlayerStore.getState().toggleBlendModal(true)}
-            title="Create Raaga Blend"
-            className={`w-full flex items-center ${
-              isSidebarCollapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2.5 py-2'
-            } rounded-xl text-xs transition-all cursor-pointer text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] font-medium border border-transparent`}
-          >
-            <Users className="w-4 h-4 flex-shrink-0 text-rose-400" />
-            {!isSidebarCollapsed && (
-              <span className="transition-[opacity,max-width] duration-200 ease-in-out overflow-hidden whitespace-nowrap"
-                style={{ opacity: isSidebarCollapsed ? 0 : 1, maxWidth: isSidebarCollapsed ? 0 : 120 }}>
-                Raaga Blend
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* 3. FRIENDS LIVE SECTION */}
-        <div className="space-y-1">
-          {!isSidebarCollapsed && (
-            <div className="flex items-center justify-between px-2.5 py-1">
-              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
-                Friends Live
-              </span>
-              <button
-                onClick={() => { setShowAddFriend(v => !v); setTagInput(''); setAddedFeedback(''); }}
-                className="p-1 rounded-md hover:bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[#FA233B] transition-colors cursor-pointer"
-                title="Add Friend by Blend Tag"
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-
-          {/* Success feedback */}
-          {addedFeedback && !isSidebarCollapsed && (
-            <div className="mx-2.5 px-2.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-400 font-bold animate-in fade-in duration-200">
-              ✓ {addedFeedback}
-            </div>
-          )}
-
-          {/* Add Friend inline form */}
-          {showAddFriend && !isSidebarCollapsed && (
-            <form onSubmit={handleAddFriend} className="px-2.5 space-y-1.5 animate-in slide-in-from-top-2 duration-200">
-              <div className="relative">
-                <input
-                  autoFocus
-                  type="text"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  placeholder="Enter 4-char tag (e.g. A8K2)"
-                  className="w-full pl-3 pr-8 py-2 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] focus:border-[#FA233B]/60 text-[11px] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none transition-all"
-                />
-                <button
-                  type="submit"
-                  disabled={!tagInput.trim()}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[#FA233B] disabled:text-[var(--text-muted)] transition-colors cursor-pointer disabled:cursor-not-allowed"
-                  title="Add"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <p className="text-[9px] text-[var(--text-muted)] px-0.5">
-                Get your friend&apos;s tag from Raaga Blend &rarr; &ldquo;Your Unique Blend Tag&rdquo;
-              </p>
-            </form>
-          )}
-
-          {isSidebarCollapsed ? (
-            <div className="flex justify-center">
-              <div className="relative p-2.5" title="Friends Live Activity">
-                <Users className="w-4 h-4 text-emerald-400" />
-                {pinnedFriends.length > 0 && (
-                  <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                )}
-              </div>
-            </div>
-          ) : pinnedFriends.length > 0 ? (
-            <div className="space-y-0.5">
-              {pinnedFriends.map((friend) => {
-                const activity = friendsActivity.find(a => a.userId === friend.tag || a.userName === friend.name);
-                const isOnline = !!activity;
-                return (
-                  <div
-                    key={friend.tag}
-                    className={`group flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs transition-all ${isOnline ? 'hover:bg-[var(--bg-surface)]' : 'opacity-50'}`}
-                  >
-                    <div className="relative flex-shrink-0">
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-[#FA233B] to-rose-400 text-white font-bold text-[10px] flex items-center justify-center">
-                        {friend.name.charAt(0).toUpperCase()}
-                      </div>
-                      {isOnline && (
-                        <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border border-[var(--sidebar-bg)]" />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-semibold text-[var(--text-primary)] truncate leading-tight">
-                        {friend.name}
-                      </p>
-                      <p className="text-[9px] text-[var(--text-muted)] truncate leading-tight flex items-center gap-1">
-                        {isOnline
-                          ? <><Music className="w-2.5 h-2.5 flex-shrink-0" />{activity!.songTitle}</>
-                          : <span className="font-mono">{friend.tag.replace('RGX-', '')}</span>
-                        }
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => handleRemoveFriend(friend.tag)}
-                      className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-[var(--text-muted)] hover:text-red-400 transition-all cursor-pointer flex-shrink-0"
-                      title="Remove friend"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
             <button
-              onClick={() => setShowAddFriend(true)}
-              className="w-full flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-[var(--bg-surface)]/50 border border-dashed border-[var(--border-subtle)] hover:border-[#FA233B]/40 text-[var(--text-muted)] hover:text-[var(--text-primary)] text-left cursor-pointer transition-all group"
+              onClick={() => { setShowAddFriend(v => !v); setTagInput(''); setAddedFeedback(''); }}
+              className="p-1 rounded-md hover:bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[#FA233B] transition-colors cursor-pointer"
+              title="Add Friend by Blend Tag"
             >
-              <Plus className="w-3.5 h-3.5 group-hover:text-[#FA233B] transition-colors flex-shrink-0" />
-              <span className="text-[10px] font-medium">Add friends by Blend Tag</span>
+              <Plus className="w-3.5 h-3.5" />
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* 4. PLAYLISTS SECTION */}
-        <div className="space-y-1">
-          {!isSidebarCollapsed && (
-            <div className="flex items-center justify-between px-2.5 py-1 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
-              <span>YOUR PLAYLISTS</span>
+        {addedFeedback && !c && (
+          <div className="mx-2.5 px-2.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-400 font-bold animate-in fade-in duration-200">
+            ✓ {addedFeedback}
+          </div>
+        )}
+
+        {showAddFriend && !c && (
+          <form onSubmit={handleAddFriend} className="px-2.5 space-y-1.5 animate-in slide-in-from-top-2 duration-200">
+            <div className="relative">
+              <input
+                autoFocus
+                type="text"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                placeholder="Enter 4-char tag (e.g. A8K2)"
+                className="w-full pl-3 pr-8 py-2 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] focus:border-[#FA233B]/60 text-[11px] font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none transition-all"
+              />
               <button
-                onClick={() => setCreatePlaylistModalOpen(true)}
-                className="p-1 rounded-md hover:bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                title="Create Playlist"
+                type="submit"
+                disabled={!tagInput.trim()}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#FA233B] disabled:text-[var(--text-muted)] transition-colors cursor-pointer disabled:cursor-not-allowed"
+                title="Add"
               >
                 <Plus className="w-3.5 h-3.5" />
               </button>
             </div>
-          )}
+            <p className="text-[9px] text-[var(--text-muted)] px-0.5">
+              Get your friend&apos;s tag from Raaga Blend &rarr; &ldquo;Your Unique Blend Tag&rdquo;
+            </p>
+          </form>
+        )}
 
-          {userPlaylists.length > 0 ? (
-            <div className="space-y-0.5">
-              {userPlaylists.map((pl) => (
-                <button
-                  key={pl.id}
-                  onClick={() => {
-                    setSelectedPlaylistId(pl.id);
-                    setActiveTab('playlist');
-                  }}
-                  title={pl.title || (pl as any).name || 'Untitled Playlist'}
-                  className={`w-full flex items-center ${
-                    isSidebarCollapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2.5 py-1.5'
-                  } rounded-xl text-left transition-all cursor-pointer ${
-                    selectedPlaylistId === pl.id && activeTab === 'playlist'
-                      ? 'text-[#FA233B] font-semibold border border-transparent'
-                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] font-medium border border-transparent'
-                  }`}
-                >
-                  <ListMusic className={`w-4 h-4 flex-shrink-0 transition-all ${selectedPlaylistId === pl.id && activeTab === 'playlist' ? 'text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : 'text-[var(--text-muted)]'}`} />
-                  {!isSidebarCollapsed && <span className="truncate text-xs">{pl.title || (pl as any).name || 'Untitled Playlist'}</span>}
-                </button>
-              ))}
+        {c ? (
+          <div className="flex justify-center mt-1">
+            <div className="relative p-2.5" title="Friends Live Activity">
+              <Users className="w-4 h-4 text-emerald-400" />
+              {pinnedFriends.length > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              )}
             </div>
-          ) : (
+          </div>
+        ) : pinnedFriends.length > 0 ? (
+          <div className="space-y-0.5 mt-0.5">
+            {pinnedFriends.map((friend) => {
+              const activity = friendsActivity.find(a => a.userId === friend.tag || a.userName === friend.name);
+              const isOnline = !!activity;
+              return (
+                <div
+                  key={friend.tag}
+                  className={`group flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs transition-all ${isOnline ? 'hover:bg-[var(--bg-surface)] cursor-pointer' : 'opacity-45'}`}
+                >
+                  <div className="relative flex-shrink-0">
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-[#FA233B] to-rose-400 text-white font-bold text-[10px] flex items-center justify-center">
+                      {friend.name.charAt(0).toUpperCase()}
+                    </div>
+                    {isOnline && (
+                      <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border border-[var(--sidebar-bg)]" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-semibold text-[var(--text-primary)] truncate leading-tight">{friend.name}</p>
+                    <p className="text-[9px] text-[var(--text-muted)] truncate leading-tight flex items-center gap-1">
+                      {isOnline
+                        ? <><Music className="w-2.5 h-2.5 flex-shrink-0" />{activity!.songTitle}</>
+                        : <span className="font-mono">{friend.tag.replace('RGX-', '')}</span>
+                      }
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleRemoveFriend(friend.tag)}
+                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-[var(--text-muted)] hover:text-red-400 transition-all cursor-pointer flex-shrink-0"
+                    title="Remove friend"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowAddFriend(true)}
+            className="w-full flex items-center gap-1.5 px-2.5 py-2 mx-0 rounded-xl bg-[var(--bg-surface)]/50 border border-dashed border-[var(--border-subtle)] hover:border-[#FA233B]/40 text-[var(--text-muted)] hover:text-[var(--text-primary)] text-left cursor-pointer transition-all group"
+          >
+            <Plus className="w-3.5 h-3.5 group-hover:text-[#FA233B] transition-colors flex-shrink-0" />
+            <span className="text-[10px] font-medium">Add friends by Blend Tag</span>
+          </button>
+        )}
+
+        {/* PLAYLISTS */}
+        {!c && <SectionLabel>Playlists</SectionLabel>}
+        {c && <div className="h-px bg-white/5 my-1 mx-1" />}
+        {!c && (
+          <div className="flex items-center justify-between px-2.5 pb-1">
+            <span /> {/* spacer - label already rendered by SectionLabel above */}
             <button
               onClick={() => setCreatePlaylistModalOpen(true)}
-              title="Create a playlist"
-              className={`w-full flex ${
-                isSidebarCollapsed ? 'justify-center p-2.5' : 'flex-col items-center justify-center py-2.5 px-3'
-              } rounded-xl bg-[var(--bg-surface)]/50 border border-dashed border-[var(--border-subtle)] hover:border-[#FA233B]/40 text-[var(--text-muted)] hover:text-[var(--text-primary)] text-center cursor-pointer transition-all group`}
+              className="p-1 rounded-md hover:bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+              title="Create Playlist"
             >
-              <Plus className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[#FA233B] transition-colors" />
-              {!isSidebarCollapsed && <span className="text-[11px] font-medium block mt-0.5">Create playlist</span>}
+              <Plus className="w-3.5 h-3.5" />
             </button>
-          )}
-        </div>
+          </div>
+        )}
+
+        {userPlaylists.length > 0 ? (
+          <div className="space-y-0.5">
+            {userPlaylists.map((pl) => (
+              <NavItem
+                key={pl.id}
+                icon={ListMusic}
+                label={pl.title || (pl as any).name || 'Untitled Playlist'}
+                isActive={selectedPlaylistId === pl.id && activeTab === 'playlist'}
+                collapsed={c}
+                onClick={() => { setSelectedPlaylistId(pl.id); setActiveTab('playlist'); haptics.lightImpact(); }}
+              />
+            ))}
+          </div>
+        ) : (
+          <button
+            onClick={() => setCreatePlaylistModalOpen(true)}
+            title="Create a playlist"
+            className={`w-full flex ${c ? 'justify-center p-2.5' : 'flex-col items-center justify-center py-2.5 px-3'} rounded-xl bg-[var(--bg-surface)]/50 border border-dashed border-[var(--border-subtle)] hover:border-[#FA233B]/40 text-[var(--text-muted)] hover:text-[var(--text-primary)] text-center cursor-pointer transition-all group`}
+          >
+            <Plus className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[#FA233B] transition-colors" />
+            {!c && <span className="text-[11px] font-medium block mt-0.5">Create playlist</span>}
+          </button>
+        )}
       </div>
 
-      {/* ── INSTALL APP PROMO BUTTON ── */}
-      <div className="px-2 pb-2 flex-shrink-0">
-        {isSidebarCollapsed ? (
+      {/* ── BOTTOM DOCK ── */}
+      <div className="px-2 pb-2 pt-1 flex-shrink-0 border-t border-[var(--border-subtle)] bg-[var(--bg-surface)]/30 space-y-1">
+        {/* Install App */}
+        {c ? (
           <button
             onClick={() => toggleGetAppModal(true)}
-            className="w-full flex items-center justify-center p-2.5 rounded-xl bg-gradient-to-r from-[#FA233B]/15 to-rose-500/15 border border-[#FA233B]/30 hover:border-[#FA233B]/60 text-center transition-all cursor-pointer"
+            className="w-full flex items-center justify-center p-2.5 rounded-xl bg-gradient-to-r from-[#FA233B]/15 to-rose-500/15 border border-[#FA233B]/30 hover:border-[#FA233B]/60 transition-all cursor-pointer"
             title="Install RaagaX App"
           >
             <Download className="w-4 h-4 text-[#FA233B]" />
@@ -595,12 +502,10 @@ export function Sidebar() {
             <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[#FA233B] group-hover:translate-x-0.5 transition-all flex-shrink-0" />
           </button>
         )}
-      </div>
 
-      {/* ── BOTTOM PIN: USER ACCOUNT / SETTINGS ────────────────────────────── */}
-      <div className="p-2 flex-shrink-0 border-t border-[var(--border-subtle)] bg-[var(--bg-surface)]/40">
+        {/* Account / Settings */}
         {mounted && user ? (
-          isSidebarCollapsed ? (
+          c ? (
             <button
               onClick={() => setActiveTab('settings')}
               className="w-full flex items-center justify-center p-2 rounded-xl bg-gradient-to-tr from-[#FA233B] to-[#FF4757] text-white font-bold text-xs shadow-sm cursor-pointer hover:scale-105 transition-transform"
@@ -630,10 +535,7 @@ export function Sidebar() {
                 </div>
               </div>
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  signOut();
-                }}
+                onClick={(e) => { e.stopPropagation(); signOut(); }}
                 className="p-1 text-[var(--text-muted)] hover:text-red-400 rounded-md hover:bg-[var(--bg-surface)] transition-colors"
                 title="Sign Out"
               >
@@ -641,7 +543,7 @@ export function Sidebar() {
               </button>
             </div>
           )
-        ) : isSidebarCollapsed ? (
+        ) : c ? (
           <button
             onClick={() => setAuthModalOpen(true)}
             className="w-full flex items-center justify-center p-2 rounded-xl bg-[#FA233B]/15 text-[#FA233B] hover:bg-[#FA233B]/25 border border-[#FA233B]/20 cursor-pointer transition-colors"

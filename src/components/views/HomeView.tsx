@@ -525,15 +525,115 @@ export function HomeView() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 1. HEADER — Greeting                                                  */}
+      {/* 1. HERO GREETING — cinematic, minimal, premium                         */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <section className="pt-0 flex flex-col gap-1">
-        <div className="pt-3.5">
-          <h1 suppressHydrationWarning className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            {feed?.greeting || greeting}, {displayName}
-          </h1>
+      <section className="relative pt-8 sm:pt-10 pb-2 flex flex-col select-none" suppressHydrationWarning>
+
+        {/* Ambient warm/cool glow layer — no artwork required */}
+        <div
+          className="absolute -top-6 -left-10 w-[340px] h-[220px] pointer-events-none -z-10"
+          style={{
+            background: greeting === 'Good morning' || greeting === 'Good afternoon'
+              ? 'radial-gradient(ellipse at 30% 50%, rgba(255,160,60,0.09) 0%, transparent 70%)'
+              : 'radial-gradient(ellipse at 30% 50%, rgba(100,130,255,0.08) 0%, transparent 70%)',
+          }}
+        />
+
+        {/* Eyebrow: icon + label */}
+        <div className="flex items-center gap-2 mb-4" suppressHydrationWarning>
+          {/* Time-of-day icon */}
+          <span
+            className="text-[15px] leading-none"
+            suppressHydrationWarning
+            aria-hidden="true"
+          >
+            {greeting === 'Good morning' ? '🌅' : greeting === 'Good afternoon' ? '☀️' : greeting === 'Good evening' ? '🌆' : '🌙'}
+          </span>
+
+          {/* Label */}
+          <span
+            className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.22em] text-white/35"
+            suppressHydrationWarning
+          >
+            {greeting}
+          </span>
         </div>
+
+        {/* Display name — no comma, cinematic size */}
+        <h1
+          className="text-[48px] sm:text-[64px] lg:text-[72px] font-black text-white leading-[0.95] tracking-[-0.03em]"
+          style={{ fontVariantNumeric: 'tabular-nums' }}
+        >
+          {displayName}
+        </h1>
+
+        {/* Subtitle + arrow */}
+        <p className="mt-4 flex items-center gap-2 text-[13px] sm:text-[14px] font-medium text-white/38 tracking-wide">
+          <span>{currentSong ? 'Continue where you left off' : 'Your music is waiting'}</span>
+          <span
+            className="inline-block animate-[subtleFloat_2.8s_ease-in-out_infinite]"
+            aria-hidden="true"
+          >
+            ↓
+          </span>
+        </p>
+
+        {/* Thin gradient rule */}
+        <div className="mt-7 h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
       </section>
+
+
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* 2. CONTINUE LISTENING — Quick-access horizontal strip                 */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {recentlyPlayedItems.length > 0 && (
+        <section className="pr-2 sm:pr-3">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5">
+            {recentlyPlayedItems.slice(0, 6).map((item) => {
+              const song = item.rawItem as Song | undefined;
+              const isCurrent = song && currentSong?.id === song.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    haptics.lightImpact();
+                    if (song) playSong(song, recentlyPlayedItems.map(i => i.rawItem as Song).filter(Boolean));
+                  }}
+                  className={`flex items-center gap-2.5 p-2 rounded-xl transition-all duration-200 text-left cursor-pointer group ${
+                    isCurrent
+                      ? 'bg-[#FA233B]/12 border border-[#FA233B]/35'
+                      : 'bg-white/[0.04] border border-white/[0.07] hover:bg-white/[0.08] hover:border-white/15'
+                  }`}
+                >
+                  <div className="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-slate-800">
+                    <img
+                      src={item.imageUrl || '/app-icon.png'}
+                      alt={item.title}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+                    />
+                    {isCurrent && isPlaying && (
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                        <div className="flex items-end gap-[2px] h-3">
+                          {[1,2,3].map(i => (
+                            <div key={i} className="w-[3px] bg-[#FA233B] rounded-full animate-pulse" style={{ height: `${[60,100,75][i-1]}%`, animationDelay: `${i * 0.1}s` }} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-[12px] font-bold truncate leading-tight transition-colors ${
+                      isCurrent ? 'text-[#FA233B]' : 'text-white group-hover:text-[#FA233B]'
+                    }`}>{item.title}</p>
+                    <p className="text-[10px] text-slate-400 truncate mt-0.5 font-medium">{item.subtitle}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* ACTIVE FRIEND ACTIVITY SONG SCROLL TICKER                              */}
@@ -818,16 +918,8 @@ export function HomeView() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 6. RECENTLY PLAYED — Songs, albums, playlists from history            */}
+      {/* 6. RECENTLY PLAYED — Compact 2-col list, not carousel                 */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {recentlyPlayedItems.length > 0 && (
-        <CarouselShelf
-          title="Recently Played"
-          icon={<Clock className="w-[18px] h-[18px] sm:w-5 sm:h-5 text-amber-400 flex-shrink-0" />}
-          items={recentlyPlayedItems}
-          showPlayAll={true}
-        />
-      )}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* 7. MORE LIKE WHAT YOU LISTEN TO — Similar songs/artists               */}
@@ -839,37 +931,42 @@ export function HomeView() {
       {/* 8. YOUR TOP ARTISTS                                                    */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {homeFeedControls.showPopularArtists !== false && feed?.topArtists && feed.topArtists.length > 0 && (
-        <section className="space-y-3">
-          <div className="flex items-center gap-2 pr-4 sm:pr-6">
-            <User className="w-4 h-4 text-[#FA233B]" />
-            <h2 className="text-sm font-black text-white">
-              {topArtistName ? `Because You Like ${topArtistName}` : 'Your Top Artists'}
-            </h2>
+        <section className="space-y-3 pr-2 sm:pr-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <User className="w-4 h-4 text-[#FA233B]" />
+              <h2 className="text-[15px] sm:text-[17px] font-black text-white tracking-tight">
+                {topArtistName ? `Because You Like ${topArtistName}` : 'Your Top Artists'}
+              </h2>
+            </div>
           </div>
-          <div className="flex overflow-x-auto gap-4 pb-2 no-scrollbar">
+          <div className="flex overflow-x-auto gap-4 sm:gap-5 pb-2 no-scrollbar">
             {feed.topArtists.map((artist, idx) => (
               <div
                 key={artist.id ? `${artist.id}-${idx}` : `artist-${idx}`}
                 onClick={() => { setSelectedArtistId(artist.id); setActiveTab('artist'); }}
-                className="w-24 sm:w-28 flex-shrink-0 text-center cursor-pointer group"
+                className="w-[88px] sm:w-[104px] flex-shrink-0 text-center cursor-pointer group"
               >
-                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden mb-2 border-2 border-white/10 group-hover:border-[#FA233B] transition-all shadow-md mx-auto">
+                <div className="relative mx-auto w-[88px] h-[88px] sm:w-[104px] sm:h-[104px] rounded-full overflow-hidden mb-2.5 border-2 border-white/10 group-hover:border-[#FA233B]/70 transition-all duration-300 shadow-lg group-hover:shadow-[0_0_20px_rgba(250,35,59,0.25)]">
                   <img
                     src={artist.coverUrl}
                     alt={artist.name}
                     onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                   />
+                  {/* Hover overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 </div>
-                <h4 className="text-xs font-bold text-white truncate group-hover:text-[#FA233B] transition-colors">
+                <h4 className="text-[11px] sm:text-xs font-bold text-white truncate group-hover:text-[#FA233B] transition-colors leading-tight">
                   {artist.name}
                 </h4>
-                <p className="text-[10px] text-slate-400">{artist.playCount} plays</p>
+                <p className="text-[9px] sm:text-[10px] text-slate-500 mt-0.5 font-medium">{artist.playCount} plays</p>
               </div>
             ))}
           </div>
         </section>
       )}
+
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* 9. POPULAR IN YOUR LANGUAGE — Strictly language-filtered              */}
