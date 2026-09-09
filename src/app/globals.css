@@ -21,6 +21,7 @@
     --text-primary: #FFFFFF;
     --text-secondary: #94A3B8;
     --text-muted: #64748B;
+    --text-tertiary: #475569; /* alias for muted */
     --metallic-silver: #94A3B8;
     --metallic-soft: #1E2230;
     --glass-bg: rgba(14, 16, 21, 0.65);
@@ -31,6 +32,7 @@
     --playerbar-bg: rgba(14, 16, 21, 0.88);
     --nav-bg: rgba(14, 16, 21, 0.92);
     --shadow-brand: 0 8px 30px rgba(229, 9, 20, 0.35);
+    --bg-surface-hover: rgba(21, 24, 33, 0.95);
   }
 
   .light,
@@ -50,6 +52,7 @@
     --text-primary: #0F172A;
     --text-secondary: #334155;
     --text-muted: #64748B;
+    --text-tertiary: #94A3B8; /* alias for muted */
     --metallic-silver: #64748B;
     --metallic-soft: #E2E8F0;
     --glass-bg: rgba(255, 255, 255, 0.88);
@@ -60,6 +63,7 @@
     --playerbar-bg: rgba(255, 255, 255, 0.94);
     --nav-bg: rgba(255, 255, 255, 0.92);
     --shadow-brand: 0 8px 30px rgba(229, 9, 20, 0.15);
+    --bg-surface-hover: rgba(241, 245, 249, 0.98);
   }
 
   /* ══════════════════════════════════════════════════════════════════════════ */
@@ -1155,3 +1159,30 @@
   50%       { transform: translateY(4px);   opacity: 0.7;  }
 }
 
+/* ── Equalizer bar — ContinueListeningShelf playing indicator ─────────────── */
+@keyframes equalizerBar {
+  0%, 100% { transform: scaleY(0.5); opacity: 0.8; }
+  50%       { transform: scaleY(1.0); opacity: 1;   }
+}
+
+/* ── Reduce motion ───────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Utility: Tailwind-compatible CSS var aliases ────────────────────────── */
+.bg-surface        { background-color: var(--bg-surface); }
+.bg-surface-hover  { background-color: var(--bg-surface-hover, var(--surface-hover)); }
+.bg-elevated       { background-color: var(--bg-elevated); }
+.text-primary      { color: var(--text-primary); }
+.text-secondary    { color: var(--text-secondary); }
+.text-tertiary     { color: var(--text-tertiary, var(--text-muted)); }
+.border-subtle     { border-color: var(--border-subtle); }
+.text-crimson      { color: var(--accent-crimson); }
+.bg-crimson        { background-color: var(--accent-crimson); }

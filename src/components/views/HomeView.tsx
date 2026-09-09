@@ -542,37 +542,51 @@ export function HomeView() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 1. TIME-AWARE HERO GREETING                                            */}
+      {/* 1. TIME-AWARE COMPACT HERO                                             */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <section className="relative pt-6 sm:pt-8 pb-3 flex flex-col items-start justify-start select-none" suppressHydrationWarning>
-
-        {/* Dynamic atmospheric glow background */}
+      <section
+        className="relative pt-8 sm:pt-10 pb-5 sm:pb-6 flex flex-col items-start select-none"
+        suppressHydrationWarning
+      >
+        {/* Atmospheric ambient glow — time-driven via CSS vars */}
         <div
-          className="absolute -top-6 -left-10 w-80 h-80 pointer-events-none -z-10 transition-all duration-700"
+          className="absolute -top-8 -left-12 w-72 h-72 pointer-events-none -z-10 transition-all duration-700"
           style={{ background: 'var(--time-hero-glow)' }}
+          aria-hidden
         />
 
-        {/* 1. Top-Left Greeting: emoji + "Good Morning, Chan" */}
-        <div className="flex items-center gap-3" suppressHydrationWarning>
-          <span className="text-2xl sm:text-3xl select-none" aria-hidden="true">
-            {timeTheme.icon}
+        {/* Greeting: "🌅 GOOD MORNING, CHAN" — single medium-weight line */}
+        <h1
+          className="flex items-center gap-2.5 text-[22px] sm:text-[26px] md:text-[28px] font-bold text-[var(--text-primary)] tracking-tight leading-snug"
+          suppressHydrationWarning
+        >
+          <span className="text-[20px] sm:text-[22px] shrink-0 select-none" aria-hidden>{timeTheme.icon}</span>
+          <span>
+            {timeTheme.greeting.split(' ').map((w, i) =>
+              <span key={i}>{w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()}{' '}</span>
+            )}
+            <span className="text-[var(--text-secondary)] font-medium">{displayName}</span>
           </span>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">
-            {timeTheme.greeting.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')}, {displayName}
-          </h1>
-        </div>
+        </h1>
 
-        {/* 2. Sub-header (Left-Aligned Directly Below Greeting) */}
+        {/* Subtitle — one arrow, scrolls to Continue Listening */}
         <button
           onClick={() => {
             haptics.lightImpact();
             document.getElementById('continue-listening')?.scrollIntoView({ behavior: 'smooth' });
           }}
-          className="flex items-center gap-2 pt-2.5 pb-1 text-sm font-medium tracking-wide text-secondary hover:text-primary transition-colors cursor-pointer text-left group"
+          aria-label="Scroll to Continue Listening"
+          className="mt-2 flex items-center gap-1.5 text-[13px] sm:text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer group focus-visible:outline-none focus-visible:underline"
         >
           <span>{timeTheme.subtitle}</span>
-          <ChevronRight className="w-4 h-4 text-tertiary group-hover:text-crimson group-hover:translate-x-0.5 transition-all rotate-90" />
+          <span
+            className="text-[var(--accent-crimson)] group-hover:translate-y-px transition-transform"
+            aria-hidden
+          >↓</span>
         </button>
+
+        {/* Divider */}
+        <div className="mt-5 sm:mt-6 h-px w-full bg-gradient-to-r from-transparent via-[var(--border-subtle)] to-transparent" />
       </section>
 
       {/* ══════════════════════════════════════════════════════════════════════ */}

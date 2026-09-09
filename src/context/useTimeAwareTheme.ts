@@ -7,49 +7,31 @@ export type TimePeriod = 'morning' | 'afternoon' | 'evening' | 'night';
 
 export interface TimeThemeDetails {
   period: TimePeriod;
-  greeting: string;
-  subtitle: string;
-  icon: string;
-  timeTheme: string; // e.g. 'morning-dark', 'evening-light'
+  greeting: string;       // e.g. "GOOD MORNING"
+  subtitle: string;       // contextual subtitle (no arrow, no period)
+  icon: string;           // emoji
+  timeTheme: string;      // e.g. 'morning-dark'
   resolvedTheme: 'dark' | 'light';
 }
 
+// Time boundaries per spec
 export function getTimePeriod(date = new Date()): TimePeriod {
-  const hours = date.getHours();
-  if (hours >= 5 && hours < 12) return 'morning';
-  if (hours >= 12 && hours < 17) return 'afternoon';
-  if (hours >= 17 && hours < 21) return 'evening';
+  const h = date.getHours();
+  if (h >= 5 && h < 12) return 'morning';
+  if (h >= 12 && h < 17) return 'afternoon';
+  if (h >= 17 && h < 21) return 'evening';
   return 'night';
 }
 
+const TIME_THEMES: Record<TimePeriod, { icon: string; greeting: string; subtitle: string }> = {
+  morning:   { icon: '🌅', greeting: 'GOOD MORNING',   subtitle: 'Start your day with some music' },
+  afternoon: { icon: '☀️', greeting: 'GOOD AFTERNOON', subtitle: "What's playing today?" },
+  evening:   { icon: '🌆', greeting: 'GOOD EVENING',   subtitle: 'Set the mood for tonight' },
+  night:     { icon: '🌙', greeting: 'GOOD NIGHT',     subtitle: 'Wind down with some music' },
+};
+
 export function getTimeThemeDetails(period: TimePeriod, resolvedTheme: 'dark' | 'light'): TimeThemeDetails {
-  let greeting = 'GOOD MORNING';
-  let subtitle = 'Continue where you left off ↓';
-  let icon = '🌅';
-
-  switch (period) {
-    case 'morning':
-      greeting = 'GOOD MORNING';
-      subtitle = 'Continue where you left off';
-      icon = '🌅';
-      break;
-    case 'afternoon':
-      greeting = 'GOOD AFTERNOON';
-      subtitle = "What's playing today?";
-      icon = '☀️';
-      break;
-    case 'evening':
-      greeting = 'GOOD EVENING';
-      subtitle = 'Set the mood for tonight';
-      icon = '🌆';
-      break;
-    case 'night':
-      greeting = 'GOOD NIGHT';
-      subtitle = 'Wind down with some music';
-      icon = '🌙';
-      break;
-  }
-
+  const { icon, greeting, subtitle } = TIME_THEMES[period];
   return {
     period,
     greeting,
@@ -65,24 +47,22 @@ export function useTimeAwareTheme(): TimeThemeDetails {
   const [period, setPeriod] = useState<TimePeriod>(() => getTimePeriod());
 
   useEffect(() => {
-    const updateTime = () => {
-      const currentPeriod = getTimePeriod();
-      setPeriod((prev) => (prev !== currentPeriod ? currentPeriod : prev));
+    const sync = () => {
+      const next = getTimePeriod();
+      setPeriod(prev => (prev !== next ? next : prev));
     };
-
-    updateTime();
-    const interval = setInterval(updateTime, 60000); // Check every minute
-    return () => clearInterval(interval);
+    sync();
+    const t = setInterval(sync, 60_000);
+    return () => clearInterval(t);
   }, []);
 
-  // Update HTML data attributes dynamically whenever period or theme changes
+  // Write data attrs to <html> so CSS [data-time-theme="..."] rules fire
   useEffect(() => {
     if (typeof document === 'undefined') return;
     const root = document.documentElement;
-    const timeTheme = `${period}-${resolvedTheme}`;
-    
+    const combined = `${period}-${resolvedTheme}`;
     root.setAttribute('data-time-period', period);
-    root.setAttribute('data-time-theme', timeTheme);
+    root.setAttribute('data-time-theme', combined);
   }, [period, resolvedTheme]);
 
   return getTimeThemeDetails(period, resolvedTheme);
