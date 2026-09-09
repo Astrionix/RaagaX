@@ -148,7 +148,7 @@ export function Sidebar() {
               className="cursor-pointer group hover:scale-105 transition-transform"
               title="RaagaX Home"
             >
-              <RaagaXLogo variant="full" size={28} />
+              <RaagaXLogo variant="full" size={44} />
             </div>
             <button
               onClick={handleToggle}
@@ -169,11 +169,10 @@ export function Sidebar() {
                 usePlayerStore.getState().setSelectedPlaylistId(null);
                 setActiveTab('home');
               }}
-              className="flex items-center gap-2 cursor-pointer group rounded-lg transition-colors select-none"
+              className="flex items-center cursor-pointer group rounded-lg transition-colors select-none"
               title="RaagaX — Music Beyond Limits"
             >
-              <RaagaXLogo variant="full" size={24} />
-              <span className="font-black text-[22px] tracking-tight text-[var(--text-primary)] transition-colors">
+              <span className="font-black text-[24px] tracking-tight text-[var(--text-primary)] transition-colors px-1">
                 Raaga<span className="text-[#FA233B] drop-shadow-[0_0_14px_rgba(250,35,59,0.55)]">X</span>
               </span>
             </div>
@@ -196,14 +195,14 @@ export function Sidebar() {
               onClick={() => {
                 if (activeTab !== 'search') setActiveTab('search');
               }}
-              className={`p-2 rounded-xl transition-all cursor-pointer ${
+              className={`p-2.5 rounded-xl transition-all cursor-pointer ${
                 activeTab === 'search'
-                  ? 'bg-[#FA233B]/15 text-[#FA233B] border border-[#FA233B]/30'
+                  ? 'text-[#FA233B] border border-transparent'
                   : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
               title="Search Music"
             >
-              <Search className="w-4 h-4" />
+              <Search className={`w-4 h-4 transition-all ${activeTab === 'search' ? 'text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : ''}`} />
             </button>
           </div>
         ) : (
@@ -252,11 +251,11 @@ export function Sidebar() {
               isSidebarCollapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2.5 py-1.5'
             } rounded-xl text-xs transition-all cursor-pointer ${
               activeTab === 'home'
-                ? 'bg-[#FA233B]/15 text-[#FA233B] font-semibold border border-[#FA233B]/20'
+                ? 'text-[#FA233B] font-semibold border border-transparent'
                 : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] font-medium border border-transparent'
             }`}
           >
-            <Home className={`w-4 h-4 flex-shrink-0 ${activeTab === 'home' ? 'text-[#FA233B]' : 'text-[var(--text-muted)]'}`} />
+            <Home className={`w-4 h-4 flex-shrink-0 transition-all ${activeTab === 'home' ? 'text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : 'text-[var(--text-muted)]'}`} />
             {!isSidebarCollapsed && <span>Home</span>}
           </button>
 
@@ -272,11 +271,11 @@ export function Sidebar() {
               isSidebarCollapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2.5 py-1.5'
             } rounded-xl text-xs transition-all cursor-pointer ${
               activeTab === 'new'
-                ? 'bg-[#FA233B]/15 text-[#FA233B] font-semibold border border-[#FA233B]/20'
+                ? 'text-[#FA233B] font-semibold border border-transparent'
                 : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] font-medium border border-transparent'
             }`}
           >
-            <Flame className={`w-4 h-4 flex-shrink-0 ${activeTab === 'new' ? 'text-[#FA233B]' : 'text-[var(--text-muted)]'}`} />
+            <Flame className={`w-4 h-4 flex-shrink-0 transition-all ${activeTab === 'new' ? 'text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : 'text-[var(--text-muted)]'}`} />
             {!isSidebarCollapsed && <span>New</span>}
           </button>
         </div>
@@ -296,11 +295,11 @@ export function Sidebar() {
               isSidebarCollapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2.5 py-2'
             } rounded-xl text-xs transition-all cursor-pointer ${
               activeTab === 'favorites'
-                ? 'bg-[#FA233B]/15 text-[#FA233B] font-semibold border border-[#FA233B]/20'
+                ? 'text-[#FA233B] font-semibold border border-transparent'
                 : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] font-medium border border-transparent'
             }`}
           >
-            <Heart className={`w-4 h-4 flex-shrink-0 ${activeTab === 'favorites' ? 'fill-[#FA233B] text-[#FA233B]' : 'text-[var(--text-muted)]'}`} />
+            <Heart className={`w-4 h-4 flex-shrink-0 transition-all ${activeTab === 'favorites' ? 'fill-[#FA233B] text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : 'text-[var(--text-muted)]'}`} />
             {!isSidebarCollapsed && <span>Liked Songs</span>}
           </button>
 
@@ -314,26 +313,44 @@ export function Sidebar() {
               isSidebarCollapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2.5 py-2'
             } rounded-xl text-xs transition-all cursor-pointer ${
               activeTab === 'album' && !usePlayerStore.getState().selectedAlbumId
-                ? 'bg-[#FA233B]/15 text-[#FA233B] font-semibold border border-[#FA233B]/20'
+                ? 'text-[#FA233B] font-semibold border border-transparent'
                 : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] font-medium border border-transparent'
             }`}
           >
-            <Disc3 className={`w-4 h-4 flex-shrink-0 ${activeTab === 'album' ? 'text-[#FA233B]' : 'text-[var(--text-muted)]'}`} />
+            <Disc3 className={`w-4 h-4 flex-shrink-0 transition-all ${activeTab === 'album' ? 'text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : 'text-[var(--text-muted)]'}`} />
             {!isSidebarCollapsed && <span>Albums</span>}
           </button>
 
           <button
+<<<<<<< HEAD
+=======
+            onClick={() => setActiveTab('history')}
+            title="Listening History"
+            className={`w-full flex items-center ${
+              isSidebarCollapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2.5 py-2'
+            } rounded-xl text-xs transition-all cursor-pointer ${
+              activeTab === 'history'
+                ? 'text-[#FA233B] font-semibold border border-transparent'
+                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] font-medium border border-transparent'
+            }`}
+          >
+            <Clock className={`w-4 h-4 flex-shrink-0 transition-all ${activeTab === 'history' ? 'text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : 'text-[var(--text-muted)]'}`} />
+            {!isSidebarCollapsed && <span>History</span>}
+          </button>
+
+          <button
+>>>>>>> bcd36ed (feat(brand): update Raaga Music Icon, favicons, app icons, and sidebar illumination)
             onClick={() => setActiveTab('insights')}
             title="Music Insights"
             className={`w-full flex items-center ${
               isSidebarCollapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2.5 py-2'
             } rounded-xl text-xs transition-all cursor-pointer ${
               activeTab === 'insights'
-                ? 'bg-[#FA233B]/15 text-[#FA233B] font-semibold border border-[#FA233B]/20'
+                ? 'text-[#FA233B] font-semibold border border-transparent'
                 : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] font-medium border border-transparent'
             }`}
           >
-            <BarChart3 className={`w-4 h-4 flex-shrink-0 ${activeTab === 'insights' ? 'text-[#FA233B]' : 'text-[var(--text-muted)]'}`} />
+            <BarChart3 className={`w-4 h-4 flex-shrink-0 transition-all ${activeTab === 'insights' ? 'text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : 'text-[var(--text-muted)]'}`} />
             {!isSidebarCollapsed && <span>Music Insights</span>}
           </button>
 
@@ -490,11 +507,11 @@ export function Sidebar() {
                     isSidebarCollapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2.5 py-1.5'
                   } rounded-xl text-left transition-all cursor-pointer ${
                     selectedPlaylistId === pl.id && activeTab === 'playlist'
-                      ? 'bg-[#FA233B]/15 text-[#FA233B] font-semibold border border-[#FA233B]/20'
+                      ? 'text-[#FA233B] font-semibold border border-transparent'
                       : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] font-medium border border-transparent'
                   }`}
                 >
-                  <ListMusic className="w-4 h-4 flex-shrink-0 text-[var(--text-muted)]" />
+                  <ListMusic className={`w-4 h-4 flex-shrink-0 transition-all ${selectedPlaylistId === pl.id && activeTab === 'playlist' ? 'text-[#FA233B] drop-shadow-[0_0_10px_rgba(250,35,59,0.85)] filter' : 'text-[var(--text-muted)]'}`} />
                   {!isSidebarCollapsed && <span className="truncate text-xs">{pl.title || (pl as any).name || 'Untitled Playlist'}</span>}
                 </button>
               ))}

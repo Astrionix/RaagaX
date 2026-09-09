@@ -3,97 +3,115 @@ const fs = require('fs');
 const path = require('path');
 
 const svgCode = `
-<svg width="512" height="512" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="rxRedGrad" x1="20" y1="18" x2="84" y2="82" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FF2E38"/>
-      <stop offset="60%" stop-color="#E50914"/>
-      <stop offset="100%" stop-color="#A80008"/>
+    <linearGradient id="neon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff3157"/>
+      <stop offset="50%" stop-color="#ff174f"/>
+      <stop offset="100%" stop-color="#ff3157"/>
     </linearGradient>
-    <filter id="rxGlow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#E50914" flood-opacity="0.5"/>
+    <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
     </filter>
   </defs>
-  <!-- Vertical Sound-Stem -->
-  <rect x="20" y="18" width="12" height="64" rx="6" fill="#FFFFFF"/>
-  <!-- Sound Loop + Play Geometry -->
-  <path d="M38 18H58C71.2548 18 82 28.7452 82 42C82 55.2548 71.2548 66 58 66H38V18Z" fill="url(#rxRedGrad)" filter="url(#rxGlow)"/>
-  <!-- Inner Play Triangular Negative -->
-  <path d="M50 31L66 42L50 53V31Z" fill="#060709"/>
-  <!-- Kinetic Forward Motion Kick -->
-  <path d="M46 59L68 82H84L60 55C55 55 50 57 46 59Z" fill="#FF1E27" filter="url(#rxGlow)"/>
-  <!-- Gold Sparkle Accent -->
-  <path d="M82 12L84 17L89 19L84 21L82 26L80 21L75 19L80 17Z" fill="#FFD700"/>
+
+  <g transform="translate(256, 256) scale(1.80) translate(-255, -272.5)">
+    <g fill="none" stroke="url(#neon)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
+      <circle cx="220" cy="326" r="42"/>
+      <path d="M 262 326 L 262 178 L 330 216"/>
+    </g>
+
+    <g fill="none" stroke="url(#neon)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="220" cy="326" r="42"/>
+      <path d="M 262 326 L 262 178 L 330 216"/>
+    </g>
+  </g>
 </svg>
 `;
 
 const foregroundSvg = `
-<svg width="512" height="512" viewBox="0 0 108 108" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="rxRedGradFg" x1="20" y1="18" x2="84" y2="82" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FF2E38"/>
-      <stop offset="60%" stop-color="#E50914"/>
-      <stop offset="100%" stop-color="#A80008"/>
+    <linearGradient id="neonFg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff3157"/>
+      <stop offset="50%" stop-color="#ff174f"/>
+      <stop offset="100%" stop-color="#ff3157"/>
     </linearGradient>
   </defs>
-  <g transform="translate(10, 10) scale(0.88)">
-    <!-- Vertical Sound-Stem -->
-    <rect x="20" y="18" width="12" height="64" rx="6" fill="#FFFFFF"/>
-    <!-- Sound Loop + Play Geometry -->
-    <path d="M38 18H58C71.2548 18 82 28.7452 82 42C82 55.2548 71.2548 66 58 66H38V18Z" fill="url(#rxRedGradFg)"/>
-    <!-- Inner Play Triangular Negative -->
-    <path d="M50 31L66 42L50 53V31Z" fill="#060709"/>
-    <!-- Kinetic Forward Motion Kick -->
-    <path d="M46 59L68 82H84L60 55C55 55 50 57 46 59Z" fill="#FF1E27"/>
-    <!-- Gold Sparkle Accent -->
-    <path d="M82 12L84 17L89 19L84 21L82 26L80 21L75 19L80 17Z" fill="#FFD700"/>
+  <g transform="translate(256, 256) scale(1.65) translate(-255, -272.5)">
+    <g fill="none" stroke="url(#neonFg)" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="220" cy="326" r="42"/>
+      <path d="M 262 326 L 262 178 L 330 216"/>
+    </g>
   </g>
 </svg>
 `;
 
 const fullIconWithBg = `
-<svg width="512" height="512" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100" height="100" rx="22" fill="#07090E"/>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="112" fill="#07090E"/>
   <defs>
-    <linearGradient id="rxRedGradFull" x1="20" y1="18" x2="84" y2="82" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FF2E38"/>
-      <stop offset="60%" stop-color="#E50914"/>
-      <stop offset="100%" stop-color="#A80008"/>
+    <linearGradient id="neonFull" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff3157"/>
+      <stop offset="50%" stop-color="#ff174f"/>
+      <stop offset="100%" stop-color="#ff3157"/>
     </linearGradient>
+    <filter id="glowFull" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
-  <!-- Vertical Sound-Stem -->
-  <rect x="20" y="18" width="12" height="64" rx="6" fill="#FFFFFF"/>
-  <!-- Sound Loop + Play Geometry -->
-  <path d="M38 18H58C71.2548 18 82 28.7452 82 42C82 55.2548 71.2548 66 58 66H38V18Z" fill="url(#rxRedGradFull)"/>
-  <!-- Inner Play Triangular Negative -->
-  <path d="M50 31L66 42L50 53V31Z" fill="#07090E"/>
-  <!-- Kinetic Forward Motion Kick -->
-  <path d="M46 59L68 82H84L60 55C55 55 50 57 46 59Z" fill="#FF1E27"/>
-  <!-- Gold Sparkle Accent -->
-  <path d="M82 12L84 17L89 19L84 21L82 26L80 21L75 19L80 17Z" fill="#FFD700"/>
+
+  <g transform="translate(256, 256) scale(1.80) translate(-255, -272.5)">
+    <g fill="none" stroke="url(#neonFull)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" filter="url(#glowFull)">
+      <circle cx="220" cy="326" r="42"/>
+      <path d="M 262 326 L 262 178 L 330 216"/>
+    </g>
+
+    <g fill="none" stroke="url(#neonFull)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="220" cy="326" r="42"/>
+      <path d="M 262 326 L 262 178 L 330 216"/>
+    </g>
+  </g>
 </svg>
 `;
 
 const roundIconWithBg = `
-<svg width="512" height="512" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="50" cy="50" r="50" fill="#07090E"/>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="256" cy="256" r="256" fill="#07090E"/>
   <defs>
-    <linearGradient id="rxRedGradRound" x1="20" y1="18" x2="84" y2="82" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FF2E38"/>
-      <stop offset="60%" stop-color="#E50914"/>
-      <stop offset="100%" stop-color="#A80008"/>
+    <linearGradient id="neonRound" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff3157"/>
+      <stop offset="50%" stop-color="#ff174f"/>
+      <stop offset="100%" stop-color="#ff3157"/>
     </linearGradient>
+    <filter id="glowRound" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
-  <!-- Vertical Sound-Stem -->
-  <rect x="20" y="18" width="12" height="64" rx="6" fill="#FFFFFF"/>
-  <!-- Sound Loop + Play Geometry -->
-  <path d="M38 18H58C71.2548 18 82 28.7452 82 42C82 55.2548 71.2548 66 58 66H38V18Z" fill="url(#rxRedGradRound)"/>
-  <!-- Inner Play Triangular Negative -->
-  <path d="M50 31L66 42L50 53V31Z" fill="#07090E"/>
-  <!-- Kinetic Forward Motion Kick -->
-  <path d="M46 59L68 82H84L60 55C55 55 50 57 46 59Z" fill="#FF1E27"/>
-  <!-- Gold Sparkle Accent -->
-  <path d="M82 12L84 17L89 19L84 21L82 26L80 21L75 19L80 17Z" fill="#FFD700"/>
+
+  <g transform="translate(256, 256) scale(1.80) translate(-255, -272.5)">
+    <g fill="none" stroke="url(#neonRound)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" filter="url(#glowRound)">
+      <circle cx="220" cy="326" r="42"/>
+      <path d="M 262 326 L 262 178 L 330 216"/>
+    </g>
+
+    <g fill="none" stroke="url(#neonRound)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="220" cy="326" r="42"/>
+      <path d="M 262 326 L 262 178 L 330 216"/>
+    </g>
+  </g>
 </svg>
 `;
 
@@ -139,7 +157,7 @@ async function generate() {
     .png()
     .toFile(path.resolve(__dirname, '../public/app-icon.png'));
 
-  console.log('Done generating all crisp RaagaX master icons!');
+  console.log('Done generating all extra-large crisp RaagaX master icons!');
 }
 
 generate().catch(console.error);

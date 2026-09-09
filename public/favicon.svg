@@ -1,0 +1,26 @@
+<svg width="512" height="512" viewBox="135 152 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="neonFav" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff3157"/>
+      <stop offset="50%" stop-color="#ff174f"/>
+      <stop offset="100%" stop-color="#ff3157"/>
+    </linearGradient>
+    <filter id="glowFav" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g fill="none" stroke="url(#neonFav)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" filter="url(#glowFav)">
+    <circle cx="220" cy="326" r="42"/>
+    <path d="M 262 326 L 262 178 L 330 216"/>
+  </g>
+
+  <g fill="none" stroke="url(#neonFav)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="220" cy="326" r="42"/>
+    <path d="M 262 326 L 262 178 L 330 216"/>
+  </g>
+</svg>

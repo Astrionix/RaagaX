@@ -9,9 +9,9 @@ describe('RaagaX Complete Brand Identity & Design System', () => {
   it('should render Primary Full Logo with abstract SVG components and no text', () => {
     const html = renderToString(React.createElement(RaagaXLogo, { variant: 'full', size: 48, themeOverride: 'dark' }));
     expect(html).toContain('svg');
-    expect(html).toContain('rxRedGlowGrad');
-    expect(html).toContain('rxSymbolGlow');
-    // Ensure no alphabetic characters inside the symbol
+    expect(html).toContain('neon-');
+    expect(html).toContain('glow-');
+    // Ensure no alphabetic text inside the icon symbol
     expect(html).not.toContain('>R<');
     expect(html).not.toContain('>X<');
     expect(html).not.toContain('>RX<');
@@ -20,7 +20,7 @@ describe('RaagaX Complete Brand Identity & Design System', () => {
   it('should render Micro Mark variant for favicons and 16-24px UI', () => {
     const html = renderToString(React.createElement(RaagaXLogo, { variant: 'micro', size: 24, themeOverride: 'light' }));
     expect(html).toContain('svg');
-    expect(html).toContain('fill="#E50914"');
+    expect(html).toContain('stroke="#ff3157"');
   });
 
   it('should render Monochrome Red, Black, and White variants', () => {
@@ -28,7 +28,7 @@ describe('RaagaX Complete Brand Identity & Design System', () => {
     const blackHtml = renderToString(React.createElement(RaagaXLogo, { variant: 'monochrome-black' }));
     const whiteHtml = renderToString(React.createElement(RaagaXLogo, { variant: 'monochrome-white' }));
 
-    expect(redHtml).toContain('#E50914');
+    expect(redHtml).toContain('#ff3157');
     expect(blackHtml).toContain('#0F172A');
     expect(whiteHtml).toContain('#FFFFFF');
   });

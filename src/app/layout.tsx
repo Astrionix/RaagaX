@@ -69,7 +69,11 @@ export const metadata = {
   },
   manifest: '/manifest.json',
   icons: {
-    icon: '/favicon.ico',
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: 'any' },
+    ],
+    shortcut: '/favicon.svg',
     apple: '/icon-192.png',
   },
   appleWebApp: {

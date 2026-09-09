@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useId } from 'react';
 import { useThemeStore } from '@/context/useThemeStore';
 
 export type LogoVariant = 
@@ -20,12 +20,8 @@ interface RaagaXLogoProps {
 }
 
 /**
- * RaagaX Master Symbol (2026 Core Identity)
- * Intelligent geometric combination of:
- * - Letter 'R'
- * - Sound wave / acoustic frequency bars
- * - Inner play-button playback trigger
- * - Kinetic forward-motion velocity kick
+ * Raaga Music Icon (RaagaX Master Brand Symbol)
+ * Neon glowing music note with circle head and vertical-diagonal stem
  */
 export function RaagaXLogo({
   variant = 'full',
@@ -37,6 +33,8 @@ export function RaagaXLogo({
   const { resolvedTheme } = useThemeStore();
   const theme = themeOverride || resolvedTheme;
   const isDark = theme === 'dark';
+  const rawId = useId();
+  const idPrefix = rawId.replace(/:/g, '');
 
   const pixelSize = typeof size === 'number' ? `${size}px` : size;
 
@@ -46,65 +44,76 @@ export function RaagaXLogo({
       <svg
         width={pixelSize}
         height={pixelSize}
-        viewBox="0 0 100 100"
+        viewBox="0 0 512 512"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className={`select-none ${className}`}
-        aria-label="RaagaX Micro Icon"
+        aria-label="Raaga Music Micro Icon"
       >
-        <rect x="20" y="18" width="12" height="64" rx="6" fill={isDark ? '#FFFFFF' : '#0F172A'} />
-        <path d="M38 18H58C71.2548 18 82 28.7452 82 42C82 55.2548 71.2548 66 58 66H38V18Z" fill="#E50914" />
-        <path d="M50 31L66 42L50 53V31Z" fill={isDark ? '#060709' : '#FFFFFF'} />
-        <path d="M46 59L68 82H84L60 55C55 55 50 57 46 59Z" fill="#FF1E27" />
+        <g fill="none" stroke="#ff3157" strokeWidth="24" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="220" cy="326" r="42" />
+          <path d="M 262 326 L 262 178 L 330 216" />
+        </g>
       </svg>
     );
   }
 
   // Monochrome Single Tone Variants
   if (variant === 'monochrome-red' || variant === 'monochrome-black' || variant === 'monochrome-white') {
-    const monoFill = 
-      variant === 'monochrome-red' ? '#E50914' :
+    const monoStroke = 
+      variant === 'monochrome-red' ? '#ff3157' :
       variant === 'monochrome-black' ? '#0F172A' : '#FFFFFF';
 
     return (
       <svg
         width={pixelSize}
         height={pixelSize}
-        viewBox="0 0 100 100"
+        viewBox="0 0 512 512"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className={`select-none ${className}`}
-        aria-label="RaagaX Monochrome Symbol"
+        aria-label="Raaga Music Monochrome Symbol"
       >
-        <rect x="20" y="18" width="12" height="64" rx="6" fill={monoFill} />
-        <path d="M38 18H58C71.2548 18 82 28.7452 82 42C82 55.2548 71.2548 66 58 66H38V18Z" fill={monoFill} />
-        <path d="M50 31L66 42L50 53V31Z" fill={variant === 'monochrome-white' ? '#000000' : '#FFFFFF'} />
-        <path d="M46 59L68 82H84L60 55C55 55 50 57 46 59Z" fill={monoFill} />
+        <g fill="none" stroke={monoStroke} strokeWidth="20" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="220" cy="326" r="42" />
+          <path d="M 262 326 L 262 178 L 330 216" />
+        </g>
       </svg>
     );
   }
 
   // Flat Minimal Vector (No filters)
   if (variant === 'flat') {
+    const gradId = `neon-${idPrefix}`;
     return (
       <svg
         width={pixelSize}
         height={pixelSize}
-        viewBox="0 0 100 100"
+        viewBox="0 0 512 512"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className={`select-none ${className}`}
-        aria-label="RaagaX Flat Symbol"
+        aria-label="Raaga Music Flat Symbol"
       >
-        <rect x="20" y="18" width="12" height="64" rx="6" fill={isDark ? '#FFFFFF' : '#0F172A'} />
-        <path d="M38 18H58C71.2548 18 82 28.7452 82 42C82 55.2548 71.2548 66 58 66H38V18Z" fill="#E50914" />
-        <path d="M50 31L66 42L50 53V31Z" fill={isDark ? '#060709' : '#FFFFFF'} />
-        <path d="M46 59L68 82H84L60 55C55 55 50 57 46 59Z" fill="#FF1E27" />
+        <defs>
+          <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#ff3157" />
+            <stop offset="50%" stopColor="#ff174f" />
+            <stop offset="100%" stopColor="#ff3157" />
+          </linearGradient>
+        </defs>
+        <g fill="none" stroke={`url(#${gradId})`} strokeWidth="18" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="220" cy="326" r="42" />
+          <path d="M 262 326 L 262 178 L 330 216" />
+        </g>
       </svg>
     );
   }
 
-  // Primary Full Master Identity (Rich Gradients & Dynamic Atmospheric Glow)
+  // Primary Full Master Identity (Neon Gradient + Dynamic Atmospheric Glow)
+  const gradId = `neon-${idPrefix}`;
+  const glowId = `glow-${idPrefix}`;
+
   return (
     <div
       style={{ width: pixelSize, height: pixelSize }}
@@ -113,59 +122,52 @@ export function RaagaXLogo({
       }`}
     >
       <svg
-        viewBox="0 0 100 100"
+        viewBox="0 0 512 512"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className="w-full h-full"
-        aria-label="RaagaX Master Brand Emblem"
+        aria-label="Raaga Music Master Brand Emblem"
       >
         <defs>
-          <linearGradient id="rxRedGlowGrad" x1="20" y1="18" x2="84" y2="82" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#FF2E38" />
-            <stop offset="0.6" stopColor="#E50914" />
-            <stop offset="1" stopColor="#A80008" />
+          <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#ff3157" />
+            <stop offset="50%" stopColor="#ff174f" />
+            <stop offset="100%" stopColor="#ff3157" />
           </linearGradient>
 
-          <filter id="rxSymbolGlow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow 
-              dx="0" 
-              dy="4" 
-              stdDeviation="5" 
-              floodColor="#E50914" 
-              floodOpacity={isDark ? 0.45 : 0.2} 
-            />
+          <filter id={glowId} x="-100%" y="-100%" width="300%" height="300%">
+            <feGaussianBlur stdDeviation="7" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
           </filter>
         </defs>
 
-        {/* 1. Left Vertical Soundwave Stem of 'R' */}
-        <rect 
-          x="20" 
-          y="18" 
-          width="12" 
-          height="64" 
-          rx="6" 
-          fill={isDark ? '#FFFFFF' : '#0F172A'} 
-        />
+        {/* Music Note Glow Layer */}
+        <g
+          fill="none"
+          stroke={`url(#${gradId})`}
+          strokeWidth="22"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          filter={`url(#${glowId})`}
+        >
+          <circle cx="220" cy="326" r="42" />
+          <path d="M 262 326 L 262 178 L 330 216" />
+        </g>
 
-        {/* 2. Upper Sound Resonance Arc (Letter R Loop) with Glow */}
-        <path 
-          d="M38 18H58C71.2548 18 82 28.7452 82 42C82 55.2548 71.2548 66 58 66H38V18Z" 
-          fill="url(#rxRedGlowGrad)" 
-          filter="url(#rxSymbolGlow)"
-        />
-
-        {/* 3. Integrated Inner Play Triad Negative */}
-        <path 
-          d="M50 31L66 42L50 53V31Z" 
-          fill={isDark ? '#060709' : '#FFFFFF'} 
-        />
-
-        {/* 4. Kinetic Forward Motion Kick */}
-        <path 
-          d="M46 59L68 82H84L60 55C55 55 50 57 46 59Z" 
-          fill="#FF1E27" 
-          filter="url(#rxSymbolGlow)"
-        />
+        {/* Clean Note Layer */}
+        <g
+          fill="none"
+          stroke={`url(#${gradId})`}
+          strokeWidth="18"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="220" cy="326" r="42" />
+          <path d="M 262 326 L 262 178 L 330 216" />
+        </g>
       </svg>
     </div>
   );

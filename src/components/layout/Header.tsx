@@ -33,8 +33,8 @@ export function Header() {
     <>
       {/* ── Mobile Top Header (< 768px only) ── */}
       <header className="md:hidden fixed top-0 left-0 right-0 z-40 px-4 flex items-center justify-between bg-[var(--header-bg)] backdrop-blur-xl border-b border-[var(--border-subtle)] text-[var(--text-primary)] select-none h-[3rem] shadow-sm">
-        <div className="flex items-center gap-2">
-          <RaagaXLogo variant="full" size={24} />
+        <div className="flex items-center gap-2.5">
+          <RaagaXLogo variant="full" size={38} />
           <RaagaXWordmark size="sm" />
         </div>
 

@@ -1,9 +1,11 @@
 /**
- * RaagaX Desktop Icon Generator
+ * RaagaX Desktop & Web Icon Generator
  * Generates:
  * 1. macOS native `public/brand/icon.icns` using Apple's iconutil
  * 2. Windows multi-resolution `public/brand/icon.ico` (16, 24, 32, 48, 64, 128, 256 px)
- * 3. High-res master `public/app-icon.png` (1024x1024)
+ * 3. Transparent browser tab `public/favicon.ico` and `public/favicon.svg` (Spotify / ChatGPT style)
+ * 4. High-res master `public/app-icon.png` (1024x1024)
+ * 5. PWA icons `public/icon-192.png`, `public/icon-512.png`, `public/logo-dark.png`, `public/logo-light.png`
  */
 
 const fs = require('fs');
@@ -14,29 +16,66 @@ const sharp = require('sharp');
 const rootDir = path.resolve(__dirname, '..');
 const brandDir = path.join(rootDir, 'public', 'brand');
 
+// Master App Icon (for desktop/mobile app shortcuts with dark container & large bold 1.80x note)
 const masterIconSvg = `
-<svg width="1024" height="1024" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100" height="100" rx="22" fill="#07090E"/>
+<svg width="1024" height="1024" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="112" fill="#07090E"/>
   <defs>
-    <linearGradient id="rxRedGradFull" x1="20" y1="18" x2="84" y2="82" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FF2E38"/>
-      <stop offset="60%" stop-color="#E50914"/>
-      <stop offset="100%" stop-color="#A80008"/>
+    <linearGradient id="neon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff3157"/>
+      <stop offset="50%" stop-color="#ff174f"/>
+      <stop offset="100%" stop-color="#ff3157"/>
     </linearGradient>
-    <filter id="rxGlow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#E50914" flood-opacity="0.5"/>
+    <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
     </filter>
   </defs>
-  <!-- Vertical Sound-Stem -->
-  <rect x="20" y="18" width="12" height="64" rx="6" fill="#FFFFFF"/>
-  <!-- Sound Loop + Play Geometry -->
-  <path d="M38 18H58C71.2548 18 82 28.7452 82 42C82 55.2548 71.2548 66 58 66H38V18Z" fill="url(#rxRedGradFull)" filter="url(#rxGlow)"/>
-  <!-- Inner Play Triangular Negative -->
-  <path d="M50 31L66 42L50 53V31Z" fill="#07090E"/>
-  <!-- Kinetic Forward Motion Kick -->
-  <path d="M46 59L68 82H84L60 55C55 55 50 57 46 59Z" fill="#FF1E27" filter="url(#rxGlow)"/>
-  <!-- Gold Sparkle Accent -->
-  <path d="M82 12L84 17L89 19L84 21L82 26L80 21L75 19L80 17Z" fill="#FFD700"/>
+
+  <g transform="translate(256, 256) scale(1.80) translate(-255, -272.5)">
+    <g fill="none" stroke="url(#neon)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
+      <circle cx="220" cy="326" r="42"/>
+      <path d="M 262 326 L 262 178 L 330 216"/>
+    </g>
+
+    <g fill="none" stroke="url(#neon)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="220" cy="326" r="42"/>
+      <path d="M 262 326 L 262 178 L 330 216"/>
+    </g>
+  </g>
+</svg>
+`;
+
+// Transparent Master Favicon (for browser tabs - Spotify/ChatGPT style)
+const faviconSvg = `
+<svg width="512" height="512" viewBox="135 152 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="neonFav" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff3157"/>
+      <stop offset="50%" stop-color="#ff174f"/>
+      <stop offset="100%" stop-color="#ff3157"/>
+    </linearGradient>
+    <filter id="glowFav" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g fill="none" stroke="url(#neonFav)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" filter="url(#glowFav)">
+    <circle cx="220" cy="326" r="42"/>
+    <path d="M 262 326 L 262 178 L 330 216"/>
+  </g>
+
+  <g fill="none" stroke="url(#neonFav)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="220" cy="326" r="42"/>
+    <path d="M 262 326 L 262 178 L 330 216"/>
+  </g>
 </svg>
 `;
 
@@ -78,7 +117,10 @@ function createIcoBuffer(pngBuffers, sizes) {
 
 async function main() {
   fs.mkdirSync(brandDir, { recursive: true });
-  console.log('[ICON] Generating high-resolution master icons for RaagaX Desktop...');
+  console.log('[ICON] Generating extra-large high-resolution master icons for RaagaX Desktop & Web...');
+
+  // Save public/favicon.svg
+  fs.writeFileSync(path.join(rootDir, 'public', 'favicon.svg'), faviconSvg.trim());
 
   // 1. Generate master PNG (1024x1024)
   const masterPngPath = path.join(rootDir, 'public', 'app-icon.png');
@@ -88,12 +130,21 @@ async function main() {
     .toFile(masterPngPath);
   console.log('✅ Generated master 1024x1024 PNG:', masterPngPath);
 
-  // 2. Generate Windows .ico
-  console.log('[ICON] Generating Windows .ico with multi-resolution embeds...');
+  // PWA and brand icons
+  await sharp(masterPngPath).resize(512, 512).png().toFile(path.join(rootDir, 'public', 'icon-512.png'));
+  await sharp(masterPngPath).resize(192, 192).png().toFile(path.join(rootDir, 'public', 'icon-192.png'));
+  await sharp(masterPngPath).resize(512, 512).png().toFile(path.join(rootDir, 'public', 'logo-dark.png'));
+  await sharp(masterPngPath).resize(512, 512).png().toFile(path.join(rootDir, 'public', 'logo-light.png'));
+  console.log('✅ Generated PWA and brand logos (192, 512, logo-dark, logo-light)');
+
+  // 2. Generate Transparent Browser Favicon .ico
+  console.log('[ICON] Generating transparent browser tab .ico (Spotify style)...');
   const icoSizes = [16, 24, 32, 48, 64, 128, 256];
   const pngBuffers = [];
+  const favPngMaster = await sharp(Buffer.from(faviconSvg)).resize(512, 512).png().toBuffer();
+
   for (const size of icoSizes) {
-    const buf = await sharp(masterPngPath)
+    const buf = await sharp(favPngMaster)
       .resize(size, size)
       .png()
       .toBuffer();
@@ -103,7 +154,7 @@ async function main() {
   const icoBuffer = createIcoBuffer(pngBuffers, icoSizes);
   const icoPath = path.join(brandDir, 'icon.ico');
   fs.writeFileSync(icoPath, icoBuffer);
-  // Also update public/favicon.ico
+  // Update public/favicon.ico with transparent favicon
   fs.writeFileSync(path.join(rootDir, 'public', 'favicon.ico'), icoBuffer);
 
   const outBrandDir = path.join(rootDir, 'out', 'brand');
@@ -111,7 +162,7 @@ async function main() {
     fs.writeFileSync(path.join(outBrandDir, 'icon.ico'), icoBuffer);
     fs.writeFileSync(path.join(rootDir, 'out', 'favicon.ico'), icoBuffer);
   }
-  console.log('✅ Generated Windows .ico:', icoPath);
+  console.log('✅ Generated transparent browser .ico:', icoPath);
 
   // 3. Generate macOS .icns using iconutil (if on macOS)
   if (process.platform === 'darwin') {
@@ -150,11 +201,9 @@ async function main() {
       fs.copyFileSync(icnsPath, path.join(outBrandDir, 'icon.icns'));
     }
     console.log('✅ Generated macOS native .icns:', icnsPath);
-  } else {
-    console.log('[ICON] Skipping .icns creation (non-macOS system). electron-builder will derive it from PNG.');
   }
 
-  console.log('🎉 All desktop icons successfully generated!');
+  console.log('🎉 All desktop & web icons successfully generated at extra-large size!');
 }
 
 main().catch((err) => {
