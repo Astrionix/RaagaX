@@ -71,10 +71,10 @@ export function getTimeThemeDetails(date = new Date(), resolvedTheme: 'dark' | '
     periodEnd = 8 * 60;
     const progress = Math.min(1, Math.max(0, minsSince21 / periodEnd));
 
-    // Moon trajectory across night (21:00 to 05:00)
-    const xPct = 10 + progress * 80; // 10% to 90%
+    // Moon trajectory arc across night sky (21:00 to 05:00)
+    const xPct = Math.round((10 + progress * 80) * 10) / 10; // 10% to 90%
     const arcHeight = Math.sin(progress * Math.PI); // 0 -> 1 -> 0
-    const yPct = 75 - arcHeight * 55; // 75% down to 20% top back to 75%
+    const yPct = Math.round((72 - arcHeight * 54) * 10) / 10; // 72% horizon down to 18% apex
 
     return {
       period,
@@ -97,12 +97,12 @@ export function getTimeThemeDetails(date = new Date(), resolvedTheme: 'dark' | '
 
   const periodProgress = Math.min(1, Math.max(0, (minuteOfDay - periodStart) / (periodEnd - periodStart)));
 
-  // Sun trajectory (05:00 to 21:00 = 16 hours)
+  // Sun trajectory arc across day sky (05:00 to 21:00 = 16 hours = 960 mins)
   const dayMins = minuteOfDay - 5 * 60;
   const dayProgress = Math.min(1, Math.max(0, dayMins / (16 * 60)));
-  const xPct = 10 + dayProgress * 80;
+  const xPct = Math.round((10 + dayProgress * 80) * 10) / 10;
   const sunArc = Math.sin(dayProgress * Math.PI);
-  const yPct = 80 - sunArc * 65;
+  const yPct = Math.round((72 - sunArc * 54) * 10) / 10;
 
   return {
     period,
