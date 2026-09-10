@@ -559,44 +559,38 @@ export function HomeView() {
           aria-hidden
         />
 
-        {/* Greeting: "🌅 GOOD MORNING, CHAN" — single medium-weight line */}
+        {/* Greeting: "🌅 GOOD MORNING, CHAN" — matching reference image exactly */}
         <h1
-          className="flex items-center gap-2 text-[20px] sm:text-[24px] md:text-[26px] font-bold text-[var(--text-primary)] tracking-tight leading-tight"
+          className="flex items-center gap-2.5 text-[22px] sm:text-[26px] md:text-[28px] font-extrabold text-[var(--text-primary)] tracking-tight leading-tight"
           suppressHydrationWarning
         >
-          <span className="text-[18px] sm:text-[20px] shrink-0 select-none" aria-hidden>{timeTheme.icon}</span>
+          <span className="text-[20px] sm:text-[24px] shrink-0 select-none" aria-hidden>{timeTheme.icon}</span>
           <span>
-            {timeTheme.greeting.split(' ').map((w, i) =>
-              <span key={i}>{w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()}{' '}</span>
-            )}
-            <span className="text-[var(--text-secondary)] font-medium">{displayName}</span>
+            {timeTheme.greeting.toUpperCase()}, {' '}
+            <span
+              className={
+                timeTheme.period === 'morning'
+                  ? 'text-amber-400 dark:text-amber-400 font-extrabold'
+                  : timeTheme.period === 'afternoon'
+                  ? 'text-sky-400 dark:text-sky-400 font-extrabold'
+                  : timeTheme.period === 'evening'
+                  ? 'text-rose-400 dark:text-rose-400 font-extrabold'
+                  : 'text-indigo-400 dark:text-indigo-400 font-extrabold'
+              }
+            >
+              {displayName.toUpperCase()}
+            </span>
           </span>
         </h1>
 
-        {/* Subtitle — one arrow, scrolls to Continue Listening */}
-        <button
-          onClick={() => {
-            haptics.lightImpact();
-            document.getElementById('continue-listening')?.scrollIntoView({ behavior: 'smooth' });
-          }}
-          aria-label="Scroll to Continue Listening"
-          className="mt-1 flex items-center gap-1 text-xs sm:text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer group focus-visible:outline-none focus-visible:underline"
-        >
-          <span>{timeTheme.subtitle}</span>
-          <span
-            className="text-[var(--accent-crimson)] group-hover:translate-y-px transition-transform"
-            aria-hidden
-          >↓</span>
-        </button>
+        {/* Contextual Subtitle */}
+        <p className="mt-1.5 text-xs sm:text-[13px] font-medium text-[var(--text-secondary)]">
+          {timeTheme.subtitle}
+        </p>
 
-        {/* Divider line directly above Continue Listening */}
-        <div className="mt-3.5 sm:mt-4 h-px w-full bg-gradient-to-r from-transparent via-[var(--border-subtle)] to-transparent" />
+        {/* Divider line */}
+        <div className="mt-4 sm:mt-5 h-px w-full bg-gradient-to-r from-transparent via-[var(--border-subtle)] to-transparent" />
       </section>
-
-      {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 2. CONTINUE LISTENING RESUME SHELF                                    */}
-      {/* ══════════════════════════════════════════════════════════════════════ */}
-      <ContinueListeningShelf sessions={continueListeningSessions.length >= 6 ? continueListeningSessions : undefined} />
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* ACTIVE FRIEND ACTIVITY SONG SCROLL TICKER                              */}

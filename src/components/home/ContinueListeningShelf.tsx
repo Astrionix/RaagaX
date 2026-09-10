@@ -350,15 +350,15 @@ function SectionHeader({ count }: { count: number }) {
   return (
     <div className="flex items-center justify-between mb-3.5">
       <div>
-        <h2 className="flex items-center gap-2 text-base font-bold text-[var(--text-primary)] tracking-tight leading-none">
-          <Clock className="w-4 h-4 text-[var(--text-muted)] shrink-0" aria-hidden />
-          Continue Listening
+        <h2 className="flex items-center gap-1.5 text-base sm:text-lg font-extrabold text-[var(--text-primary)] tracking-tight leading-none">
+          <span>Continue Listening</span>
+          <Clock className="w-4 h-4 text-[var(--text-secondary)] shrink-0 inline-block ml-0.5" aria-hidden />
         </h2>
-        <p className="mt-1 text-xs text-[var(--text-muted)] font-medium">
+        <p className="mt-1 text-xs text-[var(--text-secondary)] font-medium">
           Pick up right where you left off
         </p>
       </div>
-      <button className="text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--accent-crimson)] transition-colors whitespace-nowrap focus-visible:underline">
+      <button className="px-3 py-1 rounded-full text-[11px] font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-surface)]/80 hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] transition-all shadow-sm cursor-pointer">
         View all →
       </button>
     </div>
