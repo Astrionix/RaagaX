@@ -19,7 +19,7 @@ export function RecommendationHeader({
   hasItems,
 }: RecommendationHeaderProps) {
   return (
-    <div className="flex items-center justify-between mb-3 pr-1 sm:pr-2">
+    <div className="flex items-center justify-between pt-1.5 sm:pt-2 mb-3 pr-1 sm:pr-2">
       {/* Left: Icon + Title + Subtitle */}
       <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
         <div className="relative flex-shrink-0">
@@ -29,13 +29,13 @@ export function RecommendationHeader({
           )}
         </div>
 
-        <div className="min-w-0 flex-1">
-          <h2 className="text-[18px] sm:text-[20px] font-semibold leading-[24px] text-white tracking-tight truncate whitespace-nowrap">
+        <div className="min-w-0 flex-1 pt-0.5">
+          <h2 className="text-[18px] sm:text-[20px] font-bold leading-normal text-[var(--text-primary)] tracking-tight truncate whitespace-nowrap">
             More Like What You Heard
           </h2>
           <p
             key={seedSongTitle} // key forces re-mount → plays the fade-in animation
-            className="text-[11px] font-medium text-slate-400 -mt-0.5 truncate animate-[fadeSlideIn_0.35s_ease_both]"
+            className="text-[11px] font-medium text-[var(--text-secondary)] mt-0.5 truncate animate-[fadeSlideIn_0.35s_ease_both]"
           >
             {seedSongTitle
               ? `Based on "${seedSongTitle}"`
