@@ -74,7 +74,7 @@ export function StrictNewReleasesShelf({
               className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex-shrink-0 cursor-pointer ${
                 isSelected
                   ? 'bg-[#fa233b] text-white shadow-md shadow-red-500/20 scale-[1.02]'
-                  : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/5'
+                  : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)]'
               }`}
             >
               {lang.label}

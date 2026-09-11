@@ -98,7 +98,7 @@ export function CreatePlaylistModal() {
       }}
     >
       <div 
-        className="bg-[#12131A] border border-white/12 rounded-3xl p-6 sm:p-7 w-full max-w-md shadow-[0_25px_60px_rgba(0,0,0,0.8)] animate-in zoom-in-95 duration-200 relative overflow-hidden text-white select-none"
+        className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-3xl p-6 sm:p-7 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 relative overflow-hidden text-[var(--text-primary)] select-none"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Subtle Ambient Glow */}
@@ -107,7 +107,7 @@ export function CreatePlaylistModal() {
         {/* Close Button */}
         <button 
           onClick={() => setCreatePlaylistModalOpen(false)}
-          className="absolute top-5 right-5 p-2 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+          className="absolute top-5 right-5 p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-full hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
           aria-label="Close"
           disabled={isCreating}
         >
@@ -116,16 +116,16 @@ export function CreatePlaylistModal() {
 
         {/* Modal Header */}
         <div className="mb-5 pr-8">
-          <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">Create Playlist</h2>
-          <p className="text-xs text-slate-400 mt-1">Build your personal music collection</p>
+          <h2 className="text-xl sm:text-2xl font-black text-[var(--text-primary)] tracking-tight">Create Playlist</h2>
+          <p className="text-xs text-[var(--text-muted)] mt-1">Build your personal music collection</p>
         </div>
 
         <div className="space-y-4">
           {/* 1. PLAYLIST NAME INPUT */}
           <div>
             <div className="flex justify-between items-center mb-1.5">
-              <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Playlist Name *</label>
-              <span className={`text-[10px] font-mono font-medium ${name.length >= 50 ? 'text-[#fa233b]' : 'text-slate-500'}`}>
+              <label className="text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Playlist Name *</label>
+              <span className={`text-[10px] font-mono font-medium ${name.length >= 50 ? 'text-[#fa233b]' : 'text-[var(--text-muted)]'}`}>
                 {name.length}/50
               </span>
             </div>
@@ -139,7 +139,7 @@ export function CreatePlaylistModal() {
                 if (validationError) setValidationError(null);
               }}
               placeholder="e.g. Telugu Favorites, Workout Mix"
-              className="w-full bg-[#08090E] border border-white/15 focus:border-[#fa233b] rounded-2xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none transition-all text-sm font-medium shadow-inner"
+              className="w-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] focus:border-[#fa233b] rounded-2xl px-4 py-3 text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none transition-all text-sm font-medium shadow-inner"
               disabled={isCreating}
             />
             {validationError && (
@@ -151,8 +151,8 @@ export function CreatePlaylistModal() {
 
           {/* 2. DESCRIPTION INPUT (OPTIONAL) */}
           <div>
-            <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block mb-1.5">
-              Description <span className="text-slate-500 font-normal">(Optional)</span>
+            <label className="text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider block mb-1.5">
+              Description <span className="text-[var(--text-muted)] font-normal">(Optional)</span>
             </label>
             <textarea
               value={description}
@@ -160,14 +160,14 @@ export function CreatePlaylistModal() {
               onChange={(e) => setDescription(e.target.value.slice(0, 150))}
               placeholder="Give your playlist a vibe or mood description..."
               rows={2}
-              className="w-full bg-[#08090E] border border-white/15 focus:border-[#fa233b] rounded-2xl px-4 py-2.5 text-white placeholder:text-slate-500 focus:outline-none transition-all text-xs font-medium shadow-inner resize-none"
+              className="w-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] focus:border-[#fa233b] rounded-2xl px-4 py-2.5 text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none transition-all text-xs font-medium shadow-inner resize-none"
               disabled={isCreating}
             />
           </div>
 
           {/* 3. VISIBILITY (Public vs Private Cards) */}
           <div>
-            <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block mb-1.5">Visibility</label>
+            <label className="text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider block mb-1.5">Visibility</label>
             <div className="grid grid-cols-2 gap-2.5">
               {/* Private Card (Default) */}
               <button
@@ -176,15 +176,15 @@ export function CreatePlaylistModal() {
                 disabled={isCreating}
                 className={`p-3 rounded-2xl border text-left flex items-start justify-between gap-2 transition-all cursor-pointer relative ${
                   visibility === 'private'
-                    ? 'bg-[#fa233b]/10 border-[#fa233b]/60 text-white shadow-md shadow-red-500/10'
-                    : 'bg-white/[0.03] border-white/10 text-slate-400 hover:text-white hover:border-white/20'
+                    ? 'bg-[#fa233b]/10 border-[#fa233b]/60 text-[var(--text-primary)] shadow-md shadow-red-500/10'
+                    : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--text-muted)]'
                 }`}
               >
                 <div className="flex items-start gap-2.5 min-w-0">
                   <Lock className={`w-4 h-4 mt-0.5 flex-shrink-0 ${visibility === 'private' ? 'text-[#fa233b]' : 'text-amber-400'}`} />
                   <div className="min-w-0">
-                    <div className="text-xs font-bold text-white">Private</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">Only in your library</div>
+                    <div className="text-xs font-bold text-[var(--text-primary)]">Private</div>
+                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5">Only in your library</div>
                   </div>
                 </div>
                 {visibility === 'private' && (
@@ -201,15 +201,15 @@ export function CreatePlaylistModal() {
                 disabled={isCreating}
                 className={`p-3 rounded-2xl border text-left flex items-start justify-between gap-2 transition-all cursor-pointer relative ${
                   visibility === 'public'
-                    ? 'bg-[#fa233b]/10 border-[#fa233b]/60 text-white shadow-md shadow-red-500/10'
-                    : 'bg-white/[0.03] border-white/10 text-slate-400 hover:text-white hover:border-white/20'
+                    ? 'bg-[#fa233b]/10 border-[#fa233b]/60 text-[var(--text-primary)] shadow-md shadow-red-500/10'
+                    : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--text-muted)]'
                 }`}
               >
                 <div className="flex items-start gap-2.5 min-w-0">
                   <Globe className={`w-4 h-4 mt-0.5 flex-shrink-0 ${visibility === 'public' ? 'text-[#fa233b]' : 'text-blue-400'}`} />
                   <div className="min-w-0">
-                    <div className="text-xs font-bold text-white">Public</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">Shareable with friends</div>
+                    <div className="text-xs font-bold text-[var(--text-primary)]">Public</div>
+                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5">Shareable with friends</div>
                   </div>
                 </div>
                 {visibility === 'public' && (
@@ -223,11 +223,11 @@ export function CreatePlaylistModal() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-white/10">
+        <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-[var(--border-subtle)]">
           <button 
             type="button"
             onClick={() => setCreatePlaylistModalOpen(false)}
-            className="px-4 py-2.5 rounded-xl font-bold text-xs text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="px-4 py-2.5 rounded-xl font-bold text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
             disabled={isCreating}
           >
             Cancel

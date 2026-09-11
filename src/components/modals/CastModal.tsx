@@ -203,25 +203,25 @@ export function CastModal() {
 
       {/* ── MAIN DEVICE PICKER: Layout from UI Spec §2 ── */}
         <div
-          className={`relative z-10 w-full md:w-[380px] bg-[#181818] text-white border border-white/10 shadow-[0_24px_64px_rgba(0,0,0,0.8)] overflow-hidden transition-all duration-300 ${
+          className={`relative z-10 w-full md:w-[380px] bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-subtle)] shadow-[0_24px_64px_rgba(0,0,0,0.5)] overflow-hidden transition-all duration-300 ${
             /* Mobile: bottom sheet with rounded top | Desktop: popover anchored above player bar */
             'rounded-t-[28px] md:rounded-2xl max-h-[85vh] md:max-h-[580px] flex flex-col md:fixed md:bottom-[76px] md:right-8'
           }`}
         >
           {/* Mobile Drag Indicator */}
           <div className="md:hidden pt-3 pb-1 flex justify-center">
-            <div className="w-10 h-1 rounded-full bg-white/25" />
+            <div className="w-10 h-1 rounded-full bg-[var(--text-muted)]/40" />
           </div>
 
           {/* Header (§2) */}
-          <div className="px-5 pt-3 pb-3 flex items-center justify-between border-b border-white/5 flex-shrink-0">
+          <div className="px-5 pt-3 pb-3 flex items-center justify-between border-b border-[var(--border-subtle)] flex-shrink-0">
             <div className="flex items-center gap-2">
               <MonitorSpeaker className="w-4 h-4 text-[#1DB954]" />
-              <h3 className="font-extrabold text-sm tracking-tight text-white">Connect to a device</h3>
+              <h3 className="font-extrabold text-sm tracking-tight text-[var(--text-primary)]">Connect to a device</h3>
             </div>
             <button
               onClick={toggleCastModal}
-              className="p-1 text-[#b3b3b3] hover:text-white rounded-full transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#1DB954]"
+              className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-full transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#1DB954]"
               aria-label="Close device picker"
             >
               <X className="w-4 h-4" />
@@ -233,7 +233,7 @@ export function CastModal() {
             
             {/* ── SECTION 1: THIS DEVICE (Always first, §2) ── */}
             <div className="space-y-1">
-              <span className="text-[10px] font-bold text-[#b3b3b3] uppercase tracking-wider px-2 block">
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider px-2 block">
                 This Device
               </span>
 
@@ -241,16 +241,16 @@ export function CastModal() {
                 onClick={handleSelectLocal}
                 className={`w-full flex items-center justify-between p-3 rounded-xl transition-all text-left cursor-pointer focus-visible:ring-2 focus-visible:ring-[#1DB954] focus-visible:outline-none ${
                   isLocalPlayback
-                    ? 'bg-white/10 text-white shadow-sm'
-                    : 'hover:bg-white/5 text-[#b3b3b3] hover:text-white'
+                    ? 'bg-[var(--surface-hover)] text-[var(--text-primary)] shadow-sm'
+                    : 'hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
                 aria-label={`${localDeviceName}, ${isLocalPlayback ? 'currently playing' : 'available'}`}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <Laptop className={`w-5 h-5 flex-shrink-0 ${isLocalPlayback ? 'text-[#1DB954]' : 'text-[#b3b3b3]'}`} />
+                  <Laptop className={`w-5 h-5 flex-shrink-0 ${isLocalPlayback ? 'text-[#1DB954]' : 'text-[var(--text-muted)]'}`} />
                   <div className="min-w-0">
-                    <p className={`text-xs truncate ${isLocalPlayback ? 'font-bold text-white' : 'font-medium'}`}>
-                      {localDeviceName} <span className="text-[11px] text-[#b3b3b3] font-normal">(this device)</span>
+                    <p className={`text-xs truncate ${isLocalPlayback ? 'font-bold text-[var(--text-primary)]' : 'font-medium'}`}>
+                      {localDeviceName} <span className="text-[11px] text-[var(--text-muted)] font-normal">(this device)</span>
                     </p>
                     {isLocalPlayback && (
                       <p className="text-[10px] text-[#1DB954] font-medium flex items-center gap-1 mt-0.5">
@@ -267,14 +267,14 @@ export function CastModal() {
                     <span className="w-1.5 h-1.5 rounded-full bg-black" />
                   </div>
                 ) : (
-                  <div className="w-3.5 h-3.5 rounded-full border-2 border-[#b3b3b3] flex-shrink-0" />
+                  <div className="w-3.5 h-3.5 rounded-full border-2 border-[var(--border-subtle)] flex-shrink-0" />
                 )}
               </button>
 
               {/* Integrated Volume Slider when playing on this device */}
               {isLocalPlayback && (
                 <div className="px-3 pt-1 pb-1 flex items-center gap-2">
-                  <button onClick={toggleMute} className="text-[#b3b3b3] hover:text-white transition-colors cursor-pointer">
+                  <button onClick={toggleMute} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer">
                     {isMuted || volume === 0 ? (
                       <VolumeX className="w-3.5 h-3.5 text-[#1DB954]" />
                     ) : (
@@ -282,7 +282,7 @@ export function CastModal() {
                     )}
                   </button>
                   <div className="relative flex-1 h-2 flex items-center group/vol">
-                    <div className="absolute inset-x-0 h-1 rounded-full bg-white/20 group-hover/vol:h-1.5 transition-all" />
+                    <div className="absolute inset-x-0 h-1 rounded-full bg-[var(--border-subtle)] group-hover/vol:h-1.5 transition-all" />
                     <div
                       className="absolute left-0 h-1 rounded-full bg-[#1DB954] group-hover/vol:h-1.5 transition-all"
                       style={{ width: `${(isMuted ? 0 : volume) * 100}%` }}
@@ -298,7 +298,7 @@ export function CastModal() {
                       aria-label="Volume slider"
                     />
                   </div>
-                  <span className="text-[10px] text-[#b3b3b3] font-mono min-w-[28px] text-right">
+                  <span className="text-[10px] text-[var(--text-muted)] font-mono min-w-[28px] text-right">
                     {Math.round((isMuted ? 0 : volume) * 100)}%
                   </span>
                 </div>
@@ -312,32 +312,32 @@ export function CastModal() {
                   toggleCastModal();
                   toggleJamModal(true);
                 }}
-                className="w-full flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-emerald-950/80 to-teal-900/60 border border-emerald-500/30 hover:border-emerald-500/60 transition-all text-left cursor-pointer group"
+                className="w-full flex items-center justify-between p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 hover:border-emerald-500/60 transition-all text-left cursor-pointer group"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-500 group-hover:scale-105 transition-transform">
                     <Radio className="w-4 h-4 animate-pulse" />
                   </div>
                   <div>
-                    <p className="font-bold text-xs text-white group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
+                    <p className="font-bold text-xs text-[var(--text-primary)] group-hover:text-emerald-500 transition-colors flex items-center gap-1.5">
                       Start Raaga Jam Room
-                      <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded uppercase tracking-wider font-semibold">New</span>
+                      <span className="text-[9px] bg-emerald-500/20 text-emerald-500 px-1.5 py-0.2 rounded uppercase tracking-wider font-semibold">New</span>
                     </p>
-                    <p className="text-[10px] text-emerald-200/70">Sync listening in real-time with friends</p>
+                    <p className="text-[10px] text-[var(--text-muted)]">Sync listening in real-time with friends</p>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-emerald-400/70 group-hover:translate-x-0.5 transition-transform" />
+                <ChevronRight className="w-4 h-4 text-emerald-500/70 group-hover:translate-x-0.5 transition-transform" />
               </button>
             </div>
 
             {/* ── SECTION 2: YOUR DEVICES (Same account, §2) ── */}
             <div className="space-y-1">
-              <span className="text-[10px] font-bold text-[#b3b3b3] uppercase tracking-wider px-2 block">
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider px-2 block">
                 Your Devices
               </span>
 
               {yourDevices.length === 0 ? (
-                <p className="text-[11px] text-[#727272] px-3 py-1.5 italic">
+                <p className="text-[11px] text-[var(--text-muted)] px-3 py-1.5 italic">
                   No other devices registered on this account
                 </p>
               ) : (
@@ -355,18 +355,18 @@ export function CastModal() {
                         disabled={isActive || isConnecting || isOffline}
                         className={`w-full flex items-center justify-between p-3 rounded-xl transition-all text-left focus-visible:ring-2 focus-visible:ring-[#1DB954] focus-visible:outline-none ${
                           isActive
-                            ? 'bg-white/10 text-white font-bold'
+                            ? 'bg-[var(--surface-hover)] text-[var(--text-primary)] font-bold'
                             : isOffline
                             ? 'opacity-40 cursor-not-allowed'
-                            : 'hover:bg-white/5 text-[#b3b3b3] hover:text-white cursor-pointer'
+                            : 'hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer'
                         }`}
                         aria-label={`${peer.deviceName || 'Device'}, ${isActive ? 'currently playing' : isOffline ? 'offline' : 'available'}`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-[#1DB954]' : 'text-[#b3b3b3]'}`} />
+                          <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-[#1DB954]' : 'text-[var(--text-muted)]'}`} />
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <p className={`text-xs truncate ${isActive ? 'font-bold text-white' : 'font-medium'}`}>
+                              <p className={`text-xs truncate ${isActive ? 'font-bold text-[var(--text-primary)]' : 'font-medium'}`}>
                                 {peer.deviceName || 'Device'}
                               </p>
                               {/* Low-emphasis subtle transport indicator dot (§7) */}
@@ -375,7 +375,7 @@ export function CastModal() {
                                 title={`Connection: ${peer.transport === 'mdns' ? 'LAN' : 'P2P/Cloud'}`}
                               />
                             </div>
-                            <p className="text-[10px] text-[#727272] truncate mt-0.5">
+                            <p className="text-[10px] text-[var(--text-muted)] truncate mt-0.5">
                               {isOffline ? (
                                 formatLastSeen(peer.lastSeen)
                               ) : isActive ? (
@@ -404,7 +404,7 @@ export function CastModal() {
                                 e.stopPropagation();
                                 setRowContextMenuPeerId(isMenuOpen ? null : peer.deviceId);
                               }}
-                              className="p-1 rounded text-[#727272] hover:text-white hover:bg-white/10 opacity-0 group-hover/row:opacity-100 transition-opacity cursor-pointer"
+                              className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] opacity-0 group-hover/row:opacity-100 transition-opacity cursor-pointer"
                               title="More options"
                               aria-label="More options"
                             >
@@ -419,22 +419,22 @@ export function CastModal() {
                               <span className="w-1.5 h-1.5 rounded-full bg-black" />
                             </div>
                           ) : isOffline ? (
-                            <span className="text-[10px] text-[#727272] font-medium font-mono">({formatLastSeen(peer.lastSeen)})</span>
+                            <span className="text-[10px] text-[var(--text-muted)] font-medium font-mono">({formatLastSeen(peer.lastSeen)})</span>
                           ) : (
-                            <div className="w-3.5 h-3.5 rounded-full border-2 border-[#b3b3b3] flex-shrink-0" />
+                            <div className="w-3.5 h-3.5 rounded-full border-2 border-[var(--border-subtle)] flex-shrink-0" />
                           )}
                         </div>
                       </button>
 
                       {/* Section 5: Row Context Menu */}
                       {isMenuOpen && (
-                        <div className="absolute right-4 top-12 z-20 w-44 rounded-xl bg-[#282828] border border-white/15 p-1.5 shadow-xl text-xs text-white space-y-1 animate-in fade-in zoom-in-95">
+                        <div className="absolute right-4 top-12 z-20 w-44 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-subtle)] p-1.5 shadow-xl text-xs text-[var(--text-primary)] space-y-1 animate-in fade-in zoom-in-95">
                           <button
                             onClick={() => {
                               setRowContextMenuPeerId(null);
                               handleSelectRemote(peer);
                             }}
-                            className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-xs font-medium cursor-pointer"
+                            className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[var(--surface-hover)] text-xs font-medium cursor-pointer text-[var(--text-primary)]"
                           >
                             Play here
                           </button>
@@ -443,7 +443,7 @@ export function CastModal() {
                               setRowContextMenuPeerId(null);
                               setToastMessage(`Connected to ${peer.deviceName} queue`);
                             }}
-                            className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-xs text-[#b3b3b3] hover:text-white cursor-pointer"
+                            className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[var(--surface-hover)] text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
                           >
                             View queue
                           </button>
@@ -457,15 +457,15 @@ export function CastModal() {
 
             {/* ── SECTION 3: NEARBY / OTHER ACCOUNTS (§2) ── */}
             <div className="space-y-1">
-              <span className="text-[10px] font-bold text-[#b3b3b3] uppercase tracking-wider px-2 block">
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider px-2 block">
                 Nearby
               </span>
 
               {nearbyDevices.length === 0 ? (
-                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 text-center space-y-2">
-                  <Wifi className="w-4 h-4 text-[#727272] mx-auto animate-pulse" />
-                  <p className="text-[11px] text-[#b3b3b3]">No devices nearby</p>
-                  <p className="text-[10px] text-[#727272]">
+                <div className="p-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-center space-y-2">
+                  <Wifi className="w-4 h-4 text-[var(--text-muted)] mx-auto animate-pulse" />
+                  <p className="text-[11px] text-[var(--text-primary)] font-medium">No devices nearby</p>
+                  <p className="text-[10px] text-[var(--text-muted)]">
                     Make sure other devices are on and connected to Wi-Fi.
                   </p>
                   <button
@@ -476,8 +476,8 @@ export function CastModal() {
                     <ChevronRight className={`w-3 h-3 transition-transform ${showLearnMore ? 'rotate-90' : ''}`} />
                   </button>
                   {showLearnMore && (
-                    <div className="text-left mt-2 p-2.5 rounded-lg bg-black/40 border border-white/10 text-[10px] text-[#b3b3b3] space-y-1 animate-in fade-in">
-                      <p className="font-bold text-white">Connection checklist:</p>
+                    <div className="text-left mt-2 p-2.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[10px] text-[var(--text-secondary)] space-y-1 animate-in fade-in">
+                      <p className="font-bold text-[var(--text-primary)]">Connection checklist:</p>
                       <p>• Connect devices to the same Wi-Fi or subnet.</p>
                       <p>• Disable AP/Client isolation on your Wi-Fi router.</p>
                       <p>• Ensure RaagaX is open and active on the target device.</p>
@@ -497,17 +497,17 @@ export function CastModal() {
                       disabled={isActive || isConnecting}
                       className={`w-full flex items-center justify-between p-3 rounded-xl transition-all text-left focus-visible:ring-2 focus-visible:ring-[#1DB954] focus-visible:outline-none cursor-pointer ${
                         isActive
-                          ? 'bg-white/10 text-white font-bold'
-                          : 'hover:bg-white/5 text-[#b3b3b3] hover:text-white'
+                          ? 'bg-[var(--surface-hover)] text-[var(--text-primary)] font-bold'
+                          : 'hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-[#1DB954]' : 'text-[#b3b3b3]'}`} />
+                        <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-[#1DB954]' : 'text-[var(--text-muted)]'}`} />
                         <div className="min-w-0">
-                          <p className={`text-xs truncate ${isActive ? 'font-bold text-white' : 'font-medium'}`}>
+                          <p className={`text-xs truncate ${isActive ? 'font-bold text-[var(--text-primary)]' : 'font-medium'}`}>
                             {peer.deviceName || 'Remote Device'}
                           </p>
-                          <p className="text-[10px] text-[#727272] flex items-center gap-1 mt-0.5">
+                          <p className="text-[10px] text-[var(--text-muted)] flex items-center gap-1 mt-0.5">
                             <span className={`w-1.5 h-1.5 rounded-full ${getTransportDotColor(peer.transport)}`} />
                             <span>
                               {isActive ? (
@@ -529,7 +529,7 @@ export function CastModal() {
                           <span className="w-1.5 h-1.5 rounded-full bg-black" />
                         </div>
                       ) : (
-                        <div className="w-3.5 h-3.5 rounded-full border-2 border-[#b3b3b3] flex-shrink-0" />
+                        <div className="w-3.5 h-3.5 rounded-full border-2 border-[var(--border-subtle)] flex-shrink-0" />
                       )}
                     </button>
                   );
@@ -539,30 +539,25 @@ export function CastModal() {
 
             {/* ── REMOTE PLAYBACK ACTIVE CONTROLLER CARD (SPOTIFY CONNECT STYLE) ── */}
             {!isLocalPlayback && currentSong && (
-              <div className="p-3.5 rounded-2xl bg-gradient-to-br from-[#1DB954]/15 via-white/[0.06] to-white/[0.02] border border-[#1DB954]/30 shadow-xl space-y-3">
-                {/* Device Header */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#1DB954]">
-                    <MonitorSpeaker className="w-4 h-4 animate-pulse text-[#1DB954]" />
-                    <span className="truncate max-w-[180px]">Listening on {activePlaybackDeviceName}</span>
+              <div className="p-3.5 rounded-2xl bg-gradient-to-br from-[#1DB954]/15 via-[var(--bg-surface)] to-[var(--bg-elevated)] border border-[#1DB954]/30 shadow-xl space-y-3">
+                {/* Device Header Row */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-xs font-extrabold text-[#1DB954] min-w-0 flex-1">
+                    <MonitorSpeaker className="w-4 h-4 animate-pulse text-[#1DB954] flex-shrink-0" />
+                    <span className="truncate">Listening on {activePlaybackDeviceName}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleSelectLocal}
-                      className="px-2.5 py-0.5 rounded-full bg-white/10 hover:bg-white/20 text-[#b3b3b3] hover:text-white text-[11px] font-medium transition-all active:scale-95 cursor-pointer border border-white/10"
-                      title="Disconnect and play on this device"
-                    >
-                      Disconnect
-                    </button>
-                    <span className="text-[10px] font-mono text-white/60">
-                      {Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, '0')} / {Math.floor(duration / 60)}:{String(Math.floor(duration % 60)).padStart(2, '0')}
-                    </span>
-                  </div>
+                  <button
+                    onClick={handleSelectLocal}
+                    className="px-2.5 py-1 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--surface-hover)] text-[var(--text-primary)] text-[10px] font-bold border border-[var(--border-subtle)] transition-all active:scale-95 cursor-pointer flex-shrink-0"
+                    title="Disconnect and play on this device"
+                  >
+                    Disconnect
+                  </button>
                 </div>
 
                 {/* Track Info & Artwork */}
                 <div className="flex items-center gap-3">
-                  <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-black/50 border border-white/10 flex-shrink-0 flex items-center justify-center shadow-md">
+                  <div className="relative w-11 h-11 rounded-xl overflow-hidden bg-[var(--bg-elevated)] border border-[var(--border-subtle)] flex-shrink-0 flex items-center justify-center shadow-md">
                     <OptimizedImage
                       src={currentSong.coverUrl || '/app-icon.png'}
                       alt={currentSong.title}
@@ -572,24 +567,38 @@ export function CastModal() {
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h4 className="text-xs font-bold text-white truncate leading-snug">
+                    <h4 className="text-xs font-bold text-[var(--text-primary)] truncate leading-snug">
                       {SongFormatter.cleanSongTitle(currentSong.title)}
                     </h4>
-                    <p className="text-[11px] text-[#b3b3b3] truncate mt-0.5">
+                    <p className="text-[11px] text-[var(--text-secondary)] truncate mt-0.5 font-medium">
                       {SongFormatter.decodeHtml(currentSong.artist) || currentSong.artist}
                     </p>
                   </div>
                 </div>
 
+                {/* Mini Progress Bar & Single-Line Timestamps */}
+                <div className="space-y-1 pt-0.5">
+                  <div className="w-full h-1 bg-[var(--border-subtle)] rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-[#1DB954] rounded-full transition-all duration-300"
+                      style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] font-mono text-[var(--text-muted)] font-medium px-0.5">
+                    <span>{Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, '0')}</span>
+                    <span>{Math.floor(duration / 60)}:{String(Math.floor(duration % 60)).padStart(2, '0')}</span>
+                  </div>
+                </div>
+
                 {/* Playback Controls (Prev, Play/Pause, Next) */}
-                <div className="flex items-center justify-center gap-4 pt-1">
+                <div className="flex items-center justify-center gap-4 py-0.5">
                   <button
                     onClick={() => {
                       haptics.lightImpact();
                       playPrev();
                     }}
-                    className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-all active:scale-90 cursor-pointer"
-                    title="Previous"
+                    className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] rounded-full transition-all active:scale-90 cursor-pointer"
+                    title="Previous Track"
                   >
                     <SkipBack className="w-4 h-4 fill-current" />
                   </button>
@@ -599,13 +608,13 @@ export function CastModal() {
                       haptics.mediumImpact();
                       togglePlayPause();
                     }}
-                    className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center shadow-lg active:scale-90 transition-all hover:scale-105 cursor-pointer"
+                    className="w-9 h-9 rounded-full bg-[#1DB954] hover:bg-[#1ed760] text-white flex items-center justify-center shadow-lg active:scale-90 transition-all hover:scale-105 cursor-pointer"
                     title={isPlaying ? 'Pause' : 'Play'}
                   >
                     {isPlaying ? (
-                      <Pause className="w-4.5 h-4.5 fill-black text-black stroke-none" />
+                      <Pause className="w-4 h-4 fill-white text-white stroke-none" />
                     ) : (
-                      <Play className="w-4.5 h-4.5 fill-black text-black stroke-none ml-0.5" />
+                      <Play className="w-4 h-4 fill-white text-white stroke-none ml-0.5" />
                     )}
                   </button>
 
@@ -614,24 +623,24 @@ export function CastModal() {
                       haptics.lightImpact();
                       playNext();
                     }}
-                    className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-all active:scale-90 cursor-pointer"
-                    title="Next"
+                    className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] rounded-full transition-all active:scale-90 cursor-pointer"
+                    title="Next Track"
                   >
                     <SkipForward className="w-4 h-4 fill-current" />
                   </button>
                 </div>
 
                 {/* Remote Device Volume Slider */}
-                <div className="flex items-center gap-2 pt-1 border-t border-white/10">
-                  <button onClick={toggleMute} className="text-[#b3b3b3] hover:text-white transition-colors cursor-pointer">
+                <div className="flex items-center gap-2 pt-2 border-t border-[var(--border-subtle)]">
+                  <button onClick={toggleMute} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer">
                     {isMuted || volume === 0 ? (
                       <VolumeX className="w-3.5 h-3.5 text-[#1DB954]" />
                     ) : (
-                      <Volume2 className="w-3.5 h-3.5" />
+                      <Volume2 className="w-3.5 h-3.5 text-[var(--text-secondary)]" />
                     )}
                   </button>
                   <div className="relative flex-1 h-2 flex items-center group/vol">
-                    <div className="absolute inset-x-0 h-1 rounded-full bg-white/20 group-hover/vol:h-1.5 transition-all" />
+                    <div className="absolute inset-x-0 h-1 rounded-full bg-[var(--border-subtle)] group-hover/vol:h-1.5 transition-all" />
                     <div
                       className="absolute left-0 h-1 rounded-full bg-[#1DB954] group-hover/vol:h-1.5 transition-all"
                       style={{ width: `${(isMuted ? 0 : volume) * 100}%` }}
@@ -647,7 +656,7 @@ export function CastModal() {
                       aria-label="Remote volume slider"
                     />
                   </div>
-                  <span className="text-[10px] text-[#b3b3b3] font-mono min-w-[28px] text-right">
+                  <span className="text-[10px] text-[var(--text-muted)] font-mono min-w-[28px] text-right font-medium">
                     {Math.round((isMuted ? 0 : volume) * 100)}%
                   </span>
                 </div>
@@ -656,21 +665,21 @@ export function CastModal() {
 
 
             {/* ── SECTION 9: DESKTOP MANAGE DEVICES LINK ── */}
-            <div className="pt-1 border-t border-white/5">
+            <div className="pt-1 border-t border-[var(--border-subtle)]">
               <button
                 onClick={() => setShowManageDevices(!showManageDevices)}
-                className="w-full text-center text-[11px] text-[#727272] hover:text-white hover:underline transition-colors py-1 cursor-pointer block"
+                className="w-full text-center text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:underline transition-colors py-1 cursor-pointer block"
               >
                 Manage devices
               </button>
 
               {showManageDevices && (
-                <div className="mt-2 p-3 rounded-xl bg-black/30 border border-white/10 space-y-3 text-xs">
+                <div className="mt-2 p-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] space-y-3 text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="text-white font-bold">Device Settings</span>
+                    <span className="text-[var(--text-primary)] font-bold">Device Settings</span>
                     <button
                       onClick={() => setShowManageDevices(false)}
-                      className="text-[#b3b3b3] hover:text-white text-[10px] cursor-pointer"
+                      className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-[10px] cursor-pointer"
                     >
                       Close
                     </button>
@@ -678,7 +687,7 @@ export function CastModal() {
 
                   {/* Rename this device (§spec) */}
                   <div className="space-y-1.5 pt-1">
-                    <label className="text-[11px] font-semibold text-[#b3b3b3] block">
+                    <label className="text-[11px] font-semibold text-[var(--text-secondary)] block">
                       Rename this device
                     </label>
                     <div className="flex items-center gap-1.5">
@@ -687,7 +696,7 @@ export function CastModal() {
                         value={userRenameInput}
                         onChange={(e) => setUserRenameInput(e.target.value)}
                         placeholder={DeviceNameResolver.getInstance().getDefaultDeviceDisplayName()}
-                        className="flex-1 bg-white/5 border border-white/15 rounded-lg px-2.5 py-1 text-xs text-white placeholder:text-[#535353] focus:outline-none focus:border-[#1DB954]"
+                        className="flex-1 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-2.5 py-1 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[#1DB954]"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             DeviceNameResolver.getInstance().setUserLabel(userRenameInput);
@@ -711,21 +720,21 @@ export function CastModal() {
                             setUserRenameInput('');
                             setToastMessage('Device name reset to default');
                           }}
-                          className="px-2 py-1 bg-white/10 hover:bg-white/20 text-[#b3b3b3] hover:text-white text-[11px] rounded-lg transition-colors cursor-pointer"
+                          className="px-2 py-1 bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[11px] rounded-lg transition-colors cursor-pointer"
                           title="Reset to default"
                         >
                           Reset
                         </button>
                       )}
                     </div>
-                    <p className="text-[10px] text-[#727272]">
+                    <p className="text-[10px] text-[var(--text-muted)]">
                       Default: {DeviceNameResolver.getInstance().getDefaultDeviceDisplayName()}
                     </p>
                   </div>
 
-                  <div className="pt-2 border-t border-white/10 space-y-2">
-                    <p className="text-[11px] text-[#727272]">
-                      Hardware device ID: <span className="font-mono text-white">{myDeviceId.slice(0, 16)}...</span>
+                  <div className="pt-2 border-t border-[var(--border-subtle)] space-y-2">
+                    <p className="text-[11px] text-[var(--text-muted)]">
+                      Hardware device ID: <span className="font-mono text-[var(--text-primary)]">{myDeviceId.slice(0, 16)}...</span>
                     </p>
                     <button
                       onClick={() => {

@@ -323,16 +323,16 @@ export function CarouselShelf({
   const sentinelIndex = Math.max(0, shelfItems.length - 5);
 
   return (
-    <section className="mb-2.5 sm:mb-4">
+    <section className="mb-4 sm:mb-6">
       <div className="flex items-center justify-between mb-2 px-0 pr-3 sm:pr-4">
         <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
           {icon}
           <div className="min-w-0 flex-1">
-            <h2 className="text-[20px] sm:text-xl font-semibold leading-[26px] text-white tracking-tight cursor-pointer truncate whitespace-nowrap">
+            <h2 className="text-[20px] sm:text-xl font-semibold leading-[26px] text-[var(--text-primary)] tracking-tight cursor-pointer truncate whitespace-nowrap">
               {title}
             </h2>
             {subtitle && (
-              <p className="text-[11px] font-medium text-slate-400 -mt-0.5 truncate">
+              <p className="text-[11px] font-medium text-[var(--text-secondary)] -mt-0.5 truncate">
                 {subtitle}
               </p>
             )}
@@ -348,7 +348,7 @@ export function CarouselShelf({
               </button>
               <button 
                 onClick={handleShufflePlayAll}
-                className="p-1.5 sm:p-2 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-all hover:scale-105 active:scale-95 flex items-center justify-center cursor-pointer border border-white/10"
+                className="p-1.5 sm:p-2 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center cursor-pointer border border-[var(--border-subtle)]"
                 title="Shuffle Play"
               >
                 <Shuffle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
@@ -360,14 +360,14 @@ export function CarouselShelf({
         {showSeeAll && shelfItems.length > 0 && (
           <button 
             onClick={() => setShowAll(true)}
-            className="text-[11px] sm:text-xs font-semibold text-slate-400 hover:text-white transition-colors uppercase tracking-wider flex items-center gap-1 cursor-pointer flex-shrink-0 ml-2"
+            className="text-[11px] sm:text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors uppercase tracking-wider flex items-center gap-1 cursor-pointer flex-shrink-0 ml-2"
           >
             {shelfItems[0]?.type === 'song' ? 'See All Songs' : 'See All'} <ChevronRight className="w-3.5 h-3.5" />
           </button>
         )}
       </div>
       
-      <div className="flex gap-3 sm:gap-4 overflow-x-auto no-scrollbar pb-1.5 sm:pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="flex gap-3 sm:gap-4 overflow-x-auto no-scrollbar pt-2 pb-3 sm:pt-2.5 sm:pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
         {visibleItems.map((item, index) => {
           const isSentinel = pagination?.enabled && index === sentinelIndex;
           
@@ -378,7 +378,7 @@ export function CarouselShelf({
               onClick={() => handleItemClick(item)}
               className="group premium-card p-3 sm:p-3.5 rounded-2xl cursor-pointer w-[140px] sm:w-[172px] flex-shrink-0"
             >
-              <div className="relative w-full aspect-square mb-2.5 sm:mb-3 shadow-[0_8px_24px_rgba(0,0,0,0.4)] rounded-xl overflow-hidden bg-slate-800/80">
+              <div className="relative w-full aspect-square mb-2.5 sm:mb-3 shadow-[0_8px_24px_rgba(0,0,0,0.2)] rounded-xl overflow-hidden bg-slate-800/80">
                 <OptimizedImage
                   src={item.imageUrl}
                   alt={item.title}
@@ -395,9 +395,9 @@ export function CarouselShelf({
                   <Play className="w-4 h-4 fill-white text-white ml-0.5" />
                 </button>
               </div>
-              <h3 className="font-bold text-xs text-white truncate leading-tight group-hover:text-[#fa233b] transition-colors">{item.title}</h3>
+              <h3 className="font-bold text-xs text-[var(--text-primary)] truncate leading-tight group-hover:text-[#fa233b] transition-colors">{item.title}</h3>
               {item.subtitle && item.subtitle !== 'Unknown' && (
-                <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-tight font-medium">{item.subtitle}</p>
+                <p className="text-[11px] text-[var(--text-secondary)] mt-1 line-clamp-2 leading-tight font-medium">{item.subtitle}</p>
               )}
             </div>
           );

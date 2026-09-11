@@ -345,44 +345,15 @@ export function RightQueuePanel() {
         {/* Top Header Bar */}
         <div className="flex items-center justify-between gap-2 w-full">
           {rightPanelMode === 'queue' ? (
-            /* Segmented Control Pills for Queue Mode: Queue | Listening History */
-            <div className="flex items-center p-1 rounded-xl bg-black/40 border border-white/10 flex-1 min-w-0 shadow-inner">
-              <button
-                onClick={() => {
-                  haptics.lightImpact();
-                  setQueueSubTab('upnext');
-                }}
-                className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer select-none ${
-                  queueSubTab === 'upnext'
-                    ? 'bg-[#fa233b]/20 text-[#fa233b] border border-[#fa233b]/35 shadow-sm'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
-                }`}
-              >
-                <ListMusic className="w-3.5 h-3.5 flex-shrink-0" />
-                <span className="truncate min-w-0">Queue</span>
-                {upNextQueue.length > 0 && (
-                  <span className="px-1.5 py-0.2 text-[9px] font-mono font-extrabold rounded-full bg-[#fa233b]/25 text-[#fa233b] border border-[#fa233b]/30 flex-shrink-0">
-                    {upNextQueue.length}
-                  </span>
-                )}
-              </button>
-
-
-
-              <button
-                onClick={() => {
-                  haptics.lightImpact();
-                  setQueueSubTab('friends');
-                }}
-                className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer select-none ${
-                  queueSubTab === 'friends'
-                    ? 'bg-[#fa233b]/20 text-[#fa233b] border border-[#fa233b]/35 shadow-sm'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
-                }`}
-              >
-                <Users className="w-3.5 h-3.5 flex-shrink-0" />
-                <span className="truncate min-w-0">Friends</span>
-              </button>
+            /* Header Title for Queue Mode: Queue / Up Next */
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] flex-1 min-w-0 shadow-sm">
+              <ListMusic className="w-4 h-4 text-[#fa233b] flex-shrink-0" />
+              <span className="font-extrabold text-xs truncate">Queue</span>
+              {upNextQueue.length > 0 && (
+                <span className="px-2 py-0.5 text-[9px] font-mono font-extrabold rounded-full bg-[#fa233b]/20 text-[#fa233b] border border-[#fa233b]/30 ml-auto flex-shrink-0">
+                  {upNextQueue.length}
+                </span>
+              )}
             </div>
           ) : (
             /* Header Title for Connect Mode: Connect to Device */
@@ -412,35 +383,31 @@ export function RightQueuePanel() {
         {/* Sub-Bar Actions */}
         {rightPanelMode === 'queue' ? (
           <div className="flex items-center justify-between px-1 text-[11px] font-medium text-[var(--text-secondary)]">
-            {queueSubTab === 'upnext' ? (
-              <>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Autoplay</span>
-                  <button
-                    onClick={() => toggleAutoplay()}
-                    className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${
-                      isAutoplayEnabled ? 'bg-[#fa233b]' : 'bg-slate-700'
-                    }`}
-                    title="Toggle Autoplay for similar songs"
-                  >
-                    <div
-                      className={`w-3 h-3 rounded-full bg-white transition-transform ${
-                        isAutoplayEnabled ? 'translate-x-3' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Autoplay</span>
+              <button
+                onClick={() => toggleAutoplay()}
+                className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${
+                  isAutoplayEnabled ? 'bg-[#fa233b]' : 'bg-slate-700'
+                }`}
+                title="Toggle Autoplay for similar songs"
+              >
+                <div
+                  className={`w-3 h-3 rounded-full bg-white transition-transform ${
+                    isAutoplayEnabled ? 'translate-x-3' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
 
-                {upNextQueue.length > 0 && (
-                  <button
-                    onClick={handleClearQueue}
-                    className="text-[11px] font-bold text-[#fa233b] hover:underline px-1 py-0.5 rounded cursor-pointer transition-colors"
-                  >
-                    Clear Queue
-                  </button>
-                )}
-              </>
-            ) : null}
+            {upNextQueue.length > 0 && (
+              <button
+                onClick={handleClearQueue}
+                className="text-[11px] font-bold text-[#fa233b] hover:underline px-1 py-0.5 rounded cursor-pointer transition-colors"
+              >
+                Clear Queue
+              </button>
+            )}
           </div>
         ) : (
           <div className="flex items-center justify-between px-1 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
@@ -458,163 +425,116 @@ export function RightQueuePanel() {
 
       {/* ── MODE A: QUEUE / HISTORY VIEW ── */}
       {rightPanelMode === 'queue' ? (
-        queueSubTab === 'upnext' ? (
-          <>
-            {/* Currently Playing Card */}
-            {mounted && currentSong && (
-              <div className="p-3 rounded-2xl bg-gradient-to-r from-[#fa233b]/15 to-[#fa233b]/5 border border-[#fa233b]/30 flex items-center justify-between flex-shrink-0 min-w-0 w-full mb-3 shadow-md shadow-red-500/5">
-                <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
-                  <div className="relative w-10 h-10 rounded-xl overflow-hidden shadow-sm flex-shrink-0 border border-white/10 bg-black/40 flex items-center justify-center">
-                    <OptimizedImage
-                      src={currentSong.coverUrl}
-                      alt={currentSong.title}
-                      imageFit="contain"
-                      className="w-full h-full object-contain"
-                      fallbackSrc="/app-icon.png"
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h4 className="font-black text-xs text-[var(--text-primary)] truncate leading-tight">
-                      {SongFormatter.cleanSongTitle(currentSong.title)}
-                    </h4>
-                    <p className="text-[10px] text-[var(--text-secondary)] truncate mt-0.5 font-medium">
-                      {SongFormatter.decodeHtml(currentSong.artist) || currentSong.artist || 'Unknown Artist'}
-                    </p>
-                  </div>
+        <>
+          {/* Currently Playing Card */}
+          {mounted && currentSong && (
+            <div className="p-3 rounded-2xl bg-gradient-to-r from-[#fa233b]/15 to-[#fa233b]/5 border border-[#fa233b]/30 flex items-center justify-between flex-shrink-0 min-w-0 w-full mb-3 shadow-md shadow-red-500/5">
+              <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                <div className="relative w-10 h-10 rounded-xl overflow-hidden shadow-sm flex-shrink-0 border border-white/10 bg-black/40 flex items-center justify-center">
+                  <OptimizedImage
+                    src={currentSong.coverUrl}
+                    alt={currentSong.title}
+                    imageFit="contain"
+                    className="w-full h-full object-contain"
+                    fallbackSrc="/app-icon.png"
+                  />
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button 
-                    onClick={() => toggleLikeSong(currentSong.id)}
-                    className="p-1.5 hover:bg-[#fa233b]/20 rounded-full transition-colors cursor-pointer"
-                    title={likedSongIds.includes(currentSong.id) ? 'Unlike' : 'Like'}
-                  >
-                    <Heart className={`w-3.5 h-3.5 ${likedSongIds.includes(currentSong.id) ? 'fill-[#fa233b] text-[#fa233b]' : 'text-[var(--text-muted)]'}`} />
-                  </button>
-                  <span className="text-[9px] font-mono text-[#fa233b] font-extrabold px-1.5 py-0.5 rounded-full bg-[#fa233b]/15 border border-[#fa233b]/25">
-                    Playing
-                  </span>
+                <div className="min-w-0 flex-1">
+                  <h4 className="font-black text-xs text-[var(--text-primary)] truncate leading-tight">
+                    {SongFormatter.cleanSongTitle(currentSong.title)}
+                  </h4>
+                  <p className="text-[10px] text-[var(--text-secondary)] truncate mt-0.5 font-medium">
+                    {SongFormatter.decodeHtml(currentSong.artist) || currentSong.artist || 'Unknown Artist'}
+                  </p>
                 </div>
               </div>
-            )}
-
-            {/* Up Next Queue List */}
-            <div className="space-y-1 overflow-y-auto no-scrollbar flex-1 pr-0.5">
-              {upNextQueue.length > 0 ? (
-                upNextQueue.map((item: any, idx) => {
-                  const song = item.song || item;
-                  const addedByName = item.addedByName;
-
-                  return (
-                    <div
-                      key={`${song.id}-${idx}`}
-                      className="p-2 rounded-xl hover:bg-[var(--surface-hover)] border border-transparent hover:border-[var(--border-subtle)] flex items-center justify-between group cursor-pointer transition-all min-w-0 w-full"
-                    >
-                      <div
-                        onClick={() => playSong(song)}
-                        className="flex items-center gap-3 min-w-0 flex-1 pr-2"
-                      >
-                        <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-sm flex-shrink-0 border border-[var(--border-subtle)] bg-black/40 flex items-center justify-center">
-                          <OptimizedImage
-                            src={song.coverUrl}
-                            alt={song.title}
-                            imageFit="contain"
-                            className="w-full h-full object-contain"
-                            fallbackSrc="/app-icon.png"
-                          />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h4 className="font-bold text-xs text-[var(--text-primary)] truncate leading-tight group-hover:text-[#fa233b] transition-colors">
-                            {SongFormatter.cleanSongTitle(song.title)}
-                          </h4>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <p className="text-[10px] text-[var(--text-secondary)] truncate leading-tight font-medium">
-                              {SongFormatter.decodeHtml(song.artist) || song.artist || 'Unknown Artist'}
-                            </p>
-                            {addedByName && (
-                              <span className="text-[8px] px-1 py-0.1 rounded-full bg-[#FA233B]/10 text-[#FA233B] border border-[#FA233B]/20">
-                                {addedByName}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <button 
-                          onClick={() => toggleLikeSong(song.id)}
-                          className={`p-1 transition-colors cursor-pointer ${likedSongIds.includes(song.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                          title={likedSongIds.includes(song.id) ? 'Unlike' : 'Like'}
-                        >
-                          <Heart className={`w-3.5 h-3.5 ${likedSongIds.includes(song.id) ? 'fill-[#fa233b] text-[#fa233b]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`} />
-                        </button>
-                        <span className="text-[10px] font-mono text-[var(--text-muted)] font-medium">
-                          {song.duration ? `${Math.floor(Number(song.duration) / 60)}:${Math.floor(Number(song.duration) % 60).toString().padStart(2, '0')}` : '3:45'}
-                        </span>
-                        <button
-                          onClick={() => removeFromQueue(song.id)}
-                          className="opacity-0 group-hover:opacity-100 p-1 text-[var(--text-muted)] hover:text-red-400 transition-opacity cursor-pointer"
-                          title="Remove from queue"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="py-12 flex flex-col items-center justify-center text-center text-[var(--text-muted)] text-xs font-semibold gap-2">
-                  <Music2 className="w-8 h-8 opacity-60" />
-                  <p>Queue is empty</p>
-                  <p className="text-[10px] opacity-70 font-normal">Play a track or add songs to queue</p>
-                </div>
-              )}
-            </div>
-          </>
-        ) : (
-          /* ── SUB-TAB: FRIENDS LIVE ACTIVITY FEED ── */
-          <div className="space-y-2 overflow-y-auto no-scrollbar flex-1 pr-0.5">
-            {friendsActivity.length > 0 ? (
-              friendsActivity.map((activity) => (
-                <div
-                  key={activity.userId}
-                  className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-[#FA233B]/40 transition-all flex items-center justify-between group cursor-pointer"
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button 
+                  onClick={() => toggleLikeSong(currentSong.id)}
+                  className="p-1.5 hover:bg-[#fa233b]/20 rounded-full transition-colors cursor-pointer"
+                  title={likedSongIds.includes(currentSong.id) ? 'Unlike' : 'Like'}
                 >
-                  <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
-                    <div className="relative w-10 h-10 rounded-full overflow-hidden border border-white/20 flex-shrink-0 bg-slate-800">
-                      {activity.userAvatar ? (
-                        <img src={activity.userAvatar} alt={activity.userName} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-tr from-[#FA233B] to-rose-500 text-white font-bold flex items-center justify-center text-xs">
-                          {activity.userName.charAt(0).toUpperCase()}
+                  <Heart className={`w-3.5 h-3.5 ${likedSongIds.includes(currentSong.id) ? 'fill-[#fa233b] text-[#fa233b]' : 'text-[var(--text-muted)]'}`} />
+                </button>
+                <span className="text-[9px] font-mono text-[#fa233b] font-extrabold px-1.5 py-0.5 rounded-full bg-[#fa233b]/15 border border-[#fa233b]/25">
+                  Playing
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Up Next Queue List */}
+          <div className="space-y-1 overflow-y-auto no-scrollbar flex-1 pr-0.5">
+            {upNextQueue.length > 0 ? (
+              upNextQueue.map((item: any, idx) => {
+                const song = item.song || item;
+                const addedByName = item.addedByName;
+
+                return (
+                  <div
+                    key={`${song.id}-${idx}`}
+                    className="p-2 rounded-xl hover:bg-[var(--surface-hover)] border border-transparent hover:border-[var(--border-subtle)] flex items-center justify-between group cursor-pointer transition-all min-w-0 w-full"
+                  >
+                    <div
+                      onClick={() => playSong(song)}
+                      className="flex items-center gap-3 min-w-0 flex-1 pr-2"
+                    >
+                      <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-sm flex-shrink-0 border border-[var(--border-subtle)] bg-black/40 flex items-center justify-center">
+                        <OptimizedImage
+                          src={song.coverUrl}
+                          alt={song.title}
+                          imageFit="contain"
+                          className="w-full h-full object-contain"
+                          fallbackSrc="/app-icon.png"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-bold text-xs text-[var(--text-primary)] truncate leading-tight group-hover:text-[#fa233b] transition-colors">
+                          {SongFormatter.cleanSongTitle(song.title)}
+                        </h4>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <p className="text-[10px] text-[var(--text-secondary)] truncate leading-tight font-medium">
+                            {SongFormatter.decodeHtml(song.artist) || song.artist || 'Unknown Artist'}
+                          </p>
+                          {addedByName && (
+                            <span className="text-[8px] px-1 py-0.1 rounded-full bg-[#FA233B]/10 text-[#FA233B] border border-[#FA233B]/20">
+                              {addedByName}
+                            </span>
+                          )}
                         </div>
-                      )}
-                      {activity.isPlaying && (
-                        <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-400 border-2 border-black animate-pulse" />
-                      )}
+                      </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold text-white truncate">{activity.userName}</p>
-                      <p className="text-[11px] text-[#FA233B] font-semibold truncate leading-tight mt-0.5">
-                        {activity.songTitle}
-                      </p>
-                      <p className="text-[10px] text-slate-400 truncate">{activity.artist}</p>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button 
+                        onClick={() => toggleLikeSong(song.id)}
+                        className={`p-1 transition-colors cursor-pointer ${likedSongIds.includes(song.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                        title={likedSongIds.includes(song.id) ? 'Unlike' : 'Like'}
+                      >
+                        <Heart className={`w-3.5 h-3.5 ${likedSongIds.includes(song.id) ? 'fill-[#fa233b] text-[#fa233b]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`} />
+                      </button>
+                      <span className="text-[10px] font-mono text-[var(--text-muted)] font-medium">
+                        {song.duration ? `${Math.floor(Number(song.duration) / 60)}:${Math.floor(Number(song.duration) % 60).toString().padStart(2, '0')}` : '3:45'}
+                      </span>
+                      <button
+                        onClick={() => removeFromQueue(song.id)}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-[var(--text-muted)] hover:text-red-400 transition-opacity cursor-pointer"
+                        title="Remove from queue"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="text-[9px] font-mono text-emerald-400 font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
-                      LIVE 🎧
-                    </span>
-                  </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="py-12 flex flex-col items-center justify-center text-center text-[var(--text-muted)] text-xs font-semibold gap-2">
-                <Users className="w-8 h-8 opacity-60 text-rose-400" />
-                <p>No active friends right now</p>
-                <p className="text-[10px] opacity-70 font-normal">When friends listen to music, their live activity appears here!</p>
+                <Music2 className="w-8 h-8 opacity-60" />
+                <p>Queue is empty</p>
+                <p className="text-[10px] opacity-70 font-normal">Play a track or add songs to queue</p>
               </div>
             )}
           </div>
-        )
+        </>
       ) : (
         /* ── MODE B: CONNECT TO DEVICE VIEW (§1-§10) ── */
         <div className="space-y-4 overflow-y-auto custom-scrollbar flex-1 pr-0.5">
@@ -879,17 +799,17 @@ export function RightQueuePanel() {
           {/* ── SECTION: RAAGA JAM LISTENING ROOM (INLINE BELOW NEARBY DEVICES) ── */}
           <div className="pt-1 pb-1">
             {!jamState ? (
-              <div className="p-3.5 rounded-2xl bg-[#181818] border border-[#1DB954]/30 space-y-3">
+              <div className="p-3.5 rounded-2xl bg-[var(--bg-elevated)] border border-emerald-500/30 space-y-3 shadow-md">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-[#1DB954]/20 border border-[#1DB954]/40 flex items-center justify-center text-[#1DB954] flex-shrink-0">
-                    <Radio className="w-5 h-5 text-[#1DB954] animate-pulse" />
+                  <div className="w-9 h-9 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-500 flex-shrink-0">
+                    <Radio className="w-5 h-5 text-emerald-500 animate-pulse" />
                   </div>
                   <div>
-                    <h4 className="font-extrabold text-xs text-white flex items-center gap-1.5">
+                    <h4 className="font-extrabold text-xs text-[var(--text-primary)] flex items-center gap-1.5">
                       Raaga Jam Room
-                      <span className="text-[9px] bg-[#1DB954]/20 text-[#1DB954] px-1.5 py-0.2 rounded-full uppercase tracking-wider font-extrabold">Live Sync</span>
+                      <span className="text-[9px] bg-emerald-500/20 text-emerald-500 px-1.5 py-0.2 rounded-full uppercase tracking-wider font-extrabold">Live Sync</span>
                     </h4>
-                    <p className="text-[10px] text-[#b3b3b3]">Sync listening with friends in real-time</p>
+                    <p className="text-[10px] text-[var(--text-muted)]">Sync listening with friends in real-time</p>
                   </div>
                 </div>
 
@@ -898,7 +818,7 @@ export function RightQueuePanel() {
                   <button
                     onClick={handleCreateJam}
                     disabled={isCreatingJam}
-                    className="py-2.5 px-3 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] active:scale-[0.98] text-black font-extrabold shadow-md shadow-[#1DB954]/20 transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer truncate"
+                    className="py-2.5 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] text-black font-extrabold shadow-md shadow-emerald-500/20 transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer truncate"
                   >
                     <Radio className="w-3.5 h-3.5 text-black flex-shrink-0" />
                     <span className="truncate">{isCreatingJam ? 'Creating...' : 'Create Room'}</span>
@@ -909,27 +829,27 @@ export function RightQueuePanel() {
                       haptics.lightImpact();
                       toggleJamModal(true);
                     }}
-                    className="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 active:scale-[0.98] text-white font-extrabold border border-white/15 transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer truncate"
+                    className="py-2.5 px-3 rounded-xl bg-[var(--bg-surface)] hover:bg-[var(--surface-hover)] active:scale-[0.98] text-[var(--text-primary)] font-extrabold border border-[var(--border-subtle)] transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer truncate shadow-sm"
                   >
-                    <Zap className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                    <Zap className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
                     <span className="truncate">Join Code</span>
                   </button>
                 </div>
 
                 {/* Inline Join Code Form */}
-                <form onSubmit={handleJoinJam} className="pt-2 border-t border-white/10 flex items-center gap-1.5 w-full min-w-0">
+                <form onSubmit={handleJoinJam} className="pt-2 border-t border-[var(--border-subtle)] flex items-center gap-1.5 w-full min-w-0">
                   <input
                     type="text"
                     value={joinCodeInput}
                     onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
                     placeholder="Enter code (e.g. RAAG)"
                     maxLength={8}
-                    className="min-w-0 flex-1 bg-white/5 border border-white/15 rounded-lg px-2 py-1.5 text-xs text-white font-mono uppercase placeholder:text-[#535353] focus:outline-none focus:border-[#1DB954]"
+                    className="min-w-0 flex-1 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--text-primary)] font-mono uppercase placeholder:text-[var(--text-muted)] focus:outline-none focus:border-emerald-500"
                   />
                   <button
                     type="submit"
                     disabled={!joinCodeInput.trim() || isJoiningJam}
-                    className="px-2.5 py-1.5 bg-[#1DB954] hover:bg-[#1ed760] text-black disabled:opacity-40 text-xs font-bold rounded-lg transition-all cursor-pointer flex-shrink-0 flex items-center gap-1"
+                    className="px-2.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-black disabled:opacity-40 text-xs font-bold rounded-lg transition-all cursor-pointer flex-shrink-0 flex items-center gap-1"
                   >
                     <Zap className="w-3.5 h-3.5 flex-shrink-0 text-black fill-current" />
                     <span className="text-black font-extrabold">{isJoiningJam ? 'Joining...' : 'Join'}</span>
@@ -938,16 +858,16 @@ export function RightQueuePanel() {
               </div>
             ) : (
               /* Active Jam Room View directly inside Devices Tab */
-              <div className="p-3.5 rounded-2xl bg-[#181818] border border-[#1DB954]/50 shadow-lg space-y-3.5 animate-in fade-in">
+              <div className="p-3.5 rounded-2xl bg-[var(--bg-elevated)] border border-emerald-500/50 shadow-lg space-y-3.5 animate-in fade-in">
                 {/* 1. Header with Room Code, Host Badge & Settings */}
-                <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <div className="flex items-center justify-between pb-2 border-b border-[var(--border-subtle)]">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-[#1DB954] animate-ping" />
-                    <span className="text-xs font-extrabold text-[#1DB954] uppercase tracking-wider">Jam Room Live</span>
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                    <span className="text-xs font-extrabold text-emerald-500 uppercase tracking-wider">Jam Room Live</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     {isJamHost && (
-                      <span className="text-[9px] bg-[#1DB954]/20 text-[#1DB954] font-black px-2 py-0.5 rounded-full border border-[#1DB954]/30">
+                      <span className="text-[9px] bg-emerald-500/20 text-emerald-500 font-black px-2 py-0.5 rounded-full border border-emerald-500/30">
                         ★ HOST
                       </span>
                     )}
@@ -955,8 +875,8 @@ export function RightQueuePanel() {
                       onClick={() => setShowHostSettings(!showHostSettings)}
                       className={`p-1 rounded-md transition-colors cursor-pointer border ${
                         showHostSettings
-                          ? 'bg-[#1DB954] text-black border-[#1DB954]'
-                          : 'bg-white/5 text-[#b3b3b3] hover:text-white hover:bg-white/10 border-white/10'
+                          ? 'bg-emerald-500 text-black border-emerald-500'
+                          : 'bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] border-[var(--border-subtle)]'
                       }`}
                       title="Host & Room Settings"
                     >
@@ -967,14 +887,14 @@ export function RightQueuePanel() {
 
                 {/* Host & Room Settings Dropdown Panel */}
                 {showHostSettings && (
-                  <div className="p-3 rounded-xl bg-black/60 border border-[#1DB954]/40 space-y-2.5 animate-in fade-in text-xs">
-                    <div className="flex items-center justify-between pb-1 border-b border-white/10">
-                      <span className="font-extrabold text-white flex items-center gap-1.5">
-                        <Shield className="w-3.5 h-3.5 text-[#1DB954]" /> Room Controls
+                  <div className="p-3 rounded-xl bg-[var(--bg-surface)] border border-emerald-500/40 space-y-2.5 animate-in fade-in text-xs">
+                    <div className="flex items-center justify-between pb-1 border-b border-[var(--border-subtle)]">
+                      <span className="font-extrabold text-[var(--text-primary)] flex items-center gap-1.5">
+                        <Shield className="w-3.5 h-3.5 text-emerald-500" /> Room Controls
                       </span>
                       <button
                         onClick={() => setShowHostSettings(false)}
-                        className="text-[10px] text-[#b3b3b3] hover:text-white cursor-pointer"
+                        className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
                       >
                         Done
                       </button>
@@ -983,8 +903,8 @@ export function RightQueuePanel() {
                     {/* Toggle: Guest Playback Controls */}
                     <div className="flex items-center justify-between py-1">
                       <div>
-                        <p className="font-bold text-white text-[11px]">Guest Controls</p>
-                        <p className="text-[9px] text-[#b3b3b3]">Allow guests to Play / Pause / Skip</p>
+                        <p className="font-bold text-[var(--text-primary)] text-[11px]">Guest Controls</p>
+                        <p className="text-[9px] text-[var(--text-muted)]">Allow guests to Play / Pause / Skip</p>
                       </div>
                       {isJamHost ? (
                         <button
@@ -994,7 +914,7 @@ export function RightQueuePanel() {
                             JamSessionManager.getInstance().setGuestControlAllowed(next);
                           }}
                           className={`w-7 h-4 rounded-full p-0.5 transition-colors cursor-pointer ${
-                            jamState.isGuestControlAllowed ? 'bg-[#1DB954]' : 'bg-slate-700'
+                            jamState.isGuestControlAllowed ? 'bg-emerald-500' : 'bg-slate-700'
                           }`}
                         >
                           <div
@@ -1004,22 +924,22 @@ export function RightQueuePanel() {
                           />
                         </button>
                       ) : (
-                        <span className="text-[10px] text-[#1DB954] font-bold">
+                        <span className="text-[10px] text-emerald-500 font-bold">
                           {jamState.isGuestControlAllowed ? 'Allowed' : 'Host Only'}
                         </span>
                       )}
                     </div>
 
                     {/* Member Management */}
-                    <div className="pt-2 border-t border-white/10 space-y-1">
-                      <p className="text-[10px] font-bold text-[#b3b3b3] uppercase tracking-wider">
+                    <div className="pt-2 border-t border-[var(--border-subtle)] space-y-1">
+                      <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
                         Connected Members ({jamState.members.length})
                       </p>
                       {jamState.members.map((member) => (
-                        <div key={member.deviceId} className="flex items-center justify-between py-1 px-2 rounded-lg bg-white/5">
-                          <span className="text-xs text-white font-medium truncate">{member.displayName}</span>
+                        <div key={member.deviceId} className="flex items-center justify-between py-1 px-2 rounded-lg bg-[var(--bg-surface)]">
+                          <span className="text-xs text-[var(--text-primary)] font-medium truncate">{member.displayName}</span>
                           {member.isHost && (
-                            <span className="text-[8px] bg-[#1DB954]/20 text-[#1DB954] font-black px-1.5 py-0.2 rounded-full">HOST</span>
+                            <span className="text-[8px] bg-emerald-500/20 text-emerald-500 font-black px-1.5 py-0.2 rounded-full">HOST</span>
                           )}
                         </div>
                       ))}
@@ -1028,12 +948,12 @@ export function RightQueuePanel() {
                 )}
 
                 {/* Room Join Code Display */}
-                <div className="p-3 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between">
+                <div className="p-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center justify-between">
                   <div>
-                    <span className="text-[9px] text-[#b3b3b3] font-bold uppercase tracking-wider block">
+                    <span className="text-[9px] text-[var(--text-muted)] font-bold uppercase tracking-wider block">
                       Room Code
                     </span>
-                    <div className="text-2xl font-black text-[#1DB954] tracking-widest font-mono drop-shadow-[0_2px_8px_rgba(29,185,84,0.3)]">
+                    <div className="text-2xl font-black text-emerald-500 tracking-widest font-mono drop-shadow-[0_2px_8px_rgba(29,185,84,0.3)]">
                       {jamState.roomCode || 'JAM-ROOM'}
                     </div>
                   </div>
@@ -1041,14 +961,14 @@ export function RightQueuePanel() {
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={handleCopyJamCode}
-                      className="p-2 rounded-full bg-[#282828] hover:bg-[#333333] text-xs font-semibold text-white transition-all cursor-pointer border border-white/10 active:scale-95"
+                      className="p-2 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--surface-hover)] text-xs font-semibold text-[var(--text-primary)] transition-all cursor-pointer border border-[var(--border-subtle)] active:scale-95"
                       title="Copy Code"
                     >
-                      {copiedCode ? <Check className="w-3.5 h-3.5 text-[#1DB954]" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                     <button
                       onClick={handleShareJamInvite}
-                      className="flex items-center gap-1 py-1.5 px-3 rounded-full bg-[#1DB954] hover:bg-[#1ed760] text-xs font-extrabold text-black shadow-md shadow-[#1DB954]/20 transition-all cursor-pointer active:scale-95"
+                      className="flex items-center gap-1 py-1.5 px-3 rounded-full bg-emerald-500 hover:bg-emerald-600 text-xs font-extrabold text-black shadow-md shadow-emerald-500/20 transition-all cursor-pointer active:scale-95"
                     >
                       <Share2 className="w-3.5 h-3.5 text-black" />
                       <span>Share</span>
@@ -1058,8 +978,8 @@ export function RightQueuePanel() {
 
                 {/* 2. Compact Now Playing Track */}
                 {jamState.currentSong && (
-                  <div className="p-2.5 rounded-xl bg-black/30 border border-white/5 flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-lg overflow-hidden shadow-md flex-shrink-0 bg-slate-800 border border-white/10 flex items-center justify-center">
+                  <div className="p-2.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-lg overflow-hidden shadow-md flex-shrink-0 bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center justify-center">
                       <OptimizedImage
                         src={jamState.currentSong.coverUrl}
                         alt={jamState.currentSong.title}
@@ -1070,31 +990,31 @@ export function RightQueuePanel() {
                       />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[9px] text-[#1DB954] font-extrabold uppercase tracking-wider flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#1DB954]" /> Jam Playing
+                      <p className="text-[9px] text-emerald-500 font-extrabold uppercase tracking-wider flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Jam Playing
                       </p>
-                      <p className="text-xs font-bold text-white truncate">{jamState.currentSong.title}</p>
-                      <p className="text-[10px] text-[#b3b3b3] truncate">{jamState.currentSong.artist}</p>
+                      <p className="text-xs font-bold text-[var(--text-primary)] truncate">{jamState.currentSong.title}</p>
+                      <p className="text-[10px] text-[var(--text-muted)] truncate">{jamState.currentSong.artist}</p>
                     </div>
                   </div>
                 )}
 
                 {/* 3. Connected Friends List */}
                 <div className="space-y-1.5">
-                  <span className="text-[10px] font-bold text-[#b3b3b3] uppercase tracking-wider flex items-center gap-1.5">
-                    <Users className="w-3.5 h-3.5 text-[#1DB954]" />
+                  <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-emerald-500" />
                     Connected ({jamState.members.length})
                   </span>
                   <div className="flex flex-wrap gap-1.5">
                     {jamState.members.map((member) => (
                       <div
                         key={member.deviceId}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 border border-white/10 text-xs text-white"
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)]"
                       >
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#1DB954]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                         <span className="font-semibold text-xs">{member.displayName}</span>
                         {member.isHost && (
-                          <span className="text-[8px] bg-[#1DB954]/20 text-[#1DB954] font-black px-1.5 py-0.2 rounded-full">HOST</span>
+                          <span className="text-[8px] bg-emerald-500/20 text-emerald-500 font-black px-1.5 py-0.2 rounded-full">HOST</span>
                         )}
                       </div>
                     ))}
@@ -1104,14 +1024,14 @@ export function RightQueuePanel() {
                 {/* 4. Collaborative Jam Queue */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-[#b3b3b3] uppercase tracking-wider flex items-center gap-1.5">
-                      <Music2 className="w-3.5 h-3.5 text-[#1DB954]" />
+                    <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-1.5">
+                      <Music2 className="w-3.5 h-3.5 text-emerald-500" />
                       Jam Queue ({jamState.queue.length})
                     </span>
                     {currentSong && (
                       <button
                         onClick={() => JamSessionManager.getInstance().addToJamQueue(currentSong)}
-                        className="text-[9px] bg-[#1DB954] hover:bg-[#1ed760] text-black font-extrabold px-2.5 py-0.5 rounded-full flex items-center gap-1 transition-all cursor-pointer active:scale-95 shadow-sm"
+                        className="text-[9px] bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold px-2.5 py-0.5 rounded-full flex items-center gap-1 transition-all cursor-pointer active:scale-95 shadow-sm"
                       >
                         <Plus className="w-3 h-3 text-black" /> Add Playing
                       </button>
@@ -1119,9 +1039,9 @@ export function RightQueuePanel() {
                   </div>
 
                   {jamState.queue.length === 0 ? (
-                    <div className="p-3 rounded-xl bg-black/20 border border-white/5 text-center text-xs text-[#b3b3b3] space-y-0.5">
-                      <p className="font-semibold text-white">Queue is empty</p>
-                      <p className="text-[10px] text-[#727272]">Tap 3-dots (⋮) on any song & select "Add to Jam Queue"</p>
+                    <div className="p-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-center text-xs text-[var(--text-muted)] space-y-0.5">
+                      <p className="font-semibold text-[var(--text-primary)]">Queue is empty</p>
+                      <p className="text-[10px] text-[var(--text-muted)]">Tap 3-dots (⋮) on any song & select "Add to Jam Queue"</p>
                     </div>
                   ) : (
                     <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar pr-0.5">
@@ -1135,10 +1055,10 @@ export function RightQueuePanel() {
                         return (
                           <div
                             key={item.id}
-                            className="flex items-center justify-between p-2 rounded-xl bg-black/30 border border-white/5 hover:bg-[#282828] transition-colors gap-2"
+                            className="flex items-center justify-between p-2 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:bg-[var(--surface-hover)] transition-colors gap-2"
                           >
                             <div className="flex items-center gap-2 min-w-0 flex-1">
-                              <div className="w-8 h-8 rounded-lg overflow-hidden shadow-sm flex-shrink-0 bg-slate-800 border border-white/10 flex items-center justify-center">
+                              <div className="w-8 h-8 rounded-lg overflow-hidden shadow-sm flex-shrink-0 bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center justify-center">
                                 <OptimizedImage
                                   src={item.song.coverUrl}
                                   alt={item.song.title}
@@ -1149,8 +1069,8 @@ export function RightQueuePanel() {
                                 />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <p className="text-xs font-bold text-white truncate">{item.song.title}</p>
-                                <p className="text-[9px] text-[#b3b3b3] truncate">
+                                <p className="text-xs font-bold text-[var(--text-primary)] truncate">{item.song.title}</p>
+                                <p className="text-[9px] text-[var(--text-muted)] truncate">
                                   Added by {item.addedByMemberName}
                                 </p>
                               </div>
@@ -1162,12 +1082,12 @@ export function RightQueuePanel() {
                                 onClick={() => handleUpvoteJamSong(item.id)}
                                 className={`py-0.5 px-2 rounded-full text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 border active:scale-95 ${
                                   hasUpvoted
-                                    ? 'bg-[#1DB954]/25 text-[#1DB954] border-[#1DB954]/50 shadow-[0_0_8px_rgba(29,185,84,0.3)]'
-                                    : 'bg-[#282828] text-white/70 hover:text-white hover:bg-[#333333] border-white/5'
+                                    ? 'bg-emerald-500/25 text-emerald-500 border-emerald-500/50 shadow-[0_0_8px_rgba(29,185,84,0.3)]'
+                                    : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] border-[var(--border-subtle)]'
                                 }`}
                                 title="Upvote / Like song"
                               >
-                                <ThumbsUp className={`w-3 h-3 ${hasUpvoted ? 'fill-[#1DB954]' : ''}`} />
+                                <ThumbsUp className={`w-3 h-3 ${hasUpvoted ? 'fill-emerald-500' : ''}`} />
                                 <span>{upCount}</span>
                               </button>
 
@@ -1176,7 +1096,7 @@ export function RightQueuePanel() {
                                 className={`py-0.5 px-2 rounded-full text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 border active:scale-95 ${
                                   hasDownvoted
                                     ? 'bg-red-500/25 text-red-400 border-red-500/50 shadow-[0_0_8px_rgba(239,68,68,0.3)]'
-                                    : 'bg-[#282828] text-white/70 hover:text-white hover:bg-[#333333] border-white/5'
+                                    : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] border-[var(--border-subtle)]'
                                 }`}
                                 title="Downvote / Dislike song"
                               >

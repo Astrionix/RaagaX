@@ -697,8 +697,8 @@ export function AlbumDetailView() {
 
   if (!album) {
     return (
-      <div className="relative text-white pb-0 select-none animate-in fade-in duration-300">
-        <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-3.5 backdrop-blur-md bg-black/20 border-b border-white/[0.04]">
+      <div className="relative text-[var(--text-primary)] pb-0 select-none animate-in fade-in duration-300">
+        <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-3.5 backdrop-blur-md bg-[var(--header-bg)] border-b border-[var(--border-subtle)]">
           <button
             onClick={() => {
               haptics.lightImpact();
@@ -716,14 +716,14 @@ export function AlbumDetailView() {
                 setActiveTab('album');
               }
             }}
-            className="p-2 -ml-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+            className="p-2 -ml-2 rounded-full hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold cursor-pointer"
             title="Back"
           >
             <ArrowLeft className="w-5 h-5" />
             <span className="hidden sm:inline">Back</span>
           </button>
         </div>
-        <div className="flex flex-col items-center justify-center min-h-[50vh] text-slate-400 gap-3">
+        <div className="flex flex-col items-center justify-center min-h-[50vh] text-[var(--text-muted)] gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-[#FA233B]" />
           <p className="text-sm font-semibold">Loading Album Details...</p>
         </div>
@@ -735,7 +735,7 @@ export function AlbumDetailView() {
 
   return (
     <DynamicArtworkAtmosphere artworkUrl={coverUrl} isPlaying={isPlaying}>
-      <div className="relative text-white pb-0 select-none animate-in fade-in duration-300">
+      <div className="relative text-[var(--text-primary)] pb-0 select-none animate-in fade-in duration-300">
         {/* ── TOP NAVIGATION BAR ────────────────────────────────────────────── */}
         <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-3.5 backdrop-blur-md bg-[var(--header-bg)] border-b border-[var(--border-subtle)]">
           <button
@@ -755,21 +755,21 @@ export function AlbumDetailView() {
                 setActiveTab('album');
               }
             }}
-            className="p-2 -ml-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+            className="p-2 -ml-2 rounded-full hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold cursor-pointer"
             title="Back"
           >
             <ArrowLeft className="w-5 h-5" />
             <span className="hidden sm:inline">Back</span>
           </button>
 
-          <h2 className="text-sm font-bold text-white/90 truncate max-w-[240px] sm:max-w-[400px]">
+          <h2 className="text-sm font-bold text-[var(--text-primary)] truncate max-w-[240px] sm:max-w-[400px]">
             {album.title}
           </h2>
 
           <div className="relative">
             <button
               onClick={() => setShowAlbumMenu(!showAlbumMenu)}
-              className="p-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer"
+              className="p-2 rounded-full hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
               title="More options"
             >
               <MoreVertical className="w-5 h-5" />
@@ -908,7 +908,7 @@ export function AlbumDetailView() {
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-4">
                 <button
                   onClick={handleShufflePlay}
-                  className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center border border-white/10 active:scale-95 transition-all cursor-pointer shadow-md"
+                  className="w-10 h-10 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] text-[var(--text-primary)] flex items-center justify-center border border-[var(--border-subtle)] active:scale-95 transition-all cursor-pointer shadow-md"
                   title="Shuffle Album"
                   aria-label="Shuffle"
                 >
@@ -941,9 +941,9 @@ export function AlbumDetailView() {
                     borderColor: borderTint,
                     color: themeColor,
                   } : {
-                    backgroundColor: 'rgba(255,255,255,0.1)',
-                    borderColor: 'rgba(255,255,255,0.15)',
-                    color: '#ffffff',
+                    backgroundColor: 'var(--bg-surface)',
+                    borderColor: 'var(--border-subtle)',
+                    color: 'var(--text-primary)',
                   }}
                   title={isLikedAlbum ? 'In Library' : 'Add to Library'}
                 >
@@ -956,7 +956,7 @@ export function AlbumDetailView() {
 
                 <button
                   onClick={() => setShowAlbumMenu(!showAlbumMenu)}
-                  className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center border border-white/10 active:scale-95 transition-all cursor-pointer"
+                  className="w-10 h-10 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] text-[var(--text-primary)] flex items-center justify-center border border-[var(--border-subtle)] active:scale-95 transition-all cursor-pointer"
                   title="More Options"
                 >
                   <MoreVertical className="w-4 h-4" />
@@ -1015,7 +1015,7 @@ export function AlbumDetailView() {
                     ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
                     : isDownloadingAlbum
                       ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
-                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300 hover:text-white'
+                      : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 title={isAllDownloaded ? "All songs downloaded (Click to manage)" : "Download All Songs"}
               >
@@ -1043,11 +1043,11 @@ export function AlbumDetailView() {
           {isLoadingTracks ? (
             <div className="space-y-3 py-4">
               {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="h-14 rounded-2xl bg-white/5 animate-pulse" />
+                <div key={i} className="h-14 rounded-2xl bg-[var(--bg-surface)] animate-pulse" />
               ))}
             </div>
           ) : sortedTracks.length === 0 ? (
-            <div className="text-center py-16 text-slate-400">
+            <div className="text-center py-16 text-[var(--text-muted)]">
               <p className="text-sm font-semibold">No songs available in this album.</p>
             </div>
           ) : (
@@ -1094,7 +1094,7 @@ export function AlbumDetailView() {
                           e.stopPropagation();
                           toggleLikeSong(track.id);
                         }}
-                        className={`p-1 transition-colors cursor-pointer ${isTrackLiked ? 'text-[#FA233B] opacity-100' : 'text-slate-500 opacity-0 group-hover:opacity-100 hover:text-white'
+                        className={`p-1 transition-colors cursor-pointer ${isTrackLiked ? 'text-[#FA233B] opacity-100' : 'text-[var(--text-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--text-primary)]'
                           }`}
                         title={isTrackLiked ? 'Unlike track' : 'Like track'}
                       >
@@ -1104,11 +1104,11 @@ export function AlbumDetailView() {
                       <div className="min-w-0 flex-1">
                         <h4
                           className="text-sm font-bold truncate leading-snug"
-                          style={isPlayingCurrent ? { color: themeColor } : { color: '#ffffff' }}
+                          style={isPlayingCurrent ? { color: themeColor } : { color: 'var(--text-primary)' }}
                         >
                           {displayTitle}
                         </h4>
-                        <p className="text-xs text-slate-400 truncate mt-0.5 font-medium leading-tight">
+                        <p className="text-xs text-[var(--text-secondary)] truncate mt-0.5 font-medium leading-tight">
                           {displayArtist}
                         </p>
                       </div>
@@ -1116,7 +1116,7 @@ export function AlbumDetailView() {
 
                     {/* Right: Duration + Download Status + Actions Menu */}
                     <div className="flex items-center gap-3 flex-shrink-0">
-                      <span className="text-xs font-mono text-slate-400">
+                      <span className="text-xs font-mono text-[var(--text-muted)]">
                         {formatDuration(track.duration || 210)}
                       </span>
 
@@ -1132,8 +1132,8 @@ export function AlbumDetailView() {
 
           {/* ── ALBUM FOOTER / COPYRIGHT METADATA ─────────────────────────── */}
           {!isLoadingTracks && tracks.length > 0 && (
-            <div className="pt-4 pb-2 border-t border-white/10 mt-4 text-xs text-slate-400 space-y-1">
-              <p className="font-semibold text-slate-300">
+            <div className="pt-4 pb-2 border-t border-[var(--border-subtle)] mt-4 text-xs text-[var(--text-muted)] space-y-1">
+              <p className="font-semibold text-[var(--text-secondary)]">
                 {album.releaseDate ? (
                   (() => {
                     try {
@@ -1148,7 +1148,7 @@ export function AlbumDetailView() {
               <p className="font-medium">
                 {tracks.length} {tracks.length === 1 ? 'song' : 'songs'}, {formattedAlbumDuration || `${Math.round((album.durationSec || 0) / 60)} minutes`}
               </p>
-              <p className="text-[11px] text-slate-500 pt-0.5">
+              <p className="text-[11px] text-[var(--text-muted)] pt-0.5">
                 ℗ {album.releaseYear || '2024'} {album.title} • {album.artist || 'Record Label'}
               </p>
             </div>
@@ -1169,10 +1169,10 @@ export function AlbumDetailView() {
                     setActiveTab('artist');
                   }
                 }}
-                className="group flex items-center gap-1.5 text-xl sm:text-2xl font-black text-white hover:text-[#FA233B] transition-colors cursor-pointer"
+                className="group flex items-center gap-1.5 text-xl sm:text-2xl font-black text-[var(--text-primary)] hover:text-[#FA233B] transition-colors cursor-pointer"
               >
                 <span>More by {primaryArtistDisplayName}</span>
-                <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-[#FA233B] transition-transform group-hover:translate-x-1" />
+                <ChevronRight className="w-5 h-5 text-[var(--text-muted)] group-hover:text-[#FA233B] transition-transform group-hover:translate-x-1" />
               </button>
             </div>
 
@@ -1187,7 +1187,7 @@ export function AlbumDetailView() {
                   }}
                   className="group flex-shrink-0 w-36 sm:w-44 cursor-pointer space-y-2 select-none"
                 >
-                  <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden shadow-lg bg-white/5 border border-white/10">
+                  <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden shadow-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
                     <OptimizedImage
                       src={item.coverUrl}
                       alt={item.title}
@@ -1201,10 +1201,10 @@ export function AlbumDetailView() {
                     </div>
                   </div>
                   <div className="min-w-0">
-                    <h4 className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-[#FA233B] transition-colors">
+                    <h4 className="text-xs sm:text-sm font-bold text-[var(--text-primary)] truncate group-hover:text-[#FA233B] transition-colors">
                       {item.title}
                     </h4>
-                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                    <p className="text-[11px] text-[var(--text-secondary)] truncate mt-0.5">
                       {item.releaseYear || item.year || 'Album'}
                     </p>
                   </div>
@@ -1218,7 +1218,7 @@ export function AlbumDetailView() {
         {featuredPlaylists.length > 0 && (
           <div className="mt-8 max-w-6xl mx-auto px-4 sm:px-8">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xl sm:text-2xl font-black text-white">Featured On</h3>
+              <h3 className="text-xl sm:text-2xl font-black text-[var(--text-primary)]">Featured On</h3>
             </div>
 
             <div className="flex items-stretch gap-4 sm:gap-5 overflow-x-auto no-scrollbar pb-2 pt-1">
@@ -1231,7 +1231,7 @@ export function AlbumDetailView() {
                   }}
                   className="group flex-shrink-0 w-36 sm:w-44 cursor-pointer space-y-2 select-none"
                 >
-                  <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden shadow-lg bg-white/5 border border-white/10">
+                  <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden shadow-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
                     <OptimizedImage
                       src={pl.coverUrl || pl.image}
                       alt={pl.title || pl.name}
@@ -1245,10 +1245,10 @@ export function AlbumDetailView() {
                     </div>
                   </div>
                   <div className="min-w-0">
-                    <h4 className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-[#FA233B] transition-colors">
+                    <h4 className="text-xs sm:text-sm font-bold text-[var(--text-primary)] truncate group-hover:text-[#FA233B] transition-colors">
                       {pl.title || pl.name}
                     </h4>
-                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                    <p className="text-[11px] text-[var(--text-secondary)] truncate mt-0.5">
                       {pl.subtitle || `${album.language || preferredLanguage || 'Telugu'} Playlist`}
                     </p>
                   </div>
@@ -1262,7 +1262,7 @@ export function AlbumDetailView() {
         {similarAlbums.length > 0 && (
           <div className="mt-8 mb-4 max-w-6xl mx-auto px-4 sm:px-8">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl sm:text-2xl font-black text-white">You Might Also Like</h3>
+              <h3 className="text-xl sm:text-2xl font-black text-[var(--text-primary)]">You Might Also Like</h3>
             </div>
 
             <div className="flex items-stretch gap-4 sm:gap-5 overflow-x-auto no-scrollbar pb-4 pt-1">
@@ -1275,7 +1275,7 @@ export function AlbumDetailView() {
                   }}
                   className="group flex-shrink-0 w-36 sm:w-44 cursor-pointer space-y-2 select-none"
                 >
-                  <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden shadow-lg bg-white/5 border border-white/10">
+                  <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden shadow-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
                     <OptimizedImage
                       src={item.coverUrl}
                       alt={item.title}
@@ -1289,10 +1289,10 @@ export function AlbumDetailView() {
                     </div>
                   </div>
                   <div className="min-w-0">
-                    <h4 className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-[#FA233B] transition-colors">
+                    <h4 className="text-xs sm:text-sm font-bold text-[var(--text-primary)] truncate group-hover:text-[#FA233B] transition-colors">
                       {item.title}
                     </h4>
-                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                    <p className="text-[11px] text-[var(--text-secondary)] truncate mt-0.5">
                       {item.artist}
                     </p>
                   </div>

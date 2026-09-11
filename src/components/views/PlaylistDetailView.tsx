@@ -403,9 +403,9 @@ export function PlaylistDetailView() {
 
   return (
     <DynamicArtworkAtmosphere artworkUrl={playlist.coverUrl} isPlaying={isPlaying}>
-      <div className="relative text-white select-none animate-in fade-in duration-200 pb-2">
+      <div className="relative text-[var(--text-primary)] select-none animate-in fade-in duration-200 pb-2">
         {/* Top Sticky Navigation Bar */}
-        <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-3.5 backdrop-blur-md bg-black/20 border-b border-white/[0.04]">
+        <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-3.5 backdrop-blur-md bg-[var(--header-bg)] border-b border-[var(--border-subtle)]">
           <button
             onClick={() => {
               haptics.lightImpact();
@@ -423,14 +423,14 @@ export function PlaylistDetailView() {
                 setActiveTab('library');
               }
             }}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all text-xs font-bold cursor-pointer"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all text-xs font-bold cursor-pointer"
             title="Back"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
           </button>
 
-          <h2 className="text-sm font-bold text-white/90 truncate max-w-[240px] sm:max-w-[400px]">
+          <h2 className="text-sm font-bold text-[var(--text-primary)] truncate max-w-[240px] sm:max-w-[400px]">
             {playlist.title}
           </h2>
 
@@ -438,7 +438,7 @@ export function PlaylistDetailView() {
           <div className="relative">
             <button
               onClick={() => setShowPlaylistMenu(!showPlaylistMenu)}
-              className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer"
+              className="p-2 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
               title="Playlist Actions"
             >
               <MoreVertical className="w-4 h-4" />
@@ -447,25 +447,25 @@ export function PlaylistDetailView() {
             {showPlaylistMenu && (
               <div 
                 onClick={(e) => e.stopPropagation()}
-                className="absolute right-0 top-full mt-2 w-56 bg-[#14151a]/95 border border-white/10 rounded-2xl shadow-2xl p-1.5 z-50 text-xs backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-150 space-y-0.5"
+                className="absolute right-0 top-full mt-2 w-56 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl p-1.5 z-50 text-xs backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-150 space-y-0.5"
               >
                 <button
                   onClick={() => { setShowPlaylistMenu(false); handlePlay(false); }}
-                  className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-xl flex items-center gap-2.5 text-slate-200 hover:text-white transition-colors"
+                  className="w-full text-left px-3 py-2 hover:bg-[var(--bg-surface)] rounded-xl flex items-center gap-2.5 text-[var(--text-primary)] font-bold transition-colors"
                 >
                   <Play className="w-3.5 h-3.5 fill-current" style={{ color: themeColor }} /> Play
                 </button>
 
                 <button
                   onClick={() => { setShowPlaylistMenu(false); handlePlay(true); }}
-                  className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-xl flex items-center gap-2.5 text-slate-200 hover:text-white transition-colors"
+                  className="w-full text-left px-3 py-2 hover:bg-[var(--bg-surface)] rounded-xl flex items-center gap-2.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
                 >
-                  <Shuffle className="w-3.5 h-3.5 text-slate-300" /> Shuffle Play
+                  <Shuffle className="w-3.5 h-3.5 text-[var(--text-muted)]" /> Shuffle Play
                 </button>
 
                 <button
                   onClick={() => { setShowPlaylistMenu(false); setShowAddSongsModal(true); }}
-                  className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-xl flex items-center gap-2.5 text-slate-200 hover:text-white transition-colors"
+                  className="w-full text-left px-3 py-2 hover:bg-[var(--bg-surface)] rounded-xl flex items-center gap-2.5 text-purple-400 font-bold transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5 text-purple-400" /> Add Songs
                 </button>
@@ -474,7 +474,7 @@ export function PlaylistDetailView() {
                   <>
                     <button
                       onClick={() => { setShowPlaylistMenu(false); handleDownloadAll(); }}
-                      className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-xl flex items-center gap-2.5 text-slate-200 hover:text-white transition-colors"
+                      className="w-full text-left px-3 py-2 hover:bg-[var(--bg-surface)] rounded-xl flex items-center gap-2.5 text-emerald-400 font-bold transition-colors"
                     >
                       <Download className="w-3.5 h-3.5 text-emerald-400" /> Download All
                     </button>
@@ -482,7 +482,7 @@ export function PlaylistDetailView() {
                     {downloadedSongsInPlaylist.length > 0 && (
                       <button
                         onClick={handleRemoveAllDownloads}
-                        className="w-full text-left px-3 py-2 hover:bg-red-500/10 rounded-xl flex items-center gap-2.5 text-slate-300 hover:text-red-400 transition-colors"
+                        className="w-full text-left px-3 py-2 hover:bg-red-500/10 rounded-xl flex items-center gap-2.5 text-[var(--text-secondary)] hover:text-red-400 transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" /> Remove All Downloads
                       </button>
@@ -490,12 +490,12 @@ export function PlaylistDetailView() {
                   </>
                 )}
 
-                <div className="border-t border-white/5 my-1" />
+                <div className="border-t border-[var(--border-subtle)] my-1" />
 
                 {!isUserOwned ? (
                   <button
                     onClick={() => { setShowPlaylistMenu(false); handleSaveToLibrary(); }}
-                    className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-xl flex items-center gap-2.5 text-slate-200 hover:text-white transition-colors"
+                    className="w-full text-left px-3 py-2 hover:bg-[var(--bg-surface)] rounded-xl flex items-center gap-2.5 text-purple-400 font-bold transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5 text-purple-400" /> Save to Your Library
                   </button>
@@ -504,7 +504,7 @@ export function PlaylistDetailView() {
                     <button
                       onClick={() => { setShowPlaylistMenu(false); setIsEditOrderMode(!isEditOrderMode); }}
                       className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 transition-colors ${
-                        isEditOrderMode ? 'bg-[#fa233b]/20 text-[#fa233b] font-bold' : 'hover:bg-white/10 text-slate-200 hover:text-white'
+                        isEditOrderMode ? 'bg-[#fa233b]/20 text-[#fa233b] font-bold' : 'hover:bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                       }`}
                     >
                       <ArrowUpDown className="w-3.5 h-3.5" /> {isEditOrderMode ? 'Done Reordering' : 'Edit Order'}
@@ -512,7 +512,7 @@ export function PlaylistDetailView() {
 
                     <button
                       onClick={() => { setShowPlaylistMenu(false); setShowEditMetadataModal(true); }}
-                      className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-xl flex items-center gap-2.5 text-slate-200 hover:text-white transition-colors"
+                      className="w-full text-left px-3 py-2 hover:bg-[var(--bg-surface)] rounded-xl flex items-center gap-2.5 text-blue-400 font-bold transition-colors"
                     >
                       <Edit3 className="w-3.5 h-3.5 text-blue-400" /> Edit Playlist Details
                     </button>
@@ -527,14 +527,14 @@ export function PlaylistDetailView() {
                       setToastMessage('Playlist link copied to clipboard');
                     }
                   }}
-                  className="w-full text-left px-3 py-2 hover:bg-white/10 rounded-xl flex items-center gap-2.5 text-slate-200 hover:text-white transition-colors"
+                  className="w-full text-left px-3 py-2 hover:bg-[var(--bg-surface)] rounded-xl flex items-center gap-2.5 text-cyan-400 font-bold transition-colors"
                 >
                   <Share2 className="w-3.5 h-3.5 text-cyan-400" /> Share Playlist
                 </button>
 
                 {isUserOwned && (
                   <>
-                    <div className="border-t border-white/5 my-1" />
+                    <div className="border-t border-[var(--border-subtle)] my-1" />
 
                     <button
                       onClick={() => {
@@ -542,7 +542,7 @@ export function PlaylistDetailView() {
                         const confirm = window.confirm(`Clear all ${playlist.songs.length} songs from "${playlist.title}"?`);
                         if (confirm) clearPlaylist(playlist.id);
                       }}
-                      className="w-full text-left px-3 py-2 hover:bg-red-500/10 text-slate-400 hover:text-red-400 rounded-xl flex items-center gap-2.5 transition-colors"
+                      className="w-full text-left px-3 py-2 hover:bg-red-500/10 text-[var(--text-muted)] hover:text-red-400 rounded-xl flex items-center gap-2.5 transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" /> Clear All Songs
                     </button>
@@ -563,7 +563,7 @@ export function PlaylistDetailView() {
         {/* Main Content Container (Full Width Edge-to-Edge) */}
         <div className="w-full px-4 sm:px-8 space-y-6 pt-4">
           {/* Cinematic Hero Header */}
-          <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6 p-5 sm:p-7 rounded-3xl bg-white/[0.03] border border-white/10 relative overflow-hidden shadow-2xl backdrop-blur-xl">
+          <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6 p-5 sm:p-7 rounded-3xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] relative overflow-hidden shadow-2xl backdrop-blur-xl">
             {/* Large Sharp Cover Art (Full Aspect Ratio Preserved Without Cropping) */}
             <div className="relative w-48 h-48 sm:w-56 sm:h-56 md:w-60 md:h-60 aspect-square rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.85)] bg-black/50 border border-white/15 flex-shrink-0 flex items-center justify-center group">
               {playlist.coverUrl ? (
@@ -609,7 +609,7 @@ export function PlaylistDetailView() {
                 )}
               </div>
 
-              <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight break-words">
+              <h1 className="text-2xl sm:text-4xl font-black text-[var(--text-primary)] tracking-tight break-words">
                 {playlist.title}
               </h1>
 
@@ -654,9 +654,9 @@ export function PlaylistDetailView() {
 
               <button
                 onClick={() => handlePlay(true)}
-                className="h-10 sm:h-11 px-3.5 sm:px-5 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2 border border-white/10 shadow-md transition-all cursor-pointer shrink-0 whitespace-nowrap"
+                className="h-10 sm:h-11 px-3.5 sm:px-5 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] active:scale-95 text-[var(--text-primary)] font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2 border border-[var(--border-subtle)] shadow-md transition-all cursor-pointer shrink-0 whitespace-nowrap"
               >
-                <Shuffle className="w-4 h-4 text-slate-300" />
+                <Shuffle className="w-4 h-4 text-[var(--text-secondary)]" />
                 <span>Shuffle</span>
               </button>
 
@@ -696,10 +696,10 @@ export function PlaylistDetailView() {
         </div>
 
         {/* Secondary Toolbar: Sort & Small Download All */}
-        <div className="flex items-center justify-between gap-2 pb-2 border-b border-white/10">
+        <div className="flex items-center justify-between gap-2 pb-2 border-b border-[var(--border-subtle)]">
           {!isEditOrderMode ? (
             <div className="flex items-center gap-1.5 bg-[var(--bg-surface)] border border-[var(--border-subtle)] px-3 py-1.5 rounded-full text-xs shadow-sm">
-              <span className="text-slate-400 font-medium">Sort:</span>
+              <span className="text-[var(--text-muted)] font-medium">Sort:</span>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as any)}
@@ -732,7 +732,7 @@ export function PlaylistDetailView() {
                   ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
                   : hasFailures
                   ? 'bg-red-500/15 border-red-500/30 text-red-400'
-                  : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300 hover:text-white'
+                  : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
               title={isAllDownloaded ? "All songs downloaded (Click to manage)" : "Download All Songs"}
             >
@@ -905,7 +905,7 @@ export function PlaylistDetailView() {
           onClick={() => setShowDownloadConfirmModal(false)}
         >
           <div 
-            className="bg-[#12131A] border border-white/12 rounded-3xl p-6 w-full max-w-md shadow-2xl text-white space-y-4"
+            className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-3xl p-6 w-full max-w-md shadow-2xl text-[var(--text-primary)] space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center">
@@ -913,21 +913,21 @@ export function PlaylistDetailView() {
             </div>
 
             <div>
-              <h3 className="text-lg font-black text-white">Download All Songs</h3>
-              <p className="text-xs text-slate-300 mt-1">
+              <h3 className="text-lg font-black text-[var(--text-primary)]">Download All Songs</h3>
+              <p className="text-xs text-[var(--text-secondary)] mt-1">
                 {downloadedSongsInPlaylist.length > 0 && (
                   <span className="text-emerald-400 font-bold block mb-1">
                     ✓ {downloadedSongsInPlaylist.length} songs already available offline
                   </span>
                 )}
-                Download remaining <span className="text-white font-bold">{pendingDownloadsCount} songs</span> in "{playlist.title}" for offline playback?
+                Download remaining <span className="text-[var(--text-primary)] font-bold">{pendingDownloadsCount} songs</span> in "{playlist.title}" for offline playback?
               </p>
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 onClick={() => setShowDownloadConfirmModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               >
                 Cancel
               </button>
@@ -949,14 +949,14 @@ export function PlaylistDetailView() {
           onClick={() => !isSavingMetadata && setShowEditMetadataModal(false)}
         >
           <div 
-            className="bg-[#12131A] border border-white/12 rounded-3xl p-6 w-full max-w-md shadow-2xl text-white space-y-4"
+            className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-3xl p-6 w-full max-w-md shadow-2xl text-[var(--text-primary)] space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-black text-white">Edit Playlist Details</h3>
+              <h3 className="text-lg font-black text-[var(--text-primary)]">Edit Playlist Details</h3>
               <button 
                 onClick={() => setShowEditMetadataModal(false)}
-                className="p-1.5 text-slate-400 hover:text-white"
+                className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -964,44 +964,44 @@ export function PlaylistDetailView() {
 
             <div className="space-y-3">
               <div>
-                <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block mb-1">Name</label>
+                <label className="text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider block mb-1">Name</label>
                 <input
                   type="text"
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full bg-[#08090E] border border-white/15 focus:border-[#fa233b] rounded-2xl px-4 py-2.5 text-white text-xs font-medium focus:outline-none"
+                  className="w-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] focus:border-[#fa233b] rounded-2xl px-4 py-2.5 text-[var(--text-primary)] text-xs font-medium focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block mb-1">Description</label>
+                <label className="text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider block mb-1">Description</label>
                 <textarea
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
                   rows={2}
-                  className="w-full bg-[#08090E] border border-white/15 focus:border-[#fa233b] rounded-2xl px-4 py-2 text-white text-xs font-medium focus:outline-none resize-none"
+                  className="w-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] focus:border-[#fa233b] rounded-2xl px-4 py-2 text-[var(--text-primary)] text-xs font-medium focus:outline-none resize-none"
                 />
               </div>
 
               <div>
-                <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block mb-1">Artwork Image URL</label>
+                <label className="text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider block mb-1">Artwork Image URL</label>
                 <input
                   type="text"
                   value={editCoverUrl}
                   onChange={(e) => setEditCoverUrl(e.target.value)}
                   placeholder="https://..."
-                  className="w-full bg-[#08090E] border border-white/15 focus:border-[#fa233b] rounded-2xl px-4 py-2.5 text-white text-xs font-medium focus:outline-none"
+                  className="w-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] focus:border-[#fa233b] rounded-2xl px-4 py-2.5 text-[var(--text-primary)] placeholder-[var(--text-muted)] text-xs font-medium focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block mb-1">Visibility</label>
+                <label className="text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider block mb-1">Visibility</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setEditVisibility('private')}
-                    className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
-                      editVisibility === 'private' ? 'bg-[#fa233b]/15 border-[#fa233b] text-white' : 'bg-white/5 border-white/10 text-slate-400'
+                    className={`p-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                      editVisibility === 'private' ? 'bg-[#fa233b]/15 border-[#fa233b] text-[var(--text-primary)]' : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-secondary)]'
                     }`}
                   >
                     Private
@@ -1009,8 +1009,8 @@ export function PlaylistDetailView() {
                   <button
                     type="button"
                     onClick={() => setEditVisibility('public')}
-                    className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
-                      editVisibility === 'public' ? 'bg-[#fa233b]/15 border-[#fa233b] text-white' : 'bg-white/5 border-white/10 text-slate-400'
+                    className={`p-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                      editVisibility === 'public' ? 'bg-[#fa233b]/15 border-[#fa233b] text-[var(--text-primary)]' : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-secondary)]'
                     }`}
                   >
                     Public
@@ -1019,11 +1019,11 @@ export function PlaylistDetailView() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[var(--border-subtle)]">
               <button
                 onClick={() => setShowEditMetadataModal(false)}
                 disabled={isSavingMetadata}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
               >
                 Cancel
               </button>

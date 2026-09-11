@@ -176,13 +176,13 @@ export function AlbumsView() {
   };
 
   return (
-    <div className="space-y-6 pb-6 text-white select-none animate-in fade-in duration-200 w-full pt-1">
+    <div className="space-y-6 pb-6 text-[var(--text-primary)] select-none animate-in fade-in duration-200 w-full pt-1">
       {/* ── TOOLBAR: Title & Count, Search & Sort ───────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/[0.06]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[var(--border-subtle)]">
         {/* Left: Section Title & Count */}
         <div>
-          <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">Albums</h1>
-          <p className="text-xs text-slate-400 font-medium mt-0.5">
+          <h1 className="text-xl sm:text-2xl font-black text-[var(--text-primary)] tracking-tight">Albums</h1>
+          <p className="text-xs text-[var(--text-muted)] font-medium mt-0.5">
             {resolvedSavedAlbums.length} {resolvedSavedAlbums.length === 1 ? 'album' : 'albums'} in your library
           </p>
         </div>
@@ -191,7 +191,7 @@ export function AlbumsView() {
         <div className="flex items-center gap-2.5">
           {/* Search Input */}
           <div className="relative flex-1 sm:w-56 md:w-64">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-3.5 h-3.5 text-[var(--text-muted)] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="search"
               autoComplete="off"
@@ -199,12 +199,12 @@ export function AlbumsView() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search albums or artists..."
-              className="w-full bg-white/[0.05] hover:bg-white/[0.08] border border-white/10 text-xs text-white placeholder-slate-500 rounded-full pl-9 pr-8 py-2 outline-none focus:border-[#FA233B]/60 focus:bg-black/40 transition-all font-medium"
+              className="w-full bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] rounded-full pl-9 pr-8 py-2 outline-none focus:border-[#FA233B]/60 focus:bg-[var(--bg-elevated)] transition-all font-medium"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-white cursor-pointer"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
                 title="Clear search"
               >
                 <X className="w-3.5 h-3.5" />
@@ -213,7 +213,7 @@ export function AlbumsView() {
           </div>
 
           {/* Sort Dropdown */}
-          <div className="flex items-center gap-1.5 bg-white/[0.05] hover:bg-white/[0.08] border border-white/10 px-3 py-2 rounded-full text-xs shadow-sm flex-shrink-0 transition-colors">
+          <div className="flex items-center gap-1.5 bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] px-3 py-2 rounded-full text-xs shadow-sm flex-shrink-0 transition-colors">
             <ArrowUpDown className="w-3.5 h-3.5 text-[#FA233B]" />
             <select
               value={sortOption}
@@ -221,13 +221,13 @@ export function AlbumsView() {
                 haptics.lightImpact();
                 setSortOption(e.target.value as SortOption);
               }}
-              className="bg-transparent text-white text-xs font-bold outline-none cursor-pointer pr-1"
+              className="bg-transparent text-[var(--text-primary)] text-xs font-bold outline-none cursor-pointer pr-1"
               aria-label="Sort albums"
             >
-              <option value="recent_added" className="bg-[#1c1c1e] text-white">Recently Added</option>
-              <option value="year" className="bg-[#1c1c1e] text-white">Release Year</option>
-              <option value="az" className="bg-[#1c1c1e] text-white">Title: A → Z</option>
-              <option value="za" className="bg-[#1c1c1e] text-white">Title: Z → A</option>
+              <option value="recent_added" className="bg-[var(--bg-elevated)] text-[var(--text-primary)]">Recently Added</option>
+              <option value="year" className="bg-[var(--bg-elevated)] text-[var(--text-primary)]">Release Year</option>
+              <option value="az" className="bg-[var(--bg-elevated)] text-[var(--text-primary)]">Title: A → Z</option>
+              <option value="za" className="bg-[var(--bg-elevated)] text-[var(--text-primary)]">Title: Z → A</option>
             </select>
           </div>
         </div>
@@ -238,9 +238,9 @@ export function AlbumsView() {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 sm:gap-6">
           {Array.from({ length: 6 }).map((_, idx) => (
             <div key={`album-skeleton-${idx}`} className="space-y-3">
-              <div className="w-full aspect-square rounded-2xl bg-white/[0.03] border border-white/5 animate-pulse" />
-              <div className="h-4 w-3/4 rounded-md bg-white/[0.05] animate-pulse" />
-              <div className="h-3 w-1/2 rounded-md bg-white/[0.03] animate-pulse" />
+              <div className="w-full aspect-square rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] animate-pulse" />
+              <div className="h-4 w-3/4 rounded-md bg-[var(--bg-elevated)] animate-pulse" />
+              <div className="h-3 w-1/2 rounded-md bg-[var(--bg-surface)] animate-pulse" />
             </div>
           ))}
         </div>
@@ -261,12 +261,12 @@ export function AlbumsView() {
           })}
         </div>
       ) : (
-        <div className="py-24 text-center text-slate-400 space-y-3 bg-white/[0.02] rounded-3xl border border-white/5 p-8">
-          <Disc className="w-12 h-12 text-slate-600 mx-auto" />
-          <h4 className="text-base font-bold text-white">
+        <div className="py-24 text-center text-[var(--text-muted)] space-y-3 bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-8">
+          <Disc className="w-12 h-12 text-[var(--text-muted)] mx-auto" />
+          <h4 className="text-base font-bold text-[var(--text-primary)]">
             {searchQuery.trim() ? 'No Matching Albums Found' : 'No Saved Albums in Library'}
           </h4>
-          <p className="text-xs text-slate-400 max-w-sm mx-auto">
+          <p className="text-xs text-[var(--text-muted)] max-w-sm mx-auto">
             {searchQuery.trim()
               ? `No albums match "${searchQuery}". Try searching for another album or artist.`
               : 'Save albums while browsing or playing music to access them quickly here in your library.'}
@@ -293,7 +293,7 @@ function AlbumCard({ album, isSaved, onOpen, onPlay, onToggleSave }: AlbumCardPr
       className="group flex flex-col justify-between cursor-pointer select-none transition-transform duration-200 hover:-translate-y-1"
     >
       {/* 1. Square Artwork with Clean Aspect Ratio */}
-      <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.5)] border border-white/5 group-hover:border-white/20 transition-all">
+      <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-[var(--bg-surface)] shadow-md border border-[var(--border-subtle)] group-hover:border-[var(--text-muted)] transition-all">
         <OptimizedImage
           src={album.coverUrl}
           alt={album.title}
@@ -321,13 +321,13 @@ function AlbumCard({ album, isSaved, onOpen, onPlay, onToggleSave }: AlbumCardPr
       {/* 2. Album Information */}
       <div className="pt-2.5 flex items-start justify-between gap-2 min-w-0">
         <div className="min-w-0 flex-1">
-          <h4 className="text-sm font-bold text-white truncate leading-snug group-hover:text-[#FA233B] transition-colors" title={album.title}>
+          <h4 className="text-sm font-bold text-[var(--text-primary)] truncate leading-snug group-hover:text-[#FA233B] transition-colors" title={album.title}>
             {album.title}
           </h4>
-          <p className="text-xs text-slate-400 truncate mt-0.5 font-medium" title={album.artist}>
+          <p className="text-xs text-[var(--text-secondary)] truncate mt-0.5 font-medium" title={album.artist}>
             {album.artist}
           </p>
-          <p className="text-[11px] text-slate-500 mt-1 font-medium">
+          <p className="text-[11px] text-[var(--text-muted)] mt-1 font-medium">
             {album.releaseYear || 2024} · {album.albumType === 'soundtrack' ? 'Soundtrack' : 'Album'}
           </p>
         </div>
@@ -341,7 +341,7 @@ function AlbumCard({ album, isSaved, onOpen, onPlay, onToggleSave }: AlbumCardPr
           className={`p-1.5 rounded-full transition-all active:scale-125 cursor-pointer flex-shrink-0 mt-0.5 ${
             isSaved
               ? 'text-[#FA233B] bg-[#FA233B]/10 hover:bg-[#FA233B]/20'
-              : 'text-slate-500 hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity'
+              : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] opacity-0 group-hover:opacity-100 transition-opacity'
           }`}
           title={isSaved ? 'Remove from Library' : 'Save to Library'}
           aria-label={isSaved ? 'Remove from Library' : 'Save to Library'}

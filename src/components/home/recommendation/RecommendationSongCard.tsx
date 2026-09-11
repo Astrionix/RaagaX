@@ -67,14 +67,14 @@ export function RecommendationSongCard({
           // Currently playing: persistent crimson tint
           isCurrentlyPlaying
             ? 'bg-[#E50914]/12 border border-[#E50914]/40 shadow-[0_0_20px_rgba(229,9,20,0.25)]'
-            : 'bg-[rgba(14,16,21,0.75)] border border-white/6 hover:bg-[rgba(21,24,33,0.9)] hover:border-[#E50914]/30 hover:shadow-[0_8px_24px_rgba(229,9,20,0.15)]',
+            : 'bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:bg-[var(--surface-hover)] hover:border-[#E50914]/30 hover:shadow-[0_8px_24px_rgba(229,9,20,0.15)]',
           // Slide-out animation when "Not Interested"
           isRemoving ? 'opacity-0 scale-95 translate-x-4 pointer-events-none' : 'opacity-100',
         ].join(' ')}
         style={{ transition: isRemoving ? 'all 0.35s ease' : undefined }}
       >
         {/* ── Artwork ─────────────────────────────────────────────────────── */}
-        <div className="relative w-full aspect-square mb-2.5 rounded-xl overflow-hidden bg-slate-800/80 shadow-[0_6px_20px_rgba(0,0,0,0.5)]">
+        <div className="relative w-full aspect-square mb-2.5 rounded-xl overflow-hidden bg-slate-800/80 shadow-[0_6px_20px_rgba(0,0,0,0.2)]">
           <OptimizedImage
             src={result.artwork}
             alt={result.title}
@@ -121,12 +121,12 @@ export function RecommendationSongCard({
           <div className="min-w-0 flex-1">
             <h3
               className={`font-bold text-[12px] sm:text-[13px] truncate leading-tight transition-colors ${
-                isCurrentlyPlaying ? 'text-[#E50914]' : 'text-white group-hover:text-[#FF1E27]'
+                isCurrentlyPlaying ? 'text-[#E50914]' : 'text-[var(--text-primary)] group-hover:text-[#FF1E27]'
               }`}
             >
               {result.title}
             </h3>
-            <p className="text-[11px] text-slate-400 mt-0.5 truncate font-medium leading-tight">
+            <p className="text-[11px] text-[var(--text-secondary)] mt-0.5 truncate font-medium leading-tight">
               {result.artist}
             </p>
           </div>
@@ -135,7 +135,7 @@ export function RecommendationSongCard({
           <button
             ref={moreButtonRef}
             onClick={handleMoreClick}
-            className="flex-shrink-0 p-1 -mr-0.5 -mt-0.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all duration-200 cursor-pointer"
+            className="flex-shrink-0 p-1 -mr-0.5 -mt-0.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] opacity-0 group-hover:opacity-100 transition-all duration-200 cursor-pointer"
             aria-label="More options"
           >
             <MoreHorizontal className="w-3.5 h-3.5" />
@@ -145,12 +145,12 @@ export function RecommendationSongCard({
         {/* ── Language badge + duration ────────────────────────────────────── */}
         <div className="flex items-center justify-between mt-1.5 min-w-0">
           {result.language ? (
-            <span className="text-[9px] sm:text-[10px] font-semibold text-slate-500 bg-white/6 border border-white/8 rounded-full px-1.5 py-0.5 uppercase tracking-wide truncate max-w-[80px]">
+            <span className="text-[9px] sm:text-[10px] font-semibold text-[var(--text-muted)] bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-full px-1.5 py-0.5 uppercase tracking-wide truncate max-w-[80px]">
               {result.language}
             </span>
           ) : <span />}
           {result.duration > 0 && (
-            <span className="text-[10px] text-slate-600 font-mono tabular-nums flex-shrink-0">
+            <span className="text-[10px] text-[var(--text-muted)] font-mono tabular-nums flex-shrink-0">
               {formatDuration(result.duration)}
             </span>
           )}

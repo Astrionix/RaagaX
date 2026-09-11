@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { ArtworkColorExtractor, ChameleonPalette } from '@/lib/theme/ArtworkColorExtractor';
+import { useThemeStore } from '@/context/useThemeStore';
 
 interface DynamicArtworkAtmosphereProps {
   artworkUrl?: string | null;
@@ -34,9 +35,8 @@ function toRgba(colorStr?: string, alpha = 1): string {
  * RaagaX Dynamic Artwork Atmosphere System
  * 
  * Creates ONE continuous, smoothly blended color surface across the entire page:
- * - Subtle dark artwork-derived tint near the top
- * - Extremely gradual and soft transition throughout the entire scrollable height
- * - No horizontal seams, no color bands, no two-tone split
+ * - Subtle artwork-derived tint near the top
+ * - Adapts to Light Mode (--bg-main) & Dark Mode (#07080b)
  * - Full-height coverage so the entire page shares one unified background
  */
 export function DynamicArtworkAtmosphere({
@@ -48,6 +48,8 @@ export function DynamicArtworkAtmosphere({
 }: DynamicArtworkAtmosphereProps) {
   const [palette, setPalette] = useState<ChameleonPalette | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const { resolvedTheme } = useThemeStore();
+  const isLight = resolvedTheme === 'light';
 
   // Normalize image URL
   const cleanUrl = useMemo(() => {
@@ -77,22 +79,27 @@ export function DynamicArtworkAtmosphere({
     };
   }, [cleanUrl]);
 
+  // Base canvas colors according to theme
+  const fadeColor = isLight ? 'rgba(248, 250, 252, 0.98)' : 'rgba(7, 8, 11, 0.98)';
+
   // Color intensities
-  const baseColor = palette?.primary || 'rgb(140, 28, 48)';
-  const topAlpha = intensity === 'subtle' ? 0.22 : intensity === 'deep' ? 0.35 : 0.28;
-  const midAlpha = intensity === 'subtle' ? 0.12 : intensity === 'deep' ? 0.20 : 0.16;
-  const lowAlpha = intensity === 'subtle' ? 0.05 : intensity === 'deep' ? 0.09 : 0.07;
-  const traceAlpha = 0.02;
+  const baseColor = palette?.primary || (isLight ? 'rgb(250, 35, 59)' : 'rgb(140, 28, 48)');
+  const topAlpha = isLight
+    ? (intensity === 'subtle' ? 0.12 : intensity === 'deep' ? 0.22 : 0.16)
+    : (intensity === 'subtle' ? 0.22 : intensity === 'deep' ? 0.35 : 0.28);
+  const midAlpha = topAlpha * 0.5;
+  const lowAlpha = topAlpha * 0.25;
+  const traceAlpha = 0.01;
 
   return (
-    <div className={`relative w-full min-h-screen bg-[#07080b] ${className}`}>
+    <div className={`relative w-full min-h-screen ${isLight ? 'bg-[var(--bg-main,#f8fafc)] text-[var(--text-primary)]' : 'bg-[#07080b] text-white'} ${className}`}>
       {/* ── FULL-PAGE CONTINUOUS ATMOSPHERE CANVAS (0 Seams, 1 Surface) ── */}
       <div 
         className="absolute inset-0 w-full h-full min-h-full overflow-hidden pointer-events-none z-0 select-none"
         aria-hidden="true"
       >
-        {/* Layer 1: Base Dark Canvas Foundation */}
-        <div className="absolute inset-0 bg-[#07080b]" />
+        {/* Layer 1: Base Dark/Light Canvas Foundation */}
+        <div className="absolute inset-0" style={{ backgroundColor: isLight ? 'var(--bg-main, #f8fafc)' : '#07080b' }} />
 
         {/* Layer 2: Seamless Full-Height Continuous Gradient */}
         <div 
@@ -103,8 +110,8 @@ export function DynamicArtworkAtmosphere({
               ${toRgba(baseColor, midAlpha)} 22%, 
               ${toRgba(baseColor, lowAlpha)} 45%, 
               ${toRgba(baseColor, traceAlpha)} 70%, 
-              rgba(7, 8, 11, 0.98) 90%,
-              #07080b 100%
+              ${fadeColor} 90%,
+              ${isLight ? '#f8fafc' : '#07080b'} 100%
             )`,
           }}
         />
@@ -125,8 +132,12 @@ export function DynamicArtworkAtmosphere({
               isPlaying ? 'scale-[1.02]' : 'scale-100'
             }`}
             style={{
-              maskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.08) 40%, transparent 85%)',
-              WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.08) 40%, transparent 85%)',
+              maskImage: isLight
+                ? 'linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.03) 40%, transparent 85%)'
+                : 'linear-gradient(to bottom, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.08) 40%, transparent 85%)',
+              WebkitMaskImage: isLight
+                ? 'linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.03) 40%, transparent 85%)'
+                : 'linear-gradient(to bottom, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.08) 40%, transparent 85%)',
             }}
           >
             <img
@@ -137,7 +148,7 @@ export function DynamicArtworkAtmosphere({
                 imageLoaded ? 'opacity-100' : 'opacity-0'
               }`}
               style={{
-                filter: 'blur(90px) saturate(150%) brightness(0.55)',
+                filter: isLight ? 'blur(90px) saturate(120%) brightness(0.95)' : 'blur(90px) saturate(150%) brightness(0.55)',
                 transform: 'translate3d(0, 0, 0)',
                 willChange: 'transform',
               }}

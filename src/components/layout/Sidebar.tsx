@@ -26,6 +26,7 @@ import {
   Music,
   X,
   MonitorSpeaker,
+  Radio,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
@@ -331,6 +332,16 @@ export function Sidebar() {
           accentColor="#38bdf8"
           onClick={() => { haptics.lightImpact(); usePlayerStore.getState().toggleCastModal(); }}
         />
+        <NavItem
+          icon={Radio} label="Raaga Jam" isActive={usePlayerStore.getState().isInJam} collapsed={c}
+          accentColor="#10b981"
+          badge={
+            <span className="text-[9px] bg-emerald-500/20 text-emerald-400 font-extrabold px-1.5 py-0.2 rounded uppercase tracking-wider">
+              {usePlayerStore.getState().activeJamRoomCode || 'LIVE'}
+            </span>
+          }
+          onClick={() => { haptics.lightImpact(); usePlayerStore.getState().toggleJamModal(true); }}
+        />
 
         {/* FRIENDS LIVE */}
         {!c && (
@@ -382,71 +393,156 @@ export function Sidebar() {
         )}
 
         {c ? (
+          /* Collapsed Sidebar Friend Status Indicator */
           <div className="flex justify-center mt-1">
-            <div className="relative p-2.5" title="Friends Live Activity">
-              <Users className="w-4 h-4 text-emerald-400" />
-              {pinnedFriends.length > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <div
+              className="relative p-2.5 cursor-pointer hover:bg-white/5 rounded-xl transition-all"
+              title={friendsActivity.length > 0 ? `${friendsActivity.length} Friend(s) Listening Live` : 'Friends Live Activity'}
+              onClick={() => toggleSidebarCollapse()}
+            >
+              <Users className={`w-4 h-4 ${friendsActivity.length > 0 ? 'text-emerald-400' : 'text-[var(--text-muted)]'}`} />
+              {friendsActivity.length > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-400 animate-pulse border border-[var(--sidebar-bg)] shadow-[0_0_8px_#34d399]" />
               )}
             </div>
           </div>
-        ) : pinnedFriends.length > 0 ? (
-          <div className="space-y-0.5 mt-0.5">
-            {pinnedFriends.map((friend) => {
-              const activity = friendsActivity.find(a => a.userId === friend.tag || a.userName === friend.name);
-              const isOnline = !!activity;
-              return (
-                <div
-                  key={friend.tag}
-                  className={`group flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs transition-all ${isOnline ? 'hover:bg-[var(--bg-surface)] cursor-pointer' : 'opacity-45'}`}
-                >
-                  <div className="relative flex-shrink-0">
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-[#FA233B] to-rose-400 text-white font-bold text-[10px] flex items-center justify-center">
-                      {friend.name.charAt(0).toUpperCase()}
-                    </div>
-                    {isOnline && (
-                      <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border border-[var(--sidebar-bg)]" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[11px] font-semibold text-[var(--text-primary)] truncate leading-tight">{friend.name}</p>
-                    <p className="text-[9px] text-[var(--text-muted)] truncate leading-tight flex items-center gap-1">
-                      {isOnline
-                        ? <><Music className="w-2.5 h-2.5 flex-shrink-0" />{activity!.songTitle}</>
-                        : <span className="font-mono">{friend.tag.replace('RGX-', '')}</span>
-                      }
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleRemoveFriend(friend.tag)}
-                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-[var(--text-muted)] hover:text-red-400 transition-all cursor-pointer flex-shrink-0"
-                    title="Remove friend"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
         ) : (
-          <button
-            onClick={() => setShowAddFriend(true)}
-            className="w-full flex items-center gap-1.5 px-2.5 py-2 mx-0 rounded-xl bg-[var(--bg-surface)]/50 border border-dashed border-[var(--border-subtle)] hover:border-[#FA233B]/40 text-[var(--text-muted)] hover:text-[var(--text-primary)] text-left cursor-pointer transition-all group"
-          >
-            <Plus className="w-3.5 h-3.5 group-hover:text-[#FA233B] transition-colors flex-shrink-0" />
-            <span className="text-[10px] font-medium">Add friends by Blend Tag</span>
-          </button>
+          /* Extended Sidebar Connected Friends List with Live Song Details */
+          (() => {
+            // Combine live friends from engine and pinned friends
+            const liveMap = new Map<string, FriendActivityState>();
+            friendsActivity.forEach(a => liveMap.set(a.userId, a));
+
+            // Merge pinned list + unpinned live friends
+            const allDisplayFriends: { tag: string; name: string; activity?: FriendActivityState }[] = [];
+            
+            // Add all live activities
+            friendsActivity.forEach(act => {
+              allDisplayFriends.push({ tag: act.userTag || act.userId, name: act.userName, activity: act });
+            });
+
+            // Add pinned friends that aren't already included
+            pinnedFriends.forEach(pf => {
+              if (!allDisplayFriends.some(f => f.tag === pf.tag || f.name === pf.name)) {
+                allDisplayFriends.push({ tag: pf.tag, name: pf.name });
+              }
+            });
+
+            if (allDisplayFriends.length === 0) {
+              return (
+                <button
+                  onClick={() => setShowAddFriend(true)}
+                  className="w-full flex items-center gap-1.5 px-2.5 py-2 mx-0 rounded-xl bg-[var(--bg-surface)]/50 border border-dashed border-[var(--border-subtle)] hover:border-[#FA233B]/40 text-[var(--text-muted)] hover:text-[var(--text-primary)] text-left cursor-pointer transition-all group"
+                >
+                  <Plus className="w-3.5 h-3.5 group-hover:text-[#FA233B] transition-colors flex-shrink-0" />
+                  <span className="text-[10px] font-medium">Add friends by Blend Tag</span>
+                </button>
+              );
+            }
+
+            return (
+              <div className="space-y-1.5 mt-1">
+                {allDisplayFriends.map(({ tag, name, activity }) => {
+                  const isOnline = !!activity && activity.isPlaying;
+
+                  return (
+                    <div
+                      key={tag}
+                      className={`group relative p-2 rounded-xl border transition-all ${
+                        isOnline
+                          ? 'bg-emerald-500/10 border-emerald-500/30 hover:border-emerald-500/60 shadow-sm cursor-pointer'
+                          : 'bg-[var(--bg-surface)]/50 border-[var(--border-subtle)] opacity-60 hover:opacity-100'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {/* Avatar / Cover Art */}
+                        <div className="relative flex-shrink-0 w-7 h-7 rounded-lg overflow-hidden bg-slate-800 border border-[var(--border-subtle)] flex items-center justify-center">
+                          {activity?.coverUrl ? (
+                            <img src={activity.coverUrl} alt={name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-tr from-[#FA233B] to-rose-400 text-white font-bold text-[10px] flex items-center justify-center">
+                              {name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          {isOnline && (
+                            <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[var(--sidebar-bg)] animate-pulse" />
+                          )}
+                        </div>
+
+                        {/* Friend Info & Live Song */}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-1">
+                            <p className="text-[11px] font-bold text-[var(--text-primary)] truncate leading-tight">{name}</p>
+                            {isOnline && (
+                              <span className="text-[8px] font-extrabold text-emerald-400 bg-emerald-500/20 px-1 py-0.1 rounded uppercase tracking-wider flex-shrink-0">
+                                LIVE
+                              </span>
+                            )}
+                          </div>
+
+                          {isOnline && activity ? (
+                            <div className="mt-0.5 min-w-0">
+                              <p className="text-[10px] font-semibold text-[#FA233B] truncate leading-tight flex items-center gap-1">
+                                <Music className="w-2.5 h-2.5 flex-shrink-0 animate-bounce" />
+                                <span className="truncate">{activity.songTitle}</span>
+                              </p>
+                              <p className="text-[9px] text-[var(--text-muted)] truncate leading-tight">
+                                {activity.artist}
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="text-[9px] text-[var(--text-muted)] truncate leading-tight font-mono mt-0.5">
+                              Offline • {tag.replace('RGX-', '')}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Remove Pinned Friend Option */}
+                        {pinnedFriends.some(f => f.tag === tag) && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleRemoveFriend(tag); }}
+                            className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-[var(--text-muted)] hover:text-red-400 transition-all cursor-pointer flex-shrink-0"
+                            title="Remove friend"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()
         )}
 
         {/* PLAYLISTS */}
-        {!c && <SectionLabel>Playlists</SectionLabel>}
-        {c && <div className="h-px bg-white/5 my-1 mx-1" />}
-        {!c && (
-          <div className="flex items-center justify-between px-2.5 pb-1">
-            <span /> {/* spacer - label already rendered by SectionLabel above */}
+        {c ? (
+          <div className="my-1 flex flex-col items-center gap-1">
+            <div className="h-px w-8 bg-[var(--border-subtle)] my-1" />
             <button
-              onClick={() => setCreatePlaylistModalOpen(true)}
-              className="p-1 rounded-md hover:bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+              onClick={() => { setCreatePlaylistModalOpen(true); haptics.lightImpact(); }}
+              className="p-2.5 rounded-xl hover:bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[#FA233B] transition-colors cursor-pointer"
+              title="Create Playlist"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between px-2.5 pt-3 pb-1">
+            <div className="flex items-center gap-1.5 select-none">
+              <span className="text-[9.5px] font-black text-[var(--text-muted)] uppercase tracking-[0.12em]">
+                Playlists
+              </span>
+              {userPlaylists.length > 0 && (
+                <span className="text-[9px] font-bold text-[var(--text-muted)] bg-[var(--bg-surface)] px-1.5 py-0.2 rounded-full border border-[var(--border-subtle)]">
+                  {userPlaylists.length}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => { setCreatePlaylistModalOpen(true); haptics.lightImpact(); }}
+              className="p-1 rounded-md hover:bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[#FA233B] transition-colors cursor-pointer"
               title="Create Playlist"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -455,23 +551,72 @@ export function Sidebar() {
         )}
 
         {userPlaylists.length > 0 ? (
-          <div className="space-y-0.5">
-            {userPlaylists.map((pl) => (
-              <NavItem
-                key={pl.id}
-                icon={ListMusic}
-                label={pl.title || (pl as any).name || 'Untitled Playlist'}
-                isActive={selectedPlaylistId === pl.id && activeTab === 'playlist'}
-                collapsed={c}
-                onClick={() => { setSelectedPlaylistId(pl.id); setActiveTab('playlist'); haptics.lightImpact(); }}
-              />
-            ))}
+          <div className="space-y-1 mt-0.5">
+            {userPlaylists.map((pl) => {
+              const isActive = selectedPlaylistId === pl.id && activeTab === 'playlist';
+              const title = pl.title || (pl as any).name || 'Untitled Playlist';
+              const songCount = pl.songIds?.length || pl.songs?.length || 0;
+              const coverUrl = pl.coverUrl || (pl.songs && pl.songs[0]?.coverUrl) || '';
+
+              if (c) {
+                return (
+                  <button
+                    key={pl.id}
+                    onClick={() => { setSelectedPlaylistId(pl.id); setActiveTab('playlist'); haptics.lightImpact(); }}
+                    title={`${title} (${songCount} tracks)`}
+                    className={`w-full flex items-center justify-center p-2 rounded-xl transition-all cursor-pointer relative group/pl ${
+                      isActive
+                        ? 'bg-[#FA233B]/15 text-[#FA233B]'
+                        : 'hover:bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                    }`}
+                  >
+                    {coverUrl ? (
+                      <img src={coverUrl} alt={title} className="w-6 h-6 rounded-md object-cover shadow-sm" />
+                    ) : (
+                      <ListMusic className={`w-4 h-4 ${isActive ? 'text-[#FA233B]' : 'text-[var(--text-muted)]'}`} />
+                    )}
+                  </button>
+                );
+              }
+
+              return (
+                <button
+                  key={pl.id}
+                  onClick={() => { setSelectedPlaylistId(pl.id); setActiveTab('playlist'); haptics.lightImpact(); }}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-left transition-all cursor-pointer group/item ${
+                    isActive
+                      ? 'bg-[#FA233B]/10 border border-[#FA233B]/30 text-[var(--text-primary)] font-semibold shadow-sm'
+                      : 'hover:bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-transparent'
+                  }`}
+                >
+                  <div className={`w-7 h-7 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center border transition-colors ${
+                    isActive ? 'border-[#FA233B]/50' : 'border-[var(--border-subtle)] bg-[var(--bg-surface)]'
+                  }`}>
+                    {coverUrl ? (
+                      <img src={coverUrl} alt={title} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-[#FA233B]/20 to-purple-500/20 flex items-center justify-center">
+                        <ListMusic className={`w-3.5 h-3.5 ${isActive ? 'text-[#FA233B]' : 'text-[var(--text-muted)] group-hover/item:text-[var(--text-primary)]'}`} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-xs truncate leading-tight ${isActive ? 'text-[#FA233B] font-bold' : 'font-medium group-hover/item:text-[var(--text-primary)]'}`}>
+                      {title}
+                    </p>
+                    <p className="text-[9.5px] text-[var(--text-muted)] truncate leading-tight mt-0.5">
+                      {songCount} {songCount === 1 ? 'track' : 'tracks'}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         ) : (
           <button
-            onClick={() => setCreatePlaylistModalOpen(true)}
+            onClick={() => { setCreatePlaylistModalOpen(true); haptics.lightImpact(); }}
             title="Create a playlist"
-            className={`w-full flex ${c ? 'justify-center p-2.5' : 'flex-col items-center justify-center py-2.5 px-3'} rounded-xl bg-[var(--bg-surface)]/50 border border-dashed border-[var(--border-subtle)] hover:border-[#FA233B]/40 text-[var(--text-muted)] hover:text-[var(--text-primary)] text-center cursor-pointer transition-all group`}
+            className={`w-full flex ${c ? 'justify-center p-2.5' : 'flex-col items-center justify-center py-2.5 px-3'} rounded-xl bg-[var(--bg-surface)]/50 border border-dashed border-[var(--border-subtle)] hover:border-[#FA233B]/40 text-[var(--text-muted)] hover:text-[var(--text-primary)] text-center cursor-pointer transition-all group mt-1`}
           >
             <Plus className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[#FA233B] transition-colors" />
             {!c && <span className="text-[11px] font-medium block mt-0.5">Create playlist</span>}

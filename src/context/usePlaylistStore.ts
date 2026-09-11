@@ -71,14 +71,29 @@ export const usePlaylistStore = create<PlaylistStore>()(
           const reqUserId = session.user.id;
 
           // Fetch playlists owned by authenticated user
-          const { data: playlistsData, error } = await supabase
-            .from('playlists')
-            .select('*')
-            .eq('owner_id', session.user.id)
-            .order('created_at', { ascending: false });
+          let playlistsData: any[] | null = null;
+          let fetchErr: any = null;
 
-          if (error) {
-            console.warn('[usePlaylistStore] Fetch playlists notice:', error.message);
+          try {
+            const { data, error } = await supabase
+              .from('playlists')
+              .select('*')
+              .or(`owner_id.eq.${session.user.id},user_id.eq.${session.user.id}`)
+              .order('created_at', { ascending: false });
+            playlistsData = data;
+            fetchErr = error;
+          } catch (e) {
+            const { data, error } = await supabase
+              .from('playlists')
+              .select('*')
+              .eq('owner_id', session.user.id)
+              .order('created_at', { ascending: false });
+            playlistsData = data;
+            fetchErr = error;
+          }
+
+          if (fetchErr) {
+            console.warn('[usePlaylistStore] Fetch playlists notice:', fetchErr.message);
             set({ isLoading: false });
             return;
           }
@@ -116,23 +131,27 @@ export const usePlaylistStore = create<PlaylistStore>()(
             }
           }
 
-          const parsedPlaylists: UserPlaylist[] = playlistList.map((p) => ({
-            id: p.id,
-            title: p.name || 'Untitled Playlist',
-            description: p.description || '',
-            coverUrl: p.cover_url || '',
-            visibility: (p.visibility || 'private') as any,
-            ownerId: p.owner_id,
-            ownerName: session.user.user_metadata?.full_name || 'You',
-            creator: 'You',
-            createdAt: p.created_at,
-            updatedAt: p.updated_at,
-            songIds: songsByPlaylist[p.id] || [],
-            songs: [],
-          }));
+          const parsedPlaylists: UserPlaylist[] = playlistList.map((p) => {
+            const existingLocal = get().playlists.find((existing) => existing.id === p.id);
+            const songIds = songsByPlaylist[p.id] || existingLocal?.songIds || [];
+            return {
+              id: p.id,
+              title: p.name || 'Untitled Playlist',
+              description: p.description || '',
+              coverUrl: p.cover_url || existingLocal?.coverUrl || '',
+              visibility: (p.visibility || 'private') as any,
+              ownerId: p.owner_id,
+              ownerName: session.user.user_metadata?.full_name || 'You',
+              creator: 'You',
+              createdAt: p.created_at,
+              updatedAt: p.updated_at,
+              songIds,
+              songs: existingLocal?.songs || [],
+            };
+          });
 
           // Collect all song IDs across playlists and resolve their full Song objects
-          const allPlaylistSongIds = Array.from(new Set(Object.values(songsByPlaylist).flat()));
+          const allPlaylistSongIds = Array.from(new Set(parsedPlaylists.flatMap((pl) => pl.songIds)));
           if (allPlaylistSongIds.length > 0) {
             try {
               const { SongResolver } = await import('@/lib/discovery/SongResolver');
@@ -141,8 +160,11 @@ export const usePlaylistStore = create<PlaylistStore>()(
               resolvedSongs.forEach((s) => resolvedMap.set(s.id, s));
 
               parsedPlaylists.forEach((pl) => {
-                pl.songs = pl.songIds.map((id) => resolvedMap.get(id)).filter((s): s is Song => Boolean(s));
-                if (!pl.coverUrl && pl.songs.length > 0 && pl.songs[0].coverUrl) {
+                const resolvedList = pl.songIds.map((id) => resolvedMap.get(id)).filter((s): s is Song => Boolean(s));
+                if (resolvedList.length > 0) {
+                  pl.songs = resolvedList;
+                }
+                if (!pl.coverUrl && pl.songs.length > 0 && pl.songs[0]?.coverUrl) {
                   pl.coverUrl = pl.songs[0].coverUrl;
                 }
               });
@@ -157,8 +179,19 @@ export const usePlaylistStore = create<PlaylistStore>()(
             return;
           }
 
+          // MERGE WITH UN-SYNCED LOCAL PLAYLISTS (don't wipe out local creations)
+          const currentLocal = get().playlists;
+          const remoteMap = new Map(parsedPlaylists.map((p) => [p.id, p]));
+          const mergedPlaylists = [...parsedPlaylists];
+
+          currentLocal.forEach((localPl) => {
+            if (!remoteMap.has(localPl.id)) {
+              mergedPlaylists.push(localPl);
+            }
+          });
+
           set({
-            playlists: parsedPlaylists,
+            playlists: mergedPlaylists,
             lastFetchedTime: Date.now(),
             isLoading: false,
           });
@@ -205,27 +238,31 @@ export const usePlaylistStore = create<PlaylistStore>()(
             return newPl;
           }
 
-          // Exact columns matching public.playlists table
-          const { error } = await supabase.from('playlists').insert({
+          // Insert into playlists table
+          const payload: any = {
             id,
             name: title,
             description: description || '',
             cover_url: coverUrl || null,
             visibility: visibility || 'private',
             owner_id: session.user.id,
-          });
+          };
+
+          let { error } = await supabase.from('playlists').insert(payload);
+          if (error && error.message?.includes('owner_id')) {
+            delete payload.owner_id;
+            payload.user_id = session.user.id;
+            const res = await supabase.from('playlists').insert(payload);
+            error = res.error;
+          }
 
           if (error) {
-            console.error('[usePlaylistStore] Supabase playlist create error:', error.message);
-            import('@/context/usePlayerStore').then(({ usePlayerStore }) => {
-              usePlayerStore.getState().setToastMessage(`Playlist saved locally (${error.message})`);
-            });
-            return newPl;
+            console.warn('[usePlaylistStore] Supabase playlist create notice:', error.message);
           }
 
           return newPl;
         } catch (e: any) {
-          console.error('[usePlaylistStore] Failed to create playlist in cloud, saved locally:', e);
+          console.warn('[usePlaylistStore] Failed to create playlist in cloud, saved locally:', e);
           return newPl;
         }
       },
@@ -241,9 +278,8 @@ export const usePlaylistStore = create<PlaylistStore>()(
           }
           return true;
         } catch (e) {
-          console.error('[usePlaylistStore] Failed to delete playlist from cloud, rolling back:', e);
-          set({ playlists: previousPlaylists, lastFetchedTime: undefined });
-          return false;
+          console.warn('[usePlaylistStore] Failed to delete playlist from cloud, removed locally:', e);
+          return true;
         }
       },
 
@@ -262,7 +298,6 @@ export const usePlaylistStore = create<PlaylistStore>()(
         const newSongIds = [...targetPl.songIds, song.id];
         const newSongs = [...targetPl.songs, song];
         const newCoverUrl = targetPl.coverUrl || song.coverUrl || '';
-        const previousPlaylists = get().playlists;
 
         set((state) => ({
           playlists: state.playlists.map((pl) => {
@@ -280,46 +315,44 @@ export const usePlaylistStore = create<PlaylistStore>()(
           lastFetchedTime: undefined
         }));
 
+        import('@/context/usePlayerStore').then(({ usePlayerStore }) => {
+          usePlayerStore.getState().setToastMessage(`Added "${song.title}" to "${targetPl.title}"`);
+        });
+
+        // Background Cloud Sync (Best effort - never rollback local state if cloud sync fails)
         try {
-          const nextPosition = newSongIds.length;
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user?.id) {
+            const nextPosition = newSongIds.length;
 
-          // Insert into playlist_songs
-          const { error } = await supabase.from('playlist_songs').insert({
-            playlist_id: playlistId,
-            song_id: song.id,
-            position: nextPosition,
-          });
-
-          if (error) {
-            console.warn('[usePlaylistStore] Supabase playlist_songs insert error:', error.message);
-            if (error.code !== '23505') {
-              console.error('[usePlaylistStore] Failed to insert song relationship in cloud:', error);
+            const { data: cloudPl } = await supabase.from('playlists').select('id').eq('id', playlistId).maybeSingle();
+            if (!cloudPl) {
+              await supabase.from('playlists').upsert({
+                id: targetPl.id,
+                name: targetPl.title,
+                description: targetPl.description || '',
+                cover_url: newCoverUrl || null,
+                visibility: targetPl.visibility || 'private',
+                owner_id: session.user.id,
+              }, { onConflict: 'id', ignoreDuplicates: true });
             }
-          } else {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session?.user?.id) {
+
+            const { error } = await supabase.from('playlist_songs').upsert({
+              playlist_id: playlistId,
+              song_id: song.id,
+              position: nextPosition,
+            }, { onConflict: 'playlist_id,song_id', ignoreDuplicates: true });
+
+            if (!error) {
               const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
               await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.user.id).catch(() => {});
             }
           }
-
-          // If playlist had no cover art, update cover_url in Supabase
-          if (!targetPl.coverUrl && song.coverUrl) {
-            try {
-              await supabase.from('playlists').update({ cover_url: song.coverUrl }).eq('id', playlistId);
-            } catch {}
-          }
-
-          import('@/context/usePlayerStore').then(({ usePlayerStore }) => {
-            usePlayerStore.getState().setToastMessage(`Added "${song.title}" to "${targetPl.title}"`);
-          });
-
-          return true;
         } catch (e) {
-          console.error('[usePlaylistStore] Failed to add song to playlist in cloud, rolling back:', e);
-          set({ playlists: previousPlaylists, lastFetchedTime: undefined });
-          return false;
+          console.warn('[usePlaylistStore] Cloud sync warning for added song, kept locally:', e);
         }
+
+        return true;
       },
 
       removeSongFromPlaylist: async (playlistId, songId) => {

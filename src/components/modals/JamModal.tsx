@@ -136,21 +136,21 @@ export function JamModal() {
       <div className="absolute inset-0" onClick={() => toggleJamModal(false)} />
 
       {/* Spotify Signature Jam Modal Container */}
-      <div className="relative z-10 w-full md:w-[420px] bg-[#121212] border border-white/10 shadow-[0_32px_64px_rgba(0,0,0,0.9)] overflow-hidden rounded-t-[28px] md:rounded-3xl max-h-[85vh] md:max-h-[620px] flex flex-col md:fixed md:bottom-[76px] md:right-8 text-white transition-all duration-300">
+      <div className="relative z-10 w-full md:w-[420px] bg-[var(--bg-elevated)] border border-[var(--border-subtle)] shadow-[0_32px_64px_rgba(0,0,0,0.5)] overflow-hidden rounded-t-[28px] md:rounded-3xl max-h-[85vh] md:max-h-[620px] flex flex-col md:fixed md:bottom-[76px] md:right-8 text-[var(--text-primary)] transition-all duration-300">
         
         {/* Mobile Drag Pill */}
         <div className="md:hidden pt-3 pb-1 flex justify-center">
-          <div className="w-10 h-1 rounded-full bg-white/20" />
+          <div className="w-10 h-1 rounded-full bg-[var(--border-subtle)]" />
         </div>
 
-        {/* Spotify Minimal Header */}
-        <div className="px-5 py-4 flex items-center justify-between border-b border-white/5 bg-[#181818] flex-shrink-0">
+        {/* Minimal Header */}
+        <div className="px-5 py-4 flex items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-[#1DB954] flex items-center justify-center text-black shadow-md shadow-[#1DB954]/20">
               <Radio className="w-5 h-5 text-black" />
             </div>
             <div>
-              <h2 className="text-base font-extrabold text-white tracking-tight flex items-center gap-2">
+              <h2 className="text-base font-extrabold text-[var(--text-primary)] tracking-tight flex items-center gap-2">
                 Raaga Jam
                 {jamState && (
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#1DB954]/20 text-[#1DB954] border border-[#1DB954]/30">
@@ -159,36 +159,36 @@ export function JamModal() {
                   </span>
                 )}
               </h2>
-              <p className="text-[11px] text-[#b3b3b3]">Listen together in real time</p>
+              <p className="text-[11px] text-[var(--text-muted)]">Listen together in real time</p>
             </div>
           </div>
           <button
             onClick={() => toggleJamModal(false)}
-            className="p-1.5 text-[#b3b3b3] hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+            className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-full hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Clean Segmented Tab Bar */}
-        <div className="px-5 pt-3 bg-[#121212] flex-shrink-0">
-          <div className="flex p-1 rounded-xl bg-[#181818] border border-white/5">
+        <div className="px-5 pt-3 bg-[var(--bg-elevated)] flex-shrink-0">
+          <div className="flex p-1 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
             <button
               onClick={() => setActiveTab('session')}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                 activeTab === 'session'
-                  ? 'bg-[#282828] text-white shadow-sm'
-                  : 'text-[#b3b3b3] hover:text-white'
+                  ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-sm'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
             >
               {jamState ? 'Active Jam' : 'Start Jam'}
             </button>
             <button
               onClick={() => setActiveTab('join')}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                 activeTab === 'join'
-                  ? 'bg-[#282828] text-white shadow-sm'
-                  : 'text-[#b3b3b3] hover:text-white'
+                  ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-sm'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
             >
               Join Code
@@ -200,15 +200,15 @@ export function JamModal() {
         <div className="p-5 overflow-y-auto custom-scrollbar flex-1 space-y-5">
           {activeTab === 'session' ? (
             !jamState ? (
-              /* Spotify Clean Start Jam Hero */
+              /* Clean Start Jam Hero */
               <div className="flex flex-col items-center text-center py-6 space-y-5">
                 <div className="w-16 h-16 rounded-full bg-[#1DB954]/10 border border-[#1DB954]/30 flex items-center justify-center text-[#1DB954]">
                   <Sparkles className="w-8 h-8" />
                 </div>
 
                 <div className="space-y-1">
-                  <h3 className="text-lg font-bold text-white tracking-tight">Host a Raaga Jam</h3>
-                  <p className="text-xs text-[#b3b3b3] max-w-xs leading-relaxed">
+                  <h3 className="text-lg font-bold text-[var(--text-primary)] tracking-tight">Host a Raaga Jam</h3>
+                  <p className="text-xs text-[var(--text-muted)] max-w-xs leading-relaxed">
                     Sync playback with friends on any phone or desktop. Zero audio data cost, 100% full HD quality!
                   </p>
                 </div>
@@ -223,13 +223,13 @@ export function JamModal() {
                 </button>
               </div>
             ) : (
-              /* Spotify Signature Ultra-Clean Active Jam Room UI */
+              /* Ultra-Clean Active Jam Room UI */
               <div className="space-y-4">
                 {/* 1. Room Join Code Display & Instant Actions */}
-                <div className="p-4 rounded-2xl bg-[#181818] border border-white/5 space-y-3">
+                <div className="p-4 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] space-y-3 shadow-md">
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] text-[#b3b3b3] font-bold uppercase tracking-wider block">
+                      <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider block">
                         Room Join Code
                       </span>
                       <div className="text-3xl font-black text-[#1DB954] tracking-widest font-mono drop-shadow-[0_2px_8px_rgba(29,185,84,0.3)]">
@@ -240,7 +240,7 @@ export function JamModal() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={handleCopyCode}
-                        className="p-2.5 rounded-full bg-[#282828] hover:bg-[#333333] text-xs font-semibold text-white transition-all cursor-pointer border border-white/10 active:scale-95"
+                        className="p-2.5 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--surface-hover)] text-xs font-semibold text-[var(--text-primary)] transition-all cursor-pointer border border-[var(--border-subtle)] active:scale-95"
                         title="Copy Code"
                       >
                         {copied ? <Check className="w-4 h-4 text-[#1DB954]" /> : <Copy className="w-4 h-4" />}
@@ -256,14 +256,14 @@ export function JamModal() {
                   </div>
 
                   {/* Host Settings Toggle Header */}
-                  <div className="pt-2 border-t border-white/10 flex items-center justify-between">
+                  <div className="pt-2 border-t border-[var(--border-subtle)] flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-[#1DB954] animate-ping" />
-                      <span className="text-xs font-bold text-white">Live Sync Active</span>
+                      <span className="text-xs font-bold text-[var(--text-primary)]">Live Sync Active</span>
                     </div>
                     <button
                       onClick={() => setShowHostSettings(!showHostSettings)}
-                      className="px-2.5 py-1 rounded-full bg-[#282828] hover:bg-white/10 text-[11px] font-bold text-[#1DB954] border border-[#1DB954]/30 flex items-center gap-1 cursor-pointer"
+                      className="px-2.5 py-1 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--surface-hover)] text-[11px] font-bold text-[#1DB954] border border-[#1DB954]/30 flex items-center gap-1 cursor-pointer"
                     >
                       <Settings className="w-3 h-3 text-[#1DB954]" />
                       <span>Host Controls</span>
@@ -272,14 +272,14 @@ export function JamModal() {
 
                   {/* Host & Room Settings Dropdown Panel */}
                   {showHostSettings && (
-                    <div className="p-3 rounded-xl bg-black/60 border border-[#1DB954]/40 space-y-2.5 animate-in fade-in text-xs">
-                      <div className="flex items-center justify-between pb-1 border-b border-white/10">
-                        <span className="font-extrabold text-white flex items-center gap-1.5">
+                    <div className="p-3 rounded-xl bg-[var(--bg-surface)] border border-[#1DB954]/40 space-y-2.5 animate-in fade-in text-xs">
+                      <div className="flex items-center justify-between pb-1 border-b border-[var(--border-subtle)]">
+                        <span className="font-extrabold text-[var(--text-primary)] flex items-center gap-1.5">
                           <Shield className="w-3.5 h-3.5 text-[#1DB954]" /> Room Settings
                         </span>
                         <button
                           onClick={() => setShowHostSettings(false)}
-                          className="text-[10px] text-[#b3b3b3] hover:text-white cursor-pointer"
+                          className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
                         >
                           Close
                         </button>
@@ -287,8 +287,8 @@ export function JamModal() {
 
                       <div className="flex items-center justify-between py-1">
                         <div>
-                          <p className="font-bold text-white text-[11px]">Guest Controls</p>
-                          <p className="text-[9px] text-[#b3b3b3]">Allow guests to Play / Pause / Skip</p>
+                          <p className="font-bold text-[var(--text-primary)] text-[11px]">Guest Controls</p>
+                          <p className="text-[9px] text-[var(--text-muted)]">Allow guests to Play / Pause / Skip</p>
                         </div>
                         {isHost ? (
                           <button
@@ -319,7 +319,7 @@ export function JamModal() {
 
                 {/* 2. Compact Now Playing Track */}
                 {jamState.currentSong && (
-                  <div className="p-3 rounded-2xl bg-[#181818] border border-white/5 flex items-center gap-3">
+                  <div className="p-3 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center gap-3">
                     <img
                       src={jamState.currentSong.coverUrl || '/app-icon.png'}
                       alt={jamState.currentSong.title}
@@ -331,8 +331,8 @@ export function JamModal() {
                         <span className="w-1.5 h-1.5 rounded-full bg-[#1DB954] animate-ping" />
                         <span className="text-[10px] text-[#1DB954] font-bold uppercase tracking-wider">Jam Playing</span>
                       </div>
-                      <p className="text-xs font-bold text-white truncate">{jamState.currentSong.title}</p>
-                      <p className="text-[11px] text-[#b3b3b3] truncate">{jamState.currentSong.artist}</p>
+                      <p className="text-xs font-bold text-[var(--text-primary)] truncate">{jamState.currentSong.title}</p>
+                      <p className="text-[11px] text-[var(--text-muted)] truncate">{jamState.currentSong.artist}</p>
                     </div>
                   </div>
                 )}
@@ -340,7 +340,7 @@ export function JamModal() {
                 {/* 3. Connected Friends List */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[#b3b3b3] uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-1.5">
                       <Users className="w-3.5 h-3.5 text-[#1DB954]" />
                       Connected ({jamState.members.length})
                     </span>
@@ -354,7 +354,7 @@ export function JamModal() {
                     {jamState.members.map((member) => (
                       <div
                         key={member.deviceId}
-                        className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#181818] border border-white/10 text-xs text-white"
+                        className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)]"
                       >
                         <span className="w-2 h-2 rounded-full bg-[#1DB954]" />
                         <span className="font-semibold text-xs">{member.displayName}</span>
@@ -369,7 +369,7 @@ export function JamModal() {
                 {/* 4. Collaborative Jam Queue */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[#b3b3b3] uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-1.5">
                       <Music2 className="w-3.5 h-3.5 text-[#1DB954]" />
                       Queue ({jamState.queue.length})
                     </span>
@@ -384,9 +384,9 @@ export function JamModal() {
                   </div>
 
                   {jamState.queue.length === 0 ? (
-                    <div className="p-4 rounded-2xl bg-[#181818] border border-white/5 text-center text-xs text-[#b3b3b3] space-y-1">
-                      <p className="font-semibold text-white">Queue is empty</p>
-                      <p className="text-[11px] text-[#727272]">Tap 3-dots (⋮) on any song or playlist & choose "Add to Jam Queue"</p>
+                    <div className="p-4 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-center text-xs text-[var(--text-muted)] space-y-1">
+                      <p className="font-semibold text-[var(--text-primary)]">Queue is empty</p>
+                      <p className="text-[11px] text-[var(--text-muted)]">Tap 3-dots (⋮) on any song or playlist & choose "Add to Jam Queue"</p>
                     </div>
                   ) : (
                     <div className="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-1">
@@ -400,7 +400,7 @@ export function JamModal() {
                         return (
                           <div
                             key={item.id}
-                            className="flex items-center justify-between p-2.5 rounded-xl bg-[#181818] border border-white/5 hover:bg-[#282828] transition-colors gap-3"
+                            className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:bg-[var(--surface-hover)] transition-colors gap-3"
                           >
                             <div className="flex items-center gap-3 min-w-0 flex-1">
                               <img
@@ -410,8 +410,8 @@ export function JamModal() {
                                 className="w-10 h-10 rounded-lg object-cover flex-shrink-0 bg-slate-800"
                               />
                               <div className="min-w-0 flex-1">
-                                <p className="text-xs font-bold text-white truncate">{item.song.title}</p>
-                                <p className="text-[10px] text-[#b3b3b3] truncate">
+                                <p className="text-xs font-bold text-[var(--text-primary)] truncate">{item.song.title}</p>
+                                <p className="text-[10px] text-[var(--text-muted)] truncate">
                                   Added by {item.addedByMemberName}
                                 </p>
                               </div>
@@ -424,7 +424,7 @@ export function JamModal() {
                                 className={`py-1 px-2.5 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border active:scale-95 ${
                                   hasUpvoted
                                     ? 'bg-[#1DB954]/25 text-[#1DB954] border-[#1DB954]/50'
-                                    : 'bg-[#282828] text-white/70 hover:text-white hover:bg-[#333333] border-white/5'
+                                    : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] border-[var(--border-subtle)]'
                                 }`}
                                 title="Upvote / Like song"
                               >
@@ -437,7 +437,7 @@ export function JamModal() {
                                 className={`py-1 px-2.5 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border active:scale-95 ${
                                   hasDownvoted
                                     ? 'bg-red-500/25 text-red-400 border-red-500/50'
-                                    : 'bg-[#282828] text-white/70 hover:text-white hover:bg-[#333333] border-white/5'
+                                    : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] border-[var(--border-subtle)]'
                                 }`}
                                 title="Downvote / Dislike song"
                               >
@@ -466,8 +466,8 @@ export function JamModal() {
             /* Join Room Code Form */
             <form onSubmit={handleJoinJam} className="py-4 space-y-5">
               <div className="text-center space-y-1">
-                <h3 className="text-base font-bold text-white">Enter 4-Digit Room Code</h3>
-                <p className="text-xs text-[#b3b3b3]">Ask your friend for their 4-character Jam code (e.g. RAAG)</p>
+                <h3 className="text-base font-bold text-[var(--text-primary)]">Enter 4-Digit Room Code</h3>
+                <p className="text-xs text-[var(--text-muted)]">Ask your friend for their 4-character Jam code (e.g. RAAG)</p>
               </div>
 
               <div className="relative max-w-xs mx-auto">
@@ -477,7 +477,7 @@ export function JamModal() {
                   onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
                   placeholder="RAAG"
                   maxLength={8}
-                  className="w-full text-center text-4xl font-mono tracking-widest font-black py-3.5 px-4 rounded-2xl bg-black border border-[#1DB954]/40 text-[#1DB954] focus:outline-none focus:border-[#1DB954]"
+                  className="w-full text-center text-4xl font-mono tracking-widest font-black py-3.5 px-4 rounded-2xl bg-[var(--bg-surface)] border border-[#1DB954]/40 text-[#1DB954] placeholder:[var(--text-muted)] focus:outline-none focus:border-[#1DB954]"
                 />
               </div>
 

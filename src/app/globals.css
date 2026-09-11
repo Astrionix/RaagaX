@@ -50,9 +50,9 @@
     --accent-crimson-bright: #FF1E27;
     --accent-crimson-dark: #8F0008;
     --text-primary: #0F172A;
-    --text-secondary: #334155;
-    --text-muted: #64748B;
-    --text-tertiary: #94A3B8; /* alias for muted */
+    --text-secondary: #1E293B; /* Slate-800 - crisp, sharp dark text */
+    --text-muted: #334155; /* Slate-700 - high contrast readable dark slate */
+    --text-tertiary: #475569; /* Slate-600 */
     --metallic-silver: #64748B;
     --metallic-soft: #E2E8F0;
     --glass-bg: rgba(255, 255, 255, 0.88);
@@ -301,19 +301,28 @@
   color: #0F172A;
 }
 
-/* Opacity text variants in light mode */
+/* Opacity text variants in light mode - Boost contrast for maximum legibility */
 .light .text-white\/90, [data-theme="light"] .text-white\/90 { color: #0F172A !important; }
-.light .text-white\/80, [data-theme="light"] .text-white\/80 { color: #1E293B !important; }
-.light .text-white\/70, [data-theme="light"] .text-white\/70 { color: #334155 !important; }
-.light .text-white\/60, [data-theme="light"] .text-white\/60 { color: #475569 !important; }
-.light .text-white\/50, [data-theme="light"] .text-white\/50 { color: #64748B !important; }
-.light .text-white\/40, [data-theme="light"] .text-white\/40 { color: #94A3B8 !important; }
+.light .text-white\/80, [data-theme="light"] .text-white\/80 { color: #0F172A !important; }
+.light .text-white\/70, [data-theme="light"] .text-white\/70 { color: #1E293B !important; }
+.light .text-white\/60, [data-theme="light"] .text-white\/60 { color: #1E293B !important; }
+.light .text-white\/50, [data-theme="light"] .text-white\/50 { color: #334155 !important; }
+.light .text-white\/40, [data-theme="light"] .text-white\/40 { color: #334155 !important; }
 
-/* Slate contrast boost in light mode */
+/* Slate & hex dark text contrast boost in light mode */
 .light .text-slate-200, [data-theme="light"] .text-slate-200 { color: #0F172A !important; }
-.light .text-slate-300, [data-theme="light"] .text-slate-300 { color: #1E293B !important; }
-.light .text-slate-400, [data-theme="light"] .text-slate-400 { color: #475569 !important; }
-.light .text-slate-500, [data-theme="light"] .text-slate-500 { color: #64748B !important; }
+.light .text-slate-300, [data-theme="light"] .text-slate-300 { color: #0F172A !important; }
+.light .text-slate-400, [data-theme="light"] .text-slate-400 { color: #1E293B !important; }
+.light .text-slate-500, [data-theme="light"] .text-slate-500 { color: #334155 !important; }
+.light .text-slate-600, [data-theme="light"] .text-slate-600 { color: #334155 !important; }
+
+/* Invert dark theme muted hex colors in light mode */
+.light .text-\[\#b3b3b3\], [data-theme="light"] .text-\[\#b3b3b3\],
+.light .text-\[\#727272\], [data-theme="light"] .text-\[\#727272\],
+.light .text-\[\#535353\], [data-theme="light"] .text-\[\#535353\],
+.light .text-\[\#94A3B8\], [data-theme="light"] .text-\[\#94A3B8\] {
+  color: #334155 !important;
+}
 
 /* Invert hardcoded dark container backgrounds */
 .light .bg-\[\#06070a\], [data-theme="light"] .bg-\[\#06070a\],

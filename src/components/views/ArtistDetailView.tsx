@@ -206,9 +206,9 @@ export function ArtistDetailView() {
 
   return (
     <DynamicArtworkAtmosphere artworkUrl={artistAvatarUrl} isPlaying={isCurrentArtistPlaying}>
-      <div className="relative min-h-screen text-white pb-36 select-none animate-in fade-in duration-300">
+      <div className="relative text-[var(--text-primary)] pb-36 select-none animate-in fade-in duration-300">
         {/* ── TOP NAVIGATION BAR ────────────────────────────────────────────── */}
-        <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-3.5 sm:py-4 backdrop-blur-md bg-black/20 border-b border-white/[0.04]">
+        <div className="sticky top-0 z-40 flex items-center justify-between px-4 sm:px-8 py-3.5 sm:py-4 backdrop-blur-md bg-[var(--header-bg)] border-b border-[var(--border-subtle)]">
         <button
           onClick={() => {
             haptics.lightImpact();
@@ -226,14 +226,14 @@ export function ArtistDetailView() {
               setActiveTab('home');
             }
           }}
-          className="p-2 -ml-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+          className="p-2 -ml-2 rounded-full hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold cursor-pointer"
           title="Back"
         >
           <ArrowLeft className="w-5 h-5" />
           <span className="hidden sm:inline">Back</span>
         </button>
 
-        <h2 className="text-sm font-bold text-white/90 truncate max-w-[240px] sm:max-w-[400px]">
+        <h2 className="text-sm font-bold text-[var(--text-primary)] truncate max-w-[240px] sm:max-w-[400px]">
           {artist.name}
         </h2>
 
@@ -250,7 +250,7 @@ export function ArtistDetailView() {
               setToastMessage('Link copied to clipboard!');
             }
           }}
-          className="p-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-all active:scale-95 cursor-pointer"
+          className="p-2 rounded-full hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all active:scale-95 cursor-pointer"
           title="Share Artist"
         >
           <Share2 className="w-5 h-5" />
@@ -279,12 +279,12 @@ export function ArtistDetailView() {
               <span>{artist.isVerified ? 'Verified Maestro' : 'Featured Artist'}</span>
             </div>
 
-            <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-white tracking-tight leading-tight">
+            <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-[var(--text-primary)] tracking-tight leading-tight">
               {artist.name}
             </h1>
 
-            <p className="text-xs sm:text-sm text-slate-300 font-medium flex items-center justify-center md:justify-start gap-1.5">
-              <Users className="w-4 h-4 text-slate-400" />
+            <p className="text-xs sm:text-sm text-[var(--text-secondary)] font-medium flex items-center justify-center md:justify-start gap-1.5">
+              <Users className="w-4 h-4 text-[var(--text-muted)]" />
               <span>{((artist.followerCount || 12400000) / 1000000).toFixed(1)}M Monthly Listeners</span>
               <span>•</span>
               <span className="capitalize">{preferredLanguage} Maestro</span>
@@ -293,7 +293,7 @@ export function ArtistDetailView() {
         </div>
 
         {/* ── ACTION BUTTONS ROW ─────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center justify-center md:justify-start gap-3.5 mt-8 pt-6 border-t border-white/10">
+        <div className="flex flex-wrap items-center justify-center md:justify-start gap-3.5 mt-8 pt-6 border-t border-[var(--border-subtle)]">
           <button
             onClick={handlePlayTopHits}
             className="flex items-center gap-2.5 px-7 py-3.5 rounded-full bg-[#fa233b] hover:bg-[#d91e32] text-white font-black text-sm shadow-xl shadow-red-500/25 active:scale-95 transition-all cursor-pointer"
@@ -311,11 +311,10 @@ export function ArtistDetailView() {
 
           <button
             onClick={handleShuffleArtist}
-            className="flex items-center gap-2 px-5 py-3.5 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold text-sm border border-white/10 active:scale-95 transition-all cursor-pointer"
+            className="flex items-center gap-2 px-5 py-3.5 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] text-[var(--text-primary)] font-bold text-sm border border-[var(--border-subtle)] active:scale-95 transition-all cursor-pointer"
           >
             <Shuffle className="w-4 h-4" /> Shuffle
           </button>
-
 
           {/* ＋ Follow / ✓ Following subscription toggle */}
           <button
@@ -331,7 +330,7 @@ export function ArtistDetailView() {
             className={`flex items-center gap-2 px-5 py-3.5 rounded-full font-bold text-sm border transition-all active:scale-95 cursor-pointer ${
               isFollowing
                 ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400'
-                : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/90'
+                : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-primary)]'
             }`}
           >
             {isFollowing ? <Check className="w-4 h-4 text-emerald-400 stroke-[3]" /> : <span>＋</span>}
@@ -342,7 +341,7 @@ export function ArtistDetailView() {
 
       {/* ── 5 STRUCTURED TABS (Popular, Songs, Albums, Playlists, About) ── */}
       <div className="max-w-6xl mx-auto px-4 sm:px-8 mb-6 sm:mb-8">
-        <div className="flex items-center gap-2.5 border-b border-white/10 overflow-x-auto no-scrollbar pb-3">
+        <div className="flex items-center gap-2.5 border-b border-[var(--border-subtle)] overflow-x-auto no-scrollbar pb-3">
           {[
             { id: 'popular', label: 'Popular', icon: Sparkles },
             { id: 'songs', label: 'Songs', icon: Music },
@@ -358,8 +357,8 @@ export function ArtistDetailView() {
                 onClick={() => setActiveSubTab(tab.id as ArtistTab)}
                 className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
                   isActive
-                    ? 'bg-white/15 text-white border border-white/20 shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+                    ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-subtle)] shadow-md'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] border border-transparent'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
@@ -383,11 +382,11 @@ export function ArtistDetailView() {
                   key={song.id}
                   onClick={() => playSong(song, artistSongs, { type: 'artist', id: artist?.id || selectedArtistId || '', title: artist?.name || 'Artist', name: artist?.name || 'Artist' })}
                   className={`flex items-center justify-between p-2.5 sm:px-4 rounded-xl transition-all cursor-pointer group ${
-                    isPlayingCurrent ? 'bg-white/[0.08] border border-white/15' : 'hover:bg-white/5 border border-transparent'
+                    isPlayingCurrent ? 'bg-[var(--bg-elevated)] border border-[#fa233b]/40' : 'hover:bg-[var(--bg-surface)] border border-transparent'
                   }`}
                 >
                   <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                    <span className="text-xs font-mono font-bold text-slate-500 w-4 text-center group-hover:hidden">
+                    <span className="text-xs font-mono font-bold text-[var(--text-muted)] w-4 text-center group-hover:hidden">
                       {rankNum}
                     </span>
                     <button className="w-4 text-[#fa233b] hidden group-hover:flex items-center justify-center">
@@ -399,20 +398,20 @@ export function ArtistDetailView() {
                       className="w-10 h-10 rounded-lg object-cover bg-slate-800 flex-shrink-0"
                     />
                     <div className="min-w-0 flex-1">
-                      <h4 className="text-xs font-bold truncate text-white">
+                      <h4 className="text-xs font-bold truncate text-[var(--text-primary)]">
                         {song.title}
                       </h4>
-                      <p className="text-[11px] text-slate-400 truncate mt-0.5">{song.album || song.artist}</p>
+                      <p className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">{song.album || song.artist}</p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                    <span className="text-[11px] font-mono text-slate-400 hidden sm:inline">
+                    <span className="text-[11px] font-mono text-[var(--text-muted)] hidden sm:inline">
                       {formatDuration(song.duration)}
                     </span>
                     <button
                       onClick={() => toggleLikeSong(song.id)}
-                      className="p-1 text-slate-400 hover:text-[#fa233b] transition-transform active:scale-125"
+                      className="p-1 text-[var(--text-muted)] hover:text-[#fa233b] transition-transform active:scale-125"
                     >
                       <Heart className={`w-4 h-4 ${likedSongIds.includes(song.id) ? 'text-[#fa233b] fill-current' : ''}`} />
                     </button>
@@ -435,7 +434,7 @@ export function ArtistDetailView() {
                 key={song.id}
                 onClick={() => playSong(song, artistSongs)}
                 className={`flex items-center justify-between p-2.5 sm:px-4 rounded-xl transition-all cursor-pointer group ${
-                  isPlayingCurrent ? 'bg-white/[0.08] border border-white/15' : 'hover:bg-white/5 border border-transparent'
+                  isPlayingCurrent ? 'bg-[var(--bg-elevated)] border border-[#fa233b]/40' : 'hover:bg-[var(--bg-surface)] border border-transparent'
                 }`}
               >
                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
@@ -445,20 +444,20 @@ export function ArtistDetailView() {
                     className="w-10 h-10 rounded-lg object-cover bg-slate-800 flex-shrink-0"
                   />
                   <div className="min-w-0 flex-1">
-                    <h4 className="text-xs font-bold truncate text-white">
+                    <h4 className="text-xs font-bold truncate text-[var(--text-primary)]">
                       {song.title}
                     </h4>
-                    <p className="text-[11px] text-slate-400 truncate mt-0.5">{song.album || song.artist}</p>
+                    <p className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">{song.album || song.artist}</p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                  <span className="text-[11px] font-mono text-slate-400 hidden sm:inline">
+                  <span className="text-[11px] font-mono text-[var(--text-muted)] hidden sm:inline">
                     {formatDuration(song.duration)}
                   </span>
                   <button
                     onClick={() => toggleLikeSong(song.id)}
-                    className="p-1 text-slate-400 hover:text-[#fa233b] transition-transform active:scale-125"
+                    className="p-1 text-[var(--text-muted)] hover:text-[#fa233b] transition-transform active:scale-125"
                   >
                     <Heart className={`w-4 h-4 ${likedSongIds.includes(song.id) ? 'text-[#fa233b] fill-current' : ''}`} />
                   </button>
@@ -481,9 +480,9 @@ export function ArtistDetailView() {
                   setSelectedAlbumId(alb.id);
                   setActiveTab('album');
                 }}
-                className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 transition-all space-y-3 cursor-pointer group hover:scale-[1.02]"
+                className="p-3 rounded-2xl bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-[#fa233b]/30 transition-all space-y-3 cursor-pointer group hover:scale-[1.02]"
               >
-                <div className="w-full aspect-square rounded-xl overflow-hidden shadow-lg relative bg-slate-900 border border-white/10">
+                <div className="w-full aspect-square rounded-xl overflow-hidden shadow-lg relative bg-slate-900 border border-[var(--border-subtle)]">
                   <img
                     src={alb.coverUrl}
                     alt={alb.title}
@@ -491,10 +490,10 @@ export function ArtistDetailView() {
                   />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-white truncate group-hover:text-[#fa233b] transition-colors">
+                  <h4 className="text-xs font-bold text-[var(--text-primary)] truncate group-hover:text-[#fa233b] transition-colors">
                     {alb.title}
                   </h4>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
+                  <p className="text-[10px] text-[var(--text-muted)] mt-0.5">
                     {alb.releaseYear || 'Album'} {alb.trackCount ? `• ${alb.trackCount} Songs` : ''}
                   </p>
                 </div>
@@ -516,9 +515,9 @@ export function ArtistDetailView() {
               <div
                 key={pl.id}
                 onClick={handlePlayTopHits}
-                className="p-3.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 transition-all cursor-pointer group space-y-3 hover:scale-[1.02]"
+                className="p-3.5 rounded-2xl bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-[#fa233b]/30 transition-all cursor-pointer group space-y-3 hover:scale-[1.02]"
               >
-                <div className="w-full aspect-square rounded-xl overflow-hidden shadow-lg relative bg-slate-900 border border-white/10">
+                <div className="w-full aspect-square rounded-xl overflow-hidden shadow-lg relative bg-slate-900 border border-[var(--border-subtle)]">
                   <img
                     src={pl.img}
                     alt={pl.title}
@@ -529,8 +528,8 @@ export function ArtistDetailView() {
                   </div>
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-white truncate group-hover:text-[#fa233b]">{pl.title}</h4>
-                  <p className="text-[10px] text-slate-400 mt-0.5">RaagaX Curated • {pl.count} Songs</p>
+                  <h4 className="text-xs font-bold text-[var(--text-primary)] truncate group-hover:text-[#fa233b]">{pl.title}</h4>
+                  <p className="text-[10px] text-[var(--text-muted)] mt-0.5">RaagaX Curated • {pl.count} Songs</p>
                 </div>
               </div>
             ))}
@@ -541,24 +540,24 @@ export function ArtistDetailView() {
       {/* ── TAB 5: ABOUT ─────────────────────────────────────────────────── */}
       {activeSubTab === 'about' && (
         <div className="max-w-6xl mx-auto px-4 sm:px-8 pt-2 sm:pt-4 space-y-6">
-          <div className="p-6 sm:p-7 rounded-3xl bg-white/[0.04] border border-white/10 space-y-4 shadow-xl backdrop-blur-sm">
-            <h3 className="text-base font-black text-white flex items-center gap-2">
+          <div className="p-6 sm:p-7 rounded-3xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] space-y-4 shadow-xl backdrop-blur-sm">
+            <h3 className="text-base font-black text-[var(--text-primary)] flex items-center gap-2">
               <Info className="w-5 h-5 text-[#fa233b]" /> About {artist.name}
             </h3>
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-normal">
+            <p className="text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed font-normal">
               {formattedBio}
             </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-5 border-t border-white/10">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-5 border-t border-[var(--border-subtle)]">
               <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Monthly Listeners</span>
-                <span className="text-base font-mono font-black text-white">{((artist.followerCount || 12400000) / 1000000).toFixed(1)}M</span>
+                <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] block tracking-wider">Monthly Listeners</span>
+                <span className="text-base font-mono font-black text-[var(--text-primary)]">{((artist.followerCount || 12400000) / 1000000).toFixed(1)}M</span>
               </div>
               <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Primary Region</span>
-                <span className="text-base font-bold text-white capitalize">{preferredLanguage || 'Global'}</span>
+                <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] block tracking-wider">Primary Region</span>
+                <span className="text-base font-bold text-[var(--text-primary)] capitalize">{preferredLanguage || 'Global'}</span>
               </div>
               <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Status</span>
+                <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] block tracking-wider">Status</span>
                 <span className="text-base font-bold text-emerald-400">Verified Artist</span>
               </div>
             </div>
@@ -569,15 +568,15 @@ export function ArtistDetailView() {
       {/* ── UNFOLLOW CONFIRMATION MODAL ────────────────────────────────────── */}
       {showUnfollowModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-[#1c1d22] border border-white/10 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-center">
-            <h3 className="text-lg font-black text-white">Unfollow {artist.name}?</h3>
-            <p className="text-xs text-slate-400">
+          <div className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-center">
+            <h3 className="text-lg font-black text-[var(--text-primary)]">Unfollow {artist.name}?</h3>
+            <p className="text-xs text-[var(--text-muted)]">
               You will no longer receive new-release updates or personalized recommendations for this artist.
             </p>
             <div className="grid grid-cols-2 gap-2.5 pt-2">
               <button
                 onClick={() => setShowUnfollowModal(false)}
-                className="px-4 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-bold text-xs transition-colors cursor-pointer"
+                className="px-4 py-2.5 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--surface-hover)] text-[var(--text-primary)] font-bold text-xs transition-colors cursor-pointer"
               >
                 Cancel
               </button>
