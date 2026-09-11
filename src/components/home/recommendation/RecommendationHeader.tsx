@@ -61,7 +61,7 @@ export function RecommendationHeader({
             id="rec-shuffle-btn"
             onClick={onShuffle}
             disabled={isLoading}
-            className="p-1.5 sm:p-2 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-all hover:scale-105 active:scale-95 border border-white/10 disabled:opacity-50 cursor-pointer"
+            className="p-1.5 sm:p-2 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all hover:scale-105 active:scale-95 border border-[var(--border-subtle)] disabled:opacity-50 cursor-pointer"
             title="Shuffle Play"
           >
             <Shuffle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />

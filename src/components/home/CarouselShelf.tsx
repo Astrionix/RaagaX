@@ -323,16 +323,16 @@ export function CarouselShelf({
   const sentinelIndex = Math.max(0, shelfItems.length - 5);
 
   return (
-    <section className="mb-4 sm:mb-6">
+    <section className="mb-4 sm:mb-6 pt-1">
       <div className="flex items-center justify-between mb-2 px-0 pr-3 sm:pr-4">
         <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
           {icon}
           <div className="min-w-0 flex-1">
-            <h2 className="text-[20px] sm:text-xl font-semibold leading-[26px] text-[var(--text-primary)] tracking-tight cursor-pointer truncate whitespace-nowrap">
+            <h2 className="text-[19px] sm:text-xl font-bold leading-tight text-[var(--text-primary)] tracking-tight cursor-pointer truncate whitespace-nowrap">
               {title}
             </h2>
             {subtitle && (
-              <p className="text-[11px] font-medium text-[var(--text-secondary)] -mt-0.5 truncate">
+              <p className="text-xs font-medium text-[var(--text-secondary)] mt-0.5 truncate leading-normal">
                 {subtitle}
               </p>
             )}

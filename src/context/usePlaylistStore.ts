@@ -45,6 +45,7 @@ interface PlaylistStore {
   generateInviteLink: (playlistId: string) => string;
   joinCollaborativePlaylist: (inviteCodeOrId: string) => Promise<UserPlaylist | null>;
   toggleCollaborative: (playlistId: string, isCollaborative: boolean) => Promise<boolean>;
+  syncPlaylistsToCloud: () => Promise<boolean>;
   resetPlaylistState: () => void;
 }
 
@@ -179,7 +180,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
             return;
           }
 
-          // MERGE WITH UN-SYNCED LOCAL PLAYLISTS (don't wipe out local creations)
+          // MERGE WITH UN-SYNCED LOCAL PLAYLISTS & AUTO-SYNC TO CLOUD
           const currentLocal = get().playlists;
           const remoteMap = new Map(parsedPlaylists.map((p) => [p.id, p]));
           const mergedPlaylists = [...parsedPlaylists];
@@ -187,6 +188,33 @@ export const usePlaylistStore = create<PlaylistStore>()(
           currentLocal.forEach((localPl) => {
             if (!remoteMap.has(localPl.id)) {
               mergedPlaylists.push(localPl);
+
+              // Auto-upload unsynced local playlist to Supabase cloud
+              if (session?.user?.id) {
+                (async () => {
+                  try {
+                    const { error } = await supabase.from('playlists').upsert({
+                      id: localPl.id,
+                      name: localPl.title,
+                      description: localPl.description || '',
+                      cover_url: localPl.coverUrl || null,
+                      visibility: localPl.visibility || 'private',
+                      owner_id: session.user.id,
+                    }, { onConflict: 'id', ignoreDuplicates: true });
+
+                    if (!error && localPl.songIds && localPl.songIds.length > 0) {
+                      const rows = localPl.songIds.map((songId, idx) => ({
+                        playlist_id: localPl.id,
+                        song_id: songId,
+                        position: idx + 1,
+                      }));
+                      await supabase.from('playlist_songs').upsert(rows, { onConflict: 'playlist_id,song_id', ignoreDuplicates: true });
+                    }
+                  } catch (e) {
+                    console.warn('[usePlaylistStore] Auto-upload unsynced playlist error:', e);
+                  }
+                })();
+              }
             }
           });
 
@@ -614,6 +642,76 @@ export const usePlaylistStore = create<PlaylistStore>()(
           playlists: state.playlists.map((p) => (p.id === playlistId ? { ...p, isCollaborative } : p)),
         }));
         return true;
+      },
+
+      syncPlaylistsToCloud: async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.user?.id) {
+            console.log('[usePlaylistStore] Cannot sync to cloud: User unauthenticated');
+            return false;
+          }
+
+          const localPlaylists = get().playlists;
+          if (localPlaylists.length === 0) {
+            await get().fetchPlaylists(true);
+            return true;
+          }
+
+          set({ isLoading: true });
+
+          // 1. Batch upsert playlists to Supabase
+          const playlistRows = localPlaylists.map((pl) => ({
+            id: pl.id,
+            name: pl.title,
+            description: pl.description || '',
+            cover_url: pl.coverUrl || null,
+            visibility: pl.visibility || 'private',
+            owner_id: session.user.id,
+            updated_at: pl.updatedAt || new Date().toISOString(),
+          }));
+
+          const { error: plError } = await supabase
+            .from('playlists')
+            .upsert(playlistRows, { onConflict: 'id' });
+
+          if (plError) {
+            console.warn('[usePlaylistStore] Playlist metadata cloud sync notice:', plError.message);
+          }
+
+          // 2. Batch upsert song mappings for all playlists
+          const allSongRows = localPlaylists.flatMap((pl) =>
+            (pl.songIds || []).map((songId, idx) => ({
+              playlist_id: pl.id,
+              song_id: songId,
+              position: idx + 1,
+            }))
+          );
+
+          if (allSongRows.length > 0) {
+            const { error: songError } = await supabase
+              .from('playlist_songs')
+              .upsert(allSongRows, { onConflict: 'playlist_id,song_id' });
+
+            if (songError) {
+              console.warn('[usePlaylistStore] Playlist songs cloud sync notice:', songError.message);
+            }
+          }
+
+          // 3. Re-fetch from cloud to complete two-way synchronization
+          await get().fetchPlaylists(true);
+
+          // 4. Trigger AccountSyncEngine revision increment
+          const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
+          await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.user.id).catch(() => {});
+
+          return true;
+        } catch (err) {
+          console.error('[usePlaylistStore] Failed to sync playlists to cloud:', err);
+          return false;
+        } finally {
+          set({ isLoading: false });
+        }
       },
 
       resetPlaylistState: () => {

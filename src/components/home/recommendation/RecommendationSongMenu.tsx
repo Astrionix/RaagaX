@@ -133,7 +133,7 @@ export function RecommendationSongMenu({
   };
 
   const menuItemCls =
-    'flex items-center gap-3 px-3 py-2 text-[13px] text-slate-200 hover:bg-white/8 hover:text-white rounded-lg transition-colors cursor-pointer w-full text-left';
+    'flex items-center gap-3 px-3 py-2 text-[13px] text-[var(--text-primary)] hover:bg-[var(--surface-hover)] rounded-lg transition-colors cursor-pointer w-full text-left';
 
   const mainMenu = (
     <>
@@ -142,43 +142,43 @@ export function RecommendationSongMenu({
         Play
       </button>
       <button className={menuItemCls} onClick={handlePlayNext}>
-        <FastForward className="w-4 h-4 text-slate-400 flex-shrink-0" />
+        <FastForward className="w-4 h-4 text-[var(--text-secondary)] flex-shrink-0" />
         Play Next
       </button>
       <button className={menuItemCls} onClick={handleAddToQueue}>
-        <ListPlus className="w-4 h-4 text-slate-400 flex-shrink-0" />
+        <ListPlus className="w-4 h-4 text-[var(--text-secondary)] flex-shrink-0" />
         Add to Queue
       </button>
 
-      <div className="h-px bg-white/8 my-1" />
+      <div className="h-px bg-[var(--border-subtle)] my-1" />
 
       <button className={menuItemCls} onClick={() => setSubView('playlist')}>
-        <Disc className="w-4 h-4 text-slate-400 flex-shrink-0" />
+        <Disc className="w-4 h-4 text-[var(--text-secondary)] flex-shrink-0" />
         Add to Playlist
       </button>
 
       <button className={menuItemCls} onClick={handleLike}>
         <Heart
-          className={`w-4 h-4 flex-shrink-0 ${isLiked ? 'fill-[#E50914] text-[#E50914]' : 'text-slate-400'}`}
+          className={`w-4 h-4 flex-shrink-0 ${isLiked ? 'fill-[#E50914] text-[#E50914]' : 'text-[var(--text-secondary)]'}`}
         />
         {isLiked ? 'Unlike' : 'Like'}
       </button>
 
-      <div className="h-px bg-white/8 my-1" />
+      <div className="h-px bg-[var(--border-subtle)] my-1" />
 
       <button className={menuItemCls} onClick={handleGoToArtist}>
-        <User className="w-4 h-4 text-slate-400 flex-shrink-0" />
+        <User className="w-4 h-4 text-[var(--text-secondary)] flex-shrink-0" />
         Go to Artist
       </button>
       <button className={menuItemCls} onClick={handleGoToAlbum}>
-        <Disc className="w-4 h-4 text-slate-400 flex-shrink-0" />
+        <Disc className="w-4 h-4 text-[var(--text-secondary)] flex-shrink-0" />
         Go to Album
       </button>
 
-      <div className="h-px bg-white/8 my-1" />
+      <div className="h-px bg-[var(--border-subtle)] my-1" />
 
       <button
-        className={`${menuItemCls} text-slate-500 hover:text-red-400`}
+        className={`${menuItemCls} text-[var(--text-muted)] hover:text-red-400`}
         onClick={handleNotInterested}
       >
         <Ban className="w-4 h-4 flex-shrink-0" />
@@ -189,17 +189,17 @@ export function RecommendationSongMenu({
 
   const playlistMenu = (
     <>
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-white/8 mb-1">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--border-subtle)] mb-1">
         <button
-          className="p-1 rounded hover:bg-white/10 text-slate-400 transition-colors cursor-pointer"
+          className="p-1 rounded hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] transition-colors cursor-pointer"
           onClick={() => setSubView('main')}
         >
           <X className="w-3.5 h-3.5" />
         </button>
-        <span className="text-[12px] font-semibold text-white">Add to Playlist</span>
+        <span className="text-[12px] font-semibold text-[var(--text-primary)]">Add to Playlist</span>
       </div>
       {playlists.length === 0 ? (
-        <p className="px-3 py-2 text-[12px] text-slate-500">No playlists yet</p>
+        <p className="px-3 py-2 text-[12px] text-[var(--text-muted)]">No playlists yet</p>
       ) : (
         <div className="max-h-[200px] overflow-y-auto">
           {playlists.map((pl) => (
@@ -208,7 +208,7 @@ export function RecommendationSongMenu({
               className={menuItemCls}
               onClick={() => handleAddToPlaylist(pl.id, pl.title)}
             >
-              <CheckCircle className="w-4 h-4 text-slate-500 flex-shrink-0" />
+              <CheckCircle className="w-4 h-4 text-[var(--text-secondary)] flex-shrink-0" />
               <span className="truncate">{pl.title}</span>
             </button>
           ))}
@@ -221,7 +221,7 @@ export function RecommendationSongMenu({
     <div
       data-rec-menu
       style={{ position: 'fixed', top, left, width: menuW, zIndex: 9999 }}
-      className="bg-[#151821] border border-white/10 rounded-xl shadow-2xl shadow-black/60 p-1.5 animate-in fade-in zoom-in-95 duration-150 origin-top-right"
+      className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-xl shadow-2xl shadow-black/40 p-1.5 animate-in fade-in zoom-in-95 duration-150 origin-top-right text-[var(--text-primary)]"
     >
       {subView === 'main' ? mainMenu : playlistMenu}
     </div>,

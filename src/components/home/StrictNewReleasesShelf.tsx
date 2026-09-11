@@ -88,7 +88,7 @@ export function StrictNewReleasesShelf({
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Sparkles className="w-[18px] h-[18px] text-amber-400" />
-            <h2 className="text-xl font-semibold text-white tracking-tight">{displayTitle}</h2>
+            <h2 className="text-xl font-semibold text-[var(--text-primary)] tracking-tight">{displayTitle}</h2>
           </div>
           <div className="flex gap-4 overflow-x-auto no-scrollbar py-2">
             {[1, 2, 3, 4, 5].map((i) => (

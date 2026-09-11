@@ -182,8 +182,8 @@ try {
     const fileSize = fileBuffer.length;
 
     const newManifest = {
-      versionCode: 12,
-      versionName: '1.2.8',
+      versionCode: 14,
+      versionName: '1.3.1',
       apkUrl: 'https://raaga.me/api/app/download',
       sha256: sha256,
       fileSize: fileSize,
@@ -192,11 +192,9 @@ try {
       minimumSupportedVersion: 1,
       releaseChannel: 'stable',
       releaseNotes: [
-        'Fixed Jam Session playback in APK: guests seamlessly stream and play host Jam songs.',
-        'Fixed stale playbar song audio lingering when joining Jam sessions.',
-        'Seamless Android Lock Screen & Notification Shade sync for Jam & Connect.',
-        'Real-time song title, artist, artwork, position & duration sync on Lock Screen.',
-        'Lossless playback engine and performance enhancements.'
+        'Enhanced Playlists Cloud Sync: Seamless multi-device & offline auto-sync to Supabase cloud.',
+        'Fixed section header typography & contrast in light and dark themes.',
+        'Performance, loss-less audio engine & UI response optimizations.'
       ]
     };
 
