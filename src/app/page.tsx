@@ -37,6 +37,7 @@ import { CarModeModal } from '@/components/modals/CarModeModal';
 import { TVNowPlayingOverlay } from '@/components/tv/TVNowPlayingOverlay';
 import { TVQRPairingModal } from '@/components/tv/TVQRPairingModal';
 import { TVVoiceSearchModal } from '@/components/tv/TVVoiceSearchModal';
+import { TVAuthModal } from '@/components/tv/TVAuthModal';
 import { TVSidebar } from '@/components/tv/TVSidebar';
 import { useTVRemoteNavigation } from '@/hooks/useTVRemoteNavigation';
 import { Tv } from 'lucide-react';
@@ -339,6 +340,9 @@ export default function Page() {
           isOpen={isVoiceSearchOpen}
           onClose={() => setIsVoiceSearchOpen(false)}
         />
+      </ErrorBoundary>
+      <ErrorBoundary name="TVAuthModal">
+        <TVAuthModal isOpen={isTVMode && !authUser} />
       </ErrorBoundary>
 
       {/* TV Mode Toggle Button */}
