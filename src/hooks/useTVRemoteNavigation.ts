@@ -134,6 +134,13 @@ export function useTVRemoteNavigation() {
       } else if (e.key === 'ArrowRight' || keyCode === 22) {
         e.preventDefault();
         navigateSpatial('RIGHT');
+      } else if (e.key === 'Enter' || e.key === 'Select' || keyCode === 23 || keyCode === 66 || keyCode === 13) {
+        // OK / SELECT Button: Dispatch click event to currently focused element
+        const activeEl = document.activeElement as HTMLElement | null;
+        if (activeEl && activeEl !== document.body && activeEl.tagName !== 'INPUT' && activeEl.tagName !== 'TEXTAREA') {
+          e.preventDefault();
+          activeEl.click();
+        }
       } else if (e.key === 'MediaPlayPause' || e.key === 'MediaPlay' || e.key === 'MediaPause' || keyCode === 85 || keyCode === 126 || keyCode === 127) {
         e.preventDefault();
         togglePlayPause();
@@ -143,11 +150,31 @@ export function useTVRemoteNavigation() {
       } else if (e.key === 'MediaPreviousTrack' || keyCode === 88) {
         e.preventDefault();
         usePlayerStore.getState().playPrev();
+      } else if (keyCode === 89) {
+        // Rewind 10 seconds
+        e.preventDefault();
+        const store = usePlayerStore.getState();
+        store.seek(Math.max(0, store.currentTime - 10));
+      } else if (keyCode === 90) {
+        // Fast Forward 10 seconds
+        e.preventDefault();
+        const store = usePlayerStore.getState();
+        store.seek(Math.min(store.duration, store.currentTime + 10));
       } else if (e.key === 'Escape' || e.key === 'Backspace' || e.key === 'GoBack' || keyCode === 4 || keyCode === 10009) {
-        const playerState = usePlayerStore.getState();
-        if (playerState.isPlayerExpanded) {
+        // Remote BACK Button: Hierarchical Back Navigation
+        const store = usePlayerStore.getState();
+        if (store.isPlayerExpanded) {
           e.preventDefault();
           usePlayerStore.setState({ isPlayerExpanded: false });
+        } else if (store.isQueueOpen) {
+          e.preventDefault();
+          store.toggleQueue();
+        } else if (store.activeTab !== 'home') {
+          e.preventDefault();
+          store.setSelectedAlbumId(null);
+          store.setSelectedArtistId(null);
+          store.setSelectedPlaylistId(null);
+          store.setActiveTab('home');
         }
       }
     };
