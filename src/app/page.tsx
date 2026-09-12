@@ -35,6 +35,8 @@ import { NotificationCenterModal } from '@/components/modals/NotificationCenterM
 import { WrappedModal } from '@/components/modals/WrappedModal';
 import { CarModeModal } from '@/components/modals/CarModeModal';
 import { TVNowPlayingOverlay } from '@/components/tv/TVNowPlayingOverlay';
+import { TVQRPairingModal } from '@/components/tv/TVQRPairingModal';
+import { TVVoiceSearchModal } from '@/components/tv/TVVoiceSearchModal';
 import { TVSidebar } from '@/components/tv/TVSidebar';
 import { useTVRemoteNavigation } from '@/hooks/useTVRemoteNavigation';
 import { Tv } from 'lucide-react';
@@ -98,6 +100,8 @@ export default function Page() {
 
   const { isTVMode, toggleTVMode } = useTVRemoteNavigation();
   const [isTVNowPlayingOpen, setIsTVNowPlayingOpen] = React.useState(false);
+  const [isQRPairingOpen, setIsQRPairingOpen] = React.useState(false);
+  const [isVoiceSearchOpen, setIsVoiceSearchOpen] = React.useState(false);
 
   React.useEffect(() => {
     useAuthStore.getState().initializeAuth();
@@ -255,6 +259,8 @@ export default function Page() {
           activeTab={activeTab}
           setActiveTab={(t) => usePlayerStore.setState({ activeTab: t as any })}
           onOpenTVNowPlaying={() => setIsTVNowPlayingOpen(true)}
+          onOpenQRPairing={() => setIsQRPairingOpen(true)}
+          onOpenVoiceSearch={() => setIsVoiceSearchOpen(true)}
         />
       ) : (
         <Sidebar />
@@ -320,6 +326,18 @@ export default function Page() {
         <TVNowPlayingOverlay
           isOpen={isTVNowPlayingOpen}
           onClose={() => setIsTVNowPlayingOpen(false)}
+        />
+      </ErrorBoundary>
+      <ErrorBoundary name="TVQRPairingModal">
+        <TVQRPairingModal
+          isOpen={isQRPairingOpen}
+          onClose={() => setIsQRPairingOpen(false)}
+        />
+      </ErrorBoundary>
+      <ErrorBoundary name="TVVoiceSearchModal">
+        <TVVoiceSearchModal
+          isOpen={isVoiceSearchOpen}
+          onClose={() => setIsVoiceSearchOpen(false)}
         />
       </ErrorBoundary>
 
