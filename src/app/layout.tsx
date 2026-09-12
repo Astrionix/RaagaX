@@ -1,5 +1,6 @@
 import React from 'react';
 import './globals.css';
+import '@/styles/tvos.css';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
 
 import '@/lib/utils/uuid';

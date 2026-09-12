@@ -34,6 +34,10 @@ import { CreatePlaylistModal } from '@/components/modals/CreatePlaylistModal';
 import { NotificationCenterModal } from '@/components/modals/NotificationCenterModal';
 import { WrappedModal } from '@/components/modals/WrappedModal';
 import { CarModeModal } from '@/components/modals/CarModeModal';
+import { TVNowPlayingOverlay } from '@/components/tv/TVNowPlayingOverlay';
+import { TVSidebar } from '@/components/tv/TVSidebar';
+import { useTVRemoteNavigation } from '@/hooks/useTVRemoteNavigation';
+import { Tv } from 'lucide-react';
 import { Toast } from '@/components/ui/Toast';
 import { VolumeHUD } from '@/components/ui/VolumeHUD';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
@@ -91,6 +95,9 @@ export default function Page() {
   const isAuthLoading = useAuthStore((s) => s.isLoading);
   const isAuthModalOpen = useAuthStore((s) => s.isAuthModalOpen);
   const setAuthModalOpen = useAuthStore((s) => s.setAuthModalOpen);
+
+  const { isTVMode, toggleTVMode } = useTVRemoteNavigation();
+  const [isTVNowPlayingOpen, setIsTVNowPlayingOpen] = React.useState(false);
 
   React.useEffect(() => {
     useAuthStore.getState().initializeAuth();
@@ -242,11 +249,19 @@ export default function Page() {
         onClose={() => toggleCarMode(false)}
       />
 
-      {/* Sidebar Navigation (Desktop Pane 1) */}
-      <Sidebar />
+      {/* Sidebar Navigation (Desktop Pane 1 vs Apple TV Sidebar) */}
+      {isTVMode ? (
+        <TVSidebar
+          activeTab={activeTab}
+          setActiveTab={(t) => usePlayerStore.setState({ activeTab: t as any })}
+          onOpenTVNowPlaying={() => setIsTVNowPlayingOpen(true)}
+        />
+      ) : (
+        <Sidebar />
+      )}
 
       {/* App Layout (Grid after Sidebar) */}
-      <div className={`flex-1 ml-0 ${isSidebarCollapsed ? 'md:ml-[88px]' : 'md:ml-64'} flex flex-col min-w-0 md:h-screen md:overflow-hidden transition-[margin-left] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]`}>
+      <div className={`flex-1 ml-0 ${isTVMode ? 'md:ml-64 lg:ml-72' : isSidebarCollapsed ? 'md:ml-[88px]' : 'md:ml-64'} flex flex-col min-w-0 md:h-screen md:overflow-hidden transition-[margin-left] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]`}>
         <div className={`grid flex-1 min-h-0 md:h-full transition-all duration-300 ${isQueueOpen
           ? 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_304px]'
           : 'grid-cols-1'
@@ -301,6 +316,25 @@ export default function Page() {
       <ErrorBoundary name="ExpandedPlayerModal">
         <ExpandedPlayerModal />
       </ErrorBoundary>
+      <ErrorBoundary name="TVNowPlayingOverlay">
+        <TVNowPlayingOverlay
+          isOpen={isTVNowPlayingOpen}
+          onClose={() => setIsTVNowPlayingOpen(false)}
+        />
+      </ErrorBoundary>
+
+      {/* TV Mode Toggle Button */}
+      <button
+        data-tv-focusable="true"
+        onClick={toggleTVMode}
+        className={`fixed bottom-24 right-6 z-40 p-3 rounded-full border shadow-2xl backdrop-blur-2xl transition-all cursor-pointer ${
+          isTVMode ? 'bg-[#fa233b] text-white border-red-400 ring-4 ring-white/40' : 'bg-black/60 text-white/80 border-white/20 hover:bg-black/90 hover:text-white'
+        }`}
+        title="Toggle Apple TV Mode"
+        aria-label="Toggle Apple TV Mode"
+      >
+        <Tv className="w-5 h-5" />
+      </button>
       <ErrorBoundary name="LyricsPanel">
         <LyricsPanel />
       </ErrorBoundary>

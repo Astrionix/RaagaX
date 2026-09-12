@@ -1,0 +1,60 @@
+/* 
+  Apple TV (tvOS) Glassmorphic & D-Pad Remote System for RaagaX
+  Designed for 10-foot viewing distance on Android TV / Mi Box
+*/
+
+/* 1. TV Focus States (Spatial Remote Navigation) */
+[data-tv-focusable="true"]:focus,
+[data-tv-focusable="true"].tv-focused {
+  outline: none !important;
+  transform: scale(1.06) translateY(-4px) !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 0 3.5px rgba(255, 255, 255, 0.95), 0 0 30px rgba(255, 255, 255, 0.3) !important;
+  border-color: rgba(255, 255, 255, 0.9) !important;
+  z-index: 50 !important;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* TV Glass Card System */
+.tv-glass-panel {
+  background: rgba(20, 20, 28, 0.65);
+  backdrop-filter: blur(40px) saturate(190%);
+  -webkit-backdrop-filter: blur(40px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
+}
+
+.tv-glass-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* TV Ambient Lighting Effect */
+.tv-ambient-blur {
+  filter: blur(80px) saturate(220%);
+  opacity: 0.55;
+  transform: scale(1.3);
+  transition: background 0.8s ease-in-out;
+}
+
+/* Hide TV scrollbars cleanly */
+.tv-scroll-hide::-webkit-scrollbar {
+  display: none !important;
+}
+.tv-scroll-hide {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+/* Apple TV Remote Focus Ring Pulse */
+@keyframes tvFocusPulse {
+  0% { box-shadow: 0 0 0 3.5px rgba(255, 255, 255, 0.95), 0 0 20px rgba(255, 255, 255, 0.2); }
+  50% { box-shadow: 0 0 0 4.5px rgba(255, 255, 255, 1), 0 0 35px rgba(255, 255, 255, 0.45); }
+  100% { box-shadow: 0 0 0 3.5px rgba(255, 255, 255, 0.95), 0 0 20px rgba(255, 255, 255, 0.2); }
+}
+
+.tv-focused-active {
+  animation: tvFocusPulse 2.5s infinite cubic-bezier(0.4, 0, 0.6, 1);
+}
