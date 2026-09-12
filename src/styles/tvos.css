@@ -63,3 +63,10 @@ body.tv-mode-active [tabindex="0"]:focus {
 .tv-focused-active {
   animation: tvFocusPulse 2.5s infinite cubic-bezier(0.4, 0, 0.6, 1);
 }
+
+/* TV Overscan Protection: Guarantees no UI element is cut off on physical TV bezels */
+body.tv-mode-active {
+  padding: max(1.2vw, 16px) !important;
+  box-sizing: border-box !important;
+}
+

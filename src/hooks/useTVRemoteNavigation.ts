@@ -121,48 +121,34 @@ export function useTVRemoteNavigation() {
         document.body.classList.add('tv-mode-active');
       }
 
-      // Handle Key Navigation
-      switch (e.key) {
-        case 'ArrowUp':
+      // Universal Key Code Detection across all Android TV & Smart TV Remotes
+      if (e.key === 'ArrowUp' || keyCode === 19) {
+        e.preventDefault();
+        navigateSpatial('UP');
+      } else if (e.key === 'ArrowDown' || keyCode === 20) {
+        e.preventDefault();
+        navigateSpatial('DOWN');
+      } else if (e.key === 'ArrowLeft' || keyCode === 21) {
+        e.preventDefault();
+        navigateSpatial('LEFT');
+      } else if (e.key === 'ArrowRight' || keyCode === 22) {
+        e.preventDefault();
+        navigateSpatial('RIGHT');
+      } else if (e.key === 'MediaPlayPause' || e.key === 'MediaPlay' || e.key === 'MediaPause' || keyCode === 85 || keyCode === 126 || keyCode === 127) {
+        e.preventDefault();
+        togglePlayPause();
+      } else if (e.key === 'MediaNextTrack' || keyCode === 87) {
+        e.preventDefault();
+        usePlayerStore.getState().playNext();
+      } else if (e.key === 'MediaPreviousTrack' || keyCode === 88) {
+        e.preventDefault();
+        usePlayerStore.getState().playPrev();
+      } else if (e.key === 'Escape' || e.key === 'Backspace' || e.key === 'GoBack' || keyCode === 4 || keyCode === 10009) {
+        const playerState = usePlayerStore.getState();
+        if (playerState.isPlayerExpanded) {
           e.preventDefault();
-          navigateSpatial('UP');
-          break;
-        case 'ArrowDown':
-          e.preventDefault();
-          navigateSpatial('DOWN');
-          break;
-        case 'ArrowLeft':
-          e.preventDefault();
-          navigateSpatial('LEFT');
-          break;
-        case 'ArrowRight':
-          e.preventDefault();
-          navigateSpatial('RIGHT');
-          break;
-        case 'MediaPlayPause':
-        case 'MediaPlay':
-        case 'MediaPause':
-          e.preventDefault();
-          togglePlayPause();
-          break;
-        case 'MediaNextTrack':
-          e.preventDefault();
-          usePlayerStore.getState().playNext();
-          break;
-        case 'MediaPreviousTrack':
-          e.preventDefault();
-          usePlayerStore.getState().playPrev();
-          break;
-        default:
-          if (keyCode === 10009 || e.key === 'GoBack') {
-            // Android TV Back Button (Mi Box KeyCode 10009)
-            const playerState = usePlayerStore.getState();
-            if (playerState.isPlayerExpanded) {
-              e.preventDefault();
-              usePlayerStore.setState({ isPlayerExpanded: false });
-            }
-          }
-          break;
+          usePlayerStore.setState({ isPlayerExpanded: false });
+        }
       }
     };
 
