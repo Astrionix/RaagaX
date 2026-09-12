@@ -5,10 +5,10 @@
         <color android:color="@color/colorBackground" />
     </item>
 
-    <!-- Centered RaagaX Kinetic Logo Emblem -->
+    <!-- Centered RaagaX 4K Kinetic Logo Emblem -->
     <item
-        android:width="120dp"
-        android:height="120dp"
+        android:width="160dp"
+        android:height="160dp"
         android:gravity="center"
-        android:drawable="@drawable/ic_launcher_foreground" />
+        android:drawable="@drawable/ic_splash_logo" />
 </layer-list>

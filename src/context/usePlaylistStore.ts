@@ -79,18 +79,12 @@ export const usePlaylistStore = create<PlaylistStore>()(
             const { data, error } = await supabase
               .from('playlists')
               .select('*')
-              .or(`owner_id.eq.${session.user.id},user_id.eq.${session.user.id}`)
-              .order('created_at', { ascending: false });
-            playlistsData = data;
-            fetchErr = error;
-          } catch (e) {
-            const { data, error } = await supabase
-              .from('playlists')
-              .select('*')
               .eq('owner_id', session.user.id)
               .order('created_at', { ascending: false });
             playlistsData = data;
             fetchErr = error;
+          } catch (e) {
+            console.warn('[usePlaylistStore] Playlist fetch error:', e);
           }
 
           if (fetchErr) {
@@ -101,10 +95,10 @@ export const usePlaylistStore = create<PlaylistStore>()(
 
           const playlistList = (playlistsData || []).map((p: any) => ({
             id: p.id,
-            name: p.name || p.title || 'Untitled Playlist',
+            title: p.title || p.name || 'Untitled Playlist',
             description: p.description || '',
             cover_url: p.cover_url || p.coverUrl || '',
-            owner_id: p.owner_id || p.user_id || session.user.id,
+            owner_id: p.owner_id || session.user.id,
             visibility: p.visibility || 'public',
             created_at: p.created_at || new Date().toISOString(),
             updated_at: p.updated_at || new Date().toISOString(),
@@ -195,11 +189,12 @@ export const usePlaylistStore = create<PlaylistStore>()(
                   try {
                     const { error } = await supabase.from('playlists').upsert({
                       id: localPl.id,
-                      name: localPl.title,
+                      title: localPl.title,
                       description: localPl.description || '',
                       cover_url: localPl.coverUrl || null,
                       visibility: localPl.visibility || 'private',
                       owner_id: session.user.id,
+                      updated_at: localPl.updatedAt || new Date().toISOString(),
                     }, { onConflict: 'id', ignoreDuplicates: true });
 
                     if (!error && localPl.songIds && localPl.songIds.length > 0) {
@@ -266,26 +261,26 @@ export const usePlaylistStore = create<PlaylistStore>()(
             return newPl;
           }
 
-          // Insert into playlists table
+          // Insert into playlists table using correct 'title' column
           const payload: any = {
             id,
-            name: title,
+            title,
             description: description || '',
             cover_url: coverUrl || null,
             visibility: visibility || 'private',
             owner_id: session.user.id,
+            created_at: now,
+            updated_at: now,
           };
 
-          let { error } = await supabase.from('playlists').insert(payload);
-          if (error && error.message?.includes('owner_id')) {
-            delete payload.owner_id;
-            payload.user_id = session.user.id;
-            const res = await supabase.from('playlists').insert(payload);
-            error = res.error;
-          }
+          const { error } = await supabase.from('playlists').insert(payload);
 
           if (error) {
             console.warn('[usePlaylistStore] Supabase playlist create notice:', error.message);
+          } else {
+            // Trigger optimistic revision increment so Desktop and other devices sync instantly
+            const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
+            await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.user.id).catch(() => {});
           }
 
           return newPl;
@@ -303,6 +298,12 @@ export const usePlaylistStore = create<PlaylistStore>()(
           const { error } = await supabase.from('playlists').delete().eq('id', playlistId);
           if (error) {
             console.warn('[usePlaylistStore] Supabase delete playlist error:', error.message);
+          } else {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user?.id) {
+              const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
+              await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.user.id).catch(() => {});
+            }
           }
           return true;
         } catch (e) {
@@ -357,11 +358,12 @@ export const usePlaylistStore = create<PlaylistStore>()(
             if (!cloudPl) {
               await supabase.from('playlists').upsert({
                 id: targetPl.id,
-                name: targetPl.title,
+                title: targetPl.title,
                 description: targetPl.description || '',
                 cover_url: newCoverUrl || null,
                 visibility: targetPl.visibility || 'private',
                 owner_id: session.user.id,
+                updated_at: new Date().toISOString(),
               }, { onConflict: 'id', ignoreDuplicates: true });
             }
 
@@ -663,7 +665,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
           // 1. Batch upsert playlists to Supabase
           const playlistRows = localPlaylists.map((pl) => ({
             id: pl.id,
-            name: pl.title,
+            title: pl.title,
             description: pl.description || '',
             cover_url: pl.coverUrl || null,
             visibility: pl.visibility || 'private',

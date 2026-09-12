@@ -566,19 +566,12 @@ export function PlaylistDetailView() {
           <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6 p-5 sm:p-7 rounded-3xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] relative overflow-hidden shadow-2xl backdrop-blur-xl">
             {/* Large Sharp Cover Art (Full Aspect Ratio Preserved Without Cropping) */}
             <div className="relative w-48 h-48 sm:w-56 sm:h-56 md:w-60 md:h-60 aspect-square rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.85)] bg-black/50 border border-white/15 flex-shrink-0 flex items-center justify-center group">
-              {playlist.coverUrl ? (
-                <img 
-                  src={playlist.coverUrl} 
-                  alt={playlist.title}
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                  className="w-full h-full object-contain transition-transform duration-300"
-                />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-purple-900/40 to-slate-900 text-purple-400">
-                  <Music className="w-12 h-12 mb-1 opacity-60" />
-                  <span className="text-[10px] font-mono text-purple-300">RaagaX Playlist</span>
-                </div>
-              )}
+              <img 
+                src={playlist.coverUrl || playlist.songs?.[0]?.coverUrl || '/default-playlist-cover.png'} 
+                alt={playlist.title}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/default-playlist-cover.png'; }}
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
 
               <button
                 onClick={() => setShowEditMetadataModal(true)}

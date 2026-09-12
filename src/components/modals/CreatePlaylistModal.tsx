@@ -47,7 +47,7 @@ export function CreatePlaylistModal() {
     setValidationError(null);
     
     try {
-      const newPlaylist = await createPlaylist(trimmedName, description.trim(), visibility, coverUrl.trim());
+      const newPlaylist = await createPlaylist(trimmedName, description.trim(), visibility, coverUrl.trim() || '/default-playlist-cover.png');
       
       if (newPlaylist) {
         setCreatePlaylistModalOpen(false);

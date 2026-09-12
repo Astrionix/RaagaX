@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
-  X, Search, Plus, Check, Music, Heart, Download, Clock, CheckCircle2, Loader2 
+  X, Search, Plus, Check, Music, Heart, Download, Clock, Loader2 
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore, UserPlaylist } from '@/context/usePlaylistStore';
-import { useDownloadStore } from '@/context/useDownloadStore';
 import { Song } from '@/types/music';
 
 interface AddSongsModalProps {
@@ -16,6 +16,7 @@ interface AddSongsModalProps {
 }
 
 export function AddSongsModal({ isOpen, onClose, playlist }: AddSongsModalProps) {
+  const [mounted, setMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'favorites' | 'downloaded' | 'history'>('all');
   const [selectedToAdd, setSelectedToAdd] = useState<string[]>([]);
@@ -29,6 +30,10 @@ export function AddSongsModal({ isOpen, onClose, playlist }: AddSongsModalProps)
     setToastMessage 
   } = usePlayerStore();
   const { addSongToPlaylist } = usePlaylistStore();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Combine known songs from queue, liked songs, etc.
   const allAvailableSongs = useMemo(() => {
@@ -61,7 +66,7 @@ export function AddSongsModal({ isOpen, onClose, playlist }: AddSongsModalProps)
     return list;
   }, [allAvailableSongs, likedSongs, downloadedSongIds, historySongIds, selectedFilter, searchQuery]);
 
-  if (!isOpen || !playlist) return null;
+  if (!isOpen || !playlist || !mounted || typeof document === 'undefined') return null;
 
   const toggleSelect = (songId: string) => {
     if (playlist.songIds.includes(songId)) return; // Already in playlist
@@ -89,19 +94,19 @@ export function AddSongsModal({ isOpen, onClose, playlist }: AddSongsModalProps)
     }
   };
 
-  return (
+  return createPortal(
     <div 
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 sm:p-6 animate-in fade-in duration-200 select-none"
       onClick={(e) => {
         if (e.target === e.currentTarget && !isAdding) onClose();
       }}
     >
       <div 
-        className="bg-[#12131A] border border-white/12 rounded-3xl p-5 sm:p-6 w-full max-w-lg shadow-[0_25px_60px_rgba(0,0,0,0.8)] animate-in zoom-in-95 duration-200 relative overflow-hidden text-white flex flex-col max-h-[85vh]"
+        className="bg-[#12131A] border border-white/12 rounded-3xl p-5 sm:p-6 w-full max-w-lg shadow-[0_25px_60px_rgba(0,0,0,0.85)] animate-in zoom-in-95 duration-200 relative overflow-hidden text-white flex flex-col max-h-[min(82vh,620px)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-white/10">
+        <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
           <div>
             <h2 className="text-lg sm:text-xl font-black text-white tracking-tight">Add Songs</h2>
             <p className="text-xs text-slate-400 mt-0.5">Add to "{playlist.title}"</p>
@@ -116,7 +121,7 @@ export function AddSongsModal({ isOpen, onClose, playlist }: AddSongsModalProps)
         </div>
 
         {/* Search Bar */}
-        <div className="relative my-3">
+        <div className="relative mt-3 mb-2 shrink-0">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -135,8 +140,8 @@ export function AddSongsModal({ isOpen, onClose, playlist }: AddSongsModalProps)
           )}
         </div>
 
-        {/* Filter Pills */}
-        <div className="flex items-center gap-2 pb-3 overflow-x-auto no-scrollbar">
+        {/* Filter Pills Container (with proper py-2 padding so pills never clip) */}
+        <div className="flex items-center gap-2 py-2 mb-2 overflow-x-auto no-scrollbar shrink-0">
           {[
             { id: 'all', label: 'All Songs', icon: Music },
             { id: 'favorites', label: 'Favorites', icon: Heart },
@@ -149,13 +154,13 @@ export function AddSongsModal({ isOpen, onClose, playlist }: AddSongsModalProps)
               <button
                 key={f.id}
                 onClick={() => setSelectedFilter(f.id as any)}
-                className={`${f.mobileOnly ? 'md:hidden ' : ''}px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                className={`${f.mobileOnly ? 'md:hidden ' : ''}px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
                   isSelected
-                    ? 'bg-[#fa233b] text-white shadow-sm shadow-red-500/25'
-                    : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/5'
+                    ? 'bg-[#fa233b] text-white shadow-md shadow-red-500/30 ring-1 ring-red-400/30'
+                    : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/10'
                 }`}
               >
-                <Icon className="w-3 h-3" />
+                <Icon className="w-3.5 h-3.5" />
                 {f.label}
               </button>
             );
@@ -163,7 +168,7 @@ export function AddSongsModal({ isOpen, onClose, playlist }: AddSongsModalProps)
         </div>
 
         {/* Songs List */}
-        <div className="flex-1 overflow-y-auto no-scrollbar space-y-1.5 pr-0.5 min-h-[220px]">
+        <div className="flex-1 overflow-y-auto no-scrollbar space-y-1.5 pr-0.5 min-h-[180px]">
           {filteredSongs.length > 0 ? (
             filteredSongs.map((song) => {
               const isAlreadyIn = playlist.songIds.includes(song.id);
@@ -224,7 +229,7 @@ export function AddSongsModal({ isOpen, onClose, playlist }: AddSongsModalProps)
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-between pt-3 mt-3 border-t border-white/10">
+        <div className="flex items-center justify-between pt-3 mt-3 border-t border-white/10 shrink-0">
           <span className="text-xs font-bold text-slate-400 font-mono">
             {selectedToAdd.length} selected
           </span>
@@ -257,6 +262,7 @@ export function AddSongsModal({ isOpen, onClose, playlist }: AddSongsModalProps)
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

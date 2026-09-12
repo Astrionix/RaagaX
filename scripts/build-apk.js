@@ -182,8 +182,8 @@ try {
     const fileSize = fileBuffer.length;
 
     const newManifest = {
-      versionCode: 14,
-      versionName: '1.3.1',
+      versionCode: 15,
+      versionName: '1.3.2',
       apkUrl: 'https://raaga.me/api/app/download',
       sha256: sha256,
       fileSize: fileSize,
@@ -192,8 +192,8 @@ try {
       minimumSupportedVersion: 1,
       releaseChannel: 'stable',
       releaseNotes: [
-        'Enhanced Playlists Cloud Sync: Seamless multi-device & offline auto-sync to Supabase cloud.',
-        'Fixed section header typography & contrast in light and dark themes.',
+        '4K Splash Screen & Launcher Icons: Native VectorDrawable safe zone with zero cropping on Android 12+ displays.',
+        'Playlist Cloud & Desktop Sync: Fixed Supabase schema alignment and enabled instant real-time multi-device sync.',
         'Performance, loss-less audio engine & UI response optimizations.'
       ]
     };

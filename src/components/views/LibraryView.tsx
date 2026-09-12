@@ -1062,9 +1062,9 @@ export function LibraryView() {
                   >
                     <div className="w-12 h-12 rounded-xl bg-slate-800 overflow-hidden flex-shrink-0 relative shadow-sm border border-white/5">
                       <img
-                        src={pl.coverUrl || '/app-icon.png'}
+                        src={pl.coverUrl || pl.songs?.[0]?.coverUrl || '/default-playlist-cover.png'}
                         alt={pl.title}
-                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/default-playlist-cover.png'; }}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                       />
                       <div className="absolute bottom-0.5 right-0.5 bg-emerald-500 text-slate-950 rounded-full p-0.5">
@@ -1463,9 +1463,9 @@ export function LibraryView() {
                       <div className="flex items-center gap-3.5 min-w-0">
                         <div className="w-12 h-12 rounded-xl bg-slate-800 overflow-hidden flex-shrink-0 relative shadow-sm border border-white/5">
                           <img
-                            src={pl.coverUrl || '/app-icon.png'}
+                            src={pl.coverUrl || pl.songs?.[0]?.coverUrl || '/default-playlist-cover.png'}
                             alt={pl.title}
-                            onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/default-playlist-cover.png'; }}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                           />
                         </div>

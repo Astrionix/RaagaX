@@ -139,9 +139,25 @@ export class AccountSyncEngine {
             triggerReconcile();
           }
         )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'playlists', filter: `owner_id=eq.${userId}` },
+          (payload: any) => {
+            console.log('[AccountSyncEngine] Realtime playlists change:', payload.eventType);
+            this.handleRealtimePlaylists(userId, payload);
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'playlist_songs' },
+          (payload: any) => {
+            console.log('[AccountSyncEngine] Realtime playlist_songs change:', payload.eventType);
+            this.handleRealtimePlaylistSongs(payload);
+          }
+        )
         .subscribe((status, err) => {
           if (status === 'SUBSCRIBED') {
-            console.log('[AccountSyncEngine] Subscribed to user_library_state realtime changes');
+            console.log('[AccountSyncEngine] Subscribed to realtime account library changes');
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
             console.warn(`[AccountSyncEngine] Realtime channel status: ${status}`, err);
           }
@@ -643,15 +659,15 @@ export class AccountSyncEngine {
       try {
         const { data, error } = await supabase
           .from('playlists')
-          .select('id, owner_id, name, description, created_at, updated_at')
-          .or(`owner_id.eq.${userId},user_id.eq.${userId}`)
+          .select('id, owner_id, title, description, created_at, updated_at')
+          .eq('owner_id', userId)
           .order('created_at', { ascending: false });
 
         if (!error && data) {
           const playlists = (data || []).map((p: any) => ({
             id: p.id,
-            user_id: p.owner_id || p.user_id || userId,
-            name: p.name || p.title || 'Untitled Playlist',
+            user_id: p.owner_id || userId,
+            name: p.title || p.name || 'Untitled Playlist',
             description: p.description || '',
             created_at: p.created_at || new Date().toISOString(),
             updated_at: p.updated_at || new Date().toISOString(),
@@ -692,7 +708,7 @@ export class AccountSyncEngine {
           .insert({
             id: newPlaylist.id,
             owner_id: userId,
-            name,
+            title: name,
             description: description || '',
           })
           .select()
@@ -703,7 +719,7 @@ export class AccountSyncEngine {
           return {
             id: data.id,
             user_id: data.owner_id || userId,
-            name: data.name || name,
+            name: data.title || name,
             description: data.description || '',
             created_at: data.created_at,
             updated_at: data.updated_at,
@@ -919,7 +935,7 @@ export class AccountSyncEngine {
           } else if (mut.type === 'UNLIKE_SONG') {
             await supabase.from('liked_songs').delete().eq('user_id', mut.user_id).eq('song_id', mut.entity_id);
           } else if (mut.type === 'CREATE_PLAYLIST') {
-            await supabase.from('playlists').insert({ id: mut.entity_id, owner_id: mut.user_id, name: mut.payload?.name, description: mut.payload?.description });
+            await supabase.from('playlists').insert({ id: mut.entity_id, owner_id: mut.user_id, title: mut.payload?.name || mut.payload?.title, description: mut.payload?.description });
           } else if (mut.type === 'DELETE_PLAYLIST') {
             await supabase.from('playlists').delete().eq('id', mut.entity_id);
           } else if (mut.type === 'RECORD_DOWNLOAD' && this.hasUserDownloadsTable) {
@@ -995,7 +1011,7 @@ export class AccountSyncEngine {
             await supabase.from('playlists').upsert({
               id: pl.id,
               owner_id: userId,
-              name: title,
+              title: title,
               description: pl.description || '',
               cover_url: pl.coverUrl || '',
             }, { onConflict: 'id', ignoreDuplicates: true });
