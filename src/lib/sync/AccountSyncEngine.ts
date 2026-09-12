@@ -215,7 +215,7 @@ export class AccountSyncEngine {
         if (!currentPlaylists.some((pl) => pl.id === p.id)) {
           const newPl = {
             id: p.id,
-            title: p.name || p.title || 'Untitled Playlist',
+            title: p.title || p.name || 'Untitled Playlist',
             description: p.description || '',
             coverUrl: p.cover_url || '',
             visibility: (p.visibility || 'private') as any,
@@ -240,7 +240,7 @@ export class AccountSyncEngine {
             if (pl.id === p.id) {
               return {
                 ...pl,
-                title: p.name || p.title || pl.title,
+                title: p.title || p.name || pl.title,
                 description: p.description !== undefined ? p.description : pl.description,
                 coverUrl: p.cover_url || pl.coverUrl,
                 visibility: (p.visibility || pl.visibility) as any,
@@ -274,6 +274,27 @@ export class AccountSyncEngine {
             return pl;
           }),
         });
+
+        // Hydrate full song object in background for instant UI rendering
+        import('@/lib/discovery/SongResolver').then(({ SongResolver }) => {
+          SongResolver.resolveSongs([song_id]).then((resolved) => {
+            if (resolved && resolved.length > 0) {
+              const resolvedSong = resolved[0];
+              usePlaylistStore.setState({
+                playlists: usePlaylistStore.getState().playlists.map((pl) => {
+                  if (pl.id === playlist_id && !pl.songs.some((s) => s.id === song_id)) {
+                    return {
+                      ...pl,
+                      songs: [...pl.songs, resolvedSong],
+                      coverUrl: pl.coverUrl || resolvedSong.coverUrl || '',
+                    };
+                  }
+                  return pl;
+                }),
+              });
+            }
+          }).catch(() => {});
+        }).catch(() => {});
       } else if (eventType === 'DELETE' && payload.old?.playlist_id && payload.old?.song_id) {
         const { playlist_id, song_id } = payload.old;
         const currentPlaylists = usePlaylistStore.getState().playlists;

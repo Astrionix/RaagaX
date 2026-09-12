@@ -252,7 +252,7 @@ export function AlbumDetailView() {
 
                     playlistMap.set(p.id, {
                       id: p.id,
-                      title: SongFormatter.decodeHtml(p.name || p.title),
+                      title: SongFormatter.decodeHtml(p.title || p.name),
                       subtitle,
                       coverUrl: cover,
                     });

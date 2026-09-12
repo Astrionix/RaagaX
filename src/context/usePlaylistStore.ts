@@ -131,7 +131,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
             const songIds = songsByPlaylist[p.id] || existingLocal?.songIds || [];
             return {
               id: p.id,
-              title: p.name || 'Untitled Playlist',
+              title: p.title || 'Untitled Playlist',
               description: p.description || '',
               coverUrl: p.cover_url || existingLocal?.coverUrl || '',
               visibility: (p.visibility || 'private') as any,
@@ -495,7 +495,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
 
         try {
           const payload: any = { updated_at: new Date().toISOString() };
-          if (updates.title) payload.name = updates.title;
+          if (updates.title) payload.title = updates.title;
           if (updates.description !== undefined) payload.description = updates.description;
           if (updates.coverUrl !== undefined) payload.cover_url = updates.coverUrl;
           if (updates.visibility) payload.visibility = updates.visibility;
@@ -589,7 +589,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
           if (session?.user) {
             const { error: plError } = await supabase.from('playlists').insert({
               id,
-              name: newPl.title,
+              title: newPl.title,
               description: newPl.description || '',
               cover_url: newPl.coverUrl || null,
               visibility: 'private',
