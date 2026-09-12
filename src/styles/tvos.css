@@ -5,7 +5,12 @@
 
 /* 1. TV Focus States (Spatial Remote Navigation) */
 [data-tv-focusable="true"]:focus,
-[data-tv-focusable="true"].tv-focused {
+[data-tv-focusable="true"].tv-focused,
+body.tv-mode-active button:focus,
+body.tv-mode-active a:focus,
+body.tv-mode-active [role="button"]:focus,
+body.tv-mode-active input:focus,
+body.tv-mode-active [tabindex="0"]:focus {
   outline: none !important;
   transform: scale(1.06) translateY(-4px) !important;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 0 3.5px rgba(255, 255, 255, 0.95), 0 0 30px rgba(255, 255, 255, 0.3) !important;
