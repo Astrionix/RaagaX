@@ -43,8 +43,15 @@ export class SongCoverEngine {
 
     let clean = url.trim().replace('http://', 'https://');
 
-    // Upgrade low-res indicators to 500x500 original
-    clean = clean.replace(/150x150|50x50|300x300|150X150|50X50|300X300/g, '500x500');
+    if (clean.includes('ytimg.com/vi/')) {
+      return clean.split('?')[0];
+    }
+    if (clean.includes('googleusercontent.com') && clean.includes('=')) {
+      return clean.replace(/=w\d+-h\d+[^?&]*/, '=w500-h500-l90-rj').replace(/=s\d+[^?&]*/, '=s500');
+    }
+    if (clean.includes('saavncdn.com')) {
+      clean = clean.replace(/150x150|50x50|300x300|150X150|50X50|300X300/g, '500x500');
+    }
 
     return clean;
   }
@@ -75,6 +82,7 @@ export class SongCoverEngine {
   public isHighResCover(url?: string | null): boolean {
     if (!url) return false;
     if (url === '/app-icon.png' || url.includes('/null/')) return false;
+    if (url.includes('ytimg.com') || url.includes('googleusercontent.com')) return true;
     return JioSaavnMediaPipeline.getInstance().isDirectSongOrAlbumArtwork(url);
   }
 
@@ -83,6 +91,15 @@ export class SongCoverEngine {
    */
   public async fetchRawSongCover(song: Song): Promise<string | null> {
     if (!song) return null;
+
+    // Direct YouTube Music resolution
+    const isYt = song.id?.startsWith('ytm-') || song.source === 'youtube';
+    const ytId = (song.sources?.youtube?.videoId || song.id || '').replace(/^ytm-/, '');
+    if (isYt && ytId) {
+      return song.coverUrl && song.coverUrl !== '/app-icon.png'
+        ? this.formatRawCoverUrl(song.coverUrl)
+        : `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg`;
+    }
 
     const pipeline = JioSaavnMediaPipeline.getInstance();
 
@@ -188,9 +205,9 @@ export class SongCoverEngine {
             const cleanTarget = sanitize(song.album || '');
             return cleanA && cleanTarget && (cleanA === cleanTarget || cleanA.includes(cleanTarget) || cleanTarget.includes(cleanA));
           });
-          const albumCover = matchedAlbum?.image || matchedAlbum?.coverUrl;
-          if (albumCover && pipeline.isDirectSongOrAlbumArtwork(albumCover)) {
-            const formatted = this.formatRawCoverUrl(albumCover);
+          const rawAlbumCover = typeof matchedAlbum?.image === 'string' ? matchedAlbum.image : Array.isArray(matchedAlbum?.image) ? (matchedAlbum.image[matchedAlbum.image.length - 1]?.url || matchedAlbum.image[0]?.url) : matchedAlbum?.coverUrl;
+          if (rawAlbumCover && pipeline.isDirectSongOrAlbumArtwork(rawAlbumCover)) {
+            const formatted = this.formatRawCoverUrl(rawAlbumCover);
             if (songKey) this.memoryCoverCache.set(songKey, formatted);
             if (albumKey) this.memoryCoverCache.set(albumKey, formatted);
             return formatted;
@@ -217,9 +234,9 @@ export class SongCoverEngine {
             const cleanTarget = sanitize(song.title || '');
             return cleanS && cleanTarget && (cleanS === cleanTarget || cleanS.includes(cleanTarget) || cleanTarget.includes(cleanS));
           });
-          const songCover = matchedSong?.image || matchedSong?.coverUrl;
-          if (songCover && pipeline.isDirectSongOrAlbumArtwork(songCover)) {
-            const formatted = this.formatRawCoverUrl(songCover);
+          const rawSongCover = typeof matchedSong?.image === 'string' ? matchedSong.image : Array.isArray(matchedSong?.image) ? (matchedSong.image[matchedSong.image.length - 1]?.url || matchedSong.image[0]?.url) : matchedSong?.coverUrl;
+          if (rawSongCover && pipeline.isDirectSongOrAlbumArtwork(rawSongCover)) {
+            const formatted = this.formatRawCoverUrl(rawSongCover);
             if (songKey) this.memoryCoverCache.set(songKey, formatted);
             this.memoryCoverCache.set(titleKey, formatted);
             return formatted;

@@ -53,6 +53,30 @@ export class PlaylistDetailResolver {
       }
     }
 
+    // 1b. Check if it's a YouTube Music Playlist ID
+    if (playlistId.startsWith('ytp-') || playlistId.startsWith('VLPL') || playlistId.startsWith('PL')) {
+      try {
+        const cleanId = playlistId.replace(/^ytp-/, '');
+        const res = await fetch(getApiUrl(`/api/ytmusic/playlist/${cleanId}`));
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data) {
+            return {
+              id: playlistId,
+              title: json.data.title,
+              description: json.data.description || 'YouTube Music Playlist Collection',
+              coverUrl: json.data.coverUrl || '/app-icon.png',
+              songs: json.data.songs || [],
+              isUserOwned: false,
+              isCollaborative: false,
+            };
+          }
+        }
+      } catch (err) {
+        console.warn('[PlaylistDetailResolver] Failed to resolve YouTube playlist:', err);
+      }
+    }
+
     // 2. Find metadata from dynamic catalog or curated collections
     let foundMeta: { title: string; desc: string; coverUrl: string; language: string; category?: string } | null = null;
 

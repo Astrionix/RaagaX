@@ -182,8 +182,8 @@ try {
     const fileSize = fileBuffer.length;
 
     const newManifest = {
-      versionCode: 15,
-      versionName: '1.3.2',
+      versionCode: 16,
+      versionName: '1.3.3',
       apkUrl: 'https://raaga.me/api/app/download',
       sha256: sha256,
       fileSize: fileSize,
@@ -192,9 +192,9 @@ try {
       minimumSupportedVersion: 1,
       releaseChannel: 'stable',
       releaseNotes: [
-        '4K Splash Screen & Launcher Icons: Native VectorDrawable safe zone with zero cropping on Android 12+ displays.',
-        'Playlist Cloud & Desktop Sync: Fixed Supabase schema alignment and enabled instant real-time multi-device sync.',
-        'Performance, loss-less audio engine & UI response optimizations.'
+        'Detail View Back Navigation Fix: Resolved stack unwinding for Playlists, Albums, and Artists without getting stuck.',
+        'Artwork Display & Resolution Engine: Preserved uncropped full album and playlist art with contain aspect ratio and external CDN parsing.',
+        'YouTube Music Proxy Engine: Upstream 403 fallback handling and multi-provider audio streaming stream stability.'
       ]
     };
 

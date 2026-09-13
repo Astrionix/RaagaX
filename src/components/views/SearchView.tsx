@@ -26,6 +26,18 @@ import { PersonalizationEngine } from '@/lib/recommendation/PersonalizationEngin
 import { haptics } from '@/lib/haptics/HapticEngine';
 import { getApiUrl } from '@/lib/config/apiConfig';
 
+function cleanYouTubeTitle(rawTitle: string): string {
+  if (!rawTitle) return 'Unknown Title';
+  let t = SongFormatter.decodeHtml(rawTitle);
+  t = t.replace(/#\w+/g, '');
+  t = t.replace(/\s*\|\s*@[\w_]+/gi, '');
+  t = t.replace(/\s*[-–]\s*@[\w_]+/gi, '');
+  t = t.replace(/[\(\[\{]\s*(use\s+headphones|headphones\s+recommended|better\s+experience|subscribe|official\s+video|lyrical\s+video)[^\)\]\}]*[\)\]\}]/gi, '');
+  t = t.replace(/\s*\|\s*(use\s+headphones|subscribe|better\s+experience).*/gi, '');
+  t = t.replace(/\s+/g, ' ').trim();
+  return t || rawTitle;
+}
+
 export function SearchView() {
   const {
     searchQuery,
@@ -61,7 +73,7 @@ export function SearchView() {
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<RaagaCategory | null>(null);
-  const [filterType, setFilterType] = useState<'all' | 'songs' | 'artists' | 'albums' | 'playlists' | 'downloaded'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'songs' | 'artists' | 'albums' | 'playlists' | 'ytmusic' | 'downloaded'>('all');
   const [intentExplanation, setIntentExplanation] = useState<string | null>(null);
 
   // Load recent searches on mount
@@ -247,7 +259,13 @@ export function SearchView() {
   }, [searchResults.songs, downloadedSongIds]);
 
   const rankedSearchSongs = useMemo(() => {
-    const list = filterType === 'downloaded' ? downloadedOnlyResults : searchResults.songs;
+    let list = searchResults.songs;
+    if (filterType === 'downloaded') {
+      list = downloadedOnlyResults;
+    } else if (filterType === 'ytmusic') {
+      list = searchResults.songs.filter((s) => s.source === 'youtube' || s.id?.startsWith('ytm-'));
+    }
+
     if (!list || list.length === 0) return [];
     
     const engine = PersonalizationEngine.getInstance();
@@ -537,20 +555,20 @@ export function SearchView() {
 
           {/* Category Filter Chips */}
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-            {(['all', 'songs', 'artists', 'albums', 'playlists'] as const).map((type) => (
+            {(['all', 'songs', 'ytmusic', 'artists', 'albums', 'playlists'] as const).map((type) => (
               <button
                 key={type}
                 onClick={() => {
                   haptics.lightImpact();
                   setFilterType(type);
                 }}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold capitalize transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                   filterType === type
                     ? 'bg-[#FA233B] text-white shadow-md shadow-[#FA233B]/20'
                     : 'bg-white/[0.06] text-zinc-300 hover:text-white hover:bg-white/[0.12] border border-white/[0.08]'
                 }`}
               >
-                {type === 'all' ? 'All' : type}
+                {type === 'all' ? 'All' : type === 'ytmusic' ? 'YouTube Music' : type.charAt(0).toUpperCase() + type.slice(1)}
               </button>
             ))}
           </div>
@@ -794,14 +812,14 @@ export function SearchView() {
           )}
 
           {/* Playlists Section */}
-          {(filterType === 'all' || filterType === 'playlists') && searchResults.playlists.length > 0 && !isSearching && (
+          {(filterType === 'all' || filterType === 'playlists' || filterType === 'ytmusic') && searchResults.playlists.length > 0 && !isSearching && (
             <section className="space-y-3">
               <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                <ListMusic className="w-3.5 h-3.5 text-[#FA233B]" /> Playlists
+                <ListMusic className="w-3.5 h-3.5 text-[#FA233B]" /> {filterType === 'ytmusic' ? 'YouTube Music Playlists' : 'Playlists'}
               </h3>
-              {filterType === 'playlists' ? (
+              {(filterType === 'playlists' || filterType === 'ytmusic') ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-5">
-                  {searchResults.playlists.map((playlist) => (
+                  {(filterType === 'ytmusic' ? searchResults.playlists.filter(p => p.source === 'YouTube Music' || p.id.startsWith('ytp-')) : searchResults.playlists).map((playlist) => (
                     <div
                       key={playlist.id}
                       onClick={() => {
@@ -830,7 +848,7 @@ export function SearchView() {
                           {playlist.title}
                         </h4>
                         <p className="text-[11px] text-zinc-400 truncate mt-0.5">
-                          {playlist.songCount ? `${playlist.songCount} songs` : 'Playlist'}
+                          {playlist.songCount ? `${playlist.songCount} songs` : (playlist.source || 'Playlist')}
                         </p>
                       </div>
                     </div>
@@ -864,7 +882,7 @@ export function SearchView() {
                         {playlist.title}
                       </h4>
                       <p className="text-[10px] text-zinc-400 truncate">
-                        {playlist.songCount ? `${playlist.songCount} songs` : 'Playlist'}
+                        {playlist.songCount ? `${playlist.songCount} songs` : (playlist.source || 'Playlist')}
                       </p>
                     </div>
                   ))}
@@ -874,10 +892,10 @@ export function SearchView() {
           )}
 
           {/* Songs Section */}
-          {(filterType === 'all' || filterType === 'songs') && rankedSearchSongs.length > 0 && !isSearching && (
+          {(filterType === 'all' || filterType === 'songs' || filterType === 'ytmusic') && rankedSearchSongs.length > 0 && !isSearching && (
             <section className="space-y-3">
               <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Music className="w-3.5 h-3.5 text-[#FA233B]" /> Songs
+                <Music className="w-3.5 h-3.5 text-[#FA233B]" /> {filterType === 'ytmusic' ? 'YouTube Music Songs' : 'Songs'}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                 {rankedSearchSongs.map((song) => {
@@ -922,13 +940,23 @@ export function SearchView() {
                           playSearchSong(song);
                         }}
                       >
-                        <h4
-                          className={`text-xs font-bold truncate ${
-                            isCurrent ? 'text-[#FA233B]' : 'text-white group-hover:text-[#FA233B] transition-colors'
-                          }`}
-                        >
-                          {SongFormatter.cleanSongTitle(song.title)}
-                        </h4>
+                        <div className="flex items-center gap-1.5">
+                          <h4
+                            className={`text-xs font-bold truncate ${
+                              isCurrent ? 'text-[#FA233B]' : 'text-white group-hover:text-[#FA233B] transition-colors'
+                            }`}
+                            title={song.title}
+                          >
+                            {song.source === 'youtube'
+                              ? cleanYouTubeTitle(song.title)
+                              : SongFormatter.cleanSongTitle(song.title)}
+                          </h4>
+                          {(song.source === 'youtube' || song.id?.startsWith('ytm-')) && (
+                            <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-600/20 text-red-400 border border-red-500/30">
+                              YT Music
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[11px] text-zinc-400 truncate mt-0.5">
                           {SongFormatter.decodeHtml(song.artist)}
                         </p>

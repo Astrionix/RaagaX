@@ -80,13 +80,35 @@ export class JioSaavnMediaPipeline {
    */
   public isDirectSongOrAlbumArtwork(url?: string | null): boolean {
     if (!url || typeof url !== 'string') return false;
-    if (url === '/app-icon.png' || url.includes('/null/') || url.includes('null/null') || url.endsWith('/null')) return false;
-    if (!url.includes('saavncdn.com')) return false;
-    if (this.isPlaylistOrDiscoveryArtwork(url)) return false;
+    const trimmed = url.trim();
+    if (
+      trimmed === '' ||
+      trimmed === '/app-icon.png' ||
+      trimmed.includes('/null/') ||
+      trimmed.includes('null/null') ||
+      trimmed.endsWith('/null')
+    ) {
+      return false;
+    }
+    if (this.isPlaylistOrDiscoveryArtwork(trimmed)) return false;
 
     // Direct JioSaavn album/song covers reside in numeric ID folders (e.g., /832/, /999/, /123/)
-    const match = url.match(/https?:\/\/[a-z0-9.]*saavncdn\.com\/(\d+)\//i);
-    return Boolean(match);
+    if (trimmed.includes('saavncdn.com')) {
+      const match = trimmed.match(/https?:\/\/[a-z0-9.]*saavncdn\.com\/(\d+)\//i);
+      return Boolean(match);
+    }
+
+    // Allow all valid external image CDN URLs (YouTube, Google Usercontent, iTunes, Spotify, blob, data)
+    if (
+      trimmed.startsWith('https://') ||
+      trimmed.startsWith('http://') ||
+      trimmed.startsWith('blob:') ||
+      trimmed.startsWith('data:image/')
+    ) {
+      return true;
+    }
+
+    return false;
   }
 
   /**

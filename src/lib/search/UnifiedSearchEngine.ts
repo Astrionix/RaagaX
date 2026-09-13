@@ -328,6 +328,7 @@ export class UnifiedSearchEngine {
     // 2. Fetch Remote Provider Results (Global + Dedicated High-Fidelity Song Search concurrently)
     const apiBase = `${getApiBaseUrl().replace(/\/+$/, '')}/api`;
     let songs: Song[] = [];
+    let ytSongs: Song[] = [];
     let albums: UnifiedAlbumResult[] = [];
     let artists: UnifiedArtistResult[] = [];
     let playlists: UnifiedPlaylistResult[] = [];
@@ -336,10 +337,12 @@ export class UnifiedSearchEngine {
     try {
       const globalSearchUrl = `${apiBase}/search?query=${encodeURIComponent(q)}`;
       const songSearchUrl = `${apiBase}/search/songs?query=${encodeURIComponent(q)}&limit=20`;
+      const ytMusicSearchUrl = `${apiBase}/ytmusic/search?query=${encodeURIComponent(q)}&limit=15`;
 
-      const [globalRes, songsRes] = await Promise.allSettled([
+      const [globalRes, songsRes, ytMusicRes] = await Promise.allSettled([
         fetch(globalSearchUrl, { signal }),
         fetch(songSearchUrl, { signal }),
+        fetch(ytMusicSearchUrl, { signal }),
       ]);
 
       // Parse Global Search (Albums, Artists, Playlists, Top Query)
@@ -399,13 +402,28 @@ export class UnifiedSearchEngine {
           songs = results.map((item: any) => this.mapSong(item));
         }
       }
+
+      // Parse YouTube Music Songs
+      if (ytMusicRes.status === 'fulfilled' && ytMusicRes.value.ok) {
+        try {
+          const ytJson = await ytMusicRes.value.json();
+          if (ytJson.success && Array.isArray(ytJson.data)) {
+            ytSongs = ytJson.data;
+          }
+          if (ytJson.success && Array.isArray(ytJson.playlists)) {
+            playlists = [...playlists, ...ytJson.playlists];
+          }
+        } catch (e) {
+          console.warn('[UnifiedSearchEngine] YTMusic parse error:', e);
+        }
+      }
     } catch (err: any) {
       if (err?.name !== 'AbortError') {
         console.warn('[UnifiedSearchEngine] Search execution error:', err?.message);
       }
     }
 
-    // 3. Deduplicate and Merge Local Download Matches
+    // 3. Deduplicate and Merge Local Download Matches + Remote Songs + YouTube Music
     const seenSongIds = new Set<string>();
     const unifiedSongs: Song[] = [];
 
@@ -419,6 +437,14 @@ export class UnifiedSearchEngine {
       if (!seenSongIds.has(song.id)) {
         seenSongIds.add(song.id);
         unifiedSongs.push(song);
+      }
+    }
+
+    // Append YouTube Music tracks
+    for (const ytSong of ytSongs) {
+      if (!seenSongIds.has(ytSong.id)) {
+        seenSongIds.add(ytSong.id);
+        unifiedSongs.push(ytSong);
       }
     }
 

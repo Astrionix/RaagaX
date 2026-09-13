@@ -41,7 +41,7 @@ import {
   Plus,
   MonitorSpeaker,
 } from 'lucide-react';
-import { usePlayerStore } from '@/context/usePlayerStore';
+import { usePlayerStore, resolveUniversalArtwork } from '@/context/usePlayerStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { useLyricsStore } from '@/context/useLyricsStore';
@@ -213,9 +213,12 @@ export function ExpandedPlayerModal() {
   const isLiked = currentSong ? likedSongIds.includes(currentSong.id) : false;
   const isDownloaded = currentSong ? (downloadedSongIds || []).includes(currentSong.id) : false;
 
-  const coverUrl = currentSong?.coverUrl && !currentSong.coverUrl.includes('/null/') && !currentSong.coverUrl.includes('null/null')
-    ? currentSong.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500')
-    : '/app-icon.png';
+  const resolvePlayerCover = (song: typeof currentSong): string => {
+    if (!song) return '/app-icon.png';
+    return resolveUniversalArtwork(song);
+  };
+
+  const coverUrl = resolvePlayerCover(currentSong);
 
   // Format time helpers
   const formatTime = (seconds: number) => {
@@ -589,19 +592,18 @@ export function ExpandedPlayerModal() {
                   key={`desk-info-${songTransitionKey}`}
                   className="relative w-[min(340px,46vh)] md:w-[min(380px,48vh)] lg:w-[min(420px,50vh)] xl:w-[min(450px,52vh)] h-[min(340px,46vh)] md:h-[min(380px,48vh)] lg:h-[min(420px,50vh)] xl:h-[min(450px,52vh)] max-w-full aspect-square rounded-[14px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85)] flex-shrink-0 bg-black/40 flex items-center justify-center transition-transform duration-300 hover:scale-[1.01]"
                 >
-                  {coverUrl && coverUrl !== '/app-icon.png' ? (
-                    <img
-                      src={coverUrl}
-                      alt={currentSong.title}
-                      className="w-full h-full object-contain select-none rounded-[14px]"
-                      loading="eager"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-white/30 gap-2 bg-white/[0.04] rounded-[14px]">
-                      <Disc className="w-12 h-12 stroke-[1.2]" />
-                      <span className="text-[11px] font-medium tracking-wide uppercase font-mono">Artwork Unavailable</span>
-                    </div>
-                  )}
+                  <OptimizedImage
+                    src={coverUrl}
+                    alt={currentSong.title}
+                    size="full"
+                    imageFit="contain"
+                    className="w-full h-full object-contain select-none rounded-[14px]"
+                    fallbackSrc={
+                      currentSong?.id?.startsWith('ytm-') || currentSong?.source === 'youtube'
+                        ? `https://i.ytimg.com/vi/${(currentSong.sources?.youtube?.videoId || currentSong.id || '').replace(/^ytm-/, '')}/hqdefault.jpg`
+                        : '/app-icon.png'
+                    }
+                  />
                 </div>
               </div>
 
@@ -880,19 +882,18 @@ export function ExpandedPlayerModal() {
                 key={`desk-lyr-${songTransitionKey}`}
                 className="relative w-[min(320px,40vh)] lg:w-[min(360px,44vh)] h-[min(320px,40vh)] lg:h-[min(360px,44vh)] aspect-square rounded-[14px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85)] flex-shrink-0 bg-black/40 flex items-center justify-center transition-transform duration-300 hover:scale-[1.01]"
               >
-                {coverUrl && coverUrl !== '/app-icon.png' ? (
-                  <img
-                    src={coverUrl}
-                    alt={currentSong.title}
-                    className="w-full h-full object-contain select-none rounded-[14px]"
-                    loading="eager"
-                  />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-white/30 gap-2 bg-white/[0.04] rounded-[14px]">
-                    <Disc className="w-10 h-10 stroke-[1.2]" />
-                    <span className="text-[10px] font-medium tracking-wide uppercase font-mono">Artwork Unavailable</span>
-                  </div>
-                )}
+                <OptimizedImage
+                  src={coverUrl}
+                  alt={currentSong.title}
+                  size="full"
+                  imageFit="contain"
+                  className="w-full h-full object-contain select-none rounded-[14px]"
+                  fallbackSrc={
+                    currentSong?.id?.startsWith('ytm-') || currentSong?.source === 'youtube'
+                      ? `https://i.ytimg.com/vi/${(currentSong.sources?.youtube?.videoId || currentSong.id || '').replace(/^ytm-/, '')}/hqdefault.jpg`
+                      : '/app-icon.png'
+                  }
+                />
               </div>
 
               {/* Title & Artist Row */}
@@ -1351,19 +1352,18 @@ export function ExpandedPlayerModal() {
                 key={`mob-${songTransitionKey}`}
                 className="relative w-[min(300px,74vw,37vh)] h-[min(300px,74vw,37vh)] aspect-square rounded-[14px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85)] flex-shrink-0 bg-black/40 flex items-center justify-center transition-transform duration-300 hover:scale-[1.01]"
               >
-                {coverUrl && coverUrl !== '/app-icon.png' ? (
-                  <img
-                    src={coverUrl}
-                    alt={currentSong.title}
-                    className="w-full h-full object-contain select-none rounded-[14px]"
-                    loading="eager"
-                  />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-white/30 gap-2 bg-white/[0.04] rounded-[14px]">
-                    <Disc className="w-10 h-10 stroke-[1.2]" />
-                    <span className="text-[10px] font-medium tracking-wide uppercase font-mono">Artwork Unavailable</span>
-                  </div>
-                )}
+                <OptimizedImage
+                  src={coverUrl}
+                  alt={currentSong.title}
+                  size="full"
+                  imageFit="contain"
+                  className="w-full h-full object-contain select-none rounded-[14px]"
+                  fallbackSrc={
+                    currentSong?.id?.startsWith('ytm-') || currentSong?.source === 'youtube'
+                      ? `https://i.ytimg.com/vi/${(currentSong.sources?.youtube?.videoId || currentSong.id || '').replace(/^ytm-/, '')}/hqdefault.jpg`
+                      : '/app-icon.png'
+                  }
+                />
               </div>
             </div>
           ) : viewMode === 'lyrics' ? (

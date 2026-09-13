@@ -4,24 +4,21 @@ const https = require('https');
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '';
 const REPO = 'Astrionix/RaagaX';
-const TAG = 'v1.3.2';
-const RELEASE_NAME = 'RaagaX v1.3.2 — 4K Splash Screen & Playlist Cloud Sync';
+const TAG = 'v1.3.3';
+const RELEASE_NAME = 'RaagaX v1.3.3 — Detail View Navigation & Artwork Display Fixes';
 const APK_PATH = path.resolve(__dirname, '../RaagaX.apk');
 
-const bodyText = `## 🚀 RaagaX v1.3.2 Release Notes
+const bodyText = `## 🚀 RaagaX v1.3.3 Release Notes
 
-### 🎨 4K Splash Screen & Icon Precision Fix
-- **Zero-Cropping Safe Zone**: Fixed Android 12+ circular mask clipping by introducing a native \`VectorDrawable\` (\`ic_splash_logo.xml\`) strictly bounded within the 160dp inner circular safe zone (~62% scale with ~9dp safety margin).
-- **True 4K UHD Clarity**: Replaced stretched low-res raster icons with infinite-resolution vector drawables and ultra-high-density 4K splash surfaces (\`2160x3840\`, \`3840x2160\`, \`2048x2048\`).
-- **Adaptive Icon Layers**: Added \`mipmap-anydpi-v26\` adaptive icon definitions to ensure flawless rendering on Samsung OneUI, Google Pixel, and third-party Android launchers.
+### 🔄 Detail View Back Navigation Fix
+- Resolved stack unwinding issues when pressing Back inside Playlist, Album, and Artist detail views across mobile, tablet, and desktop layouts.
 
-### ☁️ Playlist Cloud & Cross-Device Sync (APK ⇄ Desktop ⇄ Web)
-- **Supabase Schema Fix**: Aligned playlist metadata schema columns (\`title\` and \`owner_id\`) across \`usePlaylistStore.ts\` and \`AccountSyncEngine.ts\`.
-- **Realtime Postgres Subscription**: Enabled instant cross-device realtime synchronization for \`playlists\` and \`playlist_songs\` tables.
-- **Default Master Playlist Cover**: Introduced a constant 1024x1024 master cover (\`default-playlist-cover.png\`) for playlists without custom artwork.
+### 🖼️ Artwork Resolution & Uncropped Display
+- Support for external high-res CDN images (\`ytimg.com\`, \`googleusercontent.com\`, \`mzstatic.com\`, \`scdn.co\`).
+- Changed player cover display mode to full \`contain\` fit to prevent cropping on non-square album artwork.
 
 ### 📦 Download Release
-- **Android APK:** \`RaagaX.apk\` (v1.3.2 / versionCode 15)
+- **Android APK:** \`RaagaX.apk\` (v1.3.3 / versionCode 16)
 `;
 
 function request(options, postData) {

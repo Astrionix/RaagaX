@@ -203,6 +203,94 @@ export class NavigationStack {
   }
 
   /**
+   * Navigates back from a specific current route or detail view.
+   * Unwinds all entries that match the current detail entity (e.g. same playlist ID,
+   * same album ID, same artist ID, or player modal toggles on that entity)
+   * until a DIFFERENT screen destination is reached.
+   */
+  public goBackFrom(
+    current: {
+      activeTab: ActiveTab;
+      selectedAlbumId?: string | null;
+      selectedArtistId?: string | null;
+      selectedPlaylistId?: string | null;
+    },
+    applyStateCallback?: (target: NavigationEntry) => void
+  ): boolean {
+    if (this.stack.length <= 1) {
+      return false;
+    }
+
+    this.isNavigatingBack = true;
+    try {
+      const isMatch = (entry: NavigationEntry | null | undefined): boolean => {
+        if (!entry) return false;
+        if (current.activeTab === 'playlist') {
+          return entry.activeTab === 'playlist' && (
+            !current.selectedPlaylistId || 
+            entry.selectedPlaylistId === current.selectedPlaylistId || 
+            !entry.selectedPlaylistId
+          );
+        }
+        if (current.activeTab === 'album') {
+          return entry.activeTab === 'album' && (
+            !current.selectedAlbumId || 
+            entry.selectedAlbumId === current.selectedAlbumId || 
+            !entry.selectedAlbumId
+          );
+        }
+        if (current.activeTab === 'artist') {
+          return entry.activeTab === 'artist' && (
+            !current.selectedArtistId || 
+            entry.selectedArtistId === current.selectedArtistId || 
+            !entry.selectedArtistId
+          );
+        }
+        return entry.activeTab === current.activeTab;
+      };
+
+      let lastPopped: NavigationEntry | undefined;
+
+      while (this.stack.length > 1 && isMatch(this.getCurrent())) {
+        const popped = this.stack.pop();
+        if (popped) {
+          this.forwardStack.push(popped);
+          lastPopped = popped;
+        }
+      }
+
+      const target = this.getCurrent();
+      if (!target || isMatch(target)) {
+        return false;
+      }
+
+      // If the popped screen came directly from the Expanded Player, restore the Expanded Player!
+      if (lastPopped?.fromPlayer) {
+        target.isPlayerExpanded = true;
+      }
+
+      if (applyStateCallback) {
+        applyStateCallback(target);
+      }
+
+      if (typeof window !== 'undefined') {
+        const targetKey = ScrollManager.getInstance().getRouteKey({
+          activeTab: target.activeTab,
+          selectedAlbumId: target.selectedAlbumId,
+          selectedArtistId: target.selectedArtistId,
+          selectedPlaylistId: target.selectedPlaylistId,
+        });
+        ScrollManager.getInstance().navigateTo(targetKey);
+      }
+
+      this.notify();
+      return true;
+    } finally {
+      this.isNavigatingBack = false;
+    }
+  }
+
+  /**
    * Executes forward navigation.
    */
   public goForward(applyStateCallback?: (target: NavigationEntry) => void): boolean {

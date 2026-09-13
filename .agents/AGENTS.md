@@ -4,20 +4,16 @@
 
 When building features for RaagaX, you **must strictly adhere to the following policies regarding YouTube usage**:
 
-### ✅ ALLOWED (Discovery & Metadata)
-- **New Releases**: Discover recent uploads from official channels and cross-check upload dates.
-- **Song/Video Discovery**: Use YouTube search to find music videos.
-- **Album/Playlist Discovery**: Find official playlists or "jukeboxes", but cross-check with a legitimate music catalog (like JioSaavn) before claiming it's an "Album".
-- **Artist/Channel Discovery**: Use channels to find official artist catalogs.
-- **Artwork**: Use YouTube video/playlist thumbnails as fallback cover art.
-- **Trending**: Use public YouTube signals (views, likes, comments) as inputs to our own internal Trending Score algorithm.
-- **Playback**: Embed and control YouTube videos using the official **YouTube IFrame Player API**.
+### ✅ ALLOWED (Discovery, Playback & Offline)
+- **YouTube Music Catalog & Discovery**: Search songs, artists, albums, and playlists from YouTube Music for comprehensive discovery.
+- **Audio Playback via Server Proxy**: Stream YouTube Music audio via the dedicated internal server proxy (`/api/ytmusic/stream/[id]`) with HTTP 206 range headers for seamless background playback and lockscreen media session integration.
+- **Personal Offline Caching**: Allow users to cache/download tracks locally on their personal device (IndexedDB / device storage) for offline listening.
+- **New Releases & Signals**: Discover recent uploads from official channels and use public signals for trending algorithms.
+- **Artwork**: Use official high-resolution thumbnails for cover art.
 
-### ❌ PROHIBITED (Data Extraction & Storage)
-- **Do NOT** extract raw audio (MP3/MP4) from YouTube videos.
-- **Do NOT** download, import, backup, cache, or store copies of YouTube audiovisual content in Supabase or any other CDN.
-- **Do NOT** separate the audio and video components of a YouTube stream.
-- **Do NOT** build a hidden or background YouTube player that circumvents the official YouTube IFrame player's display requirements.
+### ❌ PROHIBITED
+- **Do NOT** upload, backup, or host YouTube audiovisual content in external cloud databases (e.g. Supabase, public S3 buckets, or third-party CDNs).
+- **Do NOT** bypass the server proxy to expose direct temporary `googlevideo.com` signed URLs to clients (which cause 403 IP lockouts and break over time).
 
 ### Architecture Principle
-Use **JioSaavn** (or another licensed metadata provider) for structured music/album catalogs. Use **YouTube** to augment discovery, fetch playback IFrames, and extract popularity metrics. Never build the database solely around raw extracted YouTube URLs; use stable canonical identifiers (`youtubeVideoId`, `saavnAlbumId`).
+Use **JioSaavn** as the primary high-fidelity (320kbps) studio catalog provider. Use **YouTube Music** to augment search with indie, cover, remix, and non-catalog tracks. Canonical identifiers: `song.id` with `ytm-` prefix for YouTube Music tracks (`videoId`) and standard numeric IDs for JioSaavn.

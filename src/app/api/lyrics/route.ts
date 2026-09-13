@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { YouTubeMusicEngine } from '@/lib/ytmusic/YouTubeMusicEngine';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -47,27 +48,64 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const cleanTitle = cleanString(title);
-  const cleanArtist = artist.split(/[,&/]/)[0].trim();
+  const isYtTrack = trackId.startsWith('ytm-');
 
-  // 1. PRIORITIZE LRCLIB SYNCED LYRICS (Gives exact millisecond timestamps)
+  // Extract core song title (removing bracketed descriptors, remixes, video tags)
+  const cleanCoreTitle = title
+    .replace(/\s*[\(\[\{][^\)\]\}]*(?:bass\s*boost|remix|dj|mashup|slowed|reverb|lo-?fi|audio|video|official|lyrical|full\s+song)[^\)\]\}]*[\)\]\}]/gi, '')
+    .split(/\s*[|•/-]\s*/)[0]
+    .trim();
+
+  let cleanArtist = (artist || '').replace(/Various Artists|@\w+/gi, '').split(/[,&/]/)[0].trim();
+  if (!cleanArtist && title.includes('|')) {
+    const parts = title.split('|').map((p) => p.trim());
+    cleanArtist = parts.find((p) => /anirudh|thaman|rahman|devi|sid|arijit|shreya|keerthy|vijay|nani/i.test(p)) || '';
+  }
+
+  let plainFallbackText = '';
+  let fallbackSource = 'LRCLIB';
+
+  // 1. If it's a YouTube Music track, check official YouTube Music lyrics first
+  if (isYtTrack) {
+    try {
+      const ytLyrics = await YouTubeMusicEngine.getInstance().getLyrics(trackId);
+      if (ytLyrics && ytLyrics.trim().length > 10) {
+        if (/\[\d{2}:\d{2}/.test(ytLyrics)) {
+          return NextResponse.json(
+            {
+              status: 'ready',
+              rawText: ytLyrics.trim(),
+              source: 'YouTube Music (Synced)',
+              synced: true,
+            },
+            { headers: corsHeaders }
+          );
+        }
+        plainFallbackText = ytLyrics.trim();
+        fallbackSource = 'YouTube Music';
+      }
+    } catch {}
+  }
+
+  // 2. PRIORITIZE LRCLIB SYNCED LYRICS (Gives exact millisecond timestamps)
   try {
+    const effectiveTitle = cleanCoreTitle || cleanString(title) || title;
     const lrclibQueries = [
       // Exact track + artist + duration
-      durationSec > 0 
-        ? `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTitle || title)}&artist_name=${encodeURIComponent(cleanArtist)}&duration=${durationSec}`
+      durationSec > 0 && cleanArtist
+        ? `https://lrclib.net/api/get?track_name=${encodeURIComponent(effectiveTitle)}&artist_name=${encodeURIComponent(cleanArtist)}&duration=${durationSec}`
         : null,
       // Exact track + artist
-      `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTitle || title)}&artist_name=${encodeURIComponent(cleanArtist)}`,
-      // Raw track + artist
-      `https://lrclib.net/api/get?track_name=${encodeURIComponent(title)}&artist_name=${encodeURIComponent(cleanArtist)}`,
-      // Search by clean title and artist
-      `https://lrclib.net/api/search?q=${encodeURIComponent(`${cleanTitle || title} ${cleanArtist}`)}`,
-      // Search by title only
-      `https://lrclib.net/api/search?q=${encodeURIComponent(cleanTitle || title)}`
+      cleanArtist
+        ? `https://lrclib.net/api/get?track_name=${encodeURIComponent(effectiveTitle)}&artist_name=${encodeURIComponent(cleanArtist)}`
+        : null,
+      // Search by title and artist
+      cleanArtist
+        ? `https://lrclib.net/api/search?q=${encodeURIComponent(`${effectiveTitle} ${cleanArtist}`)}`
+        : null,
+      // Search by title only (crucial for regional tracks & remixes)
+      `https://lrclib.net/api/search?q=${encodeURIComponent(effectiveTitle)}`,
     ].filter(Boolean) as string[];
-
-    let plainFallbackText = '';
 
     for (const queryUrl of lrclibQueries) {
       try {
@@ -98,7 +136,10 @@ export async function GET(req: NextRequest) {
             }
             if (!plainFallbackText) {
               const plainItem = data.find((item: any) => item?.plainLyrics && item.plainLyrics.trim().length > 10);
-              if (plainItem) plainFallbackText = plainItem.plainLyrics;
+              if (plainItem) {
+                plainFallbackText = plainItem.plainLyrics;
+                fallbackSource = 'LRCLIB';
+              }
             }
           } else if (data) {
             if (data.syncedLyrics && data.syncedLyrics.trim().length > 10) {
@@ -114,19 +155,20 @@ export async function GET(req: NextRequest) {
             }
             if (!plainFallbackText && data.plainLyrics) {
               plainFallbackText = data.plainLyrics;
+              fallbackSource = 'LRCLIB';
             }
           }
         }
       } catch {}
     }
 
-    // If we have plain fallback from LRCLIB, hold it
+    // If we have plain fallback from YouTube Music or LRCLIB, return it
     if (plainFallbackText && plainFallbackText.trim().length > 10) {
       return NextResponse.json(
         {
           status: 'ready',
           rawText: plainFallbackText,
-          source: 'LRCLIB',
+          source: fallbackSource,
           synced: false,
         },
         { headers: corsHeaders }

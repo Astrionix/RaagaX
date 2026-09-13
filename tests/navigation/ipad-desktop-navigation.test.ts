@@ -118,4 +118,60 @@ describe('RaagaX NavigationStack — iPad & Desktop Navigation Suite', () => {
     });
     expect(notifyCount).toBe(4); // Did not increment after unsubscribe
   });
+
+  it('5. goBackFrom unwinds intermediate duplicate entries on the same detail entity', () => {
+    const nav = NavigationStack.getInstance();
+    nav.resetToInitial('home');
+
+    // 1. User goes to search
+    nav.push({
+      activeTab: 'search',
+      selectedAlbumId: null,
+      selectedArtistId: null,
+      selectedPlaylistId: null,
+      isPlayerExpanded: false,
+    });
+
+    // 2. User opens playlist
+    nav.push({
+      activeTab: 'playlist',
+      selectedAlbumId: null,
+      selectedArtistId: null,
+      selectedPlaylistId: 'ytp-123',
+      isPlayerExpanded: false,
+    });
+
+    // 3. Player expands
+    nav.push({
+      activeTab: 'playlist',
+      selectedAlbumId: null,
+      selectedArtistId: null,
+      selectedPlaylistId: 'ytp-123',
+      isPlayerExpanded: true,
+    });
+
+    // 4. Player minimizes
+    nav.push({
+      activeTab: 'playlist',
+      selectedAlbumId: null,
+      selectedArtistId: null,
+      selectedPlaylistId: 'ytp-123',
+      isPlayerExpanded: false,
+    });
+
+    expect(nav.getStack().length).toBe(5);
+
+    // 5. User clicks Back on playlist detail screen
+    let targetState: any = null;
+    const handled = nav.goBackFrom(
+      { activeTab: 'playlist', selectedPlaylistId: 'ytp-123' },
+      (target) => {
+        targetState = target;
+      }
+    );
+
+    expect(handled).toBe(true);
+    expect(targetState.activeTab).toBe('search');
+    expect(nav.getCurrent()?.activeTab).toBe('search');
+  });
 });

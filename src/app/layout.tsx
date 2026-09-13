@@ -131,11 +131,16 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="referrer" content="no-referrer" />
         {/* Instant CDN Preconnects for 0ms artwork and stream resolution */}
         <link rel="preconnect" href="https://c.saavncdn.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://c.saavncdn.com" />
         <link rel="preconnect" href="https://aac.saavncdn.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://aac.saavncdn.com" />
+        <link rel="preconnect" href="https://i.ytimg.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://i.ytimg.com" />
+        <link rel="preconnect" href="https://yt3.googleusercontent.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://yt3.googleusercontent.com" />
         <link rel="preconnect" href="https://i.scdn.co" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://i.scdn.co" />
         <script

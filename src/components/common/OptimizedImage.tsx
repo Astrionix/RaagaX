@@ -40,38 +40,45 @@ export function OptimizedImage({
 
     let url = rawUrl.replace('http://', 'https://');
 
-    // Always deliver raw 500x500 high-res quality from JioSaavn CDN
-    url = url.replace(/50x50|150x150|300x300/g, '500x500');
+    // Clean up temporary expiring query parameters from YouTube CDN
+    if (url.includes('ytimg.com/vi/')) {
+      url = url.split('?')[0];
+    } else if (url.includes('googleusercontent.com') && url.includes('=')) {
+      url = url.replace(/=w\d+-h\d+[^?&]*/, '=w500-h500-l90-rj').replace(/=s\d+[^?&]*/, '=s500');
+    } else if (url.includes('saavncdn.com')) {
+      // Always deliver raw 500x500 high-res quality from JioSaavn CDN
+      url = url.replace(/50x50|150x150|300x300/g, '500x500');
+    }
 
     return url;
   };
 
   const resolvedUrl = resolveArtworkUrl(src);
+  const [currentSrc, setCurrentSrc] = useState<string>(resolvedUrl);
   const isAlreadyLoaded = loadedImageUrls.has(resolvedUrl);
 
   const [isLoaded, setIsLoaded] = useState(isAlreadyLoaded);
   const [hasError, setHasError] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
 
-  const finalSrc = hasError ? fallbackSrc : resolvedUrl;
-
   useEffect(() => {
-    if (loadedImageUrls.has(resolvedUrl)) {
-      setIsLoaded(true);
-      return;
-    }
-    if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
-      loadedImageUrls.add(resolvedUrl);
-      setIsLoaded(true);
-    }
-  }, [resolvedUrl]);
-
-  useEffect(() => {
+    setCurrentSrc(resolvedUrl);
     setHasError(false);
     if (!loadedImageUrls.has(resolvedUrl)) {
       setIsLoaded(false);
     }
-  }, [src, resolvedUrl]);
+  }, [resolvedUrl]);
+
+  useEffect(() => {
+    if (loadedImageUrls.has(currentSrc)) {
+      setIsLoaded(true);
+      return;
+    }
+    if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
+      loadedImageUrls.add(currentSrc);
+      setIsLoaded(true);
+    }
+  }, [currentSrc]);
 
   const fitMode = imageFit === 'contain' || className?.includes('object-contain')
     ? 'object-contain'
@@ -88,18 +95,23 @@ export function OptimizedImage({
 
       <img
         ref={imgRef}
-        src={finalSrc}
+        src={currentSrc}
         alt={alt}
         loading="eager"
         decoding="async"
         draggable={false}
+        referrerPolicy="no-referrer"
         fetchPriority={size === 'thumb' ? 'auto' : 'high'}
         onLoad={() => {
-          loadedImageUrls.add(resolvedUrl);
+          loadedImageUrls.add(currentSrc);
           setIsLoaded(true);
         }}
         onError={() => {
-          if (!hasError) {
+          if (currentSrc !== fallbackSrc && fallbackSrc) {
+            setCurrentSrc(fallbackSrc);
+            setHasError(true);
+          } else if (currentSrc !== '/app-icon.png') {
+            setCurrentSrc('/app-icon.png');
             setHasError(true);
             setIsLoaded(true);
           }
@@ -111,3 +123,4 @@ export function OptimizedImage({
     </div>
   );
 }
+

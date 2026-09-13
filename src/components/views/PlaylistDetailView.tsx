@@ -409,18 +409,26 @@ export function PlaylistDetailView() {
           <button
             onClick={() => {
               haptics.lightImpact();
-              const handled = NavigationStack.getInstance().goBack((target) => {
-                usePlayerStore.setState({
-                  activeTab: target.activeTab,
-                  selectedAlbumId: target.selectedAlbumId,
-                  selectedArtistId: target.selectedArtistId,
-                  selectedPlaylistId: target.selectedPlaylistId,
-                  isPlayerExpanded: target.isPlayerExpanded,
-                });
-              });
+              const currentId = playlist?.id || selectedPlaylistId;
+              const handled = NavigationStack.getInstance().goBackFrom(
+                { activeTab: 'playlist', selectedPlaylistId: currentId },
+                (target) => {
+                  usePlayerStore.setState({
+                    activeTab: target.activeTab,
+                    selectedAlbumId: target.selectedAlbumId,
+                    selectedArtistId: target.selectedArtistId,
+                    selectedPlaylistId: target.selectedPlaylistId,
+                    isPlayerExpanded: false,
+                  });
+                }
+              );
               if (!handled) {
-                setSelectedPlaylistId(null);
-                setActiveTab('library');
+                const hasSearch = Boolean(usePlayerStore.getState().searchQuery?.trim());
+                usePlayerStore.setState({
+                  selectedPlaylistId: null,
+                  activeTab: hasSearch ? 'search' : 'library',
+                  isPlayerExpanded: false,
+                });
               }
             }}
             className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all text-xs font-bold cursor-pointer"
@@ -570,7 +578,7 @@ export function PlaylistDetailView() {
                 src={playlist.coverUrl || playlist.songs?.[0]?.coverUrl || '/default-playlist-cover.png'} 
                 alt={playlist.title}
                 onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/default-playlist-cover.png'; }}
-                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                className="w-full h-full object-contain p-1 transition-transform duration-300 group-hover:scale-105"
               />
 
               <button

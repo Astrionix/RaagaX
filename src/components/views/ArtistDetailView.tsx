@@ -212,18 +212,26 @@ export function ArtistDetailView() {
         <button
           onClick={() => {
             haptics.lightImpact();
-            const handled = NavigationStack.getInstance().goBack((target) => {
-              usePlayerStore.setState({
-                activeTab: target.activeTab,
-                selectedAlbumId: target.selectedAlbumId,
-                selectedArtistId: target.selectedArtistId,
-                selectedPlaylistId: target.selectedPlaylistId,
-                isPlayerExpanded: target.isPlayerExpanded,
-              });
-            });
+            const currentId = artist?.id || selectedArtistId;
+            const handled = NavigationStack.getInstance().goBackFrom(
+              { activeTab: 'artist', selectedArtistId: currentId },
+              (target) => {
+                usePlayerStore.setState({
+                  activeTab: target.activeTab,
+                  selectedAlbumId: target.selectedAlbumId,
+                  selectedArtistId: target.selectedArtistId,
+                  selectedPlaylistId: target.selectedPlaylistId,
+                  isPlayerExpanded: false,
+                });
+              }
+            );
             if (!handled) {
-              setSelectedArtistId(null);
-              setActiveTab('home');
+              const hasSearch = Boolean(usePlayerStore.getState().searchQuery?.trim());
+              usePlayerStore.setState({
+                selectedArtistId: null,
+                activeTab: hasSearch ? 'search' : 'home',
+                isPlayerExpanded: false,
+              });
             }
           }}
           className="p-2 -ml-2 rounded-full hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold cursor-pointer"

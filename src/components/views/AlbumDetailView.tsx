@@ -702,18 +702,26 @@ export function AlbumDetailView() {
           <button
             onClick={() => {
               haptics.lightImpact();
-              const handled = NavigationStack.getInstance().goBack((target) => {
-                usePlayerStore.setState({
-                  activeTab: target.activeTab,
-                  selectedAlbumId: target.selectedAlbumId,
-                  selectedArtistId: target.selectedArtistId,
-                  selectedPlaylistId: target.selectedPlaylistId,
-                  isPlayerExpanded: target.isPlayerExpanded,
-                });
-              });
+              const currentId = selectedAlbumId;
+              const handled = NavigationStack.getInstance().goBackFrom(
+                { activeTab: 'album', selectedAlbumId: currentId },
+                (target) => {
+                  usePlayerStore.setState({
+                    activeTab: target.activeTab,
+                    selectedAlbumId: target.selectedAlbumId,
+                    selectedArtistId: target.selectedArtistId,
+                    selectedPlaylistId: target.selectedPlaylistId,
+                    isPlayerExpanded: false,
+                  });
+                }
+              );
               if (!handled) {
-                setSelectedAlbumId(null);
-                setActiveTab('album');
+                const hasSearch = Boolean(usePlayerStore.getState().searchQuery?.trim());
+                usePlayerStore.setState({
+                  selectedAlbumId: null,
+                  activeTab: hasSearch ? 'search' : 'album',
+                  isPlayerExpanded: false,
+                });
               }
             }}
             className="p-2 -ml-2 rounded-full hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold cursor-pointer"
@@ -741,18 +749,26 @@ export function AlbumDetailView() {
           <button
             onClick={() => {
               haptics.lightImpact();
-              const handled = NavigationStack.getInstance().goBack((target) => {
-                usePlayerStore.setState({
-                  activeTab: target.activeTab,
-                  selectedAlbumId: target.selectedAlbumId,
-                  selectedArtistId: target.selectedArtistId,
-                  selectedPlaylistId: target.selectedPlaylistId,
-                  isPlayerExpanded: target.isPlayerExpanded,
-                });
-              });
+              const currentId = album?.id || selectedAlbumId;
+              const handled = NavigationStack.getInstance().goBackFrom(
+                { activeTab: 'album', selectedAlbumId: currentId },
+                (target) => {
+                  usePlayerStore.setState({
+                    activeTab: target.activeTab,
+                    selectedAlbumId: target.selectedAlbumId,
+                    selectedArtistId: target.selectedArtistId,
+                    selectedPlaylistId: target.selectedPlaylistId,
+                    isPlayerExpanded: false,
+                  });
+                }
+              );
               if (!handled) {
-                setSelectedAlbumId(null);
-                setActiveTab('album');
+                const hasSearch = Boolean(usePlayerStore.getState().searchQuery?.trim());
+                usePlayerStore.setState({
+                  selectedAlbumId: null,
+                  activeTab: hasSearch ? 'search' : 'album',
+                  isPlayerExpanded: false,
+                });
               }
             }}
             className="p-2 -ml-2 rounded-full hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold cursor-pointer"

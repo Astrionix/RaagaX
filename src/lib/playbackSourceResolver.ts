@@ -9,6 +9,7 @@ import { RealMusicEngine } from '@/lib/realMusicEngine';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { PlayableUrlCache } from '@/lib/playback/PlayableUrlCache';
 import { RaagaXNativePlayer } from '@/lib/playback/native/RaagaXNativePlayer';
+import { getApiBaseUrl } from '@/lib/config/apiConfig';
 
 function isAudioUrlExpired(url: string): boolean {
   if (!url) return true;
@@ -177,6 +178,25 @@ export class PlaybackSourceResolver {
           isCached: true,
         };
       }
+    }
+
+    // ── 4b. YouTube Music Stream Resolution ──────────────────────────────────
+    const isYouTubeTrack = song.id?.startsWith('ytm-') || song.source === 'youtube' || Boolean(song.sources?.youtube?.videoId);
+    if (isYouTubeTrack) {
+      const videoId = (song.sources?.youtube?.videoId || song.id.replace(/^ytm-/, '')).trim();
+      const apiBase = getApiBaseUrl().replace(/\/+$/, '');
+      const ytStreamUrl = `${apiBase}/api/ytmusic/stream/${videoId}`;
+
+      PlayableUrlCache.getInstance().set(song.id, ytStreamUrl, [ytStreamUrl], 'remote');
+
+      return {
+        type: 'remote',
+        url: ytStreamUrl,
+        canonicalUrl: ytStreamUrl,
+        candidates: [ytStreamUrl],
+        videoId: song.id,
+        isCached: false,
+      };
     }
 
     // ── 5. Quality Negotiation for Online Streaming ──────────────────────────

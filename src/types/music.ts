@@ -24,6 +24,7 @@ export interface Song {
       id: string;
     };
   };
+  source?: 'jiosaavn' | 'youtube' | 'local' | 'manual';
   verification?: {
     languageVerified: boolean;
     songVerified: boolean;

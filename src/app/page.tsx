@@ -130,13 +130,93 @@ export default function Page() {
     const handleBackNavigation = () => {
       const store = usePlayerStore.getState();
 
-
       if (store.isSettingsModalOpen) {
         store.toggleSettingsModal();
         return true;
       }
 
-      // 3. Delegate to NavigationStack for authoritative navigation & player restoration
+      if (store.isPlayerExpanded) {
+        store.togglePlayerExpanded(false);
+        return true;
+      }
+
+      // Handle detail views (Playlist, Album, Artist) with goBackFrom
+      if (store.activeTab === 'playlist' && store.selectedPlaylistId) {
+        const handled = NavigationStack.getInstance().goBackFrom(
+          { activeTab: 'playlist', selectedPlaylistId: store.selectedPlaylistId },
+          (target) => {
+            usePlayerStore.setState({
+              activeTab: target.activeTab,
+              selectedAlbumId: target.selectedAlbumId,
+              selectedArtistId: target.selectedArtistId,
+              selectedPlaylistId: target.selectedPlaylistId,
+              isPlayerExpanded: false,
+            });
+            import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact());
+          }
+        );
+        if (handled) return true;
+        const hasSearch = Boolean(store.searchQuery?.trim());
+        usePlayerStore.setState({
+          selectedPlaylistId: null,
+          activeTab: hasSearch ? 'search' : 'library',
+          isPlayerExpanded: false,
+        });
+        import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact());
+        return true;
+      }
+
+      if (store.activeTab === 'album' && store.selectedAlbumId) {
+        const handled = NavigationStack.getInstance().goBackFrom(
+          { activeTab: 'album', selectedAlbumId: store.selectedAlbumId },
+          (target) => {
+            usePlayerStore.setState({
+              activeTab: target.activeTab,
+              selectedAlbumId: target.selectedAlbumId,
+              selectedArtistId: target.selectedArtistId,
+              selectedPlaylistId: target.selectedPlaylistId,
+              isPlayerExpanded: false,
+            });
+            import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact());
+          }
+        );
+        if (handled) return true;
+        const hasSearch = Boolean(store.searchQuery?.trim());
+        usePlayerStore.setState({
+          selectedAlbumId: null,
+          activeTab: hasSearch ? 'search' : 'album',
+          isPlayerExpanded: false,
+        });
+        import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact());
+        return true;
+      }
+
+      if (store.activeTab === 'artist' && store.selectedArtistId) {
+        const handled = NavigationStack.getInstance().goBackFrom(
+          { activeTab: 'artist', selectedArtistId: store.selectedArtistId },
+          (target) => {
+            usePlayerStore.setState({
+              activeTab: target.activeTab,
+              selectedAlbumId: target.selectedAlbumId,
+              selectedArtistId: target.selectedArtistId,
+              selectedPlaylistId: target.selectedPlaylistId,
+              isPlayerExpanded: false,
+            });
+            import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact());
+          }
+        );
+        if (handled) return true;
+        const hasSearch = Boolean(store.searchQuery?.trim());
+        usePlayerStore.setState({
+          selectedArtistId: null,
+          activeTab: hasSearch ? 'search' : 'home',
+          isPlayerExpanded: false,
+        });
+        import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact());
+        return true;
+      }
+
+      // Delegate to NavigationStack for authoritative navigation
       const handled = NavigationStack.getInstance().goBack((target) => {
         usePlayerStore.setState({
           activeTab: target.activeTab,
@@ -150,12 +230,15 @@ export default function Page() {
 
       if (handled) return true;
 
-      // 4. Fallback: If on any secondary tab, navigate to Home
+      // Fallback: If on any secondary tab, navigate to Home
       if (store.activeTab !== 'home') {
-        store.setSelectedAlbumId(null);
-        store.setSelectedArtistId(null);
-        store.setSelectedPlaylistId(null);
-        store.setActiveTab('home');
+        usePlayerStore.setState({
+          selectedAlbumId: null,
+          selectedArtistId: null,
+          selectedPlaylistId: null,
+          activeTab: 'home',
+          isPlayerExpanded: false,
+        });
         import('@/lib/haptics/HapticEngine').then(m => m.haptics.lightImpact());
         return true;
       }
