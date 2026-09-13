@@ -1,4 +1,4 @@
-import { Innertube, UniversalCache, ClientType, Log } from 'youtubei.js';
+import type { Innertube } from 'youtubei.js';
 import { Song } from '@/types/music';
 
 interface CachedStreamInfo {
@@ -42,12 +42,15 @@ export class YouTubeMusicEngine {
 
   private async getClient(): Promise<Innertube> {
     if (!this.ytPromise) {
-      Log.setLevel(Log.Level.ERROR);
-      this.ytPromise = Innertube.create({
-        client_type: ClientType.VISIONOS,
-        cache: new UniversalCache(false),
-        generate_session_locally: true,
-      }).catch((err) => {
+      this.ytPromise = (async () => {
+        const { Innertube, UniversalCache, ClientType, Log } = await import('youtubei.js');
+        Log.setLevel(Log.Level.ERROR);
+        return Innertube.create({
+          client_type: ClientType.VISIONOS,
+          cache: new UniversalCache(false),
+          generate_session_locally: true,
+        });
+      })().catch((err) => {
         this.ytPromise = null;
         console.error('[YouTubeMusicEngine] Failed to initialize InnerTube client:', err);
         throw err;
