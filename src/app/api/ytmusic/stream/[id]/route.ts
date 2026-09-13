@@ -67,9 +67,39 @@ async function handleStream(req: NextRequest, rawId: string, isHead: boolean) {
       return new Response('Invalid video ID', { status: 400 });
     }
 
-    let streamUrl: string | null = null;
+    const rangeHeader = req.headers.get('range');
 
-    // 1. Prioritize direct YouTube Music pure audio stream resolution (<300ms)
+    const fetchStream = async (targetUrl: string) => {
+      const isGoogleVideo = targetUrl.includes('googlevideo.com');
+      const isSaavnCdn = targetUrl.includes('saavncdn.com');
+
+      const headers: Record<string, string> = {
+        'User-Agent': isGoogleVideo 
+          ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'
+          : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15',
+        'Accept': '*/*',
+      };
+
+      // Only send Referer/Origin for JioSaavn CDN (never for googlevideo which causes 403 blocks)
+      if (isSaavnCdn) {
+        headers['Referer'] = 'https://www.jiosaavn.com/';
+        headers['Origin'] = 'https://www.jiosaavn.com';
+      }
+
+      if (rangeHeader) {
+        headers['Range'] = rangeHeader;
+      }
+
+      return fetch(targetUrl, {
+        method: isHead ? 'HEAD' : 'GET',
+        headers,
+      });
+    };
+
+    let streamUrl: string | null = null;
+    let upstreamRes: Response | null = null;
+
+    // 1. Try cached or freshly resolved YouTube Music pure audio stream (<300ms)
     try {
       const streamInfo = await Promise.race([
         YouTubeMusicEngine.getInstance().getAudioStreamInfo(videoId),
@@ -77,51 +107,53 @@ async function handleStream(req: NextRequest, rawId: string, isHead: boolean) {
       ]);
       if (streamInfo?.url) {
         streamUrl = streamInfo.url;
+        upstreamRes = await fetchStream(streamUrl);
       }
     } catch (e) {
-      console.warn('[API /ytmusic/stream] Direct YouTube stream resolution error:', e);
+      console.warn('[API /ytmusic/stream] Direct YouTube stream error:', e);
     }
 
-    // 2. High-fidelity audio fallback for edge environments / regional restrictions
-    if (!streamUrl) {
-      streamUrl = await resolveFallbackStreamUrl(videoId);
+    // 2. Self-Healing Retry: If upstream returned 403 or failed, invalidate cache and force-refresh fresh stream
+    if (!upstreamRes || (!upstreamRes.ok && upstreamRes.status !== 206)) {
+      try {
+        YouTubeMusicEngine.getInstance().invalidateStream(videoId);
+        const freshInfo = await Promise.race([
+          YouTubeMusicEngine.getInstance().getAudioStreamInfo(videoId, true),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+        ]);
+        if (freshInfo?.url && freshInfo.url !== streamUrl) {
+          streamUrl = freshInfo.url;
+          upstreamRes = await fetchStream(streamUrl);
+        }
+      } catch (e) {
+        console.warn('[API /ytmusic/stream] Force refresh stream error:', e);
+      }
     }
 
-    if (!streamUrl) {
-      return new Response('Audio stream unavailable', { status: 404 });
+    // 3. High-fidelity audio fallback for edge environments / regional restrictions
+    if (!upstreamRes || (!upstreamRes.ok && upstreamRes.status !== 206)) {
+      try {
+        const fallbackUrl = await resolveFallbackStreamUrl(videoId);
+        if (fallbackUrl) {
+          streamUrl = fallbackUrl;
+          upstreamRes = await fetchStream(streamUrl);
+        }
+      } catch (e) {
+        console.warn('[API /ytmusic/stream] Fallback stream resolution error:', e);
+      }
     }
 
-    const rangeHeader = req.headers.get('range');
-    const isGoogleVideo = streamUrl.includes('googlevideo.com');
-    const isSaavnCdn = streamUrl.includes('saavncdn.com');
-
-    const upstreamHeaders: Record<string, string> = {
-      'User-Agent': isGoogleVideo 
-        ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15'
-        : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15',
-      'Referer': isSaavnCdn ? 'https://www.jiosaavn.com/' : 'https://music.youtube.com/',
-      'Origin': isSaavnCdn ? 'https://www.jiosaavn.com' : 'https://music.youtube.com',
-      'Accept': '*/*',
-    };
-    if (rangeHeader) {
-      upstreamHeaders['Range'] = rangeHeader;
-    }
-
-    let upstreamRes = await fetch(streamUrl, {
-      method: isHead ? 'HEAD' : 'GET',
-      headers: upstreamHeaders,
-    });
-
-    if (!upstreamRes.ok && upstreamRes.status !== 206) {
-      console.warn(`[API /ytmusic/stream] Upstream returned status ${upstreamRes.status} for ${videoId}`);
-      return new Response('Upstream audio fetch failed', { status: upstreamRes.status });
+    if (!upstreamRes || (!upstreamRes.ok && upstreamRes.status !== 206)) {
+      const status = upstreamRes ? upstreamRes.status : 404;
+      console.warn(`[API /ytmusic/stream] Upstream audio fetch failed with status ${status} for ${videoId}`);
+      return new Response('Upstream audio fetch failed', { status });
     }
 
     const responseHeaders = new Headers();
     // Enforce pure audio MP3 MIME type (audio/mpeg) so all clients treat it strictly as pure audio MP3
     responseHeaders.set('Content-Type', 'audio/mpeg');
     responseHeaders.set('Accept-Ranges', 'bytes');
-    responseHeaders.set('Cache-Control', 'public, max-age=7200, immutable');
+    responseHeaders.set('Cache-Control', 'public, max-age=1800, immutable');
 
     const contentLength = upstreamRes.headers.get('content-length');
     if (contentLength) {

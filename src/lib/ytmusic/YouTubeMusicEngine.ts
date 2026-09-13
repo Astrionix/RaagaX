@@ -738,7 +738,7 @@ export class YouTubeMusicEngine {
         url: best.url as string,
         mimeType: 'audio/mpeg',
         contentLength: best.content_length ? parseInt(String(best.content_length), 10) : undefined,
-        expiresAt: Date.now() + 3 * 60 * 60 * 1000, // 3 hours TTL
+        expiresAt: Date.now() + 30 * 60 * 1000, // 30 minutes TTL for temporary signed URLs
       };
 
       this.streamCache.set(cleanId, streamInfo);
