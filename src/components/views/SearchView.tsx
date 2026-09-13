@@ -258,6 +258,10 @@ export function SearchView() {
     return searchResults.songs.filter((s) => downloadedSongIds.includes(s.id));
   }, [searchResults.songs, downloadedSongIds]);
 
+  const ytPlaylists = useMemo(() => {
+    return searchResults.playlists.filter((p) => p.source === 'YouTube Music' || p.id?.startsWith('ytp-'));
+  }, [searchResults.playlists]);
+
   const rankedSearchSongs = useMemo(() => {
     let list = searchResults.songs;
     if (filterType === 'downloaded') {
@@ -812,14 +816,16 @@ export function SearchView() {
           )}
 
           {/* Playlists Section */}
-          {(filterType === 'all' || filterType === 'playlists' || filterType === 'ytmusic') && searchResults.playlists.length > 0 && !isSearching && (
+          {(((filterType === 'all' || filterType === 'playlists') && searchResults.playlists.length > 0) ||
+            (filterType === 'ytmusic' && ytPlaylists.length > 0)) &&
+            !isSearching && (
             <section className="space-y-3">
               <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
                 <ListMusic className="w-3.5 h-3.5 text-[#FA233B]" /> {filterType === 'ytmusic' ? 'YouTube Music Playlists' : 'Playlists'}
               </h3>
               {(filterType === 'playlists' || filterType === 'ytmusic') ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-5">
-                  {(filterType === 'ytmusic' ? searchResults.playlists.filter(p => p.source === 'YouTube Music' || p.id.startsWith('ytp-')) : searchResults.playlists).map((playlist) => (
+                  {(filterType === 'ytmusic' ? ytPlaylists : searchResults.playlists).map((playlist) => (
                     <div
                       key={playlist.id}
                       onClick={() => {
@@ -972,6 +978,23 @@ export function SearchView() {
                 })}
               </div>
             </section>
+          )}
+
+          {/* YouTube Music Empty State */}
+          {filterType === 'ytmusic' && rankedSearchSongs.length === 0 && ytPlaylists.length === 0 && !isSearching && (
+            <div className="py-16 text-center text-zinc-400 space-y-3 bg-white/[0.01] rounded-3xl border border-dashed border-white/10 p-8 animate-in fade-in duration-200">
+              <Music className="w-10 h-10 text-[#FA233B] mx-auto opacity-80" />
+              <h3 className="text-base font-bold text-white">No YouTube Music matches found {searchQuery ? `for "${searchQuery}"` : ''}</h3>
+              <p className="text-xs text-zinc-400 max-w-sm mx-auto">
+                Try searching for specific song titles or artist channels, or switch to the "All" tab to view studio catalog tracks.
+              </p>
+              <button
+                onClick={() => setFilterType('all')}
+                className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-colors cursor-pointer"
+              >
+                View All Results
+              </button>
+            </div>
           )}
         </div>
       )}
