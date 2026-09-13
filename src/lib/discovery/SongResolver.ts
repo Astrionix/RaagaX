@@ -230,93 +230,117 @@ export class SongResolver {
     } else if (missingIds.length > 0 && typeof window !== 'undefined') {
       // 2. Directly fetch missing song metadata in parallel batches of 25 (faster initial chunks)
       try {
-        const BATCH_SIZE = 25;
-        const batches: string[][] = [];
-        for (let i = 0; i < missingIds.length; i += BATCH_SIZE) {
-          batches.push(missingIds.slice(i, i + BATCH_SIZE));
+        const ytmMissingIds = missingIds.filter((id) => id.startsWith('ytm-') || id.startsWith('ytp-'));
+        const jioMissingIds = missingIds.filter((id) => !id.startsWith('ytm-') && !id.startsWith('ytp-'));
+
+        // Instant fallback resolution for YouTube Music IDs without querying JioSaavn
+        for (const id of ytmMissingIds) {
+          const videoId = id.replace(/^(ytm-|ytp-)/, '');
+          const ytmSong: Song = {
+            id,
+            title: 'YouTube Track',
+            artist: 'YouTube Music',
+            artistId: `art-ytm-${videoId}`,
+            album: 'YouTube Music',
+            albumId: `alb-ytm-${videoId}`,
+            duration: 210,
+            coverUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+            audioUrl: `/api/ytmusic/stream/${videoId}`,
+            genre: 'YouTube Music',
+            category: 'melody',
+            releaseYear: new Date().getFullYear(),
+            plays: 1000,
+            likes: 100,
+            source: 'youtube',
+          };
+          newlyResolved.push(ytmSong);
+          db.put(STORES.SONGS_METADATA, ytmSong).catch(() => {});
         }
 
-        const { mapTrackToSong } = await import('@/lib/jioSaavnProvider');
-
-        const fetchPromises = batches.map(async (batch) => {
-          const idsQuery = encodeURIComponent(batch.join(','));
-          let rawTracks: any[] = [];
-
-          // Tier 1: Try local/hosted Next.js API endpoint (Dev / Web environment)
-          try {
-            const url = getApiUrl(`/api/songs?ids=${idsQuery}`);
-            const res = await RequestDeduplicator.getInstance().dedupe(url, () => fetch(url));
-            if (res.ok) {
-              const json = await res.json();
-              if (json.data && Array.isArray(json.data) && json.data.length > 0) {
-                rawTracks = json.data;
-              }
-            }
-          } catch (err) {
-            // Standalone APK / static deployment fallback
+        if (jioMissingIds.length > 0) {
+          const BATCH_SIZE = 25;
+          const batches: string[][] = [];
+          for (let i = 0; i < jioMissingIds.length; i += BATCH_SIZE) {
+            batches.push(jioMissingIds.slice(i, i + BATCH_SIZE));
           }
 
-          // Tier 2: Direct JioSaavn Gateway API (Authoritative, ultra-fast, works natively everywhere)
-          if (rawTracks.length === 0) {
-            try {
-              const jioUrl = `https://www.jiosaavn.com/api.php?__call=song.getDetails&pids=${batch.join(',')}&_format=json&_marker=0&api_version=4&ctx=web6dot0`;
-              const res = await RequestDeduplicator.getInstance().dedupe(jioUrl, () => fetch(jioUrl));
-              if (res.ok) {
-                const json = await res.json();
-                if (json.songs && Array.isArray(json.songs) && json.songs.length > 0) {
-                  rawTracks = json.songs;
-                } else {
-                  // Support JioSaavn object response keyed by song IDs: { [pid]: { id, song, title, ... } }
-                  const candidateSongs = Object.values(json).filter(
-                    (v: any) => v && typeof v === 'object' && (v.id || v.song || v.title || v.name)
-                  );
-                  if (candidateSongs.length > 0) {
-                    rawTracks = candidateSongs;
-                  }
-                }
-              }
-            } catch (err) {
-              console.warn('[SongResolver] Direct JioSaavn batch resolution failed:', err);
-            }
-          }
+          const { mapTrackToSong } = await import('@/lib/jioSaavnProvider');
 
-          // Tier 3: Public Saavn Gateway Fallback
-          if (rawTracks.length === 0) {
+          const fetchPromises = batches.map(async (batch) => {
+            const idsQuery = encodeURIComponent(batch.join(','));
+            let rawTracks: any[] = [];
+
+            // Tier 1: Try local/hosted Next.js API endpoint (Dev / Web environment)
             try {
-              const publicUrl = `https://saavn.dev/api/songs?ids=${idsQuery}`;
-              const res = await RequestDeduplicator.getInstance().dedupe(publicUrl, () => fetch(publicUrl));
+              const url = getApiUrl(`/api/songs?ids=${idsQuery}`);
+              const res = await RequestDeduplicator.getInstance().dedupe(url, () => fetch(url));
               if (res.ok) {
                 const json = await res.json();
                 if (json.data && Array.isArray(json.data) && json.data.length > 0) {
                   rawTracks = json.data;
                 }
               }
-            } catch {}
-          }
-
-          if (rawTracks.length > 0) {
-            const batchSongs: Song[] = [];
-            rawTracks.forEach((track, idx) => {
-              const mapped = mapTrackToSong(track, idx);
-              if (mapped?.id && mapped.title && mapped.title !== 'Unknown Track') {
-                batchSongs.push(mapped);
-                newlyResolved.push(mapped);
-              }
-            });
-
-            // Write batch to IndexedDB cache
-            Promise.all(
-              batchSongs.map((song) => db.put(STORES.SONGS_METADATA, song))
-            ).catch(() => {});
-
-            // Immediately stream this chunk to caller
-            if (batchSongs.length > 0 && onChunkResolved) {
-              onChunkResolved(batchSongs, resolved.length + newlyResolved.length, songIds.length);
+            } catch (err) {
+              // Standalone APK / static deployment fallback
             }
-          }
-        });
 
-        await Promise.all(fetchPromises);
+            // Tier 2: Direct JioSaavn Gateway API (Authoritative, ultra-fast, works natively everywhere)
+            if (rawTracks.length === 0) {
+              try {
+                const jioUrl = `https://www.jiosaavn.com/api.php?__call=song.getDetails&pids=${batch.join(',')}&_format=json&_marker=0&api_version=4&ctx=web6dot0`;
+                const res = await RequestDeduplicator.getInstance().dedupe(jioUrl, () => fetch(jioUrl));
+                if (res.ok) {
+                  const json = await res.json();
+                  if (json.songs && Array.isArray(json.songs) && json.songs.length > 0) {
+                    rawTracks = json.songs;
+                  } else {
+                    const candidateSongs = Object.values(json).filter(
+                      (v: any) => v && typeof v === 'object' && (v.id || v.song || v.title || v.name)
+                    );
+                    if (candidateSongs.length > 0) {
+                      rawTracks = candidateSongs;
+                    }
+                  }
+                }
+              } catch {}
+            }
+
+            // Tier 3: Public Saavn Gateway Fallback
+            if (rawTracks.length === 0) {
+              try {
+                const publicUrl = `https://saavn.dev/api/songs?ids=${idsQuery}`;
+                const res = await RequestDeduplicator.getInstance().dedupe(publicUrl, () => fetch(publicUrl));
+                if (res.ok) {
+                  const json = await res.json();
+                  if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+                    rawTracks = json.data;
+                  }
+                }
+              } catch {}
+            }
+
+            if (rawTracks.length > 0) {
+              const batchSongs: Song[] = [];
+              rawTracks.forEach((track, idx) => {
+                const mapped = mapTrackToSong(track, idx);
+                if (mapped?.id && mapped.title && mapped.title !== 'Unknown Track') {
+                  batchSongs.push(mapped);
+                  newlyResolved.push(mapped);
+                }
+              });
+
+              Promise.all(
+                batchSongs.map((song) => db.put(STORES.SONGS_METADATA, song))
+              ).catch(() => {});
+
+              if (batchSongs.length > 0 && onChunkResolved) {
+                onChunkResolved(batchSongs, resolved.length + newlyResolved.length, songIds.length);
+              }
+            }
+          });
+
+          await Promise.all(fetchPromises);
+        }
       } catch (e) {
         if (!isOfflineMode()) {
           console.error('[SongResolver] Failed to resolve songs from API:', e);
