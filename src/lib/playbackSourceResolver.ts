@@ -185,12 +185,7 @@ export class PlaybackSourceResolver {
     if (isYouTubeTrack) {
       const videoId = (song.sources?.youtube?.videoId || song.id.replace(/^ytm-/, '')).trim();
       const apiBase = getApiBaseUrl().replace(/\/+$/, '');
-
-      const queryParams = new URLSearchParams();
-      if (song.title) queryParams.set('title', song.title);
-      if (song.artist) queryParams.set('artist', song.artist);
-      const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
-      const ytStreamUrl = `${apiBase}/api/ytmusic/stream/${videoId}${queryString}`;
+      const ytStreamUrl = `${apiBase}/api/ytmusic/stream/${videoId}`;
 
       PlayableUrlCache.getInstance().set(song.id, ytStreamUrl, [ytStreamUrl], 'remote');
 
@@ -235,7 +230,13 @@ export class PlaybackSourceResolver {
           console.log(`[PlaybackSourceResolver] Resolving real audio stream for query: "${query}" (bypassCache=${bypassCache})`);
           const realSongs = await RealMusicEngine.getInstance().searchRealSongs(query, 1);
           if (realSongs.length > 0) {
-            realSong = realSongs[0];
+            const found = realSongs[0];
+            const songTitleNorm = song.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const foundTitleNorm = (found.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            // Only accept fallback if the title substantially matches to prevent swapping to a different song
+            if (foundTitleNorm.includes(songTitleNorm) || songTitleNorm.includes(foundTitleNorm)) {
+              realSong = found;
+            }
           }
         }
         
