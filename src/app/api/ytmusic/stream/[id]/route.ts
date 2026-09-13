@@ -68,25 +68,23 @@ async function handleStream(req: NextRequest, rawId: string, isHead: boolean) {
     }
 
     let streamUrl: string | null = null;
-    let mimeType = 'audio/mp4';
 
-    // 1. Try ultra-fast direct stream resolution (<30ms, 0 CPU overhead, Cloudflare Worker safe)
-    streamUrl = await resolveFallbackStreamUrl(videoId);
-
-    // 2. Secondary fallback via YouTubeMusicEngine stream info if available
-    if (!streamUrl) {
-      try {
-        const streamInfo = await Promise.race([
-          YouTubeMusicEngine.getInstance().getAudioStreamInfo(videoId),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 1200)),
-        ]);
-        if (streamInfo?.url) {
-          streamUrl = streamInfo.url;
-          mimeType = streamInfo.mimeType || 'audio/mp4';
-        }
-      } catch (e) {
-        console.warn('[API /ytmusic/stream] YouTubeMusicEngine resolution error:', e);
+    // 1. Prioritize direct YouTube Music pure audio stream resolution (<300ms)
+    try {
+      const streamInfo = await Promise.race([
+        YouTubeMusicEngine.getInstance().getAudioStreamInfo(videoId),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+      ]);
+      if (streamInfo?.url) {
+        streamUrl = streamInfo.url;
       }
+    } catch (e) {
+      console.warn('[API /ytmusic/stream] Direct YouTube stream resolution error:', e);
+    }
+
+    // 2. High-fidelity audio fallback for edge environments / regional restrictions
+    if (!streamUrl) {
+      streamUrl = await resolveFallbackStreamUrl(videoId);
     }
 
     if (!streamUrl) {
@@ -94,12 +92,15 @@ async function handleStream(req: NextRequest, rawId: string, isHead: boolean) {
     }
 
     const rangeHeader = req.headers.get('range');
+    const isGoogleVideo = streamUrl.includes('googlevideo.com');
     const isSaavnCdn = streamUrl.includes('saavncdn.com');
 
     const upstreamHeaders: Record<string, string> = {
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15',
-      'Referer': isSaavnCdn ? 'https://www.jiosaavn.com/' : 'https://www.youtube.com/',
-      'Origin': isSaavnCdn ? 'https://www.jiosaavn.com' : 'https://www.youtube.com',
+      'User-Agent': isGoogleVideo 
+        ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15'
+        : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15',
+      'Referer': isSaavnCdn ? 'https://www.jiosaavn.com/' : 'https://music.youtube.com/',
+      'Origin': isSaavnCdn ? 'https://www.jiosaavn.com' : 'https://music.youtube.com',
       'Accept': '*/*',
     };
     if (rangeHeader) {
@@ -117,7 +118,8 @@ async function handleStream(req: NextRequest, rawId: string, isHead: boolean) {
     }
 
     const responseHeaders = new Headers();
-    responseHeaders.set('Content-Type', upstreamRes.headers.get('content-type') || mimeType);
+    // Enforce pure audio MP3 MIME type (audio/mpeg) so all clients treat it strictly as pure audio MP3
+    responseHeaders.set('Content-Type', 'audio/mpeg');
     responseHeaders.set('Accept-Ranges', 'bytes');
     responseHeaders.set('Cache-Control', 'public, max-age=7200, immutable');
 

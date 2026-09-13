@@ -46,7 +46,7 @@ export class YouTubeMusicEngine {
         const { Innertube, UniversalCache, ClientType, Log } = await import('youtubei.js');
         Log.setLevel(Log.Level.ERROR);
         return Innertube.create({
-          client_type: ClientType.VISIONOS,
+          client_type: ClientType.IOS,
           cache: new UniversalCache(false),
           generate_session_locally: true,
         });
@@ -184,9 +184,9 @@ export class YouTubeMusicEngine {
             releaseYear: new Date().getFullYear(),
             plays: 5000,
             likes: 1,
-            audioQuality: 'Hi-Res Lossless',
-            bitrate: '130 kbps',
-            codec: 'AAC',
+            audioQuality: '320kbps MP3',
+            bitrate: '320 kbps',
+            codec: 'MP3',
             source: 'youtube',
           });
         } else if (playlistId && !seenPlaylistIds.has(playlistId) && !videoId) {
@@ -314,9 +314,9 @@ export class YouTubeMusicEngine {
           releaseYear: new Date().getFullYear(),
           plays: 5000,
           likes: 1,
-          audioQuality: 'Hi-Res Lossless',
-          bitrate: '130 kbps',
-          codec: 'AAC',
+          audioQuality: '320kbps MP3',
+          bitrate: '320 kbps',
+          codec: 'MP3',
           source: 'youtube',
           sources: {
             youtube: {
@@ -539,9 +539,9 @@ export class YouTubeMusicEngine {
             releaseYear: new Date().getFullYear(),
             plays: 5000,
             likes: 1,
-            audioQuality: 'Hi-Res Lossless',
-            bitrate: '130 kbps',
-            codec: 'AAC',
+            audioQuality: '320kbps MP3',
+            bitrate: '320 kbps',
+            codec: 'MP3',
             source: 'youtube',
           });
         }
@@ -660,9 +660,9 @@ export class YouTubeMusicEngine {
           releaseYear: new Date().getFullYear(),
           plays: 5000,
           likes: 1,
-          audioQuality: 'Hi-Res Lossless',
-          bitrate: '130 kbps',
-          codec: 'AAC',
+          audioQuality: '320kbps MP3',
+          bitrate: '320 kbps',
+          codec: 'MP3',
           source: 'youtube',
           sources: {
             youtube: {
@@ -736,7 +736,7 @@ export class YouTubeMusicEngine {
 
       const streamInfo: CachedStreamInfo = {
         url: best.url as string,
-        mimeType: best.mime_type || 'audio/mp4',
+        mimeType: 'audio/mpeg',
         contentLength: best.content_length ? parseInt(String(best.content_length), 10) : undefined,
         expiresAt: Date.now() + 3 * 60 * 60 * 1000, // 3 hours TTL
       };

@@ -45,7 +45,7 @@ export interface Song {
   likes: number;
   downloads?: number;
   popularity?: number;
-  audioQuality?: '24-bit FLAC' | 'Dolby Atmos' | 'Hi-Res Lossless' | 'Spatial Audio';
+  audioQuality?: '24-bit FLAC' | 'Dolby Atmos' | 'Hi-Res Lossless' | 'Spatial Audio' | '320kbps MP3';
   bitrate?: string;
   sampleRate?: string;
   codec?: string;

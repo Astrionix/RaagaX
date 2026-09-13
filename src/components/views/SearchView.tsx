@@ -73,7 +73,7 @@ export function SearchView() {
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<RaagaCategory | null>(null);
-  const [filterType, setFilterType] = useState<'all' | 'songs' | 'artists' | 'albums' | 'playlists' | 'ytmusic' | 'downloaded'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'saavn' | 'ytmusic' | 'songs' | 'artists' | 'albums' | 'playlists' | 'downloaded'>('all');
   const [intentExplanation, setIntentExplanation] = useState<string | null>(null);
 
   // Load recent searches on mount
@@ -262,10 +262,16 @@ export function SearchView() {
     return searchResults.playlists.filter((p) => p.source === 'YouTube Music' || p.id?.startsWith('ytp-'));
   }, [searchResults.playlists]);
 
+  const saavnPlaylists = useMemo(() => {
+    return searchResults.playlists.filter((p) => p.source !== 'YouTube Music' && !p.id?.startsWith('ytp-'));
+  }, [searchResults.playlists]);
+
   const rankedSearchSongs = useMemo(() => {
     let list = searchResults.songs;
     if (filterType === 'downloaded') {
       list = downloadedOnlyResults;
+    } else if (filterType === 'saavn') {
+      list = searchResults.songs.filter((s) => !s.source?.includes('youtube') && !s.id?.startsWith('ytm-'));
     } else if (filterType === 'ytmusic') {
       list = searchResults.songs.filter((s) => s.source === 'youtube' || s.id?.startsWith('ytm-'));
     }
@@ -559,22 +565,46 @@ export function SearchView() {
 
           {/* Category Filter Chips */}
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-            {(['all', 'songs', 'ytmusic', 'artists', 'albums', 'playlists'] as const).map((type) => (
-              <button
-                key={type}
-                onClick={() => {
-                  haptics.lightImpact();
-                  setFilterType(type);
-                }}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                  filterType === type
-                    ? 'bg-[#FA233B] text-white shadow-md shadow-[#FA233B]/20'
-                    : 'bg-white/[0.06] text-zinc-300 hover:text-white hover:bg-white/[0.12] border border-white/[0.08]'
-                }`}
-              >
-                {type === 'all' ? 'All' : type === 'ytmusic' ? 'YouTube Music' : type.charAt(0).toUpperCase() + type.slice(1)}
-              </button>
-            ))}
+            {(['all', 'saavn', 'ytmusic', 'songs', 'albums', 'artists', 'playlists'] as const).map((type) => {
+              const label =
+                type === 'all'
+                  ? 'All'
+                  : type === 'saavn'
+                  ? 'JioSaavn Studio'
+                  : type === 'ytmusic'
+                  ? 'YouTube Music'
+                  : type.charAt(0).toUpperCase() + type.slice(1);
+
+              const isSaavnActive = filterType === 'saavn' && type === 'saavn';
+              const isYtActive = filterType === 'ytmusic' && type === 'ytmusic';
+
+              return (
+                <button
+                  key={type}
+                  onClick={() => {
+                    haptics.lightImpact();
+                    setFilterType(type);
+                  }}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 flex-shrink-0 ${
+                    filterType === type
+                      ? isSaavnActive
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                        : isYtActive
+                        ? 'bg-[#FA233B] text-white shadow-md shadow-[#FA233B]/30'
+                        : 'bg-white text-black shadow-md'
+                      : 'bg-white/[0.06] text-zinc-300 hover:text-white hover:bg-white/[0.12] border border-white/[0.08]'
+                  }`}
+                >
+                  {type === 'saavn' && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  )}
+                  {type === 'ytmusic' && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                  )}
+                  <span>{label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Loading Skeleton */}
@@ -607,8 +637,19 @@ export function SearchView() {
           {/* Top Result Card */}
           {filterType === 'all' && searchResults.topResult && !isSearching && (
             <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-white/[0.07] to-white/[0.02] border border-white/10 shadow-lg relative overflow-hidden group">
-              <div className="text-[10px] font-bold text-[#FA233B] uppercase tracking-wider mb-2 font-mono">
-                TOP RESULT
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[10px] font-bold text-[#FA233B] uppercase tracking-wider font-mono">
+                  TOP RESULT
+                </div>
+                {searchResults.topResult.item?.source === 'youtube' || searchResults.topResult.item?.id?.startsWith?.('ytm-') || searchResults.topResult.item?.id?.startsWith?.('ytp-') ? (
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-600/20 text-red-400 border border-red-500/30">
+                    YouTube Music • MP3 Audio
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                    JioSaavn • 320kbps MP3
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-4">
                 {searchResults.topResult.type === 'artist' ? (
@@ -676,8 +717,113 @@ export function SearchView() {
             </div>
           )}
 
+          {/* Songs Section — Elevated directly below Top Result */}
+          {(filterType === 'all' || filterType === 'songs' || filterType === 'saavn' || filterType === 'ytmusic') && rankedSearchSongs.length > 0 && !isSearching && (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Music className="w-3.5 h-3.5 text-[#FA233B]" />{' '}
+                  {filterType === 'saavn'
+                    ? 'JioSaavn Studio Tracks (320kbps MP3)'
+                    : filterType === 'ytmusic'
+                    ? 'YouTube Music Tracks (MP3 Audio)'
+                    : 'Songs'}
+                </h3>
+                {filterType === 'all' && rankedSearchSongs.length > 8 && (
+                  <button
+                    onClick={() => {
+                      haptics.lightImpact();
+                      setFilterType('songs');
+                    }}
+                    className="text-xs text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                  >
+                    View All ({rankedSearchSongs.length})
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                {(filterType === 'all' ? rankedSearchSongs.slice(0, 10) : rankedSearchSongs).map((song) => {
+                  const isCurrent = currentSong?.id === song.id;
+                  const isDownloaded = downloadedSongIds.includes(song.id);
+                  const isQueued = queuedSongIds.has(song.id);
+
+                  return (
+                    <div
+                      key={song.id}
+                      className={`p-2.5 rounded-xl border flex items-center gap-3 group transition-all ${
+                        isCurrent
+                          ? 'bg-[#FA233B]/15 border-[#FA233B]/35 shadow-[0_0_15px_rgba(250,35,59,0.15)]'
+                          : 'bg-white/[0.03] border-white/[0.06] hover:border-white/15 hover:bg-white/[0.06]'
+                      }`}
+                    >
+                      {/* Cover Art with Play overlay */}
+                      <div
+                        onClick={() => {
+                          handleCommitSearch();
+                          playSearchSong(song);
+                        }}
+                        className="relative w-11 h-11 rounded-lg overflow-hidden shadow-sm flex-shrink-0 cursor-pointer border border-white/10"
+                      >
+                        <OptimizedImage
+                          src={song.coverUrl}
+                          alt={song.title}
+                          size="thumb"
+                          className="w-full h-full object-cover"
+                          fallbackSrc="/app-icon.png"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <Play className="w-4 h-4 text-white fill-white ml-0.5" />
+                        </div>
+                      </div>
+
+                      {/* Song Details */}
+                      <div
+                        className="flex-1 min-w-0 cursor-pointer"
+                        onClick={() => {
+                          handleCommitSearch();
+                          playSearchSong(song);
+                        }}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <h4
+                            className={`text-xs font-bold truncate ${
+                              isCurrent ? 'text-[#FA233B]' : 'text-white group-hover:text-[#FA233B] transition-colors'
+                            }`}
+                            title={song.title}
+                          >
+                            {song.source === 'youtube'
+                              ? cleanYouTubeTitle(song.title)
+                              : SongFormatter.cleanSongTitle(song.title)}
+                          </h4>
+                          {song.source === 'youtube' || song.id?.startsWith('ytm-') ? (
+                            <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-600/20 text-red-400 border border-red-500/30">
+                              YT Music
+                            </span>
+                          ) : (
+                            <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                              320kbps MP3
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-zinc-400 truncate mt-0.5">
+                          {SongFormatter.decodeHtml(song.artist)}
+                        </p>
+                      </div>
+
+                      {/* Action Menu & Download Status */}
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <DownloadStatusIndicator song={song} size="sm" showPercentage />
+                        <SongActionMenu song={song} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {/* Artists Section */}
-          {(filterType === 'all' || filterType === 'artists') && searchResults.artists.length > 0 && !isSearching && (
+          {(filterType === 'all' || filterType === 'artists' || filterType === 'saavn') && searchResults.artists.length > 0 && !isSearching && (
             <section className="space-y-3">
               <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5 text-[#FA233B]" /> Artists
@@ -737,7 +883,7 @@ export function SearchView() {
           )}
 
           {/* Albums Section */}
-          {(filterType === 'all' || filterType === 'albums') && searchResults.albums.length > 0 && !isSearching && (
+          {(filterType === 'all' || filterType === 'albums' || filterType === 'saavn') && searchResults.albums.length > 0 && !isSearching && (
             <section className="space-y-3">
               <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
                 <Disc3 className="w-3.5 h-3.5 text-[#FA233B]" /> Albums
@@ -816,16 +962,16 @@ export function SearchView() {
           )}
 
           {/* Playlists Section */}
-          {(((filterType === 'all' || filterType === 'playlists') && searchResults.playlists.length > 0) ||
+          {(((filterType === 'all' || filterType === 'playlists' || filterType === 'saavn') && (filterType === 'saavn' ? saavnPlaylists.length > 0 : searchResults.playlists.length > 0)) ||
             (filterType === 'ytmusic' && ytPlaylists.length > 0)) &&
             !isSearching && (
             <section className="space-y-3">
               <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
                 <ListMusic className="w-3.5 h-3.5 text-[#FA233B]" /> {filterType === 'ytmusic' ? 'YouTube Music Playlists' : 'Playlists'}
               </h3>
-              {(filterType === 'playlists' || filterType === 'ytmusic') ? (
+              {(filterType === 'playlists' || filterType === 'ytmusic' || filterType === 'saavn') ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-5">
-                  {(filterType === 'ytmusic' ? ytPlaylists : searchResults.playlists).map((playlist) => (
+                  {(filterType === 'ytmusic' ? ytPlaylists : filterType === 'saavn' ? saavnPlaylists : searchResults.playlists).map((playlist) => (
                     <div
                       key={playlist.id}
                       onClick={() => {
@@ -897,87 +1043,21 @@ export function SearchView() {
             </section>
           )}
 
-          {/* Songs Section */}
-          {(filterType === 'all' || filterType === 'songs' || filterType === 'ytmusic') && rankedSearchSongs.length > 0 && !isSearching && (
-            <section className="space-y-3">
-              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Music className="w-3.5 h-3.5 text-[#FA233B]" /> {filterType === 'ytmusic' ? 'YouTube Music Songs' : 'Songs'}
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                {rankedSearchSongs.map((song) => {
-                  const isCurrent = currentSong?.id === song.id;
-                  const isDownloaded = downloadedSongIds.includes(song.id);
-                  const isQueued = queuedSongIds.has(song.id);
-
-                  return (
-                    <div
-                      key={song.id}
-                      className={`p-2.5 rounded-xl border flex items-center gap-3 group transition-all ${
-                        isCurrent
-                          ? 'bg-[#FA233B]/15 border-[#FA233B]/35 shadow-[0_0_15px_rgba(250,35,59,0.15)]'
-                          : 'bg-white/[0.03] border-white/[0.06] hover:border-white/15 hover:bg-white/[0.06]'
-                      }`}
-                    >
-                      {/* Cover Art with Play overlay */}
-                      <div
-                        onClick={() => {
-                          handleCommitSearch();
-                          playSearchSong(song);
-                        }}
-                        className="relative w-11 h-11 rounded-lg overflow-hidden shadow-sm flex-shrink-0 cursor-pointer border border-white/10"
-                      >
-                        <OptimizedImage
-                          src={song.coverUrl}
-                          alt={song.title}
-                          size="thumb"
-                          className="w-full h-full object-cover"
-                          fallbackSrc="/app-icon.png"
-                        />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <Play className="w-4 h-4 text-white fill-white ml-0.5" />
-                        </div>
-                      </div>
-
-                      {/* Song Details */}
-                      <div
-                        className="flex-1 min-w-0 cursor-pointer"
-                        onClick={() => {
-                          handleCommitSearch();
-                          playSearchSong(song);
-                        }}
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <h4
-                            className={`text-xs font-bold truncate ${
-                              isCurrent ? 'text-[#FA233B]' : 'text-white group-hover:text-[#FA233B] transition-colors'
-                            }`}
-                            title={song.title}
-                          >
-                            {song.source === 'youtube'
-                              ? cleanYouTubeTitle(song.title)
-                              : SongFormatter.cleanSongTitle(song.title)}
-                          </h4>
-                          {(song.source === 'youtube' || song.id?.startsWith('ytm-')) && (
-                            <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-600/20 text-red-400 border border-red-500/30">
-                              YT Music
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-zinc-400 truncate mt-0.5">
-                          {SongFormatter.decodeHtml(song.artist)}
-                        </p>
-                      </div>
-
-                      {/* Action Menu & Download Status */}
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <DownloadStatusIndicator song={song} size="sm" showPercentage />
-                        <SongActionMenu song={song} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
+          {/* JioSaavn Empty State */}
+          {filterType === 'saavn' && rankedSearchSongs.length === 0 && !isSearching && (
+            <div className="py-16 text-center text-zinc-400 space-y-3 bg-white/[0.01] rounded-3xl border border-dashed border-white/10 p-8 animate-in fade-in duration-200">
+              <Music className="w-10 h-10 text-emerald-500 mx-auto opacity-80" />
+              <h3 className="text-base font-bold text-white">No JioSaavn Studio matches found {searchQuery ? `for "${searchQuery}"` : ''}</h3>
+              <p className="text-xs text-zinc-400 max-w-sm mx-auto">
+                Switch to the "YouTube Music" or "All" tab to discover indie, remix, and non-catalog tracks.
+              </p>
+              <button
+                onClick={() => setFilterType('all')}
+                className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-colors cursor-pointer"
+              >
+                View All Results
+              </button>
+            </div>
           )}
 
           {/* YouTube Music Empty State */}
