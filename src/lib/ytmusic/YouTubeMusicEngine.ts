@@ -47,6 +47,7 @@ export class YouTubeMusicEngine {
         Log.setLevel(Log.Level.ERROR);
         return Innertube.create({
           client_type: ClientType.IOS,
+          retrieve_player: false,
           cache: new UniversalCache(false),
           generate_session_locally: true,
         });

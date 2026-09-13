@@ -185,7 +185,47 @@ export class PlaybackSourceResolver {
     if (isYouTubeTrack) {
       const videoId = (song.sources?.youtube?.videoId || song.id.replace(/^ytm-/, '')).trim();
       const apiBase = getApiBaseUrl().replace(/\/+$/, '');
-      const ytStreamUrl = `${apiBase}/api/ytmusic/stream/${videoId}`;
+
+      // Priority 1: Instant high-fidelity studio master resolution via JioSaavn catalog
+      if (song.title && !bypassCache) {
+        try {
+          const cleanTitle = song.title
+            .replace(/\|.*$/g, '')
+            .replace(/(\(|\[).*?(official|video|lyric|audio|4k|hd|full|song).*?(\)|\])/gi, '')
+            .replace(/full video song|video song|lyrical song|official video|audio song/gi, '')
+            .trim();
+          const cleanArtist = (song.artist || '')
+            .replace(/\|.*$/g, '')
+            .replace(/ - Topic$/i, '')
+            .replace(/VEVO$/i, '')
+            .trim();
+          const query = `${cleanTitle} ${cleanArtist}`.trim() || cleanTitle;
+          const realSongs = await RealMusicEngine.getInstance().searchRealSongs(query, 1);
+          if (realSongs.length > 0 && realSongs[0].audioUrl && !realSongs[0].audioUrl.includes('pixabay.com')) {
+            const highFidUrl = realSongs[0].audioUrl.replace(/^http:\/\//, 'https://');
+            song.audioUrl = highFidUrl;
+            const candidates = this.buildBitrateCandidates(highFidUrl);
+            PlayableUrlCache.getInstance().set(song.id, highFidUrl, candidates, 'remote');
+            return {
+              type: 'remote',
+              url: highFidUrl,
+              canonicalUrl: highFidUrl,
+              candidates,
+              videoId: song.id,
+              isCached: false,
+            };
+          }
+        } catch (e) {
+          console.warn('[PlaybackSourceResolver] High-fidelity studio lookup fallback:', e);
+        }
+      }
+
+      // Priority 2: Direct YouTube Music audio streaming proxy with metadata hints
+      const queryParams = new URLSearchParams();
+      if (song.title) queryParams.set('title', song.title);
+      if (song.artist) queryParams.set('artist', song.artist);
+      const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+      const ytStreamUrl = `${apiBase}/api/ytmusic/stream/${videoId}${queryString}`;
 
       PlayableUrlCache.getInstance().set(song.id, ytStreamUrl, [ytStreamUrl], 'remote');
 

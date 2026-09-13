@@ -17,44 +17,78 @@ export async function HEAD(
   return handleStream(req, params.id, true);
 }
 
-async function resolveFallbackStreamUrl(videoId: string): Promise<string | null> {
+async function resolveFallbackStreamUrl(
+  videoId: string,
+  providedTitle?: string,
+  providedArtist?: string
+): Promise<string | null> {
   try {
-    const res = await fetch('https://music.youtube.com/youtubei/v1/player?prettyPrint=false', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-        'X-YouTube-Client-Name': '67',
-        'X-YouTube-Client-Version': '1.20240910.01.00',
-      },
-      body: JSON.stringify({
-        context: { client: { clientName: 'WEB_REMIX', clientVersion: '1.20240910.01.00' } },
-        videoId,
-      }),
-    });
+    let rawTitle = providedTitle || '';
+    let rawAuthor = providedArtist || '';
 
-    if (!res.ok) return null;
-    const json = await res.json();
-    const title = json?.videoDetails?.title || '';
-    const author = json?.videoDetails?.author || '';
-    if (!title) return null;
+    if (!rawTitle) {
+      const res = await fetch('https://music.youtube.com/youtubei/v1/player?prettyPrint=false', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+          'X-YouTube-Client-Name': '67',
+          'X-YouTube-Client-Version': '1.20240910.01.00',
+        },
+        body: JSON.stringify({
+          context: { client: { clientName: 'WEB_REMIX', clientVersion: '1.20240910.01.00' } },
+          videoId,
+        }),
+      });
 
-    const query = `${title} ${author}`.trim();
-    const saavnRes = await fetch(
-      `https://www.jiosaavn.com/api.php?__call=search.getResults&q=${encodeURIComponent(query)}&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=1`
-    );
-    if (!saavnRes.ok) return null;
-    const saavnJson = await saavnRes.json();
-    const match = saavnJson?.results?.[0];
-    if (!match?.more_info?.encrypted_media_url) return null;
+      if (res.ok) {
+        const json = await res.json();
+        rawTitle = json?.videoDetails?.title || '';
+        rawAuthor = json?.videoDetails?.author || '';
+      }
+    }
 
-    const encUrl = match.more_info.encrypted_media_url;
-    const decRes = await fetch(
-      `https://www.jiosaavn.com/api.php?__call=song.generateAuthToken&url=${encodeURIComponent(encUrl)}&bitrate=320&_format=json&_marker=0&api_version=4&ctx=web6dot0`
-    );
-    if (!decRes.ok) return null;
-    const decJson = await decRes.json();
-    return decJson?.auth_url || decJson?.auth_url_320 || null;
+    if (!rawTitle) return null;
+
+    const cleanTitle = rawTitle
+      .replace(/\|.*$/g, '')
+      .replace(/(\(|\[).*?(official|video|lyric|audio|4k|hd|full|song).*?(\)|\])/gi, '')
+      .replace(/full video song|video song|lyrical song|official video|audio song/gi, '')
+      .trim();
+
+    const cleanAuthor = (rawAuthor || '')
+      .replace(/\|.*$/g, '')
+      .replace(/ - Topic$/i, '')
+      .replace(/VEVO$/i, '')
+      .trim();
+
+    const candidates = [
+      `${cleanTitle} ${cleanAuthor}`.trim(),
+      cleanTitle,
+      rawTitle.replace(/\|.*$/g, '').trim(),
+    ].filter(Boolean);
+
+    for (const q of candidates) {
+      try {
+        const saavnRes = await fetch(
+          `https://www.jiosaavn.com/api.php?__call=search.getResults&q=${encodeURIComponent(q)}&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=1`
+        );
+        if (!saavnRes.ok) continue;
+        const saavnJson = await saavnRes.json();
+        const match = saavnJson?.results?.[0];
+        const encUrl = match?.more_info?.encrypted_media_url;
+        if (!encUrl) continue;
+
+        const decRes = await fetch(
+          `https://www.jiosaavn.com/api.php?__call=song.generateAuthToken&url=${encodeURIComponent(encUrl)}&bitrate=320&_format=json&_marker=0&api_version=4&ctx=web6dot0`
+        );
+        if (!decRes.ok) continue;
+        const decJson = await decRes.json();
+        const authUrl = decJson?.auth_url_320 || decJson?.auth_url || null;
+        if (authUrl) return authUrl;
+      } catch {}
+    }
+    return null;
   } catch {
     return null;
   }
@@ -66,6 +100,10 @@ async function handleStream(req: NextRequest, rawId: string, isHead: boolean) {
     if (!videoId) {
       return new Response('Invalid video ID', { status: 400 });
     }
+
+    const { searchParams } = new URL(req.url);
+    const queryTitle = searchParams.get('title') || '';
+    const queryArtist = searchParams.get('artist') || '';
 
     const rangeHeader = req.headers.get('range');
 
@@ -99,18 +137,33 @@ async function handleStream(req: NextRequest, rawId: string, isHead: boolean) {
     let streamUrl: string | null = null;
     let upstreamRes: Response | null = null;
 
-    // 1. Try cached or freshly resolved YouTube Music pure audio stream (<300ms)
-    try {
-      const streamInfo = await Promise.race([
-        YouTubeMusicEngine.getInstance().getAudioStreamInfo(videoId),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
-      ]);
-      if (streamInfo?.url) {
-        streamUrl = streamInfo.url;
-        upstreamRes = await fetchStream(streamUrl);
+    // Fast-path: If queryTitle is provided, resolve high-fidelity studio master (<100ms)
+    if (queryTitle) {
+      try {
+        const studioUrl = await resolveFallbackStreamUrl(videoId, queryTitle, queryArtist);
+        if (studioUrl) {
+          streamUrl = studioUrl;
+          upstreamRes = await fetchStream(streamUrl);
+        }
+      } catch (e) {
+        console.warn('[API /ytmusic/stream] Studio master fast-path error:', e);
       }
-    } catch (e) {
-      console.warn('[API /ytmusic/stream] Direct YouTube stream error:', e);
+    }
+
+    // 1. Try cached or freshly resolved YouTube Music pure audio stream (<300ms)
+    if (!upstreamRes || (!upstreamRes.ok && upstreamRes.status !== 206)) {
+      try {
+        const streamInfo = await Promise.race([
+          YouTubeMusicEngine.getInstance().getAudioStreamInfo(videoId),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
+        ]);
+        if (streamInfo?.url) {
+          streamUrl = streamInfo.url;
+          upstreamRes = await fetchStream(streamUrl);
+        }
+      } catch (e) {
+        console.warn('[API /ytmusic/stream] Direct YouTube stream error:', e);
+      }
     }
 
     // 2. Self-Healing Retry: If upstream returned 403 or failed, invalidate cache and force-refresh fresh stream
@@ -119,7 +172,7 @@ async function handleStream(req: NextRequest, rawId: string, isHead: boolean) {
         YouTubeMusicEngine.getInstance().invalidateStream(videoId);
         const freshInfo = await Promise.race([
           YouTubeMusicEngine.getInstance().getAudioStreamInfo(videoId, true),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
         ]);
         if (freshInfo?.url && freshInfo.url !== streamUrl) {
           streamUrl = freshInfo.url;
@@ -150,10 +203,14 @@ async function handleStream(req: NextRequest, rawId: string, isHead: boolean) {
     }
 
     const responseHeaders = new Headers();
-    // Enforce pure audio MP3 MIME type (audio/mpeg) so all clients treat it strictly as pure audio MP3
-    responseHeaders.set('Content-Type', 'audio/mpeg');
+    const upstreamContentType = upstreamRes.headers.get('content-type') || 'audio/mp4';
+    responseHeaders.set('Content-Type', upstreamContentType);
     responseHeaders.set('Accept-Ranges', 'bytes');
     responseHeaders.set('Cache-Control', 'public, max-age=1800, immutable');
+    responseHeaders.set('Access-Control-Allow-Origin', '*');
+    responseHeaders.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    responseHeaders.set('Access-Control-Allow-Headers', 'Range, Content-Type, Authorization');
+    responseHeaders.set('Access-Control-Expose-Headers', 'Content-Range, Content-Length, Accept-Ranges');
 
     const contentLength = upstreamRes.headers.get('content-length');
     if (contentLength) {
