@@ -67,43 +67,39 @@ async function handleStream(req: NextRequest, rawId: string, isHead: boolean) {
       return new Response('Invalid video ID', { status: 400 });
     }
 
-    // 1. Try ultra-fast direct native stream resolution first (<30ms, 0 CPU overhead, Cloudflare Worker safe)
-    const fallbackUrl = await resolveFallbackStreamUrl(videoId);
-    if (fallbackUrl) {
-      return NextResponse.redirect(fallbackUrl, { status: 302 });
-    }
-
-    // 2. Secondary fallback via YouTubeMusicEngine stream info with strict 1.2s timeout
     let streamUrl: string | null = null;
     let mimeType = 'audio/mp4';
 
-    try {
-      const streamInfo = await Promise.race([
-        YouTubeMusicEngine.getInstance().getAudioStreamInfo(videoId),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 1200)),
-      ]);
-      if (streamInfo?.url) {
-        streamUrl = streamInfo.url;
-        mimeType = streamInfo.mimeType || 'audio/mp4';
+    // 1. Try ultra-fast direct stream resolution (<30ms, 0 CPU overhead, Cloudflare Worker safe)
+    streamUrl = await resolveFallbackStreamUrl(videoId);
+
+    // 2. Secondary fallback via YouTubeMusicEngine stream info if available
+    if (!streamUrl) {
+      try {
+        const streamInfo = await Promise.race([
+          YouTubeMusicEngine.getInstance().getAudioStreamInfo(videoId),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 1200)),
+        ]);
+        if (streamInfo?.url) {
+          streamUrl = streamInfo.url;
+          mimeType = streamInfo.mimeType || 'audio/mp4';
+        }
+      } catch (e) {
+        console.warn('[API /ytmusic/stream] YouTubeMusicEngine resolution error:', e);
       }
-    } catch (e) {
-      console.warn('[API /ytmusic/stream] YouTubeMusicEngine resolution error:', e);
     }
 
     if (!streamUrl) {
       return new Response('Audio stream unavailable', { status: 404 });
     }
 
-    // If fallback audio URL is an external HTTPS CDN URL, return a 302 redirect for zero-latency browser playback
-    if (streamUrl.startsWith('https://web.saavncdn.com') || streamUrl.startsWith('https://aac.saavncdn.com') || streamUrl.includes('saavncdn.com')) {
-      return NextResponse.redirect(streamUrl, { status: 302 });
-    }
-
     const rangeHeader = req.headers.get('range');
+    const isSaavnCdn = streamUrl.includes('saavncdn.com');
+
     const upstreamHeaders: Record<string, string> = {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15',
-      'Referer': 'https://www.youtube.com/',
-      'Origin': 'https://www.youtube.com',
+      'Referer': isSaavnCdn ? 'https://www.jiosaavn.com/' : 'https://www.youtube.com/',
+      'Origin': isSaavnCdn ? 'https://www.jiosaavn.com' : 'https://www.youtube.com',
       'Accept': '*/*',
     };
     if (rangeHeader) {
