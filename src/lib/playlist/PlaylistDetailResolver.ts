@@ -54,7 +54,13 @@ export class PlaylistDetailResolver {
     }
 
     // 1b. Check if it's a YouTube Music Playlist ID
-    if (playlistId.startsWith('ytp-') || playlistId.startsWith('VLPL') || playlistId.startsWith('PL')) {
+    if (
+      playlistId.startsWith('ytp-') ||
+      playlistId.startsWith('VLPL') ||
+      playlistId.startsWith('PL') ||
+      playlistId.startsWith('RD') ||
+      playlistId.startsWith('VLRD')
+    ) {
       try {
         const cleanId = playlistId.replace(/^ytp-/, '');
         const res = await fetch(getApiUrl(`/api/ytmusic/playlist/${cleanId}`));
