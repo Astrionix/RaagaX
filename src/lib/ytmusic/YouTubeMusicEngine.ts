@@ -59,23 +59,27 @@ export class YouTubeMusicEngine {
     return this.ytPromise;
   }
 
-  private searchCache = new Map<string, { songs: Song[]; expiresAt: number }>();
+  private searchCache = new Map<string, { songs: Song[]; playlists: YouTubePlaylistResult[]; expiresAt: number }>();
 
   /**
    * Ultra-fast lightweight direct search query to YouTube Music's WEB_REMIX API.
    * Runs natively in <15ms without Innertube JS parsing, zero CPU memory overhead,
    * 100% compatible with Cloudflare Workers (raaga.me), Localhost, APK & Desktop.
    */
-  private async fetchDirectYouTubeMusicSearch(query: string, limit = 25): Promise<Song[]> {
+  private async fetchDirectYouTubeMusicSearch(
+    query: string,
+    limit = 25
+  ): Promise<{ songs: Song[]; playlists: YouTubePlaylistResult[] }> {
     const trimmed = (query || '').trim();
-    if (!trimmed) return [];
+    if (!trimmed) return { songs: [], playlists: [] };
 
     try {
       const res = await fetch('https://music.youtube.com/youtubei/v1/search?prettyPrint=false', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+          'User-Agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
           'X-YouTube-Client-Name': '67',
           'X-YouTube-Client-Version': '1.20240910.01.00',
         },
@@ -90,62 +94,81 @@ export class YouTubeMusicEngine {
         }),
       });
 
-      if (!res.ok) return [];
+      if (!res.ok) return { songs: [], playlists: [] };
       const json = await res.json();
-
-      const songs: Song[] = [];
-      const seenVideoIds = new Set<string>();
 
       const tabs = json?.contents?.tabbedSearchResultsRenderer?.tabs || [];
       const sectionList = tabs[0]?.tabRenderer?.content?.sectionListRenderer?.contents || [];
 
-      for (const section of sectionList) {
-        const shelf = section.musicShelfRenderer || section.musicCardShelfRenderer;
-        if (!shelf) continue;
-
-        const contents = shelf.contents || [];
-        for (const item of contents) {
-          const renderer = item.musicResponsiveListItemRenderer;
-          if (!renderer) continue;
-
-          let videoId = '';
-          const flex0 = renderer.flexColumns?.[0]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.[0];
-          const flex1 = renderer.flexColumns?.[1]?.musicResponsiveListItemFlexColumnRenderer?.text;
-
-          const playBtn = renderer.overlay?.musicItemThumbnailOverlayRenderer?.content?.musicPlayButtonRenderer;
-          const navEp = playBtn?.playNavigationEndpoint || renderer.navigationEndpoint;
-
-          if (navEp?.watchEndpoint?.videoId) {
-            videoId = navEp.watchEndpoint.videoId;
-          } else if (navEp?.watchPlaylistEndpoint?.videoId) {
-            videoId = navEp.watchPlaylistEndpoint.videoId;
-          } else if (renderer.playlistItemData?.videoId) {
-            videoId = renderer.playlistItemData.videoId;
+      // Recursively extract all musicResponsiveListItemRenderer nodes from sectionList
+      const extractRenderers = (obj: any): any[] => {
+        const list: any[] = [];
+        if (!obj || typeof obj !== 'object') return list;
+        if (obj.musicResponsiveListItemRenderer) {
+          list.push(obj.musicResponsiveListItemRenderer);
+        } else {
+          for (const k of Object.keys(obj)) {
+            if (Array.isArray(obj[k])) {
+              for (const child of obj[k]) list.push(...extractRenderers(child));
+            } else if (typeof obj[k] === 'object') {
+              list.push(...extractRenderers(obj[k]));
+            }
           }
+        }
+        return list;
+      };
 
-          if (!videoId || seenVideoIds.has(videoId)) continue;
+      const renderers = extractRenderers(sectionList);
+      const songs: Song[] = [];
+      const playlists: YouTubePlaylistResult[] = [];
+      const seenVideoIds = new Set<string>();
+      const seenPlaylistIds = new Set<string>();
 
-          const rawTitle = flex0?.text || 'Unknown Track';
-          let authorName = '';
+      for (const renderer of renderers) {
+        let videoId = '';
+        let playlistId = '';
 
-          if (flex1?.runs && Array.isArray(flex1.runs)) {
-            authorName = flex1.runs
-              .map((r: any) => r.text || '')
-              .filter((t: string) => t && t !== ' • ' && t !== 'Song' && t !== 'Video')
-              .join(' ');
-          }
+        const flex0 = renderer.flexColumns?.[0]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.[0];
+        const flex1 = renderer.flexColumns?.[1]?.musicResponsiveListItemFlexColumnRenderer?.text;
 
+        const playBtn = renderer.overlay?.musicItemThumbnailOverlayRenderer?.content?.musicPlayButtonRenderer;
+        const navEp = playBtn?.playNavigationEndpoint || renderer.navigationEndpoint;
+
+        if (navEp?.watchEndpoint?.videoId) {
+          videoId = navEp.watchEndpoint.videoId;
+        } else if (navEp?.watchPlaylistEndpoint?.videoId) {
+          videoId = navEp.watchPlaylistEndpoint.videoId;
+        } else if (renderer.playlistItemData?.videoId) {
+          videoId = renderer.playlistItemData.videoId;
+        }
+
+        const bId = navEp?.browseEndpoint?.browseId || navEp?.watchPlaylistEndpoint?.playlistId;
+        if (bId && (bId.startsWith('VL') || bId.startsWith('PL') || bId.startsWith('MPRE') || bId.startsWith('RD'))) {
+          playlistId = bId.startsWith('VL') ? bId.slice(2) : bId;
+        }
+
+        const rawTitle = flex0?.text || 'Unknown Track';
+        let authorName = '';
+
+        if (flex1?.runs && Array.isArray(flex1.runs)) {
+          authorName = flex1.runs
+            .map((r: any) => r.text || '')
+            .filter((t: string) => t && t !== ' • ' && t !== 'Song' && t !== 'Video')
+            .join(' ');
+        }
+
+        let coverUrl = videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : '/app-icon.png';
+        const thumbs = renderer.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails;
+        if (Array.isArray(thumbs) && thumbs.length > 0) {
+          coverUrl = thumbs[thumbs.length - 1]?.url || coverUrl;
+        }
+
+        if (videoId && !seenVideoIds.has(videoId)) {
+          seenVideoIds.add(videoId);
           const parsed = this.parseTrackMetadata(rawTitle, authorName);
           const title = parsed.title;
           const artist = parsed.artist || authorName || 'Various Artists';
 
-          let coverUrl = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
-          const thumbs = renderer.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails;
-          if (Array.isArray(thumbs) && thumbs.length > 0) {
-            coverUrl = thumbs[thumbs.length - 1]?.url || coverUrl;
-          }
-
-          seenVideoIds.add(videoId);
           songs.push({
             id: `ytm-${videoId}`,
             title: title.trim(),
@@ -166,16 +189,22 @@ export class YouTubeMusicEngine {
             codec: 'AAC',
             source: 'youtube',
           });
-
-          if (songs.length >= limit) break;
+        } else if (playlistId && !seenPlaylistIds.has(playlistId) && !videoId) {
+          seenPlaylistIds.add(playlistId);
+          playlists.push({
+            id: `ytp-${playlistId}`,
+            title: rawTitle.trim(),
+            coverUrl,
+            source: 'YouTube Music',
+          });
         }
 
-        if (songs.length >= limit) break;
+        if (songs.length >= limit && playlists.length >= 10) break;
       }
 
-      return songs;
+      return { songs, playlists };
     } catch {
-      return [];
+      return { songs: [], playlists: [] };
     }
   }
 
@@ -194,10 +223,10 @@ export class YouTubeMusicEngine {
     }
 
     // Tier 1: Try ultra-fast direct WEB_REMIX API fetch (<15ms, zero CPU overhead, Cloudflare Worker safe)
-    const directSongs = await this.fetchDirectYouTubeMusicSearch(trimmed, limit);
-    if (directSongs.length > 0) {
-      this.searchCache.set(cacheKey, { songs: directSongs, expiresAt: Date.now() + 30 * 60 * 1000 });
-      return directSongs;
+    const direct = await this.fetchDirectYouTubeMusicSearch(trimmed, limit);
+    if (direct.songs.length > 0) {
+      this.searchCache.set(cacheKey, { songs: direct.songs, playlists: direct.playlists, expiresAt: Date.now() + 30 * 60 * 1000 });
+      return direct.songs;
     }
 
     try {
@@ -302,7 +331,7 @@ export class YouTubeMusicEngine {
         if (songs.length >= limit) break;
       }
 
-      this.searchCache.set(cacheKey, { songs, expiresAt: Date.now() + 30 * 60 * 1000 });
+      this.searchCache.set(cacheKey, { songs, playlists: [], expiresAt: Date.now() + 30 * 60 * 1000 });
       return songs;
     } catch (err: any) {
       console.warn('[YouTubeMusicEngine] Search error for query:', query, err?.message || err);
@@ -316,6 +345,19 @@ export class YouTubeMusicEngine {
   public async searchPlaylists(query: string, limit = 10): Promise<YouTubePlaylistResult[]> {
     const trimmed = (query || '').trim();
     if (!trimmed) return [];
+
+    const cacheKey = `${trimmed.toLowerCase()}_25`;
+    const cached = this.searchCache.get(cacheKey);
+    if (cached && Date.now() < cached.expiresAt && cached.playlists.length > 0) {
+      return cached.playlists.slice(0, limit);
+    }
+
+    // Try direct WEB_REMIX API fetch first (<15ms, 0 CPU overhead)
+    const direct = await this.fetchDirectYouTubeMusicSearch(trimmed, limit);
+    if (direct.playlists.length > 0) {
+      this.searchCache.set(cacheKey, { songs: direct.songs, playlists: direct.playlists, expiresAt: Date.now() + 30 * 60 * 1000 });
+      return direct.playlists.slice(0, limit);
+    }
 
     try {
       const yt = await this.getClient();
