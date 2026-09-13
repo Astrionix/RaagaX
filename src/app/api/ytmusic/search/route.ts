@@ -14,10 +14,12 @@ export async function GET(req: Request) {
     }
 
     const engine = YouTubeMusicEngine.getInstance();
-    const [songs, playlists] = await Promise.all([
-      engine.searchSongs(query, Math.min(limit, 50)),
-      engine.searchPlaylists(query, 10),
-    ]);
+    const songs = await engine.searchSongs(query, Math.min(limit, 30));
+
+    let playlists: any[] = [];
+    try {
+      playlists = await engine.searchPlaylists(query, 5);
+    } catch {}
 
     return NextResponse.json({
       success: true,
