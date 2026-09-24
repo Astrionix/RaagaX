@@ -316,32 +316,36 @@ export function OnboardingAuthModal() {
         <div className="w-6" />
       </div>
 
-      {/* MAIN DESKTOP CONTAINER (Full screen on desktop, takes remaining space on mobile) */}
-      <div className="w-full h-full md:h-[80vh] md:max-h-[800px] md:max-w-[1200px] flex flex-col md:flex-row relative flex-grow md:rounded-[32px] overflow-hidden md:border border-[#272A33] md:shadow-2xl bg-[#07080C]">
+      {/* MAIN DESKTOP CONTAINER (Compact, elegant, and perfectly proportioned) */}
+      <div className={`w-full h-full md:h-auto md:max-h-[90vh] ${
+        mode === 'register-artists' ? 'md:max-w-[800px]' : 'md:max-w-[700px]'
+      } flex flex-col md:flex-row relative flex-grow md:flex-grow-0 md:rounded-[24px] overflow-hidden md:border border-[#272A33] md:shadow-2xl bg-[#07080C]`}>
         
         {/* CLOSE BUTTON FOR DESKTOP — only visible if already authenticated */}
         {user && (
           <button 
             onClick={handleClose}
             title="Close"
-            className="hidden md:flex absolute top-6 right-6 z-50 p-2.5 bg-black/20 hover:bg-[#171820] rounded-full text-[#9AA0AE] hover:text-white transition-all border border-transparent hover:border-[#272A33]"
+            className="hidden md:flex absolute top-4 right-4 z-50 p-2 bg-black/40 hover:bg-[#171820] rounded-full text-[#9AA0AE] hover:text-white transition-all border border-transparent hover:border-[#272A33]"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         )}
 
         {/* LEFT COLUMN: FORM */}
-        <div className="relative z-10 w-full md:w-[480px] p-6 sm:p-8 md:p-14 flex flex-col flex-shrink-0 bg-[#07080C] overflow-y-auto">
+        <div className={`relative z-10 w-full ${
+          mode === 'register-artists' ? 'md:w-[460px]' : 'md:w-[380px]'
+        } p-5 sm:p-6 md:p-8 flex flex-col flex-shrink-0 bg-[#07080C] overflow-y-auto`}>
           
-          <div className="space-y-2 mb-10 mt-4 md:mt-10">
-            <h1 className="text-[28px] md:text-[36px] font-bold tracking-tight text-white leading-tight">
+          <div className="space-y-1.5 mb-6 mt-1 md:mt-2">
+            <h1 className="text-xl md:text-2xl font-black tracking-tight text-white leading-tight">
               {mode === 'login' && <>Welcome <span className="text-[#F51B3D]">back</span></>}
               {mode === 'register-credentials' && 'Join RaagaX'}
               {mode === 'register-language' && 'What languages do you listen to?'}
               {mode === 'register-moods' && 'What music moves you?'}
               {mode === 'register-artists' && 'Pick some favorites'}
             </h1>
-            <p className="text-[14px] text-[#9AA0AE] font-medium">
+            <p className="text-xs md:text-sm text-[#9AA0AE] font-medium">
               {mode === 'login' && 'Your music is waiting.'}
               {mode === 'register-credentials' && 'Your music. Your library. Everywhere.'}
               {mode === 'register-language' && 'Select all languages you enjoy.'}
@@ -350,9 +354,9 @@ export function OnboardingAuthModal() {
             </p>
           </div>
 
-          <div className="space-y-5 w-full flex-grow">
+          <div className="space-y-4 w-full flex-grow">
             {errorMsg && (
-              <div className="p-4 rounded-xl bg-[#FF4D5E]/10 border border-[#FF4D5E]/30 text-[#FF4D5E] text-[13px] font-semibold">
+              <div className="p-3 rounded-xl bg-[#FF4D5E]/10 border border-[#FF4D5E]/30 text-[#FF4D5E] text-xs font-semibold">
                 {errorMsg}
               </div>
             )}
@@ -361,83 +365,85 @@ export function OnboardingAuthModal() {
             {(mode === 'login' || mode === 'register-credentials') && (
               <form 
                 onSubmit={mode === 'login' ? handleLogin : handleRegisterCredentials}
-                className="space-y-4"
+                className="space-y-3.5"
               >
                 {mode === 'register-credentials' && (
-                  <div className="space-y-1.5">
-                    <label className="text-[14px] font-semibold text-[#9AA0AE] ml-1">Username</label>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-[#9AA0AE] ml-0.5">Username</label>
                     <div className="relative group">
-                      <User className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#6F7482] group-focus-within:text-[#F51B3D] transition-colors" />
+                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6F7482] group-focus-within:text-[#F51B3D] transition-colors" />
                       <input
                         type="text"
                         placeholder="Choose a username"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
-                        className="w-full h-[56px] pl-11 pr-4 bg-[#101116] border border-[#272A33] rounded-[16px] text-[15px] text-white placeholder-[#6F7482] focus:outline-none focus:border-[#F51B3D] focus:shadow-[0_0_15px_rgba(245,27,61,0.15)] transition-all"
+                        className="w-full h-[44px] pl-10 pr-3.5 bg-[#101116] border border-[#272A33] rounded-[12px] text-sm text-white placeholder-[#6F7482] focus:outline-none focus:border-[#F51B3D] focus:shadow-[0_0_12px_rgba(245,27,61,0.15)] transition-all"
                       />
                     </div>
                   </div>
                 )}
 
-                <div className="space-y-1.5">
-                  <label className="text-[14px] font-semibold text-[#9AA0AE] ml-1">Email address</label>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-[#9AA0AE] ml-0.5">Email address</label>
                   <div className="relative group">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#6F7482] group-focus-within:text-[#F51B3D] transition-colors" />
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6F7482] group-focus-within:text-[#F51B3D] transition-colors" />
                     <input
                       type="email"
                       placeholder="Enter your email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full h-[56px] pl-11 pr-4 bg-[#101116] border border-[#272A33] rounded-[16px] text-[15px] text-white placeholder-[#6F7482] focus:outline-none focus:border-[#F51B3D] focus:shadow-[0_0_15px_rgba(245,27,61,0.15)] transition-all"
+                      className="w-full h-[44px] pl-10 pr-3.5 bg-[#101116] border border-[#272A33] rounded-[12px] text-sm text-white placeholder-[#6F7482] focus:outline-none focus:border-[#F51B3D] focus:shadow-[0_0_12px_rgba(245,27,61,0.15)] transition-all"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-[14px] font-semibold text-[#9AA0AE] ml-1">Password</label>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-[#9AA0AE] ml-0.5">Password</label>
                   <div className="relative group">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#6F7482] group-focus-within:text-[#F51B3D] transition-colors" />
+                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6F7482] group-focus-within:text-[#F51B3D] transition-colors" />
                     <input
                       type={showPassword ? 'text' : 'password'}
                       placeholder={mode === 'login' ? 'Enter your password' : 'Create a password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full h-[56px] pl-11 pr-11 bg-[#101116] border border-[#272A33] rounded-[16px] text-[15px] text-white placeholder-[#6F7482] focus:outline-none focus:border-[#F51B3D] focus:shadow-[0_0_15px_rgba(245,27,61,0.15)] transition-all"
+                      className="w-full h-[44px] pl-10 pr-10 bg-[#101116] border border-[#272A33] rounded-[12px] text-sm text-white placeholder-[#6F7482] focus:outline-none focus:border-[#F51B3D] focus:shadow-[0_0_12px_rgba(245,27,61,0.15)] transition-all"
                     />
                     <button
+                      type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6F7482] hover:text-[#9AA0AE] transition-colors"
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#6F7482] hover:text-[#9AA0AE] transition-colors"
                     >
-                      {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
 
                 {mode === 'register-credentials' && (
-                  <div className="space-y-1.5">
-                    <label className="text-[14px] font-semibold text-[#9AA0AE] ml-1">Confirm Password</label>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-[#9AA0AE] ml-0.5">Confirm Password</label>
                     <div className="relative group">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#6F7482] group-focus-within:text-[#F51B3D] transition-colors" />
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6F7482] group-focus-within:text-[#F51B3D] transition-colors" />
                       <input
                         type={showConfirmPassword ? 'text' : 'password'}
                         placeholder="Confirm your password"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="w-full h-[56px] pl-11 pr-11 bg-[#101116] border border-[#272A33] rounded-[16px] text-[15px] text-white placeholder-[#6F7482] focus:outline-none focus:border-[#F51B3D] focus:shadow-[0_0_15px_rgba(245,27,61,0.15)] transition-all"
+                        className="w-full h-[44px] pl-10 pr-10 bg-[#101116] border border-[#272A33] rounded-[12px] text-sm text-white placeholder-[#6F7482] focus:outline-none focus:border-[#F51B3D] focus:shadow-[0_0_12px_rgba(245,27,61,0.15)] transition-all"
                       />
                       <button
+                        type="button"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6F7482] hover:text-[#9AA0AE] transition-colors"
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#6F7482] hover:text-[#9AA0AE] transition-colors"
                       >
-                        {showConfirmPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
+                        {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
                 )}
 
                 {mode === 'login' && (
-                  <div className="flex justify-end pt-1">
-                    <button className="text-[13px] font-semibold text-[#F51B3D] hover:text-[#FF2347] transition-colors">
+                  <div className="flex justify-end pt-0.5">
+                    <button type="button" className="text-xs font-semibold text-[#F51B3D] hover:text-[#FF2347] transition-colors">
                       Forgot password?
                     </button>
                   </div>
@@ -446,7 +452,7 @@ export function OnboardingAuthModal() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full h-[56px] mt-4 rounded-[16px] bg-[#F51B3D] text-white font-bold text-[15px] hover:bg-gradient-to-r hover:from-[#F51B3D] hover:to-[#FF2347] hover:scale-[1.01] active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2 group"
+                  className="w-full h-[44px] md:h-[46px] mt-2 rounded-[12px] bg-[#F51B3D] text-white font-bold text-sm hover:bg-gradient-to-r hover:from-[#F51B3D] hover:to-[#FF2347] hover:scale-[1.01] active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2 group cursor-pointer shadow-lg shadow-red-500/20"
                 >
                   {isLoading ? (
                     <><Loader2 className="w-5 h-5 animate-spin" /> {mode === 'login' ? 'Signing in...' : 'Processing...'}</>
@@ -460,12 +466,13 @@ export function OnboardingAuthModal() {
             {/* --- REGISTER LANGUAGES (Multi-Select) --- */}
             {mode === 'register-language' && (
               <div className="animate-in slide-in-from-right-4 duration-300">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   {TOP_LANGUAGES.map(lang => {
                     const isSelected = selectedLanguages.includes(lang);
                     return (
                       <button
                         key={lang}
+                        type="button"
                         onClick={() => {
                           if (isSelected) {
                             if (selectedLanguages.length > 1) {
@@ -475,19 +482,20 @@ export function OnboardingAuthModal() {
                             setSelectedLanguages(prev => [...prev, lang]);
                           }
                         }}
-                        className={`h-[56px] rounded-[16px] border ${isSelected ? 'bg-[#F51B3D]/10 border-[#F51B3D] text-white font-bold' : 'bg-[#101116] border-[#272A33] text-[#9AA0AE] hover:border-[#F51B3D]/50 hover:text-white'} text-[15px] font-semibold transition-all flex items-center justify-center gap-2`}
+                        className={`h-[42px] rounded-[12px] border ${isSelected ? 'bg-[#F51B3D]/10 border-[#F51B3D] text-white font-bold' : 'bg-[#101116] border-[#272A33] text-[#9AA0AE] hover:border-[#F51B3D]/50 hover:text-white'} text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer`}
                       >
-                        {isSelected && <Check className="w-4 h-4 text-[#F51B3D]" />}
+                        {isSelected && <Check className="w-3.5 h-3.5 text-[#F51B3D]" />}
                         {lang}
                       </button>
                     );
                   })}
                 </div>
                 <button
+                  type="button"
                   onClick={handleRegisterLanguage}
-                  className="w-full h-[56px] mt-8 rounded-[16px] bg-[#F51B3D] text-white font-bold text-[15px] hover:bg-gradient-to-r hover:from-[#F51B3D] hover:to-[#FF2347] hover:scale-[1.01] active:scale-[0.98] transition-all flex items-center justify-center gap-2 group"
+                  className="w-full h-[44px] mt-4 rounded-[12px] bg-[#F51B3D] text-white font-bold text-sm hover:bg-gradient-to-r hover:from-[#F51B3D] hover:to-[#FF2347] hover:scale-[1.01] active:scale-[0.98] transition-all flex items-center justify-center gap-2 group cursor-pointer shadow-lg shadow-red-500/20"
                 >
-                  Continue <ArrowRight className="w-5 h-5 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                  Continue <ArrowRight className="w-4 h-4 opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
                 </button>
               </div>
             )}
@@ -495,12 +503,13 @@ export function OnboardingAuthModal() {
             {/* --- REGISTER MOODS / GENRES --- */}
             {mode === 'register-moods' && (
               <div className="animate-in slide-in-from-right-4 duration-300">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   {TOP_MOODS.map(mood => {
                     const isSelected = selectedMoods.includes(mood.name);
                     return (
                       <button
                         key={mood.name}
+                        type="button"
                         onClick={() => {
                           if (isSelected) {
                             setSelectedMoods(prev => prev.filter(m => m !== mood.name));
@@ -508,20 +517,21 @@ export function OnboardingAuthModal() {
                             setSelectedMoods(prev => [...prev, mood.name]);
                           }
                         }}
-                        className={`h-[56px] px-3 rounded-[16px] border ${isSelected ? 'bg-[#F51B3D]/10 border-[#F51B3D] text-white font-bold' : 'bg-[#101116] border-[#272A33] text-[#9AA0AE] hover:border-[#F51B3D]/50 hover:text-white'} text-[14px] transition-all flex items-center justify-start gap-2.5`}
+                        className={`h-[42px] px-2.5 rounded-[12px] border ${isSelected ? 'bg-[#F51B3D]/10 border-[#F51B3D] text-white font-bold' : 'bg-[#101116] border-[#272A33] text-[#9AA0AE] hover:border-[#F51B3D]/50 hover:text-white'} text-xs transition-all flex items-center justify-start gap-2 cursor-pointer`}
                       >
-                        <span className="text-xl">{mood.icon}</span>
+                        <span className="text-base">{mood.icon}</span>
                         <span className="truncate">{mood.name}</span>
-                        {isSelected && <Check className="w-4 h-4 text-[#F51B3D] ml-auto flex-shrink-0" />}
+                        {isSelected && <Check className="w-3.5 h-3.5 text-[#F51B3D] ml-auto flex-shrink-0" />}
                       </button>
                     );
                   })}
                 </div>
                 <button
+                  type="button"
                   onClick={handleRegisterMoods}
-                  className="w-full h-[56px] mt-8 rounded-[16px] bg-[#F51B3D] text-white font-bold text-[15px] hover:bg-gradient-to-r hover:from-[#F51B3D] hover:to-[#FF2347] hover:scale-[1.01] active:scale-[0.98] transition-all flex items-center justify-center gap-2 group"
+                  className="w-full h-[44px] mt-4 rounded-[12px] bg-[#F51B3D] text-white font-bold text-sm hover:bg-gradient-to-r hover:from-[#F51B3D] hover:to-[#FF2347] hover:scale-[1.01] active:scale-[0.98] transition-all flex items-center justify-center gap-2 group cursor-pointer shadow-lg shadow-red-500/20"
                 >
-                  Continue <ArrowRight className="w-5 h-5 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                  Continue <ArrowRight className="w-4 h-4 opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
                 </button>
               </div>
             )}
@@ -561,21 +571,21 @@ export function OnboardingAuthModal() {
                 name.split(/[\s.]+/).filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
               return (
-                <div className="animate-in slide-in-from-right-4 duration-300 pb-28 md:pb-6">
+                <div className="animate-in slide-in-from-right-4 duration-300 pb-20 md:pb-2">
 
                   {/* Selection counter badge */}
                   {selectedArtists.length > 0 && (
-                    <div className="flex items-center gap-2 mb-4 animate-in fade-in duration-200">
-                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F51B3D]/15 border border-[#F51B3D]/30">
+                    <div className="flex items-center gap-2 mb-3 animate-in fade-in duration-200">
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#F51B3D]/15 border border-[#F51B3D]/30">
                         <div className="w-1.5 h-1.5 rounded-full bg-[#F51B3D] animate-pulse" />
-                        <span className="text-[12px] font-bold text-[#F51B3D]">{selectedArtists.length} favorite{selectedArtists.length > 1 ? 's' : ''} picked</span>
+                        <span className="text-[11px] font-bold text-[#F51B3D]">{selectedArtists.length} picked</span>
                       </div>
-                      <span className="text-[11px] text-[#9AA0AE]">Pick more to improve your feed</span>
+                      <span className="text-[10px] text-[#9AA0AE]">Select more to personalize</span>
                     </div>
                   )}
 
                   {/* Artist Card Grid */}
-                  <div className="grid grid-cols-3 md:grid-cols-4 gap-2 mb-4">
+                  <div className="grid grid-cols-3 md:grid-cols-4 gap-2 mb-3 max-h-[260px] overflow-y-auto pr-1">
                     {activeArtists.map((artist, idx) => {
                       const isSelected = selectedArtists.includes(artist.name);
                       const gradient = getArtistGradient(artist.name);
@@ -584,6 +594,7 @@ export function OnboardingAuthModal() {
                       return (
                         <button
                           key={artist.name}
+                          type="button"
                           onClick={() => {
                             if (isSelected) {
                               setSelectedArtists(prev => prev.filter(a => a !== artist.name));
@@ -592,17 +603,17 @@ export function OnboardingAuthModal() {
                             }
                           }}
                           style={{ animationDelay: `${idx * 40}ms` }}
-                          className="relative group outline-none cursor-pointer rounded-[14px] overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-300 fill-mode-both"
+                          className="relative group outline-none cursor-pointer rounded-[12px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-both"
                         >
                           {/* Glow ring when selected */}
                           {isSelected && (
-                            <div className="absolute -inset-[2px] rounded-[16px] bg-gradient-to-br from-[#F51B3D] via-[#FF4D5E] to-[#FF2070] z-10 opacity-100">
-                              <div className="absolute inset-[2px] rounded-[14px] bg-[#07080C]" />
+                            <div className="absolute -inset-[2px] rounded-[14px] bg-gradient-to-br from-[#F51B3D] via-[#FF4D5E] to-[#FF2070] z-10 opacity-100">
+                              <div className="absolute inset-[2px] rounded-[12px] bg-[#07080C]" />
                             </div>
                           )}
 
                           {/* Card body */}
-                          <div className={`relative z-20 aspect-square w-full overflow-hidden rounded-[14px] ${
+                          <div className={`relative z-20 aspect-square w-full overflow-hidden rounded-[12px] ${
                             isSelected ? 'ring-2 ring-[#F51B3D]' : 'ring-1 ring-white/10'
                           } transition-all duration-300`}>
 
@@ -622,12 +633,12 @@ export function OnboardingAuthModal() {
 
                             {/* Initials fallback (shows if image fails) */}
                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                              <span className="text-3xl font-black text-white/20 select-none tracking-tight">{initials}</span>
+                              <span className="text-2xl font-black text-white/20 select-none tracking-tight">{initials}</span>
                             </div>
 
                             {/* Bottom name gradient overlay */}
-                            <div className="absolute bottom-0 left-0 right-0 pt-6 pb-2 px-2 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
-                              <p className={`text-[10px] font-bold text-white leading-tight truncate transition-all ${
+                            <div className="absolute bottom-0 left-0 right-0 pt-4 pb-1.5 px-1.5 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
+                              <p className={`text-[9.5px] font-bold text-white leading-tight truncate transition-all ${
                                 isSelected ? 'text-white' : 'text-white/80'
                               }`}>
                                 {artist.name}
@@ -636,8 +647,8 @@ export function OnboardingAuthModal() {
 
                             {/* Selected checkmark overlay */}
                             {isSelected && (
-                              <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#F51B3D] flex items-center justify-center shadow-lg shadow-red-500/40 z-30">
-                                <Check className="w-3 h-3 text-white stroke-[3]" />
+                              <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[#F51B3D] flex items-center justify-center shadow-lg shadow-red-500/40 z-30">
+                                <Check className="w-2.5 h-2.5 text-white stroke-[3]" />
                               </div>
                             )}
 
@@ -645,34 +656,30 @@ export function OnboardingAuthModal() {
                             {!isSelected && (
                               <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors duration-200" />
                             )}
-
-                            {/* Selection pulse ring */}
-                            {isSelected && (
-                              <div className="absolute inset-0 rounded-[14px] ring-2 ring-[#F51B3D]/60 animate-pulse pointer-events-none" />
-                            )}
                           </div>
                         </button>
                       );
                     })}
                   </div>
 
-                  {/* Fixed bottom button on mobile */}
-                  <div className="fixed md:relative bottom-0 left-0 right-0 md:bottom-auto px-6 md:px-0 pt-3 pb-6 md:pb-0 bg-gradient-to-t from-[#07080C] via-[#07080C]/98 to-transparent z-30 md:z-auto md:bg-none">
+                  {/* Button */}
+                  <div className="pt-2">
                     <button
+                      type="button"
                       onClick={handleFinalizeRegister}
                       disabled={isLoading}
-                      className={`w-full h-[56px] rounded-[16px] font-bold text-[15px] shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer group ${
+                      className={`w-full h-[44px] rounded-[12px] font-bold text-xs shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer group ${
                         selectedArtists.length > 0
                           ? 'bg-[#F51B3D] hover:bg-[#d91e32] text-white shadow-red-500/25'
                           : 'bg-[#101116] border border-[#272A33] text-[#9AA0AE] hover:border-[#F51B3D]/40 hover:text-white'
                       }`}
                     >
                       {isLoading ? (
-                        <><Loader2 className="w-5 h-5 animate-spin" /> Setting up your profile...</>
+                        <><Loader2 className="w-4 h-4 animate-spin" /> Setting up profile...</>
                       ) : selectedArtists.length > 0 ? (
-                        <><span>Continue with {selectedArtists.length} artist{selectedArtists.length > 1 ? 's' : ''}</span> <ArrowRight className="w-5 h-5 opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-all" /></>
+                        <><span>Continue with {selectedArtists.length} artist{selectedArtists.length > 1 ? 's' : ''}</span> <ArrowRight className="w-4 h-4 opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-all" /></>
                       ) : (
-                        <><span>Skip for now</span> <ArrowRight className="w-5 h-5 opacity-50 group-hover:opacity-80 group-hover:translate-x-1 transition-all" /></>
+                        <><span>Skip for now</span> <ArrowRight className="w-4 h-4 opacity-50 group-hover:opacity-80 group-hover:translate-x-1 transition-all" /></>
                       )}
                     </button>
                   </div>
@@ -682,11 +689,12 @@ export function OnboardingAuthModal() {
 
             {/* TOGGLE MODE */}
             {(mode === 'login' || mode === 'register-credentials') && (
-              <div className="text-center text-[14px] font-medium text-[#9AA0AE] mt-8 pb-8 md:pb-0">
+              <div className="text-center text-xs font-medium text-[#9AA0AE] mt-4 pb-4 md:pb-0">
                 {mode === 'login' ? "New to RaagaX? " : "Already have an account? "}
                 <button 
+                  type="button"
                   onClick={() => setMode(mode === 'login' ? 'register-credentials' : 'login')}
-                  className="text-white font-bold hover:text-[#F51B3D] transition-colors"
+                  className="text-white font-bold hover:text-[#F51B3D] transition-colors ml-1 cursor-pointer"
                 >
                   {mode === 'login' ? 'Create account' : 'Sign In'}
                 </button>
@@ -695,31 +703,31 @@ export function OnboardingAuthModal() {
           </div>
         </div>
 
-        {/* RIGHT COLUMN: MUSIC ATMOSPHERE (Desktop Only) */}
-        <div className="hidden md:flex flex-1 relative bg-[#07080C] overflow-hidden flex-col items-center justify-center p-12">
+        {/* RIGHT COLUMN: MUSIC ATMOSPHERE (Desktop Only, Compact & Elegant) */}
+        <div className="hidden md:flex flex-1 relative bg-[#07080C] border-l border-[#1A1D26] overflow-hidden flex-col items-center justify-center p-6">
           
           {/* Abstract Waveform Effect */}
-          <div className="absolute inset-0 z-0 flex items-center justify-center opacity-30">
-            <div className="w-[150%] h-[400px] bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPgo8cGF0aCBkPSJNMCA1MCBRIDI1IDMwLCA1MCA1MCBUIDEwMCA1MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJyZ2JhKDI0NSwgMjcsIDYxLCAwLjQpIiBzdHJva2Utd2lkdGg9IjEiIC8+Cjwvc3ZnPg==')] bg-repeat-x animate-pulse opacity-20" />
+          <div className="absolute inset-0 z-0 flex items-center justify-center opacity-25 pointer-events-none">
+            <div className="w-[150%] h-[300px] bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPgo8cGF0aCBkPSJNMCA1MCBRIDI1IDMwLCA1MCA1MCBUIDEwMCA1MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJyZ2JhKDI0NSwgMjcsIDYxLCAwLjQpIiBzdHJva2Utd2lkdGg9IjEiIC8+Cjwvc3ZnPg==')] bg-repeat-x animate-pulse opacity-20" />
           </div>
           
           {/* Subtle Glows */}
-          <div className="absolute top-1/4 -right-1/4 w-[600px] h-[600px] bg-[#F51B3D]/10 rounded-full blur-[120px] pointer-events-none mix-blend-screen" />
-          <div className="absolute -bottom-1/4 -left-1/4 w-[500px] h-[500px] bg-[#F51B3D]/5 rounded-full blur-[100px] pointer-events-none mix-blend-screen" />
+          <div className="absolute top-1/4 -right-1/4 w-[350px] h-[350px] bg-[#F51B3D]/10 rounded-full blur-[80px] pointer-events-none mix-blend-screen" />
+          <div className="absolute -bottom-1/4 -left-1/4 w-[300px] h-[300px] bg-[#F51B3D]/5 rounded-full blur-[80px] pointer-events-none mix-blend-screen" />
           
           {/* Blurred Album Art representation */}
-          <div className="absolute inset-0 opacity-10 bg-[url('https://images.unsplash.com/photo-1619983081563-430f63602796?q=80&w=2000&auto=format&fit=crop')] bg-cover bg-center blur-md mix-blend-luminosity" />
+          <div className="absolute inset-0 opacity-10 bg-[url('https://images.unsplash.com/photo-1619983081563-430f63602796?q=80&w=2000&auto=format&fit=crop')] bg-cover bg-center blur-md mix-blend-luminosity pointer-events-none" />
 
           {/* Foreground Branding Elements */}
-          <div className="relative z-10 flex flex-col items-center text-center space-y-6">
-            <div className="flex items-center gap-3">
-              <Disc3 className="w-10 h-10 text-[#F51B3D] animate-[spin_10s_linear_infinite]" />
-              <span className="font-black text-4xl tracking-tighter text-white">RaagaX</span>
+          <div className="relative z-10 flex flex-col items-center text-center space-y-4">
+            <div className="flex items-center gap-2.5">
+              <Disc3 className="w-8 h-8 text-[#F51B3D] animate-[spin_10s_linear_infinite]" />
+              <span className="font-black text-2xl tracking-tight text-white">RaagaX</span>
             </div>
             
-            <div className="space-y-2 mt-8">
-              <h2 className="text-3xl font-bold text-white tracking-tight">Your music. Your world.</h2>
-              <p className="text-[#9AA0AE] text-lg font-medium">Discover • Listen • Connect</p>
+            <div className="space-y-1 mt-4">
+              <h2 className="text-xl font-bold text-white tracking-tight">Your music. Your world.</h2>
+              <p className="text-[#9AA0AE] text-xs font-medium">Discover • Listen • Connect</p>
             </div>
           </div>
         </div>

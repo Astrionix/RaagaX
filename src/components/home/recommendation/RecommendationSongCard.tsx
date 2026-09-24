@@ -59,7 +59,7 @@ export function RecommendationSongCard({
       <div
         onClick={handleCardClick}
         className={[
-          'group relative flex-shrink-0 w-[140px] sm:w-[164px] cursor-pointer',
+          'group relative flex-shrink-0 w-[140px] sm:w-[164px] cursor-pointer snap-start',
           'rounded-2xl p-2.5 sm:p-3',
           'transition-all duration-300',
           // Hover: float + border glow

@@ -30,19 +30,26 @@ function handleTouchMoveWhenLocked(e: TouchEvent) {
   const target = e.target as HTMLElement | null;
   if (!target) return;
 
-  // Check if touch originated inside a scrollable element
+  // Check if touch originated inside a scrollable element (vertical or horizontal)
   const scrollableParent = target.closest(
-    '.overflow-y-auto, .overflow-y-scroll, .overflow-auto, [data-scrollable="true"], textarea'
+    '.overflow-y-auto, .overflow-y-scroll, .overflow-auto, .overflow-x-auto, .overflow-x-scroll, [data-scrollable="true"], textarea, input'
   ) as HTMLElement | null;
 
   if (scrollableParent) {
-    // If the element can actually scroll vertically, allow user interaction inside it
-    if (scrollableParent.scrollHeight > scrollableParent.clientHeight) {
+    const canScrollY = scrollableParent.scrollHeight > scrollableParent.clientHeight;
+    const canScrollX = scrollableParent.scrollWidth > scrollableParent.clientWidth;
+    if (canScrollY || canScrollX) {
       return;
     }
   }
 
-  // Target is on a backdrop, header, card container, or non-scrollable area: prevent default
+  // Also check if inside any active modal container with scrollable content
+  const modalContainer = target.closest('.lens-crystal, [role="dialog"], [data-modal-content]') as HTMLElement | null;
+  if (modalContainer && (modalContainer.scrollHeight > modalContainer.clientHeight || modalContainer.scrollWidth > modalContainer.clientWidth)) {
+    return;
+  }
+
+  // Target is on a backdrop, header, or non-scrollable dead-zone: prevent background leak
   if (e.cancelable) {
     e.preventDefault();
   }

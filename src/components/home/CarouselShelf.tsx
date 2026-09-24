@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ShelfItem } from '@/types/home';
 import { Song } from '@/types/music';
-import { Play, ChevronRight, ChevronDown, X, Shuffle, MoreHorizontal } from 'lucide-react';
+import { SongFormatter } from '@/lib/music/SongFormatter';
+import { Play, ChevronRight, ChevronLeft, ChevronDown, X, Shuffle, MoreHorizontal } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
@@ -54,6 +55,75 @@ export function CarouselShelf({
   const abortControllerRef = useRef<AbortController | null>(null);
   
   const observer = useRef<IntersectionObserver | null>(null);
+
+  // Horizontal Drag-to-Scroll & Navigation Button State
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const isDraggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startScrollLeftRef = useRef(0);
+  const hasMovedRef = useRef(false);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+  const [isPointerDown, setIsPointerDown] = useState(false);
+
+  const updateScrollButtons = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setCanScrollLeft(scrollLeft > 8);
+    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 8);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    updateScrollButtons();
+    el.addEventListener('scroll', updateScrollButtons, { passive: true });
+    window.addEventListener('resize', updateScrollButtons);
+    return () => {
+      el.removeEventListener('scroll', updateScrollButtons);
+      window.removeEventListener('resize', updateScrollButtons);
+    };
+  }, [updateScrollButtons, shelfItems.length]);
+
+  const scrollByDirection = (direction: 'left' | 'right') => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const cardStep = typeof window !== 'undefined' && window.innerWidth >= 640 ? 188 : 152;
+    const cardsPerScroll = Math.max(1, Math.floor(el.clientWidth / cardStep));
+    const distance = cardsPerScroll * cardStep;
+    el.scrollBy({
+      left: direction === 'left' ? -distance : distance,
+      behavior: 'smooth'
+    });
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0 || !scrollContainerRef.current) return;
+    isDraggingRef.current = true;
+    hasMovedRef.current = false;
+    startXRef.current = e.pageX;
+    startScrollLeftRef.current = scrollContainerRef.current.scrollLeft;
+    setIsPointerDown(true);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingRef.current || !scrollContainerRef.current) return;
+    const deltaX = e.pageX - startXRef.current;
+    if (Math.abs(deltaX) > 6) {
+      hasMovedRef.current = true;
+    }
+    scrollContainerRef.current.scrollLeft = startScrollLeftRef.current - deltaX;
+  };
+
+  const handleMouseUpOrLeave = () => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    setIsPointerDown(false);
+    setTimeout(() => {
+      hasMovedRef.current = false;
+    }, 60);
+  };
 
   // Update local state if props change (e.g., language switch or new songs arrived)
   useEffect(() => {
@@ -152,6 +222,38 @@ export function CarouselShelf({
     };
   }, []);
 
+  const convertShelfItemToSong = (shelfItem: ShelfItem): Song => {
+    if (shelfItem.rawItem) {
+      const raw = shelfItem.rawItem;
+      return SongFormatter.formatSong({
+        ...raw,
+        id: raw.id || shelfItem.id,
+        title: raw.title || shelfItem.title,
+        artist: raw.artist || shelfItem.subtitle || 'Unknown Artist',
+        coverUrl: raw.coverUrl || shelfItem.imageUrl || '/app-icon.png',
+        album: raw.album || shelfItem.title || 'Single',
+      });
+    }
+    return SongFormatter.formatSong({
+      id: shelfItem.id,
+      title: shelfItem.title || 'Unknown Track',
+      artist: shelfItem.subtitle || 'Unknown Artist',
+      artistId: '',
+      album: shelfItem.title || 'Single',
+      albumId: '',
+      duration: 0,
+      coverUrl: shelfItem.imageUrl || '/app-icon.png',
+      albumCoverUrl: shelfItem.imageUrl,
+      audioUrl: null,
+      playable: true,
+      genre: 'Soundtrack',
+      category: 'latest_telugu',
+      releaseYear: new Date().getFullYear(),
+      plays: 0,
+      likes: 0,
+    });
+  };
+
   const handleItemClick = (item: ShelfItem) => {
     if (item.type === 'playlist' || item.type === 'mix') {
       setSelectedPlaylistId(item.id);
@@ -184,9 +286,10 @@ export function CarouselShelf({
         isPlayerExpanded: false,
       });
     } else if (item.type === 'song') {
-      const rawSongs = shelfItems.map((i) => i.rawItem).filter(Boolean) as Song[];
-      const targetSong = (item.rawItem || item) as Song;
-      playSong(targetSong, rawSongs.length > 0 ? rawSongs : [targetSong]);
+      const songItems = shelfItems.filter((i) => i.type === 'song');
+      const queueSongs = songItems.map(convertShelfItemToSong);
+      const targetSong = convertShelfItemToSong(item);
+      playSong(targetSong, queueSongs.length > 0 ? queueSongs : [targetSong]);
     }
   };
 
@@ -194,8 +297,10 @@ export function CarouselShelf({
     e.stopPropagation();
     
     if (item.type === 'song') {
-      const rawSongs = shelfItems.map(i => i.rawItem).filter(Boolean);
-      playSong(item.rawItem || (item as any), rawSongs.length > 0 ? rawSongs : (shelfItems as any[]));
+      const songItems = shelfItems.filter((i) => i.type === 'song');
+      const queueSongs = songItems.map(convertShelfItemToSong);
+      const targetSong = convertShelfItemToSong(item);
+      playSong(targetSong, queueSongs.length > 0 ? queueSongs : [targetSong]);
       return;
     }
 
@@ -235,9 +340,10 @@ export function CarouselShelf({
 
     try {
       if (shelfItems[0].type === 'song') {
-        const rawSongs = shelfItems.map(i => i.rawItem).filter(Boolean);
-        if (rawSongs.length > 0) {
-          playSong(rawSongs[0] as any, rawSongs as any[]);
+        const songItems = shelfItems.filter((i) => i.type === 'song');
+        const queueSongs = songItems.map(convertShelfItemToSong);
+        if (queueSongs.length > 0) {
+          playSong(queueSongs[0], queueSongs);
         }
       } else {
         const { PlaylistDetailResolver } = await import('@/lib/playlist/PlaylistDetailResolver');
@@ -273,9 +379,10 @@ export function CarouselShelf({
 
     try {
       if (shelfItems[0].type === 'song') {
-        const rawSongs = shelfItems.map(i => i.rawItem).filter(Boolean);
-        if (rawSongs.length > 0) {
-          await usePlayerStore.getState().shufflePlay(rawSongs as any[]);
+        const songItems = shelfItems.filter((i) => i.type === 'song');
+        const queueSongs = songItems.map(convertShelfItemToSong);
+        if (queueSongs.length > 0) {
+          await usePlayerStore.getState().shufflePlay(queueSongs);
         }
       } else {
         const { RealMusicEngine } = await import('@/lib/realMusicEngine');
@@ -358,17 +465,66 @@ export function CarouselShelf({
           )}
         </div>
         
-        {showSeeAll && shelfItems.length > 0 && (
-          <button 
-            onClick={() => setShowAll(true)}
-            className="text-[11px] sm:text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors uppercase tracking-wider flex items-center gap-1 cursor-pointer flex-shrink-0 ml-2"
-          >
-            {shelfItems[0]?.type === 'song' ? 'See All Songs' : 'See All'} <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {showSeeAll && shelfItems.length > 0 && (
+            <button 
+              onClick={() => setShowAll(true)}
+              className="text-[11px] sm:text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors uppercase tracking-wider flex items-center gap-1 cursor-pointer flex-shrink-0 ml-2"
+            >
+              {shelfItems[0]?.type === 'song' ? 'See All Songs' : 'See All'} <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* Desktop Left / Right Navigation Scroll Buttons */}
+          <div className="hidden sm:flex items-center gap-1 ml-1 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => scrollByDirection('left')}
+              disabled={!canScrollLeft}
+              aria-label="Scroll left"
+              className={`p-1.5 rounded-full transition-all border ${
+                canScrollLeft
+                  ? 'bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:scale-105 active:scale-95 cursor-pointer shadow-sm'
+                  : 'opacity-25 cursor-not-allowed text-[var(--text-secondary)] border-transparent'
+              }`}
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollByDirection('right')}
+              disabled={!canScrollRight}
+              aria-label="Scroll right"
+              className={`p-1.5 rounded-full transition-all border ${
+                canScrollRight
+                  ? 'bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:scale-105 active:scale-95 cursor-pointer shadow-sm'
+                  : 'opacity-25 cursor-not-allowed text-[var(--text-secondary)] border-transparent'
+              }`}
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
       </div>
       
-      <div className="flex gap-3 sm:gap-4 overflow-x-auto no-scrollbar pt-2 pb-3 sm:pt-2.5 sm:pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div 
+        ref={scrollContainerRef}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUpOrLeave}
+        onMouseLeave={handleMouseUpOrLeave}
+        className={`flex gap-3 sm:gap-4 overflow-x-auto no-scrollbar pt-2 pb-3 sm:pt-2.5 sm:pb-4 -mx-3.5 px-3.5 sm:mx-0 sm:px-0 touch-pan-x touch-pan-y ${
+          isPointerDown ? 'cursor-grabbing select-none' : 'cursor-grab snap-x snap-mandatory scroll-smooth'
+        }`}
+        style={{
+          touchAction: 'pan-x pan-y',
+          overscrollBehaviorX: 'contain',
+          overscrollBehaviorY: 'auto',
+          scrollSnapType: isPointerDown ? 'none' : 'x mandatory',
+          scrollPaddingLeft: '0.875rem',
+          scrollPaddingRight: '0.875rem',
+        }}
+      >
         {visibleItems.map((item, index) => {
           const isSentinel = pagination?.enabled && index === sentinelIndex;
           const isUserPlaylist = (item.type === 'playlist' || item.type === 'mix') && (
@@ -382,8 +538,15 @@ export function CarouselShelf({
             <div
               key={`${item.id}-${index}`}
               ref={isSentinel ? sentinelRef : null}
-              onClick={() => handleItemClick(item)}
-              className="group premium-card p-3 sm:p-3.5 rounded-2xl cursor-pointer w-[140px] sm:w-[172px] flex-shrink-0"
+              onClick={(e) => {
+                if (hasMovedRef.current) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  return;
+                }
+                handleItemClick(item);
+              }}
+              className="group premium-card p-3 sm:p-3.5 rounded-2xl cursor-pointer w-[140px] sm:w-[172px] flex-shrink-0 snap-start"
             >
               <div className={`relative w-full aspect-square ${isUserPlaylist ? 'mb-0' : 'mb-2.5 sm:mb-3'} shadow-[0_8px_24px_rgba(0,0,0,0.2)] rounded-xl overflow-hidden bg-slate-800/80`}>
                 {isUserPlaylist ? (
@@ -426,6 +589,9 @@ export function CarouselShelf({
             </div>
           );
         })}
+        
+        {/* Right edge end-padding spacer so the last card has breathing room and does not crop awkwardly */}
+        <div className="w-3 sm:w-5 flex-shrink-0 pointer-events-none" aria-hidden="true" />
         
         {/* Placeholder skeleton elements when hasMore is true */}
         {hasMore && (

@@ -1192,16 +1192,34 @@ body.body-scroll-locked {
   -webkit-overflow-scrolling: auto !important;
 }
 
-/* Contain overscroll inside all scrollable containers and prevent bubbling */
+/* Contain overscroll inside vertical scrollable containers */
 .overflow-y-auto,
 .overflow-y-scroll,
-.overflow-auto,
 .custom-scrollbar,
-.no-scrollbar,
 [data-scrollable="true"] {
   overscroll-behavior: contain !important;
   overscroll-behavior-y: contain !important;
+  touch-action: pan-y !important;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Horizontal shelves & carousels: MUST allow seamless vertical page scrolling AND horizontal swiping */
+.overflow-x-auto,
+.overflow-x-scroll,
+.overflow-x-auto.no-scrollbar,
+.overflow-x-scroll.no-scrollbar {
+  overscroll-behavior-x: contain !important;
+  overscroll-behavior-y: auto !important;
+  touch-action: pan-x pan-y !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Interactive song, album, and playlist cards inside shelves */
+.premium-card,
+[data-song-card] {
+  touch-action: pan-x pan-y;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* Modal and bottom-sheet backdrops trap gestures */

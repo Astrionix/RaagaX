@@ -57,7 +57,17 @@ export function RecommendationCarousel({
 
   // ── Full carousel ────────────────────────────────────────────────────────
   return (
-    <div className="flex gap-3 sm:gap-4 overflow-x-auto no-scrollbar pt-2 pb-3 sm:pt-2.5 sm:pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+    <div 
+      className="flex gap-3 sm:gap-4 overflow-x-auto no-scrollbar pt-2 pb-3 sm:pt-2.5 sm:pb-4 -mx-3.5 px-3.5 sm:mx-0 sm:px-0 touch-pan-x touch-pan-y snap-x snap-mandatory scroll-smooth"
+      style={{
+        touchAction: 'pan-x pan-y',
+        overscrollBehaviorX: 'contain',
+        overscrollBehaviorY: 'auto',
+        scrollSnapType: 'x mandatory',
+        scrollPaddingLeft: '0.875rem',
+        scrollPaddingRight: '1.5rem',
+      }}
+    >
       {results.map((result) => (
         <RecommendationSongCard
           key={result.id}
@@ -69,6 +79,9 @@ export function RecommendationCarousel({
           isRemoving={removingIds.has(result.id)}
         />
       ))}
+
+      {/* Right edge spacer to prevent clipping */}
+      <div className="w-3 sm:w-5 flex-shrink-0 pointer-events-none" aria-hidden="true" />
 
       {/* Trailing skeleton cards when refreshing mid-session */}
       {isLoading && (

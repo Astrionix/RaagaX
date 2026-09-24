@@ -146,7 +146,7 @@ export function LanguageOnboardingModal() {
 
         {/* ── STEP 1: WELCOME SCREEN ────────────────────────────────────────── */}
         {step === 1 && (
-          <div className="p-6 sm:p-8 overflow-y-auto overscroll-contain space-y-6 flex-1 flex flex-col justify-center items-center text-center animate-in fade-in">
+          <div data-scrollable="true" className="p-6 sm:p-8 overflow-y-auto overscroll-contain space-y-6 flex-1 flex flex-col justify-center items-center text-center animate-in fade-in touch-pan-y">
             {/* 3D Glass Logo Icon */}
             <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-gradient-to-br from-white/15 via-white/5 to-white/0 border border-white/25 shadow-[0_12px_40px_rgba(250,35,59,0.35)] flex items-center justify-center p-4">
               <div className="w-12 h-12 rounded-2xl bg-[#FA233B] flex items-center justify-center shadow-lg shadow-red-500/40">
@@ -189,7 +189,7 @@ export function LanguageOnboardingModal() {
 
         {/* ── STEP 2: CHOOSE LANGUAGES ──────────────────────────────────────── */}
         {step === 2 && (
-          <div className="p-6 overflow-y-auto overscroll-contain space-y-5 flex-1 animate-in fade-in">
+          <div data-scrollable="true" className="p-6 overflow-y-auto overscroll-contain space-y-5 flex-1 animate-in fade-in touch-pan-y">
             <div className="space-y-1 text-center sm:text-left">
               <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
                 What languages do you listen to?
@@ -208,7 +208,7 @@ export function LanguageOnboardingModal() {
                   <div
                     key={lang.id}
                     onClick={() => toggleLang(lang.id)}
-                    className={`relative p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between h-22 overflow-hidden group active:scale-[0.98] ${
+                    className={`relative p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between h-22 overflow-hidden group active:scale-[0.98] touch-pan-y ${
                       isSelected
                         ? 'bg-gradient-to-br from-white/15 to-white/5 border-[#FA233B] shadow-[0_4px_20px_rgba(250,35,59,0.3)]'
                         : 'bg-white/[0.03] hover:bg-white/[0.07] border-white/10 hover:border-white/20 opacity-80 hover:opacity-100'
@@ -241,7 +241,7 @@ export function LanguageOnboardingModal() {
 
         {/* ── STEP 3: CHOOSE INTERESTS ──────────────────────────────────────── */}
         {step === 3 && (
-          <div className="p-6 overflow-y-auto overscroll-contain space-y-5 flex-1 animate-in fade-in">
+          <div data-scrollable="true" className="p-6 overflow-y-auto overscroll-contain space-y-5 flex-1 animate-in fade-in touch-pan-y">
             <div className="space-y-1 text-center sm:text-left">
               <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
                 What do you want to listen to?
@@ -260,7 +260,7 @@ export function LanguageOnboardingModal() {
                   <div
                     key={interest.id}
                     onClick={() => toggleInterest(interest.id)}
-                    className={`relative p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group active:scale-[0.98] ${
+                    className={`relative p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group active:scale-[0.98] touch-pan-y ${
                       isSelected
                         ? 'bg-gradient-to-br from-[#FA233B]/20 to-purple-800/20 border-[#FA233B]/70 shadow-[0_4px_20px_rgba(250,35,59,0.25)]'
                         : 'bg-white/[0.03] hover:bg-white/[0.07] border-white/10 hover:border-white/20 opacity-80 hover:opacity-100'
@@ -294,7 +294,7 @@ export function LanguageOnboardingModal() {
 
         {/* ── STEP 4: ACCOUNT CHOICE (GUEST VS SIGN UP) ────────────────────── */}
         {step === 4 && (
-          <div className="p-6 sm:p-8 overflow-y-auto space-y-6 flex-1 flex flex-col justify-center items-center text-center animate-in fade-in">
+          <div data-scrollable="true" className="p-6 sm:p-8 overflow-y-auto space-y-6 flex-1 flex flex-col justify-center items-center text-center animate-in fade-in touch-pan-y">
             <div className="w-16 h-16 rounded-3xl bg-[#FA233B]/20 border border-[#FA233B]/40 flex items-center justify-center text-[#FA233B]">
               <Sparkles className="w-8 h-8" />
             </div>

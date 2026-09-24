@@ -579,7 +579,17 @@ export function HomeView() {
           </div>
         </div>
 
-        <div className="flex overflow-x-auto sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 pb-3 sm:pb-0 -mx-3.5 px-3.5 sm:mx-0 sm:px-0 no-scrollbar snap-x snap-mandatory">
+        <div 
+          className="flex overflow-x-auto sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 pb-3 sm:pb-0 -mx-3.5 px-3.5 sm:mx-0 sm:px-0 no-scrollbar snap-x snap-mandatory scroll-smooth"
+          style={{
+            scrollSnapType: 'x mandatory',
+            scrollPaddingLeft: '0.875rem',
+            scrollPaddingRight: '0.875rem',
+            touchAction: 'pan-x pan-y',
+            overscrollBehaviorX: 'contain',
+            overscrollBehaviorY: 'auto',
+          }}
+        >
           {[
             {
               id: 'heavy-rotation',
@@ -683,10 +693,12 @@ export function HomeView() {
                 isPlaying={isPlaying}
                 isActive={isMixActive}
                 onPlayClick={handleCardClick}
-                className="min-w-[270px] sm:min-w-0 flex-1 snap-start"
+                className="w-[84vw] max-w-[310px] sm:w-auto sm:max-w-none sm:min-w-0 flex-1 snap-start"
               />
             );
           })}
+          {/* Right edge spacer on mobile to ensure last card is never clipped */}
+          <div className="w-3.5 sm:hidden flex-shrink-0 pointer-events-none" aria-hidden="true" />
         </div>
       </section>
 
