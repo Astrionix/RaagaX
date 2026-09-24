@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Disc3, Mail, Lock, Eye, EyeOff, ChevronLeft, Loader2, X, Check, ArrowRight, User } from 'lucide-react';
 import { useAuthStore } from '@/context/useAuthStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
@@ -546,59 +546,143 @@ export function OnboardingAuthModal() {
                 return Array.from(map.values()).slice(0, 12);
               })();
 
+              // Deterministic per-artist gradient from name hash
+              const getArtistGradient = (name: string) => {
+                const gradients = [
+                  'from-rose-900 via-red-800 to-rose-950',
+                  'from-violet-900 via-purple-800 to-violet-950',
+                  'from-blue-900 via-indigo-800 to-blue-950',
+                  'from-emerald-900 via-teal-800 to-emerald-950',
+                  'from-orange-900 via-amber-800 to-orange-950',
+                  'from-pink-900 via-fuchsia-800 to-pink-950',
+                  'from-cyan-900 via-sky-800 to-cyan-950',
+                  'from-lime-900 via-green-800 to-lime-950',
+                ];
+                let hash = 0;
+                for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) & 0xffff;
+                return gradients[hash % gradients.length];
+              };
+
+              const getInitials = (name: string) =>
+                name.split(/[\s.]+/).filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2);
+
               return (
-                <div className="animate-in slide-in-from-right-4 duration-300 pb-24 md:pb-6">
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-                    {activeArtists.map(artist => {
-                    const isSelected = selectedArtists.includes(artist.name);
-                    return (
-                      <button
-                        key={artist.name}
-                        onClick={() => {
-                          if (isSelected) {
-                            setSelectedArtists(prev => prev.filter(a => a !== artist.name));
-                          } else {
-                            setSelectedArtists(prev => [...prev, artist.name]);
-                          }
-                        }}
-                        className="flex flex-col items-center gap-2 group outline-none cursor-pointer"
-                      >
-                        <div className={`relative w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden border-4 transition-all duration-300 ${isSelected ? 'border-[#F51B3D] scale-105 shadow-lg shadow-red-500/20' : 'border-transparent group-hover:border-[#272A33]'}`}>
-                          <img 
-                            src={artist.img || '/app-icon.png'} 
-                            alt={artist.name} 
-                            onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                            className="w-full h-full object-cover bg-slate-800" 
-                          />
+                <div className="animate-in slide-in-from-right-4 duration-300 pb-28 md:pb-6">
+
+                  {/* Selection counter badge */}
+                  {selectedArtists.length > 0 && (
+                    <div className="flex items-center gap-2 mb-4 animate-in fade-in duration-200">
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F51B3D]/15 border border-[#F51B3D]/30">
+                        <div className="w-1.5 h-1.5 rounded-full bg-[#F51B3D] animate-pulse" />
+                        <span className="text-[12px] font-bold text-[#F51B3D]">{selectedArtists.length} favorite{selectedArtists.length > 1 ? 's' : ''} picked</span>
+                      </div>
+                      <span className="text-[11px] text-[#9AA0AE]">Pick more to improve your feed</span>
+                    </div>
+                  )}
+
+                  {/* Artist Card Grid */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+                    {activeArtists.map((artist, idx) => {
+                      const isSelected = selectedArtists.includes(artist.name);
+                      const gradient = getArtistGradient(artist.name);
+                      const initials = getInitials(artist.name);
+
+                      return (
+                        <button
+                          key={artist.name}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedArtists(prev => prev.filter(a => a !== artist.name));
+                            } else {
+                              setSelectedArtists(prev => [...prev, artist.name]);
+                            }
+                          }}
+                          style={{ animationDelay: `${idx * 40}ms` }}
+                          className="relative group outline-none cursor-pointer rounded-[20px] overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-300 fill-mode-both"
+                        >
+                          {/* Glow ring when selected */}
                           {isSelected && (
-                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                              <Check className="w-8 h-8 text-white stroke-[3]" />
+                            <div className="absolute -inset-[2px] rounded-[22px] bg-gradient-to-br from-[#F51B3D] via-[#FF4D5E] to-[#FF2070] z-10 opacity-100">
+                              <div className="absolute inset-[2px] rounded-[20px] bg-[#07080C]" />
                             </div>
                           )}
-                        </div>
-                        <span className={`text-[12px] font-semibold text-center transition-colors ${isSelected ? 'text-white font-bold' : 'text-[#9AA0AE] group-hover:text-white'}`}>
-                          {artist.name}
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
 
-                {/* Fixed bottom button on mobile, sticky on desktop */}
-                <div className="fixed md:relative bottom-0 left-0 right-0 md:bottom-auto px-6 md:px-0 pt-3 pb-6 md:pb-0 bg-gradient-to-t from-[#07080C] via-[#07080C]/98 to-transparent z-30 md:z-auto md:bg-none">
-                  <button
-                    onClick={handleFinalizeRegister}
-                    disabled={isLoading}
-                    className="w-full h-[56px] rounded-[16px] bg-[#F51B3D] hover:bg-[#d91e32] text-white font-bold text-[15px] shadow-lg shadow-red-500/25 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer group"
-                  >
-                    {isLoading ? (
-                      <><Loader2 className="w-5 h-5 animate-spin" /> Finalizing Setup...</>
-                    ) : (
-                      <>{selectedArtists.length > 0 ? `Continue (${selectedArtists.length} Selected)` : 'Finish Setup'} <ArrowRight className="w-5 h-5 opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-all" /></>
-                    )}
-                  </button>
+                          {/* Card body */}
+                          <div className={`relative z-20 aspect-[3/4] w-full overflow-hidden rounded-[20px] ${
+                            isSelected ? 'ring-2 ring-[#F51B3D]' : 'ring-1 ring-white/10'
+                          } transition-all duration-300`}>
+
+                            {/* Gradient fallback BG */}
+                            <div className={`absolute inset-0 bg-gradient-to-b ${gradient} opacity-80`} />
+
+                            {/* Artist Image */}
+                            <img
+                              src={artist.img}
+                              alt={artist.name}
+                              loading="lazy"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).style.display = 'none';
+                              }}
+                              className="absolute inset-0 w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
+                            />
+
+                            {/* Initials fallback (shows if image fails) */}
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                              <span className="text-3xl font-black text-white/20 select-none tracking-tight">{initials}</span>
+                            </div>
+
+                            {/* Bottom name gradient overlay */}
+                            <div className="absolute bottom-0 left-0 right-0 pt-12 pb-3 px-3 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
+                              <p className={`text-[12px] font-bold text-white leading-tight transition-all ${
+                                isSelected ? 'text-white' : 'text-white/80'
+                              }`}>
+                                {artist.name}
+                              </p>
+                            </div>
+
+                            {/* Selected checkmark overlay */}
+                            {isSelected && (
+                              <div className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-[#F51B3D] flex items-center justify-center shadow-lg shadow-red-500/40 z-30">
+                                <Check className="w-4 h-4 text-white stroke-[3]" />
+                              </div>
+                            )}
+
+                            {/* Hover shimmer */}
+                            {!isSelected && (
+                              <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors duration-200" />
+                            )}
+
+                            {/* Selection pulse ring */}
+                            {isSelected && (
+                              <div className="absolute inset-0 rounded-[20px] ring-2 ring-[#F51B3D]/60 animate-pulse pointer-events-none" />
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Fixed bottom button on mobile */}
+                  <div className="fixed md:relative bottom-0 left-0 right-0 md:bottom-auto px-6 md:px-0 pt-3 pb-6 md:pb-0 bg-gradient-to-t from-[#07080C] via-[#07080C]/98 to-transparent z-30 md:z-auto md:bg-none">
+                    <button
+                      onClick={handleFinalizeRegister}
+                      disabled={isLoading}
+                      className={`w-full h-[56px] rounded-[16px] font-bold text-[15px] shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer group ${
+                        selectedArtists.length > 0
+                          ? 'bg-[#F51B3D] hover:bg-[#d91e32] text-white shadow-red-500/25'
+                          : 'bg-[#101116] border border-[#272A33] text-[#9AA0AE] hover:border-[#F51B3D]/40 hover:text-white'
+                      }`}
+                    >
+                      {isLoading ? (
+                        <><Loader2 className="w-5 h-5 animate-spin" /> Setting up your profile...</>
+                      ) : selectedArtists.length > 0 ? (
+                        <><span>Continue with {selectedArtists.length} artist{selectedArtists.length > 1 ? 's' : ''}</span> <ArrowRight className="w-5 h-5 opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-all" /></>
+                      ) : (
+                        <><span>Skip for now</span> <ArrowRight className="w-5 h-5 opacity-50 group-hover:opacity-80 group-hover:translate-x-1 transition-all" /></>
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </div>
               );
             })()}
 
