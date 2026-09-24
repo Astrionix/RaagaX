@@ -60,13 +60,33 @@ const nextConfig = {
         permanent: false,
       },
       {
+        source: '/download-app',
+        destination: '/download',
+        permanent: false,
+      },
+      {
+        source: '/get-app',
+        destination: '/download',
+        permanent: false,
+      },
+      {
+        source: '/apps',
+        destination: '/download',
+        permanent: false,
+      },
+      {
+        source: '/app',
+        destination: '/download',
+        permanent: false,
+      },
+      {
         source: '/releases/RaagaX-latest.apk',
-        destination: 'https://github.com/Astrionix/RaagaX/releases/download/v1.0.0/RaagaX.apk',
+        destination: 'https://github.com/Astrionix/RaagaX/releases/download/v1.4.0/RaagaX.apk',
         permanent: false,
       },
       {
         source: '/releases/RaagaX.apk',
-        destination: 'https://github.com/Astrionix/RaagaX/releases/download/v1.0.0/RaagaX.apk',
+        destination: 'https://github.com/Astrionix/RaagaX/releases/download/v1.4.0/RaagaX.apk',
         permanent: false,
       },
     ];

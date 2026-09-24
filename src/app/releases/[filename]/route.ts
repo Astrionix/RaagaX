@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 const RELEASE_BASE = 'https://github.com/Astrionix/RaagaX/releases/download/v1.0.0';
+const RELEASE_APK_BASE = 'https://github.com/Astrionix/RaagaX/releases/download/v1.4.0';
 
 const RELEASE_REDIRECT_MAP: Record<string, string> = {
   'RaagaX-Windows-Universal.exe': `${RELEASE_BASE}/RaagaX-Windows-Universal.exe`,
@@ -8,8 +9,8 @@ const RELEASE_REDIRECT_MAP: Record<string, string> = {
   'RaagaX-macOS-Universal.dmg': `${RELEASE_BASE}/RaagaX-macOS-Universal.dmg`,
   'RaagaX-macOS-arm64.dmg': `${RELEASE_BASE}/RaagaX-macOS-Universal.dmg`,
   'RaagaX-macOS-intel.dmg': `${RELEASE_BASE}/RaagaX-macOS-Universal.dmg`,
-  'RaagaX-latest.apk': `${RELEASE_BASE}/RaagaX.apk`,
-  'RaagaX.apk': `${RELEASE_BASE}/RaagaX.apk`,
+  'RaagaX-latest.apk': `${RELEASE_APK_BASE}/RaagaX.apk`,
+  'RaagaX.apk': `${RELEASE_APK_BASE}/RaagaX.apk`,
 };
 
 export async function GET(
