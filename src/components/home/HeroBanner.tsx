@@ -51,9 +51,9 @@ export function HeroBanner({ featuredSongs, language, onLanguageChange }: HeroBa
             <Sparkles className="w-3.5 h-3.5" /> Editorial Featured
           </div>
 
-          <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
+          <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
             New Releases <span className="text-[#fa233b] block sm:inline">This Week</span>
-          </h1>
+          </h2>
 
           <p className="text-xs sm:text-sm text-slate-300 font-medium leading-relaxed max-w-md">
             Hand-curated, verified regional releases across JioSaavn & Spotify Editorial charts.

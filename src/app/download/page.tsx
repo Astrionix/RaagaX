@@ -229,9 +229,9 @@ export default function DownloadPage() {
 
         {/* Main Headline */}
         <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight leading-[1.1] mb-5">
-          Feel Every Note. <br />
-          <span className="bg-gradient-to-r from-white via-white/90 to-white/60 bg-clip-text text-transparent">
-            Music on All Your Devices.
+          Download Raaga App. <br />
+          <span className="bg-gradient-to-r from-red-500 via-[#FF1E27] to-amber-400 bg-clip-text text-transparent">
+            Free Lossless Music on All Devices.
           </span>
         </h1>
 
