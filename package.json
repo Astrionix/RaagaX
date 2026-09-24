@@ -83,7 +83,7 @@
       "differentialPackage": false
     },
     "portable": {
-      "artifactName": "${productName}-Portable-${version}.${ext}"
+      "artifactName": "RaagaX-Windows-Portable.${ext}"
     },
     "mac": {
       "category": "public.app-category.music",
@@ -109,6 +109,7 @@
       "identity": null
     },
     "dmg": {
+      "artifactName": "RaagaX-macOS-Universal.${ext}",
       "contents": [
         {
           "x": 130,

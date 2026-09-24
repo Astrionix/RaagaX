@@ -35,8 +35,8 @@ const APK_SHA256 = '44448b99ef4490b7be91b5aaaca9d3e0fa2f3f7d3227d21ce5a2a0d0c4fe
 const DOWNLOAD_LINKS = {
   androidApk: `https://github.com/Astrionix/RaagaX/releases/download/${RELEASE_TAG}/RaagaX.apk`,
   androidMirror: '/api/app/download',
-  windowsUniversal: 'https://github.com/Astrionix/RaagaX/releases/download/v1.0.0/RaagaX-Windows-Universal.exe',
-  windowsPortable: 'https://github.com/Astrionix/RaagaX/releases/download/v1.0.0/RaagaX-Windows-Portable.exe',
+  windowsUniversal: `https://github.com/Astrionix/RaagaX/releases/download/${RELEASE_TAG}/RaagaX-Windows-Universal.exe`,
+  windowsPortable: `https://github.com/Astrionix/RaagaX/releases/download/${RELEASE_TAG}/RaagaX-Windows-Portable.exe`,
   macUniversal: 'https://github.com/Astrionix/RaagaX/releases/download/v1.0.0/RaagaX-macOS-Universal.dmg',
   githubRelease: `https://github.com/Astrionix/RaagaX/releases/tag/${RELEASE_TAG}`,
 };

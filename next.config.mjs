@@ -36,12 +36,12 @@ const nextConfig = {
     return [
       {
         source: '/releases/RaagaX-Windows-Universal.exe',
-        destination: 'https://github.com/Astrionix/RaagaX/releases/download/v1.0.0/RaagaX-Windows-Universal.exe',
+        destination: 'https://github.com/Astrionix/RaagaX/releases/download/v1.4.0/RaagaX-Windows-Universal.exe',
         permanent: false,
       },
       {
         source: '/releases/RaagaX-Windows-Portable.exe',
-        destination: 'https://github.com/Astrionix/RaagaX/releases/download/v1.0.0/RaagaX-Windows-Portable.exe',
+        destination: 'https://github.com/Astrionix/RaagaX/releases/download/v1.4.0/RaagaX-Windows-Portable.exe',
         permanent: false,
       },
       {
