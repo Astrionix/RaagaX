@@ -21,28 +21,30 @@ export async function GET() {
 
     return NextResponse.json({
       ...latestManifest,
-      sha256: dynamicSha256 || 'b8ad079b36c2d6df924486ebb6bce0656622ff6ad01e138534a3f308212bbcb0',
-      fileSize: dynamicFileSize || 13251382,
+      sha256: dynamicSha256 || latestManifest?.sha256 || '5c6c2f5a7c71c7fe8b73cf00b36863e15b82b36baf0e79a71e9d46c04a391156',
+      fileSize: dynamicFileSize || latestManifest?.fileSize || 19935109,
     });
   } catch (e) {
     console.error('Failed to compute dynamic APK manifest:', e);
   }
 
-  // Fallback to latest stable release manifest
-  return NextResponse.json({
-    versionCode: 14,
-    versionName: "1.3.1",
+  // Fallback to latest stable release manifest (from imported latest.json or v1.4.0 defaults)
+  return NextResponse.json(latestManifest || {
+    versionCode: 17,
+    versionName: "1.4.0",
     apkUrl: "https://raaga.me/api/app/download",
-    sha256: "39e7a5a9a66e547ba8bb0a476a963c7bf552ae18ad2777a448611a347775816b",
-    fileSize: 18270075,
-    releaseDate: "2026-09-11",
+    sha256: "5c6c2f5a7c71c7fe8b73cf00b36863e15b82b36baf0e79a71e9d46c04a391156",
+    fileSize: 19935109,
+    releaseDate: "2026-09-24",
     mandatory: false,
     minimumSupportedVersion: 1,
     releaseChannel: "stable",
     releaseNotes: [
-      "Enhanced Playlists Cloud Sync: Seamless multi-device & offline auto-sync to Supabase cloud.",
-      "Fixed section header typography & contrast in light and dark themes.",
-      "Performance, loss-less audio engine & UI response optimizations."
+      "Account Isolation & Security: Atomic session guard with strict multi-user logout purge, realtime isolation, and switch-user state protection.",
+      "Onboarding Fix: Continue button now always reachable when 2+ languages selected during registration.",
+      "Artist Picker Redesign: Premium cinematic square cards with photo, gradient fallback, glow selection ring and staggered animation.",
+      "Background ZIP Export: Click ZIP once and it runs in background with floating progress card and download prompt.",
+      "UI Polish: Compact 3-column artist grid, live selection counter badge and smarter Continue button state."
     ]
   });
 }

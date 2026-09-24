@@ -1,16 +1,18 @@
 {
-  "versionCode": 15,
-  "versionName": "1.3.2",
+  "versionCode": 17,
+  "versionName": "1.4.0",
   "apkUrl": "https://raaga.me/api/app/download",
-  "sha256": "c4f921c44335efd766f8a4ee4e2d71fc38f4dc0f6b173262d3b97676d90d3890",
-  "fileSize": 19836005,
-  "releaseDate": "2026-09-12",
+  "sha256": "5c6c2f5a7c71c7fe8b73cf00b36863e15b82b36baf0e79a71e9d46c04a391156",
+  "fileSize": 19935109,
+  "releaseDate": "2026-09-24",
   "mandatory": false,
   "minimumSupportedVersion": 1,
   "releaseChannel": "stable",
   "releaseNotes": [
-    "4K Splash Screen & Launcher Icons: Native VectorDrawable safe zone with zero cropping on Android 12+ displays.",
-    "Playlist Cloud & Desktop Sync: Fixed Supabase schema alignment and enabled instant real-time multi-device sync.",
-    "Performance, loss-less audio engine & UI response optimizations."
+    "Account Isolation & Security: Atomic session guard with strict multi-user logout purge, realtime isolation, and switch-user state protection.",
+    "Onboarding Fix: Continue button now always reachable when 2+ languages selected during registration.",
+    "Artist Picker Redesign: Premium cinematic square cards with photo, gradient fallback, glow selection ring and staggered animation.",
+    "Background ZIP Export: Click ZIP once and it runs in background with floating progress card and download prompt.",
+    "UI Polish: Compact 3-column artist grid, live selection counter badge and smarter Continue button state."
   ]
 }

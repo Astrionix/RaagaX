@@ -1,4 +1,5 @@
 import { apiFetch } from '@/common/helpers/fetch.helper';
+import { getApiUrl } from '@/lib/config/apiConfig';
 
 export interface ReleaseManifest {
   versionCode: number;
@@ -22,8 +23,8 @@ export type UpdateStateListener = (state: {
 }) => void;
 
 // Current hardcoded fallback version code for client app runtime
-export const CURRENT_APP_VERSION_CODE = 11;
-export const CURRENT_APP_VERSION_NAME = '1.2.7';
+export const CURRENT_APP_VERSION_CODE = 17;
+export const CURRENT_APP_VERSION_NAME = '1.4.0';
 
 export class AppUpdateEngine {
   private static instance: AppUpdateEngine;
@@ -114,7 +115,7 @@ export class AppUpdateEngine {
       await this.initNativeVersionDetection();
 
       // Fetch latest release manifest from server route
-      const response = await fetch('/api/app/version', { cache: 'no-store' });
+      const response = await fetch(getApiUrl('/api/app/version'), { cache: 'no-store' });
       if (!response.ok) return false;
 
       const manifest: ReleaseManifest = await response.json();

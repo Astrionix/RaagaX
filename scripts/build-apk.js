@@ -182,8 +182,8 @@ try {
     const fileSize = fileBuffer.length;
 
     const newManifest = {
-      versionCode: 15,
-      versionName: '1.3.2',
+      versionCode: 17,
+      versionName: '1.4.0',
       apkUrl: 'https://raaga.me/api/app/download',
       sha256: sha256,
       fileSize: fileSize,
@@ -192,9 +192,11 @@ try {
       minimumSupportedVersion: 1,
       releaseChannel: 'stable',
       releaseNotes: [
-        '4K Splash Screen & Launcher Icons: Native VectorDrawable safe zone with zero cropping on Android 12+ displays.',
-        'Playlist Cloud & Desktop Sync: Fixed Supabase schema alignment and enabled instant real-time multi-device sync.',
-        'Performance, loss-less audio engine & UI response optimizations.'
+        'Account Isolation & Security: Atomic session guard with strict multi-user logout purge, realtime isolation, and switch-user state protection.',
+        'Onboarding Fix: Continue button now always reachable when 2+ languages selected during registration.',
+        'Artist Picker Redesign: Premium cinematic square cards with photo, gradient fallback, glow selection ring and staggered animation.',
+        'Background ZIP Export: Click ZIP once and it runs in background with floating progress card and download prompt.',
+        'UI Polish: Compact 3-column artist grid, live selection counter badge and smarter Continue button state.'
       ]
     };
 

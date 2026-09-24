@@ -1760,8 +1760,8 @@ export function SettingsView() {
                 <div>
                   <h3 className="text-xl font-extrabold text-white tracking-tight">RaagaX Music</h3>
                   <p className="text-xs text-[#8E92A4]">
-                    Version {installedVersion?.versionName || '2.4.0'} 
-                    {installedVersion ? ` (Build ${installedVersion.versionCode})` : ' (Build 20260814.1)'}
+                    Version {installedVersion?.versionName || '1.4.0'} 
+                    {installedVersion ? ` (Build ${installedVersion.versionCode})` : ' (Build 17)'}
                   </p>
                   <p className="text-xs text-slate-400 mt-1">Futuristic high-performance music streaming engine</p>
                 </div>
