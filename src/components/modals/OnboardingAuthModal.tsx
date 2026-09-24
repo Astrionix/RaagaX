@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Disc3, Mail, Lock, Eye, EyeOff, ChevronLeft, Loader2, X, Check, ArrowRight, User } from 'lucide-react';
 import { useAuthStore } from '@/context/useAuthStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { supabase } from '@/lib/supabase';
 import { PersonalizationEngine } from '@/lib/recommendation/PersonalizationEngine';
 import { Song } from '@/types/music';
@@ -101,15 +102,8 @@ export function OnboardingAuthModal() {
     setMounted(true);
   }, []);
 
-  // Prevent background scrolling when open
-  useEffect(() => {
-    if (isAuthModalOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => { document.body.style.overflow = 'unset'; };
-  }, [isAuthModalOpen]);
+  // Prevent background scrolling when open via universal scroll locker
+  useBodyScrollLock(Boolean(mounted && isAuthModalOpen));
 
   // If user logs in successfully elsewhere, close modal
   useEffect(() => {
@@ -293,7 +287,7 @@ export function OnboardingAuthModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-[110] bg-[#07080C] md:bg-black/80 flex flex-col md:items-center md:justify-center animate-in fade-in duration-300 text-[#F5F5F7] overflow-y-auto">
+    <div className="fixed inset-0 z-[110] bg-[#07080C] md:bg-black/80 flex flex-col md:items-center md:justify-center animate-in fade-in duration-300 text-[#F5F5F7] overflow-y-auto overscroll-contain">
       
       {/* MOBILE HEADER */}
       <div className="md:hidden flex items-center justify-between p-5 pt-8 sticky top-0 bg-[#07080C] z-10">

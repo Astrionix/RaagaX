@@ -5,9 +5,13 @@ import { X, Plus, Loader2, Globe, Lock, Check, Image as ImageIcon, Music, Sparkl
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { PlaylistCover } from '@/components/playlist/PlaylistCover';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 export function CreatePlaylistModal() {
   const { createPlaylistModalOpen, setCreatePlaylistModalOpen, setToastMessage, setActiveTab, setSelectedPlaylistId } = usePlayerStore();
+  
+  // Lock background scroll when modal is open
+  useBodyScrollLock(createPlaylistModalOpen);
   const { createPlaylist } = usePlaylistStore();
   
   const [name, setName] = useState('');
@@ -93,13 +97,13 @@ export function CreatePlaylistModal() {
 
   return (
     <div 
-      className="fixed inset-0 z-[10002] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-[10002] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overscroll-contain animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget && !isCreating) setCreatePlaylistModalOpen(false);
       }}
     >
       <div 
-        className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-3xl p-6 sm:p-7 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 relative overflow-hidden text-[var(--text-primary)] select-none"
+        className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-3xl p-6 sm:p-7 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 relative overflow-hidden overscroll-contain text-[var(--text-primary)] select-none"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Subtle Ambient Glow */}

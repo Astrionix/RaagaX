@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useNotificationStore, NotificationItem, NotificationType } from '@/context/useNotificationStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 function formatNotificationTime(timestamp: number): string {
   const diffMs = Date.now() - timestamp;
@@ -59,6 +60,9 @@ export function NotificationCenterModal() {
   React.useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Lock body scroll when Notification Center modal is open
+  useBodyScrollLock(Boolean(mounted && isOpen));
 
   if (!mounted || !isOpen) return null;
 
@@ -199,7 +203,7 @@ export function NotificationCenterModal() {
         </div>
 
         {/* Notification List */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-6 no-scrollbar">
           {notifications.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400">
               <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-3">

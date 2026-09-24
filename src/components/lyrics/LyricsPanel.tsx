@@ -6,6 +6,7 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { useThemeStore } from '@/context/useThemeStore';
 import { LyricsLine } from '@/lib/lyrics/LyricsTypes';
 import { X, Mic2, Music } from 'lucide-react';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 export function LyricsPanel() {
   const { status, type, lines, currentLineIndex, scriptMode, setScriptMode, hasTransliteration } = useLyricsStore();
@@ -18,6 +19,10 @@ export function LyricsPanel() {
     vocalReductionLevel,
     setVocalReductionLevel,
   } = usePlayerStore();
+
+  // Lock background scroll when LyricsPanel is open
+  useBodyScrollLock(isLyricsOpen);
+
   const { resolvedTheme } = useThemeStore();
   const isLight = resolvedTheme === 'light';
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -121,7 +126,7 @@ export function LyricsPanel() {
           ref={scrollRef}
           onWheel={handleScroll}
           onTouchMove={handleScroll}
-          className="flex-1 overflow-y-auto scrollbar-hide py-32 space-y-5 flex flex-col items-start px-2"
+          className="flex-1 overflow-y-auto overscroll-contain scrollbar-hide py-32 space-y-5 flex flex-col items-start px-2"
         >
           {lines.map((line, index) => {
             const isActive = index === currentLineIndex;
@@ -184,7 +189,7 @@ export function LyricsPanel() {
   };
 
   return (
-    <div className={`fixed inset-x-0 bottom-0 top-0 sm:top-20 sm:bottom-28 sm:right-6 sm:left-auto sm:w-[420px] z-[150] glass-panel backdrop-blur-3xl rounded-none sm:rounded-3xl p-5 sm:p-6 border-t sm:border shadow-2xl flex flex-col justify-between animate-in fade-in slide-in-from-bottom sm:slide-in-from-right duration-300 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))] ${
+    <div className={`fixed inset-x-0 bottom-0 top-0 sm:top-20 sm:bottom-28 sm:right-6 sm:left-auto sm:w-[420px] z-[150] glass-panel backdrop-blur-3xl rounded-none sm:rounded-3xl p-5 sm:p-6 border-t sm:border shadow-2xl flex flex-col justify-between overscroll-contain animate-in fade-in slide-in-from-bottom sm:slide-in-from-right duration-300 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))] ${
       isLight 
         ? 'bg-gradient-to-b from-[#fff5f5]/98 via-white/98 to-slate-50/98 border-black/10 text-slate-900 shadow-red-500/10' 
         : 'bg-gradient-to-b from-[#18080a]/98 via-[#121212]/98 to-[#101012]/98 border-white/10 text-white shadow-[0_20px_50px_rgba(250,35,59,0.2)]'

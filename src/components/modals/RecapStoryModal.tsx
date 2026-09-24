@@ -10,6 +10,7 @@ import { MusicRecapData } from '@/lib/recap/RecapEngine';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
 import { ArtistAvatar } from '@/components/common/ArtistAvatar';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface RecapStoryModalProps {
   recap: MusicRecapData | null;
@@ -85,6 +86,9 @@ export function RecapStoryModal({ recap, isOpen, onClose }: RecapStoryModalProps
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, handleNext, handlePrev, onClose]);
+
+  // Lock body scroll when Recap Story modal is open
+  useBodyScrollLock(Boolean(isOpen && recap));
 
   if (!isOpen || !recap) return null;
 

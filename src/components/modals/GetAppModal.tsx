@@ -16,6 +16,7 @@ import {
   Radio,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { haptics } from '@/lib/haptics/HapticEngine';
 
 type PlatformTab = 'windows' | 'mac' | 'android';
@@ -157,6 +158,9 @@ export function GetAppModal() {
     });
   }, [isGetAppModalOpen]);
 
+  // Lock body scroll when Get App modal is open
+  useBodyScrollLock(isGetAppModalOpen);
+
   if (!isGetAppModalOpen) return null;
 
   return (
@@ -208,7 +212,7 @@ export function GetAppModal() {
         </div>
 
         {/* Body Content */}
-        <div className="overflow-y-auto p-5 sm:p-6 space-y-5 no-scrollbar">
+        <div className="overflow-y-auto overscroll-contain p-5 sm:p-6 space-y-5 no-scrollbar">
           {/* ── AUTOMATIC OS DETECTION HERO CARD ── */}
           <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-white/[0.07] to-white/[0.02] border border-white/15 relative overflow-hidden group shadow-lg">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

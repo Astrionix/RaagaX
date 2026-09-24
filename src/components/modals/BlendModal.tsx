@@ -6,6 +6,7 @@ import { useAuthStore } from '@/context/useAuthStore';
 import { BlendEngine, BlendResult } from '@/lib/social/BlendEngine';
 import { X, Sparkles, Play, Share2, Users, Check, Copy, Fingerprint, Search, Loader2 } from 'lucide-react';
 import { haptics } from '@/lib/haptics/HapticEngine';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 import { getMyFriendIdentity } from '@/lib/social/FriendActivityEngine';
 
@@ -34,6 +35,9 @@ export function BlendModal({
     if (!friendInput.trim()) return null;
     return BlendEngine.parseBlendInput(friendInput);
   }, [friendInput]);
+
+  // Lock body scroll when Blend modal is open
+  useBodyScrollLock(isOpen);
 
   if (!isOpen) return null;
 

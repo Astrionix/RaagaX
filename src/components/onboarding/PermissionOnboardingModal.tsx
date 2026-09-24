@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { usePermissionOnboarding } from '@/hooks/usePermissionOnboarding';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 /**
  * PermissionOnboardingModal
@@ -12,6 +13,9 @@ import { usePermissionOnboarding } from '@/hooks/usePermissionOnboarding';
  */
 export function PermissionOnboardingModal() {
   const { isVisible, step, requestNotifications, skipNotifications } = usePermissionOnboarding();
+
+  // Lock body scroll when Permission Onboarding modal is displayed
+  useBodyScrollLock(Boolean(isVisible && step === 'notifications'));
 
   if (!isVisible || step !== 'notifications') return null;
 

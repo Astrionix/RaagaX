@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Sparkles, Lock, Bell, Disc3, X, Radio, ArrowRight, ShieldCheck } from 'lucide-react';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface SystemSurfacesModalProps {
   isOpen: boolean;
@@ -16,6 +17,9 @@ export function SystemSurfacesModal({
   onOpenLockScreen,
   onOpenNotificationShade,
 }: SystemSurfacesModalProps) {
+  // Lock body scroll when System Surfaces modal is open
+  useBodyScrollLock(isOpen);
+
   if (!isOpen) return null;
 
   return (

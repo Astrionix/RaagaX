@@ -6,6 +6,7 @@ import {
   Sparkles, Radio, Music, ListMusic, ShieldCheck, ArrowLeft, Tv
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 export function SleepTimerModal() {
   const { 
@@ -49,6 +50,9 @@ export function SleepTimerModal() {
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, [sleepTimerEndsAt]);
+
+  // Lock body scroll when Sleep Timer modal is open
+  useBodyScrollLock(Boolean(mounted && isSleepTimerModalOpen));
 
   if (!mounted || !isSleepTimerModalOpen) return null;
 
@@ -150,7 +154,7 @@ export function SleepTimerModal() {
         </div>
 
         {/* BODY */}
-        <div className="p-6 overflow-y-auto space-y-6">
+        <div className="p-6 overflow-y-auto overscroll-contain flex-1 space-y-6">
 
           {/* ACTIVE COUNTDOWN STATE SCREEN (When running and not editing) */}
           {isTimerRunning && !isEditingActive ? (

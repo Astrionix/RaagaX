@@ -8,6 +8,7 @@ import {
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore, UserPlaylist } from '@/context/usePlaylistStore';
 import { Song } from '@/types/music';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface AddSongsModalProps {
   isOpen: boolean;
@@ -16,6 +17,9 @@ interface AddSongsModalProps {
 }
 
 export function AddSongsModal({ isOpen, onClose, playlist }: AddSongsModalProps) {
+  // Lock background scroll when AddSongsModal is open
+  useBodyScrollLock(isOpen);
+
   const [mounted, setMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'favorites' | 'downloaded' | 'history'>('all');
@@ -96,13 +100,13 @@ export function AddSongsModal({ isOpen, onClose, playlist }: AddSongsModalProps)
 
   return createPortal(
     <div 
-      className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 sm:p-6 animate-in fade-in duration-200 select-none"
+      className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 sm:p-6 overscroll-contain touch-pan-y animate-in fade-in duration-200 select-none"
       onClick={(e) => {
         if (e.target === e.currentTarget && !isAdding) onClose();
       }}
     >
       <div 
-        className="bg-[#12131A] border border-white/12 rounded-3xl p-5 sm:p-6 w-full max-w-lg shadow-[0_25px_60px_rgba(0,0,0,0.85)] animate-in zoom-in-95 duration-200 relative overflow-hidden text-white flex flex-col max-h-[min(82vh,620px)]"
+        className="bg-[#12131A] border border-white/12 rounded-3xl p-5 sm:p-6 w-full max-w-lg shadow-[0_25px_60px_rgba(0,0,0,0.85)] animate-in zoom-in-95 duration-200 relative overflow-hidden overscroll-contain text-white flex flex-col max-h-[min(82vh,620px)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Keyboard, X } from 'lucide-react';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 export function KeyboardShortcutsModal() {
   const [isOpen, setIsOpen] = useState(false);
@@ -26,6 +27,9 @@ export function KeyboardShortcutsModal() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Lock body scroll when Shortcuts modal is open
+  useBodyScrollLock(Boolean(mounted && isOpen));
 
   if (!mounted || !isOpen) return null;
 

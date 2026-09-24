@@ -1182,3 +1182,31 @@
 .border-subtle     { border-color: var(--border-subtle); }
 .text-crimson      { color: var(--accent-crimson); }
 .bg-crimson        { background-color: var(--accent-crimson); }
+
+/* ── Universal Mobile Scroll Containment & Modal Scroll Locking ──────────── */
+html.has-modal-open,
+body.body-scroll-locked {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: none !important;
+  -webkit-overflow-scrolling: auto !important;
+}
+
+/* Contain overscroll inside all scrollable containers and prevent bubbling */
+.overflow-y-auto,
+.overflow-y-scroll,
+.overflow-auto,
+.custom-scrollbar,
+.no-scrollbar,
+[data-scrollable="true"] {
+  overscroll-behavior: contain !important;
+  overscroll-behavior-y: contain !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Modal and bottom-sheet backdrops trap gestures */
+.fixed.inset-0:not(.pointer-events-none):not(.main-content) {
+  overscroll-behavior: contain !important;
+  overscroll-behavior-y: contain !important;
+}
+

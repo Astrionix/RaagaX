@@ -3,6 +3,7 @@
 import React from 'react';
 import { Archive, Download, CheckCircle2, X, FolderOpen, Loader2, Sparkles, Music2 } from 'lucide-react';
 import { useZipExportStore } from '@/context/useZipExportStore';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 export function ZipExportGlobalOverlay() {
   const {
@@ -18,6 +19,9 @@ export function ZipExportGlobalOverlay() {
     downloadZipResult,
     dismissDownloadPrompt,
   } = useZipExportStore();
+
+  // Lock body scroll when Zip Download Prompt modal is displayed
+  useBodyScrollLock(Boolean(showDownloadPrompt && zipResult));
 
   const isDesktop = typeof window !== 'undefined' && Boolean((window as any).raagaXDesktop);
 

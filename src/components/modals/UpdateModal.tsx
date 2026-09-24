@@ -3,6 +3,7 @@
 import React from 'react';
 import { useUpdateStore } from '@/context/useUpdateStore';
 import { Download, AlertCircle, CheckCircle2, RefreshCw, X, Info } from 'lucide-react';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 export function UpdateModal() {
   const {
@@ -17,6 +18,9 @@ export function UpdateModal() {
     installUpdate,
     closeModal
   } = useUpdateStore();
+
+  // Lock body scroll when Update modal is open
+  useBodyScrollLock(Boolean(showModal && manifest));
 
   if (!showModal || !manifest) return null;
 
@@ -66,7 +70,7 @@ export function UpdateModal() {
         </div>
 
         {/* Content Body */}
-        <div className="overflow-y-auto flex-1 px-6 pb-6 space-y-4">
+        <div className="overflow-y-auto overscroll-contain flex-1 px-6 pb-6 space-y-4">
           {/* Status Message / Info Box */}
           {isMandatory && (
             <div className="p-3 bg-[#EF233C]/10 border border-[#EF233C]/30 rounded-xl flex items-start gap-2.5 text-xs text-[#EF233C]">

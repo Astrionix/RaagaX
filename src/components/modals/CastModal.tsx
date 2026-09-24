@@ -25,6 +25,7 @@ import {
   SkipForward,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { DeviceDiscoveryEngine } from '@/lib/connect/discovery/DeviceDiscoveryEngine';
 import { PairingService } from '@/lib/connect/auth/PairingService';
 import { ConnectSessionManager } from '@/lib/connect/session/ConnectSessionManager';
@@ -188,6 +189,11 @@ export function CastModal() {
     return 'bg-orange-500'; // Relay = Orange
   };
 
+  // Lock background scroll when Cast modal is open
+  useBodyScrollLock(Boolean(mounted && isCastModalOpen));
+
+  if (!mounted || !isCastModalOpen) return null;
+
   return (
     <div 
       className="fixed inset-0 z-[150] flex items-end md:items-center justify-center bg-black/65 backdrop-blur-sm animate-in fade-in duration-200"
@@ -229,7 +235,7 @@ export function CastModal() {
           </div>
 
           {/* Scrollable Device List */}
-          <div className="p-4 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+          <div className="p-4 space-y-4 overflow-y-auto overscroll-contain custom-scrollbar flex-1">
             
             {/* ── SECTION 1: THIS DEVICE (Always first, §2) ── */}
             <div className="space-y-1">

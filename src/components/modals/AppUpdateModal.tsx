@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { AppUpdateEngine, CURRENT_APP_VERSION_NAME } from '@/lib/update/AppUpdateEngine';
 import { haptics } from '@/lib/haptics/HapticEngine';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 export function AppUpdateModal() {
   const [updateState, setUpdateState] = useState(() => AppUpdateEngine.getInstance().getSnapshot());
@@ -26,6 +27,9 @@ export function AppUpdateModal() {
     });
     return unsub;
   }, []);
+
+  // Lock body scroll when App Update modal is open
+  useBodyScrollLock(Boolean(updateState.isModalOpen && updateState.manifest));
 
   if (!updateState.isModalOpen || !updateState.manifest) {
     return null;
@@ -100,7 +104,7 @@ export function AppUpdateModal() {
         </div>
 
         {/* Release Notes Body */}
-        <div className="p-6 space-y-4 max-h-[280px] overflow-y-auto custom-scrollbar">
+        <div className="p-6 space-y-4 max-h-[280px] overflow-y-auto overscroll-contain custom-scrollbar">
           <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
             <Zap className="w-3.5 h-3.5" /> What&apos;s New in this Release
           </h3>

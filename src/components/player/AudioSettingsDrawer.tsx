@@ -3,6 +3,7 @@
 import React from 'react';
 import { X, Sliders, Volume2, Wifi } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 export function AudioSettingsDrawer() {
   const {
@@ -20,11 +21,14 @@ export function AudioSettingsDrawer() {
     setDownloadQuality,
   } = usePlayerStore();
 
+  // Lock body scroll when Audio Settings drawer is open
+  useBodyScrollLock(isSettingsModalOpen);
+
   if (!isSettingsModalOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[110] flex items-end justify-center sm:items-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in">
-      <div className="w-full max-w-md bg-[#18181b] rounded-t-3xl sm:rounded-3xl border border-white/10 shadow-2xl p-6 sm:p-8 animate-in slide-in-from-bottom-10 flex flex-col gap-8 max-h-[90vh] overflow-y-auto">
+      <div className="w-full max-w-md bg-[#18181b] rounded-t-3xl sm:rounded-3xl border border-white/10 shadow-2xl p-6 sm:p-8 animate-in slide-in-from-bottom-10 flex flex-col gap-8 max-h-[90vh] overflow-y-auto overscroll-contain">
         
         {/* Header */}
         <div className="flex items-center justify-between">

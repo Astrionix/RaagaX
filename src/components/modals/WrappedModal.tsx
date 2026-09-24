@@ -9,6 +9,7 @@ import {
 import { WrappedGenerator, WrappedData } from '@/lib/analytics/WrappedGenerator';
 import { useAuthStore } from '@/context/useAuthStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface WrappedModalProps {
   isOpen: boolean;
@@ -54,6 +55,9 @@ export function WrappedModal({ isOpen, onClose, year = 2026 }: WrappedModalProps
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
+
+  // Lock body scroll when Wrapped modal is open
+  useBodyScrollLock(Boolean(isOpen && data));
 
   if (!isOpen || !data) return null;
 

@@ -14,6 +14,7 @@ import { useDownloadStore } from '@/context/useDownloadStore';
 import { SongDetailsModal } from '@/components/modals/SongDetailsModal';
 import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 import { JamSessionManager } from '@/lib/connect/jam/JamSessionManager';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface SongActionMenuProps {
   song: Song;
@@ -36,6 +37,9 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Lock document.body when SongActionMenu is open
+  useBodyScrollLock(isOpen);
   
   const { 
     playSong, 
@@ -139,7 +143,7 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
 
         {isOpen && mounted && typeof document !== 'undefined' && createPortal(
           <div 
-            className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/65 backdrop-blur-sm animate-in fade-in duration-150"
+            className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/65 backdrop-blur-sm overscroll-contain touch-pan-y animate-in fade-in duration-150"
             onClick={(e) => {
               e.stopPropagation();
               setIsOpen(false);
@@ -148,7 +152,7 @@ export function SongActionMenu({ song, playlistId, onRemoveFromPlaylist, onNotIn
           >
             <div 
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-h-[85vh] sm:max-w-sm bg-[#14151e] border-t sm:border border-white/10 rounded-t-[28px] sm:rounded-3xl shadow-2xl p-4 sm:p-5 flex flex-col backdrop-blur-2xl animate-in slide-in-from-bottom duration-200 divide-y divide-white/10 text-white overflow-hidden pb-8 sm:pb-5"
+              className="w-full max-h-[85vh] sm:max-w-sm bg-[#14151e] border-t sm:border border-white/10 rounded-t-[28px] sm:rounded-3xl shadow-2xl p-4 sm:p-5 flex flex-col backdrop-blur-2xl animate-in slide-in-from-bottom duration-200 divide-y divide-white/10 text-white overflow-hidden overscroll-contain pb-8 sm:pb-5"
             >
               {/* Top Drag Handle on Mobile */}
               <div 

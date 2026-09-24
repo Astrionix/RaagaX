@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { X, Download, Upload, Check, ShieldCheck, FileJson } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 export function BackupRestoreModal() {
   const { isBackupOpen, toggleBackupModal, exportBackupJson, importBackupJson } = usePlayerStore();
@@ -12,6 +13,9 @@ export function BackupRestoreModal() {
   React.useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Lock body scroll when Backup Restore modal is open
+  useBodyScrollLock(Boolean(mounted && isBackupOpen));
 
   if (!mounted || !isBackupOpen) return null;
 

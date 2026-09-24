@@ -6,6 +6,7 @@ import {
   Mic, Volume2, Car, Moon, Sun, Sparkles 
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface CarModeModalProps {
   isOpen: boolean;
@@ -28,6 +29,9 @@ export function CarModeModal({ isOpen, onClose }: CarModeModalProps) {
 
   const [isDayMode, setIsDayMode] = useState(false);
   const [isListeningVoice, setIsListeningVoice] = useState(false);
+
+  // Lock body scroll when Car Mode modal is open
+  useBodyScrollLock(isOpen);
 
   if (!isOpen) return null;
 

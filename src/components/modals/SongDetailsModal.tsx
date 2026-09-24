@@ -4,6 +4,7 @@ import { X, Music, HardDrive, FileAudio, Disc, Clock, Calendar, CheckCircle2, Sh
 import { Song } from '@/types/music';
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface SongDetailsModalProps {
   isOpen: boolean;
@@ -19,6 +20,9 @@ export function SongDetailsModal({ isOpen, onClose, song }: SongDetailsModalProp
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Lock body scroll when Song Details modal is open
+  useBodyScrollLock(Boolean(mounted && isOpen));
 
   if (!isOpen || !song || !mounted || typeof document === 'undefined') return null;
 
@@ -68,7 +72,7 @@ export function SongDetailsModal({ isOpen, onClose, song }: SongDetailsModalProp
         </div>
 
         {/* Content */}
-        <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto no-scrollbar">
+        <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto overscroll-contain no-scrollbar">
           {/* Song Preview Card */}
           <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/5 flex items-center gap-3.5">
             <img 

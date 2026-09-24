@@ -10,6 +10,7 @@ import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { SongDetailsModal } from '@/components/modals/SongDetailsModal';
 import { JamSessionManager } from '@/lib/connect/jam/JamSessionManager';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 export function ContextMenuModal() {
   const {
@@ -47,6 +48,9 @@ export function ContextMenuModal() {
       setCurrentView('main');
     }
   }, [contextMenuSong]);
+
+  // Lock background scroll when context menu is open
+  useBodyScrollLock(Boolean(contextMenuSong));
 
   if (!mounted || !contextMenuSong) return null;
 
@@ -96,11 +100,11 @@ export function ContextMenuModal() {
           closeContextMenu();
           setCurrentView('main');
         }}
-        className="fixed inset-0 z-[150] bg-black/75 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200 select-none"
+        className="fixed inset-0 z-[150] bg-black/75 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain touch-pan-y animate-in fade-in duration-200 select-none"
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-sm bg-[#14151a]/95 border-t sm:border border-white/10 rounded-t-3xl sm:rounded-3xl p-4 pb-[calc(2.5rem+env(safe-area-inset-bottom,0px))] sm:p-5 space-y-3 text-white shadow-2xl backdrop-blur-2xl animate-in slide-in-from-bottom duration-300 divide-y divide-white/5"
+          className="w-full max-w-sm bg-[#14151a]/95 border-t sm:border border-white/10 rounded-t-3xl sm:rounded-3xl p-4 pb-[calc(2.5rem+env(safe-area-inset-bottom,0px))] sm:p-5 space-y-3 text-white shadow-2xl backdrop-blur-2xl animate-in slide-in-from-bottom duration-300 divide-y divide-white/5 overscroll-contain"
         >
           {/* Track Header Header */}
           <div className="flex items-center gap-3 pb-3">

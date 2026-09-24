@@ -21,8 +21,8 @@ export async function GET() {
 
     return NextResponse.json({
       ...latestManifest,
-      sha256: dynamicSha256 || latestManifest?.sha256 || '8c887809c5e0f19ffd4bb1a93035c7e8bc5fd59acc143ffc87aa5c9834acb873',
-      fileSize: dynamicFileSize || latestManifest?.fileSize || 19935614,
+      sha256: dynamicSha256 || latestManifest?.sha256 || '44448b99ef4490b7be91b5aaaca9d3e0fa2f3f7d3227d21ce5a2a0d0c4fefcc2',
+      fileSize: dynamicFileSize || latestManifest?.fileSize || 19936729,
     });
   } catch (e) {
     console.error('Failed to compute dynamic APK manifest:', e);
@@ -33,8 +33,8 @@ export async function GET() {
     versionCode: 17,
     versionName: "1.4.0",
     apkUrl: "https://raaga.me/api/app/download",
-    sha256: "8c887809c5e0f19ffd4bb1a93035c7e8bc5fd59acc143ffc87aa5c9834acb873",
-    fileSize: 19935614,
+    sha256: "44448b99ef4490b7be91b5aaaca9d3e0fa2f3f7d3227d21ce5a2a0d0c4fefcc2",
+    fileSize: 19936729,
     releaseDate: "2026-09-24",
     mandatory: false,
     minimumSupportedVersion: 1,

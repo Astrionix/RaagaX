@@ -12,6 +12,7 @@ import {
   DEFAULT_EQ_BANDS 
 } from '@/lib/audio/EqualizerDSP';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface EqualizerModalProps {
   isOpen: boolean;
@@ -42,6 +43,9 @@ export function EqualizerModal({ isOpen, onClose }: EqualizerModalProps) {
     const unsubscribe = EqualizerDSP.getInstance().subscribe(setSettings);
     return () => unsubscribe();
   }, [isOpen]);
+
+  // Lock body scroll when Equalizer modal is open
+  useBodyScrollLock(isOpen);
 
   if (!isOpen) return null;
 
@@ -91,7 +95,7 @@ export function EqualizerModal({ isOpen, onClose }: EqualizerModalProps) {
         </div>
 
         {/* BODY */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-1">
+        <div className="p-6 overflow-y-auto overscroll-contain space-y-6 flex-1">
           
           {/* Master Enable & Spatial Toggle */}
           <div className="grid grid-cols-2 gap-3">

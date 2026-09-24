@@ -19,6 +19,7 @@ import { useAuthStore } from '@/context/useAuthStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useThemeStore } from '@/context/useThemeStore';
 import { haptics } from '@/lib/haptics/HapticEngine';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface ProfileMenuModalProps {
   isOpen: boolean;
@@ -33,6 +34,9 @@ export function ProfileMenuModal({ isOpen, onClose }: ProfileMenuModalProps) {
     toggleCastModal,
   } = usePlayerStore();
   const { theme, setTheme } = useThemeStore();
+
+  // Lock body scroll when Profile Menu modal is open
+  useBodyScrollLock(isOpen);
 
   if (!isOpen) return null;
 
@@ -81,7 +85,7 @@ export function ProfileMenuModal({ isOpen, onClose }: ProfileMenuModalProps) {
         </div>
 
         {/* Scrollable Action Items */}
-        <div className="overflow-y-auto p-4 pb-[calc(3rem+env(safe-area-inset-bottom,0px))] sm:pb-6 space-y-4 no-scrollbar divide-y divide-[var(--border-subtle)]">
+        <div className="overflow-y-auto overscroll-contain p-4 pb-[calc(3rem+env(safe-area-inset-bottom,0px))] sm:pb-6 space-y-4 no-scrollbar divide-y divide-[var(--border-subtle)]">
           {/* Quick Theme Switcher */}
           <div className="space-y-2">
             <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--text-muted)] px-1">

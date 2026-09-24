@@ -39,6 +39,7 @@ import { Toast } from '@/components/ui/Toast';
 import { VolumeHUD } from '@/components/ui/VolumeHUD';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
 import { DeviceDiscoveryEngine } from '@/lib/connect/discovery/DeviceDiscoveryEngine';
+import { GlobalModalScrollLockManager } from '@/hooks/useBodyScrollLock';
 
 import { HomeView } from '@/components/views/HomeView';
 import { NewView } from '@/components/views/NewView';
@@ -215,6 +216,9 @@ export default function Page() {
 
   return (
     <div className="min-h-screen w-full max-w-[100vw] bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col md:flex-row md:h-screen md:overflow-hidden selection:bg-[#EF233C] selection:text-white transition-colors duration-300">
+      {/* Universal Scroll Lock Manager for all modals, sheets, and popups */}
+      <GlobalModalScrollLockManager />
+
       {/* Audio Engine Controller */}
       <AudioPlayerController />
 

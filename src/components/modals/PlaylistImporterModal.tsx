@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { X, Link2, Check, Download, Music, Sparkles } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 export function PlaylistImporterModal() {
   const { isImporterOpen, toggleImporterModal, importSongsFromUrl } = usePlayerStore();
@@ -14,6 +15,9 @@ export function PlaylistImporterModal() {
   React.useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Lock body scroll when Playlist Importer modal is open
+  useBodyScrollLock(Boolean(mounted && isImporterOpen));
 
   if (!mounted || !isImporterOpen) return null;
 

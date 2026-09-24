@@ -1,67 +1,213 @@
 'use client';
 
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { usePlayerStore } from '@/context/usePlayerStore';
+import { useAuthStore } from '@/context/useAuthStore';
+import { useNotificationStore } from '@/context/useNotificationStore';
+import { useUpdateStore } from '@/context/useUpdateStore';
+import { useDownloadStore } from '@/context/useDownloadStore';
 
-// Global counter to support multiple nested/stacked modals safely
+// Global reference counter to support multiple nested/stacked modals safely
 let activeLockCount = 0;
 let preservedScrollY = 0;
 let previousBodyStyle: {
   overflow: string;
   position: string;
   top: string;
+  left: string;
+  right: string;
   width: string;
+  height: string;
   htmlOverflow: string;
+  htmlOverscroll: string;
+  bodyOverscroll: string;
 } | null = null;
+
+// Global touchmove interceptor to completely block background scroll chaining on mobile
+function handleTouchMoveWhenLocked(e: TouchEvent) {
+  if (activeLockCount <= 0) return;
+
+  const target = e.target as HTMLElement | null;
+  if (!target) return;
+
+  // Check if touch originated inside a scrollable element
+  const scrollableParent = target.closest(
+    '.overflow-y-auto, .overflow-y-scroll, .overflow-auto, [data-scrollable="true"], textarea'
+  ) as HTMLElement | null;
+
+  if (scrollableParent) {
+    // If the element can actually scroll vertically, allow user interaction inside it
+    if (scrollableParent.scrollHeight > scrollableParent.clientHeight) {
+      return;
+    }
+  }
+
+  // Target is on a backdrop, header, card container, or non-scrollable area: prevent default
+  if (e.cancelable) {
+    e.preventDefault();
+  }
+}
+
+export function lockBodyScroll() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+  if (activeLockCount === 0) {
+    preservedScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+    previousBodyStyle = {
+      overflow: document.body.style.overflow,
+      position: document.body.style.position,
+      top: document.body.style.top,
+      left: document.body.style.left,
+      right: document.body.style.right,
+      width: document.body.style.width,
+      height: document.body.style.height,
+      htmlOverflow: document.documentElement.style.overflow,
+      htmlOverscroll: document.documentElement.style.overscrollBehavior,
+      bodyOverscroll: document.body.style.overscrollBehavior,
+    };
+
+    // Freeze html and body at current exact scroll position
+    document.documentElement.style.overflow = 'hidden';
+    document.documentElement.style.overscrollBehavior = 'none';
+    document.documentElement.classList.add('has-modal-open');
+
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${preservedScrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
+    document.body.style.overscrollBehavior = 'none';
+    document.body.classList.add('body-scroll-locked');
+
+    // Attach passive: false touch listener to ensure zero background scroll leakage on mobile
+    window.addEventListener('touchmove', handleTouchMoveWhenLocked, { passive: false });
+  }
+
+  activeLockCount++;
+}
+
+export function unlockBodyScroll() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+  activeLockCount = Math.max(0, activeLockCount - 1);
+
+  if (activeLockCount === 0 && previousBodyStyle) {
+    window.removeEventListener('touchmove', handleTouchMoveWhenLocked);
+
+    document.documentElement.style.overflow = previousBodyStyle.htmlOverflow;
+    document.documentElement.style.overscrollBehavior = previousBodyStyle.htmlOverscroll;
+    document.documentElement.classList.remove('has-modal-open');
+
+    document.body.style.overflow = previousBodyStyle.overflow;
+    document.body.style.position = previousBodyStyle.position;
+    document.body.style.top = previousBodyStyle.top;
+    document.body.style.left = previousBodyStyle.left;
+    document.body.style.right = previousBodyStyle.right;
+    document.body.style.width = previousBodyStyle.width;
+    document.body.style.height = previousBodyStyle.height;
+    document.body.style.overscrollBehavior = previousBodyStyle.bodyOverscroll;
+    document.body.classList.remove('body-scroll-locked');
+
+    // Restore exact scroll position without layout shifts or jumps
+    window.scrollTo(0, preservedScrollY);
+    previousBodyStyle = null;
+  }
+}
 
 /**
  * Universal Mobile & Desktop Body Scroll Lock Hook
- * 
- * Freezes the underlying window/document scroll (such as Home screen)
- * when a modal, full-screen player, or sheet is opened.
- * Prevents scroll chaining, rubber-banding, and background bleed-through.
  */
 export function useBodyScrollLock(isLocked: boolean) {
   useEffect(() => {
-    if (!isLocked || typeof window === 'undefined' || typeof document === 'undefined') {
-      return;
-    }
+    if (!isLocked) return;
 
-    if (activeLockCount === 0) {
-      preservedScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
-      previousBodyStyle = {
-        overflow: document.body.style.overflow,
-        position: document.body.style.position,
-        top: document.body.style.top,
-        width: document.body.style.width,
-        htmlOverflow: document.documentElement.style.overflow,
-      };
-
-      // Freeze html and body
-      document.documentElement.style.overflow = 'hidden';
-      document.body.style.overflow = 'hidden';
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${preservedScrollY}px`;
-      document.body.style.width = '100%';
-      document.body.classList.add('body-scroll-locked');
-    }
-
-    activeLockCount++;
-
+    lockBodyScroll();
     return () => {
-      activeLockCount = Math.max(0, activeLockCount - 1);
-
-      if (activeLockCount === 0 && previousBodyStyle) {
-        document.documentElement.style.overflow = previousBodyStyle.htmlOverflow;
-        document.body.style.overflow = previousBodyStyle.overflow;
-        document.body.style.position = previousBodyStyle.position;
-        document.body.style.top = previousBodyStyle.top;
-        document.body.style.width = previousBodyStyle.width;
-        document.body.classList.remove('body-scroll-locked');
-
-        // Restore exact scroll position
-        window.scrollTo(0, preservedScrollY);
-        previousBodyStyle = null;
-      }
+      unlockBodyScroll();
     };
   }, [isLocked]);
+}
+
+/**
+ * Global Modal Scroll Lock Manager
+ * Mounts at root (page.tsx) to automatically track all store modals and any portal overlays in the DOM.
+ */
+export function GlobalModalScrollLockManager() {
+  const isPlayerModalOpen = usePlayerStore((s) => Boolean(
+    s.isPlayerExpanded ||
+    s.isQueueOpen ||
+    s.isLyricsOpen ||
+    s.isSleepTimerModalOpen ||
+    s.isCastModalOpen ||
+    s.isJamModalOpen ||
+    s.isBlendModalOpen ||
+    s.isSettingsModalOpen ||
+    Boolean(s.contextMenuSong) ||
+    s.createPlaylistModalOpen ||
+    s.isWrappedModalOpen ||
+    s.isEqualizerOpen ||
+    s.isCarModeOpen ||
+    s.isGetAppModalOpen ||
+    s.isImporterOpen ||
+    s.isBackupOpen ||
+    s.isOnboardingOpen ||
+    s.isLockScreenOpen ||
+    s.isNotificationShadeOpen ||
+    s.isSystemSurfacesOpen
+  ));
+
+  const isAuthModalOpen = useAuthStore((s) => Boolean(s.isAuthModalOpen));
+  const isNotificationOpen = useNotificationStore((s) => Boolean(s.isOpen));
+  const isUpdateModalOpen = useUpdateStore((s) => Boolean(s.showModal));
+  const isSetupModalOpen = useDownloadStore((s) => Boolean(s.isSetupModalOpen));
+
+  const isAnyStoreModalOpen = Boolean(
+    isPlayerModalOpen ||
+    isAuthModalOpen ||
+    isNotificationOpen ||
+    isUpdateModalOpen ||
+    isSetupModalOpen
+  );
+
+  useBodyScrollLock(isAnyStoreModalOpen);
+
+  // Fallback DOM Portal Observer: detects any dynamically mounted portal modals
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    let wasPortalDetected = false;
+
+    const checkPortals = () => {
+      // Find any modal overlays (excluding non-interactive backdrops or non-modal elements)
+      const modalElements = document.querySelectorAll(
+        '.fixed.inset-0:not(.pointer-events-none):not(.z-0):not(.z-10):not(.z-20):not(.main-content), [role="dialog"], .z-\\[9999\\], .z-\\[10000\\], .z-\\[10001\\], .z-\\[10002\\]'
+      );
+      const isPortalOpen = modalElements.length > 0;
+
+      if (isPortalOpen && !wasPortalDetected) {
+        wasPortalDetected = true;
+        lockBodyScroll();
+      } else if (!isPortalOpen && wasPortalDetected) {
+        wasPortalDetected = false;
+        unlockBodyScroll();
+      }
+    };
+
+    const observer = new MutationObserver(() => {
+      checkPortals();
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      if (wasPortalDetected) {
+        unlockBodyScroll();
+      }
+    };
+  }, []);
+
+  return null;
 }

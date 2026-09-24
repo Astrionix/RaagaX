@@ -4,6 +4,7 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { Download, HardDrive, AlertTriangle, CheckCircle2, Sliders, Music, ShieldCheck } from 'lucide-react';
 import { Song } from '@/types/music';
 import { RaagaXNativeDownload } from '@/lib/playback/native/RaagaXNativeDownload';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 export function BulkDownloadConfirmModal({ 
   isOpen, 
@@ -55,6 +56,9 @@ export function BulkDownloadConfirmModal({
 
     check();
   }, [isOpen]);
+
+  // Lock body scroll when Bulk Download modal is open
+  useBodyScrollLock(isOpen);
 
   if (!isOpen) return null;
 

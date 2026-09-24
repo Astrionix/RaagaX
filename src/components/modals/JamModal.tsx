@@ -21,6 +21,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { JamSessionManager } from '@/lib/connect/jam/JamSessionManager';
 import { JamSessionState, JamQueueItem } from '@/lib/connect/jam/JamTypes';
 import { DeviceKeyManager } from '@/lib/connect/auth/DeviceKeyManager';
@@ -45,6 +46,9 @@ export function JamModal() {
     });
     return unsub;
   }, []);
+
+  // Lock body scroll when Jam modal is open
+  useBodyScrollLock(isJamModalOpen);
 
   if (!isJamModalOpen) return null;
 
@@ -197,7 +201,7 @@ export function JamModal() {
         </div>
 
         {/* Main Content Body */}
-        <div className="p-5 overflow-y-auto custom-scrollbar flex-1 space-y-5">
+        <div className="p-5 overflow-y-auto overscroll-contain custom-scrollbar flex-1 space-y-5">
           {activeTab === 'session' ? (
             !jamState ? (
               /* Clean Start Jam Hero */

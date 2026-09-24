@@ -5,6 +5,7 @@ import { X, Settings, Sliders, Disc, Shield, Download, Trash2, LogOut, User, Moo
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useThemeStore } from '@/context/useThemeStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 export function SettingsModal() {
   const {
@@ -29,6 +30,9 @@ export function SettingsModal() {
   React.useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Lock body scroll when Settings modal is open
+  useBodyScrollLock(isSettingsModalOpen);
 
   if (!mounted || !isSettingsModalOpen) return null;
 
@@ -87,7 +91,7 @@ export function SettingsModal() {
         </div>
 
         {/* Scrollable body */}
-        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
+        <div className="overflow-y-auto overscroll-contain flex-1 px-5 py-4 space-y-5">
 
           {/* Theme Selection */}
           <div className="space-y-3">

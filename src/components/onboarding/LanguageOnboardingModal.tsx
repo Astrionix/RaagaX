@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useAuthStore } from '@/context/useAuthStore';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { haptics } from '@/lib/haptics/HapticEngine';
 
 export interface LanguageOption {
@@ -61,6 +62,9 @@ export function LanguageOnboardingModal() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Lock body scroll when Language Onboarding modal is open
+  useBodyScrollLock(Boolean(mounted && isOnboardingOpen));
 
   if (!mounted || !isOnboardingOpen) return null;
 
@@ -142,7 +146,7 @@ export function LanguageOnboardingModal() {
 
         {/* ── STEP 1: WELCOME SCREEN ────────────────────────────────────────── */}
         {step === 1 && (
-          <div className="p-6 sm:p-8 overflow-y-auto space-y-6 flex-1 flex flex-col justify-center items-center text-center animate-in fade-in">
+          <div className="p-6 sm:p-8 overflow-y-auto overscroll-contain space-y-6 flex-1 flex flex-col justify-center items-center text-center animate-in fade-in">
             {/* 3D Glass Logo Icon */}
             <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-gradient-to-br from-white/15 via-white/5 to-white/0 border border-white/25 shadow-[0_12px_40px_rgba(250,35,59,0.35)] flex items-center justify-center p-4">
               <div className="w-12 h-12 rounded-2xl bg-[#FA233B] flex items-center justify-center shadow-lg shadow-red-500/40">
@@ -185,7 +189,7 @@ export function LanguageOnboardingModal() {
 
         {/* ── STEP 2: CHOOSE LANGUAGES ──────────────────────────────────────── */}
         {step === 2 && (
-          <div className="p-6 overflow-y-auto space-y-5 flex-1 animate-in fade-in">
+          <div className="p-6 overflow-y-auto overscroll-contain space-y-5 flex-1 animate-in fade-in">
             <div className="space-y-1 text-center sm:text-left">
               <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
                 What languages do you listen to?
@@ -237,7 +241,7 @@ export function LanguageOnboardingModal() {
 
         {/* ── STEP 3: CHOOSE INTERESTS ──────────────────────────────────────── */}
         {step === 3 && (
-          <div className="p-6 overflow-y-auto space-y-5 flex-1 animate-in fade-in">
+          <div className="p-6 overflow-y-auto overscroll-contain space-y-5 flex-1 animate-in fade-in">
             <div className="space-y-1 text-center sm:text-left">
               <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
                 What do you want to listen to?

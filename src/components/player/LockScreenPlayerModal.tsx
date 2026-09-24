@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { SeekBar } from '@/components/player/SeekBar';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { AndroidPlaybackPlayerCard } from '@/components/player/AndroidPlaybackPlayerCard';
@@ -59,6 +60,9 @@ export function LockScreenPlayerModal({ isOpen, onClose }: LockScreenPlayerModal
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Lock body scroll when Lock Screen player modal is open
+  useBodyScrollLock(Boolean(isOpen && currentSong));
 
   if (!isOpen || !currentSong) return null;
 

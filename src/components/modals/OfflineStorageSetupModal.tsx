@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { Download, Check, Settings, X, HardDrive } from 'lucide-react';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 export function OfflineStorageSetupModal({ 
   isOpen, 
@@ -30,6 +31,9 @@ export function OfflineStorageSetupModal({
       }
     }
   }, [isOpen]);
+
+  // Lock body scroll when Offline Storage Setup modal is open
+  useBodyScrollLock(isOpen);
 
   if (!isOpen) return null;
 

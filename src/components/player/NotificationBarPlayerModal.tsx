@@ -3,6 +3,7 @@
 import React from 'react';
 import { X, Bell } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { AndroidNotificationPlayerCard } from '@/components/player/AndroidNotificationPlayerCard';
 
 interface NotificationBarPlayerModalProps {
@@ -12,6 +13,9 @@ interface NotificationBarPlayerModalProps {
 
 export function NotificationBarPlayerModal({ isOpen, onClose }: NotificationBarPlayerModalProps) {
   const currentSong = usePlayerStore((s) => s.currentSong);
+
+  // Lock body scroll when Notification Bar player modal is open
+  useBodyScrollLock(Boolean(isOpen && currentSong));
 
   if (!isOpen || !currentSong) return null;
 
