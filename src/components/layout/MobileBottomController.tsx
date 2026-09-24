@@ -111,7 +111,7 @@ export function MobileBottomController() {
             }}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
-            className="w-full max-w-[440px] h-[54px] rounded-[20px] backdrop-blur-3xl border flex items-center justify-between px-3 cursor-pointer active:scale-[0.985] transition-all overflow-hidden relative group bg-[var(--surface-overlay)] border-[var(--border-subtle)] shadow-[0_16px_40px_rgba(0,0,0,0.5),0_2px_12px_rgba(255,255,255,0.05)]"
+            className="w-full max-w-[440px] h-[54px] rounded-[20px] backdrop-blur-3xl border flex items-center justify-between px-3 cursor-pointer active:scale-[0.985] transition-all overflow-hidden touch-none select-none relative group bg-[var(--surface-overlay)] border-[var(--border-subtle)] shadow-[0_16px_40px_rgba(0,0,0,0.5),0_2px_12px_rgba(255,255,255,0.05)]"
           >
             {/* Top Specular Liquid Edge Highlight */}
             <div className="absolute top-0 left-0 right-0 h-[1px] pointer-events-none bg-gradient-to-r from-transparent via-white/30 to-transparent" />

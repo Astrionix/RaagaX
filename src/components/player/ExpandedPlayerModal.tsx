@@ -57,6 +57,7 @@ import { AlbumCatalogEngine } from '@/lib/albumCatalog';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { VolumeControl } from '@/components/player/VolumeControl';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 export function ExpandedPlayerModal() {
   const { playlists, addSongToPlaylist } = usePlaylistStore();
@@ -129,21 +130,36 @@ export function ExpandedPlayerModal() {
     activePlaybackDeviceName,
   } = usePlayerStore();
 
+  // Lock document.body and html scrolling when expanded player is active
+  useBodyScrollLock(isPlayerExpanded);
+
   const currentSong = localCurrentSong;
   const isPlaying = localIsPlaying;
 
   // Gesture handling for swipe-down to minimize on touch devices
   const touchStartY = useRef<number | null>(null);
+  const touchStartX = useRef<number | null>(null);
   const [touchOffset, setTouchOffset] = useState(0);
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    // Avoid swipe-down interception on interactive controls, sliders, buttons or inner scrollable lists
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('input, button, [role="slider"], .overflow-y-auto')) {
+      touchStartY.current = null;
+      touchStartX.current = null;
+      return;
+    }
     touchStartY.current = e.touches[0].clientY;
+    touchStartX.current = e.touches[0].clientX;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (touchStartY.current === null) return;
+    if (touchStartY.current === null || touchStartX.current === null) return;
     const diffY = e.touches[0].clientY - touchStartY.current;
-    if (diffY > 0) {
+    const diffX = Math.abs(e.touches[0].clientX - touchStartX.current);
+
+    // Only engage swipe down if dragging downwards and vertical movement dominates
+    if (diffY > 0 && diffY > diffX * 1.2) {
       setTouchOffset(diffY);
     }
   };
@@ -155,6 +171,7 @@ export function ExpandedPlayerModal() {
     }
     setTouchOffset(0);
     touchStartY.current = null;
+    touchStartX.current = null;
   };
 
   const handleTogglePlay = () => {
@@ -463,7 +480,7 @@ export function ExpandedPlayerModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[100] w-full h-[100dvh] bg-[#06070a] text-white select-none flex flex-col justify-between overflow-hidden animate-in fade-in duration-200"
+      className="fixed inset-0 z-[100] w-full h-[100dvh] bg-[#06070a] text-white select-none flex flex-col justify-between overflow-hidden overscroll-contain touch-pan-y animate-in fade-in duration-200"
       style={{ transform: `translateY(${touchOffset}px)` }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
@@ -1324,7 +1341,7 @@ export function ExpandedPlayerModal() {
 
               <div
                 ref={modalLyricsScrollRef}
-                className="flex-1 overflow-y-auto no-scrollbar py-6 px-3 space-y-3.5 flex flex-col items-start"
+                className="flex-1 overflow-y-auto no-scrollbar overscroll-contain py-6 px-3 space-y-3.5 flex flex-col items-start"
               >
                 {lyricsStatus === 'loading' && (
                   <div className="w-full flex flex-col items-center justify-center py-12 text-white/60 gap-3">
@@ -1400,7 +1417,7 @@ export function ExpandedPlayerModal() {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto no-scrollbar py-2 px-2 space-y-2">
+              <div className="flex-1 overflow-y-auto no-scrollbar overscroll-contain py-2 px-2 space-y-2">
                 {/* Currently playing card */}
                 <div className="p-2.5 rounded-xl bg-white/[0.08] border border-white/15 flex items-center gap-3">
                   <div className="relative w-11 h-11 rounded-lg overflow-hidden flex-shrink-0 shadow bg-black/40 flex items-center justify-center">
@@ -1496,7 +1513,7 @@ export function ExpandedPlayerModal() {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto no-scrollbar py-3 px-3 space-y-4 flex flex-col items-center justify-center">
+              <div className="flex-1 overflow-y-auto no-scrollbar overscroll-contain py-3 px-3 space-y-4 flex flex-col items-center justify-center">
                 {/* Active Timer Countdown Banner */}
                 {(sleepTimerEndsAt || sleepTimerMode) ? (
                   <div className="w-full p-4 rounded-2xl bg-purple-500/15 border border-purple-500/30 text-center space-y-2">
@@ -1800,7 +1817,7 @@ export function ExpandedPlayerModal() {
             </div>
 
             {/* Scrollable Queue Content */}
-            <div className="flex-1 overflow-y-auto no-scrollbar p-3 space-y-4">
+            <div className="flex-1 overflow-y-auto no-scrollbar overscroll-contain p-3 space-y-4">
 
               {/* Currently Playing Card */}
               <div className="space-y-1.5">

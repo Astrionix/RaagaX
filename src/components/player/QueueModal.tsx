@@ -9,7 +9,7 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { Song } from '@/types/music';
 import { SongFormatter } from '@/lib/music/SongFormatter';
-
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 export function QueueModal() {
   const { 
@@ -57,6 +57,9 @@ export function QueueModal() {
     setMounted(true);
   }, []);
 
+  // Lock document.body and html scrolling when queue is open
+  useBodyScrollLock(isQueueOpen);
+
   if (!mounted || !isQueueOpen) return null;
 
   const upNextTracks = queue.slice(queueIndex + 1);
@@ -70,7 +73,7 @@ export function QueueModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-[120] xl:hidden flex items-end md:items-center justify-end md:p-6 select-none animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[120] xl:hidden flex items-end md:items-center justify-end md:p-6 select-none overscroll-contain animate-in fade-in duration-200">
       {/* Backdrop */}
       <div 
         onClick={toggleQueue} 
@@ -79,7 +82,7 @@ export function QueueModal() {
 
       {/* Queue Drawer Container */}
       <div 
-        className="relative z-10 w-full md:w-[440px] max-h-[86vh] md:max-h-[85vh] h-[86vh] md:h-auto bg-[#0d0e14]/98 border-t md:border border-white/15 rounded-t-[28px] md:rounded-3xl shadow-[0_-20px_60px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden text-white animate-in slide-in-from-bottom-6 md:slide-in-from-right-6 duration-250 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+        className="relative z-10 w-full md:w-[440px] max-h-[86vh] md:max-h-[85vh] h-[86vh] md:h-auto bg-[#0d0e14]/98 border-t md:border border-white/15 rounded-t-[28px] md:rounded-3xl shadow-[0_-20px_60px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden overscroll-contain text-white animate-in slide-in-from-bottom-6 md:slide-in-from-right-6 duration-250 pb-[calc(1rem+env(safe-area-inset-bottom))]"
       >
         {/* Mobile Drag Handle Pill */}
         <div className="md:hidden w-full flex justify-center pt-2.5 pb-1 cursor-grab active:cursor-grabbing flex-shrink-0">
@@ -166,7 +169,7 @@ export function QueueModal() {
         </div>
 
         {/* Scrollable Queue Content */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 scrollbar-thin scrollbar-thumb-white/15 scrollbar-track-transparent">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 space-y-4 scrollbar-thin scrollbar-thumb-white/15 scrollbar-track-transparent">
           
 
           {/* NOW PLAYING HERO SECTION */}
