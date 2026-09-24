@@ -5,6 +5,7 @@ import { Play, ChevronRight, ChevronDown, X, Shuffle, MoreHorizontal } from 'luc
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
+import { PlaylistCover } from '@/components/playlist/PlaylistCover';
 import { getApiUrl } from '@/lib/config/apiConfig';
 import { NavigationStack } from '@/lib/navigation/NavigationStack';
 
@@ -370,6 +371,12 @@ export function CarouselShelf({
       <div className="flex gap-3 sm:gap-4 overflow-x-auto no-scrollbar pt-2 pb-3 sm:pt-2.5 sm:pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
         {visibleItems.map((item, index) => {
           const isSentinel = pagination?.enabled && index === sentinelIndex;
+          const isUserPlaylist = (item.type === 'playlist' || item.type === 'mix') && (
+            Boolean(item.rawItem) ||
+            !item.imageUrl ||
+            item.imageUrl === '/app-icon.png' ||
+            item.imageUrl.includes('default-playlist-cover')
+          );
           
           return (
             <div
@@ -378,26 +385,43 @@ export function CarouselShelf({
               onClick={() => handleItemClick(item)}
               className="group premium-card p-3 sm:p-3.5 rounded-2xl cursor-pointer w-[140px] sm:w-[172px] flex-shrink-0"
             >
-              <div className="relative w-full aspect-square mb-2.5 sm:mb-3 shadow-[0_8px_24px_rgba(0,0,0,0.2)] rounded-xl overflow-hidden bg-slate-800/80">
-                <OptimizedImage
-                  src={item.imageUrl}
-                  alt={item.title}
-                  size="card"
-                  className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-108 ${
-                    item.type === 'artist' ? 'rounded-full' : 'rounded-xl'
-                  }`}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className={`relative w-full aspect-square ${isUserPlaylist ? 'mb-0' : 'mb-2.5 sm:mb-3'} shadow-[0_8px_24px_rgba(0,0,0,0.2)] rounded-xl overflow-hidden bg-slate-800/80`}>
+                {isUserPlaylist ? (
+                  <PlaylistCover
+                    playlistId={item.id}
+                    playlistName={item.title}
+                    songCount={item.rawItem?.songs?.length ?? item.rawItem?.songIds?.length}
+                    size="medium"
+                    showTitle={true}
+                    animated={true}
+                    interactive={false}
+                    className="w-full h-full"
+                  />
+                ) : (
+                  <OptimizedImage
+                    src={item.imageUrl}
+                    alt={item.title}
+                    size="card"
+                    className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-108 ${
+                      item.type === 'artist' ? 'rounded-full' : 'rounded-xl'
+                    }`}
+                  />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
                 <button 
                   onClick={(e) => handleQuickPlay(e, item)}
-                  className="absolute bottom-2 right-2 sm:bottom-2.5 sm:right-2.5 w-9 h-9 sm:w-10 sm:h-10 rounded-full red-glow-btn text-white flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 group-hover:translate-y-0 translate-y-2 transition-all duration-300 active:scale-90"
+                  className="absolute bottom-2 right-2 sm:bottom-2.5 sm:right-2.5 w-9 h-9 sm:w-10 sm:h-10 rounded-full red-glow-btn text-white flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 group-hover:translate-y-0 translate-y-2 transition-all duration-300 active:scale-90 z-30"
                 >
                   <Play className="w-4 h-4 fill-white text-white ml-0.5" />
                 </button>
               </div>
-              <h3 className="font-bold text-xs text-[var(--text-primary)] truncate leading-tight group-hover:text-[#fa233b] transition-colors">{item.title}</h3>
-              {item.subtitle && item.subtitle !== 'Unknown' && (
-                <p className="text-[11px] text-[var(--text-secondary)] mt-1 line-clamp-2 leading-tight font-medium">{item.subtitle}</p>
+              {!isUserPlaylist && (
+                <>
+                  <h3 className="font-bold text-xs text-[var(--text-primary)] truncate leading-tight group-hover:text-[#fa233b] transition-colors">{item.title}</h3>
+                  {item.subtitle && item.subtitle !== 'Unknown' && (
+                    <p className="text-[11px] text-[var(--text-secondary)] mt-1 line-clamp-2 leading-tight font-medium">{item.subtitle}</p>
+                  )}
+                </>
               )}
             </div>
           );
@@ -512,12 +536,24 @@ export function CarouselShelf({
                     </div>
                     
                     <div className="flex items-center gap-3 min-w-0">
-                      <img
-                        src={item.imageUrl || '/app-icon.png'}
-                        alt={item.title}
-                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                        className="w-10 h-10 rounded-lg object-cover bg-slate-800"
-                      />
+                      {(item.type === 'playlist' || item.type === 'mix') && (!item.imageUrl || item.imageUrl === '/app-icon.png' || Boolean(item.rawItem)) ? (
+                        <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0">
+                          <PlaylistCover
+                            playlistId={item.id}
+                            playlistName={item.title}
+                            size="small"
+                            showTitle={false}
+                            className="w-full h-full"
+                          />
+                        </div>
+                      ) : (
+                        <img
+                          src={item.imageUrl || '/app-icon.png'}
+                          alt={item.title}
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
+                          className="w-10 h-10 rounded-lg object-cover bg-slate-800"
+                        />
+                      )}
                       <div className="min-w-0 flex-1">
                         <h4 className={`text-sm font-semibold truncate ${isCurrentlyPlaying ? 'text-[#fa233b]' : 'text-[var(--text-primary)]'}`}>
                           {item.title}

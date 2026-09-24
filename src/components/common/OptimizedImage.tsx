@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { GradientCoverFallback } from './GradientCoverFallback';
 
 export interface OptimizedImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'src'> {
   src?: string | null;
   alt: string;
-  size?: 'thumb' | 'card' | 'full';
+  size?: 'thumb' | 'card' | 'full' | 'hero';
   className?: string;
   fallbackSrc?: string;
   imageFit?: 'cover' | 'contain' | 'fill';
@@ -20,7 +21,7 @@ const loadedImageUrls = new Set<string>();
  * - Zero delay / eager loading for immediate visual rendering
  * - JioSaavn CDN resolution auto-tuning (500x500 / 150x150)
  * - In-memory instant cache hit tracking (no opacity-0 pop-in)
- * - Resilient fallback recovery
+ * - Deterministic color gradient fallback when artwork cannot be fetched
  */
 export function OptimizedImage({
   src,
@@ -32,13 +33,15 @@ export function OptimizedImage({
   style,
   ...props
 }: OptimizedImageProps) {
+  const isMissingSrc = !src || src.includes('/null/') || src.includes('null/null') || src.trim() === '';
+
   // Normalize and preserve raw high resolution artwork directly from CDN
   const resolveArtworkUrl = (rawUrl?: string | null): string => {
-    if (!rawUrl || rawUrl.includes('/null/') || rawUrl.trim() === '') {
+    if (isMissingSrc) {
       return fallbackSrc;
     }
 
-    let url = rawUrl.replace('http://', 'https://');
+    let url = rawUrl!.replace('http://', 'https://');
 
     // Always deliver raw 500x500 high-res quality from JioSaavn CDN
     url = url.replace(/50x50|150x150|300x300/g, '500x500');
@@ -52,8 +55,6 @@ export function OptimizedImage({
   const [isLoaded, setIsLoaded] = useState(isAlreadyLoaded);
   const [hasError, setHasError] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
-
-  const finalSrc = hasError ? fallbackSrc : resolvedUrl;
 
   useEffect(() => {
     if (loadedImageUrls.has(resolvedUrl)) {
@@ -79,6 +80,20 @@ export function OptimizedImage({
     ? 'object-fill'
     : 'object-cover';
 
+  // Render color gradient fallback when artwork cannot be fetched or fails to load
+  if (isMissingSrc || hasError) {
+    return (
+      <div className={`relative overflow-hidden ${className}`}>
+        <GradientCoverFallback
+          seed={alt || src}
+          alt={alt}
+          size={size}
+          className="w-full h-full"
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={`relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 ${fitMode === 'object-contain' ? 'flex items-center justify-center' : ''} ${className}`}>
       {/* Subtle pulse placeholder only if not yet in memory cache */}
@@ -88,7 +103,7 @@ export function OptimizedImage({
 
       <img
         ref={imgRef}
-        src={finalSrc}
+        src={resolvedUrl}
         alt={alt}
         loading="eager"
         decoding="async"
@@ -111,3 +126,4 @@ export function OptimizedImage({
     </div>
   );
 }
+

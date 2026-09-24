@@ -21,6 +21,7 @@ import {
 import { ArtistAvatar } from '@/components/common/ArtistAvatar';
 import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
+import { PlaylistCover } from '@/components/playlist/PlaylistCover';
 import { SongFormatter } from '@/lib/music/SongFormatter';
 import { PersonalizationEngine } from '@/lib/recommendation/PersonalizationEngine';
 import { haptics } from '@/lib/haptics/HapticEngine';
@@ -812,14 +813,26 @@ export function SearchView() {
                       className="cursor-pointer group flex flex-col justify-between"
                     >
                       <div className="relative aspect-square rounded-2xl overflow-hidden mb-2.5 shadow-md border border-white/10 group-hover:border-white/20 transition-all bg-zinc-900">
-                        <OptimizedImage
-                          src={playlist.coverUrl}
-                          alt={playlist.title}
-                          size="card"
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          fallbackSrc="/app-icon.png"
-                        />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        {(playlist as any).isUserPlaylist || !playlist.coverUrl || playlist.coverUrl === '/app-icon.png' || playlist.coverUrl.includes('default-playlist-cover') ? (
+                          <PlaylistCover
+                            playlistId={playlist.id}
+                            playlistName={playlist.title}
+                            songCount={playlist.songCount}
+                            size="medium"
+                            showTitle={true}
+                            animated={true}
+                            className="w-full h-full"
+                          />
+                        ) : (
+                          <OptimizedImage
+                            src={playlist.coverUrl}
+                            alt={playlist.title}
+                            size="card"
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            fallbackSrc="/app-icon.png"
+                          />
+                        )}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                           <div className="w-10 h-10 rounded-full bg-[#FA233B] text-white flex items-center justify-center shadow-lg">
                             <Play className="w-4 h-4 fill-white ml-0.5" />
                           </div>

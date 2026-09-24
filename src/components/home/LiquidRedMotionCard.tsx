@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { Play, Pause } from 'lucide-react';
 import { haptics } from '@/lib/haptics/HapticEngine';
+
+export type ColorPreset = 'ruby' | 'cyber' | 'emerald' | 'amber' | 'ocean' | 'midnight-red' | 'pink-glass' | 'white-red' | 'soft-glass';
 
 export interface LiquidRedCardProps {
   id: string;
@@ -13,11 +15,66 @@ export interface LiquidRedCardProps {
   description: string;
   trackCount: string;
   seed: number;
+  /** Motion color gradient preset or custom colors */
+  colorPreset?: ColorPreset;
+  customColors?: [string, string, string, string, string];
   isPlaying?: boolean;
   isActive?: boolean;
   onPlayClick?: () => void;
   className?: string;
 }
+
+const PALETTES: Record<ColorPreset, {
+  colors: [string, string, string, string, string];
+  fallbackCss: string;
+  pillBorder: string;
+}> = {
+  'midnight-red': {
+    colors: ['#170006', '#5A071A', '#8F0E2F', '#B5123F', '#FF4D6D'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #FF4D6D 0%, #B5123F 25%, transparent 60%), linear-gradient(135deg, #170006 0%, #5A071A 45%, #8F0E2F 75%, #B5123F 100%)',
+    pillBorder: 'border-rose-500/40 text-rose-200',
+  },
+  'pink-glass': {
+    colors: ['#3A0B2E', '#64103E', '#8F164D', '#D41445', '#FF9A9E'],
+    fallbackCss: 'radial-gradient(circle at 80% 25%, #FF9A9E 0%, #D41445 30%, transparent 65%), linear-gradient(135deg, #3A0B2E 0%, #64103E 35%, #8F164D 65%, #FF9A9E 100%)',
+    pillBorder: 'border-pink-400/40 text-pink-200',
+  },
+  'white-red': {
+    colors: ['#3A0518', '#8E1B5B', '#D41445', '#FF6B6B', '#FFFFFF'],
+    fallbackCss: 'radial-gradient(circle at 20% 20%, #FFFFFF 0%, #FF6B6B 25%, transparent 60%), radial-gradient(circle at 85% 85%, #D41445 0%, #8E1B5B 45%, transparent 70%), linear-gradient(135deg, #3A0518 0%, #8E1B5B 50%, #D41445 100%)',
+    pillBorder: 'border-red-300/50 text-white',
+  },
+  'soft-glass': {
+    colors: ['#5E1228', '#A81C3F', '#D41445', '#FB7185', '#FCA5A5'],
+    fallbackCss: 'radial-gradient(circle at 85% 15%, #FDE2E4 0%, #FCA5A5 22%, transparent 55%), radial-gradient(circle at 20% 75%, #D41445 0%, #A81C3F 40%, transparent 70%), linear-gradient(135deg, #5E1228 0%, #A81C3F 40%, #FB7185 85%, #FCA5A5 100%)',
+    pillBorder: 'border-rose-300/40 text-rose-100',
+  },
+  ruby: {
+    colors: ['#3A0010', '#700018', '#A9002D', '#D41445', '#FF0033'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #FFFFFF 0%, #FFD1DC 12%, transparent 42%), radial-gradient(circle at 25% 30%, #D41445 0%, #A9002D 35%, transparent 65%), linear-gradient(135deg, #3A0010 0%, #700018 35%, #A9002D 65%, #FF0033 100%)',
+    pillBorder: 'border-red-500/40 text-red-200',
+  },
+  cyber: {
+    colors: ['#0f092b', '#2e1065', '#6b21a8', '#c026d3', '#f43f5e'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #FFFFFF 0%, #F5D0FE 12%, transparent 42%), radial-gradient(circle at 25% 30%, #C026D3 0%, #6B21A8 35%, transparent 65%), linear-gradient(135deg, #0F092B 0%, #2E1065 35%, #C026D3 65%, #F43F5E 100%)',
+    pillBorder: 'border-fuchsia-400/40 text-fuchsia-200',
+  },
+  emerald: {
+    colors: ['#022c22', '#064e3b', '#0d9488', '#10b981', '#06b6d4'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #FFFFFF 0%, #A7F3D0 12%, transparent 42%), radial-gradient(circle at 25% 30%, #10B981 0%, #0D9488 35%, transparent 65%), linear-gradient(135deg, #022C22 0%, #064E3B 35%, #10B981 65%, #06B6D4 100%)',
+    pillBorder: 'border-emerald-400/40 text-emerald-200',
+  },
+  amber: {
+    colors: ['#2a0c02', '#7c2d12', '#c2410c', '#ea580c', '#f59e0b'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #FFFFFF 0%, #FDE68A 12%, transparent 42%), radial-gradient(circle at 25% 30%, #F59E0B 0%, #C2410C 35%, transparent 65%), linear-gradient(135deg, #2A0C02 0%, #7C2D12 35%, #EA580C 65%, #F59E0B 100%)',
+    pillBorder: 'border-amber-400/40 text-amber-200',
+  },
+  ocean: {
+    colors: ['#0c1d36', '#1e3a8a', '#0284c7', '#06b6d4', '#38bdf8'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #FFFFFF 0%, #BAE6FD 12%, transparent 42%), radial-gradient(circle at 25% 30%, #0284C7 0%, #1E3A8A 35%, transparent 65%), linear-gradient(135deg, #0C1D36 0%, #1E3A8A 35%, #06B6D4 65%, #38BDF8 100%)',
+    pillBorder: 'border-cyan-400/40 text-cyan-200',
+  },
+};
 
 const VERTEX_SHADER = `
 varying vec2 vUv;
@@ -36,6 +93,11 @@ uniform vec2 u_resolution;
 uniform vec2 u_mouse;
 uniform float u_hover;
 uniform float u_seed;
+uniform vec3 u_color1;
+uniform vec3 u_color2;
+uniform vec3 u_color3;
+uniform vec3 u_color4;
+uniform vec3 u_color5;
 
 void main() {
   vec2 uv = vUv;
@@ -54,45 +116,28 @@ void main() {
   float mouseProj = dot(u_mouse, dir);
   float mouseShift = (mouseProj - planeCoord) * 0.12 * u_hover;
 
-  // ── Planar Wave Harmonics (Pure linear planes, ZERO spirals) ──
-  // Plane 1: Primary deep red / crimson liquid swell
+  // ── Planar Wave Harmonics ──
   float wave1 = sin((planeCoord * 3.4 - t * 0.65) + mouseShift) * 0.5 + 0.5;
-  
-  // Plane 2: Secondary harmonic planar wave in the same direction
   float wave2 = sin(planeCoord * 5.6 - t * 0.90 + 1.25) * 0.5 + 0.5;
-  
-  // Plane 3: Broad ambient planar surge
   float wave3 = sin(planeCoord * 1.9 - t * 0.40 + 0.60) * 0.5 + 0.5;
   
   // Combined smooth planar liquid field
   float planarField = wave1 * 0.45 + wave2 * 0.30 + wave3 * 0.25;
 
-  // Exact Requested Color Palette:
-  vec3 cBlack     = vec3(0.020, 0.000, 0.000);  // #050000 Pure/Deep Black
-  vec3 cBurgundy  = vec3(0.227, 0.000, 0.063);  // #3A0010 Deep Burgundy
-  vec3 cDarkRose  = vec3(0.439, 0.000, 0.094);  // #700018 Dark Rose
-  vec3 cCrimson   = vec3(0.663, 0.000, 0.176);  // #A9002D Crimson
-  vec3 cRoseRed   = vec3(0.831, 0.078, 0.271);  // #D41445 Rose Red
-  vec3 cVividRed  = vec3(1.000, 0.000, 0.000);  // #FF0000 Intense Pure Red / ANIRUDH look
-  vec3 cWhite     = vec3(1.000, 1.000, 1.000);  // #FFFFFF Pure Luminous White
-  vec3 cSoftPink  = vec3(1.000, 0.820, 0.863);  // #FFD1DC Light Pink Transition
-
-  // Planar Color Composition: Deep Burgundy base -> Dark Rose -> Crimson -> Rose Red -> Vivid Red
-  // Red color reaches all the way to the edges without being crushed to black!
-  vec3 col = mix(cBurgundy, cDarkRose, smoothstep(0.0, 0.32, planarField));
-  col = mix(col, cCrimson, smoothstep(0.25, 0.58, planarField));
-  col = mix(col, cRoseRed, smoothstep(0.50, 0.82, planarField));
-  col = mix(col, cVividRed, smoothstep(0.75, 1.0, planarField) * 0.95);
+  // Dynamic Motion Color Gradient Composition: Color 1 -> Color 2 -> Color 3 -> Color 4 -> Color 5
+  vec3 col = mix(u_color1, u_color2, smoothstep(0.0, 0.32, planarField));
+  col = mix(col, u_color3, smoothstep(0.25, 0.58, planarField));
+  col = mix(col, u_color4, smoothstep(0.50, 0.82, planarField));
+  col = mix(col, u_color5, smoothstep(0.75, 1.0, planarField) * 0.95);
 
   // Planar crest sheen
   float crest = pow(wave1 * wave2, 1.75);
-  col += cRoseRed * crest * 0.35;
+  col += u_color4 * crest * 0.35;
 
   // ── Planar Luminous Diagonal White Highlight ──
-  // Sweeps in a straight, razor-clean diagonal plane across the card surface
   float sweepCycle = sin(t * 0.35) * 0.42 + 0.56;
   float highlightPos = planeCoord - sweepCycle + (u_mouse.x * 0.10 - 0.05) * u_hover;
-  float whiteBeam = exp(-pow(highlightPos * 4.8, 2.0)); // soft Gaussian beam
+  float whiteBeam = exp(-pow(highlightPos * 4.8, 2.0));
 
   // Strictly clip white highlight inside: fade to zero well before boundary
   float edgeFadeX = smoothstep(0.02, 0.16, uv.x) * smoothstep(0.98, 0.84, uv.x);
@@ -100,21 +145,20 @@ void main() {
   float highlightBoundaryClip = edgeFadeX * edgeFadeY;
   whiteBeam *= highlightBoundaryClip;
 
-  // Top-right subtle radial specular accent anchor
   float topCornerGlow = exp(-length(uv - vec2(0.86, 0.20)) * 4.0) * 0.45 * highlightBoundaryClip;
 
-  vec3 whiteLight = mix(cSoftPink, cWhite, clamp(whiteBeam * 1.25, 0.0, 1.0));
+  vec3 whiteLight = mix(vec3(1.0, 0.9, 0.95), vec3(1.0), clamp(whiteBeam * 1.25, 0.0, 1.0));
   col += whiteLight * (whiteBeam * 0.65 + topCornerGlow * 0.35 + whiteBeam * u_hover * 0.25);
 
-  // Subtle pulsing red ambient glow
+  // Subtle pulsing ambient glow
   float pulse = 0.95 + 0.05 * sin(t * 1.4 + u_seed * 2.0);
   col *= pulse;
 
-  // Subtle inner border rim accent (crisp luxury edge separation strictly inside card)
+  // Inner border rim accent
   vec2 dEdge = min(uv, 1.0 - uv);
   float minEdgeDist = min(dEdge.x, dEdge.y);
   float innerRim = smoothstep(0.0, 0.03, minEdgeDist) * smoothstep(0.06, 0.03, minEdgeDist);
-  col += vec3(1.0, 0.25, 0.4) * innerRim * 0.35;
+  col += u_color4 * innerRim * 0.35;
 
   gl_FragColor = vec4(col, 1.0);
 }
@@ -128,6 +172,8 @@ export function LiquidRedMotionCard({
   description,
   trackCount,
   seed,
+  colorPreset = 'ruby',
+  customColors,
   isPlaying = false,
   isActive = false,
   onPlayClick,
@@ -137,6 +183,9 @@ export function LiquidRedMotionCard({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
+
+  const palette = PALETTES[colorPreset] || PALETTES.ruby;
+  const activeColors = customColors || palette.colors;
 
   // WebGL & Three.js references
   const threeRef = useRef<{
@@ -192,7 +241,7 @@ export function LiquidRedMotionCard({
       });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     } catch (e) {
-      console.warn('[LiquidRedMotionCard] WebGL init fallback to CSS gradient:', e);
+      console.warn('[LiquidMotionCard] WebGL init fallback to CSS gradient:', e);
       return;
     }
 
@@ -205,6 +254,11 @@ export function LiquidRedMotionCard({
       u_mouse: { value: new THREE.Vector2(0.5, 0.5) },
       u_hover: { value: 0.0 },
       u_seed: { value: seed },
+      u_color1: { value: new THREE.Color(activeColors[0]) },
+      u_color2: { value: new THREE.Color(activeColors[1]) },
+      u_color3: { value: new THREE.Color(activeColors[2]) },
+      u_color4: { value: new THREE.Color(activeColors[3]) },
+      u_color5: { value: new THREE.Color(activeColors[4]) },
     };
 
     const geometry = new THREE.PlaneGeometry(2, 2);
@@ -275,7 +329,19 @@ export function LiquidRedMotionCard({
       material.dispose();
       renderer.dispose();
     };
-  }, [seed]);
+  }, [seed, colorPreset, customColors]);
+
+  // Update uniforms when palette changes
+  useEffect(() => {
+    if (threeRef.current.material) {
+      const u = threeRef.current.material.uniforms;
+      u.u_color1.value.set(activeColors[0]);
+      u.u_color2.value.set(activeColors[1]);
+      u.u_color3.value.set(activeColors[2]);
+      u.u_color4.value.set(activeColors[3]);
+      u.u_color5.value.set(activeColors[4]);
+    }
+  }, [activeColors]);
 
   // 3. Pointer move & 3D tilt calculation
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -326,28 +392,26 @@ export function LiquidRedMotionCard({
         WebkitMaskImage: '-webkit-radial-gradient(white, black)',
         maskImage: 'radial-gradient(white, black)',
       }}
-      className={`group relative rounded-[24px] overflow-hidden cursor-pointer select-none transition-all duration-300 ease-out will-change-transform border border-white/[0.14] hover:border-white/[0.28] shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.30),inset_0_0_24px_0_rgba(212,20,69,0.35),0_12px_32px_rgba(0,0,0,0.85)] hover:shadow-[inset_0_1px_2px_0_rgba(255,255,255,0.50),inset_0_0_32px_0_rgba(255,43,91,0.50),0_18px_45px_rgba(0,0,0,0.95)] min-h-[220px] flex flex-col justify-between p-4 sm:p-5 ${className}`}
+      className={`group relative rounded-[24px] overflow-hidden cursor-pointer select-none transition-all duration-300 ease-out will-change-transform border border-white/[0.14] hover:border-white/[0.28] shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.30),0_12px_32px_rgba(0,0,0,0.85)] hover:shadow-[inset_0_1px_2px_0_rgba(255,255,255,0.50),0_18px_45px_rgba(0,0,0,0.95)] min-h-[220px] flex flex-col justify-between p-4 sm:p-5 ${className}`}
     >
-      {/* ── 1. 3D THREE.JS WEBGL LIQUID MOTION CANVAS (STRICTLY CLIPPED INSIDE) ── */}
+      {/* ── 1. 3D THREE.JS WEBGL LIQUID MOTION CANVAS ── */}
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full pointer-events-none z-0 rounded-[24px]"
         style={{
           borderRadius: '24px',
           overflow: 'hidden',
-          // Fallback CSS gradient if WebGL is unavailable
-          background:
-            'radial-gradient(circle at 85% 20%, #FFFFFF 0%, #FFD1DC 12%, transparent 42%), radial-gradient(circle at 25% 30%, #D41445 0%, #A9002D 35%, transparent 65%), radial-gradient(circle at 70% 75%, #F02B5B 0%, #700018 45%, transparent 75%), linear-gradient(135deg, #3A0010 0%, #700018 35%, #A9002D 65%, #FFFFFF 100%)',
+          background: palette.fallbackCss,
         }}
       />
 
-      {/* ── 2. GLOSS SPECULAR LIGHT SWEEP OVERLAY (Strictly clipped inside) ── */}
+      {/* ── 2. GLOSS SPECULAR LIGHT SWEEP OVERLAY ── */}
       <div
         className="absolute inset-0 pointer-events-none z-1 rounded-[24px] transition-opacity duration-300"
         style={{
           borderRadius: '24px',
           background:
-            'linear-gradient(120deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.03) 30%, transparent 60%)',
+            'linear-gradient(120deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.03) 30%, transparent 60%)',
           opacity: isHovered ? 0.9 : 0.6,
         }}
       />
@@ -371,13 +435,13 @@ export function LiquidRedMotionCard({
           }}
           className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all duration-300 border ${
             isActive && isPlaying
-              ? 'bg-white text-[#D41445] border-white shadow-[0_0_24px_rgba(255,255,255,0.85)] scale-105'
-              : 'bg-white/10 hover:bg-white/25 border-white/35 hover:border-white/70 text-white shadow-[0_0_18px_rgba(255,0,0,0.35)] group-hover:scale-105 backdrop-blur-md'
+              ? 'bg-white text-black border-white shadow-[0_0_24px_rgba(255,255,255,0.85)] scale-105'
+              : 'bg-white/10 hover:bg-white/25 border-white/35 hover:border-white/70 text-white shadow-[0_0_18px_rgba(255,255,255,0.2)] group-hover:scale-105 backdrop-blur-md'
           }`}
           aria-label={isActive && isPlaying ? 'Pause' : 'Play'}
         >
           {isActive && isPlaying ? (
-            <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-[#D41445] stroke-none" />
+            <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-black stroke-none" />
           ) : (
             <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-white stroke-none ml-0.5" />
           )}
@@ -387,7 +451,7 @@ export function LiquidRedMotionCard({
       {/* ── 4. BOTTOM CONTENT: TITLE, DESCRIPTION, TRACK COUNT ── */}
       <div className="relative z-10 pt-8 sm:pt-10 flex flex-col justify-end">
         {/* Internal bottom legibility scrim */}
-        <div className="absolute -inset-x-5 -bottom-5 h-28 bg-gradient-to-t from-black/75 via-black/35 to-transparent pointer-events-none -z-1 rounded-b-[24px]" />
+        <div className="absolute -inset-x-5 -bottom-5 h-28 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none -z-1 rounded-b-[24px]" />
 
         <h3 className="text-[17px] sm:text-[19px] font-black text-white tracking-tight leading-tight mb-1 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
           {title}
@@ -398,7 +462,7 @@ export function LiquidRedMotionCard({
 
         {/* Bottom Left Track Count Pill in Dark Translucent Glass */}
         <div className="flex items-center">
-          <span className="h-6 px-2.5 flex items-center rounded-lg bg-black/65 border border-red-500/35 text-white font-mono text-[10px] font-bold tracking-wider uppercase backdrop-blur-md shadow-sm">
+          <span className={`h-6 px-2.5 flex items-center rounded-lg bg-black/65 border ${palette.pillBorder} font-mono text-[10px] font-bold tracking-wider uppercase backdrop-blur-md shadow-sm`}>
             {trackCount}
           </span>
         </div>
@@ -406,3 +470,5 @@ export function LiquidRedMotionCard({
     </div>
   );
 }
+
+export const LiquidMotionCard = LiquidRedMotionCard;

@@ -155,7 +155,7 @@ export class AccountSyncEngine {
         )
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'playlists', filter: `owner_id=eq.${userId}` },
+          { event: '*', schema: 'public', table: 'playlists' },
           (payload: any) => {
             console.log('[AccountSyncEngine] Realtime playlists change:', payload.eventType);
             this.handleRealtimePlaylists(userId, payload);
@@ -230,11 +230,12 @@ export class AccountSyncEngine {
 
   public async handleRealtimePlaylists(userId: string, payload: any): Promise<void> {
     try {
-      const { usePlaylistStore } = await import('@/context/usePlaylistStore');
+      const { usePlaylistStore, addDeletedPlaylistId } = await import('@/context/usePlaylistStore');
       const eventType = payload.eventType;
 
       if (eventType === 'INSERT' && payload.new) {
         const p = payload.new;
+        if (p.owner_id && p.owner_id !== userId) return; // Only process playlists owned by this user
         const currentPlaylists = usePlaylistStore.getState().playlists;
         if (!currentPlaylists.some((pl) => pl.id === p.id)) {
           const newPl = {
@@ -253,11 +254,21 @@ export class AccountSyncEngine {
       } else if (eventType === 'DELETE' && payload.old?.id) {
         const playlistId = payload.old.id;
         const currentPlaylists = usePlaylistStore.getState().playlists;
-        usePlaylistStore.setState({
-          playlists: currentPlaylists.filter((pl) => pl.id !== playlistId),
-        });
+        if (currentPlaylists.some((pl) => pl.id === playlistId)) {
+          addDeletedPlaylistId(playlistId);
+          usePlaylistStore.setState({
+            playlists: currentPlaylists.filter((pl) => pl.id !== playlistId),
+          });
+          const localDb = LocalDatabase.getInstance();
+          localDb.getUserStore<UserPlaylist[]>(userId, 'playlists').then((cached) => {
+            if (cached) {
+              localDb.setUserStore(userId, 'playlists', cached.filter((p) => p.id !== playlistId));
+            }
+          }).catch(() => {});
+        }
       } else if (eventType === 'UPDATE' && payload.new) {
         const p = payload.new;
+        if (p.owner_id && p.owner_id !== userId) return;
         const currentPlaylists = usePlaylistStore.getState().playlists;
         usePlaylistStore.setState({
           playlists: currentPlaylists.map((pl) => {
@@ -778,7 +789,7 @@ export class AccountSyncEngine {
     const playlists = (await localDb.getUserStore<UserPlaylist[]>(userId, 'playlists')) || [];
 
     const newPlaylist: UserPlaylist = {
-      id: this.isUUID(userId) ? crypto.randomUUID() : `local_pl_${Date.now()}`,
+      id: crypto.randomUUID(),
       user_id: userId,
       name,
       description,
@@ -834,6 +845,11 @@ export class AccountSyncEngine {
   }
 
   public async deletePlaylist(userId: string, playlistId: string): Promise<void> {
+    try {
+      const { addDeletedPlaylistId } = await import('@/context/usePlaylistStore');
+      addDeletedPlaylistId(playlistId);
+    } catch {}
+
     const localDb = LocalDatabase.getInstance();
     const playlists = (await localDb.getUserStore<UserPlaylist[]>(userId, 'playlists')) || [];
     const updatedPlaylists = playlists.filter((p) => p.id !== playlistId);
@@ -841,6 +857,9 @@ export class AccountSyncEngine {
 
     if (this.isOnline && this.isUUID(userId)) {
       try {
+        try {
+          await supabase.from('playlist_songs').delete().eq('playlist_id', playlistId);
+        } catch {}
         await supabase
           .from('playlists')
           .delete()
@@ -1041,12 +1060,22 @@ export class AccountSyncEngine {
               continue;
             }
           } else if (mut.type === 'CREATE_PLAYLIST') {
-            const { error } = await supabase.from('playlists').insert({ id: mut.entity_id, owner_id: mut.user_id, title: mut.payload?.name || mut.payload?.title, description: mut.payload?.description });
+            const { error } = await supabase.from('playlists').upsert({
+              id: mut.entity_id,
+              owner_id: mut.user_id,
+              title: mut.payload?.name || mut.payload?.title || 'Playlist',
+              description: mut.payload?.description || '',
+              cover_url: mut.payload?.cover_url || null,
+              visibility: mut.payload?.visibility || 'private',
+            }, { onConflict: 'id', ignoreDuplicates: true });
             if (error && error.code !== '23505') {
               console.warn('[AccountSyncEngine] Flush CREATE_PLAYLIST failed:', error.message);
               continue;
             }
           } else if (mut.type === 'DELETE_PLAYLIST') {
+            try {
+              await supabase.from('playlist_songs').delete().eq('playlist_id', mut.entity_id);
+            } catch {}
             const { error } = await supabase.from('playlists').delete().eq('id', mut.entity_id);
             if (error) {
               console.warn('[AccountSyncEngine] Flush DELETE_PLAYLIST failed:', error.message);

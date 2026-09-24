@@ -799,19 +799,17 @@ export function AlbumDetailView() {
                 >
                   <Shuffle className="w-4 h-4 text-white/70" /> Shuffle Play
                 </button>
-                {isNative && (
-                  <button
-                    onClick={() => {
-                      if (isAllDownloaded) handleRemoveAllDownloads();
-                      else handleDownloadAll();
-                      setShowAlbumMenu(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-[var(--bg-surface)] text-[var(--text-primary)] flex items-center gap-2.5 font-bold"
-                  >
-                    <Download className="w-4 h-4 text-emerald-400" />
-                    {isAllDownloaded ? 'Remove All Downloads' : 'Download Album'}
-                  </button>
-                )}
+                <button
+                  onClick={() => {
+                    if (isAllDownloaded) handleRemoveAllDownloads();
+                    else handleDownloadAll();
+                    setShowAlbumMenu(false);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-[var(--bg-surface)] text-[var(--text-primary)] flex items-center gap-2.5 font-bold"
+                >
+                  <Download className="w-4 h-4 text-emerald-400" />
+                  {isAllDownloaded ? 'Remove All Downloads' : 'Download Album'}
+                </button>
                 <button
                   onClick={() => {
                     handleAddAlbumToJam();
@@ -1007,11 +1005,10 @@ export function AlbumDetailView() {
               )}
             </div>
 
-            {/* Right: Compact Download All Button (Android Mobile Only) */}
-            {isNative && (
-              <button
-                onClick={isAllDownloaded ? handleRemoveAllDownloads : handleDownloadAll}
-                className={`md:hidden flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all active:scale-95 cursor-pointer ${isAllDownloaded
+            {/* Right: Compact Download All Button */}
+            <button
+              onClick={isAllDownloaded ? handleRemoveAllDownloads : handleDownloadAll}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all active:scale-95 cursor-pointer ${isAllDownloaded
                     ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
                     : isDownloadingAlbum
                       ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
@@ -1036,7 +1033,6 @@ export function AlbumDetailView() {
                   </>
                 )}
               </button>
-            )}
           </div>
 
           {/* Track List Rows */}

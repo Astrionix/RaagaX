@@ -6,7 +6,7 @@ import {
   Share2, Copy, Check, Lock, Globe, Sparkles, Plus,
   ArrowUpDown, CheckSquare, Square, X, CheckCheck, Pause, Loader2,
   MoreVertical, Edit3, MoveUp, MoveDown, CheckCircle2, PauseCircle,
-  Clock, HardDrive, RefreshCw, Radio
+  Clock, HardDrive, RefreshCw, Radio, Archive
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { Song } from '@/types/music';
@@ -14,6 +14,7 @@ import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 import { usePlaylistStore, UserPlaylist } from '@/context/usePlaylistStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
+import { useZipExportStore } from '@/context/useZipExportStore';
 import { useAuthStore } from '@/context/useAuthStore';
 import { AddSongsModal } from '@/components/modals/AddSongsModal';
 import { DynamicArtworkAtmosphere } from '@/components/common/DynamicArtworkAtmosphere';
@@ -25,6 +26,7 @@ import { JamSessionManager } from '@/lib/connect/jam/JamSessionManager';
 import { haptics } from '@/lib/haptics/HapticEngine';
 import { PlaylistCover } from '@/components/playlist/PlaylistCover';
 import { generatePlaylistVisual } from '@/lib/playlist/playlistVisualGenerator';
+import { OptimizedImage } from '@/components/common/OptimizedImage';
 
 type SortOption = 'newest' | 'oldest' | 'az' | 'za' | 'duration';
 
@@ -80,6 +82,16 @@ export function PlaylistDetailView() {
   const [showDownloadConfirmModal, setShowDownloadConfirmModal] = useState(false);
   const [showEditMetadataModal, setShowEditMetadataModal] = useState(false);
   const [showPlaylistMenu, setShowPlaylistMenu] = useState(false);
+
+  const {
+    startZipExport,
+    isExporting: isZipExporting,
+    activeCollectionId: zipActiveCollectionId,
+    progress: zipProgress,
+  } = useZipExportStore();
+
+  const isThisPlaylistZipping = isZipExporting && zipActiveCollectionId === playlist?.id;
+  const isAnyZipExporting = isZipExporting;
   
   // Sort and Edit Order modes
   const [sortBy, setSortBy] = useState<SortOption>('newest');
@@ -351,6 +363,11 @@ export function PlaylistDetailView() {
     }
   };
 
+  const handleExportZip = () => {
+    if (!playlist || !playlist.songs || playlist.songs.length === 0 || isAnyZipExporting) return;
+    startZipExport(playlist.songs, playlist.title, playlist.id);
+  };
+
   // Reordering controls
   const handleMoveSong = async (index: number, direction: 'up' | 'down') => {
     if (!playlist) return;
@@ -486,9 +503,8 @@ export function PlaylistDetailView() {
                   <Plus className="w-3.5 h-3.5 text-purple-400" /> Add Songs
                 </button>
 
-                {isNative && (
-                  <>
-                    <button
+                <>
+                  <button
                       onClick={() => { setShowPlaylistMenu(false); handleDownloadAll(); }}
                       className="w-full text-left px-3 py-2 hover:bg-[var(--bg-surface)] rounded-xl flex items-center gap-2.5 text-emerald-400 font-bold transition-colors"
                     >
@@ -504,7 +520,6 @@ export function PlaylistDetailView() {
                       </button>
                     )}
                   </>
-                )}
 
                 <div className="border-t border-[var(--border-subtle)] my-1" />
 
@@ -546,6 +561,17 @@ export function PlaylistDetailView() {
                   className="w-full text-left px-3 py-2 hover:bg-[var(--bg-surface)] rounded-xl flex items-center gap-2.5 text-cyan-400 font-bold transition-colors"
                 >
                   <Share2 className="w-3.5 h-3.5 text-cyan-400" /> Share Playlist
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowPlaylistMenu(false);
+                    handleExportZip();
+                  }}
+                  disabled={isAnyZipExporting || !playlist.songs || playlist.songs.length === 0}
+                  className="w-full text-left px-3 py-2 hover:bg-[var(--bg-surface)] rounded-xl flex items-center gap-2.5 text-amber-400 font-bold transition-colors disabled:opacity-50"
+                >
+                  <Archive className="w-3.5 h-3.5 text-amber-400" /> Export as ZIP
                 </button>
 
                 {isUserOwned && (
@@ -613,7 +639,7 @@ export function PlaylistDetailView() {
                 >
                   {playlist.visibility === 'public' ? 'Public Playlist' : 'Private Playlist'}
                 </span>
-                {isNative && downloadedSongsInPlaylist.length === playlist.songs.length && playlist.songs.length > 0 && (
+                {downloadedSongsInPlaylist.length === playlist.songs.length && playlist.songs.length > 0 && (
                   <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
                     <Check className="w-3 h-3 stroke-[3]" /> Downloaded
                   </span>
@@ -635,7 +661,7 @@ export function PlaylistDetailView() {
                 <span>{playlist.songs?.length || 0} {playlist.songs?.length === 1 ? 'song' : 'songs'}</span>
                 <span>•</span>
                 <span>{formattedDuration}</span>
-                {isNative && downloadedSongsInPlaylist.length > 0 && (
+                {downloadedSongsInPlaylist.length > 0 && (
                   <>
                     <span>•</span>
                     <span className="text-emerald-400 font-mono">
@@ -732,44 +758,67 @@ export function PlaylistDetailView() {
             </button>
           )}
 
-          {/* Right of Sort: Small Download All Button (Mobile only) */}
-          {isNative && playlist && playlist.songs && playlist.songs.length > 0 && (
-            <button
-              onClick={isAllDownloaded ? handleRemoveAllDownloads : handleDownloadAll}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all active:scale-95 cursor-pointer ${
-                isAllDownloaded
-                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                  : isDownloading
-                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
-                  : hasFailures
-                  ? 'bg-red-500/15 border-red-500/30 text-red-400'
-                  : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              }`}
-              title={isAllDownloaded ? "All songs downloaded (Click to manage)" : "Download All Songs"}
-            >
-              {isAllDownloaded ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
-                  <span>{downloadedSongsInPlaylist.length}/{playlist.songs.length}</span>
-                </>
-              ) : isDownloading ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
-                  <span className="font-mono">{downloadedSongsInPlaylist.length}/{playlist.songs.length}</span>
-                </>
-              ) : hasFailures ? (
-                <>
-                  <Download className="w-3.5 h-3.5 text-red-400" />
-                  <span>{downloadedSongsInPlaylist.length}/{playlist.songs.length}</span>
-                </>
-              ) : (
-                <>
-                  <Download className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{downloadedSongsInPlaylist.length > 0 ? `${downloadedSongsInPlaylist.length}/${playlist.songs.length}` : 'Download All'}</span>
-                </>
-              )}
-            </button>
-          )}
+          {/* Right of Sort: Download All & Export ZIP */}
+          <div className="flex items-center gap-2">
+            {playlist && playlist.songs && playlist.songs.length > 0 && (
+              <button
+                onClick={isAllDownloaded ? handleRemoveAllDownloads : handleDownloadAll}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all active:scale-95 cursor-pointer ${
+                  isAllDownloaded
+                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                    : isDownloading
+                    ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                    : hasFailures
+                    ? 'bg-red-500/15 border-red-500/30 text-red-400'
+                    : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                }`}
+                title={isAllDownloaded ? "All songs downloaded (Click to manage)" : "Download All Songs"}
+              >
+                {isAllDownloaded ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
+                    <span>{downloadedSongsInPlaylist.length}/{playlist.songs.length}</span>
+                  </>
+                ) : isDownloading ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                    <span className="font-mono">{downloadedSongsInPlaylist.length}/{playlist.songs.length}</span>
+                  </>
+                ) : hasFailures ? (
+                  <>
+                    <Download className="w-3.5 h-3.5 text-red-400" />
+                    <span>{downloadedSongsInPlaylist.length}/{playlist.songs.length}</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>{downloadedSongsInPlaylist.length > 0 ? `${downloadedSongsInPlaylist.length}/${playlist.songs.length}` : 'Download All'}</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            {playlist && playlist.songs && playlist.songs.length > 0 && (
+              <button
+                onClick={handleExportZip}
+                disabled={isAnyZipExporting && !isThisPlaylistZipping}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all active:scale-95 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                title="Export this playlist as a single ZIP archive"
+              >
+                {isThisPlaylistZipping ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 text-[#FA233B] animate-spin" />
+                    <span>Zipping {zipProgress}%</span>
+                  </>
+                ) : (
+                  <>
+                    <Archive className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Export ZIP</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -837,11 +886,11 @@ export function PlaylistDetailView() {
                     className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
                     onClick={() => playSong(song, playlist.songs, { type: 'playlist', id: playlist.id, title: playlist.title })}
                   >
-                    <img
-                      src={song.coverUrl || '/app-icon.png'}
+                    <OptimizedImage
+                      src={song.coverUrl}
                       alt={song.title}
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                      className="w-11 h-11 rounded-xl object-cover bg-slate-800 flex-shrink-0 shadow-sm"
+                      size="thumb"
+                      className="w-11 h-11 rounded-xl flex-shrink-0 shadow-sm"
                     />
                     <div className="min-w-0 flex-1">
                       <h4 className="text-xs sm:text-sm font-bold text-[var(--text-primary)] group-hover:text-[#fa233b] transition-colors truncate">

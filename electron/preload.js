@@ -8,7 +8,10 @@ contextBridge.exposeInMainWorld('raagaXDesktop', {
   },
   sendPlaybackState: (state) => {
     ipcRenderer.send('playback-state-update', state);
-  }
+  },
+  getStorageInfo: () => ipcRenderer.invoke('get-storage-info'),
+  saveSongFile: (filename, buffer) => ipcRenderer.invoke('save-song-file', { filename, buffer }),
+  openDownloadsFolder: () => ipcRenderer.invoke('open-downloads-folder'),
 });
 
 // Inject non-intrusive drag region for frameless Windows titlebar

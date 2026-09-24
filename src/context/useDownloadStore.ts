@@ -108,6 +108,7 @@ interface DownloadStore {
     autoDownloadFollowedPlaylists: boolean;
     maxAutoDownloadsCount: number; // 0 = unlimited
     minStorageThresholdGB: number; // minimum free device storage in GB required
+    saveToSystemDownloads: boolean; // Auto-save physical MP3 files to PC system Downloads
   };
   setOfflineSettings: (settings: Partial<DownloadStore['offlineSettings']>) => void;
   setMaxConcurrent: (count: number) => void;
@@ -140,6 +141,7 @@ interface DownloadStore {
    * (timing races, navigation, or hydration ordering).
    */
   syncNativeQueueState: () => Promise<void>;
+  openDownloadsFolder: () => Promise<boolean>;
 }
 
 export const useDownloadStore = create<DownloadStore>((set, get) => ({
@@ -165,6 +167,21 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     autoDownloadFollowedPlaylists: false,
     maxAutoDownloadsCount: 0,
     minStorageThresholdGB: 2,
+    saveToSystemDownloads: true,
+  },
+
+  openDownloadsFolder: async () => {
+    try {
+      if (typeof window !== 'undefined' && (window as any).raagaXDesktop?.openDownloadsFolder) {
+        const res = await (window as any).raagaXDesktop.openDownloadsFolder();
+        return Boolean(res?.success);
+      }
+      const res = await fetch('/api/system/open-folder', { method: 'POST' });
+      const data = await res.json();
+      return Boolean(data?.success);
+    } catch {
+      return false;
+    }
   },
 
   setOfflineStorageEnabled: (enabled) => { set({ isOfflineStorageEnabled: enabled }); get()._persistTasks(); },
@@ -526,9 +543,37 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     const state = get();
     db.saveDownloadTasks(state.tasks);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('isOfflineStorageEnabled', String(state.isOfflineStorageEnabled));
-      localStorage.setItem('isOfflineMode', String(state.isOfflineMode));
-      localStorage.setItem('offlineSettings', JSON.stringify(state.offlineSettings));
+      try {
+        localStorage.setItem('isOfflineStorageEnabled', String(state.isOfflineStorageEnabled));
+        localStorage.setItem('isOfflineMode', String(state.isOfflineMode));
+        localStorage.setItem('offlineSettings', JSON.stringify(state.offlineSettings));
+      } catch (err: any) {
+        // Quota exceeded protection: clean up stale cache entries from localStorage
+        try {
+          const keysToRemove: string[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && (
+              k.startsWith('raagax_album_') ||
+              k.startsWith('raagax_new_releases_') ||
+              k.startsWith('search_cache_') ||
+              k.startsWith('lyrics_cache_') ||
+              k.startsWith('cache_') ||
+              k.startsWith('trend_')
+            )) {
+              keysToRemove.push(k);
+            }
+          }
+          keysToRemove.forEach((k) => {
+            try { localStorage.removeItem(k); } catch {}
+          });
+          localStorage.setItem('isOfflineStorageEnabled', String(state.isOfflineStorageEnabled));
+          localStorage.setItem('isOfflineMode', String(state.isOfflineMode));
+          localStorage.setItem('offlineSettings', JSON.stringify(state.offlineSettings));
+        } catch {
+          // Never allow localStorage quota to break the download pipeline
+        }
+      }
     }
   },
 
@@ -846,7 +891,8 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
 
     set({ tasks: newTasks });
     state._persistTasks();
-    state._processQueue();
+    usePlayerStore.getState().setToastMessage(`Downloading ${toDownload.length} songs from "${playlistTitle}"`);
+    get()._processQueue();
   },
 
   cancelPlaylistDownloads: (playlistId, songIds = []) => {
@@ -1119,7 +1165,14 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
         return state;
       }
       return {
-        tasks: { ...state.tasks, [songId]: { ...task, status, error: error || task.error } }
+        tasks: {
+          ...state.tasks,
+          [songId]: {
+            ...task,
+            status,
+            error: error !== undefined ? error : (status === 'QUEUED' || status === 'DOWNLOADING' ? undefined : task.error)
+          }
+        }
       };
     });
     get()._persistTasks();
@@ -1141,9 +1194,9 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     const downloader = AtomicDownloader.getInstance();
     const sanitizeName = (str: string) => str.replace(/[/\\?%*:|"<>]/g, '').trim();
 
-    for (const nextTaskId of queuedIds) {
-      const task = tasks[nextTaskId];
-      if (!task) continue;
+    const processTask = async (nextTaskId: string) => {
+      const task = get().tasks[nextTaskId];
+      if (!task || task.status !== 'QUEUED') return;
 
       const abortController = new AbortController();
 
@@ -1152,30 +1205,58 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
         tasks: { ...s.tasks, [nextTaskId]: { ...task, status: 'DOWNLOADING', abortController } }
       }));
 
+      // Update current song title on active playlist progress
+      const pl = get().playlistDownloadProgress;
+      if (pl && pl.status === 'DOWNLOADING') {
+        set({
+          playlistDownloadProgress: {
+            ...pl,
+            currentSongTitle: task.song.title,
+          }
+        });
+      }
+
+      const sanitizeName = (str: string) => str.replace(/[/\\?%*:|"<>]/g, '').trim();
       const filename = `${sanitizeName(task.song.title)} - ${sanitizeName(task.song.artist || 'Artist')}.mp3`;
 
       let targetUrl = task.song.audioUrl;
+      // Pre-resolve URL if missing, blob, or placeholder
+      if (!targetUrl || targetUrl.includes('pixabay.com') || targetUrl.startsWith('blob:') || targetUrl.startsWith('file:')) {
+        try {
+          const { PlaybackSourceResolver } = await import('@/lib/playbackSourceResolver');
+          const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(task.song);
+          if (source?.url && !source.url.startsWith('file://') && !source.url.startsWith('blob:')) {
+            targetUrl = source.url;
+            task.song.audioUrl = targetUrl;
+          }
+        } catch (resolveErr) {
+          console.warn('[DownloadQueue] Could not pre-resolve audio URL for', task.song.id, resolveErr);
+        }
+      }
+
       if (!targetUrl || targetUrl.includes('pixabay.com')) {
         targetUrl = getApiUrl(`/api/download?id=${encodeURIComponent(task.song.id)}&name=${encodeURIComponent(filename)}`);
       } else {
         targetUrl = getApiUrl(`/api/download?url=${encodeURIComponent(targetUrl)}&name=${encodeURIComponent(filename)}`);
       }
 
-      downloader.download({
-        url: targetUrl,
-        trackId: task.song.id,
-        quality: (task.quality as DownloadQuality) || 'HIGH',
-        startOffset: task.downloadedBytes > 0 ? task.downloadedBytes : 0,
-        signal: abortController.signal,
-        onProgress: (progress: number, downloadedBytes: number, totalBytes: number, speed: number) => {
-          updateProgress(nextTaskId, progress, downloadedBytes, totalBytes, speed);
-        },
-        onStateChange: (downloadState: string) => {
-          if (downloadState === 'VERIFYING') {
-            setStatus(nextTaskId, 'VERIFYING');
+      try {
+        const result = await downloader.download({
+          url: targetUrl,
+          trackId: task.song.id,
+          quality: (task.quality as DownloadQuality) || 'HIGH',
+          startOffset: task.downloadedBytes > 0 ? task.downloadedBytes : 0,
+          signal: abortController.signal,
+          onProgress: (progress: number, downloadedBytes: number, totalBytes: number, speed: number) => {
+            updateProgress(nextTaskId, progress, downloadedBytes, totalBytes, speed);
+          },
+          onStateChange: (downloadState: string) => {
+            if (downloadState === 'VERIFYING') {
+              setStatus(nextTaskId, 'VERIFYING');
+            }
           }
-        }
-      }).then(async (result: any) => {
+        });
+
         await DownloadStorage.getInstance().saveMedia(
           task.song.id,
           result.blob,
@@ -1203,6 +1284,67 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
           version: '2'
         });
 
+        // ─── Physical System File Save (Dedicated Downloads/RaagaX Folder) ─────────
+        const isDesktopEnv = typeof window !== 'undefined' && !RaagaXNativeDownload.isNative();
+        const shouldSaveToSystem = isDesktopEnv && (get().offlineSettings.saveToSystemDownloads || task.mode === 'device_export');
+        if (shouldSaveToSystem) {
+          let savedDirectly = false;
+          // 1. Electron Desktop IPC Save (Saves directly to Downloads/RaagaX)
+          if (typeof window !== 'undefined' && (window as any).raagaXDesktop?.saveSongFile) {
+            try {
+              const arrayBuf = await result.blob.arrayBuffer();
+              const res = await (window as any).raagaXDesktop.saveSongFile(filename, arrayBuf);
+              if (res?.success) {
+                savedDirectly = true;
+                console.log(`[DownloadStore] Electron saved offline song to: ${res.path}`);
+              }
+            } catch (electronErr) {
+              console.warn('[DownloadStore] Electron saveSongFile error:', electronErr);
+            }
+          }
+
+          // 2. Local Node/Next.js Host Server Save (Directly writes to Downloads/RaagaX on PC)
+          if (!savedDirectly && typeof fetch !== 'undefined') {
+            try {
+              const formData = new FormData();
+              formData.append('file', result.blob, filename);
+              formData.append('filename', filename);
+              const saveRes = await fetch('/api/system/save-song', {
+                method: 'POST',
+                body: formData,
+              });
+              if (saveRes.ok) {
+                const data = await saveRes.json();
+                if (data?.success) {
+                  savedDirectly = true;
+                  console.log(`[DownloadStore] Saved offline song to dedicated PC folder: ${data.path}`);
+                }
+              }
+            } catch (apiErr) {
+              console.warn('[DownloadStore] /api/system/save-song error:', apiErr);
+            }
+          }
+
+          // 3. Fallback to standard browser file download
+          if (!savedDirectly && typeof document !== 'undefined') {
+            try {
+              const blobUrl = URL.createObjectURL(result.blob);
+              const anchor = document.createElement('a');
+              anchor.style.display = 'none';
+              anchor.href = blobUrl;
+              anchor.download = filename;
+              document.body.appendChild(anchor);
+              anchor.click();
+              setTimeout(() => {
+                document.body.removeChild(anchor);
+                URL.revokeObjectURL(blobUrl);
+              }, 2500);
+            } catch (webExportErr) {
+              console.warn('[DownloadStore] Web file download error:', webExportErr);
+            }
+          }
+        }
+
         usePlayerStore.setState(s => ({
           downloadedSongIds: [...new Set([...s.downloadedSongIds, nextTaskId])],
           cloudDownloadedSongIds: [...new Set([...s.cloudDownloadedSongIds, nextTaskId])]
@@ -1210,6 +1352,30 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
         await get().fetchStorageInfo();
 
         setStatus(nextTaskId, 'COMPLETED');
+
+        // Update playlist completed count if active
+        const currentPl = get().playlistDownloadProgress;
+        if (currentPl && currentPl.status === 'DOWNLOADING') {
+          const nextCompleted = currentPl.completedSongs + 1;
+          const overallPct = Math.min(100, Math.round((nextCompleted / currentPl.totalSongs) * 100));
+          const isDone = nextCompleted >= currentPl.totalSongs;
+          set({
+            playlistDownloadProgress: {
+              ...currentPl,
+              completedSongs: nextCompleted,
+              overallProgress: overallPct,
+              status: isDone ? 'COMPLETED' : 'DOWNLOADING'
+            }
+          });
+          if (isDone) {
+            usePlayerStore.getState().setToastMessage(`✓ Finished downloading "${currentPl.playlistTitle}"`);
+            setTimeout(() => {
+              if (get().playlistDownloadProgress?.status === 'COMPLETED') {
+                set({ playlistDownloadProgress: null });
+              }
+            }, 3000);
+          }
+        }
 
         setTimeout(() => {
           set((s) => {
@@ -1221,7 +1387,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
         }, 2500);
 
         set((s) => ({ activeCount: Math.max(0, s.activeCount - 1) }));
-      }).catch((err: any) => {
+      } catch (err: any) {
         if (err.name === 'AbortError') {
           set((s) => ({ activeCount: Math.max(0, s.activeCount - 1) }));
           return;
@@ -1248,9 +1414,28 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
           } else {
             setStatus(nextTaskId, 'FAILED', err.message || 'Download failed after 3 attempts');
             set((s) => ({ activeCount: Math.max(0, s.activeCount - 1) }));
+
+            // Also progress playlist count on failure so batch progresses
+            const currentPl = get().playlistDownloadProgress;
+            if (currentPl && currentPl.status === 'DOWNLOADING') {
+              const nextCompleted = currentPl.completedSongs + 1;
+              const overallPct = Math.min(100, Math.round((nextCompleted / currentPl.totalSongs) * 100));
+              set({
+                playlistDownloadProgress: {
+                  ...currentPl,
+                  completedSongs: nextCompleted,
+                  overallProgress: overallPct,
+                  status: nextCompleted >= currentPl.totalSongs ? 'COMPLETED' : 'DOWNLOADING'
+                }
+              });
+            }
           }
         }
-      });
+      }
+    };
+
+    for (const nextTaskId of queuedIds) {
+      processTask(nextTaskId);
     }
   },
 

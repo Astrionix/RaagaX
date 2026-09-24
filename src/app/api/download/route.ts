@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { JioSaavnProvider } from '@/lib/jioSaavnProvider';
+import { RealMusicEngine } from '@/lib/realMusicEngine';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,11 +29,20 @@ export async function GET(req: NextRequest) {
   // If URL not provided or placeholder, resolve by song ID
   if ((!urlStr || urlStr.includes('pixabay.com')) && songId) {
     try {
-      const results = await JioSaavnProvider.getInstance().searchSongs(songId, 1);
-      if (results && results.length > 0 && results[0].audioUrl) {
-        urlStr = results[0].audioUrl;
+      const realSong = await RealMusicEngine.getInstance().getSongById(songId);
+      if (realSong && realSong.audioUrl && !realSong.audioUrl.includes('pixabay.com')) {
+        urlStr = realSong.audioUrl;
       }
     } catch {}
+
+    if (!urlStr || urlStr.includes('pixabay.com')) {
+      try {
+        const results = await JioSaavnProvider.getInstance().searchSongs(songId, 1);
+        if (results && results.length > 0 && results[0].audioUrl) {
+          urlStr = results[0].audioUrl;
+        }
+      } catch {}
+    }
   }
 
   if (!urlStr) {
@@ -66,6 +76,7 @@ export async function GET(req: NextRequest) {
     const audioRes = await fetch(parsedUrl.href, {
       headers: upstreamHeaders,
       redirect: 'follow',
+      cache: 'no-store',
     });
 
     if (!audioRes.ok && audioRes.status !== 206) {

@@ -3,10 +3,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Heart, Play, Shuffle, Loader2, Disc, Download, Check,
-  ArrowUpDown, Search, X, Clock, Radio
+  ArrowUpDown, Search, X, Clock, Radio, Archive
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
+import { useZipExportStore } from '@/context/useZipExportStore';
 import { JamSessionManager } from '@/lib/connect/jam/JamSessionManager';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { OfflineCatalog } from '@/lib/offline/OfflineCatalog';
@@ -60,7 +61,7 @@ export function FavoritesView() {
     setSelectedAlbumId,
   } = usePlayerStore();
 
-  const { downloadAlbum, tasks, isOfflineMode, nativeDownloadedTracks } = useDownloadStore();
+  const { downloadPlaylist, tasks, isOfflineMode, nativeDownloadedTracks } = useDownloadStore();
 
   const [offlineTracks, setOfflineTracks] = useState<Song[]>([]);
   const [resolvedSongsMap, setResolvedSongsMap] = useState<Record<string, Song>>({});
@@ -78,6 +79,16 @@ export function FavoritesView() {
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [historyEntries, setHistoryEntries] = useState<any[]>([]);
+
+  const {
+    startZipExport,
+    isExporting: isZipExporting,
+    activeCollectionId: zipActiveCollectionId,
+    progress: zipProgress,
+  } = useZipExportStore();
+
+  const isThisZipping = isZipExporting && zipActiveCollectionId === 'liked-songs';
+  const isAnyZipExporting = isZipExporting;
 
   useEffect(() => {
     QueueHistory.getInstance().ensureLoaded().then((entries) => {
@@ -361,9 +372,17 @@ export function FavoritesView() {
 
   const handleDownloadAll = async () => {
     if (displaySongs.length === 0) return;
-    const pending = displaySongs.filter((s) => !downloadedSongIds.includes(s.id));
-    if (pending.length === 0) return;
-    downloadAlbum('liked-songs', pending);
+    const pending = displaySongs.filter((s) => !downloadedSongIds.includes(s.id) && !nativeDownloadedTracks?.[s.id]);
+    if (pending.length === 0) {
+      usePlayerStore.getState().setToastMessage('All songs in Liked Songs are already downloaded! ✓');
+      return;
+    }
+    downloadPlaylist(pending, '320 kbps', 'Liked Songs', 'liked-songs');
+  };
+
+  const handleExportZip = () => {
+    if (displaySongs.length === 0 || isAnyZipExporting) return;
+    startZipExport(displaySongs, 'Liked Songs', 'liked-songs');
   };
 
   const formattedTotalDuration = useMemo(() => {
@@ -450,7 +469,48 @@ export function FavoritesView() {
               <span>Add to Jam</span>
             </button>
 
-            {/* Sort Selector Dropdown */}
+            {/* Download All Liked Songs Button */}
+            <button
+              onClick={handleDownloadAll}
+              className={`h-9 px-3.5 rounded-full border text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer whitespace-nowrap ${
+                pendingDownloadsCount === 0
+                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                  : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+              title={pendingDownloadsCount === 0 ? "All liked songs downloaded" : `Download ${pendingDownloadsCount} songs for offline listening`}
+            >
+              {pendingDownloadsCount === 0 ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
+                  <span>Downloaded</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Download All</span>
+                </>
+              )}
+            </button>
+
+            {/* Export as ZIP button */}
+            <button
+              onClick={handleExportZip}
+              disabled={isAnyZipExporting && !isThisZipping || displaySongs.length === 0}
+              className="h-9 px-3.5 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer whitespace-nowrap disabled:opacity-50"
+              title="Export all liked songs as a single ZIP archive"
+            >
+              {isThisZipping ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 text-[#FA233B] animate-spin" />
+                  <span>Zipping {zipProgress}%</span>
+                </>
+              ) : (
+                <>
+                  <Archive className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Export ZIP</span>
+                </>
+              )}
+            </button>
             <div className="relative z-20">
               <button
                 onClick={() => setShowSortMenu(!showSortMenu)}
@@ -571,7 +631,7 @@ export function FavoritesView() {
             {/* ── DESKTOP MUSIC TABLE (Apple Music Density) ─────────────────── */}
             <div className="hidden md:block">
               {/* Table Header (Sticky) */}
-              <div className="sticky top-0 z-10 bg-[var(--header-bg)] backdrop-blur-md border-b border-[var(--border-subtle)] py-2 px-3 grid grid-cols-[40px_minmax(220px,2fr)_minmax(140px,1.2fr)_minmax(140px,1.2fr)_70px_60px] items-center gap-3 text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider select-none mb-1">
+              <div className="sticky top-0 z-10 bg-[var(--header-bg)] backdrop-blur-md border-b border-[var(--border-subtle)] py-2 px-3 grid grid-cols-[40px_minmax(220px,2fr)_minmax(140px,1.2fr)_minmax(140px,1.2fr)_70px_88px] items-center gap-3 text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider select-none mb-1">
                 <div className="text-center">#</div>
                 <div>Song</div>
                 <div>Artist</div>
@@ -580,7 +640,7 @@ export function FavoritesView() {
                   <Clock className="w-3 h-3 text-slate-500" />
                   <span>Time</span>
                 </div>
-                <div className="text-right"></div>
+                <div className="text-right">Actions</div>
               </div>
 
               {/* Table Rows */}
@@ -607,7 +667,7 @@ export function FavoritesView() {
                           title: 'Liked Songs',
                         });
                       }}
-                      className={`grid grid-cols-[40px_minmax(220px,2fr)_minmax(140px,1.2fr)_minmax(140px,1.2fr)_70px_60px] items-center gap-3 py-1.5 px-3 rounded-xl transition-all cursor-pointer group select-none border border-transparent ${
+                      className={`grid grid-cols-[40px_minmax(220px,2fr)_minmax(140px,1.2fr)_minmax(140px,1.2fr)_70px_88px] items-center gap-3 py-1.5 px-3 rounded-xl transition-all cursor-pointer group select-none border border-transparent ${
                         isCurrent
                           ? 'bg-white/[0.08] border-[#FA233B]/30'
                           : 'hover:bg-white/[0.04]'
@@ -681,7 +741,8 @@ export function FavoritesView() {
                       </div>
 
                       {/* 6. Actions */}
-                      <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                        <DownloadStatusIndicator song={song} size="sm" showCloudIcon />
                         <button
                           onClick={() => {
                             haptics.lightImpact();
@@ -766,6 +827,7 @@ export function FavoritesView() {
                         <span className="text-[10px] font-mono text-slate-400 pr-1">
                           {formatDuration(song.duration)}
                         </span>
+                        <DownloadStatusIndicator song={song} size="sm" showCloudIcon />
                         <button
                           onClick={() => {
                             haptics.lightImpact();

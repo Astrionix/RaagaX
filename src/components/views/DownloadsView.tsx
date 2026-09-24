@@ -30,6 +30,7 @@ import {
   Info,
   Sparkles,
   MonitorSmartphone,
+  FolderOpen,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useDownloadStore } from '@/context/useDownloadStore';
@@ -59,6 +60,7 @@ export function DownloadsView() {
     isOfflineMode,
     setOfflineMode,
     playlistDownloadProgress,
+    openDownloadsFolder,
   } = useDownloadStore();
 
   const [activeSubTab, setActiveSubTab] = useState<'device' | 'cloud'>('device');
@@ -246,33 +248,6 @@ export function DownloadsView() {
 
   const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
 
-  if (!isNative) {
-    return (
-      <div className="space-y-6 pb-2 text-white select-none max-w-xl mx-auto pt-12 text-center">
-        <div className="w-16 h-16 rounded-3xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto shadow-xl shadow-emerald-500/10">
-          <Smartphone className="w-8 h-8" />
-        </div>
-        <div className="space-y-2">
-          <h2 className="text-2xl font-black text-white">Mobile Exclusive Feature</h2>
-          <p className="text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
-            Offline MP3 downloads and device storage management are exclusive to the <strong className="text-white">RaagaX Mobile App</strong>.
-          </p>
-          <p className="text-xs text-slate-500">
-            On Desktop, enjoy high-fidelity real-time streaming with zero local disk footprint.
-          </p>
-        </div>
-        <div className="pt-4 flex items-center justify-center gap-3">
-          <button
-            onClick={() => usePlayerStore.getState().setActiveTab('home')}
-            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#fa233b] to-[#d91c2e] text-white font-bold text-xs shadow-lg shadow-red-500/25 hover:brightness-110 transition-all cursor-pointer"
-          >
-            Explore Music on Home
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6 pb-2 text-white select-none">
       {/* Header */}
@@ -364,7 +339,11 @@ export function DownloadsView() {
 
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-semibold text-slate-400 px-2.5 py-1 rounded-full bg-white/5 border border-white/5">
-              {storageInfo?.isNative ? '📱 Android Native Storage' : '💻 Browser / Desktop Storage Quota'}
+              {storageInfo?.isNative
+                ? '📱 Android Native Storage'
+                : storageInfo?.storageType === 'device'
+                  ? '💻 Host PC Physical Storage (Drive C:)'
+                  : '💻 Browser Storage Quota'}
             </span>
           </div>
         </div>
@@ -464,7 +443,7 @@ export function DownloadsView() {
         </div>
 
         {/* Preferences Toggle Bar */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-white/5 text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-white/5 text-xs">
           <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/5">
             <div className="flex items-center gap-2.5">
               <Wifi className="w-4 h-4 text-sky-400" />
@@ -483,7 +462,38 @@ export function DownloadsView() {
 
           <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/5">
             <div className="flex items-center gap-2.5">
-              <Sliders className="w-4 h-4 text-emerald-400" />
+              <HardDrive className="w-4 h-4 text-emerald-400" />
+              <div>
+                <p className="font-bold text-white text-[12px]">Save MP3 to PC System</p>
+                <p className="text-[10px] text-slate-400">Save physical .mp3 files into Downloads/RaagaX</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  const opened = await openDownloadsFolder();
+                  if (!opened) {
+                    usePlayerStore.getState().setToastMessage('RaagaX folder: Downloads/RaagaX');
+                  }
+                }}
+                className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center gap-1 transition-colors"
+                title="Open Downloads/RaagaX folder on PC"
+              >
+                <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
+                <span>Open Folder</span>
+              </button>
+              <button
+                onClick={() => setOfflineSettings({ saveToSystemDownloads: !offlineSettings.saveToSystemDownloads })}
+                className={`w-9 h-5 rounded-full relative transition-colors ${offlineSettings.saveToSystemDownloads ? 'bg-emerald-500' : 'bg-slate-700'}`}
+              >
+                <div className={`absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full transition-transform ${offlineSettings.saveToSystemDownloads ? 'left-5' : 'left-0.5'}`} />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/5">
+            <div className="flex items-center gap-2.5">
+              <Sliders className="w-4 h-4 text-purple-400" />
               <div>
                 <p className="font-bold text-white text-[12px]">Audio Quality</p>
                 <p className="text-[10px] text-slate-400">Offline playback encoding</p>
@@ -505,9 +515,12 @@ export function DownloadsView() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-white/5">
           <div>
             <div className="flex items-center gap-2 text-white font-bold text-xs">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" /> App-Private Offline Storage
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              {isNative ? '📱 Android Music/RaagaX Storage' : '💾 System Disk & In-App Offline Storage'}
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">Zero Permissions Needed</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {isNative ? 'Saved directly to your device storage' : 'Physical MP3 files saved to PC Downloads & cached for offline playback'}
+            </p>
           </div>
 
           <div className="flex items-center gap-2">

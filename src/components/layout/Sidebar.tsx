@@ -183,6 +183,7 @@ export function Sidebar() {
     toggleGetAppModal,
     isSidebarCollapsed,
     toggleSidebarCollapse,
+    downloadedSongIds = [],
   } = usePlayerStore();
 
   const { user, signOut, setAuthModalOpen } = useAuthStore();
@@ -309,6 +310,16 @@ export function Sidebar() {
         {c && <div className="h-px bg-white/5 my-1 mx-1" />}
         <NavItem icon={Heart} label="Liked Songs" isActive={activeTab === 'favorites'} collapsed={c}
           fillWhenActive onClick={() => navTo('favorites')} />
+        <NavItem icon={Download} label="Downloads" isActive={activeTab === 'downloads'} collapsed={c}
+          accentColor="#10b981"
+          badge={
+            downloadedSongIds.length > 0 ? (
+              <span className="text-[9px] bg-emerald-500/20 text-emerald-400 font-extrabold px-1.5 py-0.2 rounded-full font-mono">
+                {downloadedSongIds.length}
+              </span>
+            ) : undefined
+          }
+          onClick={() => navTo('downloads')} />
         <NavItem icon={Disc3} label="Albums" isActive={activeTab === 'album' && !usePlayerStore.getState().selectedAlbumId} collapsed={c}
           onClick={() => { usePlayerStore.getState().setSelectedAlbumId(null); navTo('album'); }} />
         <NavItem icon={Clock} label="History" isActive={activeTab === 'history'} collapsed={c}

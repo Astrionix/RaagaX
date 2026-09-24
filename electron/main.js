@@ -346,9 +346,70 @@ function createTray(iconPath) {
   }
 }
 
+function setupIpcHandlers() {
+  ipcMain.handle('get-storage-info', async () => {
+    try {
+      if (typeof fs.statfsSync === 'function') {
+        const targetDir = app.getPath('userData') || process.cwd();
+        const s = fs.statfsSync(targetDir);
+        const totalBytes = Number(s.bsize) * Number(s.blocks);
+        const availableBytes = Number(s.bsize) * Number(s.bavail);
+        const usedBytes = Math.max(0, totalBytes - availableBytes);
+        return {
+          success: true,
+          totalBytes,
+          availableBytes,
+          usedBytes,
+        };
+      }
+    } catch (err) {
+      console.warn('[Electron IPC] get-storage-info error:', err);
+    }
+    return { success: false };
+  });
+
+  ipcMain.handle('save-song-file', async (_event, { filename, buffer }) => {
+    try {
+      const downloadsDir = path.join(app.getPath('downloads'), 'RaagaX');
+      if (!fs.existsSync(downloadsDir)) {
+        fs.mkdirSync(downloadsDir, { recursive: true });
+      }
+      const safeFilename = (filename || 'song.mp3').replace(/[/\\?%*:|"<>]/g, '_').trim();
+      const targetPath = path.join(downloadsDir, safeFilename);
+      fs.writeFileSync(targetPath, Buffer.from(buffer));
+      return { success: true, path: targetPath, folder: downloadsDir };
+    } catch (err) {
+      console.warn('[Electron IPC] save-song-file error:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('open-downloads-folder', async () => {
+    try {
+      const downloadsDir = path.join(app.getPath('downloads'), 'RaagaX');
+      if (!fs.existsSync(downloadsDir)) {
+        fs.mkdirSync(downloadsDir, { recursive: true });
+      }
+      shell.openPath(downloadsDir);
+      return { success: true, folder: downloadsDir };
+    } catch (err) {
+      return { success: false };
+    }
+  });
+
+  ipcMain.on('playback-state-update', (_event, state) => {
+    if (tray && state && state.title) {
+      try {
+        tray.setToolTip(`RaagaX - ${state.title}`);
+      } catch {}
+    }
+  });
+}
+
 app.whenReady().then(() => {
   setupApplicationMenu();
   setupProtocol();
+  setupIpcHandlers();
   createWindow();
 
   app.on('activate', () => {

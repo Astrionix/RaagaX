@@ -15,6 +15,39 @@ export interface UserPlaylist extends Playlist {
   likesCount?: number;
   isLikedByMe?: boolean;
   isCollaborative?: boolean;
+  _isLocalOnly?: boolean;
+}
+
+const DELETED_PLAYLISTS_KEY = 'raagax_deleted_playlists_v2';
+
+export function getDeletedPlaylistIds(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = window.localStorage.getItem(DELETED_PLAYLISTS_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+export function addDeletedPlaylistId(id: string) {
+  if (typeof window === 'undefined' || !id) return;
+  try {
+    const set = getDeletedPlaylistIds();
+    set.add(id);
+    window.localStorage.setItem(DELETED_PLAYLISTS_KEY, JSON.stringify(Array.from(set)));
+  } catch {}
+}
+
+export function removeDeletedPlaylistId(id: string) {
+  if (typeof window === 'undefined' || !id) return;
+  try {
+    const set = getDeletedPlaylistIds();
+    if (set.has(id)) {
+      set.delete(id);
+      window.localStorage.setItem(DELETED_PLAYLISTS_KEY, JSON.stringify(Array.from(set)));
+    }
+  } catch {}
 }
 
 interface PlaylistStore {
@@ -174,16 +207,36 @@ export const usePlaylistStore = create<PlaylistStore>()(
             return;
           }
 
-          // MERGE WITH UN-SYNCED LOCAL PLAYLISTS & AUTO-SYNC TO CLOUD
+          // LOAD TOMBSTONES: Ensure deleted playlists are never resurrected
+          const deletedSet = getDeletedPlaylistIds();
+          
+          // Purge any remote playlists that were marked as deleted locally
+          const activeRemotePlaylists = parsedPlaylists.filter((p) => {
+            if (deletedSet.has(p.id)) {
+              // Background fire-and-forget delete to ensure cloud state is purged
+              (async () => {
+                try {
+                  await supabase.from('playlist_songs').delete().eq('playlist_id', p.id);
+                  await supabase.from('playlists').delete().eq('id', p.id);
+                } catch {}
+              })();
+              return false;
+            }
+            return true;
+          });
+
+          // MERGE WITH LOCAL PLAYLISTS:
+          // Only preserve local playlists that are explicitly marked as local-only / pending sync.
+          // Any previously-synced playlist missing from activeRemotePlaylists was deleted remotely and MUST NOT be resurrected!
           const currentLocal = get().playlists;
-          const remoteMap = new Map(parsedPlaylists.map((p) => [p.id, p]));
-          const mergedPlaylists = [...parsedPlaylists];
+          const remoteMap = new Map(activeRemotePlaylists.map((p) => [p.id, p]));
+          const mergedPlaylists = [...activeRemotePlaylists];
 
           currentLocal.forEach((localPl) => {
-            if (!remoteMap.has(localPl.id)) {
+            if (!remoteMap.has(localPl.id) && !deletedSet.has(localPl.id) && (localPl as any)._isLocalOnly) {
               mergedPlaylists.push(localPl);
 
-              // Auto-upload unsynced local playlist to Supabase cloud
+              // Auto-upload unsynced local offline playlist to Supabase cloud
               if (session?.user?.id) {
                 (async () => {
                   try {
@@ -197,13 +250,16 @@ export const usePlaylistStore = create<PlaylistStore>()(
                       updated_at: localPl.updatedAt || new Date().toISOString(),
                     }, { onConflict: 'id', ignoreDuplicates: true });
 
-                    if (!error && localPl.songIds && localPl.songIds.length > 0) {
-                      const rows = localPl.songIds.map((songId, idx) => ({
-                        playlist_id: localPl.id,
-                        song_id: songId,
-                        position: idx + 1,
-                      }));
-                      await supabase.from('playlist_songs').upsert(rows, { onConflict: 'playlist_id,song_id', ignoreDuplicates: true });
+                    if (!error) {
+                      localPl._isLocalOnly = false;
+                      if (localPl.songIds && localPl.songIds.length > 0) {
+                        const rows = localPl.songIds.map((songId, idx) => ({
+                          playlist_id: localPl.id,
+                          song_id: songId,
+                          position: idx + 1,
+                        }));
+                        await supabase.from('playlist_songs').upsert(rows, { onConflict: 'playlist_id,song_id', ignoreDuplicates: true });
+                      }
                     }
                   } catch (e) {
                     console.warn('[usePlaylistStore] Auto-upload unsynced playlist error:', e);
@@ -212,6 +268,12 @@ export const usePlaylistStore = create<PlaylistStore>()(
               }
             }
           });
+
+          // Update LocalDatabase store
+          try {
+            const { LocalDatabase } = await import('@/lib/offline/LocalDatabase');
+            await LocalDatabase.getInstance().setUserStore(reqUserId, 'playlists', mergedPlaylists);
+          } catch {}
 
           set({
             playlists: mergedPlaylists,
@@ -227,14 +289,18 @@ export const usePlaylistStore = create<PlaylistStore>()(
 
       createPlaylist: async (title, description = '', visibility = 'private', coverUrl = '') => {
         const id = crypto.randomUUID();
-        let authUserId = '';
+        removeDeletedPlaylistId(id);
+
+        let authUserId = 'guest';
         let authUserName = 'You';
         try {
           const { data: { session } } = await supabase.auth.getSession();
-          authUserId = session?.user?.id || 'guest';
+          const guardUser = AccountIsolationGuard.getInstance().getActiveUserId();
+          authUserId = session?.user?.id || (guardUser && guardUser !== 'guest' && guardUser !== 'none' ? guardUser : 'guest');
           authUserName = session?.user?.user_metadata?.full_name || 'You';
         } catch { }
 
+        const isRealUser = authUserId && authUserId !== 'guest' && authUserId !== 'none';
         const now = new Date().toISOString();
         const newPl: UserPlaylist = {
           id,
@@ -251,60 +317,94 @@ export const usePlaylistStore = create<PlaylistStore>()(
           updatedAt: now,
           songIds: [],
           songs: [],
+          _isLocalOnly: !isRealUser,
         };
 
         // 1. Optimistic UI update immediately
         set((state) => ({ playlists: [newPl, ...state.playlists], lastFetchedTime: undefined }));
 
+        // 2. Persist to LocalDatabase
         try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) {
-            console.log('[usePlaylistStore] Stored playlist locally (unauthenticated)');
-            return newPl;
+          const { LocalDatabase } = await import('@/lib/offline/LocalDatabase');
+          const localDb = LocalDatabase.getInstance();
+          const existingLocal = (await localDb.getUserStore<UserPlaylist[]>(authUserId, 'playlists')) || [];
+          await localDb.setUserStore(authUserId, 'playlists', [newPl, ...existingLocal.filter((p) => p.id !== id)]);
+
+          if (isRealUser) {
+            const payload: any = {
+              id,
+              title,
+              description: description || '',
+              cover_url: coverUrl || null,
+              visibility: visibility || 'private',
+              owner_id: authUserId,
+              created_at: now,
+              updated_at: now,
+            };
+
+            const { error } = await supabase.from('playlists').insert(payload);
+
+            if (error) {
+              console.warn('[usePlaylistStore] Supabase playlist create failed, queueing offline mutation:', error.message);
+              newPl._isLocalOnly = true;
+              await localDb.addPendingMutation({
+                mutation_id: `mut_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                user_id: authUserId,
+                type: 'CREATE_PLAYLIST',
+                entity_id: id,
+                payload: { title, name: title, description, visibility, cover_url: coverUrl },
+                created_at: now,
+              });
+            } else {
+              newPl._isLocalOnly = false;
+              const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
+              await AccountSyncEngine.getInstance().optimisticRevisionIncrement(authUserId).catch(() => {});
+            }
           }
-
-          // Insert into playlists table using correct 'title' column
-          const payload: any = {
-            id,
-            title,
-            description: description || '',
-            cover_url: coverUrl || null,
-            visibility: visibility || 'private',
-            owner_id: session.user.id,
-            created_at: now,
-            updated_at: now,
-          };
-
-          const { error } = await supabase.from('playlists').insert(payload);
-
-          if (error) {
-            console.warn('[usePlaylistStore] Supabase playlist create notice:', error.message);
-          } else {
-            // Trigger optimistic revision increment so Desktop and other devices sync instantly
-            const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
-            await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.user.id).catch(() => {});
-          }
-
-          return newPl;
         } catch (e: any) {
           console.warn('[usePlaylistStore] Failed to create playlist in cloud, saved locally:', e);
-          return newPl;
+          newPl._isLocalOnly = true;
         }
+
+        return newPl;
       },
 
       deletePlaylist: async (playlistId) => {
-        const previousPlaylists = get().playlists;
-        set((state) => ({ playlists: state.playlists.filter((p) => p.id !== playlistId) }));
+        // 1. Record tombstone immediately so fetchPlaylists never resurrects it
+        addDeletedPlaylistId(playlistId);
+
+        // 2. Optimistic UI update immediately
+        set((state) => ({ playlists: state.playlists.filter((p) => p.id !== playlistId), lastFetchedTime: undefined }));
 
         try {
-          const { error } = await supabase.from('playlists').delete().eq('id', playlistId);
-          if (error) {
-            console.warn('[usePlaylistStore] Supabase delete playlist error:', error.message);
-          } else {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session?.user?.id) {
+          const { data: { session } } = await supabase.auth.getSession();
+          const guardUser = AccountIsolationGuard.getInstance().getActiveUserId();
+          const effectiveUserId = session?.user?.id || (guardUser !== 'guest' && guardUser !== 'none' ? guardUser : null);
+
+          if (effectiveUserId) {
+            const { LocalDatabase } = await import('@/lib/offline/LocalDatabase');
+            const localDb = LocalDatabase.getInstance();
+            const existingLocal = (await localDb.getUserStore<UserPlaylist[]>(effectiveUserId, 'playlists')) || [];
+            await localDb.setUserStore(effectiveUserId, 'playlists', existingLocal.filter((p) => p.id !== playlistId));
+
+            // Clean up mapping and playlist in Supabase
+            try {
+              await supabase.from('playlist_songs').delete().eq('playlist_id', playlistId);
+            } catch {}
+            const { error } = await supabase.from('playlists').delete().eq('id', playlistId);
+
+            if (error) {
+              console.warn('[usePlaylistStore] Supabase delete playlist error, queueing offline mutation:', error.message);
+              await localDb.addPendingMutation({
+                mutation_id: `mut_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                user_id: effectiveUserId,
+                type: 'DELETE_PLAYLIST',
+                entity_id: playlistId,
+                created_at: new Date().toISOString(),
+              });
+            } else {
               const { AccountSyncEngine } = await import('@/lib/sync/AccountSyncEngine');
-              await AccountSyncEngine.getInstance().optimisticRevisionIncrement(session.user.id).catch(() => {});
+              await AccountSyncEngine.getInstance().optimisticRevisionIncrement(effectiveUserId).catch(() => {});
             }
           }
           return true;
@@ -656,7 +756,8 @@ export const usePlaylistStore = create<PlaylistStore>()(
             return false;
           }
 
-          const localPlaylists = get().playlists;
+          const deletedSet = getDeletedPlaylistIds();
+          const localPlaylists = get().playlists.filter((pl) => !deletedSet.has(pl.id));
           if (localPlaylists.length === 0) {
             await get().fetchPlaylists(true);
             return true;
@@ -727,6 +828,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
         if (typeof window !== 'undefined') {
           try {
             window.localStorage.removeItem('raagax-playlists-store-v2');
+            window.localStorage.removeItem(DELETED_PLAYLISTS_KEY);
           } catch {}
         }
       },

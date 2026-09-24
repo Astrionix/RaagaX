@@ -80,7 +80,9 @@ export function usePermissionOnboarding(): OnboardingState {
     // Record that user chose not to grant — never ask again
     const store = RaagaXPermissions.getStoredState();
     store.notification = 'denied';
-    localStorage.setItem('raagax_permission_state', JSON.stringify(store));
+    try {
+      localStorage.setItem('raagax_permission_state', JSON.stringify(store));
+    } catch {}
     RaagaXPermissions.markSetupCompleted();
     setPermissions(RaagaXPermissions.getStoredState());
     setStep('done');

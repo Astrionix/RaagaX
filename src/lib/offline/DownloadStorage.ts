@@ -100,7 +100,40 @@ export class DownloadStorage {
       }
     }
 
-    if (typeof navigator !== 'undefined' && navigator.storage) {
+    let isRealHostDevice = false;
+
+    // Detect Electron Desktop bridge first
+    if (typeof window !== 'undefined' && (window as any).raagaXDesktop?.getStorageInfo) {
+      try {
+        const desktopStorage = await (window as any).raagaXDesktop.getStorageInfo();
+        if (desktopStorage && desktopStorage.success && desktopStorage.totalBytes > 0) {
+          quota = desktopStorage.totalBytes;
+          usage = desktopStorage.usedBytes;
+          isRealHostDevice = true;
+        }
+      } catch (err) {
+        console.warn('[DownloadStorage] Electron getStorageInfo failed:', err);
+      }
+    }
+
+    // Detect Next.js local/desktop host server system storage
+    if (!isRealHostDevice && typeof window !== 'undefined' && !isNative) {
+      try {
+        const res = await fetch('/api/system/storage');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && data.totalBytes > 0) {
+            quota = data.totalBytes;
+            usage = data.usedBytes;
+            isRealHostDevice = true;
+          }
+        }
+      } catch {
+        // Fall back to navigator.storage
+      }
+    }
+
+    if (!isRealHostDevice && typeof navigator !== 'undefined' && navigator.storage) {
       try {
         if (navigator.storage.persist && navigator.storage.persisted) {
           const isPersisted = await navigator.storage.persisted();
@@ -138,7 +171,7 @@ export class DownloadStorage {
     const available = Math.max(0, quota - usage);
     const percentUsed = quota > 0 ? (usage / quota) * 100 : 0;
 
-    let deviceName = typeof window !== 'undefined' ? (localStorage.getItem('raagax_device_name') || 'This Device') : 'This Device';
+    let deviceName = typeof window !== 'undefined' ? (localStorage.getItem('raagax_device_name') || '') : '';
     let deviceType: 'desktop' | 'mobile' | 'tablet' | 'tv' = 'mobile';
     let platform = 'Web';
 
@@ -147,17 +180,34 @@ export class DownloadStorage {
       if (/android/i.test(ua)) {
         platform = 'Android';
         deviceType = 'mobile';
+        if (!deviceName) deviceName = 'Android Device';
       } else if (/ipad|tablet/i.test(ua)) {
         platform = 'Tablet';
         deviceType = 'tablet';
+        if (!deviceName) deviceName = 'Tablet';
       } else if (/iphone|ipod/i.test(ua)) {
         platform = 'iOS';
         deviceType = 'mobile';
+        if (!deviceName) deviceName = 'iPhone';
       } else {
-        platform = 'Desktop';
         deviceType = 'desktop';
+        if (/win/i.test(ua)) {
+          platform = 'Windows';
+          if (!deviceName) deviceName = 'Windows PC (Drive C:)';
+        } else if (/mac/i.test(ua)) {
+          platform = 'macOS';
+          if (!deviceName) deviceName = 'Mac (Internal Drive)';
+        } else if (/linux/i.test(ua)) {
+          platform = 'Linux';
+          if (!deviceName) deviceName = 'Linux PC (Drive /)';
+        } else {
+          platform = 'Desktop';
+          if (!deviceName) deviceName = 'Desktop PC';
+        }
       }
     }
+
+    if (!deviceName) deviceName = 'This Device';
 
     return {
       quota,
@@ -169,7 +219,7 @@ export class DownloadStorage {
       raagaXSongCount,
       percentUsed: Math.min(100, Math.max(0, percentUsed)),
       isNative,
-      storageType: isNative ? 'device' : 'browser',
+      storageType: (isNative || isRealHostDevice) ? 'device' : 'browser',
       deviceName,
       deviceType,
       platform,

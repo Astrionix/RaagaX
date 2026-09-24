@@ -116,6 +116,17 @@ export async function exportSongToDevice(song: Song): Promise<boolean> {
   const filename = `${sanitizeName(song.title)} - ${sanitizeName(song.artist || 'Artist')}.mp3`;
   
   let targetUrl = song.audioUrl;
+  if (!targetUrl || targetUrl.includes('pixabay.com') || targetUrl.startsWith('blob:') || targetUrl.startsWith('file:')) {
+    try {
+      const { PlaybackSourceResolver } = await import('@/lib/playbackSourceResolver');
+      const source = await PlaybackSourceResolver.getInstance().resolvePlayableSource(song);
+      if (source?.url && !source.url.startsWith('file://') && !source.url.startsWith('blob:')) {
+        targetUrl = source.url;
+        song.audioUrl = targetUrl;
+      }
+    } catch {}
+  }
+
   if (!targetUrl || targetUrl.includes('pixabay.com')) {
     targetUrl = getApiUrl(`/api/download?id=${encodeURIComponent(song.id)}&name=${encodeURIComponent(filename)}`);
   } else {

@@ -29,6 +29,7 @@ import { LanguageOnboardingModal } from '@/components/onboarding/LanguageOnboard
 import { UpdateModal } from '@/components/modals/UpdateModal';
 import { AppUpdateModal } from '@/components/modals/AppUpdateModal';
 import { GetAppModal } from '@/components/modals/GetAppModal';
+import { ZipExportGlobalOverlay } from '@/components/modals/ZipExportGlobalOverlay';
 
 import { CreatePlaylistModal } from '@/components/modals/CreatePlaylistModal';
 import { NotificationCenterModal } from '@/components/modals/NotificationCenterModal';
@@ -357,6 +358,9 @@ export default function Page() {
       </ErrorBoundary>
       <ErrorBoundary name="GetAppModal">
         <GetAppModal />
+      </ErrorBoundary>
+      <ErrorBoundary name="ZipExportGlobalOverlay">
+        <ZipExportGlobalOverlay />
       </ErrorBoundary>
 
       {/* ── Native Android Connected Surfaces ── */}

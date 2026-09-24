@@ -23,6 +23,7 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { SeekBar } from '@/components/player/SeekBar';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
+import { DownloadStatusIndicator } from '@/components/common/DownloadStatusIndicator';
 import { SongFormatter } from '@/lib/music/SongFormatter';
 import { ArtworkColorExtractor, ChameleonPalette } from '@/lib/theme/ArtworkColorExtractor';
 
@@ -277,7 +278,8 @@ export function PlayerBar() {
                 )}
               </div>
 
-              <div className="flex-shrink-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
+              <div className="flex items-center gap-1.5 flex-shrink-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
+                <DownloadStatusIndicator song={activeSong} size="sm" showCloudIcon />
                 <SongActionMenu song={activeSong} />
               </div>
             </>

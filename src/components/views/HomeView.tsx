@@ -589,6 +589,7 @@ export function HomeView() {
               desc: 'Your most played & loved tracks',
               trackCount: '15 tracks',
               seed: 1.0,
+              colorPreset: 'midnight-red' as const,
               getQueue: () => {
                 if (feed?.recentlyPlayed && feed.recentlyPlayed.length > 0) return feed.recentlyPlayed;
                 if (feed?.topSongs && feed.topSongs.length > 0) return feed.topSongs;
@@ -604,6 +605,7 @@ export function HomeView() {
               desc: 'Tailored to your current vibe',
               trackCount: '10 tracks',
               seed: 2.0,
+              colorPreset: 'pink-glass' as const,
               getQueue: () => {
                 if (feed?.dailyMixes?.[0]?.songs?.length) return feed.dailyMixes[0].songs;
                 if (feed?.madeForYou && feed.madeForYou.length > 0) return feed.madeForYou;
@@ -619,6 +621,7 @@ export function HomeView() {
               desc: 'Fresh songs you might love',
               trackCount: '15 tracks',
               seed: 3.0,
+              colorPreset: 'white-red' as const,
               getQueue: () => {
                 if (feed?.newReleases && feed.newReleases.length > 0) return feed.newReleases;
                 if (feed?.trendingSongs && feed.trendingSongs.length > 0) return feed.trendingSongs;
@@ -633,6 +636,7 @@ export function HomeView() {
               desc: 'Hearted songs on endless shuffle',
               trackCount: '115 tracks',
               seed: 4.0,
+              colorPreset: 'soft-glass' as const,
               getQueue: () => {
                 if (likedSongs.length > 0) return likedSongs as Song[];
                 if (feed?.topSongs && feed.topSongs.length > 0) return feed.topSongs;
@@ -675,6 +679,7 @@ export function HomeView() {
                 description={mix.desc}
                 trackCount={mix.trackCount}
                 seed={mix.seed}
+                colorPreset={mix.colorPreset}
                 isPlaying={isPlaying}
                 isActive={isMixActive}
                 onPlayClick={handleCardClick}
@@ -697,7 +702,7 @@ export function HomeView() {
             id: pl.id || `user-pl-${pIdx}`,
             title: pl.title || (pl as any).name || 'Untitled Playlist',
             subtitle: `${pl.songs?.length || pl.songIds?.length || 0} tracks`,
-            imageUrl: pl.coverUrl || pl.songs?.[0]?.coverUrl || '/app-icon.png',
+            imageUrl: pl.coverUrl && pl.coverUrl !== '/app-icon.png' && !pl.coverUrl.includes('default-playlist-cover') ? pl.coverUrl : '',
             type: 'playlist' as const,
             rawItem: pl,
           }))}

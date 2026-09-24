@@ -29,14 +29,14 @@ export function PlaylistCoverTitle({
       ? 'text-2xl sm:text-3xl font-black'
       : size === 'large'
       ? 'text-lg sm:text-xl font-extrabold'
-      : 'text-sm sm:text-base font-bold';
+      : 'text-xs sm:text-sm font-extrabold';
 
   const paddingClass =
-    size === 'hero' ? 'p-6 sm:p-8' : size === 'large' ? 'p-5 sm:p-6' : 'p-3.5 sm:p-4';
+    size === 'hero' ? 'p-6 sm:p-8' : size === 'large' ? 'p-5 sm:p-6' : 'p-3 sm:p-3.5';
 
   return (
     <div
-      className={`absolute inset-x-0 bottom-0 z-20 pointer-events-none flex flex-col justify-end ${paddingClass} space-y-1`}
+      className={`absolute inset-x-0 bottom-0 z-20 pointer-events-none flex flex-col justify-end ${paddingClass} space-y-0.5 sm:space-y-1`}
     >
       {/* Playlist Name: Max 2 lines with clean ellipsis */}
       <h3
@@ -48,7 +48,9 @@ export function PlaylistCoverTitle({
 
       {/* Optional Metadata: Clean, subtle song count */}
       {typeof songCount === 'number' && (
-        <p className="text-[11px] sm:text-xs font-medium text-white/70 tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+        <p className={`font-medium text-white/75 tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${
+          size === 'hero' ? 'text-xs sm:text-sm' : size === 'large' ? 'text-[11px] sm:text-xs' : 'text-[10px] sm:text-[11px]'
+        }`}>
           {songCount} {songCount === 1 ? 'song' : 'songs'}
         </p>
       )}
