@@ -112,6 +112,8 @@ export interface Playlist {
   description: string;
   coverUrl: string;
   songIds: string[];
+  visualSeed?: string;
+  visualStyle?: string;
   isSmart?: boolean;
   category?: string;
   creator: string;

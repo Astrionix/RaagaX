@@ -10,8 +10,9 @@ import { SkeletonGrid } from '@/components/ui/SkeletonLoader';
 import {
   Play, Pause, Shuffle, Heart, Clock, ListMusic, User, Users,
   Headphones, Sparkles, Flame, Disc, Radio, ChevronRight,
-  WifiOff, HardDrive, CheckCircle2,
+  WifiOff, HardDrive, CheckCircle2, Repeat, Compass,
 } from 'lucide-react';
+import { LiquidRedMotionCard } from '@/components/home/LiquidRedMotionCard';
 import { Song } from '@/types/music';
 import useSWR from 'swr';
 import { getApiUrl } from '@/lib/config/apiConfig';
@@ -33,6 +34,7 @@ import type { FriendActivityState } from '@/lib/social/FriendActivityEngine';
 import { useTimeAwareTheme } from '@/context/useTimeAwareTheme';
 import { ContinueListeningShelf, ContinueListeningSession } from '@/components/home/ContinueListeningShelf';
 import { LivingSkyBackdrop } from '@/components/home/LivingSkyBackdrop';
+import { LiquidMotionBackground } from '@/components/player/LiquidMotionBackground';
 
 const EMPTY_SHELF_ITEMS: ShelfItem[] = [];
 
@@ -527,70 +529,15 @@ export function HomeView() {
   }
 
   return (
-    <div className="space-y-5 sm:space-y-6 pb-2 select-none relative animate-in fade-in duration-300">
+    <div className="pb-2 select-none relative animate-in fade-in duration-300">
 
-      {/* ── Living Sky 24-Hour Environmental Backdrop System ── */}
+      {/* ── Complete Full-Screen Total Living Gradient Backdrop System (Z-0) ── */}
       <LivingSkyBackdrop timeDetails={timeTheme} />
 
-      {/* ── Subtle Artwork Atmospheric Glow ── */}
-      {isMounted && currentSong && (
-        <div
-          className="fixed top-0 left-0 right-0 h-[380px] pointer-events-none opacity-20 -z-10 transition-all duration-1000"
-          style={{
-            backgroundImage: `url(${coverUrl})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center top',
-            filter: 'blur(70px) saturate(220%)',
-          }}
-        />
-      )}
+      {/* ── Main Home Page Content Layer (Z-10) ── */}
+      <div className="relative z-10 space-y-5 sm:space-y-6">
 
-      {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 1. TIME-AWARE COMPACT HERO                                             */}
-      {/* ══════════════════════════════════════════════════════════════════════ */}
-      <section
-        className="relative pt-4 sm:pt-5 pb-0 flex flex-col items-start select-none"
-        suppressHydrationWarning
-      >
-        {/* Atmospheric ambient glow — time-driven via CSS vars */}
-        <div
-          className="absolute -top-6 -left-12 w-72 h-72 pointer-events-none -z-10 transition-all duration-700"
-          style={{ background: 'var(--time-hero-glow)' }}
-          aria-hidden
-        />
 
-        {/* Greeting: "🌅 GOOD MORNING, CHAN" — matching reference image exactly */}
-        <h1
-          className="flex items-center gap-2.5 text-[22px] sm:text-[26px] md:text-[28px] font-extrabold text-[var(--text-primary)] tracking-tight leading-tight"
-          suppressHydrationWarning
-        >
-          <span className="text-[20px] sm:text-[24px] shrink-0 select-none" aria-hidden>{timeTheme.icon}</span>
-          <span>
-            {timeTheme.greeting.toUpperCase()}, {' '}
-            <span
-              className={
-                timeTheme.period === 'morning'
-                  ? 'text-amber-400 dark:text-amber-400 font-extrabold'
-                  : timeTheme.period === 'afternoon'
-                  ? 'text-sky-400 dark:text-sky-400 font-extrabold'
-                  : timeTheme.period === 'evening'
-                  ? 'text-rose-400 dark:text-rose-400 font-extrabold'
-                  : 'text-indigo-400 dark:text-indigo-400 font-extrabold'
-              }
-            >
-              {displayName.toUpperCase()}
-            </span>
-          </span>
-        </h1>
-
-        {/* Contextual Subtitle */}
-        <p className="mt-1.5 text-xs sm:text-[13px] font-medium text-[var(--text-secondary)]">
-          {timeTheme.subtitle}
-        </p>
-
-        {/* Divider line */}
-        <div className="mt-4 sm:mt-5 h-px w-full bg-gradient-to-r from-transparent via-[var(--border-subtle)] to-transparent" />
-      </section>
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* ACTIVE FRIEND ACTIVITY SONG SCROLL TICKER                              */}
@@ -632,20 +579,16 @@ export function HomeView() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+        <div className="flex overflow-x-auto sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 pb-3 sm:pb-0 -mx-3.5 px-3.5 sm:mx-0 sm:px-0 no-scrollbar snap-x snap-mandatory">
           {[
             {
               id: 'heavy-rotation',
-              label: 'Heavy Rotation',
+              title: 'Heavy Rotation',
               badge: 'ON REPEAT',
-              badgeIcon: '♨',
+              badgeIcon: <Repeat className="w-3.5 h-3.5" />,
               desc: 'Your most played & loved tracks',
-              colorClass: 'mfy-pink',
-              badgeColorLight: '#f52b4e',
-              badgeBorderLight: '#ff5872',
-              avatarInitials: ['R', 'A', 'K'],
-              avatarMore: '+2',
-              icon: <Flame className="w-3.5 h-3.5" />,
+              trackCount: '15 tracks',
+              seed: 1.0,
               getQueue: () => {
                 if (feed?.recentlyPlayed && feed.recentlyPlayed.length > 0) return feed.recentlyPlayed;
                 if (feed?.topSongs && feed.topSongs.length > 0) return feed.topSongs;
@@ -655,16 +598,12 @@ export function HomeView() {
             },
             {
               id: 'daily-mix',
-              label: 'Daily Mix',
+              title: 'Daily Mix',
               badge: 'CURATED',
-              badgeIcon: '✨',
+              badgeIcon: <Sparkles className="w-3.5 h-3.5" />,
               desc: 'Tailored to your current vibe',
-              colorClass: 'mfy-purple',
-              badgeColorLight: '#9676f6',
-              badgeBorderLight: '#a991ff',
-              avatarInitials: ['M', 'S', 'V'],
-              avatarMore: '+3',
-              icon: <Sparkles className="w-3.5 h-3.5" />,
+              trackCount: '10 tracks',
+              seed: 2.0,
               getQueue: () => {
                 if (feed?.dailyMixes?.[0]?.songs?.length) return feed.dailyMixes[0].songs;
                 if (feed?.madeForYou && feed.madeForYou.length > 0) return feed.madeForYou;
@@ -674,16 +613,12 @@ export function HomeView() {
             },
             {
               id: 'discover-mix',
-              label: 'Discover Mix',
+              title: 'Discover Mix',
               badge: 'NEW FOR YOU',
-              badgeIcon: '◉',
+              badgeIcon: <Compass className="w-3.5 h-3.5" />,
               desc: 'Fresh songs you might love',
-              colorClass: 'mfy-cyan',
-              badgeColorLight: '#22c5bd',
-              badgeBorderLight: '#46d6ce',
-              avatarInitials: ['D', 'P', 'J'],
-              avatarMore: '+4',
-              icon: <Radio className="w-3.5 h-3.5" />,
+              trackCount: '15 tracks',
+              seed: 3.0,
               getQueue: () => {
                 if (feed?.newReleases && feed.newReleases.length > 0) return feed.newReleases;
                 if (feed?.trendingSongs && feed.trendingSongs.length > 0) return feed.trendingSongs;
@@ -692,16 +627,12 @@ export function HomeView() {
             },
             {
               id: 'favorites-mix',
-              label: 'Favorites Mix',
+              title: 'Favorites Mix',
               badge: 'LIKED',
-              badgeIcon: '♥',
+              badgeIcon: <Heart className="w-3.5 h-3.5 fill-white text-white" />,
               desc: 'Hearted songs on endless shuffle',
-              colorClass: 'mfy-magenta',
-              badgeColorLight: '#e95ba9',
-              badgeBorderLight: '#ec75bb',
-              avatarInitials: ['A', 'N', 'R'],
-              avatarMore: '+5',
-              icon: <Heart className="w-3.5 h-3.5 fill-current" />,
+              trackCount: '115 tracks',
+              seed: 4.0,
               getQueue: () => {
                 if (likedSongs.length > 0) return likedSongs as Song[];
                 if (feed?.topSongs && feed.topSongs.length > 0) return feed.topSongs;
@@ -710,9 +641,7 @@ export function HomeView() {
             },
           ].map((mix) => {
             const queue = mix.getQueue();
-            const trackCount = queue.length > 0 ? `${queue.length} tracks` : `${currentLang} Mix`;
-            const isMixActive = currentSong && queue.some((s) => s.id === currentSong.id);
-            const previewCovers = queue.slice(0, 3).map((s) => s.coverUrl).filter(Boolean);
+            const isMixActive = Boolean(currentSong && queue.some((s) => s.id === currentSong.id));
 
             const handleCardClick = async () => {
               haptics.mediumImpact();
@@ -727,9 +656,9 @@ export function HomeView() {
               }
               if (playableQueue && playableQueue.length > 0) {
                 if (mix.id === 'favorites-mix' || mix.id === 'discover-mix') {
-                  usePlayerStore.getState().shufflePlay(playableQueue, { contextType: 'MADE_FOR_YOU', title: mix.label });
+                  usePlayerStore.getState().shufflePlay(playableQueue, { contextType: 'MADE_FOR_YOU', title: mix.title });
                 } else {
-                  playSong(playableQueue[0], playableQueue, { type: 'made_for_you', id: mix.id, title: mix.label });
+                  playSong(playableQueue[0], playableQueue, { type: 'made_for_you', id: mix.id, title: mix.title });
                 }
               } else {
                 setActiveTab('library');
@@ -737,107 +666,20 @@ export function HomeView() {
             };
 
             return (
-              <div
+              <LiquidRedMotionCard
                 key={mix.id}
-                onClick={handleCardClick}
-                className={`mfy-card ${mix.colorClass} relative rounded-[26px] overflow-hidden cursor-pointer group`}
-              >
-                {/* Animated flowing wave background */}
-                <div className="mfy-flow" />
-
-                {/* Glass overlay — light: white fade-up, dark: dark fade-up */}
-                <div className="mfy-glass" />
-
-                {/* Subtle album art tint behind glass */}
-                {previewCovers[0] && (
-                  <div
-                    className="absolute inset-0 z-[-1] bg-cover bg-center opacity-20 dark:opacity-10 scale-110 pointer-events-none"
-                    style={{ backgroundImage: `url(${previewCovers[0]})` }}
-                  />
-                )}
-
-                {/* ── TOP ROW: Badge + Play ── */}
-                <div className="relative z-10 flex items-start justify-between p-3 sm:p-4 pb-0">
-                  {/* Badge */}
-                  <div
-                    className="mfy-badge flex items-center gap-1 px-2 py-1 rounded-full border text-[9px] font-black uppercase tracking-widest"
-                    style={{
-                      color: mix.badgeColorLight,
-                      borderColor: mix.badgeBorderLight,
-                      background: `color-mix(in srgb, ${mix.badgeColorLight} 10%, transparent)`,
-                      backdropFilter: 'blur(10px)',
-                    }}
-                  >
-                    <span className="text-xs leading-none">{mix.badgeIcon}</span>
-                    <span className="hidden sm:inline">{mix.badge}</span>
-                    <span className="sm:hidden">{mix.badge.split(' ')[0]}</span>
-                  </div>
-
-                  {/* Play / Pause Button */}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleCardClick(); }}
-                    className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
-                      isMixActive && isPlaying
-                        ? 'bg-[#FA233B] text-white shadow-[0_6px_16px_rgba(255,37,71,0.45)] scale-105'
-                        : 'mfy-play-btn text-white group-hover:scale-105'
-                    }`}
-                    aria-label={isMixActive && isPlaying ? 'Pause' : 'Play'}
-                  >
-                    {isMixActive && isPlaying ? (
-                      <Pause className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-white stroke-none" />
-                    ) : (
-                      <Play className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-white stroke-none ml-0.5" />
-                    )}
-                  </button>
-                </div>
-
-                {/* ── BOTTOM CONTENT ── */}
-                <div className="relative z-10 p-3 sm:p-4 pt-5 sm:pt-6">
-                  <h3 className="text-sm sm:text-base font-black text-[var(--text-primary)] tracking-tight leading-tight mb-1">
-                    {mix.label}
-                  </h3>
-                  <p className="text-[10px] sm:text-[11px] text-[var(--text-secondary)] font-medium mb-2 truncate">
-                    {mix.desc}
-                  </p>
-
-                  {/* Bottom row: track count + avatar stack */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {/* Track count pill */}
-                    <span className="h-6 px-2.5 flex items-center rounded-lg bg-[var(--bg-surface)]/70 border border-[var(--border-subtle)] text-[var(--text-primary)] font-mono text-[10px] font-black whitespace-nowrap backdrop-blur-sm">
-                      {trackCount}
-                    </span>
-
-                    {/* Avatar Stack */}
-                    <div className="flex items-center">
-                      {mix.avatarInitials.map((initial, i) => (
-                        <div
-                          key={i}
-                          className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-white dark:border-[var(--bg-surface)] flex items-center justify-center text-white text-[9px] font-black shadow-sm overflow-hidden"
-                          style={{
-                            marginLeft: i === 0 ? 0 : -5,
-                            background: [
-                              'linear-gradient(135deg, #ff6347, #ff9a44, #6d3cff)',
-                              'linear-gradient(135deg, #111827, #f97316, #facc15)',
-                              'linear-gradient(135deg, #0ea5e9, #ec4899, #f97316)',
-                              'linear-gradient(135deg, #22c55e, #ef4444, #f59e0b)',
-                            ][i % 4],
-                          }}
-                        >
-                          {previewCovers[i] ? (
-                            <img src={previewCovers[i]} alt={initial} className="w-full h-full object-cover" />
-                          ) : initial}
-                        </div>
-                      ))}
-                      <div
-                        className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-white dark:border-[var(--bg-surface)] bg-[var(--bg-surface)] flex items-center justify-center text-[var(--text-secondary)] text-[9px] font-black shadow-sm"
-                        style={{ marginLeft: -5 }}
-                      >
-                        {mix.avatarMore}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                id={mix.id}
+                badge={mix.badge}
+                badgeIcon={mix.badgeIcon}
+                title={mix.title}
+                description={mix.desc}
+                trackCount={mix.trackCount}
+                seed={mix.seed}
+                isPlaying={isPlaying}
+                isActive={isMixActive}
+                onPlayClick={handleCardClick}
+                className="min-w-[270px] sm:min-w-0 flex-1 snap-start"
+              />
             );
           })}
         </div>
@@ -968,6 +810,7 @@ export function HomeView() {
           showPlayAll={false}
         />
       )}
+      </div>
     </div>
   );
 }

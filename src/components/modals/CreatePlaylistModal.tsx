@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Plus, Loader2, Globe, Lock, Check, Image as ImageIcon, Music } from 'lucide-react';
+import { X, Plus, Loader2, Globe, Lock, Check, Image as ImageIcon, Music, Sparkles } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
+import { PlaylistCover } from '@/components/playlist/PlaylistCover';
 
 export function CreatePlaylistModal() {
   const { createPlaylistModalOpen, setCreatePlaylistModalOpen, setToastMessage, setActiveTab, setSelectedPlaylistId } = usePlayerStore();
@@ -47,7 +48,7 @@ export function CreatePlaylistModal() {
     setValidationError(null);
     
     try {
-      const newPlaylist = await createPlaylist(trimmedName, description.trim(), visibility, coverUrl.trim() || '/default-playlist-cover.png');
+      const newPlaylist = await createPlaylist(trimmedName, description.trim(), visibility, '');
       
       if (newPlaylist) {
         setCreatePlaylistModalOpen(false);
@@ -63,7 +64,7 @@ export function CreatePlaylistModal() {
     } finally {
       setIsCreating(false);
     }
-  }, [trimmedName, description, visibility, coverUrl, isCreating, createPlaylist, setCreatePlaylistModalOpen, setSelectedPlaylistId, setActiveTab, setToastMessage]);
+  }, [trimmedName, description, visibility, isCreating, createPlaylist, setCreatePlaylistModalOpen, setSelectedPlaylistId, setActiveTab, setToastMessage]);
 
   // Keyboard navigation (Enter to submit, Escape to close)
   useEffect(() => {
@@ -115,9 +116,25 @@ export function CreatePlaylistModal() {
         </button>
 
         {/* Modal Header */}
-        <div className="mb-5 pr-8">
+        <div className="mb-4 pr-8">
           <h2 className="text-xl sm:text-2xl font-black text-[var(--text-primary)] tracking-tight">Create Playlist</h2>
-          <p className="text-xs text-[var(--text-muted)] mt-1">Build your personal music collection</p>
+          <p className="text-xs text-[var(--text-muted)] mt-1">Generative aurora identity created automatically</p>
+        </div>
+
+        {/* ── LIVE GENERATIVE PLAYLIST COVER PREVIEW ── */}
+        <div className="flex flex-col items-center justify-center mb-4">
+          <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+            <PlaylistCover
+              playlistId={name ? `preview_${name}` : 'new_playlist_seed'}
+              playlistName={trimmedName || 'New Playlist'}
+              size="medium"
+              songCount={0}
+              className="w-full h-full"
+            />
+          </div>
+          <span className="text-[10px] font-mono uppercase tracking-widest text-[var(--text-muted)] mt-1.5 flex items-center gap-1">
+            <Sparkles className="w-3 h-3 text-[#fa233b]" /> Generative Aurora Cover
+          </span>
         </div>
 
         <div className="space-y-4">

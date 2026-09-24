@@ -42,13 +42,15 @@ export class AccountSyncEngine {
     if (typeof window !== 'undefined') {
       this.isOnline = typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean' ? navigator.onLine : true;
       if (typeof window.addEventListener === 'function') {
-        window.addEventListener('online', () => {
+        window.addEventListener('online', async () => {
           this.isOnline = true;
           if (!isOfflineMode()) {
-            this.flushPendingMutations();
             if (this.subscribedUserId) {
+              await this.flushPendingMutations(this.subscribedUserId);
               this.subscribeToRealtime(this.subscribedUserId);
               this.reconcile(this.subscribedUserId);
+            } else {
+              this.flushPendingMutations();
             }
           }
         });
@@ -141,6 +143,18 @@ export class AccountSyncEngine {
         )
         .on(
           'postgres_changes',
+          { event: '*', schema: 'public', table: 'liked_songs', filter: `user_id=eq.${userId}` },
+          async (payload: any) => {
+            if (AccountIsolationGuard.getInstance().getActiveUserId() !== userId) {
+              console.log(`[AccountSyncEngine] Ignoring realtime liked_songs event for inactive user ${userId}`);
+              return;
+            }
+            console.log('[AccountSyncEngine] Realtime liked_songs change:', payload.eventType);
+            await this.handleRealtimeLikedSongs(userId, payload);
+          }
+        )
+        .on(
+          'postgres_changes',
           { event: '*', schema: 'public', table: 'playlists', filter: `owner_id=eq.${userId}` },
           (payload: any) => {
             console.log('[AccountSyncEngine] Realtime playlists change:', payload.eventType);
@@ -168,15 +182,20 @@ export class AccountSyncEngine {
   }
 
   public async handleRealtimeLikedSongs(userId: string, payload: any): Promise<void> {
+    if (AccountIsolationGuard.getInstance().getActiveUserId() !== userId) return;
+
     try {
       const { usePlayerStore } = await import('@/context/usePlayerStore');
+      const localDb = LocalDatabase.getInstance();
       const eventType = payload.eventType;
 
-      if (eventType === 'INSERT' && payload.new?.song_id) {
-        const songId = payload.new.song_id;
+      if (eventType === 'INSERT' && (payload.new?.song_id || payload.new?.songId)) {
+        const songId = payload.new.song_id || payload.new.songId;
         const currentIds = usePlayerStore.getState().likedSongIds;
         if (!currentIds.includes(songId)) {
-          usePlayerStore.setState({ likedSongIds: [songId, ...currentIds] });
+          const newIds = [songId, ...currentIds];
+          usePlayerStore.setState({ likedSongIds: newIds });
+          await localDb.setUserStore(userId, 'liked_songs', newIds);
         }
         import('@/lib/discovery/SongResolver').then(({ SongResolver }) => {
           SongResolver.resolveSongs([songId]).then((resolved) => {
@@ -189,14 +208,19 @@ export class AccountSyncEngine {
           }).catch(() => { });
         }).catch(() => { });
       } else if (eventType === 'DELETE') {
-        const songId = payload.old?.song_id;
+        const songId = payload.old?.song_id || payload.old?.songId;
         if (songId) {
           const currentIds = usePlayerStore.getState().likedSongIds;
           const currentSongs = usePlayerStore.getState().likedSongs;
+          const newIds = currentIds.filter((id) => id !== songId);
           usePlayerStore.setState({
-            likedSongIds: currentIds.filter((id) => id !== songId),
+            likedSongIds: newIds,
             likedSongs: currentSongs.filter((s) => s.id !== songId),
           });
+          await localDb.setUserStore(userId, 'liked_songs', newIds);
+        } else {
+          // If Supabase replica identity didn't include song_id on DELETE, trigger full reconcile
+          this.reconcile(userId);
         }
       }
     } catch (err) {
@@ -363,6 +387,9 @@ export class AccountSyncEngine {
 
         const startAuthGen = AccountIsolationGuard.getInstance().getAuthGeneration();
 
+        // 0. Flush any pending mutations before pulling from remote to avoid stale overwrites
+        await this.flushPendingMutations(userId);
+
         // INSTANT LOCAL CACHE HYDRATION (0ms latency):
         // Immediately restore cached liked songs from IndexedDB without waiting for network queries
         const initialCachedIds = await localDb.getUserStore<string[]>(userId, 'liked_songs') || [];
@@ -437,7 +464,25 @@ export class AccountSyncEngine {
           .order('created_at', { ascending: false });
 
         if (!likedError && likedData) {
-          const songIds = likedData.map((row: any) => row.song_id);
+          let songIds: string[] = likedData.map((row: any) => row.song_id);
+
+          // Merge any remaining pending mutations (e.g. if offline or flush was skipped)
+          try {
+            const pendingMutations = await localDb.getPendingMutations(userId);
+            const pendingLikes = pendingMutations.filter((m) => m.type === 'LIKE_SONG').map((m) => m.entity_id);
+            const pendingUnlikes = new Set(pendingMutations.filter((m) => m.type === 'UNLIKE_SONG').map((m) => m.entity_id));
+
+            songIds = songIds.filter((id) => !pendingUnlikes.has(id));
+            for (let i = pendingLikes.length - 1; i >= 0; i--) {
+              const pId = pendingLikes[i];
+              if (!songIds.includes(pId)) {
+                songIds = [pId, ...songIds];
+              }
+            }
+          } catch (mErr) {
+            console.warn('[AccountSyncEngine] Error merging pending mutations in reconcile:', mErr);
+          }
+
           await localDb.setUserStore(userId, 'liked_songs', songIds);
 
           if (!AccountIsolationGuard.getInstance().assertAccountIsolation(userId, 'RECONCILE_LIKED_DATA', startAuthGen)) {
@@ -548,7 +593,7 @@ export class AccountSyncEngine {
     const localDb = LocalDatabase.getInstance();
     const cached = await localDb.getUserStore<string[]>(userId, 'liked_songs');
 
-    if (this.isOnline && this.isUUID(userId)) {
+    if (this.isOnline && !isOfflineMode() && this.isUUID(userId)) {
       try {
         const { data, error } = await supabase
           .from('liked_songs')
@@ -557,7 +602,20 @@ export class AccountSyncEngine {
           .order('created_at', { ascending: false });
 
         if (!error && data) {
-          const songIds = data.map((row: any) => row.song_id);
+          let songIds: string[] = data.map((row: any) => row.song_id);
+          try {
+            const pendingMutations = await localDb.getPendingMutations(userId);
+            const pendingLikes = pendingMutations.filter((m) => m.type === 'LIKE_SONG').map((m) => m.entity_id);
+            const pendingUnlikes = new Set(pendingMutations.filter((m) => m.type === 'UNLIKE_SONG').map((m) => m.entity_id));
+            songIds = songIds.filter((id) => !pendingUnlikes.has(id));
+            for (let i = pendingLikes.length - 1; i >= 0; i--) {
+              const pId = pendingLikes[i];
+              if (!songIds.includes(pId)) {
+                songIds = [pId, ...songIds];
+              }
+            }
+          } catch { }
+
           await localDb.setUserStore(userId, 'liked_songs', songIds);
           return songIds;
         }
@@ -581,13 +639,18 @@ export class AccountSyncEngine {
     }
 
     const localDb = LocalDatabase.getInstance();
+
+    // Remove any conflicting pending UNLIKE mutation
+    await localDb.removePendingMutationsByEntity(effectiveUserId, songId, ['UNLIKE_SONG']);
+
     const currentLikes = (await localDb.getUserStore<string[]>(effectiveUserId, 'liked_songs')) || [];
     if (!currentLikes.includes(songId)) {
       const updated = [songId, ...currentLikes];
       await localDb.setUserStore(effectiveUserId, 'liked_songs', updated);
     }
 
-    if (this.isOnline && this.isUUID(effectiveUserId)) {
+    const shouldSendRemote = this.isOnline && !isOfflineMode() && this.isUUID(effectiveUserId);
+    if (shouldSendRemote) {
       try {
         const { error } = await supabase
           .from('liked_songs')
@@ -638,11 +701,16 @@ export class AccountSyncEngine {
     }
 
     const localDb = LocalDatabase.getInstance();
+
+    // Remove any conflicting pending LIKE mutation
+    await localDb.removePendingMutationsByEntity(effectiveUserId, songId, ['LIKE_SONG']);
+
     const currentLikes = (await localDb.getUserStore<string[]>(effectiveUserId, 'liked_songs')) || [];
     const updated = currentLikes.filter((id) => id !== songId);
     await localDb.setUserStore(effectiveUserId, 'liked_songs', updated);
 
-    if (this.isOnline && this.isUUID(effectiveUserId)) {
+    const shouldSendRemote = this.isOnline && !isOfflineMode() && this.isUUID(effectiveUserId);
+    if (shouldSendRemote) {
       try {
         const { error } = await supabase
           .from('liked_songs')
@@ -939,7 +1007,7 @@ export class AccountSyncEngine {
   // --- OFFLINE SYNC FLUSH ---
 
   public async flushPendingMutations(userId?: string): Promise<void> {
-    if (this.isFlushing || !this.isOnline) return;
+    if (this.isFlushing || !this.isOnline || isOfflineMode()) return;
     this.isFlushing = true;
 
     try {
@@ -949,16 +1017,41 @@ export class AccountSyncEngine {
       const localDb = LocalDatabase.getInstance();
       const mutations = await localDb.getPendingMutations(activeUserId);
 
+      // Sort chronological FIFO
+      mutations.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
       for (const mut of mutations) {
         try {
           if (mut.type === 'LIKE_SONG') {
-            await supabase.from('liked_songs').upsert({ user_id: mut.user_id, song_id: mut.entity_id }, { onConflict: 'user_id,song_id', ignoreDuplicates: true });
+            const { error } = await supabase
+              .from('liked_songs')
+              .upsert({ user_id: mut.user_id, song_id: mut.entity_id }, { onConflict: 'user_id,song_id', ignoreDuplicates: true });
+            if (error && error.code !== '23505' && (error as any).status !== 409) {
+              console.warn('[AccountSyncEngine] Flush LIKE_SONG failed:', error.message);
+              continue;
+            }
           } else if (mut.type === 'UNLIKE_SONG') {
-            await supabase.from('liked_songs').delete().eq('user_id', mut.user_id).eq('song_id', mut.entity_id);
+            const { error } = await supabase
+              .from('liked_songs')
+              .delete()
+              .eq('user_id', mut.user_id)
+              .eq('song_id', mut.entity_id);
+            if (error) {
+              console.warn('[AccountSyncEngine] Flush UNLIKE_SONG failed:', error.message);
+              continue;
+            }
           } else if (mut.type === 'CREATE_PLAYLIST') {
-            await supabase.from('playlists').insert({ id: mut.entity_id, owner_id: mut.user_id, title: mut.payload?.name || mut.payload?.title, description: mut.payload?.description });
+            const { error } = await supabase.from('playlists').insert({ id: mut.entity_id, owner_id: mut.user_id, title: mut.payload?.name || mut.payload?.title, description: mut.payload?.description });
+            if (error && error.code !== '23505') {
+              console.warn('[AccountSyncEngine] Flush CREATE_PLAYLIST failed:', error.message);
+              continue;
+            }
           } else if (mut.type === 'DELETE_PLAYLIST') {
-            await supabase.from('playlists').delete().eq('id', mut.entity_id);
+            const { error } = await supabase.from('playlists').delete().eq('id', mut.entity_id);
+            if (error) {
+              console.warn('[AccountSyncEngine] Flush DELETE_PLAYLIST failed:', error.message);
+              continue;
+            }
           } else if (mut.type === 'RECORD_DOWNLOAD' && this.hasUserDownloadsTable) {
             const { error } = await supabase.from('user_downloads').upsert({
               user_id: mut.user_id,
@@ -1012,9 +1105,26 @@ export class AccountSyncEngine {
     try {
       const { usePlayerStore } = await import('@/context/usePlayerStore');
       const { usePlaylistStore } = await import('@/context/usePlaylistStore');
+      const localDb = LocalDatabase.getInstance();
 
       // 1. Merge Guest Liked Songs
-      const guestLikedIds = usePlayerStore.getState().likedSongIds || [];
+      let guestLikedIds = usePlayerStore.getState().likedSongIds || [];
+      if (guestLikedIds.length === 0) {
+        const cachedGuest = await localDb.getUserStore<string[]>('guest', 'liked_songs');
+        if (cachedGuest && cachedGuest.length > 0) {
+          guestLikedIds = cachedGuest;
+        }
+      }
+
+      // Also migrate any pending guest mutations to active user
+      try {
+        const guestMutations = await localDb.getPendingMutations('guest');
+        for (const gm of guestMutations) {
+          await localDb.removePendingMutation(gm.mutation_id);
+          await localDb.addPendingMutation({ ...gm, user_id: userId });
+        }
+      } catch {}
+
       if (guestLikedIds.length > 0) {
         const rows = guestLikedIds.map((songId) => ({
           user_id: userId,

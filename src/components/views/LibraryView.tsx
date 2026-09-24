@@ -29,6 +29,7 @@ import type { FriendActivityState } from '@/lib/social/FriendActivityEngine';
 import { BlendEngine } from '@/lib/social/BlendEngine';
 import type { BlendResult } from '@/lib/social/BlendEngine';
 import { Users, Plus, Copy, Radio, LogOut } from 'lucide-react';
+import { PlaylistCover } from '@/components/playlist/PlaylistCover';
 
 export function LibraryView() {
   const [tab, setTab] = useState<string>('menu');
@@ -1060,14 +1061,15 @@ export function LibraryView() {
                     }}
                     className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-emerald-500/30 hover:bg-white/5 transition-all flex items-center gap-3.5 cursor-pointer group"
                   >
-                    <div className="w-12 h-12 rounded-xl bg-slate-800 overflow-hidden flex-shrink-0 relative shadow-sm border border-white/5">
-                      <img
-                        src={pl.coverUrl || pl.songs?.[0]?.coverUrl || '/default-playlist-cover.png'}
-                        alt={pl.title}
-                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/default-playlist-cover.png'; }}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 relative shadow-sm border border-white/5">
+                      <PlaylistCover
+                        playlistId={pl.id}
+                        playlistName={pl.title}
+                        size="small"
+                        showTitle={false}
+                        className="w-full h-full"
                       />
-                      <div className="absolute bottom-0.5 right-0.5 bg-emerald-500 text-slate-950 rounded-full p-0.5">
+                      <div className="absolute bottom-0.5 right-0.5 bg-emerald-500 text-slate-950 rounded-full p-0.5 z-30">
                         <CheckCircle2 className="w-2.5 h-2.5 fill-current" />
                       </div>
                     </div>
@@ -1461,12 +1463,13 @@ export function LibraryView() {
                       className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-white/15 hover:bg-white/5 transition-all flex items-center justify-between group cursor-pointer"
                     >
                       <div className="flex items-center gap-3.5 min-w-0">
-                        <div className="w-12 h-12 rounded-xl bg-slate-800 overflow-hidden flex-shrink-0 relative shadow-sm border border-white/5">
-                          <img
-                            src={pl.coverUrl || pl.songs?.[0]?.coverUrl || '/default-playlist-cover.png'}
-                            alt={pl.title}
-                            onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/default-playlist-cover.png'; }}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                        <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 relative shadow-sm border border-white/5">
+                          <PlaylistCover
+                            playlistId={pl.id}
+                            playlistName={pl.title}
+                            size="small"
+                            showTitle={false}
+                            className="w-full h-full"
                           />
                         </div>
                         <div className="min-w-0">

@@ -6,8 +6,8 @@
  * relative requests in web/dev environments.
  */
 
-export const RENDER_COORDINATOR_HTTP = 'https://raaga-sync-server.onrender.com';
-export const RENDER_COORDINATOR_WS = 'wss://raaga-sync-server.onrender.com';
+export const RENDER_COORDINATOR_HTTP = 'https://raaga-sync-server-x2xy.onrender.com';
+export const RENDER_COORDINATOR_WS = 'wss://raaga-sync-server-x2xy.onrender.com';
 
 export function getSyncWebSocketUrl(): string {
   if (typeof window !== 'undefined') {

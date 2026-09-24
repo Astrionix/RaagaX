@@ -10,6 +10,8 @@ export interface ChameleonPalette {
   gradientCss: string;
   /** e.g. 'rgba(140,28,48,0.11)' — used to tint glass surfaces with the artwork color */
   refractionRgba: string;
+  /** Extracted raw RGB tuples [r, g, b] for mesh canvas rendering */
+  rawRgb?: [number, number, number][];
 }
 
 const DEFAULT_PALETTE: ChameleonPalette = {
@@ -21,6 +23,12 @@ const DEFAULT_PALETTE: ChameleonPalette = {
   glow: 'rgba(215, 75, 45, 0.35)',
   refractionRgba: 'rgba(140, 28, 48, 0.10)',
   gradientCss: 'radial-gradient(circle at 50% 20%, rgba(140, 28, 48, 0.45) 0%, rgba(85, 30, 25, 0.3) 50%, rgba(6, 7, 10, 0.95) 100%)',
+  rawRgb: [
+    [140, 28, 48],
+    [85, 30, 25],
+    [215, 75, 45],
+    [250, 35, 59],
+  ],
 };
 
 
@@ -174,7 +182,10 @@ export class ArtworkColorExtractor {
           const primary = `rgb(${maxSatR}, ${maxSatG}, ${maxSatB})`;
           const secondary = `rgb(${secondR}, ${secondG}, ${secondB})`;
           const highlight = `rgb(${warmHighlightR}, ${warmHighlightG}, ${warmHighlightB})`;
-          const accent = `rgb(${Math.min(255, maxSatR + 35)}, ${Math.min(255, maxSatG + 25)}, ${Math.min(255, maxSatB + 35)})`;
+          const accentR = Math.min(255, maxSatR + 35);
+          const accentG = Math.min(255, maxSatG + 25);
+          const accentB = Math.min(255, maxSatB + 35);
+          const accent = `rgb(${accentR}, ${accentG}, ${accentB})`;
           const darkAmbient = `rgb(${Math.max(6, Math.floor(maxSatR * 0.12))}, ${Math.max(6, Math.floor(maxSatG * 0.10))}, ${Math.max(8, Math.floor(maxSatB * 0.15))})`;
           const glow = `rgba(${warmHighlightR}, ${warmHighlightG}, ${warmHighlightB}, 0.35)`;
 
@@ -190,6 +201,12 @@ export class ArtworkColorExtractor {
             glow,
             refractionRgba,
             gradientCss,
+            rawRgb: [
+              [maxSatR, maxSatG, maxSatB],
+              [secondR, secondG, secondB],
+              [warmHighlightR, warmHighlightG, warmHighlightB],
+              [accentR, accentG, accentB],
+            ],
           });
         } catch {
           resolve(DEFAULT_PALETTE);

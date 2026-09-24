@@ -14,8 +14,8 @@
     "binding": "ASSETS"
   },
   "vars": {
-    "NEXT_PUBLIC_SYNC_WS_URL": "wss://raaga-sync-server.onrender.com",
-    "NEXT_PUBLIC_CONNECT_SERVER_URL": "https://raaga-sync-server.onrender.com"
+    "NEXT_PUBLIC_SYNC_WS_URL": "wss://raaga-sync-server-x2xy.onrender.com",
+    "NEXT_PUBLIC_CONNECT_SERVER_URL": "https://raaga-sync-server-x2xy.onrender.com"
   },
   "build": {
     "command": "npx @opennextjs/cloudflare build --dangerouslyUseUnsupportedNextVersion"

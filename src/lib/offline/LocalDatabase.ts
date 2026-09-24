@@ -95,4 +95,22 @@ export class LocalDatabase {
       console.warn('[LocalDatabase] Mutation remove error:', e);
     }
   }
+
+  public async removePendingMutationsByEntity(userId: string, entityId: string, types?: string[]): Promise<void> {
+    try {
+      const db = await this.getDB();
+      const tx = db.transaction('pending_mutations', 'readwrite');
+      const index = tx.store.index('by_user');
+      const mutations = await index.getAll(userId);
+      for (const m of mutations) {
+        if (m.entity_id === entityId && (!types || types.includes(m.type))) {
+          await tx.store.delete(m.mutation_id);
+        }
+      }
+      await tx.done;
+    } catch (e) {
+      console.warn('[LocalDatabase] Mutation remove by entity error:', e);
+    }
+  }
 }
+

@@ -179,5 +179,8 @@
     "vitest": "^3.0.9",
     "wait-on": "^9.1.0",
     "wrangler": "^4.128.0"
+  },
+  "optionalDependencies": {
+    "@next/swc-darwin-x64": "^14.2.15"
   }
 }

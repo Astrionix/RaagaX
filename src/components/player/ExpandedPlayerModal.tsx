@@ -51,6 +51,7 @@ import { haptics } from '@/lib/haptics/HapticEngine';
 import { SongFormatter } from '@/lib/music/SongFormatter';
 import { ArtworkColorExtractor, ChameleonPalette } from '@/lib/theme/ArtworkColorExtractor';
 import { LiquidGlass } from '@/components/common/LiquidGlass';
+import { LiquidMotionBackground } from '@/components/player/LiquidMotionBackground';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 import { AlbumCatalogEngine } from '@/lib/albumCatalog';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
@@ -468,78 +469,18 @@ export function ExpandedPlayerModal() {
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* ── 1. DYNAMIC ARTWORK ATMOSPHERE (Cover Blur + 2-3 Color Meshes + Dark Glass Scrim) ── */}
-      {/* Layer A: Blurred Enlarged Cover Artwork (40-60px blur) */}
-      <div
-        className="absolute inset-0 opacity-65 scale-125 pointer-events-none transition-all duration-700 ease-out"
-        style={{
-          backgroundImage: `url(${coverUrl})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          filter: 'blur(50px) saturate(175%) brightness(0.50)',
-        }}
-      />
-
-      {/* Layer B: Apple Music Style Living Fluid Ambient Mesh Background */}
-      {palette && (
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {/* Fluid Mesh Orb 1: Primary Dominant Glow (Drifting top & center) */}
-          <div
-            className={`absolute -top-32 left-1/4 w-[120%] h-[580px] rounded-full blur-[80px] transition-opacity duration-1000 opacity-75 animate-ambient-drift-1 ${
-              !isPlaying ? 'ambient-paused' : ''
-            }`}
-            style={{
-              background: `radial-gradient(ellipse at 50% 40%, ${palette.primary} 0%, ${palette.secondary || palette.primary} 55%, transparent 75%)`,
-            }}
-          />
-
-          {/* Fluid Mesh Orb 2: Secondary Floating Accent (Counter-orbiting bottom-left to center) */}
-          <div
-            className={`absolute top-48 -left-20 w-[90%] h-[480px] rounded-full blur-[75px] transition-opacity duration-1000 opacity-60 animate-ambient-drift-2 ${
-              !isPlaying ? 'ambient-paused' : ''
-            }`}
-            style={{
-              background: `radial-gradient(circle at 40% 40%, ${palette.secondary} 0%, ${palette.highlight || palette.primary} 50%, transparent 70%)`,
-            }}
-          />
-
-          {/* Fluid Mesh Orb 3: Highlight Bloom (Pulsing Behind Foreground Artwork) */}
-          <div
-            className={`absolute top-1/3 left-1/2 w-[520px] h-[520px] rounded-full blur-[65px] transition-opacity duration-1000 opacity-45 animate-ambient-bloom ${
-              !isPlaying ? 'ambient-paused' : ''
-            }`}
-            style={{
-              background: `radial-gradient(circle at 50% 50%, ${palette.highlight || palette.primary} 0%, transparent 65%)`,
-            }}
-          />
-
-          {/* Fluid Mesh Orb 4: Deep Atmospheric Under-Glow (Slow drifter in lower quadrant) */}
-          <div
-            className={`absolute -bottom-24 -right-16 w-[85%] h-[440px] rounded-full blur-[85px] transition-opacity duration-1000 opacity-50 animate-ambient-drift-3 ${
-              !isPlaying ? 'ambient-paused' : ''
-            }`}
-            style={{
-              background: `radial-gradient(ellipse at 50% 50%, ${palette.secondary} 0%, ${palette.primary} 45%, transparent 70%)`,
-            }}
-          />
-        </div>
-      )}
-
-      {/* Layer C: Dark Glass / Vignette Scrim (Ensures Crisp Artwork & Neutral Glass Readability) */}
-      <div
-        className="absolute inset-0 pointer-events-none transition-all duration-700"
-        style={{
-          background:
-            'radial-gradient(ellipse at 50% 35%, rgba(6,7,10,0.15) 0%, rgba(6,7,10,0.55) 55%, rgba(6,7,10,0.92) 100%)',
-        }}
-      />
-      <div
-        className="absolute inset-0 pointer-events-none transition-all duration-700"
-        style={{
-          background:
-            'linear-gradient(180deg, rgba(6,7,10,0.20) 0%, rgba(6,7,10,0.30) 35%, rgba(6,7,10,0.72) 75%, rgba(6,7,10,0.96) 92%, #06070A 100%)',
-        }}
-      />
+      {/* ── 1. DYNAMIC ARTWORK ATMOSPHERE (Apple Music Liquid Kinetic Mesh Background) ── */}
+      <div className="absolute inset-0 pointer-events-none z-0">
+        <LiquidMotionBackground
+          artworkUrl={coverUrl}
+          palette={palette}
+          isPlaying={isPlaying}
+          blurAmount={80}
+          saturateAmount={220}
+          vignetteIntensity="balanced"
+          showCoverBackdrop={true}
+        />
+      </div>
 
       {/* ── Top Grab Handle Indicator (Mobile Drag-Down Affordance) ── */}
       <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-9 h-1 rounded-full bg-white/25 z-40 md:hidden pointer-events-none" />

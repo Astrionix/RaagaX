@@ -159,8 +159,8 @@ export const usePlaylistStore = create<PlaylistStore>()(
                 if (resolvedList.length > 0) {
                   pl.songs = resolvedList;
                 }
-                if (!pl.coverUrl && pl.songs.length > 0 && pl.songs[0]?.coverUrl) {
-                  pl.coverUrl = pl.songs[0].coverUrl;
+                if (!pl.visualSeed) {
+                  pl.visualSeed = pl.id;
                 }
               });
             } catch (resolveErr) {
@@ -241,6 +241,8 @@ export const usePlaylistStore = create<PlaylistStore>()(
           title,
           description: description || '',
           coverUrl: coverUrl || '',
+          visualSeed: id,
+          visualStyle: 'aurora',
           visibility: visibility as any,
           ownerId: authUserId,
           ownerName: authUserName,
@@ -326,7 +328,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
 
         const newSongIds = [...targetPl.songIds, song.id];
         const newSongs = [...targetPl.songs, song];
-        const newCoverUrl = targetPl.coverUrl || song.coverUrl || '';
+        const newCoverUrl = targetPl.coverUrl || '';
 
         set((state) => ({
           playlists: state.playlists.map((pl) => {

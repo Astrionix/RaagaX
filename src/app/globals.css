@@ -745,31 +745,46 @@
    MADE FOR YOU CARDS — Premium flowing wave animation system
    ═══════════════════════════════════════════════════════════════ */
 
+/* ═══════════════════════════════════════════════════════════════
+   MADE FOR YOU CARDS — Radiant Red Rose & White Luxury Design System
+   ═══════════════════════════════════════════════════════════════ */
+
 /* ── Card container ── */
 .mfy-card {
-  min-height: 190px;
-  background: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.80);
-  box-shadow: 0 22px 45px rgba(30,35,50,0.12);
-  transition: transform 0.30s ease, box-shadow 0.30s ease;
+  min-height: 195px;
+  background:
+    radial-gradient(circle at 85% 20%, #FFFFFF 0%, #FFD1DC 12%, transparent 42%),
+    radial-gradient(circle at 25% 30%, #D41445 0%, #A9002D 35%, transparent 65%),
+    radial-gradient(circle at 70% 75%, #F02B5B 0%, #700018 45%, transparent 75%),
+    linear-gradient(135deg, #3A0010 0%, #A9002D 45%, #F02B5B 70%, #FFFFFF 100%);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  box-shadow: 0 18px 40px rgba(58, 0, 16, 0.45), 0 2px 10px rgba(240, 43, 91, 0.25);
+  transition: transform 0.30s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.30s ease, border-color 0.30s ease;
   isolation: isolate;
 }
 .mfy-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 28px 55px rgba(30,35,50,0.16);
+  transform: translateY(-5px) scale(1.015);
+  border-color: rgba(255, 255, 255, 0.65);
+  box-shadow: 0 24px 50px rgba(58, 0, 16, 0.65), 0 0 25px rgba(240, 43, 91, 0.40);
 }
 .dark .mfy-card {
-  background: rgba(255,255,255,0.04);
-  border-color: rgba(255,255,255,0.10);
-  box-shadow: 0 25px 55px rgba(0,0,0,0.40);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.60), 0 2px 12px rgba(169, 0, 45, 0.35);
 }
 .dark .mfy-card:hover {
-  box-shadow: 0 32px 65px rgba(0,0,0,0.55);
+  border-color: rgba(255, 255, 255, 0.50);
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.75), 0 0 28px rgba(240, 43, 91, 0.45);
 }
 
-/* Dark text override */
-.dark .mfy-card h3 { color: #f7f8fc !important; }
-.dark .mfy-card p  { color: rgba(168,175,189,0.90) !important; }
+/* Card typography */
+.mfy-card h3 {
+  color: #FFFFFF !important;
+  text-shadow: 0 1px 3px rgba(58, 0, 16, 0.85);
+}
+.mfy-card p {
+  color: #FFD1DC !important;
+  text-shadow: 0 1px 2px rgba(58, 0, 16, 0.70);
+}
 
 /* ── Moving light reflection sweep across the card ── */
 .mfy-card::before {
@@ -783,8 +798,8 @@
   background: linear-gradient(
     110deg,
     transparent 35%,
-    rgba(255,255,255,0.36) 48%,
-    rgba(255,255,255,0.10) 54%,
+    rgba(255, 255, 255, 0.45) 48%,
+    rgba(255, 209, 220, 0.20) 54%,
     transparent 68%
   );
   transform: rotate(12deg);
@@ -796,8 +811,8 @@
   background: linear-gradient(
     110deg,
     transparent 35%,
-    rgba(255,255,255,0.12) 48%,
-    rgba(255,255,255,0.04) 54%,
+    rgba(255, 255, 255, 0.30) 48%,
+    rgba(255, 209, 220, 0.12) 54%,
     transparent 68%
   );
 }
@@ -869,32 +884,33 @@
   100% { transform: translate3d( 7%, 1%,0) rotate(8deg)  scale(1.07); }
 }
 
-/* ── Per-card timing — each card moves independently ── */
-.mfy-pink    .mfy-flow          { animation-duration: 17s; }
-.mfy-pink    .mfy-flow::before  { animation-duration: 11s; }
-.mfy-pink    .mfy-flow::after   { animation-duration: 15s; }
+/* ── Per-card timing ── */
+.mfy-rose-rotation .mfy-flow          { animation-duration: 17s; }
+.mfy-rose-rotation .mfy-flow::before  { animation-duration: 11s; }
+.mfy-rose-rotation .mfy-flow::after   { animation-duration: 15s; }
 
-.mfy-purple  .mfy-flow          { animation-duration: 21s; }
-.mfy-purple  .mfy-flow::before  { animation-duration: 14s; }
-.mfy-purple  .mfy-flow::after   { animation-duration: 18s; }
+.mfy-rose-daily    .mfy-flow          { animation-duration: 21s; }
+.mfy-rose-daily    .mfy-flow::before  { animation-duration: 14s; }
+.mfy-rose-daily    .mfy-flow::after   { animation-duration: 18s; }
 
-.mfy-cyan    .mfy-flow          { animation-duration: 19s; }
-.mfy-cyan    .mfy-flow::before  { animation-duration: 13s; }
-.mfy-cyan    .mfy-flow::after   { animation-duration: 17s; }
+.mfy-rose-discover .mfy-flow          { animation-duration: 19s; }
+.mfy-rose-discover .mfy-flow::before  { animation-duration: 13s; }
+.mfy-rose-discover .mfy-flow::after   { animation-duration: 17s; }
 
-.mfy-magenta .mfy-flow          { animation-duration: 23s; }
-.mfy-magenta .mfy-flow::before  { animation-duration: 15s; }
-.mfy-magenta .mfy-flow::after   { animation-duration: 20s; }
+.mfy-rose-favorites .mfy-flow         { animation-duration: 23s; }
+.mfy-rose-favorites .mfy-flow::before { animation-duration: 15s; }
+.mfy-rose-favorites .mfy-flow::after  { animation-duration: 20s; }
 
-/* ── Glass overlay (light: white fade-up, dark: dark fade-up) ── */
+/* ── Glass overlay ── */
 .mfy-glass {
   position: absolute;
   inset: 0;
   z-index: -2;
   background: linear-gradient(
     to bottom,
-    rgba(255,255,255,0.12),
-    rgba(255,255,255,0.96)
+    rgba(58, 0, 16, 0.05) 0%,
+    rgba(58, 0, 16, 0.45) 55%,
+    rgba(20, 0, 5, 0.88) 100%
   );
   pointer-events: none;
   transition: background 0.35s ease;
@@ -902,176 +918,147 @@
 .dark .mfy-glass {
   background: linear-gradient(
     to bottom,
-    rgba(10,12,18,0.08),
-    rgba(8,10,15,0.96)
+    rgba(58, 0, 16, 0.10) 0%,
+    rgba(58, 0, 16, 0.55) 55%,
+    rgba(10, 2, 5, 0.94) 100%
   );
 }
 
 /* ── Play button glass ── */
 .mfy-play-btn {
-  background: rgba(90,95,105,0.25);
-  border: 1px solid rgba(255,255,255,0.55);
+  background: rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  box-shadow: 0 4px 14px rgba(58, 0, 16, 0.40);
 }
-.dark .mfy-play-btn {
-  background: rgba(255,255,255,0.13);
-  border-color: rgba(255,255,255,0.30);
+.mfy-play-btn:hover {
+  background: rgba(255, 255, 255, 0.38);
+  border-color: #FFFFFF;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.65);
 }
 
 /* ── Badge glass ── */
 .mfy-badge {
-  background: rgba(255,255,255,0.28);
+  background: rgba(58, 0, 16, 0.45) !important;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
-.dark .mfy-badge {
-  background: rgba(0,0,0,0.22) !important;
-}
 
 /* ════════════════════════════════════════
-   LIGHT MODE — WAVE COLORS
+   RADIANT RED ROSE & WHITE PALETTE VARIANTS
    ════════════════════════════════════════ */
 
-/* PINK */
+/* 1. HEAVY ROTATION — Signature Red Rose + White User Gradient */
+.mfy-rose-rotation,
+.mfy-pink {
+  background:
+    radial-gradient(circle at 85% 20%, #FFFFFF 0%, #FFD1DC 12%, transparent 42%),
+    radial-gradient(circle at 25% 30%, #D41445 0%, #A9002D 35%, transparent 65%),
+    radial-gradient(circle at 70% 75%, #F02B5B 0%, #700018 45%, transparent 75%),
+    linear-gradient(135deg, #3A0010 0%, #A9002D 45%, #F02B5B 70%, #FFFFFF 100%);
+}
+.mfy-rose-rotation .mfy-flow,
 .mfy-pink .mfy-flow {
   background:
-    radial-gradient(ellipse at 15% 30%, #ff9aae 0%, transparent 42%),
-    radial-gradient(ellipse at 80% 20%, #ffc7d4 0%, transparent 45%),
-    #fff1f4;
+    radial-gradient(ellipse at 20% 30%, #D41445 0%, transparent 45%),
+    radial-gradient(ellipse at 80% 25%, #FFD1DC 0%, transparent 40%),
+    #3A0010;
 }
+.mfy-rose-rotation .mfy-flow::before,
 .mfy-pink .mfy-flow::before {
   background: linear-gradient(105deg,
-    transparent 10%, rgba(255,50,87,0.75) 35%,
-    rgba(255,160,180,0.55) 60%, transparent 82%);
+    transparent 10%, rgba(240, 43, 91, 0.85) 35%,
+    rgba(169, 0, 45, 0.65) 60%, transparent 82%);
 }
+.mfy-rose-rotation .mfy-flow::after,
 .mfy-pink .mfy-flow::after {
   background: linear-gradient(100deg,
-    transparent 20%, rgba(255,255,255,0.90) 45%, transparent 75%);
+    transparent 20%, rgba(255, 255, 255, 0.90) 45%, transparent 75%);
 }
 
-/* PURPLE */
+/* 2. DAILY MIX — Dark Rose & Rose Red with Glowing White Highlight */
+.mfy-rose-daily,
+.mfy-purple {
+  background:
+    radial-gradient(circle at 85% 20%, #FFFFFF 0%, #FFD1DC 12%, transparent 42%),
+    radial-gradient(circle at 20% 35%, #F02B5B 0%, #A9002D 40%, transparent 65%),
+    radial-gradient(circle at 65% 80%, #D41445 0%, #700018 45%, transparent 75%),
+    linear-gradient(135deg, #3A0010 0%, #D41445 50%, #F58AA5 75%, #FFFFFF 100%);
+}
+.mfy-rose-daily .mfy-flow,
 .mfy-purple .mfy-flow {
   background:
-    radial-gradient(ellipse at 20% 30%, #c7a7ff 0%, transparent 43%),
-    radial-gradient(ellipse at 80% 55%, #e4d7ff 0%, transparent 45%),
-    #f3efff;
+    radial-gradient(ellipse at 25% 35%, #F02B5B 0%, transparent 45%),
+    radial-gradient(ellipse at 75% 20%, #FFD1DC 0%, transparent 40%),
+    #700018;
 }
+.mfy-rose-daily .mfy-flow::before,
 .mfy-purple .mfy-flow::before {
   background: linear-gradient(110deg,
-    transparent 5%, rgba(137,91,246,0.65) 35%,
-    rgba(190,155,255,0.55) 60%, transparent 82%);
+    transparent 8%, rgba(212, 20, 69, 0.85) 35%,
+    rgba(245, 138, 165, 0.60) 60%, transparent 82%);
 }
+.mfy-rose-daily .mfy-flow::after,
 .mfy-purple .mfy-flow::after {
   background: linear-gradient(105deg,
-    transparent 20%, rgba(255,255,255,0.90) 48%, transparent 75%);
+    transparent 20%, rgba(255, 255, 255, 0.88) 48%, transparent 75%);
 }
 
-/* CYAN */
+/* 3. DISCOVER MIX — Crimson, Hot Rose & Radiant White Highlight */
+.mfy-rose-discover,
+.mfy-cyan {
+  background:
+    radial-gradient(circle at 85% 20%, #FFFFFF 0%, #FFD1DC 14%, transparent 42%),
+    radial-gradient(circle at 30% 25%, #F58AA5 0%, #D41445 35%, transparent 65%),
+    radial-gradient(circle at 75% 70%, #A9002D 0%, #3A0010 45%, transparent 75%),
+    linear-gradient(135deg, #3A0010 0%, #700018 40%, #F02B5B 75%, #FFFFFF 100%);
+}
+.mfy-rose-discover .mfy-flow,
 .mfy-cyan .mfy-flow {
   background:
-    radial-gradient(ellipse at 20% 35%, #85e3dd 0%, transparent 42%),
-    radial-gradient(ellipse at 80% 50%, #b8eaff 0%, transparent 45%),
-    #effcfb;
+    radial-gradient(ellipse at 20% 35%, #F58AA5 0%, transparent 45%),
+    radial-gradient(ellipse at 80% 20%, #FFD1DC 0%, transparent 40%),
+    #3A0010;
 }
+.mfy-rose-discover .mfy-flow::before,
 .mfy-cyan .mfy-flow::before {
   background: linear-gradient(105deg,
-    transparent 8%, rgba(0,194,185,0.70) 35%,
-    rgba(75,190,255,0.55) 60%, transparent 82%);
+    transparent 10%, rgba(240, 43, 91, 0.85) 35%,
+    rgba(212, 20, 69, 0.60) 60%, transparent 82%);
 }
+.mfy-rose-discover .mfy-flow::after,
 .mfy-cyan .mfy-flow::after {
-  background: linear-gradient(105deg,
-    transparent 20%, rgba(255,255,255,0.90) 45%, transparent 72%);
+  background: linear-gradient(100deg,
+    transparent 20%, rgba(255, 255, 255, 0.90) 45%, transparent 75%);
 }
 
-/* MAGENTA */
+/* 4. FAVORITES MIX — Deep Burgundy, Dark Rose & Hot Rose with White Glow */
+.mfy-rose-favorites,
+.mfy-magenta {
+  background:
+    radial-gradient(circle at 85% 20%, #FFFFFF 0%, #FFD1DC 12%, transparent 42%),
+    radial-gradient(circle at 20% 30%, #A9002D 0%, #700018 40%, transparent 65%),
+    radial-gradient(circle at 70% 75%, #F02B5B 0%, #D41445 45%, transparent 75%),
+    linear-gradient(135deg, #3A0010 0%, #A9002D 40%, #F02B5B 70%, #FFFFFF 100%);
+}
+.mfy-rose-favorites .mfy-flow,
 .mfy-magenta .mfy-flow {
   background:
-    radial-gradient(ellipse at 20% 30%, #ffaddb 0%, transparent 42%),
-    radial-gradient(ellipse at 80% 25%, #ffd0a8 0%, transparent 45%),
-    #fff1f9;
+    radial-gradient(ellipse at 20% 30%, #A9002D 0%, transparent 45%),
+    radial-gradient(ellipse at 80% 25%, #FFD1DC 0%, transparent 40%),
+    #3A0010;
 }
+.mfy-rose-favorites .mfy-flow::before,
 .mfy-magenta .mfy-flow::before {
   background: linear-gradient(110deg,
-    transparent 8%, rgba(244,65,164,0.70) 35%,
-    rgba(255,165,205,0.55) 60%, transparent 82%);
+    transparent 8%, rgba(212, 20, 69, 0.85) 35%,
+    rgba(240, 43, 91, 0.60) 60%, transparent 82%);
 }
+.mfy-rose-favorites .mfy-flow::after,
 .mfy-magenta .mfy-flow::after {
   background: linear-gradient(100deg,
-    transparent 20%, rgba(255,255,255,0.90) 45%, transparent 75%);
-}
-
-/* ════════════════════════════════════════
-   DARK MODE — WAVE COLORS
-   ════════════════════════════════════════ */
-
-/* PINK dark */
-.dark .mfy-pink .mfy-flow {
-  background:
-    radial-gradient(ellipse at 15% 30%, #b5123e 0%, transparent 42%),
-    radial-gradient(ellipse at 80% 20%, #7d1639 0%, transparent 45%),
-    #170b12;
-}
-.dark .mfy-pink .mfy-flow::before {
-  background: linear-gradient(105deg,
-    transparent 10%, rgba(255,36,83,0.85) 35%,
-    rgba(210,35,80,0.55) 60%, transparent 82%);
-}
-.dark .mfy-pink .mfy-flow::after {
-  background: linear-gradient(100deg,
-    transparent 20%, rgba(255,100,140,0.40) 45%, transparent 75%);
-}
-
-/* PURPLE dark */
-.dark .mfy-purple .mfy-flow {
-  background:
-    radial-gradient(ellipse at 20% 30%, #5933a5 0%, transparent 43%),
-    radial-gradient(ellipse at 80% 55%, #3d2874 0%, transparent 45%),
-    #100d1c;
-}
-.dark .mfy-purple .mfy-flow::before {
-  background: linear-gradient(110deg,
-    transparent 5%, rgba(137,92,255,0.80) 35%,
-    rgba(112,73,205,0.55) 60%, transparent 82%);
-}
-.dark .mfy-purple .mfy-flow::after {
-  background: linear-gradient(105deg,
-    transparent 20%, rgba(186,155,255,0.35) 48%, transparent 75%);
-}
-
-/* CYAN dark */
-.dark .mfy-cyan .mfy-flow {
-  background:
-    radial-gradient(ellipse at 20% 35%, #087d82 0%, transparent 42%),
-    radial-gradient(ellipse at 80% 50%, #135a83 0%, transparent 45%),
-    #071719;
-}
-.dark .mfy-cyan .mfy-flow::before {
-  background: linear-gradient(105deg,
-    transparent 8%, rgba(0,218,207,0.80) 35%,
-    rgba(25,150,220,0.55) 60%, transparent 82%);
-}
-.dark .mfy-cyan .mfy-flow::after {
-  background: linear-gradient(105deg,
-    transparent 20%, rgba(90,240,230,0.35) 45%, transparent 72%);
-}
-
-/* MAGENTA dark */
-.dark .mfy-magenta .mfy-flow {
-  background:
-    radial-gradient(ellipse at 20% 30%, #9b286e 0%, transparent 42%),
-    radial-gradient(ellipse at 80% 25%, #9b5935 0%, transparent 45%),
-    #1a0b17;
-}
-.dark .mfy-magenta .mfy-flow::before {
-  background: linear-gradient(110deg,
-    transparent 8%, rgba(255,48,170,0.80) 35%,
-    rgba(235,90,170,0.55) 60%, transparent 82%);
-}
-.dark .mfy-magenta .mfy-flow::after {
-  background: linear-gradient(100deg,
-    transparent 20%, rgba(255,150,210,0.35) 45%, transparent 75%);
+    transparent 20%, rgba(255, 255, 255, 0.90) 45%, transparent 75%);
 }
 
 /* ── Reduce motion ── */

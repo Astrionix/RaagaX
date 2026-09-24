@@ -23,6 +23,8 @@ import { NavigationStack } from '@/lib/navigation/NavigationStack';
 import { PlaylistDetailResolver } from '@/lib/playlist/PlaylistDetailResolver';
 import { JamSessionManager } from '@/lib/connect/jam/JamSessionManager';
 import { haptics } from '@/lib/haptics/HapticEngine';
+import { PlaylistCover } from '@/components/playlist/PlaylistCover';
+import { generatePlaylistVisual } from '@/lib/playlist/playlistVisualGenerator';
 
 type SortOption = 'newest' | 'oldest' | 'az' | 'za' | 'duration';
 
@@ -94,19 +96,33 @@ export function PlaylistDetailView() {
 
   useEffect(() => {
     let isMounted = true;
-    if (playlist?.coverUrl && playlist.coverUrl !== '/app-icon.png') {
+    if (playlist?.coverUrl && playlist.coverUrl !== '/app-icon.png' && !playlist.coverUrl.includes('default-playlist-cover')) {
       ArtworkColorExtractor.getInstance()
         .extractPalette(playlist.coverUrl)
         .then((p) => {
           if (isMounted) setPalette(p);
         });
+    } else if (playlist) {
+      const visual = generatePlaylistVisual(playlist.id, playlist.title);
+      const c = visual.palette.colors;
+      setPalette({
+        primary: `rgb(${c[0].join(',')})`,
+        secondary: `rgb(${c[1].join(',')})`,
+        highlight: `rgb(${c[2].join(',')})`,
+        accent: visual.palette.accentHex,
+        darkAmbient: visual.palette.darkBase,
+        glow: `rgba(${c[0].join(',')}, 0.35)`,
+        refractionRgba: `rgba(${c[0].join(',')}, 0.10)`,
+        gradientCss: visual.cssStaticGradient,
+        rawRgb: visual.palette.colors,
+      });
     } else {
       setPalette(null);
     }
     return () => {
       isMounted = false;
     };
-  }, [playlist?.coverUrl]);
+  }, [playlist?.id, playlist?.title, playlist?.coverUrl]);
 
   const themeColor = palette?.highlight || palette?.accent || palette?.primary || '#FA233B';
   const glowColor = palette?.glow || 'rgba(250, 35, 59, 0.35)';
@@ -564,19 +580,21 @@ export function PlaylistDetailView() {
         <div className="w-full px-4 sm:px-8 space-y-6 pt-4">
           {/* Cinematic Hero Header */}
           <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6 p-5 sm:p-7 rounded-3xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] relative overflow-hidden shadow-2xl backdrop-blur-xl">
-            {/* Large Sharp Cover Art (Full Aspect Ratio Preserved Without Cropping) */}
-            <div className="relative w-48 h-48 sm:w-56 sm:h-56 md:w-60 md:h-60 aspect-square rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.85)] bg-black/50 border border-white/15 flex-shrink-0 flex items-center justify-center group">
-              <img 
-                src={playlist.coverUrl || playlist.songs?.[0]?.coverUrl || '/default-playlist-cover.png'} 
-                alt={playlist.title}
-                onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/default-playlist-cover.png'; }}
-                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            {/* Dynamic Animated Aurora Playlist Cover */}
+            <div className="relative w-48 h-48 sm:w-56 sm:h-56 md:w-60 md:h-60 aspect-square rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.85)] flex-shrink-0 group">
+              <PlaylistCover
+                playlistId={playlist.id}
+                playlistName={playlist.title}
+                songCount={playlist.songs?.length}
+                size="large"
+                interactive={true}
+                className="w-full h-full"
               />
 
               <button
                 onClick={() => setShowEditMetadataModal(true)}
-                className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/60 hover:bg-black/80 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                title="Change Artwork"
+                className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/60 hover:bg-black/80 text-white opacity-0 group-hover:opacity-100 transition-opacity z-30"
+                title="Edit Playlist Details"
               >
                 <Edit3 className="w-3.5 h-3.5" />
               </button>

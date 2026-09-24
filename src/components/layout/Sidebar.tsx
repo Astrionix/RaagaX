@@ -33,6 +33,7 @@ import { useAuthStore } from '@/context/useAuthStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
 import { RaagaXLogo } from '@/components/brand/RaagaXLogo';
 import { haptics } from '@/lib/haptics/HapticEngine';
+import { PlaylistCover } from '@/components/playlist/PlaylistCover';
 
 // ─── Reusable nav button ─────────────────────────────────────────────────────
 function NavItem({
@@ -570,11 +571,15 @@ export function Sidebar() {
                         : 'hover:bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                     }`}
                   >
-                    {coverUrl ? (
-                      <img src={coverUrl} alt={title} className="w-6 h-6 rounded-md object-cover shadow-sm" />
-                    ) : (
-                      <ListMusic className={`w-4 h-4 ${isActive ? 'text-[#FA233B]' : 'text-[var(--text-muted)]'}`} />
-                    )}
+                    <div className="w-6 h-6 rounded-md overflow-hidden shadow-sm">
+                      <PlaylistCover
+                        playlistId={pl.id}
+                        playlistName={title}
+                        size="small"
+                        showTitle={false}
+                        className="w-full h-full"
+                      />
+                    </div>
                   </button>
                 );
               }
@@ -590,15 +595,15 @@ export function Sidebar() {
                   }`}
                 >
                   <div className={`w-7 h-7 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center border transition-colors ${
-                    isActive ? 'border-[#FA233B]/50' : 'border-[var(--border-subtle)] bg-[var(--bg-surface)]'
+                    isActive ? 'border-[#FA233B]/50' : 'border-[var(--border-subtle)]'
                   }`}>
-                    {coverUrl ? (
-                      <img src={coverUrl} alt={title} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-[#FA233B]/20 to-purple-500/20 flex items-center justify-center">
-                        <ListMusic className={`w-3.5 h-3.5 ${isActive ? 'text-[#FA233B]' : 'text-[var(--text-muted)] group-hover/item:text-[var(--text-primary)]'}`} />
-                      </div>
-                    )}
+                    <PlaylistCover
+                      playlistId={pl.id}
+                      playlistName={title}
+                      size="small"
+                      showTitle={false}
+                      className="w-full h-full"
+                    />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className={`text-xs truncate leading-tight ${isActive ? 'text-[#FA233B] font-bold' : 'font-medium group-hover/item:text-[var(--text-primary)]'}`}>
