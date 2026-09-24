@@ -543,11 +543,11 @@ export function OnboardingAuthModal() {
                 if (map.size === 0) {
                   ARTISTS_BY_LANGUAGE['Telugu'].forEach(a => map.set(a.name, a));
                 }
-                return Array.from(map.values()).slice(0, 9);
+                return Array.from(map.values()).slice(0, 12);
               })();
 
               return (
-                <div className="animate-in slide-in-from-right-4 duration-300 pb-20 md:pb-6">
+                <div className="animate-in slide-in-from-right-4 duration-300 pb-24 md:pb-6">
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
                     {activeArtists.map(artist => {
                     const isSelected = selectedArtists.includes(artist.name);
@@ -584,8 +584,8 @@ export function OnboardingAuthModal() {
                   })}
                 </div>
 
-                {/* Sticky Continue / Done Button */}
-                <div className="sticky bottom-0 left-0 right-0 pt-3 pb-4 bg-gradient-to-t from-[#07080C] via-[#07080C]/95 to-transparent z-20">
+                {/* Fixed bottom button on mobile, sticky on desktop */}
+                <div className="fixed md:relative bottom-0 left-0 right-0 md:bottom-auto px-6 md:px-0 pt-3 pb-6 md:pb-0 bg-gradient-to-t from-[#07080C] via-[#07080C]/98 to-transparent z-30 md:z-auto md:bg-none">
                   <button
                     onClick={handleFinalizeRegister}
                     disabled={isLoading}
