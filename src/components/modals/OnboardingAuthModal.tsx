@@ -581,7 +581,7 @@ export function OnboardingAuthModal() {
                   )}
 
                   {/* Artist Card Grid */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+                  <div className="grid grid-cols-3 md:grid-cols-4 gap-2 mb-4">
                     {activeArtists.map((artist, idx) => {
                       const isSelected = selectedArtists.includes(artist.name);
                       const gradient = getArtistGradient(artist.name);
@@ -598,17 +598,17 @@ export function OnboardingAuthModal() {
                             }
                           }}
                           style={{ animationDelay: `${idx * 40}ms` }}
-                          className="relative group outline-none cursor-pointer rounded-[20px] overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-300 fill-mode-both"
+                          className="relative group outline-none cursor-pointer rounded-[14px] overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-300 fill-mode-both"
                         >
                           {/* Glow ring when selected */}
                           {isSelected && (
-                            <div className="absolute -inset-[2px] rounded-[22px] bg-gradient-to-br from-[#F51B3D] via-[#FF4D5E] to-[#FF2070] z-10 opacity-100">
-                              <div className="absolute inset-[2px] rounded-[20px] bg-[#07080C]" />
+                            <div className="absolute -inset-[2px] rounded-[16px] bg-gradient-to-br from-[#F51B3D] via-[#FF4D5E] to-[#FF2070] z-10 opacity-100">
+                              <div className="absolute inset-[2px] rounded-[14px] bg-[#07080C]" />
                             </div>
                           )}
 
                           {/* Card body */}
-                          <div className={`relative z-20 aspect-[3/4] w-full overflow-hidden rounded-[20px] ${
+                          <div className={`relative z-20 aspect-square w-full overflow-hidden rounded-[14px] ${
                             isSelected ? 'ring-2 ring-[#F51B3D]' : 'ring-1 ring-white/10'
                           } transition-all duration-300`}>
 
@@ -632,8 +632,8 @@ export function OnboardingAuthModal() {
                             </div>
 
                             {/* Bottom name gradient overlay */}
-                            <div className="absolute bottom-0 left-0 right-0 pt-12 pb-3 px-3 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
-                              <p className={`text-[12px] font-bold text-white leading-tight transition-all ${
+                            <div className="absolute bottom-0 left-0 right-0 pt-6 pb-2 px-2 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
+                              <p className={`text-[10px] font-bold text-white leading-tight truncate transition-all ${
                                 isSelected ? 'text-white' : 'text-white/80'
                               }`}>
                                 {artist.name}
@@ -642,8 +642,8 @@ export function OnboardingAuthModal() {
 
                             {/* Selected checkmark overlay */}
                             {isSelected && (
-                              <div className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-[#F51B3D] flex items-center justify-center shadow-lg shadow-red-500/40 z-30">
-                                <Check className="w-4 h-4 text-white stroke-[3]" />
+                              <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#F51B3D] flex items-center justify-center shadow-lg shadow-red-500/40 z-30">
+                                <Check className="w-3 h-3 text-white stroke-[3]" />
                               </div>
                             )}
 
@@ -654,7 +654,7 @@ export function OnboardingAuthModal() {
 
                             {/* Selection pulse ring */}
                             {isSelected && (
-                              <div className="absolute inset-0 rounded-[20px] ring-2 ring-[#F51B3D]/60 animate-pulse pointer-events-none" />
+                              <div className="absolute inset-0 rounded-[14px] ring-2 ring-[#F51B3D]/60 animate-pulse pointer-events-none" />
                             )}
                           </div>
                         </button>
