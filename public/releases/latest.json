@@ -1,9 +1,9 @@
 {
-  "versionCode": 20,
-  "versionName": "1.4.3",
+  "versionCode": 21,
+  "versionName": "1.4.4",
   "apkUrl": "https://raaga.me/api/app/download",
-  "sha256": "26b90f2a6a2b38be29b986ecde40bdca63a6009029ede7afeeaefe6c0b17e19d",
-  "fileSize": 17116515,
+  "sha256": "4d12b8847b0e2e7104eb2722a32ec6d8882e952294ea3c83a37cb25406769f38",
+  "fileSize": 17117406,
   "releaseDate": "2026-09-25",
   "mandatory": false,
   "minimumSupportedVersion": 1,

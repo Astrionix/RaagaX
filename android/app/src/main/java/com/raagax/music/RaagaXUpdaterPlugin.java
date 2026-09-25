@@ -113,16 +113,35 @@ public class RaagaXUpdaterPlugin extends Plugin {
                     apkFile.delete();
                 }
 
-                URL url = new URL(urlString);
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                connection.setRequestMethod("GET");
-                connection.setConnectTimeout(15000);
-                connection.setReadTimeout(15000);
-                connection.connect();
+                String currentUrl = urlString;
+                HttpURLConnection connection = null;
+                int redirects = 0;
+                while (redirects < 5) {
+                    URL u = new URL(currentUrl);
+                    connection = (HttpURLConnection) u.openConnection();
+                    connection.setInstanceFollowRedirects(true);
+                    connection.setRequestMethod("GET");
+                    connection.setConnectTimeout(20000);
+                    connection.setReadTimeout(20000);
+                    connection.setRequestProperty("User-Agent", "RaagaX-Android-Updater/1.4");
+                    connection.connect();
 
-                int responseCode = connection.getResponseCode();
-                if (responseCode != HttpURLConnection.HTTP_OK) {
-                    notifyError(call, "DOWNLOAD_FAILED", "Server returned HTTP response code: " + responseCode);
+                    int status = connection.getResponseCode();
+                    if (status == HttpURLConnection.HTTP_MOVED_TEMP || status == HttpURLConnection.HTTP_MOVED_PERM || status == 307 || status == 308) {
+                        String newUrl = connection.getHeaderField("Location");
+                        if (newUrl != null && !newUrl.isEmpty()) {
+                            currentUrl = newUrl;
+                            redirects++;
+                            connection.disconnect();
+                            continue;
+                        }
+                    }
+                    break;
+                }
+
+                if (connection == null || connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+                    int code = connection != null ? connection.getResponseCode() : -1;
+                    notifyError(call, "DOWNLOAD_FAILED", "Server returned HTTP response code: " + code);
                     return;
                 }
 
@@ -157,6 +176,13 @@ public class RaagaXUpdaterPlugin extends Plugin {
                 output.flush();
                 output.close();
                 input.close();
+
+                // Check magic bytes to verify genuine APK binary (starts with PK\x03\x04)
+                if (!isValidApkFile(apkFile)) {
+                    if (apkFile.exists()) apkFile.delete();
+                    notifyError(call, "INVALID_APK_BINARY", "Downloaded binary is not a valid Android APK package.");
+                    return;
+                }
 
                 // Verification Phase
                 notifyStatus("VERIFYING");
@@ -198,8 +224,8 @@ public class RaagaXUpdaterPlugin extends Plugin {
         try {
             Context context = getContext();
             File apkFile = new File(filePath);
-            if (!apkFile.exists()) {
-                call.reject("APK file not found at path: " + filePath);
+            if (!apkFile.exists() || !isValidApkFile(apkFile)) {
+                call.reject("APK file is invalid or missing at path: " + filePath);
                 return;
             }
 
@@ -216,8 +242,7 @@ public class RaagaXUpdaterPlugin extends Plugin {
             Uri apkUri = FileProvider.getUriForFile(context, context.getPackageName() + ".fileprovider", apkFile);
             Intent intent = new Intent(Intent.ACTION_VIEW);
             intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
             context.startActivity(intent);
 
             JSObject ret = new JSObject();
@@ -226,6 +251,21 @@ public class RaagaXUpdaterPlugin extends Plugin {
         } catch (Exception e) {
             call.reject("Installation failed: " + e.getMessage());
         }
+    }
+
+    private boolean isValidApkFile(File file) {
+        if (file == null || !file.exists() || file.length() < 1000000) { // APK must be at least ~1MB
+            return false;
+        }
+        try (InputStream is = new java.io.FileInputStream(file)) {
+            byte[] header = new byte[4];
+            int bytesRead = is.read(header, 0, 4);
+            if (bytesRead == 4) {
+                // PK\x03\x04 ZIP magic header
+                return header[0] == 0x50 && header[1] == 0x4B && header[2] == 0x03 && header[3] == 0x04;
+            }
+        } catch (Exception ignored) {}
+        return false;
     }
 
     private void cancelActiveDownload() {
