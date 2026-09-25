@@ -52,7 +52,6 @@ import { SongFormatter } from '@/lib/music/SongFormatter';
 import { ArtworkColorExtractor, ChameleonPalette } from '@/lib/theme/ArtworkColorExtractor';
 import { LiquidGlass } from '@/components/common/LiquidGlass';
 import { LiquidMotionBackground } from '@/components/player/LiquidMotionBackground';
-import { AudioVisualizer } from '@/components/player/AudioVisualizer';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 import { AlbumCatalogEngine } from '@/lib/albumCatalog';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
@@ -1323,10 +1322,6 @@ export function ExpandedPlayerModal() {
                     <span className="text-[10px] font-medium tracking-wide uppercase font-mono">Artwork Unavailable</span>
                   </div>
                 )}
-              </div>
-              {/* Dynamic Audio Visualizer Waves */}
-              <div className="w-full max-w-[280px] px-2 pt-2">
-                <AudioVisualizer barCount={26} height={24} accentColor={palette?.primary || '#FA233B'} className="opacity-85" />
               </div>
             </div>
           ) : viewMode === 'lyrics' ? (
