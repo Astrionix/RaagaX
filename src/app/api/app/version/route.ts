@@ -19,11 +19,20 @@ export async function GET() {
       dynamicSha256 = crypto.createHash('sha256').update(fileBuffer).digest('hex');
     }
 
-    return NextResponse.json({
-      ...latestManifest,
-      sha256: dynamicSha256 || latestManifest?.sha256 || '44448b99ef4490b7be91b5aaaca9d3e0fa2f3f7d3227d21ce5a2a0d0c4fefcc2',
-      fileSize: dynamicFileSize || latestManifest?.fileSize || 19936729,
-    });
+    return NextResponse.json(
+      {
+        ...latestManifest,
+        sha256: dynamicSha256 || latestManifest?.sha256 || '44448b99ef4490b7be91b5aaaca9d3e0fa2f3f7d3227d21ce5a2a0d0c4fefcc2',
+        fileSize: dynamicFileSize || latestManifest?.fileSize || 19936729,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      }
+    );
   } catch (e) {
     console.error('Failed to compute dynamic APK manifest:', e);
   }

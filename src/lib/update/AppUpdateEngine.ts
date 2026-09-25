@@ -22,9 +22,9 @@ export type UpdateStateListener = (state: {
   isModalOpen: boolean;
 }) => void;
 
-// Current hardcoded fallback version code for client app runtime
-export const CURRENT_APP_VERSION_CODE = 18;
-export const CURRENT_APP_VERSION_NAME = '1.4.1';
+// Current fallback version code for client app runtime
+export const CURRENT_APP_VERSION_CODE = 19;
+export const CURRENT_APP_VERSION_NAME = '1.4.2';
 
 export class AppUpdateEngine {
   private static instance: AppUpdateEngine;
@@ -103,9 +103,9 @@ export class AppUpdateEngine {
   /**
    * Checks the server for latest release manifest and compares versionCode
    */
-  public async checkForUpdates(): Promise<boolean> {
+  public async checkForUpdates(force = false): Promise<boolean> {
     const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
-    if (!isNative) {
+    if (!isNative && !force) {
       this.isUpdateAvailable = false;
       this.notify();
       return false;
@@ -114,8 +114,8 @@ export class AppUpdateEngine {
     try {
       await this.initNativeVersionDetection();
 
-      // Fetch latest release manifest from server route
-      const response = await fetch(getApiUrl('/api/app/version'), { cache: 'no-store' });
+      // Fetch latest release manifest from server route with cache-busting timestamp
+      const response = await fetch(getApiUrl(`/api/app/version?t=${Date.now()}`), { cache: 'no-store' });
       if (!response.ok) return false;
 
       const manifest: ReleaseManifest = await response.json();
@@ -128,6 +128,12 @@ export class AppUpdateEngine {
 
       if (updateReady) {
         console.log(`[AppUpdateEngine] 🚀 Update available! Current: v${this.currentVersionCode} | Server: v${manifest.versionCode} (${manifest.versionName})`);
+        
+        // Check if version was previously dismissed
+        const dismissedVersion = typeof localStorage !== 'undefined' ? localStorage.getItem('raagax_dismissed_update_version') : null;
+        if (force || manifest.mandatory || dismissedVersion !== manifest.versionCode.toString()) {
+          this.isModalOpen = true;
+        }
       } else {
         console.log(`[AppUpdateEngine] App is up to date (v${this.currentVersionCode}).`);
       }
