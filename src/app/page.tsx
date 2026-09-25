@@ -266,7 +266,7 @@ export default function Page() {
               } ${activeTab === 'playlist' || (activeTab === 'artist' && selectedArtistId) || (activeTab === 'album' && selectedAlbumId)
                 ? 'pt-0 px-0'
                 : isQueueOpen
-                  ? 'pt-14 md:pt-5 pl-3.5 sm:pl-7 md:pl-8 pr-0 sm:pr-0 md:pr-0'
+                  ? 'pt-14 md:pt-5 pl-3.5 sm:pl-7 md:pl-8 pr-3.5 sm:pr-7 md:pr-8'
                   : 'pt-14 md:pt-5 px-3.5 sm:px-8'
               }`}>
               {activeTab === 'home' && <HomeView />}

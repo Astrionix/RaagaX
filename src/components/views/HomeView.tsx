@@ -543,7 +543,7 @@ export function HomeView() {
       {/* ACTIVE FRIEND ACTIVITY SONG SCROLL TICKER                              */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {activeFriend ? (
-        <section className="pr-2 sm:pr-3">
+        <section>
           <div className="relative rounded-2xl p-3.5 sm:p-4 bg-gradient-to-r from-purple-900/40 via-red-950/40 to-slate-900/80 border border-purple-500/30 shadow-xl overflow-hidden flex items-center justify-between gap-4">
             {/* Left Side: Only Song Title & Artist */}
             <div className="flex-1 min-w-0 flex items-center gap-2 text-white font-bold text-xs sm:text-sm overflow-hidden">
@@ -569,7 +569,7 @@ export function HomeView() {
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* 3. MADE FOR YOU — 4 Big, Interactive, Premium Mix Cards               */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <section className="space-y-4 pr-2 sm:pr-3">
+      <section className="space-y-4">
         {/* Section Header */}
         <div className="flex items-center gap-3 px-0.5">
           <div className="flex items-center justify-center text-[#FA233B] text-2xl font-bold leading-none select-none">✦</div>
@@ -579,17 +579,7 @@ export function HomeView() {
           </div>
         </div>
 
-        <div 
-          className="flex overflow-x-auto sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 pb-3 sm:pb-0 -mx-3.5 px-3.5 sm:mx-0 sm:px-0 no-scrollbar snap-x snap-mandatory scroll-smooth"
-          style={{
-            scrollSnapType: 'x mandatory',
-            scrollPaddingLeft: '0.875rem',
-            scrollPaddingRight: '0.875rem',
-            touchAction: 'pan-x pan-y',
-            overscrollBehaviorX: 'contain',
-            overscrollBehaviorY: 'auto',
-          }}
-        >
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
           {[
             {
               id: 'heavy-rotation',
@@ -693,12 +683,10 @@ export function HomeView() {
                 isPlaying={isPlaying}
                 isActive={isMixActive}
                 onPlayClick={handleCardClick}
-                className="w-[84vw] max-w-[310px] sm:w-auto sm:max-w-none sm:min-w-0 flex-1 snap-start"
+                className="w-full min-w-0 flex-1"
               />
             );
           })}
-          {/* Right edge spacer on mobile to ensure last card is never clipped */}
-          <div className="w-3.5 sm:hidden flex-shrink-0 pointer-events-none" aria-hidden="true" />
         </div>
       </section>
 
@@ -747,7 +735,7 @@ export function HomeView() {
       {/* 8. YOUR TOP ARTISTS                                                    */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {homeFeedControls.showPopularArtists !== false && feed?.topArtists && feed.topArtists.length > 0 && (
-        <section className="space-y-3 pr-2 sm:pr-3">
+        <section className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <User className="w-4 h-4 text-[#FA233B]" />
@@ -756,7 +744,7 @@ export function HomeView() {
               </h2>
             </div>
           </div>
-          <div className="flex overflow-x-auto gap-4 sm:gap-5 pb-2 no-scrollbar">
+          <div className="flex overflow-x-auto gap-4 sm:gap-5 pb-2 no-scrollbar -mx-3.5 px-3.5 sm:-mx-8 sm:px-8">
             {feed.topArtists.map((artist, idx) => (
               <div
                 key={artist.id ? `${artist.id}-${idx}` : `artist-${idx}`}
@@ -779,6 +767,7 @@ export function HomeView() {
                 <p className="text-[9px] sm:text-[10px] text-slate-500 mt-0.5 font-medium">{artist.playCount} plays</p>
               </div>
             ))}
+            <div className="w-3 sm:w-5 flex-shrink-0 pointer-events-none" aria-hidden="true" />
           </div>
         </section>
       )}

@@ -23,8 +23,8 @@ export type UpdateStateListener = (state: {
 }) => void;
 
 // Current hardcoded fallback version code for client app runtime
-export const CURRENT_APP_VERSION_CODE = 17;
-export const CURRENT_APP_VERSION_NAME = '1.4.0';
+export const CURRENT_APP_VERSION_CODE = 18;
+export const CURRENT_APP_VERSION_NAME = '1.4.1';
 
 export class AppUpdateEngine {
   private static instance: AppUpdateEngine;

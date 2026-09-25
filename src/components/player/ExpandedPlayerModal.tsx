@@ -52,6 +52,7 @@ import { SongFormatter } from '@/lib/music/SongFormatter';
 import { ArtworkColorExtractor, ChameleonPalette } from '@/lib/theme/ArtworkColorExtractor';
 import { LiquidGlass } from '@/components/common/LiquidGlass';
 import { LiquidMotionBackground } from '@/components/player/LiquidMotionBackground';
+import { AudioVisualizer } from '@/components/player/AudioVisualizer';
 import { POPULAR_ARTISTS } from '@/lib/popularArtists';
 import { AlbumCatalogEngine } from '@/lib/albumCatalog';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
@@ -1304,7 +1305,7 @@ export function ExpandedPlayerModal() {
           {/* A. HERO ARTWORK / SYNCHRONIZED LYRICS / QUEUE / SLEEP TIMER */}
           {viewMode === 'art' ? (
             /* Large Unboxed Hero Artwork with Deep Cinematic Shadow */
-            <div className="w-full flex-1 flex items-center justify-center pt-0 pb-1 min-h-0 overflow-hidden -mt-1 sm:-mt-2">
+            <div className="w-full flex-1 flex flex-col items-center justify-center pt-0 pb-1 min-h-0 overflow-hidden -mt-1 sm:-mt-2">
               <div
                 key={`mob-${songTransitionKey}`}
                 className="relative w-[min(300px,74vw,37vh)] h-[min(300px,74vw,37vh)] aspect-square rounded-[14px] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.85)] flex-shrink-0 bg-black/40 flex items-center justify-center transition-transform duration-300 hover:scale-[1.01]"
@@ -1322,6 +1323,10 @@ export function ExpandedPlayerModal() {
                     <span className="text-[10px] font-medium tracking-wide uppercase font-mono">Artwork Unavailable</span>
                   </div>
                 )}
+              </div>
+              {/* Dynamic Audio Visualizer Waves */}
+              <div className="w-full max-w-[280px] px-2 pt-2">
+                <AudioVisualizer barCount={26} height={24} accentColor={palette?.primary || '#FA233B'} className="opacity-85" />
               </div>
             </div>
           ) : viewMode === 'lyrics' ? (

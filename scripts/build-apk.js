@@ -206,7 +206,8 @@ try {
     try {
       if (fs.existsSync(desktopDir)) {
         fs.copyFileSync(apkOutput, desktopApk);
-        console.log(`🖥️ [SUCCESS] RaagaX APK copied to Desktop: ${desktopApk}`);
+        fs.copyFileSync(apkOutput, path.join(desktopDir, 'Raaga.apk'));
+        console.log(`🖥️ [SUCCESS] APK copied to Desktop: ${path.join(desktopDir, 'Raaga.apk')} & ${desktopApk}`);
       }
     } catch (e) {
       console.warn('Could not copy APK to Desktop:', e.message);

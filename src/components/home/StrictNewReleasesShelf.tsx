@@ -59,7 +59,7 @@ export function StrictNewReleasesShelf({
   return (
     <div className="space-y-2 mb-4 select-none">
       {/* ── INTERACTIVE STRICT LANGUAGE FILTER PILLS ─────────────────────── */}
-      <div suppressHydrationWarning className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div suppressHydrationWarning className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 -mx-3.5 px-3.5 sm:-mx-8 sm:px-8">
         {SUPPORTED_LANGUAGES_LIST.map((lang) => {
           const isSelected = mounted && (
             selectedLang.toLowerCase() === lang.label.toLowerCase() ||

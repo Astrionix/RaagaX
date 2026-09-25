@@ -19,7 +19,9 @@ import {
   Zap,
   UserCheck,
   Plus,
+  QrCode as QrIcon,
 } from 'lucide-react';
+import QRCode from 'qrcode';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { JamSessionManager } from '@/lib/connect/jam/JamSessionManager';
@@ -37,7 +39,8 @@ export function JamModal() {
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [showHostSettings, setShowHostSettings] = useState(false);
-
+  const [showQrCode, setShowQrCode] = useState(false);
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const jamMgr = JamSessionManager.getInstance();
@@ -46,6 +49,21 @@ export function JamModal() {
     });
     return unsub;
   }, []);
+
+  useEffect(() => {
+    if (jamState?.roomCode) {
+      const inviteUrl = `https://raaga.me/?jam=${jamState.roomCode}`;
+      QRCode.toDataURL(inviteUrl, {
+        margin: 1,
+        color: { dark: '#1DB954', light: '#0A0E17' },
+        width: 220,
+      })
+        .then((url) => setQrUrl(url))
+        .catch(() => setQrUrl(null));
+    } else {
+      setQrUrl(null);
+    }
+  }, [jamState?.roomCode]);
 
   // Lock body scroll when Jam modal is open
   useBodyScrollLock(isJamModalOpen);
@@ -241,7 +259,18 @@ export function JamModal() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setShowQrCode(!showQrCode)}
+                        className={`p-2.5 rounded-full text-xs font-semibold transition-all cursor-pointer border active:scale-95 ${
+                          showQrCode
+                            ? 'bg-[#1DB954]/20 text-[#1DB954] border-[#1DB954]/40'
+                            : 'bg-[var(--bg-surface)] hover:bg-[var(--surface-hover)] text-[var(--text-primary)] border-[var(--border-subtle)]'
+                        }`}
+                        title="Show QR Code"
+                      >
+                        <QrIcon className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={handleCopyCode}
                         className="p-2.5 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--surface-hover)] text-xs font-semibold text-[var(--text-primary)] transition-all cursor-pointer border border-[var(--border-subtle)] active:scale-95"
@@ -251,13 +280,22 @@ export function JamModal() {
                       </button>
                       <button
                         onClick={handleShareInvite}
-                        className="flex items-center gap-1.5 py-2 px-4 rounded-full bg-[#1DB954] hover:bg-[#1ed760] text-xs font-extrabold text-black shadow-md shadow-[#1DB954]/20 transition-all cursor-pointer active:scale-95"
+                        className="flex items-center gap-1.5 py-2 px-3.5 rounded-full bg-[#1DB954] hover:bg-[#1ed760] text-xs font-extrabold text-black shadow-md shadow-[#1DB954]/20 transition-all cursor-pointer active:scale-95"
                       >
                         <Share2 className="w-3.5 h-3.5 text-black" />
                         <span>Share</span>
                       </button>
                     </div>
                   </div>
+
+                  {/* QR Code Scan Card Popup */}
+                  {showQrCode && qrUrl && (
+                    <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-[#1DB954]/40 flex flex-col items-center justify-center gap-2 animate-in fade-in zoom-in-95">
+                      <p className="text-xs font-bold text-[var(--text-primary)]">Scan to Join Jam Session</p>
+                      <img src={qrUrl} alt="Jam Room QR Code" className="w-44 h-44 rounded-xl shadow-lg border border-white/10" />
+                      <p className="text-[10px] text-[var(--text-muted)] font-mono">Code: {jamState.roomCode}</p>
+                    </div>
+                  )}
 
                   {/* Host Settings Toggle Header */}
                   <div className="pt-2 border-t border-[var(--border-subtle)] flex items-center justify-between">

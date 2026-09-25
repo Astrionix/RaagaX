@@ -28,7 +28,7 @@ export function RecommendationCarousel({
   // ── Loading skeleton ─────────────────────────────────────────────────────
   if (isLoading && results.length === 0) {
     return (
-      <div className="flex gap-3 sm:gap-4 overflow-x-auto no-scrollbar pt-2 pb-3 sm:pt-2.5 sm:pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="flex gap-3 sm:gap-4 overflow-x-auto no-scrollbar pt-2 pb-3 sm:pt-2.5 sm:pb-4 -mx-3.5 px-3.5 sm:-mx-8 sm:px-8">
         {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
           <div
             key={i}
@@ -58,7 +58,7 @@ export function RecommendationCarousel({
   // ── Full carousel ────────────────────────────────────────────────────────
   return (
     <div 
-      className="flex gap-3 sm:gap-4 overflow-x-auto no-scrollbar pt-2 pb-3 sm:pt-2.5 sm:pb-4 -mx-3.5 px-3.5 sm:mx-0 sm:px-0 touch-pan-x touch-pan-y snap-x snap-mandatory scroll-smooth"
+      className="flex gap-3 sm:gap-4 overflow-x-auto no-scrollbar pt-2 pb-3 sm:pt-2.5 sm:pb-4 -mx-3.5 px-3.5 sm:-mx-8 sm:px-8 touch-pan-x touch-pan-y snap-x snap-mandatory scroll-smooth"
       style={{
         touchAction: 'pan-x pan-y',
         overscrollBehaviorX: 'contain',

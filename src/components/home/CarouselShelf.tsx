@@ -432,7 +432,7 @@ export function CarouselShelf({
 
   return (
     <section className="mb-4 sm:mb-6 pt-1">
-      <div className="flex items-center justify-between mb-2 px-0 pr-3 sm:pr-4">
+      <div className="flex items-center justify-between mb-2 px-0">
         <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
           {icon}
           <div className="min-w-0 flex-1">
@@ -513,7 +513,7 @@ export function CarouselShelf({
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUpOrLeave}
         onMouseLeave={handleMouseUpOrLeave}
-        className={`flex gap-3 sm:gap-4 overflow-x-auto no-scrollbar pt-2 pb-3 sm:pt-2.5 sm:pb-4 -mx-3.5 px-3.5 sm:mx-0 sm:px-0 touch-pan-x touch-pan-y ${
+        className={`flex gap-3 sm:gap-4 overflow-x-auto no-scrollbar pt-2 pb-3 sm:pt-2.5 sm:pb-4 -mx-3.5 px-3.5 sm:-mx-8 sm:px-8 touch-pan-x touch-pan-y ${
           isPointerDown ? 'cursor-grabbing select-none' : 'cursor-grab snap-x snap-mandatory scroll-smooth'
         }`}
         style={{

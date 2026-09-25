@@ -392,7 +392,7 @@ export function LiquidRedMotionCard({
         WebkitMaskImage: '-webkit-radial-gradient(white, black)',
         maskImage: 'radial-gradient(white, black)',
       }}
-      className={`group relative rounded-[24px] overflow-hidden cursor-pointer select-none transition-all duration-300 ease-out will-change-transform border border-white/[0.14] hover:border-white/[0.28] shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.30),0_12px_32px_rgba(0,0,0,0.85)] hover:shadow-[inset_0_1px_2px_0_rgba(255,255,255,0.50),0_18px_45px_rgba(0,0,0,0.95)] min-h-[220px] flex flex-col justify-between p-4 sm:p-5 ${className}`}
+      className={`group relative rounded-[24px] overflow-hidden cursor-pointer select-none transition-all duration-300 ease-out will-change-transform border border-white/[0.14] hover:border-white/[0.28] shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.30),0_12px_32px_rgba(0,0,0,0.85)] hover:shadow-[inset_0_1px_2px_0_rgba(255,255,255,0.50),0_18px_45px_rgba(0,0,0,0.95)] min-h-[165px] sm:min-h-[210px] flex flex-col justify-between p-3.5 sm:p-5 ${className}`}
     >
       {/* ── 1. 3D THREE.JS WEBGL LIQUID MOTION CANVAS ── */}
       <canvas
@@ -417,11 +417,11 @@ export function LiquidRedMotionCard({
       />
 
       {/* ── 3. TOP ROW: BADGE + PLAY BUTTON ── */}
-      <div className="relative z-10 flex items-start justify-between">
+      <div className="relative z-10 flex items-start justify-between gap-1">
         {/* Glass-Outline Badge */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/25 bg-black/40 hover:border-white/40 hover:bg-black/55 backdrop-blur-md transition-all shadow-sm">
+        <div className="flex items-center gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full border border-white/25 bg-black/40 hover:border-white/40 hover:bg-black/55 backdrop-blur-md transition-all shadow-sm">
           <span className="text-white flex-shrink-0">{badgeIcon}</span>
-          <span className="text-[10px] font-black uppercase tracking-[0.16em] text-white leading-none">
+          <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.12em] sm:tracking-[0.16em] text-white leading-none">
             {badge}
           </span>
         </div>
@@ -433,7 +433,7 @@ export function LiquidRedMotionCard({
             haptics.mediumImpact();
             onPlayClick?.();
           }}
-          className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all duration-300 border ${
+          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all duration-300 border flex-shrink-0 ${
             isActive && isPlaying
               ? 'bg-white text-black border-white shadow-[0_0_24px_rgba(255,255,255,0.85)] scale-105'
               : 'bg-white/10 hover:bg-white/25 border-white/35 hover:border-white/70 text-white shadow-[0_0_18px_rgba(255,255,255,0.2)] group-hover:scale-105 backdrop-blur-md'
@@ -449,20 +449,20 @@ export function LiquidRedMotionCard({
       </div>
 
       {/* ── 4. BOTTOM CONTENT: TITLE, DESCRIPTION, TRACK COUNT ── */}
-      <div className="relative z-10 pt-8 sm:pt-10 flex flex-col justify-end">
+      <div className="relative z-10 pt-4 sm:pt-10 flex flex-col justify-end">
         {/* Internal bottom legibility scrim */}
         <div className="absolute -inset-x-5 -bottom-5 h-28 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none -z-1 rounded-b-[24px]" />
 
-        <h3 className="text-[17px] sm:text-[19px] font-black text-white tracking-tight leading-tight mb-1 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+        <h3 className="text-[15px] sm:text-[19px] font-black text-white tracking-tight leading-tight mb-0.5 sm:mb-1 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] truncate">
           {title}
         </h3>
-        <p className="text-[11px] sm:text-[12px] text-white/85 font-medium line-clamp-1 mb-3 drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]">
+        <p className="text-[10px] sm:text-[12px] text-white/85 font-medium line-clamp-1 mb-2 sm:mb-3 drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]">
           {description}
         </p>
 
         {/* Bottom Left Track Count Pill in Dark Translucent Glass */}
         <div className="flex items-center">
-          <span className={`h-6 px-2.5 flex items-center rounded-lg bg-black/65 border ${palette.pillBorder} font-mono text-[10px] font-bold tracking-wider uppercase backdrop-blur-md shadow-sm`}>
+          <span className={`h-5 sm:h-6 px-2 sm:px-2.5 flex items-center rounded-lg bg-black/65 border ${palette.pillBorder} font-mono text-[9px] sm:text-[10px] font-bold tracking-wider uppercase backdrop-blur-md shadow-sm`}>
             {trackCount}
           </span>
         </div>

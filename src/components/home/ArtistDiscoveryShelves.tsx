@@ -53,13 +53,13 @@ function ArtistLanguageShelf({ language }: { language: string }) {
 
   return (
     <section className="mb-4 sm:mb-6">
-      <div className="flex items-center justify-between mb-2.5 px-3 sm:px-0">
+      <div className="flex items-center justify-between mb-2.5 px-0">
         <h2 className="text-[20px] sm:text-xl font-semibold leading-[26px] text-white tracking-tight truncate whitespace-nowrap">
           {language} Artists You May Like
         </h2>
       </div>
 
-      <div className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory gap-4 pb-4 -mx-3.5 px-3.5 sm:-mx-8 sm:px-8">
         {artists.map((artist: any) => (
           <div
             key={artist.id}
