@@ -144,7 +144,7 @@ export function ExpandedPlayerModal() {
   const handleTouchStart = (e: React.TouchEvent) => {
     // Avoid swipe-down interception on interactive controls, sliders, buttons or inner scrollable lists
     const target = e.target as HTMLElement | null;
-    if (target?.closest('input, button, [role="slider"], .overflow-y-auto')) {
+    if (target?.closest('input, button, a, [role="slider"], [role="menu"], [role="menuitem"], [role="dialog"], [data-no-swipe], .overflow-y-auto')) {
       touchStartY.current = null;
       touchStartX.current = null;
       return;
@@ -165,7 +165,7 @@ export function ExpandedPlayerModal() {
   };
 
   const handleTouchEnd = () => {
-    if (touchOffset > 100) {
+    if (touchOffset > 130) {
       haptics.lightImpact();
       togglePlayerExpanded();
     }
@@ -553,6 +553,9 @@ export function ExpandedPlayerModal() {
                       alt={currentSong.title}
                       className="w-full h-full object-contain select-none rounded-[14px]"
                       loading="eager"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = '/app-icon.png';
+                      }}
                     />
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center text-white/30 gap-2 bg-white/[0.04] rounded-[14px]">
@@ -844,6 +847,9 @@ export function ExpandedPlayerModal() {
                     alt={currentSong.title}
                     className="w-full h-full object-contain select-none rounded-[14px]"
                     loading="eager"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = '/app-icon.png';
+                    }}
                   />
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center text-white/30 gap-2 bg-white/[0.04] rounded-[14px]">
@@ -1315,6 +1321,9 @@ export function ExpandedPlayerModal() {
                     alt={currentSong.title}
                     className="w-full h-full object-contain select-none rounded-[14px]"
                     loading="eager"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = '/app-icon.png';
+                    }}
                   />
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center text-white/30 gap-2 bg-white/[0.04] rounded-[14px]">
@@ -1592,8 +1601,8 @@ export function ExpandedPlayerModal() {
             <div className="flex items-center justify-between gap-3">
               {/* Title & Artist */}
               <div className="min-w-0 flex-1">
-                <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight truncate" title={currentSong.title}>
-                  {currentSong.title}
+                <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight truncate" title={SongFormatter.cleanSongTitle(currentSong.title)}>
+                  {SongFormatter.cleanSongTitle(currentSong.title)}
                 </h1>
                 <p
                   onClick={() => {
@@ -1603,9 +1612,9 @@ export function ExpandedPlayerModal() {
                   }}
                   className={`text-sm sm:text-base font-medium text-white/70 hover:text-white transition-colors truncate mt-0.5 ${exactArtistId ? 'cursor-pointer' : 'cursor-default'
                     }`}
-                  title={currentSong.artist}
+                  title={SongFormatter.decodeHtml(currentSong.artist)}
                 >
-                  {currentSong.artist}
+                  {SongFormatter.decodeHtml(currentSong.artist) || currentSong.artist}
                 </p>
               </div>
 

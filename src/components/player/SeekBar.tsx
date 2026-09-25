@@ -254,7 +254,14 @@ export function SeekBar({
 
   return (
     <div
-      className={`relative cursor-pointer touch-none group flex items-center ${className}`}
+      role="slider"
+      aria-label="Track Seek Bar"
+      aria-valuenow={Math.round(localProgress * 100)}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      data-no-swipe="true"
+      tabIndex={0}
+      className={`relative w-full py-3.5 cursor-pointer touch-none group flex items-center select-none ${className}`}
       ref={trackRef}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
