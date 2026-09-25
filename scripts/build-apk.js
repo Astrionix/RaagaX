@@ -142,7 +142,7 @@ try {
         console.warn('⚠️ Could not set executable permissions on gradlew:', e.message);
       }
     }
-    execSync('./gradlew assembleDebug', {
+    execSync('./gradlew assembleRelease', {
       cwd: androidDir,
       stdio: 'inherit',
       env: { ...process.env },
@@ -152,12 +152,15 @@ try {
     if (fs.existsSync(path.join(androidDir, 'build-apk.bat'))) {
       execSync('build-apk.bat', { cwd: androidDir, stdio: 'inherit', env: { ...process.env } });
     } else {
-      execSync('gradlew.bat assembleDebug', { cwd: androidDir, stdio: 'inherit', env: { ...process.env } });
+      execSync('gradlew.bat assembleRelease', { cwd: androidDir, stdio: 'inherit', env: { ...process.env } });
     }
   }
 
   // Step 5: Copy generated APK to root, Desktop, and public/releases for OTA Updates
-  const apkOutput = path.join(androidDir, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
+  const releaseApk = path.join(androidDir, 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk');
+  const debugApk = path.join(androidDir, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
+  const apkOutput = fs.existsSync(releaseApk) ? releaseApk : debugApk;
+
   const targetApk = path.join(rootDir, 'RaagaX.apk');
   const desktopDir = path.join(process.env.HOME || '/Users/chandureddy', 'Desktop');
   const desktopApk = path.join(desktopDir, 'RaagaX.apk');
