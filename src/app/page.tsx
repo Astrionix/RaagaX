@@ -215,7 +215,7 @@ export default function Page() {
   }, []);
 
   return (
-    <div className="min-h-screen w-full max-w-[100vw] bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col md:flex-row md:h-screen md:overflow-hidden selection:bg-[#EF233C] selection:text-white transition-colors duration-300">
+    <div className="h-screen h-[100dvh] w-full max-w-[100vw] bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col md:flex-row overflow-hidden selection:bg-[#EF233C] selection:text-white transition-colors duration-300">
       {/* Universal Scroll Lock Manager for all modals, sheets, and popups */}
       <GlobalModalScrollLockManager />
 
@@ -251,23 +251,27 @@ export default function Page() {
       <Sidebar />
 
       {/* App Layout (Grid after Sidebar) */}
-      <div className={`flex-1 ml-0 ${isSidebarCollapsed ? 'md:ml-[88px]' : 'md:ml-64'} flex flex-col min-w-0 md:h-screen md:overflow-hidden transition-[margin-left] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]`}>
-        <div className={`grid flex-1 min-h-0 md:h-full transition-all duration-300 ${isQueueOpen
+      <div className={`flex-1 ml-0 ${isSidebarCollapsed ? 'md:ml-[88px]' : 'md:ml-64'} flex flex-col min-w-0 h-full overflow-hidden transition-[margin-left] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]`}>
+        <div className={`grid flex-1 min-h-0 h-full transition-all duration-300 ${isQueueOpen
           ? 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_304px]'
           : 'grid-cols-1'
           }`}>
-          {/* Main Content Column */}
-          <div className="main-content min-w-0 flex-1 flex flex-col md:h-full md:overflow-y-auto md:overflow-x-hidden relative">
+          {/* Main Content Column (Viewport Scroll Container) */}
+          <div
+            id="main-scroll-container"
+            data-scrollable="true"
+            className="main-content min-w-0 flex-1 flex flex-col h-full overflow-y-auto overflow-x-hidden relative overscroll-y-contain touch-pan-y"
+          >
             {/* Header Bar */}
             <Header />
 
             {/* View Switcher Container */}
-            <main className={`flex-1 pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] ${!isLocalPlayback ? 'md:pb-[6.5rem]' : 'md:pb-[5.5rem]'
+            <main className={`flex-1 pb-[calc(7.5rem+env(safe-area-inset-bottom,0px))] ${!isLocalPlayback ? 'md:pb-[6.5rem]' : 'md:pb-[5.5rem]'
               } ${activeTab === 'playlist' || (activeTab === 'artist' && selectedArtistId) || (activeTab === 'album' && selectedAlbumId)
                 ? 'pt-0 px-0'
                 : isQueueOpen
-                  ? 'pt-14 md:pt-5 pl-3.5 sm:pl-7 md:pl-8 pr-3.5 sm:pr-7 md:pr-8'
-                  : 'pt-14 md:pt-5 px-3.5 sm:px-8'
+                  ? 'pt-2 md:pt-5 pl-3.5 sm:pl-7 md:pl-8 pr-3.5 sm:pr-7 md:pr-8'
+                  : 'pt-2 md:pt-5 px-3.5 sm:px-8'
               }`}>
               {activeTab === 'home' && <HomeView />}
               {activeTab === 'new' && <NewView />}

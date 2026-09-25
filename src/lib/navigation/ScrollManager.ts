@@ -40,8 +40,8 @@ export class ScrollManager {
     if (this.isInitialized || typeof window === 'undefined') return;
     this.isInitialized = true;
 
-    // Passive global scroll listener on window (mobile)
-    window.addEventListener('scroll', this.handleScroll, { passive: true });
+    // Passive global capture-phase scroll listener for both window & container elements
+    document.addEventListener('scroll', this.handleScroll, { capture: true, passive: true });
 
     // Capture-phase click interceptor to prevent accidental track play on fling stop
     window.addEventListener('click', this.handleClickCapture, true);
@@ -50,7 +50,7 @@ export class ScrollManager {
 
   public destroy() {
     if (typeof window === 'undefined') return;
-    window.removeEventListener('scroll', this.handleScroll);
+    document.removeEventListener('scroll', this.handleScroll, true);
     window.removeEventListener('click', this.handleClickCapture, true);
     window.removeEventListener('touchend', this.handleTouchEnd);
     if (this.scrollEndTimer) clearTimeout(this.scrollEndTimer);

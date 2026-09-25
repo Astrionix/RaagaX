@@ -32,7 +32,7 @@ function handleTouchMoveWhenLocked(e: TouchEvent) {
 
   // Check if touch originated inside a scrollable element (vertical or horizontal)
   const scrollableParent = target.closest(
-    '.overflow-y-auto, .overflow-y-scroll, .overflow-auto, .overflow-x-auto, .overflow-x-scroll, [data-scrollable="true"], textarea, input'
+    '.overflow-y-auto, .overflow-y-scroll, .overflow-auto, .overflow-x-auto, .overflow-x-scroll, [data-scrollable="true"], .main-content, textarea, input'
   ) as HTMLElement | null;
 
   if (scrollableParent) {
@@ -180,18 +180,24 @@ export function GlobalModalScrollLockManager() {
 
   useBodyScrollLock(isAnyStoreModalOpen);
 
-  // Fallback DOM Portal Observer: detects any dynamically mounted portal modals
+  // Fallback DOM Portal Observer: detects any dynamically mounted visible portal modals
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
     let wasPortalDetected = false;
 
     const checkPortals = () => {
-      // Find any modal overlays (excluding non-interactive backdrops or non-modal elements)
+      // Find visible portal modals (must have role="dialog" or explicit modal data attribute)
       const modalElements = document.querySelectorAll(
-        '.fixed.inset-0:not(.pointer-events-none):not(.z-0):not(.z-10):not(.z-20):not(.main-content), [role="dialog"], .z-\\[9999\\], .z-\\[10000\\], .z-\\[10001\\], .z-\\[10002\\]'
+        '[role="dialog"], [data-modal-portal="true"], .z-\\[9999\\], .z-\\[10000\\], .z-\\[10001\\], .z-\\[10002\\]'
       );
-      const isPortalOpen = modalElements.length > 0;
+      
+      const activeVisiblePortals = Array.from(modalElements).filter((el) => {
+        const style = window.getComputedStyle(el);
+        return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+      });
+
+      const isPortalOpen = activeVisiblePortals.length > 0;
 
       if (isPortalOpen && !wasPortalDetected) {
         wasPortalDetected = true;
@@ -206,7 +212,7 @@ export function GlobalModalScrollLockManager() {
       checkPortals();
     });
 
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
 
     return () => {
       observer.disconnect();
