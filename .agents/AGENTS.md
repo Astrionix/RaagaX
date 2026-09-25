@@ -21,3 +21,13 @@ When building features for RaagaX, you **must strictly adhere to the following p
 
 ### Architecture Principle
 Use **JioSaavn** (or another licensed metadata provider) for structured music/album catalogs. Use **YouTube** to augment discovery, fetch playback IFrames, and extract popularity metrics. Never build the database solely around raw extracted YouTube URLs; use stable canonical identifiers (`youtubeVideoId`, `saavnAlbumId`).
+
+## Android APK Release & Update Deployment Protocol
+
+Whenever building, updating, or pushing releases for RaagaX Mobile, **strictly observe this 5-step workflow**:
+
+1. **Package Identity**: ALWAYS maintain `applicationId "com.raagax.music"` in `android/app/build.gradle`.
+2. **Release Keystore**: ALWAYS sign ALL build targets (`debug` and `release`) with `raagax-release-key.jks` via `signingConfig signingConfigs.release`. NEVER generate a new keystore or use generic debug keys.
+3. **Incremental Versioning**: Increment `versionCode` by +1 (e.g., 19 → 20 → 21) and update `versionName` (e.g., `"1.4.2"` → `"1.4.3"`) in `android/app/build.gradle` before every release.
+4. **Automated Release Build**: ALWAYS execute `npm run apk:build`. This triggers `./gradlew assembleRelease`, updates `public/releases/latest.json` dynamically, outputs `public/releases/RaagaX-latest.apk`, and copies `Raaga.apk` to Desktop.
+5. **Git Deployment**: Push to `origin main` so `/api/app/version` serves the latest OTA manifest and APK binary to all active mobile users automatically.
