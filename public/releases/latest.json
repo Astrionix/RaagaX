@@ -1,18 +1,18 @@
 {
-  "versionCode": 17,
-  "versionName": "1.4.0",
+  "versionCode": 19,
+  "versionName": "1.4.2",
   "apkUrl": "https://raaga.me/api/app/download",
-  "sha256": "c60dd70c25eb1ba8a5b0ac8d187af8aeeb13e8d237b760f6baa4a5eb01b292eb",
-  "fileSize": 20164142,
+  "sha256": "68bd5a356dc352575ff9b05877e0b3a6eeb5a01c5453cf3d62c72299fd817419",
+  "fileSize": 20212121,
   "releaseDate": "2026-09-25",
   "mandatory": false,
   "minimumSupportedVersion": 1,
   "releaseChannel": "stable",
   "releaseNotes": [
-    "Account Isolation & Security: Atomic session guard with strict multi-user logout purge, realtime isolation, and switch-user state protection.",
-    "Onboarding Fix: Continue button now always reachable when 2+ languages selected during registration.",
-    "Artist Picker Redesign: Premium cinematic square cards with photo, gradient fallback, glow selection ring and staggered animation.",
-    "Background ZIP Export: Click ZIP once and it runs in background with floating progress card and download prompt.",
-    "UI Polish: Compact 3-column artist grid, live selection counter badge and smarter Continue button state."
+    "Mobile Touch Scroll Fix: Resolved touch gesture freeze on Android WebViews for ultra-smooth 120Hz scrolling.",
+    "Full Viewport App Shell: Sticky top navigation bar and optimized mobile container layout.",
+    "Made For You 2x2 Grid: Equal responsive card height and crisp cover art alignment on all mobile devices.",
+    "Native Audio Visualizer & QR Code Jam: Live audio waveform in full player and instant QR code sharing.",
+    "Release Key Security: Signed with official RSA production key for smooth update installations."
   ]
 }

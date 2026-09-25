@@ -181,9 +181,16 @@ try {
     const sha256 = crypto.createHash('sha256').update(fileBuffer).digest('hex');
     const fileSize = fileBuffer.length;
 
+    // Dynamically parse versionCode and versionName from build.gradle
+    const gradleContent = fs.readFileSync(path.join(androidDir, 'app', 'build.gradle'), 'utf-8');
+    const versionCodeMatch = gradleContent.match(/versionCode\s+(\d+)/);
+    const versionNameMatch = gradleContent.match(/versionName\s+["']([^"']+)["']/);
+    const dynamicVersionCode = versionCodeMatch ? parseInt(versionCodeMatch[1], 10) : 19;
+    const dynamicVersionName = versionNameMatch ? versionNameMatch[1] : '1.4.2';
+
     const newManifest = {
-      versionCode: 17,
-      versionName: '1.4.0',
+      versionCode: dynamicVersionCode,
+      versionName: dynamicVersionName,
       apkUrl: 'https://raaga.me/api/app/download',
       sha256: sha256,
       fileSize: fileSize,
@@ -192,16 +199,16 @@ try {
       minimumSupportedVersion: 1,
       releaseChannel: 'stable',
       releaseNotes: [
-        'Account Isolation & Security: Atomic session guard with strict multi-user logout purge, realtime isolation, and switch-user state protection.',
-        'Onboarding Fix: Continue button now always reachable when 2+ languages selected during registration.',
-        'Artist Picker Redesign: Premium cinematic square cards with photo, gradient fallback, glow selection ring and staggered animation.',
-        'Background ZIP Export: Click ZIP once and it runs in background with floating progress card and download prompt.',
-        'UI Polish: Compact 3-column artist grid, live selection counter badge and smarter Continue button state.'
+        'Mobile Touch Scroll Fix: Resolved touch gesture freeze on Android WebViews for ultra-smooth 120Hz scrolling.',
+        'Full Viewport App Shell: Sticky top navigation bar and optimized mobile container layout.',
+        'Made For You 2x2 Grid: Equal responsive card height and crisp cover art alignment on all mobile devices.',
+        'Native Audio Visualizer & QR Code Jam: Live audio waveform in full player and instant QR code sharing.',
+        'Release Key Security: Signed with official RSA production key for smooth update installations.'
       ]
     };
 
     fs.writeFileSync(manifestPath, JSON.stringify(newManifest, null, 2));
-    console.log(`📄 [OTA BUILD] Auto-updated update manifest at: ${manifestPath}`);
+    console.log(`📄 [OTA BUILD] Auto-updated update manifest (v${dynamicVersionName} / Code ${dynamicVersionCode}) at: ${manifestPath}`);
 
     try {
       if (fs.existsSync(desktopDir)) {
