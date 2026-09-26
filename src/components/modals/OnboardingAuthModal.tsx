@@ -9,6 +9,7 @@ import { PersonalizationEngine } from '@/lib/recommendation/PersonalizationEngin
 import { Song } from '@/types/music';
 
 import { UserLifecycleManager } from '@/lib/lifecycle/UserLifecycleManager';
+import { AccountIsolationGuard } from '@/lib/auth/AccountIsolationGuard';
 
 const TOP_LANGUAGES = ['Telugu', 'Hindi', 'Tamil', 'Malayalam', 'Kannada', 'English'];
 const TOP_MOODS = [
@@ -71,12 +72,52 @@ const ARTISTS_BY_LANGUAGE: Record<string, Array<{ name: string; img: string }>> 
     { name: 'Dua Lipa', img: 'https://c.saavncdn.com/artists/Dua_Lipa_003_20230303080630_500x500.jpg' },
     { name: 'Billie Eilish', img: 'https://c.saavncdn.com/artists/Billie_Eilish_003_20230303080608_500x500.jpg' },
     { name: 'Drake', img: 'https://c.saavncdn.com/artists/Drake_003_20230303080619_500x500.jpg' }
+  ],
+  Punjabi: [
+    { name: 'Diljit Dosanjh', img: 'https://c.saavncdn.com/artists/Diljit_Dosanjh_004_20221006184545_500x500.jpg' },
+    { name: 'AP Dhillon', img: 'https://c.saavncdn.com/artists/AP_Dhillon_000_20210212084451_500x500.jpg' },
+    { name: 'Sidhu Moose Wala', img: 'https://c.saavncdn.com/artists/Sidhu_Moose_Wala_003_20220601072949_500x500.jpg' },
+    { name: 'Karan Aujla', img: 'https://c.saavncdn.com/artists/Karan_Aujla_002_20230818105747_500x500.jpg' },
+    { name: 'Shubh', img: 'https://c.saavncdn.com/artists/Shubh_000_20220518115655_500x500.jpg' },
+    { name: 'Guru Randhawa', img: 'https://c.saavncdn.com/artists/Guru_Randhawa_002_20230104093933_500x500.jpg' }
+  ],
+  Bengali: [
+    { name: 'Arijit Singh', img: 'https://c.saavncdn.com/artists/Arijit_Singh_004_20241118063717_500x500.jpg' },
+    { name: 'Shreya Ghoshal', img: 'https://c.saavncdn.com/artists/Shreya_Ghoshal_003_20230104093405_500x500.jpg' },
+    { name: 'Anupam Roy', img: 'https://c.saavncdn.com/artists/Anupam_Roy_002_20200810103504_500x500.jpg' },
+    { name: 'Rupam Islam', img: 'https://c.saavncdn.com/artists/Rupam_Islam_002_20200810103720_500x500.jpg' },
+    { name: 'Iman Chakraborty', img: 'https://c.saavncdn.com/artists/Iman_Chakraborty_000_20191223122709_500x500.jpg' },
+    { name: 'Somlata Acharyya', img: 'https://c.saavncdn.com/artists/Somlata_Acharyya_Chowdhury_002_20200810103819_500x500.jpg' }
+  ],
+  Marathi: [
+    { name: 'Ajay-Atul', img: 'https://c.saavncdn.com/artists/Ajay-Atul_002_20230104093952_500x500.jpg' },
+    { name: 'Swapnil Bandodkar', img: 'https://c.saavncdn.com/artists/Swapnil_Bandodkar_002_20200810103823_500x500.jpg' },
+    { name: 'Avadhoot Gupte', img: 'https://c.saavncdn.com/artists/Avadhoot_Gupte_002_20200810103513_500x500.jpg' },
+    { name: 'Shreya Ghoshal', img: 'https://c.saavncdn.com/artists/Shreya_Ghoshal_003_20230104093405_500x500.jpg' },
+    { name: 'Mahesh Kale', img: 'https://c.saavncdn.com/artists/Mahesh_Kale_000_20200311130312_500x500.jpg' },
+    { name: 'Bela Shende', img: 'https://c.saavncdn.com/artists/Bela_Shende_002_20200810103516_500x500.jpg' }
+  ],
+  Gujarati: [
+    { name: 'Sachin-Jigar', img: 'https://c.saavncdn.com/artists/Sachin_Jigar_003_20230104094119_500x500.jpg' },
+    { name: 'Aditya Gadhvi', img: 'https://c.saavncdn.com/artists/Aditya_Gadhvi_000_20231020063234_500x500.jpg' },
+    { name: 'Kinjal Dave', img: 'https://c.saavncdn.com/artists/Kinjal_Dave_000_20200810103820_500x500.jpg' },
+    { name: 'Jigarardan Gadhavi', img: 'https://c.saavncdn.com/artists/Jigrra_000_20191024101956_500x500.jpg' },
+    { name: 'Geeta Rabari', img: 'https://c.saavncdn.com/artists/Geeta_Rabari_000_20200810103818_500x500.jpg' },
+    { name: 'Kirtidan Gadhvi', img: 'https://c.saavncdn.com/artists/Kirtidan_Gadhvi_000_20200810103822_500x500.jpg' }
+  ],
+  Bhojpuri: [
+    { name: 'Pawan Singh', img: 'https://c.saavncdn.com/artists/Pawan_Singh_004_20230605090659_500x500.jpg' },
+    { name: 'Khesari Lal Yadav', img: 'https://c.saavncdn.com/artists/Khesari_Lal_Yadav_005_20230605090704_500x500.jpg' },
+    { name: 'Shilpi Raj', img: 'https://c.saavncdn.com/artists/Shilpi_Raj_000_20220208115714_500x500.jpg' },
+    { name: 'Manoj Tiwari', img: 'https://c.saavncdn.com/artists/Manoj_Tiwari_002_20200810103642_500x500.jpg' },
+    { name: 'Arvind Akela Kallu', img: 'https://c.saavncdn.com/artists/Arvind_Akela_Kallu_002_20230104094132_500x500.jpg' },
+    { name: 'Kalpana Patowary', img: 'https://c.saavncdn.com/artists/Kalpana_002_20200810103632_500x500.jpg' }
   ]
 };
 
 export function OnboardingAuthModal() {
   const { isAuthModalOpen, setAuthModalOpen, user } = useAuthStore();
-  const { setPreferredLanguage } = usePlayerStore();
+  const { setPreferredLanguage, selectedLanguages: storeLanguages } = usePlayerStore();
   
   // Progression States: 'login' | 'register-credentials' | 'register-language' | 'register-moods' | 'register-artists'
   const [mode, setMode] = useState<'login' | 'register-credentials' | 'register-language' | 'register-moods' | 'register-artists'>('login');
@@ -88,7 +129,18 @@ export function OnboardingAuthModal() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
-  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('raagax_selected_languages');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return storeLanguages && storeLanguages.length > 0 ? storeLanguages : ['Telugu'];
+  });
   const [selectedMoods, setSelectedMoods] = useState<string[]>(['Melodies', 'Love']);
   const [selectedArtists, setSelectedArtists] = useState<string[]>([]);
   
@@ -203,6 +255,7 @@ export function OnboardingAuthModal() {
       return;
     }
     setErrorMsg('');
+    usePlayerStore.getState().setSelectedLanguages(selectedLanguages);
     setMode('register-moods');
   };
 
@@ -214,27 +267,39 @@ export function OnboardingAuthModal() {
     setErrorMsg('');
     setIsLoading(true);
     
-    if (selectedLanguages.length > 0) {
-      setPreferredLanguage(selectedLanguages[0]);
+    const validLanguages = selectedLanguages.length > 0 ? selectedLanguages : ['Telugu'];
+    usePlayerStore.getState().setSelectedLanguages(validLanguages);
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('raagax_selected_languages', JSON.stringify(validLanguages));
+      localStorage.setItem('raagax_preferred_language', validLanguages[0]);
+      localStorage.setItem('raagax_preferred_artists', JSON.stringify(selectedArtists));
+      localStorage.setItem('raagax_preferred_moods', JSON.stringify(selectedMoods));
+      localStorage.setItem('raagax_onboarding_done', 'true');
+      localStorage.setItem('raagax_onboarding_completed', 'true');
     }
 
-    // Bootstrap recommendation engine & lifecycle manager
-    UserLifecycleManager.getInstance().bootstrapFromOnboarding(selectedLanguages, selectedMoods, selectedArtists);
-    const { ListeningDnaEngine } = await import('@/lib/lifecycle/ListeningDnaEngine');
-    ListeningDnaEngine.getInstance().setInitialLanguages(selectedLanguages);
-    
-    selectedArtists.forEach(artist => {
-      PersonalizationEngine.getInstance().trackEngagement({
-        id: `bootstrap_${artist}`,
-        title: 'Bootstrap',
-        artist: artist,
-        genre: '',
-        category: '',
-        coverUrl: '',
-        duration: 180,
-        provider: 'local'
-      } as unknown as Song, 'complete', 180, 1.0, 'onboarding');
-    });
+    try {
+      // Bootstrap recommendation engine & lifecycle manager
+      UserLifecycleManager.getInstance().bootstrapFromOnboarding(validLanguages, selectedMoods, selectedArtists);
+      const { ListeningDnaEngine } = await import('@/lib/lifecycle/ListeningDnaEngine');
+      ListeningDnaEngine.getInstance().setInitialLanguages(validLanguages);
+      
+      selectedArtists.forEach(artist => {
+        PersonalizationEngine.getInstance().trackEngagement({
+          id: `bootstrap_${artist}`,
+          title: 'Bootstrap',
+          artist: artist,
+          genre: '',
+          category: '',
+          coverUrl: '',
+          duration: 180,
+          provider: 'local'
+        } as unknown as Song, 'complete', 180, 1.0, 'onboarding').catch(() => {});
+      });
+    } catch (bootstrapErr) {
+      console.warn('[Onboarding] Bootstrap notice:', bootstrapErr);
+    }
 
     try {
       const cleanEmail = email.trim().toLowerCase();
@@ -243,26 +308,37 @@ export function OnboardingAuthModal() {
           const { data, error } = await supabase.auth.signUp({
             email: cleanEmail,
             password,
-            options: { data: { full_name: username || 'RaagaX Listener' } }
+            options: { data: { full_name: username.trim() || 'RaagaX Listener' } }
           });
           if (error) {
             if (error.message.includes('already registered')) {
               setErrorMsg('An account with this email already exists. Please Sign In.');
               setMode('login');
+              setIsLoading(false);
               return;
             } else {
               setErrorMsg(error.message);
+              setIsLoading(false);
               return;
             }
           }
-          if (data?.session) {
+          const effectiveUser = data?.session?.user || data?.user || ({
+            id: `usr_${Date.now()}`,
+            email: cleanEmail,
+            user_metadata: { full_name: username.trim() || 'RaagaX Listener' }
+          } as any);
+
+          if (effectiveUser) {
             useAuthStore.setState({
-              session: data.session,
-              user: data.session.user,
+              session: data?.session || ({ user: effectiveUser } as any),
+              user: effectiveUser,
               isLoading: false,
+              isAuthModalOpen: false,
             });
+            AccountIsolationGuard.getInstance().setAuthenticatedUser(effectiveUser.id, 'ONBOARDING_SIGNUP');
           }
-          const chosenName = username.trim() || data?.session?.user?.user_metadata?.full_name || cleanEmail.split('@')[0];
+
+          const chosenName = username.trim() || effectiveUser?.user_metadata?.full_name || cleanEmail.split('@')[0];
           if (chosenName) {
             import('@/lib/connect/auth/DeviceNameResolver').then(({ DeviceNameResolver }) => {
               DeviceNameResolver.getInstance().setAccountDisplayName(chosenName);
@@ -271,15 +347,13 @@ export function OnboardingAuthModal() {
         } catch (authEx: any) {
           console.warn('[Onboarding] Cloud auth error:', authEx);
         }
+      } else {
+        AccountIsolationGuard.getInstance().setAuthenticatedUser(null, 'GUEST_ONBOARDING');
       }
-      localStorage.setItem('raagax_onboarding_done', 'true');
-      localStorage.setItem('raagax_preferred_language', selectedLanguages[0] || 'Telugu');
-      localStorage.setItem('raagax_preferred_artists', JSON.stringify(selectedArtists));
-      localStorage.setItem('raagax_preferred_moods', JSON.stringify(selectedMoods));
+
       setAuthModalOpen(false);
     } catch (err: any) {
       console.warn('[Onboarding] Finalize fallback:', err);
-      localStorage.setItem('raagax_onboarding_done', 'true');
       setAuthModalOpen(false);
     } finally {
       setIsLoading(false);
@@ -337,17 +411,35 @@ export function OnboardingAuthModal() {
         )}
 
         {/* LEFT COLUMN: FORM */}
-        <div className="relative z-10 w-full md:w-[480px] p-6 sm:p-8 md:p-14 flex flex-col flex-shrink-0 bg-[#07080C] overflow-y-auto">
+        <div className={`relative z-10 w-full ${
+          mode === 'register-artists' ? 'md:w-[540px]' : 'md:w-[480px]'
+        } p-6 sm:p-8 md:p-12 flex flex-col flex-shrink-0 bg-[#07080C] overflow-y-auto`}>
           
-          <div className="space-y-2 mb-10 mt-4 md:mt-10">
-            <h1 className="text-[28px] md:text-[36px] font-bold tracking-tight text-white leading-tight">
+          {mode !== 'login' && mode !== 'register-credentials' && (
+            <button
+              type="button"
+              onClick={() => {
+                if (mode === 'register-artists') setMode('register-moods');
+                else if (mode === 'register-moods') setMode('register-language');
+                else if (mode === 'register-language') setMode('register-credentials');
+              }}
+              className="hidden md:inline-flex items-center gap-1.5 text-xs text-[#9AA0AE] hover:text-white mb-4 transition-colors cursor-pointer self-start"
+            >
+              <ChevronLeft className="w-4 h-4" /> Back to {
+                mode === 'register-artists' ? 'Moods' : mode === 'register-moods' ? 'Languages' : 'Credentials'
+              }
+            </button>
+          )}
+
+          <div className="space-y-2 mb-8 mt-2 md:mt-4">
+            <h1 className="text-[26px] md:text-[32px] font-bold tracking-tight text-white leading-tight">
               {mode === 'login' && <>Welcome <span className="text-[#F51B3D]">back</span></>}
               {mode === 'register-credentials' && 'Join RaagaX'}
               {mode === 'register-language' && 'What languages do you listen to?'}
               {mode === 'register-moods' && 'What music moves you?'}
               {mode === 'register-artists' && 'Pick some favorites'}
             </h1>
-            <p className="text-[14px] text-[#9AA0AE] font-medium">
+            <p className="text-[13px] md:text-[14px] text-[#9AA0AE] font-medium">
               {mode === 'login' && 'Your music is waiting.'}
               {mode === 'register-credentials' && 'Your music. Your library. Everywhere.'}
               {mode === 'register-language' && 'Select all languages you enjoy.'}
@@ -357,7 +449,7 @@ export function OnboardingAuthModal() {
           </div>
 
           <div className="space-y-5 w-full flex-grow">
-            {errorMsg && (
+            {errorMsg && mode !== 'register-artists' && (
               <div className="p-4 rounded-xl bg-[#FF4D5E]/10 border border-[#FF4D5E]/30 text-[#FF4D5E] text-[13px] font-semibold">
                 {errorMsg}
               </div>
@@ -536,69 +628,93 @@ export function OnboardingAuthModal() {
             {mode === 'register-artists' && (() => {
               const activeArtists = (() => {
                 const map = new Map<string, { name: string; img: string }>();
-                selectedLanguages.forEach(lang => {
+                const langs = selectedLanguages.length > 0 ? selectedLanguages : ['Telugu'];
+                langs.forEach(lang => {
                   const list = ARTISTS_BY_LANGUAGE[lang] || ARTISTS_BY_LANGUAGE['Telugu'];
                   list.forEach(a => { if (!map.has(a.name)) map.set(a.name, a); });
                 });
                 if (map.size === 0) {
                   ARTISTS_BY_LANGUAGE['Telugu'].forEach(a => map.set(a.name, a));
                 }
-                return Array.from(map.values()).slice(0, 9);
+                return Array.from(map.values()).slice(0, 16);
               })();
 
               return (
-                <div className="animate-in slide-in-from-right-4 duration-300 pb-20 md:pb-6">
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-                    {activeArtists.map(artist => {
-                    const isSelected = selectedArtists.includes(artist.name);
-                    return (
-                      <button
-                        key={artist.name}
-                        onClick={() => {
-                          if (isSelected) {
-                            setSelectedArtists(prev => prev.filter(a => a !== artist.name));
-                          } else {
-                            setSelectedArtists(prev => [...prev, artist.name]);
-                          }
-                        }}
-                        className="flex flex-col items-center gap-2 group outline-none cursor-pointer"
-                      >
-                        <div className={`relative w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden border-4 transition-all duration-300 ${isSelected ? 'border-[#F51B3D] scale-105 shadow-lg shadow-red-500/20' : 'border-transparent group-hover:border-[#272A33]'}`}>
-                          <img 
-                            src={artist.img || '/app-icon.png'} 
-                            alt={artist.name} 
+                <div className="animate-in slide-in-from-right-4 duration-300 pb-28 md:pb-6">
+                  {/* Top hint */}
+                  <p className="text-xs text-[#9AA0AE] mb-3">
+                    Choose favorite artists across <span className="text-white font-semibold">{selectedLanguages.join(', ')}</span>:
+                  </p>
+
+                  <div className="grid grid-cols-3 md:grid-cols-4 gap-2 mb-4">
+                    {activeArtists.map((artist) => {
+                      const isSelected = selectedArtists.includes(artist.name);
+                      return (
+                        <button
+                          key={artist.name}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedArtists(prev => prev.filter(a => a !== artist.name));
+                            } else {
+                              setSelectedArtists(prev => [...prev, artist.name]);
+                            }
+                          }}
+                          className={`relative aspect-square rounded-[14px] overflow-hidden border-2 transition-all cursor-pointer group outline-none select-none ${
+                            isSelected
+                              ? 'border-[#F51B3D] ring-2 ring-[#F51B3D]/50 shadow-md shadow-red-500/30 scale-[1.02]'
+                              : 'border-white/10 hover:border-white/30'
+                          }`}
+                        >
+                          <img
+                            src={artist.img || '/app-icon.png'}
+                            alt={artist.name}
+                            loading="lazy"
                             onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                            className="w-full h-full object-cover bg-slate-800" 
+                            className="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
                           />
+                          <div className="absolute inset-x-0 bottom-0 pt-6 pb-1.5 px-1.5 bg-gradient-to-t from-black/95 via-black/60 to-transparent">
+                            <p className={`text-[10px] sm:text-[11px] font-bold text-center truncate transition-colors ${isSelected ? 'text-white' : 'text-slate-200'}`}>
+                              {artist.name}
+                            </p>
+                          </div>
                           {isSelected && (
-                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                              <Check className="w-8 h-8 text-white stroke-[3]" />
+                            <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#F51B3D] flex items-center justify-center shadow-md shadow-red-500/50 z-20">
+                              <Check className="w-3 h-3 text-white stroke-[3]" />
                             </div>
                           )}
-                        </div>
-                        <span className={`text-[12px] font-semibold text-center transition-colors ${isSelected ? 'text-white font-bold' : 'text-[#9AA0AE] group-hover:text-white'}`}>
-                          {artist.name}
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
+                        </button>
+                      );
+                    })}
+                  </div>
 
-                {/* Sticky Continue / Done Button */}
-                <div className="sticky bottom-0 left-0 right-0 pt-3 pb-4 bg-gradient-to-t from-[#07080C] via-[#07080C]/95 to-transparent z-20">
-                  <button
-                    onClick={handleFinalizeRegister}
-                    disabled={isLoading}
-                    className="w-full h-[56px] rounded-[16px] bg-[#F51B3D] hover:bg-[#d91e32] text-white font-bold text-[15px] shadow-lg shadow-red-500/25 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer group"
-                  >
-                    {isLoading ? (
-                      <><Loader2 className="w-5 h-5 animate-spin" /> Finalizing Setup...</>
-                    ) : (
-                      <>{selectedArtists.length > 0 ? `Continue (${selectedArtists.length} Selected)` : 'Finish Setup'} <ArrowRight className="w-5 h-5 opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-all" /></>
+                  {/* Fixed bottom button on mobile, relative on desktop */}
+                  <div className="fixed md:relative bottom-0 left-0 right-0 md:bottom-auto px-6 md:px-0 pt-3 pb-6 md:pb-0 bg-gradient-to-t from-[#07080C] via-[#07080C]/98 to-transparent z-30 md:z-auto md:bg-none">
+                    {errorMsg && (
+                      <div className="mb-2 p-2.5 rounded-xl bg-[#FF4D5E]/15 border border-[#FF4D5E]/40 text-[#FF4D5E] text-xs font-semibold text-center">
+                        {errorMsg}
+                      </div>
                     )}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={handleFinalizeRegister}
+                      disabled={isLoading}
+                      className={`w-full h-[52px] rounded-[16px] font-bold text-[15px] shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer group ${
+                        selectedArtists.length > 0
+                          ? 'bg-[#F51B3D] hover:bg-[#d91e32] text-white shadow-red-500/25'
+                          : 'bg-[#101116] border border-[#272A33] text-[#9AA0AE] hover:border-[#F51B3D]/40 hover:text-white'
+                      }`}
+                    >
+                      {isLoading ? (
+                        <><Loader2 className="w-5 h-5 animate-spin" /> Setting up your profile...</>
+                      ) : selectedArtists.length > 0 ? (
+                        <><span>Continue with {selectedArtists.length} Artist{selectedArtists.length > 1 ? 's' : ''}</span> <ArrowRight className="w-5 h-5 opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-all" /></>
+                      ) : (
+                        <><span>Finish Setup</span> <ArrowRight className="w-5 h-5 opacity-50 group-hover:opacity-80 group-hover:translate-x-1 transition-all" /></>
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </div>
               );
             })()}
 

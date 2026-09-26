@@ -102,10 +102,13 @@ export default function Page() {
     }).catch(() => { });
   }, []);
 
-  // Strict Authentication Guard: Force Login or Sign Up (no guest mode)
+  // Strict Authentication Guard: Force Login or Sign Up (no guest mode unless onboarding completed)
   React.useEffect(() => {
     if (!isAuthLoading && !authUser && !isAuthModalOpen) {
-      setAuthModalOpen(true);
+      const onboardingDone = typeof window !== 'undefined' && localStorage.getItem('raagax_onboarding_done') === 'true';
+      if (!onboardingDone) {
+        setAuthModalOpen(true);
+      }
     }
   }, [isAuthLoading, authUser, isAuthModalOpen, setAuthModalOpen]);
 
