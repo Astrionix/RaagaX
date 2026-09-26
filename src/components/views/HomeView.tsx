@@ -6,9 +6,9 @@ import { useAuthStore } from '@/context/useAuthStore';
 import { HomePayload, HomeSection, ShelfItem } from '@/types/home';
 import { CarouselShelf } from '@/components/home/CarouselShelf';
 import { ChartListShelf } from '@/components/home/ChartListShelf';
-import { SkeletonGrid } from '@/components/ui/SkeletonLoader';
+import { HomeLoadingSkeleton } from '@/components/home/HomeLoadingSkeleton';
 import {
-  Play, Pause, Shuffle, Heart, Clock, ListMusic, User, Users,
+  Play, Pause, Shuffle, Heart, Clock, ListMusic, Users,
   Headphones, Sparkles, Flame, Disc, Radio, ChevronRight,
   WifiOff, HardDrive, CheckCircle2, Repeat, Compass,
 } from 'lucide-react';
@@ -24,7 +24,6 @@ import { RecapBanner } from '@/components/home/RecapBanner';
 import { RaagaDB, STORES } from '@/lib/storage/IndexedDB';
 import { supabase } from '@/lib/supabase';
 import { UserLifecycleManager } from '@/lib/lifecycle/UserLifecycleManager';
-import { MoreLikeWhatYouHeardShelf } from '@/components/home/MoreLikeWhatYouHeardShelf';
 import { FollowedArtistsNewReleasesShelf } from '@/components/home/FollowedArtistsNewReleasesShelf';
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 import { haptics } from '@/lib/haptics/HapticEngine';
@@ -34,9 +33,11 @@ import { useTimeAwareTheme } from '@/context/useTimeAwareTheme';
 import { ContinueListeningShelf, ContinueListeningSession } from '@/components/home/ContinueListeningShelf';
 import { LivingSkyBackdrop } from '@/components/home/LivingSkyBackdrop';
 import { LiquidMotionBackground } from '@/components/player/LiquidMotionBackground';
-import { MadeForYou } from '@/components/home/MadeForYou/MadeForYou';
 
 const EMPTY_SHELF_ITEMS: ShelfItem[] = [];
+
+// Module-level in-memory cache for instant 0ms home feed hydration
+const memoryHomePayloadCache = new Map<string, HomePayload>();
 
 const homeFetcher = async (url: string, preferredLanguage: string) => {
   const db = RaagaDB.getInstance();
@@ -63,6 +64,7 @@ const homeFetcher = async (url: string, preferredLanguage: string) => {
         );
       }
       if (data?.sections && data.sections.length > 0) {
+        memoryHomePayloadCache.set(cacheKey, data);
         await db.put(STORES.BROWSE_CACHE, { id: cacheKey, data, updatedAt: Date.now() }).catch(() => {});
         return data;
       }
@@ -73,10 +75,15 @@ const homeFetcher = async (url: string, preferredLanguage: string) => {
 
   try {
     const cached = await db.get<any>(STORES.BROWSE_CACHE, cacheKey);
-    if (cached?.data?.sections?.length > 0) return cached.data;
+    if (cached?.data?.sections?.length > 0) {
+      memoryHomePayloadCache.set(cacheKey, cached.data);
+      return cached.data;
+    }
   } catch {}
 
-  return { greeting: 'Welcome to RaagaX 🎵', sections: defaultSections };
+  const fallback: HomePayload = { greeting: 'Welcome to RaagaX 🎵', sections: defaultSections };
+  memoryHomePayloadCache.set(cacheKey, fallback);
+  return fallback;
 };
 
 function songsToShelfItems(songs: Song[]): ShelfItem[] {
@@ -396,12 +403,40 @@ export function HomeView() {
 
   const displayLang = isMounted ? (preferredLanguage || selectedLanguages?.[0] || '') : '';
   const currentLang = displayLang || 'Hindi';
+  const homeCacheKey = `home_${currentLang}`;
 
-  const { data: payload, isLoading } = useSWR(
+  const [cachedPayload, setCachedPayload] = useState<HomePayload | null>(() => {
+    return memoryHomePayloadCache.get(homeCacheKey) || null;
+  });
+
+  useEffect(() => {
+    let isCancelled = false;
+    if (!memoryHomePayloadCache.has(homeCacheKey)) {
+      RaagaDB.getInstance()
+        .get<any>(STORES.BROWSE_CACHE, homeCacheKey)
+        .then((cached) => {
+          if (!isCancelled && cached?.data?.sections?.length > 0) {
+            memoryHomePayloadCache.set(homeCacheKey, cached.data);
+            setCachedPayload(cached.data);
+          }
+        })
+        .catch(() => {});
+    }
+    return () => { isCancelled = true; };
+  }, [homeCacheKey]);
+
+  const { data: swrPayload, isLoading } = useSWR(
     `/api/home?lang=${encodeURIComponent(currentLang)}`,
     (url) => homeFetcher(url, currentLang),
-    { revalidateOnFocus: false, dedupingInterval: 30000, keepPreviousData: true }
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 60000,
+      keepPreviousData: true,
+      fallbackData: memoryHomePayloadCache.get(homeCacheKey) || undefined,
+    }
   );
+
+  const payload = swrPayload || cachedPayload;
 
   const [feed, setFeed] = useState<PersonalizedHomeFeed | null>(null);
   const { playlists: userPlaylists = [], fetchPlaylists } = usePlaylistStore();
@@ -473,9 +508,6 @@ export function HomeView() {
     ? currentSong.coverUrl.replace('http://', 'https://').replace(/150x150|50x50/g, '500x500')
     : '/app-icon.png';
 
-  // Derive "Because You Like [Artist]" section label
-  const topArtistName = feed?.topArtists?.[0]?.name;
-
   if (isActuallyOffline) {
     return (
       <div className="space-y-5 sm:space-y-6 pb-4 md:pb-6 select-none relative animate-in fade-in duration-300">
@@ -487,55 +519,33 @@ export function HomeView() {
     );
   }
 
-  // Coordinated single-pass loading screen (prevents "part by part" flashing)
-  const isInitialLoading = !payload && isLoading && !feed;
-  if (isInitialLoading) {
+  // 1. SSR & Hydration Safety Gate:
+  // Both server and client render identical deterministic skeleton on initial pass
+  if (!isMounted) {
     return (
-      <div className="space-y-6 pb-8 select-none animate-in fade-in duration-300 w-full">
-        {/* Header Skeleton */}
-        <div className="pt-3.5">
-          <div className="h-8 w-56 bg-white/10 rounded-lg animate-pulse" />
-        </div>
-
-        {/* 4 Made For You Mix Cards Skeleton */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <div
-              key={i}
-              className="rounded-3xl p-5 bg-white/[0.03] border border-white/5 h-[165px] animate-pulse flex flex-col justify-between"
-            >
-              <div className="h-6 w-20 bg-white/[0.06] rounded-full" />
-              <div className="space-y-2">
-                <div className="h-4 w-3/4 bg-white/[0.08] rounded-lg" />
-                <div className="h-3 w-1/2 bg-white/[0.04] rounded" />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Shelves Skeletons */}
-        <div className="space-y-8 pt-2">
-          <div className="space-y-3">
-            <div className="h-4 bg-white/10 rounded w-44 animate-pulse" />
-            <SkeletonGrid count={6} />
-          </div>
-          <div className="space-y-3">
-            <div className="h-4 bg-white/10 rounded w-40 animate-pulse" />
-            <SkeletonGrid count={6} />
-          </div>
+      <div className="pb-2 select-none relative" suppressHydrationWarning>
+        <div className="relative z-10 space-y-5 sm:space-y-6">
+          <HomeLoadingSkeleton greeting="Welcome to RaagaX 🎵" />
         </div>
       </div>
     );
   }
 
+  // 2. Coordinated single-pass loading screen (prevents "part by part" flashing)
+  const isInitialLoading = !payload && isLoading && !feed;
+
   return (
-    <div className="pb-2 select-none relative animate-in fade-in duration-300">
+    <div className="pb-2 select-none relative animate-in fade-in duration-300" suppressHydrationWarning>
 
       {/* ── Complete Full-Screen Total Living Gradient Backdrop System (Z-0) ── */}
       <LivingSkyBackdrop timeDetails={timeTheme} />
 
       {/* ── Main Home Page Content Layer (Z-10) ── */}
       <div className="relative z-10 space-y-5 sm:space-y-6">
+        {isInitialLoading ? (
+          <HomeLoadingSkeleton greeting={greeting} />
+        ) : (
+          <div className="space-y-5 sm:space-y-6 transition-all duration-500 ease-out animate-in fade-in">
 
 
 
@@ -566,13 +576,6 @@ export function HomeView() {
         </section>
       ) : null}
 
-      {/* ══════════════════════════════════════════════════════════════════════ */}
-      <MadeForYou
-        feed={feed}
-        likedSongs={likedSongs}
-        activeUserId={activeUserId}
-        currentLang={currentLang}
-      />
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* 4. YOUR PLAYLISTS — Prominently displayed user-created playlists       */}
@@ -594,16 +597,6 @@ export function HomeView() {
         />
       )}
 
-      {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 5. BECAUSE YOU LISTENED TO [ARTIST] — artist-based recommendations   */}
-      {/* ══════════════════════════════════════════════════════════════════════ */}
-      {feed?.moreLikeWhatYouHeard && feed.moreLikeWhatYouHeard.items.length > 0 && (
-        <MoreLikeWhatYouHeardShelf
-          initialSongs={feed.moreLikeWhatYouHeard.items}
-          seedSongTitle={feed.moreLikeWhatYouHeard.seedSongTitle}
-          seedSong={feed.moreLikeWhatYouHeard.seedSong}
-        />
-      )}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* 6. RECENTLY PLAYED — Compact 2-col list, not carousel                 */}
@@ -615,46 +608,6 @@ export function HomeView() {
       {/* FollowedArtistsNewReleasesShelf covers "Because you follow [artist]"  */}
       <FollowedArtistsNewReleasesShelf />
 
-      {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 8. YOUR TOP ARTISTS                                                    */}
-      {/* ══════════════════════════════════════════════════════════════════════ */}
-      {homeFeedControls.showPopularArtists !== false && feed?.topArtists && feed.topArtists.length > 0 && (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <User className="w-4 h-4 text-[#FA233B]" />
-              <h2 className="text-[15px] sm:text-[17px] font-black text-white tracking-tight">
-                {topArtistName ? `Because You Like ${topArtistName}` : 'Your Top Artists'}
-              </h2>
-            </div>
-          </div>
-          <div className="flex overflow-x-auto gap-4 sm:gap-5 pb-2 no-scrollbar -mx-3.5 px-3.5 sm:-mx-8 sm:px-8">
-            {feed.topArtists.map((artist, idx) => (
-              <div
-                key={artist.id ? `${artist.id}-${idx}` : `artist-${idx}`}
-                onClick={() => { setSelectedArtistId(artist.id); setActiveTab('artist'); }}
-                className="w-[88px] sm:w-[104px] flex-shrink-0 text-center cursor-pointer group"
-              >
-                <div className="relative mx-auto w-[88px] h-[88px] sm:w-[104px] sm:h-[104px] rounded-full overflow-hidden mb-2.5 border-2 border-white/10 group-hover:border-[#FA233B]/70 transition-all duration-300 shadow-lg group-hover:shadow-[0_0_20px_rgba(250,35,59,0.25)]">
-                  <img
-                    src={artist.coverUrl}
-                    alt={artist.name}
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/app-icon.png'; }}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                  />
-                  {/* Hover overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                </div>
-                <h4 className="text-[11px] sm:text-xs font-bold text-white truncate group-hover:text-[#FA233B] transition-colors leading-tight">
-                  {artist.name}
-                </h4>
-                <p className="text-[9px] sm:text-[10px] text-slate-500 mt-0.5 font-medium">{artist.playCount} plays</p>
-              </div>
-            ))}
-            <div className="w-3 sm:w-5 flex-shrink-0 pointer-events-none" aria-hidden="true" />
-          </div>
-        </section>
-      )}
 
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
@@ -665,10 +618,21 @@ export function HomeView() {
 
       {/* Dynamic backend sections — these can include Popular in [Language], Trending etc */}
       {!payload && isLoading ? (
-        <div className="space-y-8 pt-2">
+        <div className="space-y-6 pt-1">
           <div className="space-y-3">
-            <div className="h-4 bg-white/10 rounded w-44 animate-pulse" />
-            <SkeletonGrid count={6} />
+            <div className="h-4 bg-white/[0.08] rounded-md w-44 luxury-shimmer" />
+            <div className="flex gap-3 sm:gap-4 overflow-x-hidden no-scrollbar pt-1 pb-3 -mx-3.5 px-3.5 sm:-mx-8 sm:px-8">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={`dyn-skel-${i}`}
+                  className="p-3 sm:p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.04] w-[140px] sm:w-[172px] flex-shrink-0 space-y-2.5"
+                >
+                  <div className="relative w-full aspect-square rounded-xl bg-white/[0.05] luxury-shimmer overflow-hidden shadow-inner" />
+                  <div className="h-3 w-4/5 rounded-md bg-white/[0.07] luxury-shimmer" />
+                  <div className="h-2.5 w-1/2 rounded-md bg-white/[0.04] luxury-shimmer" />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       ) : payload?.sections ? (
@@ -700,6 +664,8 @@ export function HomeView() {
           showPlayAll={false}
         />
       )}
+          </div>
+        )}
       </div>
     </div>
   );
