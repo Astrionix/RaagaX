@@ -32,7 +32,6 @@ import { FriendActivityEngine } from '@/lib/social/FriendActivityEngine';
 import type { FriendActivityState } from '@/lib/social/FriendActivityEngine';
 import { useTimeAwareTheme } from '@/context/useTimeAwareTheme';
 import { ContinueListeningShelf, ContinueListeningSession } from '@/components/home/ContinueListeningShelf';
-import { LivingSkyBackdrop } from '@/components/home/LivingSkyBackdrop';
 
 const EMPTY_SHELF_ITEMS: ShelfItem[] = [];
 
@@ -529,22 +528,6 @@ export function HomeView() {
   return (
     <div className="space-y-5 sm:space-y-6 pb-2 select-none relative animate-in fade-in duration-300">
 
-      {/* ── Living Sky 24-Hour Environmental Backdrop System ── */}
-      <LivingSkyBackdrop timeDetails={timeTheme} />
-
-      {/* ── Subtle Artwork Atmospheric Glow ── */}
-      {isMounted && currentSong && (
-        <div
-          className="fixed top-0 left-0 right-0 h-[380px] pointer-events-none opacity-20 -z-10 transition-all duration-1000"
-          style={{
-            backgroundImage: `url(${coverUrl})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center top',
-            filter: 'blur(70px) saturate(220%)',
-          }}
-        />
-      )}
-
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* 1. TIME-AWARE COMPACT HERO                                             */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
@@ -552,13 +535,6 @@ export function HomeView() {
         className="relative pt-4 sm:pt-5 pb-0 flex flex-col items-start select-none"
         suppressHydrationWarning
       >
-        {/* Atmospheric ambient glow — time-driven via CSS vars */}
-        <div
-          className="absolute -top-6 -left-12 w-72 h-72 pointer-events-none -z-10 transition-all duration-700"
-          style={{ background: 'var(--time-hero-glow)' }}
-          aria-hidden
-        />
-
         {/* Greeting: "🌅 GOOD MORNING, CHAN" — matching reference image exactly */}
         <h1
           className="flex items-center gap-2.5 text-[22px] sm:text-[26px] md:text-[28px] font-extrabold text-[var(--text-primary)] tracking-tight leading-tight"

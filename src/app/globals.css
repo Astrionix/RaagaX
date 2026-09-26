@@ -37,8 +37,8 @@
 
   .light,
   [data-theme="light"] {
-    --bg-primary: #F8FAFC;
-    --bg-secondary: #FFFFFF;
+    --bg-primary: #FFFFFF;
+    --bg-secondary: #F8FAFC;
     --bg-surface: #F1F5F9;
     --bg-elevated: #FFFFFF;
     --bg-card: rgba(255, 255, 255, 0.95);
