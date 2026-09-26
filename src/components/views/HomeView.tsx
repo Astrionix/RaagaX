@@ -12,7 +12,6 @@ import {
   Headphones, Sparkles, Flame, Disc, Radio, ChevronRight,
   WifiOff, HardDrive, CheckCircle2, Repeat, Compass,
 } from 'lucide-react';
-import { LiquidRedMotionCard } from '@/components/home/LiquidRedMotionCard';
 import { Song } from '@/types/music';
 import useSWR from 'swr';
 import { getApiUrl } from '@/lib/config/apiConfig';
@@ -568,9 +567,12 @@ export function HomeView() {
       ) : null}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 3. MADE FOR YOU — Living 3D Fluid Artwork Mix Cards                    */}
-      {/* ══════════════════════════════════════════════════════════════════════ */}
-      <MadeForYou />
+      <MadeForYou
+        feed={feed}
+        likedSongs={likedSongs}
+        activeUserId={activeUserId}
+        currentLang={currentLang}
+      />
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* 4. YOUR PLAYLISTS — Prominently displayed user-created playlists       */}
