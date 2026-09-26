@@ -87,6 +87,9 @@ export default function Page() {
     toggleSystemSurfaces,
     isLocalPlayback,
     isSidebarCollapsed,
+    isPlayerExpanded,
+    isBlendModalOpen,
+    toggleBlendModal,
   } = usePlayerStore();
   const { isSetupModalOpen, setSetupModalOpen } = useDownloadStore();
   const authUser = useAuthStore((s) => s.user);
@@ -215,7 +218,7 @@ export default function Page() {
   }, []);
 
   return (
-    <div className="h-screen h-[100dvh] w-full max-w-[100vw] bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col md:flex-row overflow-hidden selection:bg-[#EF233C] selection:text-white transition-colors duration-300">
+    <div className="h-screen h-[100dvh] w-full max-w-[100vw] bg-black text-[var(--text-primary)] flex flex-col md:flex-row overflow-hidden selection:bg-[#EF233C] selection:text-white transition-colors duration-300">
       {/* Universal Scroll Lock Manager for all modals, sheets, and popups */}
       <GlobalModalScrollLockManager />
 
@@ -247,59 +250,69 @@ export default function Page() {
         onClose={() => toggleCarMode(false)}
       />
 
-      {/* Sidebar Navigation (Desktop Pane 1) */}
-      <Sidebar />
+      {/* ── Main App Shell with Apple Music Card Deck 3D Depth Transition ── */}
+      <div 
+        id="app-card-deck"
+        className={`flex-1 flex flex-col md:flex-row min-w-0 h-full overflow-hidden origin-top transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+          isPlayerExpanded 
+            ? 'scale-[0.93] -translate-y-3 rounded-t-[28px] sm:rounded-t-[36px] overflow-hidden brightness-[0.62] shadow-[0_25px_70px_rgba(0,0,0,0.95)] pointer-events-none select-none border-t border-x border-white/10' 
+            : 'scale-100 translate-y-0 rounded-none brightness-100'
+        }`}
+      >
+        {/* Sidebar Navigation (Desktop Pane 1) */}
+        <Sidebar />
 
-      {/* App Layout (Grid after Sidebar) */}
-      <div className={`flex-1 ml-0 ${isSidebarCollapsed ? 'md:ml-[88px]' : 'md:ml-64'} flex flex-col min-w-0 h-full overflow-hidden transition-[margin-left] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]`}>
-        <div className={`grid flex-1 min-h-0 h-full transition-all duration-300 ${isQueueOpen
-          ? 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_304px]'
-          : 'grid-cols-1'
-          }`}>
-          {/* Main Content Column (Viewport Scroll Container) */}
-          <div
-            id="main-scroll-container"
-            data-scrollable="true"
-            className="main-content min-w-0 flex-1 flex flex-col h-full overflow-y-auto overflow-x-hidden relative overscroll-y-contain touch-pan-y"
-          >
-            {/* Header Bar */}
-            <Header />
+        {/* App Layout (Grid after Sidebar) */}
+        <div className={`flex-1 ml-0 ${isSidebarCollapsed ? 'md:ml-[88px]' : 'md:ml-64'} flex flex-col min-w-0 h-full overflow-hidden transition-[margin-left] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]`}>
+          <div className={`grid flex-1 min-h-0 h-full transition-all duration-300 ${isQueueOpen
+            ? 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_304px]'
+            : 'grid-cols-1'
+            }`}>
+            {/* Main Content Column (Viewport Scroll Container) */}
+            <div
+              id="main-scroll-container"
+              data-scrollable="true"
+              className="main-content min-w-0 flex-1 flex flex-col h-full overflow-y-auto overflow-x-hidden relative overscroll-y-contain touch-pan-y"
+            >
+              {/* Header Bar */}
+              <Header />
 
-            {/* View Switcher Container */}
-            <main className={`flex-1 pb-[calc(7.5rem+env(safe-area-inset-bottom,0px))] ${!isLocalPlayback ? 'md:pb-[6.5rem]' : 'md:pb-[5.5rem]'
-              } ${activeTab === 'playlist' || (activeTab === 'artist' && selectedArtistId) || (activeTab === 'album' && selectedAlbumId)
-                ? 'pt-0 px-0'
-                : isQueueOpen
-                  ? 'pt-2 md:pt-5 pl-3.5 sm:pl-7 md:pl-8 pr-3.5 sm:pr-7 md:pr-8'
-                  : 'pt-2 md:pt-5 px-3.5 sm:px-8'
-              }`}>
-              {activeTab === 'home' && <HomeView />}
-              {activeTab === 'new' && <NewView />}
-              {activeTab === 'search' && <SearchView />}
-              {activeTab === 'library' && <LibraryView />}
-              {activeTab === 'genres' && <GenresView />}
-              {activeTab === 'artist' && selectedArtistId && <ArtistDetailView />}
-              {activeTab === 'album' && (selectedAlbumId ? <AlbumDetailView /> : <AlbumsView />)}
-              {activeTab === 'playlist' && <PlaylistDetailView />}
-              {activeTab === 'profile' && <ProfileView />}
-              {activeTab === 'downloads' && <DownloadsView />}
-              {activeTab === 'favorites' && <FavoritesView />}
-              {activeTab === 'insights' && <InsightsView />}
-              {activeTab === 'recaps' && <RecapHistoryView />}
-              {activeTab === 'history' && <HistoryView />}
-              {activeTab === 'settings' && <SettingsView />}
-            </main>
+              {/* View Switcher Container */}
+              <main className={`flex-1 pb-[calc(7.5rem+env(safe-area-inset-bottom,0px))] ${!isLocalPlayback ? 'md:pb-[6.5rem]' : 'md:pb-[5.5rem]'
+                } ${activeTab === 'playlist' || (activeTab === 'artist' && selectedArtistId) || (activeTab === 'album' && selectedAlbumId)
+                  ? 'pt-0 px-0'
+                  : isQueueOpen
+                    ? 'pt-2 md:pt-5 pl-3.5 sm:pl-7 md:pl-8 pr-3.5 sm:pr-7 md:pr-8'
+                    : 'pt-2 md:pt-5 px-3.5 sm:px-8'
+                }`}>
+                {activeTab === 'home' && <HomeView />}
+                {activeTab === 'new' && <NewView />}
+                {activeTab === 'search' && <SearchView />}
+                {activeTab === 'library' && <LibraryView />}
+                {activeTab === 'genres' && <GenresView />}
+                {activeTab === 'artist' && selectedArtistId && <ArtistDetailView />}
+                {activeTab === 'album' && (selectedAlbumId ? <AlbumDetailView /> : <AlbumsView />)}
+                {activeTab === 'playlist' && <PlaylistDetailView />}
+                {activeTab === 'profile' && <ProfileView />}
+                {activeTab === 'downloads' && <DownloadsView />}
+                {activeTab === 'favorites' && <FavoritesView />}
+                {activeTab === 'insights' && <InsightsView />}
+                {activeTab === 'recaps' && <RecapHistoryView />}
+                {activeTab === 'history' && <HistoryView />}
+                {activeTab === 'settings' && <SettingsView />}
+              </main>
 
-            {/* Unified Global Scroll-Aware Mobile Bottom Controller */}
-            <MobileBottomController />
-          </div>
-
-          {/* Right Column (Right side panel for Queue, Devices, and Jam) */}
-          {isQueueOpen && (
-            <div className="queue-panel fixed inset-y-0 right-0 z-50 w-[290px] h-full overflow-y-auto overflow-x-hidden bg-[var(--bg-secondary)] border-l border-white/[0.08] shadow-2xl animate-in slide-in-from-right-4 duration-200 md:relative md:inset-auto md:z-auto md:w-auto md:h-auto md:my-3 md:mr-3 md:ml-0 md:rounded-2xl md:overflow-hidden md:bg-[var(--sidebar-bg)] md:backdrop-blur-2xl md:border md:border-[var(--border-subtle)] md:shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
-              <RightQueuePanel />
+              {/* Unified Global Scroll-Aware Mobile Bottom Controller */}
+              <MobileBottomController />
             </div>
-          )}
+
+            {/* Right Column (Right side panel for Queue, Devices, and Jam) */}
+            {isQueueOpen && (
+              <div className="queue-panel fixed inset-y-0 right-0 z-50 w-[290px] h-full overflow-y-auto overflow-x-hidden bg-[var(--bg-secondary)] border-l border-white/[0.08] shadow-2xl animate-in slide-in-from-right-4 duration-200 md:relative md:inset-auto md:z-auto md:w-auto md:h-auto md:my-3 md:mr-3 md:ml-0 md:rounded-2xl md:overflow-hidden md:bg-[var(--sidebar-bg)] md:backdrop-blur-2xl md:border md:border-[var(--border-subtle)] md:shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
+                <RightQueuePanel />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -330,8 +343,8 @@ export default function Page() {
       </ErrorBoundary>
       <ErrorBoundary name="BlendModal">
         <BlendModal
-          isOpen={usePlayerStore((s) => s.isBlendModalOpen)}
-          onClose={() => usePlayerStore.getState().toggleBlendModal(false)}
+          isOpen={isBlendModalOpen}
+          onClose={() => toggleBlendModal(false)}
         />
       </ErrorBoundary>
       <ErrorBoundary name="SettingsModal">

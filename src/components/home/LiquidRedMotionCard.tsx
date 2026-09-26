@@ -5,17 +5,33 @@ import * as THREE from 'three';
 import { Play, Pause } from 'lucide-react';
 import { haptics } from '@/lib/haptics/HapticEngine';
 
-export type ColorPreset = 'ruby' | 'cyber' | 'emerald' | 'amber' | 'ocean' | 'midnight-red' | 'pink-glass' | 'white-red' | 'soft-glass';
+export type ColorPreset =
+  | 'amber'
+  | 'heavy-rotation'
+  | 'purple'
+  | 'essentials'
+  | 'crimson'
+  | 'get-up'
+  | 'teal'
+  | 'chill'
+  | 'ruby'
+  | 'cyber'
+  | 'emerald'
+  | 'ocean'
+  | 'midnight-red'
+  | 'pink-glass'
+  | 'white-red'
+  | 'soft-glass';
 
 export interface LiquidRedCardProps {
   id: string;
-  badge: string;
-  badgeIcon: React.ReactNode;
+  badge?: string;
+  badgeIcon?: React.ReactNode;
   title: string;
-  description: string;
-  trackCount: string;
-  seed: number;
-  /** Motion color gradient preset or custom colors */
+  description?: string;
+  artists?: string;
+  trackCount?: string;
+  seed?: number;
   colorPreset?: ColorPreset;
   customColors?: [string, string, string, string, string];
   isPlaying?: boolean;
@@ -24,55 +40,114 @@ export interface LiquidRedCardProps {
   className?: string;
 }
 
-const PALETTES: Record<ColorPreset, {
+const PALETTES: Record<string, {
   colors: [string, string, string, string, string];
   fallbackCss: string;
   pillBorder: string;
+  fallbackArtists: string;
 }> = {
+  // 1. Heavy Rotation — Warm Amber Gold & Tangerine
+  amber: {
+    colors: ['#2A0E00', '#7C2D12', '#C2410C', '#EA580C', '#F59E0B'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #F59E0B 0%, #EA580C 25%, transparent 60%), linear-gradient(135deg, #2A0E00 0%, #7C2D12 40%, #C2410C 70%, #F59E0B 100%)',
+    pillBorder: 'border-amber-400/40 text-amber-200',
+    fallbackArtists: 'S.S. Thaman, Yazin Nizar, G.V. Prakash Kumar, Banjaare and more',
+  },
+  'heavy-rotation': {
+    colors: ['#2A0E00', '#7C2D12', '#C2410C', '#EA580C', '#F59E0B'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #F59E0B 0%, #EA580C 25%, transparent 60%), linear-gradient(135deg, #2A0E00 0%, #7C2D12 40%, #C2410C 70%, #F59E0B 100%)',
+    pillBorder: 'border-amber-400/40 text-amber-200',
+    fallbackArtists: 'S.S. Thaman, Yazin Nizar, G.V. Prakash Kumar, Banjaare and more',
+  },
   'midnight-red': {
-    colors: ['#170006', '#5A071A', '#8F0E2F', '#B5123F', '#FF4D6D'],
-    fallbackCss: 'radial-gradient(circle at 85% 20%, #FF4D6D 0%, #B5123F 25%, transparent 60%), linear-gradient(135deg, #170006 0%, #5A071A 45%, #8F0E2F 75%, #B5123F 100%)',
-    pillBorder: 'border-rose-500/40 text-rose-200',
+    colors: ['#2A0E00', '#7C2D12', '#C2410C', '#EA580C', '#F59E0B'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #F59E0B 0%, #EA580C 25%, transparent 60%), linear-gradient(135deg, #2A0E00 0%, #7C2D12 40%, #C2410C 70%, #F59E0B 100%)',
+    pillBorder: 'border-amber-400/40 text-amber-200',
+    fallbackArtists: 'S.S. Thaman, Yazin Nizar, G.V. Prakash Kumar, Banjaare and more',
+  },
+
+  // 2. Your Essentials — Royal Indigo & Electric Violet
+  purple: {
+    colors: ['#0F0728', '#2E1065', '#5B21B6', '#7C3AED', '#C026D3'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #C026D3 0%, #7C3AED 25%, transparent 60%), linear-gradient(135deg, #0F0728 0%, #2E1065 40%, #5B21B6 70%, #C026D3 100%)',
+    pillBorder: 'border-purple-400/40 text-purple-200',
+    fallbackArtists: 'Sid Sriram, Guru Randhawa, Anuj Gurwara, Jonita Gandhi and more',
+  },
+  essentials: {
+    colors: ['#0F0728', '#2E1065', '#5B21B6', '#7C3AED', '#C026D3'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #C026D3 0%, #7C3AED 25%, transparent 60%), linear-gradient(135deg, #0F0728 0%, #2E1065 40%, #5B21B6 70%, #C026D3 100%)',
+    pillBorder: 'border-purple-400/40 text-purple-200',
+    fallbackArtists: 'Sid Sriram, Guru Randhawa, Anuj Gurwara, Jonita Gandhi and more',
   },
   'pink-glass': {
-    colors: ['#3A0B2E', '#64103E', '#8F164D', '#D41445', '#FF9A9E'],
-    fallbackCss: 'radial-gradient(circle at 80% 25%, #FF9A9E 0%, #D41445 30%, transparent 65%), linear-gradient(135deg, #3A0B2E 0%, #64103E 35%, #8F164D 65%, #FF9A9E 100%)',
-    pillBorder: 'border-pink-400/40 text-pink-200',
-  },
-  'white-red': {
-    colors: ['#3A0518', '#8E1B5B', '#D41445', '#FF6B6B', '#FFFFFF'],
-    fallbackCss: 'radial-gradient(circle at 20% 20%, #FFFFFF 0%, #FF6B6B 25%, transparent 60%), radial-gradient(circle at 85% 85%, #D41445 0%, #8E1B5B 45%, transparent 70%), linear-gradient(135deg, #3A0518 0%, #8E1B5B 50%, #D41445 100%)',
-    pillBorder: 'border-red-300/50 text-white',
-  },
-  'soft-glass': {
-    colors: ['#5E1228', '#A81C3F', '#D41445', '#FB7185', '#FCA5A5'],
-    fallbackCss: 'radial-gradient(circle at 85% 15%, #FDE2E4 0%, #FCA5A5 22%, transparent 55%), radial-gradient(circle at 20% 75%, #D41445 0%, #A81C3F 40%, transparent 70%), linear-gradient(135deg, #5E1228 0%, #A81C3F 40%, #FB7185 85%, #FCA5A5 100%)',
-    pillBorder: 'border-rose-300/40 text-rose-100',
-  },
-  ruby: {
-    colors: ['#3A0010', '#700018', '#A9002D', '#D41445', '#FF0033'],
-    fallbackCss: 'radial-gradient(circle at 85% 20%, #FFFFFF 0%, #FFD1DC 12%, transparent 42%), radial-gradient(circle at 25% 30%, #D41445 0%, #A9002D 35%, transparent 65%), linear-gradient(135deg, #3A0010 0%, #700018 35%, #A9002D 65%, #FF0033 100%)',
-    pillBorder: 'border-red-500/40 text-red-200',
+    colors: ['#0F0728', '#2E1065', '#5B21B6', '#7C3AED', '#C026D3'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #C026D3 0%, #7C3AED 25%, transparent 60%), linear-gradient(135deg, #0F0728 0%, #2E1065 40%, #5B21B6 70%, #C026D3 100%)',
+    pillBorder: 'border-purple-400/40 text-purple-200',
+    fallbackArtists: 'Sid Sriram, Guru Randhawa, Anuj Gurwara, Jonita Gandhi and more',
   },
   cyber: {
-    colors: ['#0f092b', '#2e1065', '#6b21a8', '#c026d3', '#f43f5e'],
-    fallbackCss: 'radial-gradient(circle at 85% 20%, #FFFFFF 0%, #F5D0FE 12%, transparent 42%), radial-gradient(circle at 25% 30%, #C026D3 0%, #6B21A8 35%, transparent 65%), linear-gradient(135deg, #0F092B 0%, #2E1065 35%, #C026D3 65%, #F43F5E 100%)',
-    pillBorder: 'border-fuchsia-400/40 text-fuchsia-200',
+    colors: ['#0F0728', '#2E1065', '#5B21B6', '#7C3AED', '#C026D3'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #C026D3 0%, #7C3AED 25%, transparent 60%), linear-gradient(135deg, #0F0728 0%, #2E1065 40%, #5B21B6 70%, #C026D3 100%)',
+    pillBorder: 'border-purple-400/40 text-purple-200',
+    fallbackArtists: 'Sid Sriram, Guru Randhawa, Anuj Gurwara, Jonita Gandhi and more',
+  },
+
+  // 3. Get Up! — Fiery Crimson Scarlet & Flame Orange
+  crimson: {
+    colors: ['#1C0305', '#7F1D1D', '#B91C1C', '#DC2626', '#F97316'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #F97316 0%, #DC2626 25%, transparent 60%), linear-gradient(135deg, #1C0305 0%, #7F1D1D 40%, #DC2626 70%, #F97316 100%)',
+    pillBorder: 'border-red-400/40 text-red-200',
+    fallbackArtists: 'Spice, Nippandab, M3 sai, Gokulan Sembiyan, Aditya and more',
+  },
+  'get-up': {
+    colors: ['#1C0305', '#7F1D1D', '#B91C1C', '#DC2626', '#F97316'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #F97316 0%, #DC2626 25%, transparent 60%), linear-gradient(135deg, #1C0305 0%, #7F1D1D 40%, #DC2626 70%, #F97316 100%)',
+    pillBorder: 'border-red-400/40 text-red-200',
+    fallbackArtists: 'Spice, Nippandab, M3 sai, Gokulan Sembiyan, Aditya and more',
+  },
+  ruby: {
+    colors: ['#1C0305', '#7F1D1D', '#B91C1C', '#DC2626', '#F97316'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #F97316 0%, #DC2626 25%, transparent 60%), linear-gradient(135deg, #1C0305 0%, #7F1D1D 40%, #DC2626 70%, #F97316 100%)',
+    pillBorder: 'border-red-400/40 text-red-200',
+    fallbackArtists: 'Spice, Nippandab, M3 sai, Gokulan Sembiyan, Aditya and more',
+  },
+  'white-red': {
+    colors: ['#1C0305', '#7F1D1D', '#B91C1C', '#DC2626', '#F97316'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #F97316 0%, #DC2626 25%, transparent 60%), linear-gradient(135deg, #1C0305 0%, #7F1D1D 40%, #DC2626 70%, #F97316 100%)',
+    pillBorder: 'border-red-400/40 text-red-200',
+    fallbackArtists: 'Spice, Nippandab, M3 sai, Gokulan Sembiyan, Aditya and more',
+  },
+
+  // 4. Chill — Emerald & Deep Ocean Teal
+  teal: {
+    colors: ['#021B17', '#064E3B', '#0D9488', '#10B981', '#06B6D4'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #06B6D4 0%, #10B981 25%, transparent 60%), linear-gradient(135deg, #021B17 0%, #064E3B 40%, #0D9488 70%, #06B6D4 100%)',
+    pillBorder: 'border-teal-400/40 text-teal-200',
+    fallbackArtists: 'Raghav Chaitanya, Anuv Jain, Prateek Kuhad, Aditya Rikhari and more',
+  },
+  chill: {
+    colors: ['#021B17', '#064E3B', '#0D9488', '#10B981', '#06B6D4'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #06B6D4 0%, #10B981 25%, transparent 60%), linear-gradient(135deg, #021B17 0%, #064E3B 40%, #0D9488 70%, #06B6D4 100%)',
+    pillBorder: 'border-teal-400/40 text-teal-200',
+    fallbackArtists: 'Raghav Chaitanya, Anuv Jain, Prateek Kuhad, Aditya Rikhari and more',
   },
   emerald: {
-    colors: ['#022c22', '#064e3b', '#0d9488', '#10b981', '#06b6d4'],
-    fallbackCss: 'radial-gradient(circle at 85% 20%, #FFFFFF 0%, #A7F3D0 12%, transparent 42%), radial-gradient(circle at 25% 30%, #10B981 0%, #0D9488 35%, transparent 65%), linear-gradient(135deg, #022C22 0%, #064E3B 35%, #10B981 65%, #06B6D4 100%)',
+    colors: ['#021B17', '#064E3B', '#0D9488', '#10B981', '#06B6D4'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #06B6D4 0%, #10B981 25%, transparent 60%), linear-gradient(135deg, #021B17 0%, #064E3B 40%, #0D9488 70%, #06B6D4 100%)',
     pillBorder: 'border-emerald-400/40 text-emerald-200',
-  },
-  amber: {
-    colors: ['#2a0c02', '#7c2d12', '#c2410c', '#ea580c', '#f59e0b'],
-    fallbackCss: 'radial-gradient(circle at 85% 20%, #FFFFFF 0%, #FDE68A 12%, transparent 42%), radial-gradient(circle at 25% 30%, #F59E0B 0%, #C2410C 35%, transparent 65%), linear-gradient(135deg, #2A0C02 0%, #7C2D12 35%, #EA580C 65%, #F59E0B 100%)',
-    pillBorder: 'border-amber-400/40 text-amber-200',
+    fallbackArtists: 'Raghav Chaitanya, Anuv Jain, Prateek Kuhad, Aditya Rikhari and more',
   },
   ocean: {
-    colors: ['#0c1d36', '#1e3a8a', '#0284c7', '#06b6d4', '#38bdf8'],
-    fallbackCss: 'radial-gradient(circle at 85% 20%, #FFFFFF 0%, #BAE6FD 12%, transparent 42%), radial-gradient(circle at 25% 30%, #0284C7 0%, #1E3A8A 35%, transparent 65%), linear-gradient(135deg, #0C1D36 0%, #1E3A8A 35%, #06B6D4 65%, #38BDF8 100%)',
+    colors: ['#021B17', '#064E3B', '#0D9488', '#10B981', '#06B6D4'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #06B6D4 0%, #10B981 25%, transparent 60%), linear-gradient(135deg, #021B17 0%, #064E3B 40%, #0D9488 70%, #06B6D4 100%)',
     pillBorder: 'border-cyan-400/40 text-cyan-200',
+    fallbackArtists: 'Raghav Chaitanya, Anuv Jain, Prateek Kuhad, Aditya Rikhari and more',
+  },
+  'soft-glass': {
+    colors: ['#021B17', '#064E3B', '#0D9488', '#10B981', '#06B6D4'],
+    fallbackCss: 'radial-gradient(circle at 85% 20%, #06B6D4 0%, #10B981 25%, transparent 60%), linear-gradient(135deg, #021B17 0%, #064E3B 40%, #0D9488 70%, #06B6D4 100%)',
+    pillBorder: 'border-teal-400/40 text-teal-200',
+    fallbackArtists: 'Raghav Chaitanya, Anuv Jain, Prateek Kuhad, Aditya Rikhari and more',
   },
 };
 
@@ -103,10 +178,10 @@ void main() {
   vec2 uv = vUv;
   
   // Virtual time driven by clock and unique card seed
-  float t = u_time * 0.22 + u_seed * 2.15;
+  float t = u_time * 0.26 + u_seed * 2.15;
   
   // Diagonal plane direction (~45 deg diagonal, propagating across the card)
-  const float angle = 0.785398; // 45 degrees
+  const float angle = 0.785398;
   vec2 dir = vec2(cos(angle), sin(angle));
   
   // Linear coordinate along the planar propagation axis
@@ -114,12 +189,16 @@ void main() {
   
   // Interactive mouse offset along the propagation plane
   float mouseProj = dot(u_mouse, dir);
-  float mouseShift = (mouseProj - planeCoord) * 0.12 * u_hover;
+  float mouseShift = (mouseProj - planeCoord) * 0.22 * u_hover;
 
-  // ── Planar Wave Harmonics ──
-  float wave1 = sin((planeCoord * 3.4 - t * 0.65) + mouseShift) * 0.5 + 0.5;
-  float wave2 = sin(planeCoord * 5.6 - t * 0.90 + 1.25) * 0.5 + 0.5;
-  float wave3 = sin(planeCoord * 1.9 - t * 0.40 + 0.60) * 0.5 + 0.5;
+  // Real-time radial interactive ripple from mouse cursor
+  float mouseDist = length(uv - u_mouse);
+  float mouseRipple = sin(mouseDist * 16.0 - t * 4.0) * exp(-mouseDist * 4.0) * 0.35 * u_hover;
+
+  // ── Planar 3D Wave Harmonics ──
+  float wave1 = sin((planeCoord * 3.6 - t * 0.75) + mouseShift + mouseRipple) * 0.5 + 0.5;
+  float wave2 = sin(planeCoord * 5.8 - t * 1.05 + 1.25) * 0.5 + 0.5;
+  float wave3 = sin(planeCoord * 2.2 - t * 0.45 + 0.60) * 0.5 + 0.5;
   
   // Combined smooth planar liquid field
   float planarField = wave1 * 0.45 + wave2 * 0.30 + wave3 * 0.25;
@@ -135,8 +214,8 @@ void main() {
   col += u_color4 * crest * 0.35;
 
   // ── Planar Luminous Diagonal White Highlight ──
-  float sweepCycle = sin(t * 0.35) * 0.42 + 0.56;
-  float highlightPos = planeCoord - sweepCycle + (u_mouse.x * 0.10 - 0.05) * u_hover;
+  float sweepCycle = sin(t * 0.38) * 0.42 + 0.56;
+  float highlightPos = planeCoord - sweepCycle + (u_mouse.x * 0.16 - 0.08) * u_hover;
   float whiteBeam = exp(-pow(highlightPos * 4.8, 2.0));
 
   // Strictly clip white highlight inside: fade to zero well before boundary
@@ -148,7 +227,7 @@ void main() {
   float topCornerGlow = exp(-length(uv - vec2(0.86, 0.20)) * 4.0) * 0.45 * highlightBoundaryClip;
 
   vec3 whiteLight = mix(vec3(1.0, 0.9, 0.95), vec3(1.0), clamp(whiteBeam * 1.25, 0.0, 1.0));
-  col += whiteLight * (whiteBeam * 0.65 + topCornerGlow * 0.35 + whiteBeam * u_hover * 0.25);
+  col += whiteLight * (whiteBeam * 0.65 + topCornerGlow * 0.35 + whiteBeam * u_hover * 0.35);
 
   // Subtle pulsing ambient glow
   float pulse = 0.95 + 0.05 * sin(t * 1.4 + u_seed * 2.0);
@@ -170,9 +249,10 @@ export function LiquidRedMotionCard({
   badgeIcon,
   title,
   description,
+  artists,
   trackCount,
-  seed,
-  colorPreset = 'ruby',
+  seed = 1,
+  colorPreset = 'amber',
   customColors,
   isPlaying = false,
   isActive = false,
@@ -184,8 +264,9 @@ export function LiquidRedMotionCard({
   const [isHovered, setIsHovered] = useState(false);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
-  const palette = PALETTES[colorPreset] || PALETTES.ruby;
+  const palette = PALETTES[colorPreset] || PALETTES.amber;
   const activeColors = customColors || palette.colors;
+  const displayArtists = artists || description || palette.fallbackArtists;
 
   // WebGL & Three.js references
   const threeRef = useRef<{
@@ -241,7 +322,7 @@ export function LiquidRedMotionCard({
       });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     } catch (e) {
-      console.warn('[LiquidMotionCard] WebGL init fallback to CSS gradient:', e);
+      console.warn('[LiquidMotionCard] WebGL fallback to CSS gradient:', e);
       return;
     }
 
@@ -250,7 +331,7 @@ export function LiquidRedMotionCard({
 
     const uniforms = {
       u_time: { value: 0.0 },
-      u_resolution: { value: new THREE.Vector2(container.clientWidth || 300, container.clientHeight || 220) },
+      u_resolution: { value: new THREE.Vector2(container.clientWidth || 300, container.clientHeight || 200) },
       u_mouse: { value: new THREE.Vector2(0.5, 0.5) },
       u_hover: { value: 0.0 },
       u_seed: { value: seed },
@@ -286,7 +367,7 @@ export function LiquidRedMotionCard({
     const resize = () => {
       if (!container || !renderer) return;
       const width = container.clientWidth || 300;
-      const height = container.clientHeight || 220;
+      const height = container.clientHeight || 200;
       renderer.setSize(width, height, false);
       uniforms.u_resolution.value.set(width, height);
     };
@@ -302,10 +383,10 @@ export function LiquidRedMotionCard({
       const dt = Math.min(now - lastTime, 64) * 0.001;
       lastTime = now;
 
-      // Smooth mouse lerp
-      mouseCurrentRef.current.x += (mouseTargetRef.current.x - mouseCurrentRef.current.x) * 0.08;
-      mouseCurrentRef.current.y += (mouseTargetRef.current.y - mouseCurrentRef.current.y) * 0.08;
-      mouseCurrentRef.current.hover += (mouseTargetRef.current.hover - mouseCurrentRef.current.hover) * 0.09;
+      // Smooth mouse lerp for natural fluid inertia
+      mouseCurrentRef.current.x += (mouseTargetRef.current.x - mouseCurrentRef.current.x) * 0.12;
+      mouseCurrentRef.current.y += (mouseTargetRef.current.y - mouseCurrentRef.current.y) * 0.12;
+      mouseCurrentRef.current.hover += (mouseTargetRef.current.hover - mouseCurrentRef.current.hover) * 0.14;
 
       if (threeRef.current.isVisible) {
         virtualTime += dt;
@@ -329,7 +410,7 @@ export function LiquidRedMotionCard({
       material.dispose();
       renderer.dispose();
     };
-  }, [seed, colorPreset, customColors]);
+  }, [seed, colorPreset, activeColors]);
 
   // Update uniforms when palette changes
   useEffect(() => {
@@ -343,7 +424,7 @@ export function LiquidRedMotionCard({
     }
   }, [activeColors]);
 
-  // 3. Pointer move & 3D tilt calculation
+  // Pointer move & 3D tilt calculation
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const el = containerRef.current;
     if (!el) return;
@@ -352,12 +433,12 @@ export function LiquidRedMotionCard({
     const ny = (e.clientY - rect.top) / rect.height;
 
     mouseTargetRef.current.x = nx;
-    mouseTargetRef.current.y = 1.0 - ny; // flip for WebGL UV coordinates
+    mouseTargetRef.current.y = 1.0 - ny; // flip for WebGL UV coords
     mouseTargetRef.current.hover = 1.0;
 
-    // Subtle 3D card tilt (-5deg to +5deg)
-    const tiltX = (ny - 0.5) * -7;
-    const tiltY = (nx - 0.5) * 7;
+    // Smooth physical 3D card tilt
+    const tiltX = (ny - 0.5) * -10;
+    const tiltY = (nx - 0.5) * 10;
     setTilt({ x: tiltX, y: tiltY });
   };
 
@@ -384,22 +465,21 @@ export function LiquidRedMotionCard({
       }}
       style={{
         transform: `perspective(1000px) rotateX(${tilt.x.toFixed(2)}deg) rotateY(${tilt.y.toFixed(2)}deg) ${
-          isHovered ? 'translateY(-5px)' : 'translateY(0px)'
+          isHovered ? 'translateY(-4px) scale3d(1.02, 1.02, 1.02)' : 'translateY(0px) scale3d(1, 1, 1)'
         }`,
-        borderRadius: '24px',
+        transformStyle: 'preserve-3d',
+        borderRadius: '20px',
         overflow: 'hidden',
         isolation: 'isolate',
-        WebkitMaskImage: '-webkit-radial-gradient(white, black)',
-        maskImage: 'radial-gradient(white, black)',
       }}
-      className={`group relative rounded-[24px] overflow-hidden cursor-pointer select-none transition-all duration-300 ease-out will-change-transform border border-white/[0.14] hover:border-white/[0.28] shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.30),0_12px_32px_rgba(0,0,0,0.85)] hover:shadow-[inset_0_1px_2px_0_rgba(255,255,255,0.50),0_18px_45px_rgba(0,0,0,0.95)] min-h-[165px] sm:min-h-[210px] flex flex-col justify-between p-3.5 sm:p-5 ${className}`}
+      className={`group relative rounded-[20px] overflow-hidden cursor-pointer select-none transition-all duration-300 ease-out will-change-transform border border-white/15 hover:border-white/30 shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.30),0_12px_28px_rgba(0,0,0,0.7)] hover:shadow-[inset_0_1px_2px_0_rgba(255,255,255,0.50),0_18px_40px_rgba(0,0,0,0.85)] min-h-[160px] sm:min-h-[185px] lg:min-h-[200px] flex flex-col justify-between p-3.5 sm:p-4 ${className}`}
     >
-      {/* ── 1. 3D THREE.JS WEBGL LIQUID MOTION CANVAS ── */}
+      {/* ── 1. 3D WEBGL FLUID LIQUID MOTION MESH CANVAS ── */}
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 w-full h-full pointer-events-none z-0 rounded-[24px]"
+        className="absolute inset-0 w-full h-full pointer-events-none z-0 rounded-[20px]"
         style={{
-          borderRadius: '24px',
+          borderRadius: '20px',
           overflow: 'hidden',
           background: palette.fallbackCss,
         }}
@@ -407,65 +487,87 @@ export function LiquidRedMotionCard({
 
       {/* ── 2. GLOSS SPECULAR LIGHT SWEEP OVERLAY ── */}
       <div
-        className="absolute inset-0 pointer-events-none z-1 rounded-[24px] transition-opacity duration-300"
+        className="absolute inset-0 pointer-events-none z-1 rounded-[20px] transition-opacity duration-300"
         style={{
-          borderRadius: '24px',
+          borderRadius: '20px',
           background:
-            'linear-gradient(120deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.03) 30%, transparent 60%)',
+            'linear-gradient(120deg, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0.04) 30%, transparent 60%)',
           opacity: isHovered ? 0.9 : 0.6,
         }}
       />
 
-      {/* ── 3. TOP ROW: BADGE + PLAY BUTTON ── */}
-      <div className="relative z-10 flex items-start justify-between gap-1">
-        {/* Glass-Outline Badge */}
-        <div className="flex items-center gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full border border-white/25 bg-black/40 hover:border-white/40 hover:bg-black/55 backdrop-blur-md transition-all shadow-sm">
-          <span className="text-white flex-shrink-0">{badgeIcon}</span>
-          <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.12em] sm:tracking-[0.16em] text-white leading-none">
-            {badge}
+      {/* ── 3. TOP ROW: RAAGAX BADGE + MIX TYPE PILL ── */}
+      <div
+        className="relative z-10 flex items-center justify-between w-full"
+        style={{ transform: 'translateZ(22px)' }}
+      >
+        {/* Left: Mix Type Pill (e.g. ON REPEAT, ESSENTIALS, HIGH ENERGY, CHILL) */}
+        {badge && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 border border-white/20 backdrop-blur-md shadow-sm">
+            {badgeIcon && <span className="text-white/90 flex-shrink-0 scale-90">{badgeIcon}</span>}
+            <span className="text-[8.5px] sm:text-[9.5px] font-black uppercase tracking-wider text-white/90">
+              {badge}
+            </span>
+          </div>
+        )}
+
+        {/* Right: Modern RaagaX Brand Indicator */}
+        <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/35 border border-white/15 backdrop-blur-md shadow-sm">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#FA233B] animate-pulse" />
+          <span className="text-[9px] font-black tracking-widest uppercase font-mono text-white/90">
+            RaagaX
           </span>
         </div>
+      </div>
 
-        {/* Translucent White Glass Circular Play Button */}
+      {/* ── 4. CENTER: BIG BOLD ICONIC TITLE + HOVER PLAY BUTTON ── */}
+      <div
+        className="relative z-10 my-auto text-center flex flex-col items-center justify-center px-1 py-1 sm:py-2"
+        style={{ transform: 'translateZ(30px)' }}
+      >
+        <h3 className="text-lg sm:text-xl lg:text-[22px] font-black text-white tracking-tight leading-[1.12] drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)] select-none">
+          {title}
+        </h3>
+
+        {/* Floating Circular Glass Play Button */}
         <button
           onClick={(e) => {
             e.stopPropagation();
             haptics.mediumImpact();
             onPlayClick?.();
           }}
-          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all duration-300 border flex-shrink-0 ${
+          className={`mt-1.5 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all duration-300 border flex-shrink-0 cursor-pointer shadow-lg ${
             isActive && isPlaying
-              ? 'bg-white text-black border-white shadow-[0_0_24px_rgba(255,255,255,0.85)] scale-105'
-              : 'bg-white/10 hover:bg-white/25 border-white/35 hover:border-white/70 text-white shadow-[0_0_18px_rgba(255,255,255,0.2)] group-hover:scale-105 backdrop-blur-md'
+              ? 'bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.9)] scale-105'
+              : isHovered
+              ? 'bg-white text-black border-white shadow-[0_4px_16px_rgba(0,0,0,0.5)] scale-100 opacity-100'
+              : 'bg-white/20 border-white/40 text-white backdrop-blur-md opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100'
           }`}
           aria-label={isActive && isPlaying ? 'Pause' : 'Play'}
+          title={isActive && isPlaying ? 'Pause' : 'Play'}
         >
           {isActive && isPlaying ? (
-            <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-black stroke-none" />
+            <Pause className="w-3.5 h-3.5 fill-black stroke-none" />
           ) : (
-            <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-white stroke-none ml-0.5" />
+            <Play className="w-3.5 h-3.5 fill-current stroke-none ml-0.5" />
           )}
         </button>
       </div>
 
-      {/* ── 4. BOTTOM CONTENT: TITLE, DESCRIPTION, TRACK COUNT ── */}
-      <div className="relative z-10 pt-4 sm:pt-10 flex flex-col justify-end">
-        {/* Internal bottom legibility scrim */}
-        <div className="absolute -inset-x-5 -bottom-5 h-28 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none -z-1 rounded-b-[24px]" />
-
-        <h3 className="text-[15px] sm:text-[19px] font-black text-white tracking-tight leading-tight mb-0.5 sm:mb-1 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] truncate">
-          {title}
-        </h3>
-        <p className="text-[10px] sm:text-[12px] text-white/85 font-medium line-clamp-1 mb-2 sm:mb-3 drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]">
-          {description}
+      {/* ── 5. BOTTOM ROW: LIST OF ARTISTS (RaagaX Dynamic Style) ── */}
+      <div
+        className="relative z-10 w-full pt-1 flex items-end justify-between gap-2"
+        style={{ transform: 'translateZ(20px)' }}
+      >
+        <p className="text-[10px] sm:text-[11px] text-white/85 font-medium line-clamp-1 leading-snug drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] select-none flex-1">
+          {displayArtists}
         </p>
 
-        {/* Bottom Left Track Count Pill in Dark Translucent Glass */}
-        <div className="flex items-center">
-          <span className={`h-5 sm:h-6 px-2 sm:px-2.5 flex items-center rounded-lg bg-black/65 border ${palette.pillBorder} font-mono text-[9px] sm:text-[10px] font-bold tracking-wider uppercase backdrop-blur-md shadow-sm`}>
+        {trackCount && (
+          <span className="flex-shrink-0 text-[8.5px] font-bold font-mono uppercase px-1.5 py-0.5 rounded-md bg-black/40 border border-white/10 text-white/70">
             {trackCount}
           </span>
-        </div>
+        )}
       </div>
     </div>
   );

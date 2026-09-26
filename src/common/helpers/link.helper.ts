@@ -1,15 +1,20 @@
 import crypto from 'node-forge'
 
-export const createDownloadLinks = (encryptedMediaUrl: string) => {
+export const createDownloadLinks = (encryptedMediaUrl: string, supports320: boolean | string = true) => {
   if (!encryptedMediaUrl) return []
 
-  const qualities = [
+  const is320Supported = supports320 !== false && supports320 !== 'false' && supports320 !== '0'
+
+  const baseQualities = [
     { id: '_12', bitrate: '12kbps' },
     { id: '_48', bitrate: '48kbps' },
     { id: '_96', bitrate: '96kbps' },
     { id: '_160', bitrate: '160kbps' },
-    { id: '_320', bitrate: '320kbps' }
   ]
+
+  const qualities = is320Supported 
+    ? [...baseQualities, { id: '_320', bitrate: '320kbps' }]
+    : baseQualities
 
   const key = '38346591'
   const iv = '00000000'

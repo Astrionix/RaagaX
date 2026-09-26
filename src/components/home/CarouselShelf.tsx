@@ -527,11 +527,11 @@ export function CarouselShelf({
       >
         {visibleItems.map((item, index) => {
           const isSentinel = pagination?.enabled && index === sentinelIndex;
-          const isUserPlaylist = (item.type === 'playlist' || item.type === 'mix') && (
-            Boolean(item.rawItem) ||
-            !item.imageUrl ||
-            item.imageUrl === '/app-icon.png' ||
-            item.imageUrl.includes('default-playlist-cover')
+          const isPlaylist = item.type === 'playlist' || item.type === 'mix';
+          const songCount = item.rawItem?.songs?.length ?? item.rawItem?.songIds?.length ?? (
+            item.subtitle && /\d+\s*(?:songs?|tracks?)/i.test(item.subtitle)
+              ? parseInt(item.subtitle.match(/\d+/)![0], 10)
+              : undefined
           );
           
           return (
@@ -548,12 +548,12 @@ export function CarouselShelf({
               }}
               className="group premium-card p-3 sm:p-3.5 rounded-2xl cursor-pointer w-[140px] sm:w-[172px] flex-shrink-0 snap-start"
             >
-              <div className={`relative w-full aspect-square ${isUserPlaylist ? 'mb-0' : 'mb-2.5 sm:mb-3'} shadow-[0_8px_24px_rgba(0,0,0,0.2)] rounded-xl overflow-hidden bg-slate-800/80`}>
-                {isUserPlaylist ? (
+              <div className={`relative w-full aspect-square ${isPlaylist ? 'mb-0' : 'mb-2.5 sm:mb-3'} shadow-[0_8px_24px_rgba(0,0,0,0.2)] rounded-xl overflow-hidden bg-slate-800/80`}>
+                {isPlaylist ? (
                   <PlaylistCover
                     playlistId={item.id}
                     playlistName={item.title}
-                    songCount={item.rawItem?.songs?.length ?? item.rawItem?.songIds?.length}
+                    songCount={songCount}
                     size="medium"
                     showTitle={true}
                     animated={true}
@@ -578,7 +578,7 @@ export function CarouselShelf({
                   <Play className="w-4 h-4 fill-white text-white ml-0.5" />
                 </button>
               </div>
-              {!isUserPlaylist && (
+              {!isPlaylist && (
                 <>
                   <h3 className="font-bold text-xs text-[var(--text-primary)] truncate leading-tight group-hover:text-[#fa233b] transition-colors">{item.title}</h3>
                   {item.subtitle && item.subtitle !== 'Unknown' && (
@@ -702,7 +702,7 @@ export function CarouselShelf({
                     </div>
                     
                     <div className="flex items-center gap-3 min-w-0">
-                      {(item.type === 'playlist' || item.type === 'mix') && (!item.imageUrl || item.imageUrl === '/app-icon.png' || Boolean(item.rawItem)) ? (
+                      {(item.type === 'playlist' || item.type === 'mix') ? (
                         <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0">
                           <PlaylistCover
                             playlistId={item.id}

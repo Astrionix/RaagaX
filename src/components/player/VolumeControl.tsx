@@ -36,7 +36,7 @@ export function VolumeControl({ className = '', compact = false }: VolumeControl
       ? Volume1
       : Volume2;
 
-  const iconColor = isMuted || effectiveVol === 0 ? '#FA233B' : isLight ? '#64748B' : 'rgba(255,255,255,0.7)';
+  const iconColor = isMuted || effectiveVol === 0 ? '#FA233B' : isLight ? '#64748B' : '#D0D0D0';
 
   const handleVolumeChange = useCallback((newVol: number) => {
     const clamped = Math.max(0, Math.min(1, newVol));
@@ -55,10 +55,11 @@ export function VolumeControl({ className = '', compact = false }: VolumeControl
       {/* Mute toggle */}
       <button
         onClick={handleMuteToggle}
-        className="flex-shrink-0 cursor-pointer transition-transform active:scale-90 hover:opacity-100 opacity-80"
+        className="flex-shrink-0 cursor-pointer transition-all active:scale-90 hover:scale-105 opacity-90 hover:opacity-100"
         aria-label={isMuted ? 'Unmute' : 'Mute'}
       >
         <Icon
+          className="transition-colors hover:text-white"
           style={{ width: compact ? 14 : 16, height: compact ? 14 : 16, color: iconColor }}
         />
       </button>
@@ -73,7 +74,7 @@ export function VolumeControl({ className = '', compact = false }: VolumeControl
           className="absolute inset-x-0 rounded-full transition-all duration-150"
           style={{
             height: compact ? 3 : 4,
-            background: isLight ? 'rgba(15,23,42,0.15)' : 'rgba(255,255,255,0.2)',
+            background: isLight ? 'rgba(15,23,42,0.15)' : 'rgba(255,255,255,0.25)',
           }}
         />
 
@@ -84,13 +85,13 @@ export function VolumeControl({ className = '', compact = false }: VolumeControl
             width: `${pct}%`,
             height: compact ? 3 : 4,
             background: isLight ? '#0F172A' : '#ffffff',
-            boxShadow: isLight ? 'none' : '0 0 6px rgba(255,255,255,0.4)',
+            boxShadow: isLight ? 'none' : '0 0 8px rgba(255,255,255,0.5)',
           }}
         />
 
         {/* Circular thumb indicator (always positioned dynamically with volume) */}
         <div
-          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full pointer-events-none transition-all duration-75 shadow-[0_1px_4px_rgba(0,0,0,0.5)] group-hover/vol:scale-125"
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full pointer-events-none transition-all duration-75 shadow-[0_1px_4px_rgba(0,0,0,0.6)] group-hover/vol:scale-125"
           style={{
             left: `${pct}%`,
             width: compact ? 10 : 12,
@@ -114,8 +115,8 @@ export function VolumeControl({ className = '', compact = false }: VolumeControl
 
       {/* Percentage text */}
       <span
-        className="font-mono text-[10px] sm:text-[11px] font-semibold min-w-[28px] sm:min-w-[32px] text-right select-none"
-        style={{ color: isLight ? '#64748B' : 'rgba(255,255,255,0.7)' }}
+        className="font-mono text-[10px] sm:text-[11px] font-semibold min-w-[28px] sm:min-w-[32px] text-right select-none transition-colors"
+        style={{ color: isLight ? '#64748B' : '#D0D0D0' }}
       >
         {isMuted ? '0%' : `${pct}%`}
       </span>

@@ -2,6 +2,11 @@ export type LyricsStatus = 'idle' | 'loading' | 'ready' | 'unavailable' | 'error
 export type LyricsType = 'plain' | 'line-synced';
 export type LyricsScriptMode = 'native' | 'english' | 'romanized' | 'dual' | 'transliteration';
 
+export interface LyricToken {
+  timeMs: number;
+  text: string;
+}
+
 export interface LyricsLine {
   id: string;
   startMs: number;
@@ -10,6 +15,7 @@ export interface LyricsLine {
   nativeText?: string; // Option A: Original native script (e.g. Telugu, Tamil, Hindi, Japanese, Arabic)
   englishText?: string; // Option B: English translated meaning
   romanizedText?: string; // Option C: Transliterated Latin script (e.g. Tinglish, Tanglish, Hinglish, Romaji)
+  tokens?: LyricToken[]; // Word-level timing tokens for pinpoint syllable syncing
 }
 
 export interface LyricsData {
@@ -19,5 +25,5 @@ export interface LyricsData {
   source?: string;
   language?: string;
   hasTransliteration?: boolean;
+  offsetMs?: number;
 }
-

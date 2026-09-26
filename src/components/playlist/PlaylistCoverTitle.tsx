@@ -40,17 +40,27 @@ export function PlaylistCoverTitle({
     >
       {/* Playlist Name: Max 2 lines with clean ellipsis */}
       <h3
-        className={`text-white leading-snug tracking-tight line-clamp-2 drop-shadow-[0_2px_5px_rgba(0,0,0,0.9)] ${titleSizeClass}`}
+        className={`leading-snug tracking-tight line-clamp-2 ${titleSizeClass}`}
         title={title}
+        style={{
+          color: '#FFFFFF',
+          textShadow: '0 2px 8px rgba(0,0,0,0.95), 0 0 1px rgba(0,0,0,0.8)',
+        }}
       >
         {title}
       </h3>
 
       {/* Optional Metadata: Clean, subtle song count */}
       {typeof songCount === 'number' && (
-        <p className={`font-medium text-white/75 tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${
-          size === 'hero' ? 'text-xs sm:text-sm' : size === 'large' ? 'text-[11px] sm:text-xs' : 'text-[10px] sm:text-[11px]'
-        }`}>
+        <p
+          className={`font-medium tracking-wide ${
+            size === 'hero' ? 'text-xs sm:text-sm' : size === 'large' ? 'text-[11px] sm:text-xs' : 'text-[10px] sm:text-[11px]'
+          }`}
+          style={{
+            color: 'rgba(255, 255, 255, 0.85)',
+            textShadow: '0 1px 4px rgba(0,0,0,0.9)',
+          }}
+        >
           {songCount} {songCount === 1 ? 'song' : 'songs'}
         </p>
       )}

@@ -29,5 +29,8 @@ export const createSongPayload = (song: z.infer<typeof SongAPIResponseModel>): z
     all: song.more_info?.artistMap?.artists?.map(createArtistMapPayload)
   },
   image: createImageLinks(song.image),
-  downloadUrl: createDownloadLinks(song.more_info?.encrypted_media_url)
+  downloadUrl: createDownloadLinks(
+    song.more_info?.encrypted_media_url,
+    (song.more_info as any)?.['320kbps'] ?? (song.more_info as any)?.supports320 ?? true
+  )
 })

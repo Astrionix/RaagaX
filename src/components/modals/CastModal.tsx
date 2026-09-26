@@ -110,6 +110,9 @@ export function CastModal() {
 
 
 
+  // Lock background scroll when Cast modal is open
+  useBodyScrollLock(Boolean(mounted && isCastModalOpen));
+
   if (!mounted || !isCastModalOpen) return null;
 
   const currentAccountId = typeof window !== 'undefined' ? localStorage.getItem('raagax_account_id') : null;
@@ -189,10 +192,6 @@ export function CastModal() {
     return 'bg-orange-500'; // Relay = Orange
   };
 
-  // Lock background scroll when Cast modal is open
-  useBodyScrollLock(Boolean(mounted && isCastModalOpen));
-
-  if (!mounted || !isCastModalOpen) return null;
 
   return (
     <div 

@@ -1,18 +1,25 @@
+'use client';
+
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { usePlayerStore } from '@/context/usePlayerStore';
-import { PlaybackEngine } from '@/lib/playback/PlaybackEngine';
 import { SeekLock } from '@/lib/playback/SeekLock';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
 
-export function SeekBar({
-  className = '',
-  height = 'h-1',
-  thumbSize = 'w-3 h-3',
-  activeColor = 'bg-[#fa233b]',
-  accentGradient,
-  accentGlow,
-  trackColor = 'bg-white/10',
-}: {
+/**
+ * Universal Audio Time Formatter
+ * Always returns '0:00' if input is NaN, null, undefined, infinite, negative, or 0.
+ * Never renders NaN, Infinity, undefined, or empty strings.
+ */
+export function formatTime(seconds: number): string {
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds) || isNaN(seconds) || seconds <= 0) {
+    return '0:00';
+  }
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+export interface SeekBarProps {
   className?: string;
   height?: string;
   thumbSize?: string;
@@ -20,24 +27,44 @@ export function SeekBar({
   accentGradient?: string;
   accentGlow?: string;
   trackColor?: string;
-}) {
+  showTimeLabels?: boolean;
+  timeLabelClass?: string;
+  disabled?: boolean;
+}
+
+export function SeekBar({
+  className = '',
+  height = 'h-[3px]',
+  thumbSize = 'w-3 h-3',
+  accentGradient,
+  accentGlow,
+  trackColor,
+  showTimeLabels = false,
+  timeLabelClass = 'text-xs text-white/40 font-mono font-medium',
+  disabled = false,
+}: SeekBarProps) {
   const storeSong = usePlayerStore((s) => s.currentSong);
   const storeDuration = usePlayerStore((s) => s.duration);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
   const setCurrentTime = usePlayerStore((s) => s.setCurrentTime);
   const setSeekTarget = usePlayerStore((s) => s.setSeekTarget);
+
   const trackRef = useRef<HTMLDivElement>(null);
   const progressFillRef = useRef<HTMLDivElement>(null);
   const thumbRef = useRef<HTMLDivElement>(null);
-  
+  const timeLabelLeftRef = useRef<HTMLSpanElement>(null);
+
   const [isSeeking, setIsSeeking] = useState(false);
   const [isSeekSettling, setIsSeekSettling] = useState(false);
   const [localProgress, setLocalProgress] = useState(0); // 0 to 1
   const [hoverProgress, setHoverProgress] = useState<number | null>(null);
 
   const activeSong = storeSong;
+  const hasTrack = Boolean(activeSong);
 
+  // Effective duration calculation
   const effectiveDuration = useMemo(() => {
-    if (activeSong?.duration && activeSong.duration > 0) {
+    if (activeSong?.duration && Number.isFinite(activeSong.duration) && activeSong.duration > 0) {
       return activeSong.duration;
     }
     if (Number.isFinite(storeDuration) && storeDuration > 0) {
@@ -46,19 +73,23 @@ export function SeekBar({
     return 0;
   }, [activeSong?.duration, storeDuration]);
 
+  const isDurationValid = hasTrack && Number.isFinite(effectiveDuration) && effectiveDuration > 0;
+  const isInteractive = hasTrack && isDurationValid && !disabled;
+
   const prevProgressRef = useRef(0);
   const lastStateUpdateTimeRef = useRef<number>(0);
   const lastRenderTimeRef = useRef<number>(0);
 
-  // Instantly reset seek progress when track switches
+  // Instantly reset seek progress when track switches or duration clears
   useEffect(() => {
     prevProgressRef.current = 0;
     if (progressFillRef.current) progressFillRef.current.style.width = '0%';
     if (thumbRef.current) thumbRef.current.style.left = '0%';
+    if (timeLabelLeftRef.current) timeLabelLeftRef.current.textContent = '0:00';
     setLocalProgress(0);
   }, [activeSong?.id, effectiveDuration]);
 
-  // Zero-Re-render 60 FPS local progress prediction: direct DOM mutations + throttled state
+  // 60 FPS continuous high-performance render loop for Seekbar & time label
   useEffect(() => {
     let animFrame: number;
     let cancelled = false;
@@ -67,14 +98,14 @@ export function SeekBar({
       if (cancelled) return;
 
       const now = performance.now();
-      // 120Hz / 144Hz Frame Throttling: Cap updates to ~60 FPS (~16ms delta)
+      // Cap updates to ~60 FPS (~16ms delta)
       if (now - lastRenderTimeRef.current < 16) {
         animFrame = requestAnimationFrame(tick);
         return;
       }
       lastRenderTimeRef.current = now;
 
-      if (!isSeeking && !isSeekSettling && effectiveDuration > 0) {
+      if (!isSeeking && !isSeekSettling && isDurationValid) {
         let liveSec: number;
         let activeAudio: HTMLAudioElement | null = null;
         try {
@@ -82,8 +113,20 @@ export function SeekBar({
         } catch {}
 
         const store = usePlayerStore.getState();
-        const isMatchingTrack = activeAudio && (!activeAudio.dataset?.trackId || !activeSong?.id || activeAudio.dataset.trackId === activeSong.id);
-        if (isMatchingTrack && activeAudio && !activeAudio.paused && !activeAudio.seeking && !isNaN(activeAudio.currentTime) && activeAudio.currentTime >= 0) {
+        const isMatchingTrack =
+          activeAudio &&
+          (!activeAudio.dataset?.trackId ||
+            !activeSong?.id ||
+            activeAudio.dataset.trackId === activeSong.id);
+
+        if (
+          isMatchingTrack &&
+          activeAudio &&
+          !activeAudio.paused &&
+          !activeAudio.seeking &&
+          !isNaN(activeAudio.currentTime) &&
+          activeAudio.currentTime >= 0
+        ) {
           liveSec = activeAudio.currentTime;
         } else if (!store.isLocalPlayback && store.isPlaying && store.lastPositionTimestamp) {
           const elapsed = (now - store.lastPositionTimestamp) / 1000;
@@ -92,19 +135,23 @@ export function SeekBar({
           liveSec = store.currentTime || 0;
         }
 
-        const validSec = Number.isFinite(liveSec) && !isNaN(liveSec) && liveSec >= 0 ? liveSec : 0;
+        const validSec =
+          Number.isFinite(liveSec) && !isNaN(liveSec) && liveSec >= 0 ? liveSec : 0;
         const newProgress = Math.min(1, Math.max(0, validSec / effectiveDuration));
         const pct = newProgress * 100;
 
-        // 1. DIRECT DOM MUTATION: Update width and thumb left with zero React Virtual DOM churn
+        // 1. Direct DOM mutations for 0-latency seekbar fill & thumb updates
         if (progressFillRef.current) {
           progressFillRef.current.style.width = `${pct}%`;
         }
         if (thumbRef.current) {
           thumbRef.current.style.left = `${pct}%`;
         }
+        if (timeLabelLeftRef.current) {
+          timeLabelLeftRef.current.textContent = formatTime(validSec);
+        }
 
-        // 2. THROTTLED REACT STATE: Dispatch setState at >= 250ms intervals for parent components
+        // 2. Throttled React State Dispatch (>= 250ms interval)
         if (now - lastStateUpdateTimeRef.current >= 250) {
           lastStateUpdateTimeRef.current = now;
           if (Math.abs(newProgress - prevProgressRef.current) >= 0.0005) {
@@ -125,7 +172,7 @@ export function SeekBar({
       cancelled = true;
       cancelAnimationFrame(animFrame);
     };
-  }, [effectiveDuration, isSeeking, isSeekSettling]);
+  }, [effectiveDuration, isDurationValid, isSeeking, isSeekSettling, activeSong?.id]);
 
   const calculateProgressFromEvent = (e: React.PointerEvent) => {
     if (!trackRef.current) return 0;
@@ -136,81 +183,71 @@ export function SeekBar({
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
+    if (!isInteractive) return;
     e.stopPropagation();
-    // Only handle primary button (left click) or touch
+
     if (e.button !== 0 && e.pointerType === 'mouse') return;
-    
+
     if (trackRef.current) {
       trackRef.current.setPointerCapture(e.pointerId);
     }
-    
-    // Lock out remote position updates while the user is dragging
-    SeekLock.startSeeking();
 
+    SeekLock.startSeeking();
     setIsSeeking(true);
     setIsSeekSettling(false);
-    if (effectiveDuration <= 0) return;
-    
+
     const p = calculateProgressFromEvent(e);
     const pct = p * 100;
     if (progressFillRef.current) progressFillRef.current.style.width = `${pct}%`;
     if (thumbRef.current) thumbRef.current.style.left = `${pct}%`;
+    if (timeLabelLeftRef.current) timeLabelLeftRef.current.textContent = formatTime(p * effectiveDuration);
     setLocalProgress(p);
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isInteractive) return;
     e.stopPropagation();
-    
-    // Always calculate hover progress for the tooltip if it's a mouse
+
     if (e.pointerType === 'mouse' && trackRef.current) {
       setHoverProgress(calculateProgressFromEvent(e));
     }
 
     if (isSeeking) {
-      if (effectiveDuration <= 0) return;
       const p = calculateProgressFromEvent(e);
       const pct = p * 100;
       if (progressFillRef.current) progressFillRef.current.style.width = `${pct}%`;
       if (thumbRef.current) thumbRef.current.style.left = `${pct}%`;
+      if (timeLabelLeftRef.current) timeLabelLeftRef.current.textContent = formatTime(p * effectiveDuration);
       setLocalProgress(p);
     }
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
+    if (!isInteractive) return;
     e.stopPropagation();
+
     if (trackRef.current) {
-      trackRef.current.releasePointerCapture(e.pointerId);
+      try {
+        trackRef.current.releasePointerCapture(e.pointerId);
+      } catch {}
     }
-    
+
     if (isSeeking) {
-      if (effectiveDuration <= 0) {
-        setIsSeeking(false);
-        setIsSeekSettling(false);
-        return;
-      }
-      
       const p = calculateProgressFromEvent(e);
       const pct = p * 100;
       if (progressFillRef.current) progressFillRef.current.style.width = `${pct}%`;
       if (thumbRef.current) thumbRef.current.style.left = `${pct}%`;
-      setLocalProgress(p);
+
       const newTime = Math.min(effectiveDuration, Math.max(0, p * effectiveDuration));
-      
-      console.log('[SEEKBAR RELEASE]', {
-        effectiveDuration,
-        progress: p,
-        targetSeconds: newTime,
-        targetMs: Math.round(newTime * 1000)
-      });
+      if (timeLabelLeftRef.current) timeLabelLeftRef.current.textContent = formatTime(newTime);
 
       setIsSeeking(false);
       setIsSeekSettling(true);
       setLocalProgress(p);
-      
-      // End SeekLock with a settling window — blocks stale remote position
-      // updates for 800ms after release so ExoPlayer can confirm the seek
+
       SeekLock.endSeeking(800);
-      // Execute seek via store (handles remote SEEK command if controller, or local audio if speaker)
+
+      // Seek to target time via store (preserves current play/pause state)
       setCurrentTime(newTime);
       setSeekTarget(newTime);
       usePlayerStore.getState().seek(newTime);
@@ -222,97 +259,99 @@ export function SeekBar({
   };
 
   const handlePointerCancel = (e: React.PointerEvent) => {
+    if (!isInteractive) return;
     if (trackRef.current) {
       try {
         trackRef.current.releasePointerCapture(e.pointerId);
       } catch {}
     }
-    SeekLock.endSeeking(0); // cancel drag — no settle window needed
+    SeekLock.endSeeking(0);
     setIsSeeking(false);
+
     const currentSec = usePlayerStore.getState().currentTime;
-    const p = effectiveDuration > 0 ? Math.min(1, Math.max(0, currentSec / effectiveDuration)) : 0;
+    const p = isDurationValid ? Math.min(1, Math.max(0, currentSec / effectiveDuration)) : 0;
     const pct = p * 100;
     if (progressFillRef.current) progressFillRef.current.style.width = `${pct}%`;
     if (thumbRef.current) thumbRef.current.style.left = `${pct}%`;
+    if (timeLabelLeftRef.current) timeLabelLeftRef.current.textContent = formatTime(currentSec);
     setLocalProgress(p);
   };
 
-  const handlePointerLeave = (e: React.PointerEvent) => {
+  const handlePointerLeave = () => {
     setHoverProgress(null);
   };
 
-  const formatTime = (seconds: number): string => {
-    if (!Number.isFinite(seconds) || seconds < 0) {
-      return '--:--';
-    }
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  };
+  const currentPercent = isDurationValid ? localProgress * 100 : 0;
+  const currentDisplayedSec = isDurationValid ? localProgress * effectiveDuration : 0;
 
-  const currentPercent = localProgress * 100;
+  const hasCustomPadding = className.includes('py-') || className.includes('p-') || className.includes('h-full');
+  const paddingClass = hasCustomPadding ? '' : 'py-3';
 
-  return (
+  // Seekbar Track Component
+  const seekbarTrack = (
     <div
       role="slider"
-      aria-label="Track Seek Bar"
-      aria-valuenow={Math.round(localProgress * 100)}
+      aria-label="Seek through current song"
+      aria-disabled={!isInteractive}
+      aria-valuenow={Math.round(currentDisplayedSec)}
       aria-valuemin={0}
-      aria-valuemax={100}
+      aria-valuemax={Math.round(effectiveDuration)}
       data-no-swipe="true"
-      tabIndex={0}
-      className={`relative w-full py-3.5 cursor-pointer touch-none group flex items-center select-none ${className}`}
+      tabIndex={isInteractive ? 0 : -1}
       ref={trackRef}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
       onPointerLeave={handlePointerLeave}
+      className={`relative w-full ${paddingClass} ${
+        isInteractive ? 'cursor-pointer touch-none' : 'cursor-not-allowed pointer-events-none'
+      } group flex items-center select-none ${className}`}
     >
-      {/* ── 1. Glass Track Background ─── */}
+      {/* ── 1. Glass Track Background ── */}
       <div
-        className={`absolute left-0 right-0 ${height} rounded-full`}
+        className={`absolute left-0 right-0 top-1/2 -translate-y-1/2 ${height} group-hover:h-[4px] sm:group-hover:h-[5px] rounded-full transition-all duration-200`}
         style={{
-          background: 'rgba(255,255,255,0.08)',
-          boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.5), 0 0.5px 0 rgba(255,255,255,0.07)',
+          background: trackColor || 'rgba(255, 255, 255, 0.1)',
+          boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.4)',
         }}
       />
 
-      {/* ── 2. Progress Fill (RaagaX Red or Artwork Gradient) ─── */}
+      {/* ── 2. Subtle Translucent White Progress Fill ── */}
       <div
         ref={progressFillRef}
-        className={`absolute left-0 ${height} rounded-full pointer-events-none transition-all duration-75`}
+        className={`absolute left-0 top-1/2 -translate-y-1/2 ${height} group-hover:h-[4px] sm:group-hover:h-[5px] rounded-full pointer-events-none transition-all duration-75`}
         style={{
           width: `${currentPercent}%`,
-          background: accentGradient || 'linear-gradient(90deg, #c91c30 0%, #FA233B 100%)',
-          boxShadow: accentGlow || '0 0 8px rgba(250,35,59,0.45)',
+          background:
+            accentGradient ||
+            'linear-gradient(90deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.98) 100%)',
+          boxShadow: accentGlow || 'none',
         }}
       />
 
-      {/* ── 3. Water-Drop Sphere Thumb ─── */}
+      {/* ── 3. Small White Glass Circle Thumb ── */}
       <div
         ref={thumbRef}
-        className={`absolute ${thumbSize} rounded-full pointer-events-none ${
-          isSeeking ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        className={`absolute top-1/2 ${thumbSize} rounded-full pointer-events-none transition-all duration-150 ease-out transform-gpu ${
+          isInteractive
+            ? isSeeking
+              ? 'opacity-100 scale-125'
+              : 'opacity-0 group-hover:opacity-100 group-hover:scale-100'
+            : 'opacity-0'
         }`}
         style={{
           left: `${currentPercent}%`,
-          transform: `translateX(-50%) ${isSeeking ? 'scale(1.22)' : ''}`,
-          transition: isSeeking ? 'none' : 'left 0.1s linear, opacity 0.15s',
-          background: 'radial-gradient(circle at 38% 30%, rgba(255,255,255,0.96) 0%, rgba(220,220,225,0.88) 55%, rgba(185,185,198,0.70) 100%)',
-          boxShadow: [
-            '0 2px 8px rgba(0,0,0,0.55)',
-            '0 0 0 1px rgba(255,255,255,0.22)',
-            'inset 0 1px 0 rgba(255,255,255,0.92)',
-            'inset 0 -1px 2px rgba(0,0,0,0.18)',
-          ].join(', '),
+          transform: `translate(-50%, -50%) ${isSeeking ? 'scale(1.22)' : ''}`,
+          background: '#FFFFFF',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.3)',
         }}
       />
 
-      {/* ── 4. Hover Tooltip ─── */}
-      {hoverProgress !== null && !isSeeking && (
+      {/* ── 4. Hover Time Tooltip ── */}
+      {hoverProgress !== null && isInteractive && !isSeeking && (
         <div
-          className="absolute bottom-full mb-2 bg-black/85 backdrop-blur-md text-white text-[11px] font-mono font-bold px-2.5 py-1 rounded-lg shadow-xl pointer-events-none border border-white/15 z-30"
+          className="absolute bottom-full mb-2 bg-black/90 backdrop-blur-md text-white text-[10px] font-mono font-bold px-2 py-0.5 rounded-md shadow-xl pointer-events-none border border-white/15 z-30"
           style={{
             left: `${hoverProgress * 100}%`,
             transform: 'translateX(-50%)',
@@ -321,6 +360,22 @@ export function SeekBar({
           {formatTime(hoverProgress * effectiveDuration)}
         </div>
       )}
+    </div>
+  );
+
+  if (!showTimeLabels) {
+    return seekbarTrack;
+  }
+
+  return (
+    <div className="w-full space-y-1">
+      {seekbarTrack}
+      <div className="flex items-center justify-between w-full select-none">
+        <span ref={timeLabelLeftRef} className={timeLabelClass}>
+          {formatTime(currentDisplayedSec)}
+        </span>
+        <span className={timeLabelClass}>{formatTime(effectiveDuration)}</span>
+      </div>
     </div>
   );
 }

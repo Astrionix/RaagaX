@@ -35,6 +35,7 @@ import { useTimeAwareTheme } from '@/context/useTimeAwareTheme';
 import { ContinueListeningShelf, ContinueListeningSession } from '@/components/home/ContinueListeningShelf';
 import { LivingSkyBackdrop } from '@/components/home/LivingSkyBackdrop';
 import { LiquidMotionBackground } from '@/components/player/LiquidMotionBackground';
+import { MadeForYou } from '@/components/home/MadeForYou/MadeForYou';
 
 const EMPTY_SHELF_ITEMS: ShelfItem[] = [];
 
@@ -567,128 +568,9 @@ export function HomeView() {
       ) : null}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 3. MADE FOR YOU — 4 Big, Interactive, Premium Mix Cards               */}
+      {/* 3. MADE FOR YOU — Living 3D Fluid Artwork Mix Cards                    */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <section className="space-y-4">
-        {/* Section Header */}
-        <div className="flex items-center gap-3 px-0.5">
-          <div className="flex items-center justify-center text-[#FA233B] text-2xl font-bold leading-none select-none">✦</div>
-          <div>
-            <h2 className="text-lg sm:text-xl font-black text-[var(--text-primary)] tracking-tight leading-none">Made For You</h2>
-            <p className="text-xs text-[var(--text-muted)] font-medium mt-0.5">Personalized mixes, just for you</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
-          {[
-            {
-              id: 'heavy-rotation',
-              title: 'Heavy Rotation',
-              badge: 'ON REPEAT',
-              badgeIcon: <Repeat className="w-3.5 h-3.5" />,
-              desc: 'Your most played & loved tracks',
-              trackCount: '15 tracks',
-              seed: 1.0,
-              colorPreset: 'midnight-red' as const,
-              getQueue: () => {
-                if (feed?.recentlyPlayed && feed.recentlyPlayed.length > 0) return feed.recentlyPlayed;
-                if (feed?.topSongs && feed.topSongs.length > 0) return feed.topSongs;
-                if (likedSongs.length > 0) return likedSongs as Song[];
-                return feed?.madeForYou || [];
-              },
-            },
-            {
-              id: 'daily-mix',
-              title: 'Daily Mix',
-              badge: 'CURATED',
-              badgeIcon: <Sparkles className="w-3.5 h-3.5" />,
-              desc: 'Tailored to your current vibe',
-              trackCount: '10 tracks',
-              seed: 2.0,
-              colorPreset: 'pink-glass' as const,
-              getQueue: () => {
-                if (feed?.dailyMixes?.[0]?.songs?.length) return feed.dailyMixes[0].songs;
-                if (feed?.madeForYou && feed.madeForYou.length > 0) return feed.madeForYou;
-                const pool = [...(feed?.recentlyPlayed || []), ...(likedSongs as Song[])];
-                return pool.length > 0 ? pool : (feed?.topSongs || []);
-              },
-            },
-            {
-              id: 'discover-mix',
-              title: 'Discover Mix',
-              badge: 'NEW FOR YOU',
-              badgeIcon: <Compass className="w-3.5 h-3.5" />,
-              desc: 'Fresh songs you might love',
-              trackCount: '15 tracks',
-              seed: 3.0,
-              colorPreset: 'white-red' as const,
-              getQueue: () => {
-                if (feed?.newReleases && feed.newReleases.length > 0) return feed.newReleases;
-                if (feed?.trendingSongs && feed.trendingSongs.length > 0) return feed.trendingSongs;
-                return feed?.madeForYou || [];
-              },
-            },
-            {
-              id: 'favorites-mix',
-              title: 'Favorites Mix',
-              badge: 'LIKED',
-              badgeIcon: <Heart className="w-3.5 h-3.5 fill-white text-white" />,
-              desc: 'Hearted songs on endless shuffle',
-              trackCount: '115 tracks',
-              seed: 4.0,
-              colorPreset: 'soft-glass' as const,
-              getQueue: () => {
-                if (likedSongs.length > 0) return likedSongs as Song[];
-                if (feed?.topSongs && feed.topSongs.length > 0) return feed.topSongs;
-                return feed?.recentlyPlayed || [];
-              },
-            },
-          ].map((mix) => {
-            const queue = mix.getQueue();
-            const isMixActive = Boolean(currentSong && queue.some((s) => s.id === currentSong.id));
-
-            const handleCardClick = async () => {
-              haptics.mediumImpact();
-              let playableQueue = mix.getQueue();
-              if (!playableQueue || playableQueue.length === 0) {
-                try {
-                  const fallback = await PersonalizationEngine.getInstance().getPersonalizedHomeFeed(activeUserId, currentLang);
-                  playableQueue = fallback?.topSongs || fallback?.madeForYou || fallback?.trendingSongs || [];
-                } catch (e) {
-                  console.warn('Fallback mix fetch failed', e);
-                }
-              }
-              if (playableQueue && playableQueue.length > 0) {
-                if (mix.id === 'favorites-mix' || mix.id === 'discover-mix') {
-                  usePlayerStore.getState().shufflePlay(playableQueue, { contextType: 'MADE_FOR_YOU', title: mix.title });
-                } else {
-                  playSong(playableQueue[0], playableQueue, { type: 'made_for_you', id: mix.id, title: mix.title });
-                }
-              } else {
-                setActiveTab('library');
-              }
-            };
-
-            return (
-              <LiquidRedMotionCard
-                key={mix.id}
-                id={mix.id}
-                badge={mix.badge}
-                badgeIcon={mix.badgeIcon}
-                title={mix.title}
-                description={mix.desc}
-                trackCount={mix.trackCount}
-                seed={mix.seed}
-                colorPreset={mix.colorPreset}
-                isPlaying={isPlaying}
-                isActive={isMixActive}
-                onPlayClick={handleCardClick}
-                className="w-full min-w-0 flex-1"
-              />
-            );
-          })}
-        </div>
-      </section>
+      <MadeForYou />
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* 4. YOUR PLAYLISTS — Prominently displayed user-created playlists       */}

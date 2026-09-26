@@ -48,12 +48,12 @@ export const apiFetch = async <T>({ endpoint, params, context, timeoutMs = DEFAU
           'Content-Type': 'application/json',
           'User-Agent': ua,
           'Accept': 'application/json, text/plain, */*',
-          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Language': 'en-IN,en;q=0.9',
           'Referer': 'https://www.jiosaavn.com/',
-          'X-Forwarded-For': '49.37.0.1',
-          'X-Real-IP': '49.37.0.1',
+          'X-Forwarded-For': '49.36.0.1',
+          'X-Real-IP': '49.36.0.1',
           'CF-IPCountry': 'IN',
-          'Cookie': `L=${targetCookieLang}; gdpr_acceptance=true; DL=english;`
+          'Cookie': `L=${targetCookieLang}; gdpr_acceptance=true; DL=english; explicit_content=1;`
         },
         signal: controller.signal,
       });

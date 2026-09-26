@@ -30,6 +30,8 @@ export function DownloadStatusIndicator({
   const retryDownload = useDownloadStore((s) => s.retryDownload);
   const downloadedSongIds = usePlayerStore((s) => s.downloadedSongIds);
   const librarySongIds = usePlayerStore((s) => s.librarySongIds);
+  const resumeDownload = useDownloadStore((s) => s.resumeDownload);
+  const cancelDownload = useDownloadStore((s) => s.cancelDownload);
 
   if (!song || !song.id) return null;
 
@@ -62,9 +64,6 @@ export function DownloadStatusIndicator({
     md: 'w-6 h-6 text-xs',
     lg: 'w-8 h-8 text-sm',
   };
-
-  const resumeDownload = useDownloadStore((s) => s.resumeDownload);
-  const cancelDownload = useDownloadStore((s) => s.cancelDownload);
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();

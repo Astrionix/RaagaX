@@ -30,6 +30,7 @@ export class DeviceDiscoveryEngine implements SignalingChannel {
   private broadcastChannel: BroadcastChannel | null = null;
   private commandListeners = new Set<(cmd: any) => void>();
   private reconnectTimeout?: ReturnType<typeof setTimeout>;
+  private cloudBackoffMs = 5000;
 
   private constructor() {
     this.initBroadcastChannel();
@@ -320,6 +321,7 @@ export class DeviceDiscoveryEngine implements SignalingChannel {
       this.cloudWs = ws;
 
       ws.onopen = () => {
+        this.cloudBackoffMs = 5000;
         const myName = DeviceNameResolver.getInstance().getLocalDeviceDisplayName();
 
         ws.send(JSON.stringify({
@@ -401,12 +403,14 @@ export class DeviceDiscoveryEngine implements SignalingChannel {
         this.cloudWs = null;
         // Automatic exponential reconnect if scanning is active
         if (this.isScanning && !this.reconnectTimeout) {
+          const delay = this.cloudBackoffMs || 5000;
+          this.cloudBackoffMs = Math.min(30000, delay * 1.5);
           this.reconnectTimeout = setTimeout(() => {
             this.reconnectTimeout = undefined;
             if (this.isScanning) {
               this.connectCloudBeacon(deviceId, fingerprint, role, accountId);
             }
-          }, 2500);
+          }, delay);
         }
       };
 

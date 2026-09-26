@@ -87,7 +87,10 @@ export class LyricsEngine {
     return 0;
   }
 
-  public async loadTrack(trackId: string) {
+  public async loadTrack(
+    trackId: string,
+    customMetadata?: { title: string; artist?: string; album?: string; durationMs?: number }
+  ) {
     if (this.currentTrackId === trackId && this.activeLines.length > 0) {
       const store = usePlayerStore.getState();
       if (store.isPlaying) {
@@ -104,16 +107,16 @@ export class LyricsEngine {
     
     useLyricsStore.getState().setLyricsData(trackId, null, 'loading');
 
-    // Get metadata from player store
-    const { currentSong, isPlaying } = usePlayerStore.getState();
-    const metadata = currentSong && currentSong.id === trackId ? {
+    // Get metadata from player store or customMetadata
+    const { currentSong } = usePlayerStore.getState();
+    const metadata = customMetadata || (currentSong ? {
       title: currentSong.title,
       artist: currentSong.artist,
       album: currentSong.album,
       durationMs: currentSong.duration ? currentSong.duration * 1000 : undefined
-    } : undefined;
+    } : undefined);
 
-    const data = await LyricsResolver.getInstance().fetchLyrics(trackId, metadata);
+    const data = await LyricsResolver.getInstance().fetchLyrics(trackId, metadata as any);
     
     // Ensure the track hasn't changed while fetching
     if (this.currentTrackId !== trackId) return;

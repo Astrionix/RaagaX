@@ -28,8 +28,8 @@ export class LyricsResolver {
       return cached;
     }
 
-    if (!metadata || !metadata.title || !metadata.artist) {
-      console.warn('[LyricsResolver] Metadata (title, artist) required to query lyrics API.');
+    if (!metadata || !metadata.title) {
+      console.warn('[LyricsResolver] Metadata (title) required to query lyrics API.');
       return null;
     }
 
@@ -51,7 +51,7 @@ export class LyricsResolver {
 
   private async performFetch(
     trackId: string,
-    metadata: { title: string; artist: string; album?: string; durationMs?: number }
+    metadata: { title: string; artist?: string; album?: string; durationMs?: number }
   ): Promise<LyricsData | null> {
     try {
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -62,7 +62,7 @@ export class LyricsResolver {
       const url = new URL(endpoint, typeof window !== 'undefined' ? window.location.origin : undefined);
       url.searchParams.append('trackId', trackId);
       url.searchParams.append('title', metadata.title);
-      url.searchParams.append('artist', metadata.artist);
+      if (metadata.artist) url.searchParams.append('artist', metadata.artist);
       if (metadata.album) url.searchParams.append('album', metadata.album);
       if (metadata.durationMs) url.searchParams.append('durationMs', metadata.durationMs.toString());
 
@@ -71,7 +71,7 @@ export class LyricsResolver {
 
       try {
         const res = await fetch(url.toString(), {
-          signal: AbortSignal.timeout(5000),
+          signal: AbortSignal.timeout(10000),
           headers: { 'Accept': 'application/json' },
         });
         if (res.ok) {
