@@ -202,10 +202,10 @@ try {
       minimumSupportedVersion: 1,
       releaseChannel: 'stable',
       releaseNotes: [
-        'Mobile Touch Scroll Fix: Resolved touch gesture freeze on Android WebViews for ultra-smooth 120Hz scrolling.',
-        'Full Viewport App Shell: Sticky top navigation bar and optimized mobile container layout.',
-        'Made For You 2x2 Grid: Equal responsive card height and crisp cover art alignment on all mobile devices.',
-        'Native Audio Visualizer & QR Code Jam: Live audio waveform in full player and instant QR code sharing.',
+        'Ultra-Smooth Home Loading: Implemented luxury fluid shimmer skeleton with instant 0ms cache hydration.',
+        'Refined Home Layout: Streamlined layout with zero layout shifts and seamless transitions.',
+        'Hydration & Performance: Eliminated client/server mismatch errors for instant load.',
+        'Audio & Playback Stability: High-fidelity 320kbps playback and offline caching support.',
         'Release Key Security: Signed with official RSA production key for smooth update installations.'
       ]
     };

@@ -1,18 +1,18 @@
 {
-  "versionCode": 22,
-  "versionName": "1.4.5",
+  "versionCode": 23,
+  "versionName": "1.4.6",
   "apkUrl": "https://raaga.me/api/app/download",
-  "sha256": "8e5fe3f348aee792403f26150e2b687d4fee0d2da981e22e32d37368b91a6ba1",
-  "fileSize": 17117553,
-  "releaseDate": "2026-09-25",
+  "sha256": "da717dbdd699f9fbc45b9ac7f5e1d554623fe565d6ab8c6c536e5bf6f4839468",
+  "fileSize": 16989415,
+  "releaseDate": "2026-09-26",
   "mandatory": false,
   "minimumSupportedVersion": 1,
   "releaseChannel": "stable",
   "releaseNotes": [
-    "Mobile Touch Scroll Fix: Resolved touch gesture freeze on Android WebViews for ultra-smooth 120Hz scrolling.",
-    "Full Viewport App Shell: Sticky top navigation bar and optimized mobile container layout.",
-    "Made For You 2x2 Grid: Equal responsive card height and crisp cover art alignment on all mobile devices.",
-    "Native Audio Visualizer & QR Code Jam: Live audio waveform in full player and instant QR code sharing.",
+    "Ultra-Smooth Home Loading: Implemented luxury fluid shimmer skeleton with instant 0ms cache hydration.",
+    "Refined Home Layout: Streamlined layout with zero layout shifts and seamless transitions.",
+    "Hydration & Performance: Eliminated client/server mismatch errors for instant load.",
+    "Audio & Playback Stability: High-fidelity 320kbps playback and offline caching support.",
     "Release Key Security: Signed with official RSA production key for smooth update installations."
   ]
 }
