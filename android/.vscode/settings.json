@@ -1,0 +1,4 @@
+{
+    "java.configuration.updateBuildConfiguration": "interactive",
+    "typescript.tsdk": "web/node_modules/typescript/lib"
+}
