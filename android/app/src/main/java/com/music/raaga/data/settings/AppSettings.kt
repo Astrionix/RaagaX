@@ -1913,7 +1913,7 @@ object AppSettings {
     )
 
     const val DEFAULT_CACHE_LIMIT_BYTES = 512L * 1024 * 1024
-    const val MAX_CACHE_LIMIT_BYTES = 10L * 1024 * 1024 * 1024
+    const val MAX_CACHE_LIMIT_BYTES = 50L * 1024 * 1024 * 1024
 
     const val MIN_LYRICS_OFFSET_MS = -5_000
     const val MAX_LYRICS_OFFSET_MS = 5_000

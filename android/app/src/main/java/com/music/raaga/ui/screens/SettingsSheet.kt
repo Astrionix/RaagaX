@@ -1099,11 +1099,12 @@ fun SettingsScreen(
                     value = formatCacheSize(cacheLimitMb),
                     sliderValue = cacheLimitMb.toFloat(),
                     onSliderValue = {
-                        AppSettings.setAudioCacheLimitBytes(it.roundToInt().toLong() * 1024 * 1024)
+                        val snappedMb = (it / 512f).roundToInt() * 512
+                        AppSettings.setAudioCacheLimitBytes(snappedMb.toLong() * 1024 * 1024)
                     },
                     valueRange = (AppSettings.DEFAULT_CACHE_LIMIT_BYTES / (1024 * 1024)).toFloat()..
                         (AppSettings.MAX_CACHE_LIMIT_BYTES / (1024 * 1024)).toFloat(),
-                    steps = 18,
+                    steps = 98,
                 )
             }
             val clearSongCacheTitle = stringResource(R.string.clear_song_cache)
