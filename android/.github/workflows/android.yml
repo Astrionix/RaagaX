@@ -32,7 +32,7 @@ jobs:
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: aether-dev-debug
+        name: raaga-dev-debug
         path: app/build/outputs/apk/dev/debug/*.apk
 
   build-prod-release:
@@ -55,8 +55,8 @@ jobs:
         echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" > local.properties
         echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
 
-        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > aether-release.jks
-        echo "storeFile=aether-release.jks" > keystore.properties
+        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > raaga-release.jks
+        echo "storeFile=raaga-release.jks" > keystore.properties
         echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> keystore.properties
         echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> keystore.properties
         echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> keystore.properties
@@ -70,5 +70,5 @@ jobs:
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: aether-prod-release-signed
+        name: raaga-prod-release-signed
         path: app/build/outputs/apk/prod/release/*.apk

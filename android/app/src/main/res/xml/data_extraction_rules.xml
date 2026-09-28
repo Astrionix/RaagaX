@@ -5,15 +5,15 @@
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <exclude domain="sharedpref" path="aether_auth.xml" />
-        <exclude domain="sharedpref" path="aether_auth_plain.xml" />
-        <exclude domain="sharedpref" path="aether_sources.xml" />
-        <exclude domain="sharedpref" path="aether_sources_plain.xml" />
+        <exclude domain="sharedpref" path="raaga_auth.xml" />
+        <exclude domain="sharedpref" path="raaga_auth_plain.xml" />
+        <exclude domain="sharedpref" path="raaga_sources.xml" />
+        <exclude domain="sharedpref" path="raaga_sources_plain.xml" />
     </cloud-backup>
     <device-transfer>
-        <exclude domain="sharedpref" path="aether_auth.xml" />
-        <exclude domain="sharedpref" path="aether_auth_plain.xml" />
-        <exclude domain="sharedpref" path="aether_sources.xml" />
-        <exclude domain="sharedpref" path="aether_sources_plain.xml" />
+        <exclude domain="sharedpref" path="raaga_auth.xml" />
+        <exclude domain="sharedpref" path="raaga_auth_plain.xml" />
+        <exclude domain="sharedpref" path="raaga_sources.xml" />
+        <exclude domain="sharedpref" path="raaga_sources_plain.xml" />
     </device-transfer>
 </data-extraction-rules>

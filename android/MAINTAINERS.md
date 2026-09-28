@@ -1,10 +1,10 @@
 # Maintainers
 
-This document lists the maintainers responsible for Aether.
+This document lists the maintainers responsible for Raaga.
 
 | Maintainer | GitHub | Responsibilities |
 |---|---|---|
-| Aether Team | [@aether](https://github.com/aether) | Core architecture, release management, and PR reviews |
+| Raaga Team | [@raaga](https://github.com/raaga) | Core architecture, release management, and PR reviews |
 
 ## Responsibilities
 

@@ -3,9 +3,9 @@
 <br/>
 <br/>
 
-<img src="Logo.png" alt="Aether app icon" width="200" />
+<img src="Logo.png" alt="Raaga app icon" width="200" />
 
-# Aether
+# Raaga
 
 ### Aesthetic YouTube Music Client
 
@@ -22,13 +22,13 @@
 </div>
 
 > [!IMPORTANT]
-> Aether is not affiliated with, endorsed by, or connected to YouTube or Google in any way. Use it at your own discretion.
+> Raaga is not affiliated with, endorsed by, or connected to YouTube or Google in any way. Use it at your own discretion.
 
 ---
 
 <div align="center">
 
-<img src="Banner.png" alt="Aether banner" width="100%" />
+<img src="Banner.png" alt="Raaga banner" width="100%" />
 
 <h1><a id="features"></a>Features</h1>
 
@@ -80,7 +80,7 @@
 
 <h1><a id="download"></a>Download</h1>
 
-Grab the latest signed APK from the [Releases](https://github.com/aether/Aether/releases) page. Sideloading requires enabling "Install unknown apps" for whichever app you download it with.
+Grab the latest signed APK from the [Releases](https://github.com/raaga/Raaga/releases) page. Sideloading requires enabling "Install unknown apps" for whichever app you download it with.
 
 </div>
 
@@ -90,7 +90,7 @@ Grab the latest signed APK from the [Releases](https://github.com/aether/Aether/
 
 <h1><a id="contributing"></a>Contributing</h1>
 
-We welcome contributions to Aether! Please review our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) before submitting a Pull Request.
+We welcome contributions to Raaga! Please review our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) before submitting a Pull Request.
 
 [**Contributing Guide**](CONTRIBUTING.md) · [**Code of Conduct**](CODE_OF_CONDUCT.md) · [**Maintainers**](MAINTAINERS.md) · [**Additional Docs**](ADDITIONAL.md)
 
@@ -103,12 +103,12 @@ We welcome contributions to Aether! Please review our [Contributing Guide](CONTR
 
 <h1><a id="disclaimer"></a>Disclaimer & Legal Notice</h1>
 
-Aether is an independent, community-driven third-party audio player and client. It is **not** associated with Google LLC, YouTube Music, Deezer, Telegram, or any of their parent companies.
+Raaga is an independent, community-driven third-party audio player and client. It is **not** associated with Google LLC, YouTube Music, Deezer, Telegram, or any of their parent companies.
 
-* **No Media Hosting:** Aether does not host, upload, or store copyrighted music files. It operates strictly as an interface to scan local device storage or stream media directly from public, public-facing, or user-authenticated APIs.
+* **No Media Hosting:** Raaga does not host, upload, or store copyrighted music files. It operates strictly as an interface to scan local device storage or stream media directly from public, public-facing, or user-authenticated APIs.
 * **Fair Use & API Usage:** This software is created solely for personal research, educational, and fair-use purposes. The user is entirely responsible for ensuring their usage aligns with their local copyright laws and YouTube Terms of Service.
-* **No Ad-Blocking Guarantee:** While Aether focuses on providing a clean listening environment, it does not guarantee permanent bypasses or modifications to commercial third-party platform conditions.
-* **Copyleft:** Aether is free software under the GPLv3. The license does not let anyone forbid others from selling or redistributing copies, but any distribution must come with the Corresponding Source under the same license.
+* **No Ad-Blocking Guarantee:** While Raaga focuses on providing a clean listening environment, it does not guarantee permanent bypasses or modifications to commercial third-party platform conditions.
+* **Copyleft:** Raaga is free software under the GPLv3. The license does not let anyone forbid others from selling or redistributing copies, but any distribution must come with the Corresponding Source under the same license.
 
 </div>
 

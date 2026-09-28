@@ -49,7 +49,7 @@ val lastfmSecret: String = (
 val listenTogetherServer: String = (
     localProps.getProperty("LISTEN_TOGETHER_SERVER")
         ?: System.getenv("LISTEN_TOGETHER_SERVER")
-        ?: "https://aether-listen-together.onrender.com"
+        ?: "https://raaga-listen-together.onrender.com"
     ).trim().trimEnd('/')
 
 /*
@@ -70,7 +70,7 @@ val listenTogetherServer: String = (
 val betaSuffix = ""
 
 android {
-    namespace = "com.music.aether"
+    namespace = "com.music.raaga"
     // InnerTubeX's AAR requires compiling against 37; targetSdk (runtime behaviour) stays 36.
     compileSdk = 37
     // Pin to the installed NDK version. Without this, AGP picks up stale CMake
@@ -80,7 +80,7 @@ android {
     ndkVersion = "27.2.12479018"
 
     defaultConfig {
-        applicationId = "com.music.aether"
+        applicationId = "com.music.raaga"
         // 26 keeps reach wide; real-time blur (RenderEffect) kicks in on API 31+,
         // Haze falls back to a translucent scrim below that.
         minSdk = 26
@@ -123,7 +123,7 @@ android {
     productFlavors {
         create("dev") {
             dimension = "env"
-            applicationId = "com.dev.aether"
+            applicationId = "com.dev.raaga"
             resValue("string", "app_name", "Raaga")
         }
         create("prod") {
@@ -319,7 +319,7 @@ dependencies {
     // a camera scanner and an Activity with it, and nothing here reads a code —
     // a party is joined by tapping somebody else's link or typing six
     // characters. This produces the bit matrix; the drawing is ours, in
-    // [com.music.aether.ui.components.QrCode], so the result is styled like
+    // [com.music.raaga.ui.components.QrCode], so the result is styled like
     // the rest of the app rather than a stock black-and-white bitmap.
     implementation("com.google.zxing:core:3.5.3")
 
@@ -416,10 +416,10 @@ val verifyDevInstall = tasks.register("verifyDevInstall") {
             .drop(1)
             .mapNotNull { line -> line.split('\t').takeIf { it.size == 2 && it[1] == "device" }?.get(0) }
         serials.forEach { serial ->
-            logger.lifecycle("verifyDevInstall: compiling com.dev.aether on $serial")
+            logger.lifecycle("verifyDevInstall: compiling com.dev.raaga on $serial")
             ProcessBuilder(
                 adbPath, "-s", serial, "shell", "cmd", "package", "compile",
-                "-m", "verify", "-f", "com.dev.aether",
+                "-m", "verify", "-f", "com.dev.raaga",
             ).inheritIO().start().waitFor()
         }
     }

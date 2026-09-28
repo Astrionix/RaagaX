@@ -2,11 +2,11 @@
  * Ported from Orchard (https://github.com/SFG5453/Orchard).
  *
  * Copyright (C) 2026 SFG545 (original Orchard implementation)
- * Copyright (C) 2026 Aether Contributors
+ * Copyright (C) 2026 Raaga Contributors
  *
  * Orchard's original source is licensed under the GNU Affero General Public
  * License, version 3 or later. Per AGPLv3 section 13, this file is combined
- * here into Aether -- a work licensed under the GNU General Public
+ * here into Raaga -- a work licensed under the GNU General Public
  * License, version 3 or later -- and remains itself governed by the AGPLv3
  * as part of that combination.
  *
@@ -39,7 +39,7 @@
 #include <numeric>
 #include <vector>
 
-namespace aether::smart {
+namespace raaga::smart {
 namespace {
 
 constexpr double kPi = 3.14159265358979323846;
@@ -550,4 +550,4 @@ TempoResult AnalyzeTempo(
   return result;
 }
 
-}  // namespace aether::smart
+}  // namespace raaga::smart
