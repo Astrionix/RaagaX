@@ -29,10 +29,11 @@ jobs:
         cache: gradle
         cache-dependency-path: android/**/*.gradle*
 
-    - name: Setup local.properties & Secrets
+    - name: Setup local.properties & Strip local java home
       env:
         KEYSTORE_DATA: ${{ secrets.KEYSTORE_BASE64 }}
       run: |
+        sed -i '/org.gradle.java.home/d' gradle.properties
         echo "sdk.dir=$ANDROID_HOME" > local.properties
         echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" >> local.properties
         echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
@@ -46,6 +47,13 @@ jobs:
         keyPassword=${{ secrets.KEY_PASSWORD }}
         KEOF
         fi
+
+    - name: Accept Android SDK licenses
+      run: yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+    - name: Install NDK and CMake
+      run: |
+        ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.2.12479018" "cmake;3.22.1"
 
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
