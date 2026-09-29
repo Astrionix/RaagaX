@@ -43,7 +43,7 @@ object AppUpdateChecker {
     private const val CACHE_SUBDIR = "updates"
 
     private const val LATEST_RELEASE_URL =
-        "https://api.github.com/repos/raaga/Raaga/releases/latest"
+        "https://api.github.com/repos/Astrionix/RaagaX/releases/latest"
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -67,7 +67,11 @@ object AppUpdateChecker {
 
     suspend fun check() = withContext(Dispatchers.IO) {
         runCatching {
-            val request = Request.Builder().url(LATEST_RELEASE_URL).build()
+            val request = Request.Builder()
+                .url(LATEST_RELEASE_URL)
+                .header("User-Agent", "RaagaX-Android")
+                .header("Accept", "application/vnd.github.v3+json")
+                .build()
             val body = Http.client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) null else response.body?.string()
             } ?: return@runCatching

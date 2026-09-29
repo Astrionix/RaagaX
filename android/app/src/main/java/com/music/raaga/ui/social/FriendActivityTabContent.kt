@@ -31,8 +31,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material.icons.rounded.Radio
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -76,9 +79,11 @@ internal fun FriendActivityTabContent(
 
     LaunchedEffect(Unit) {
         FriendActivityEngine.init(context)
+        FriendActivityEngine.refreshFriends(context)
     }
 
     val activities by FriendActivityEngine.activities.collectAsStateWithLifecycle()
+    val isSharingEnabled by FriendActivityEngine.isSharingEnabled.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
     var newFriendTag by remember { mutableStateOf("") }
 
@@ -88,7 +93,7 @@ internal fun FriendActivityTabContent(
             .padding(horizontal = 4.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // Header with "Add Friend" action
+        // Header with "Refresh" and "Add Friend" action
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -107,34 +112,124 @@ internal fun FriendActivityTabContent(
                 )
             }
 
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White.copy(alpha = 0.10f))
-                    .clickable {
-                        haptics.play(Haptic.Tap)
-                        showAddDialog = !showAddDialog
-                    }
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                contentAlignment = Alignment.Center,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                // Refresh button
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.10f))
+                        .clickable {
+                            haptics.play(Haptic.Tap)
+                            FriendActivityEngine.refreshFriends(context)
+                        },
+                    contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.PersonAdd,
-                        contentDescription = null,
+                        imageVector = Icons.Rounded.Refresh,
+                        contentDescription = "Refresh",
                         tint = Color.White,
-                        modifier = Modifier.size(15.dp),
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+
+                // Add Friend button
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White.copy(alpha = 0.10f))
+                        .clickable {
+                            haptics.play(Haptic.Tap)
+                            showAddDialog = !showAddDialog
+                        }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.PersonAdd,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(15.dp),
+                        )
+                        Text(
+                            text = stringResource(R.string.friends_add_btn),
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White,
+                        )
+                    }
+                }
+            }
+        }
+
+        // Live Sharing / Private Session Toggle Card
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.White.copy(alpha = 0.05f))
+                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isSharingEnabled) Color(0xFF22C55E).copy(alpha = 0.15f)
+                            else Color.White.copy(alpha = 0.10f)
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = if (isSharingEnabled) Icons.Rounded.Radio else Icons.Rounded.Headphones,
+                        contentDescription = null,
+                        tint = if (isSharingEnabled) Color(0xFF22C55E) else Color.White.copy(alpha = 0.45f),
+                        modifier = Modifier.size(17.dp),
+                    )
+                }
+                Column {
+                    Text(
+                        text = if (isSharingEnabled) "Share Live Activity" else "Private Session (Offline)",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = Color.White,
                     )
                     Text(
-                        text = stringResource(R.string.friends_add_btn),
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White,
+                        text = if (isSharingEnabled) "Sharing live playback with friends" else "Disconnected: You are hidden from friends",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.5f),
                     )
                 }
             }
+
+            Switch(
+                checked = isSharingEnabled,
+                onCheckedChange = { enabled ->
+                    haptics.play(Haptic.Select)
+                    FriendActivityEngine.setSharingEnabled(context, enabled)
+                    val msg = if (enabled) "Live sharing enabled" else "Disconnected: Activity deleted from cloud"
+                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = Color(0xFF22C55E),
+                    uncheckedThumbColor = Color.White.copy(alpha = 0.7f),
+                    uncheckedTrackColor = Color.White.copy(alpha = 0.15f),
+                ),
+            )
         }
 
         // Add Friend inline input box

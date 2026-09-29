@@ -2833,6 +2833,7 @@ class PlaybackService : MediaLibraryService() {
         if (exoPlayer.isPlaying) {
             scrobbleManager?.onSongStart(newSong, durationMs)
         }
+        com.music.raaga.data.social.FriendActivityEngine.updateMyPlayback(newSong, exoPlayer.isPlaying, this@PlaybackService)
 
         // ListenBrainz: submit finished for old song, playing_now for new song.
         // The finished listen only counts when the track actually ended —

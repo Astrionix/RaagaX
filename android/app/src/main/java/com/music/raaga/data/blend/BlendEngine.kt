@@ -100,6 +100,8 @@ object BlendEngine {
 
         // 2. Source Pool B (Friend's real tracks)
         val trimmedInput = friendInput.trim()
+        var effectiveFriendName = friendName
+
         val poolB: List<Song> = if (trimmedInput.startsWith("http://", ignoreCase = true) || trimmedInput.startsWith("https://", ignoreCase = true)) {
             // Friend supplied a Spotify/YouTube link
             val target = SpotifyPlaylistParser.parseLink(trimmedInput)
@@ -110,19 +112,30 @@ object BlendEngine {
                 fetchRealSongsForQuery("Top Hits")
             }
         } else if (trimmedInput.startsWith("AETH-", ignoreCase = true) || (trimmedInput.length == 4 && trimmedInput.all { it.isLetterOrDigit() })) {
-            // Friend supplied a 4-char Raaga tag: map to deterministic genre seeds
-            val seedGenres = listOf(
-                "Trending Global Hits",
-                "Acoustic Pop Melodies",
-                "Indie Rock Favorites",
-                "Late Night R&B Soul",
-                "Chill Lofi Chillhop",
-                "Electropop Dance Hits",
-                "Soulful Acoustic",
-                "Top Charts 2024",
-            )
-            val selectedGenre = seedGenres[abs(friendTag.hashCode()) % seedGenres.size]
-            fetchRealSongsForQuery(selectedGenre)
+            // Friend supplied a Raaga tag: check Supabase cloud activity first!
+            val cloudActivity = com.music.raaga.data.social.SupabaseActivityClient.fetchFriendsActivity(setOf(friendTag)).firstOrNull()
+            if (cloudActivity != null) {
+                effectiveFriendName = cloudActivity.userName
+                if (cloudActivity.artist.isNotBlank()) {
+                    fetchRealSongsForQuery(cloudActivity.artist)
+                } else {
+                    fetchRealSongsForQuery(cloudActivity.songTitle)
+                }
+            } else {
+                // Deterministic genre seeds if friend hasn't published activity yet
+                val seedGenres = listOf(
+                    "Trending Global Hits",
+                    "Acoustic Pop Melodies",
+                    "Indie Rock Favorites",
+                    "Late Night R&B Soul",
+                    "Chill Lofi Chillhop",
+                    "Electropop Dance Hits",
+                    "Soulful Acoustic",
+                    "Top Charts 2024",
+                )
+                val selectedGenre = seedGenres[abs(friendTag.hashCode()) % seedGenres.size]
+                fetchRealSongsForQuery(selectedGenre)
+            }
         } else {
             // Friend supplied an artist or genre name (e.g., "Taylor Swift", "Arijit Singh", "Lofi")
             fetchRealSongsForQuery(trimmedInput)
@@ -174,12 +187,12 @@ object BlendEngine {
         return BlendResult(
             id = "blend_${System.currentTimeMillis()}",
             userAName = me.userName,
-            userBName = friendName,
+            userBName = effectiveFriendName,
             userATag = me.userTag,
             userBTag = friendTag,
             matchScore = matchScore,
             description = description,
-            playlistTitle = "${me.userName} + $friendName's Blend",
+            playlistTitle = "${me.userName} + $effectiveFriendName's Blend",
             tracks = blended,
         )
     }

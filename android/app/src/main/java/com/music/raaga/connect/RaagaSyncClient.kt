@@ -55,6 +55,7 @@ object RaagaSyncClient {
     private const val TAG = "RaagaSyncClient"
 
     val SERVERS = listOf(
+        "wss://raagasync.chandu3319r.workers.dev",
         "wss://raaga-sync-server-x2xy.onrender.com",
         "wss://raaga-sync-server.onrender.com",
     )
