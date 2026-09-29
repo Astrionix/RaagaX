@@ -152,7 +152,6 @@ internal class PlayerArtwork(
             .apply {
                 if (placeholderKey != null) {
                     placeholderMemoryCacheKey(placeholderKey)
-                    error(placeholderKey)
                 }
                 if (attempt > 0) memoryCacheKeyExtra("attempt", attempt.toString())
             }
