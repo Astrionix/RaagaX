@@ -33,7 +33,8 @@ jobs:
       env:
         KEYSTORE_DATA: ${{ secrets.KEYSTORE_BASE64 }}
       run: |
-        echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" > local.properties
+        echo "sdk.dir=$ANDROID_HOME" > local.properties
+        echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" >> local.properties
         echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
 
         if [ -n "$KEYSTORE_DATA" ]; then
@@ -54,9 +55,9 @@ jobs:
         KEYSTORE_DATA: ${{ secrets.KEYSTORE_BASE64 }}
       run: |
         if [ -n "$KEYSTORE_DATA" ]; then
-          ./gradlew assembleProdRelease assembleDevDebug
+          ./gradlew assembleProdRelease assembleDevDebug --stacktrace
         else
-          ./gradlew assembleDevDebug
+          ./gradlew assembleDevDebug --stacktrace
         fi
 
     - name: Upload APK Artifact
