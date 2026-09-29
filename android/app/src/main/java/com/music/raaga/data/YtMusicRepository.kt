@@ -260,9 +260,9 @@ object YtMusicRepository {
      */
     suspend fun newFeed(): Result<NewFeedData> = call("new-feed") {
         coroutineScope {
-            val newReleasesDeferred = async { runCatching { shelvesOf("FEmusic_new_releases", allowVideos = true) }.getOrDefault(emptyList()) }
-            val chartsDeferred = async { runCatching { shelvesOf("FEmusic_charts", allowVideos = true) }.getOrDefault(emptyList()) }
-            val exploreDeferred = async { runCatching { shelvesOf("FEmusic_explore", allowVideos = true) }.getOrDefault(emptyList()) }
+            val newReleasesDeferred = async { runCatching { shelvesOf("FEmusic_new_releases", allowVideos = false) }.getOrDefault(emptyList()) }
+            val chartsDeferred = async { runCatching { shelvesOf("FEmusic_charts", allowVideos = false) }.getOrDefault(emptyList()) }
+            val exploreDeferred = async { runCatching { shelvesOf("FEmusic_explore", allowVideos = false) }.getOrDefault(emptyList()) }
             val moodGenresDeferred = async { runCatching { InnertubeParser.parseMoodAndGenres(Innertube.browse("FEmusic_moods_and_genres")) }.getOrDefault(emptyList()) }
             NewFeedData(
                 newReleases = newReleasesDeferred.await(),

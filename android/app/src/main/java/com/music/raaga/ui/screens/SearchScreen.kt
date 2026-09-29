@@ -56,6 +56,8 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import coil3.compose.AsyncImage
 import com.music.raaga.data.model.BrowseItem
 import com.music.raaga.data.model.BrowseType
+import com.music.raaga.data.model.MoodGenre
+import com.music.raaga.data.model.MoodGenreSection
 import com.music.raaga.data.model.ROW_ART_PX
 import com.music.raaga.data.model.SearchFilter
 import com.music.raaga.data.model.artworkAt
@@ -111,6 +113,8 @@ fun SearchScreen(
     onHistoryClear: () -> Unit,
     /** Long-press handler for typeahead rows — opens the song actions sheet. */
     onTypeaheadLongPress: ((Song) -> Unit)? = null,
+    exploreState: UiState<List<MoodGenreSection>> = UiState.Loading,
+    onCategoryClick: ((MoodGenre) -> Unit)? = null,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues,
 ) {
@@ -202,10 +206,47 @@ fun SearchScreen(
                         )
                     }
                 }
-                results == null -> if (history.isEmpty()) {
-                    item { MessageState(stringResource(R.string.search_empty)) }
-                } else {
-                    recentSearches(history, onHistoryClick, onHistoryRemove, onHistoryClear)
+                results == null -> {
+                    if (history.isNotEmpty()) {
+                        recentSearches(history, onHistoryClick, onHistoryRemove, onHistoryClear)
+                    }
+                    when (exploreState) {
+                        is UiState.Success -> {
+                            if (exploreState.data.isNotEmpty()) {
+                                item(key = "search_explore_header") {
+                                    Text(
+                                        text = stringResource(R.string.explore_moods_genres),
+                                        style = MaterialTheme.typography.headlineMedium,
+                                        color = MaterialTheme.colorScheme.onBackground,
+                                        modifier = Modifier.padding(
+                                            start = PAGE_GUTTER,
+                                            end = PAGE_GUTTER,
+                                            top = if (history.isNotEmpty()) 24.dp else 10.dp,
+                                            bottom = 6.dp,
+                                        ),
+                                    )
+                                }
+                                exploreState.data.forEach { section ->
+                                    item(key = "search_mood_genre_${section.title}") {
+                                        MoodGenreGrid(
+                                            section = section,
+                                            onCategoryClick = { onCategoryClick?.invoke(it) },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        is UiState.Loading -> {
+                            if (history.isEmpty()) {
+                                item(key = "search_explore_skeleton") { ExploreSkeleton() }
+                            }
+                        }
+                        is UiState.Error -> {
+                            if (history.isEmpty()) {
+                                item(key = "search_empty_msg") { MessageState(stringResource(R.string.search_empty)) }
+                            }
+                        }
+                    }
                 }
                 results is UiState.Loading -> songListSkeleton(circular = filter == SearchFilter.ARTISTS)
                 results is UiState.Error -> item { MessageState(results.message) }

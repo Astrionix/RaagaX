@@ -188,7 +188,7 @@ internal fun moodColor(title: String): Color = when ((title.hashCode() and Int.M
 }
 
 @Composable
-private fun ExploreSkeleton() {
+internal fun ExploreSkeleton() {
     Column(Modifier.padding(horizontal = PAGE_GUTTER)) {
         repeat(5) {
             Row(

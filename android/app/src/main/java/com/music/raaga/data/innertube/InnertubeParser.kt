@@ -269,7 +269,7 @@ object InnertubeParser {
                 ?: parseResponsiveListItem(item.o("musicResponsiveListItemRenderer"))
                     ?.takeUnless { !allowVideos && it.isVideo }
                     ?.let { song ->
-                        ShelfItem(song.title, song.artist, song.thumbnailUrl, song.videoId, null)
+                        ShelfItem(song.title, song.artist, song.thumbnailUrl, song.videoId, null, isVideo = song.isVideo)
                     }
                 // A chart row with nothing to play — "Top artists" lists the
                 // artist alone, no track — falls through parseResponsiveListItem
@@ -285,7 +285,7 @@ object InnertubeParser {
         val items = shelf.a("contents").orEmpty().mapNotNull {
             parseResponsiveListItem(it.o("musicResponsiveListItemRenderer"))
         }.filterNot { !allowVideos && it.isVideo }
-            .map { ShelfItem(it.title, it.artist, it.thumbnailUrl, it.videoId, null) }
+            .map { ShelfItem(it.title, it.artist, it.thumbnailUrl, it.videoId, null, isVideo = it.isVideo) }
         return if (items.isEmpty()) null else HomeShelf(title.ifBlank { "For you" }, items)
     }
 
@@ -1338,12 +1338,16 @@ object InnertubeParser {
         ) {
             return null
         }
+        val isVideoItem = (resolvedBrowseId == null && videoId != null && thumbnails.isNotSquare()) ||
+            VIDEO_WORD.containsMatchIn(title) ||
+            VIDEO_WORD.containsMatchIn(subtitle)
         return ShelfItem(
             title = title,
             subtitle = subtitle,
             thumbnailUrl = thumbnails.best(),
             videoId = videoId,
             browseId = resolvedBrowseId,
+            isVideo = isVideoItem,
         )
     }
 

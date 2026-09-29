@@ -2834,7 +2834,38 @@ private fun RaagaApp(
                             pullState = explorePull,
                             contentPadding = listPadding,
                         )
-                        TAB_SEARCH -> SearchScreen(
+                        TAB_SEARCH -> selectedMoodGenre?.let { category ->
+                            MoodGenrePlaylistsScreen(
+                                title = category.title,
+                                state = moodGenreShelves,
+                                listState = moodGenreListState,
+                                onItemClick = { item ->
+                                    when {
+                                        item.videoId != null -> playRadio(
+                                            Song(
+                                                videoId = item.videoId,
+                                                title = item.title,
+                                                artist = InnertubeParser.artistFromSubtitle(item.subtitle),
+                                                thumbnailUrl = item.thumbnailUrl,
+                                            ),
+                                            QueueSource(
+                                                category.title,
+                                                PlaybackSourceType.SEARCH,
+                                                category.browseId,
+                                            ),
+                                        )
+                                        item.browseId != null -> viewModel.openDetail(
+                                            browseId = item.browseId,
+                                            title = item.title,
+                                            subtitle = item.subtitle,
+                                            thumbnailUrl = item.thumbnailUrl,
+                                        )
+                                    }
+                                },
+                                onRetry = { viewModel.openMoodGenre(category) },
+                                contentPadding = listPadding,
+                            )
+                        } ?: SearchScreen(
                             query = query,
                             onQueryChange = viewModel::onQueryChange,
                             filter = filter,
@@ -2955,6 +2986,8 @@ private fun RaagaApp(
                             onHistoryRemove = viewModel::removeSearch,
                             onHistoryClear = viewModel::clearSearchHistory,
                             onTypeaheadLongPress = openSongMenu,
+                            exploreState = exploreState,
+                            onCategoryClick = viewModel::openMoodGenre,
                             contentPadding = listPadding,
                         )
                         else -> LibraryScreen(
