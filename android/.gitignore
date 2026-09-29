@@ -33,6 +33,7 @@ Thumbs.db
 keystore.properties
 *.jks
 *.keystore
+!debug.keystore
 
 # Project scratch / debug artifacts
 .shots/

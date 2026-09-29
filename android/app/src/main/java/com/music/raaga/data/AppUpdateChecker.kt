@@ -2,6 +2,7 @@ package com.music.raaga.data
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -98,21 +99,40 @@ object AppUpdateChecker {
     }
 
     /**
-     * The release usually carries exactly one `.apk`; take its direct download
-     * URL. A release without one (source-only draft, renamed asset) leaves
-     * [UpdateInfo.apkUrl] null and the UI falls back to opening the releases
-     * page as before.
+     * Pick the best `.apk` asset matching the current build's flavor (dev vs prod)
+     * and the device's CPU architecture (e.g. arm64-v8a or universal).
      */
     private fun apkAssetUrl(release: JsonObject): String? = runCatching {
-        release["assets"]?.jsonArray
+        val assets = release["assets"]?.jsonArray
             ?.mapNotNull { it as? JsonObject }
-            ?.firstOrNull { asset ->
+            ?.filter { asset ->
                 asset["name"]?.jsonPrimitive?.contentOrNull?.endsWith(".apk", ignoreCase = true) == true &&
                     asset["state"]?.jsonPrimitive?.contentOrNull == "uploaded"
+            } ?: emptyList()
+
+        if (assets.isEmpty()) return null
+
+        val isDevFlavor = BuildConfig.APPLICATION_ID.contains("dev")
+        val supportedAbis = Build.SUPPORTED_ABIS.map { it.lowercase() }
+
+        fun score(name: String): Int {
+            val lower = name.lowercase()
+            var s = 0
+            if (isDevFlavor && lower.contains("dev")) s += 100
+            if (!isDevFlavor && !lower.contains("dev")) s += 100
+            for ((idx, abi) in supportedAbis.withIndex()) {
+                if (lower.contains(abi)) {
+                    s += (50 - idx * 5).coerceAtLeast(10)
+                    break
+                }
             }
-            ?.get("browser_download_url")
-            ?.jsonPrimitive
-            ?.contentOrNull
+            if (lower.contains("universal")) s += 30
+            return s
+        }
+
+        assets.maxByOrNull { asset ->
+            score(asset["name"]?.jsonPrimitive?.contentOrNull.orEmpty())
+        }?.get("browser_download_url")?.jsonPrimitive?.contentOrNull
     }.getOrNull()
 
     /**
@@ -188,6 +208,11 @@ object AppUpdateChecker {
      * the user is sent to that one switch first and taps Install again after.
      */
     fun installApk(context: Context, file: File) {
+        if (!file.exists() || file.length() == 0L) {
+            resetDownload()
+            return
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             !context.packageManager.canRequestPackageInstalls()
         ) {
@@ -198,17 +223,44 @@ object AppUpdateChecker {
             )
             return
         }
+
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        context.startActivity(
-            Intent(Intent.ACTION_INSTALL_PACKAGE)
-                .setDataAndType(uri, "application/vnd.android.package-archive")
-                .putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
-                .putExtra(Intent.EXTRA_RETURN_RESULT, true)
-                .addFlags(
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                        Intent.FLAG_ACTIVITY_NEW_TASK,
-                ),
+        val installIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        val resInfoList = context.packageManager.queryIntentActivities(
+            installIntent,
+            PackageManager.MATCH_DEFAULT_ONLY,
         )
+        for (resolveInfo in resInfoList) {
+            val packageName = resolveInfo.activityInfo.packageName
+            context.grantUriPermission(
+                packageName,
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        }
+
+        try {
+            context.startActivity(installIntent)
+        } catch (_: Exception) {
+            try {
+                context.startActivity(
+                    Intent(Intent.ACTION_INSTALL_PACKAGE)
+                        .setDataAndType(uri, "application/vnd.android.package-archive")
+                        .putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+                        .putExtra(Intent.EXTRA_RETURN_RESULT, true)
+                        .addFlags(
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                Intent.FLAG_ACTIVITY_NEW_TASK,
+                        ),
+                )
+            } catch (_: Exception) {
+            }
+        }
     }
 
     /** A version split into its numeric dotted parts and whether it carries a "-suffix" (e.g. "-beta2"). */
