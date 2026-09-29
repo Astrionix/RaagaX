@@ -1,0 +1,52 @@
+name: Android CI
+
+on: [push, pull_request]
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+        cache-dependency-path: android/**/*.gradle*
+
+    - name: Setup Secrets (Keystore & local.properties)
+      run: |
+        echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" > local.properties
+        echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
+
+        if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > raaga-release.jks
+          echo "storeFile=raaga-release.jks" > keystore.properties
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> keystore.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> keystore.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> keystore.properties
+        fi
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Build Android APK
+      run: |
+        if [ -f keystore.properties ]; then
+          ./gradlew assembleProdRelease
+        else
+          ./gradlew assembleDevDebug
+        fi
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: raaga-apk
+        path: android/app/build/outputs/apk/**/*.apk
