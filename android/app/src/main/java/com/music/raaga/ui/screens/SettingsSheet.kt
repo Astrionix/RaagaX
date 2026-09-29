@@ -203,6 +203,7 @@ fun SettingsScreen(
     val lyricsBlur by AppSettings.lyricsBlur.collectAsStateWithLifecycle()
     val animatedCanvas by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
     val canvasOverCellular by AppSettings.canvasOverCellular.collectAsStateWithLifecycle()
+    val spotifyCanvasEnabled by AppSettings.spotifyCanvasEnabled.collectAsStateWithLifecycle()
     val fullBleedArtwork by AppSettings.fullBleedArtwork.collectAsStateWithLifecycle()
     val legacyMeshGradient by AppSettings.legacyMeshGradient.collectAsStateWithLifecycle()
     val syncedLyrics by AppSettings.syncedLyrics.collectAsStateWithLifecycle()
@@ -884,24 +885,35 @@ fun SettingsScreen(
                         onCheckedChange = AppSettings::setCanvasOverCellular,
                     )
                 }
-                val spotifyCanvasTitle = stringResource(R.string.integrate_spotify_canvas)
+                val spotifyCanvasTitle = stringResource(R.string.spotify_canvas)
                 row(spotifyCanvasTitle, "spotify", "canvas", divided = false) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(onClick = onSpotifyCanvasAuth)
-                            .padding(start = ROW_INSET, end = ROW_INSET, top = 4.dp, bottom = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = spotifyCanvasTitle,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Chevron()
+                    SettingsSubRow(
+                        title = spotifyCanvasTitle,
+                        subtitle = stringResource(R.string.spotify_canvas_subtitle),
+                        checked = spotifyCanvasEnabled,
+                        onCheckedChange = AppSettings::setSpotifyCanvasEnabled,
+                    )
+                }
+                if (spotifyCanvasEnabled) {
+                    val spotifySetupTitle = stringResource(R.string.integrate_spotify_canvas)
+                    row(spotifySetupTitle, "spotify", "canvas", "setup", divided = false) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(onClick = onSpotifyCanvasAuth)
+                                .padding(start = ROW_INSET + 8.dp, end = ROW_INSET, top = 2.dp, bottom = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = spotifySetupTitle,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Chevron()
+                        }
                     }
                 }
             }

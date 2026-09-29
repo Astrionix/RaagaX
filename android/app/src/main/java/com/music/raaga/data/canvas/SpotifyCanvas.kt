@@ -2,6 +2,7 @@ package com.music.raaga.data.canvas
 
 import com.music.raaga.data.DebugLog as Log
 import com.music.raaga.data.Http
+import com.music.raaga.data.settings.AppSettings
 import com.google.protobuf.CodedInputStream
 import com.google.protobuf.CodedOutputStream
 import kotlinx.serialization.json.Json
@@ -61,6 +62,7 @@ object SpotifyCanvas {
     private data class TrackHit(val uri: String, val title: String, val artist: String, val album: String?)
 
     suspend fun search(title: String, artist: String, album: String?): CanvasArtwork? {
+        if (!AppSettings.spotifyCanvasEnabled.value) return null
         val token = SpotifyToken.accessToken()
         if (token == null) {
             Log.d(TAG, "no access token (cookie unset or mint failed); skipping")
@@ -213,6 +215,7 @@ object SpotifyCanvas {
      * lookup to make directly.
      */
     suspend fun searchAlbum(album: String, artist: String): CanvasArtwork? {
+        if (!AppSettings.spotifyCanvasEnabled.value) return null
         val token = SpotifyToken.accessToken() ?: return null
         val url = SEARCH_URL.toHttpUrl().newBuilder()
             .addQueryParameter("q", "$album $artist")

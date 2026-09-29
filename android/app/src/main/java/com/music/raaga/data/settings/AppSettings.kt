@@ -496,6 +496,9 @@ object AppSettings {
     /** Tries Spotify before Apple Music and the other animated-art providers. */
     val prioritizeSpotifyCanvas = MutableStateFlow(false)
 
+    /** Whether Spotify Canvas video loops are enabled. */
+    val spotifyCanvasEnabled = MutableStateFlow(true)
+
     /**
      * Blows the player's cover art out to a full-bleed banner running off the
      * top of the screen, rather than sitting it in a square card.
@@ -920,6 +923,7 @@ object AppSettings {
         canvasOverCellular.value = prefs.getBoolean(KEY_CANVAS_OVER_CELLULAR, false)
         spotifyCanvasAutoHide.value = prefs.getBoolean(KEY_SPOTIFY_CANVAS_AUTO_HIDE, true)
         prioritizeSpotifyCanvas.value = prefs.getBoolean(KEY_PRIORITIZE_SPOTIFY_CANVAS, false)
+        spotifyCanvasEnabled.value = prefs.getBoolean(KEY_SPOTIFY_CANVAS_ENABLED, true)
         fullBleedArtwork.value = prefs.getBoolean(KEY_FULL_BLEED_ARTWORK, true)
         legacyMeshGradient.value = prefs.getBoolean(KEY_LEGACY_MESH_GRADIENT, false)
         lastPlayerScreen.value = runCatching {
@@ -1466,6 +1470,11 @@ object AppSettings {
     fun setPrioritizeSpotifyCanvas(value: Boolean) {
         prioritizeSpotifyCanvas.value = value
         prefs.edit().putBoolean(KEY_PRIORITIZE_SPOTIFY_CANVAS, value).apply()
+    }
+
+    fun setSpotifyCanvasEnabled(value: Boolean) {
+        spotifyCanvasEnabled.value = value
+        prefs.edit().putBoolean(KEY_SPOTIFY_CANVAS_ENABLED, value).apply()
     }
 
     fun setFullBleedArtwork(value: Boolean) {
@@ -2019,6 +2028,7 @@ object AppSettings {
     private const val KEY_CANVAS_OVER_CELLULAR = "canvas_over_cellular"
     private const val KEY_SPOTIFY_CANVAS_AUTO_HIDE = "spotify_canvas_auto_hide"
     private const val KEY_PRIORITIZE_SPOTIFY_CANVAS = "prioritize_spotify_canvas"
+    private const val KEY_SPOTIFY_CANVAS_ENABLED = "spotify_canvas_enabled"
     private const val KEY_FULL_BLEED_ARTWORK = "full_bleed_artwork"
     private const val KEY_LEGACY_MESH_GRADIENT = "legacy_mesh_gradient"
     private const val KEY_LAST_PLAYER_SCREEN = "last_player_screen"

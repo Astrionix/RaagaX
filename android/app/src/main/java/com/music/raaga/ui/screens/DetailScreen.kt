@@ -94,6 +94,7 @@ import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
 import com.music.raaga.data.canvas.CanvasArtwork
 import com.music.raaga.data.canvas.CanvasRepository
+import com.music.raaga.data.canvas.CanvasSource
 import com.music.raaga.data.model.BrowseType
 import com.music.raaga.data.model.DetailPage
 import com.music.raaga.data.model.CARD_ART_PX
@@ -311,15 +312,16 @@ fun DetailScreen(
     // photograph, and neither is something a label publishes a canvas for.
     val canvasEnabled by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
     val prioritizeSpotifyCanvas by AppSettings.prioritizeSpotifyCanvas.collectAsStateWithLifecycle()
+    val spotifyCanvasEnabled by AppSettings.spotifyCanvasEnabled.collectAsStateWithLifecycle()
     // The credit line the header shows is the artist as far as the catalogue
     // services are concerned. A browse card's subtitle sometimes omits it, in
     // which case the tracks themselves know who it is.
     val credit = page.headerLines(songs.size).first.ifBlank { songs.firstOrNull()?.artist.orEmpty() }
     var canvas by remember(page.browseId) { mutableStateOf<CanvasArtwork?>(null) }
-    LaunchedEffect(page.browseId, page.title, credit, canvasEnabled, prioritizeSpotifyCanvas) {
-        if (!canvasEnabled || page.type != BrowseType.ALBUM) {
+    LaunchedEffect(page.browseId, page.title, credit, canvasEnabled, prioritizeSpotifyCanvas, spotifyCanvasEnabled) {
+        if (!canvasEnabled || page.type != BrowseType.ALBUM || (!spotifyCanvasEnabled && canvas?.source == CanvasSource.SPOTIFY)) {
             canvas = null
-            return@LaunchedEffect
+            if (!canvasEnabled || page.type != BrowseType.ALBUM) return@LaunchedEffect
         }
         // As on the player: the credit fills in once the tracks load, so this
         // can run twice. Keep a clip that is already playing if the second
